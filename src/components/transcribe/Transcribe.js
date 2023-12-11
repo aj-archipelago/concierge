@@ -204,7 +204,7 @@ function Transcribe({
                 setAsyncComplete(false);
             }
         }
-    }, [dataParagraph, async, setDataText, setAsyncComplete]);
+    }, [dataParagraph, async, setDataText, setAsyncComplete, dataTranslate]);
 
     useEffect(() => {
         asyncComplete && onSelect && onSelect(dataText);
@@ -326,11 +326,38 @@ function Transcribe({
                                 onChange={() => setTranscriptionOption({ responseFormat, wordTimestamped: true, textFormatted: false, maxLineWidth: 25, maxLineCount:1 })}
                             />
                     </div>
+
+                    <div style={{display:"flex", flexDirection:"column", textAlign:"center"}}>
+                        <Form.Select 
+                            style={{fontSize:"10px", height:"30px", minWidth:"150px", width:"180px", marginRight:"2px"}}
+                            disabled={isLoading}
+                            onChange={(event) => setLanguage(event.target.value)}
+                            defaultValue={language}
+                        >
+                            <option value="">{t("Auto detect video language")}</option>
+                            <option value="en">{t("English")}</option>
+                            <option value="ar">{t("Arabic")}</option>
+                            <option value="fr">{t("French")}</option>
+                            <option value="es">{t("Spanish")}</option>
+                            <option value="de">{t("German")}</option>
+                            <option value="it">{t("Italian")}</option>
+                            <option value="pt">{t("Portuguese")}</option>
+                            <option value="zh">{t("Chinese")}</option>
+                            <option value="ja">{t("Japanese")}</option>
+                            <option value="ko">{t("Korean")}</option>
+                            <option value="bs">{t("Bosnian")}</option>
+                            <option value="hr">{t("Croatian")}</option>
+                            <option value="sr">{t("Serbian")}</option>
+                            <option value="ru">{t("Russian")}</option>
+                            <option value="tr">{t("Turkish")}</option>
+                        </Form.Select>
+                    </div>                    
+
                 </div>
             </li>
         </ol>
 
-        <div style={{ paddingInlineStart: '2rem',paddingBottom:'1rem' }}>
+        <div style={{ paddingInlineStart: '0rem',paddingBottom:'1rem' }}>
             <LoadingButton
                 disabled={!url}
                 loading={isLoading}
@@ -385,7 +412,7 @@ function Transcribe({
                             <option>{t("Turkish")}</option>
                     </Form.Select>
 
-                    <Button style={{display:"inline-block"}} variant="primary" className="mb-3" size="sm" 
+                    <Button style={{display:"inline-block"}} variant="outline-primary" className="mb-3" size="sm" 
                     onClick={() => {
                         setCurrentOperation('Translating');
                         fetchTranslate({ variables: { text: dataText, to: transcriptionTranslationLanguage,  async } });

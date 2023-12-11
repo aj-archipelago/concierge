@@ -5,6 +5,7 @@
 
 .options-section {
     display: flex;
+    justify-content: space-between;
     gap: 60px;
     margin-bottom: 20px;
     border: 1px solid $border-color;
