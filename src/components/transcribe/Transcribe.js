@@ -204,8 +204,6 @@ function Transcribe({
     useEffect(() => {
         if (dataTranslate) {
             const dataResult = dataTranslate?.translate_gpt4?.result;
-            // setDataText(dataResult);
-            // setFinalData(dataResult);
             if (async) {
                 setDataText("");
                 setRequestId(dataResult);
