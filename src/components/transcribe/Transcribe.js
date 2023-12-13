@@ -333,20 +333,30 @@ function Transcribe({
                             />
                     </div>
 
-                    <div className="radio-columns" style={{minWidth:130, marginTop:'auto'}}>
+                    <div className="radio-columns" style={{minWidth:135, marginTop:'auto'}}>
 
                     <Form.Select 
-                                style={{fontSize:"12px", marginBottom:7}}
+                                style={{fontSize:"12px", marginBottom:7, paddingRight:7}}
                                 hidden={!transcriptionNeedTranslate}
                                 disabled={isLoading}
                                 onChange={(event) => setTranscriptionTranslationLanguage(event.target.value)}
                             >
-                                <option>Arabic</option>
-                                <option>English (UK)</option>
-                                <option>English (US)</option>
-                                <option>French</option>
-                                <option>Italian</option>
-                                <option>Turkish</option>
+                                <option>{t("Arabic")}</option>
+                                <option>{t("English (UK)")}</option>
+                                <option>{t("English (US)")}</option>
+                                <option>{t("French")}</option>
+                                <option>{t("Spanish")}</option>
+                                <option>{t("German")}</option>
+                                <option>{t("Italian")}</option>
+                                <option>{t("Portuguese")}</option>
+                                <option>{t("Chinese")}</option>
+                                <option>{t("Japanese")}</option>
+                                <option>{t("Korean")}</option>
+                                <option>{t("Bosnian")}</option>
+                                <option>{t("Croatian")}</option>
+                                <option>{t("Serbian")}</option>
+                                <option>{t("Russian")}</option>
+                                <option>{t("Turkish")}</option>
                         </Form.Select>
 
                         <Form.Check
@@ -356,6 +366,7 @@ function Transcribe({
                                 name="transcriptionOptions3"
                                 id="translateText"
                                 style={{fontStyle:"italic"}}
+                                checked={transcriptionNeedTranslate}
                                 onChange={(event) => setTranscriptionNeedTranslate(event.target.checked)}
                             />
                     </div>
