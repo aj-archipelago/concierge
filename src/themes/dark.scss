@@ -1,0 +1,378 @@
+// Dark mode
+$bg-color-dark: #222;
+$text-color-dark: #ddd;
+$border-color-dark: #444;
+$bg-color-dark-dim: #333;
+$text-color-dark-dim: #aaa;
+
+body.dark {
+    background-color: $bg-color-dark;
+    color: $text-color-dark;
+
+    .chat-full-container {
+        background-color: $bg-color-dark;
+        color: $text-color-dark;
+    }
+
+    button: {
+        border-color: $border-color-dark;
+    }
+
+    ::placeholder {
+        color: darken($text-color-dark, 20%);
+    }
+
+    .chatbox-floating-title {
+        color: $text-color-dark;
+    }
+
+    .chatbox-floating-closed button {
+        border-color: $border-color-dark;
+    }
+
+    .header .nav-link {
+        color: $text-color-dark;
+    }
+
+    .chatbox-floating {
+        background-color: $bg-color-dark;
+        color: $text-color-dark;
+        border-color: $border-color-dark;
+    }
+
+    .message-input {
+        border-color: $border-color-dark;
+    }
+
+    .header .nav-link.active {
+        border-bottom-color: $text-color-dark;
+    }
+
+    button,
+    a {
+        color: $text-color-dark;
+        &:hover {
+            color: darken($text-color-dark, 10%);
+        }
+    }
+    .btn-check:checked + .btn,
+    :not(.btn-check) + .btn:active,
+    .btn:first-child:active,
+    .btn.active,
+    .btn.show {
+        color: #555;
+    }
+
+    .chat-message-container-user {
+        background-color: lighten($bg-color-dark-dim, 5%);
+        border-color: $border-color-dark;
+        border-start-start-radius: $border-radius;
+        border-start-end-radius: $border-radius;
+    }
+
+    .chat-message-container-labeeb {
+        border-color: $border-color-dark;
+        background-color: darken($bg-color-dark-dim, 5%);
+    }
+
+    .message-input-send {
+        background-color: $bg-color-dark-dim;
+        border-top: 1px solid $border-color-dark;
+        color: $text-color-dark;
+        svg {
+            color: $text-color-dark;
+        }
+
+        &:hover {
+            background-color: lighten($bg-color-dark-dim, 10%);
+        }
+    }
+
+    .accordion-item {
+        background-color: $bg-color-dark;
+        color: $text-color-dark;
+        border-color: $border-color-dark;
+    }
+
+    textarea,
+    .accordion,
+    .accordion-inner,
+    .accordion-header,
+    .accordion-button,
+    .form-control,
+    .form-control:focus,
+    .form-select,
+    .message-container,
+    .chat-option-box {
+        background-color: $bg-color-dark-dim;
+        color: $text-color-dark;
+        border-color: $border-color-dark;
+    }
+
+    textarea:focus {
+        border-color: $border-color-dark;
+        background-color: $bg-color-dark-dim;
+    }
+
+    .modal-content,
+    .list-group-item {
+        background-color: $bg-color-dark-dim;
+        color: $text-color-dark;
+    }
+
+    .copy-button {
+        color: $text-color-dark;
+    }
+
+    .copy-text {
+        color: $text-color-dark-dim;
+    }
+
+    .chat-message-list {
+        background-color: $bg-color-dark-dim;
+    }
+
+    .chatbox-floating {
+        &-docked {
+            .message-list-container {
+                border-inline-start: 1px solid $border-color-dark;
+            }
+        }
+    }
+
+    .import-story-box {
+        border-color: $border-color-dark;
+        background-color: $bg-color-dark-dim;
+    }
+
+    .importable-story {
+        border-color: $border-color-dark;
+        background-color: $bg-color-dark-dim;
+
+        &.active {
+            background-color: rgb(16, 42, 43);
+        }
+    }
+
+    .start-editing-button {
+        background-color: lighten($bg-color-dark-dim, 10%);
+    }
+
+    .headline-input {
+        background-color: $bg-color-dark;
+        &:focus {
+            background-color: $bg-color-dark;
+        }
+    }
+
+    .subhead-input {
+        background-color: $bg-color-dark;
+        &:focus {
+            background-color: $bg-color-dark;
+        }
+    }
+
+    .story-input {
+        background-color: $bg-color-dark;
+        &:focus {
+            background-color: $bg-color-dark;
+        }
+    }
+
+    .bt-highlight {
+        color: lighten($primary, $amount: 20%);
+    }
+
+    .timeline-group-title {
+        color: $text-color-dark-dim;
+    }
+
+    .timeline-item-date {
+        color: $text-color-dark-dim;
+    }
+
+    .transcribe-output {
+        background-color: $bg-color-dark;
+        color: $text-color-dark;
+        border-color: $border-color-dark;
+    }
+
+    .options-section {
+        background-color: $bg-color-dark-dim;
+        color: $text-color-dark;
+        border-color: $border-color-dark;
+    }
+
+    .selection-section {
+        .custom-file-input {
+            background-color: $bg-color-dark-dim;
+            color: $text-color-dark;
+            border-color: $border-color-dark;
+        }
+    }
+    .transcribe-output {
+        background-color: $bg-color-dark-dim;
+        color: $text-color-dark;
+        border-color: $border-color-dark;
+    }
+
+    .ai-diff .change-button {
+        background-color: $bg-color-dark;
+        color: $text-color-dark;
+        border-color: $border-color-dark;
+
+        &.active {
+            background-color: #3b2d00;
+        }
+    }
+
+    .add-highlight::before {
+        background-color: #8d6700;
+    }
+
+    .story-angles {
+        background-color: $bg-color-dark;
+        color: $text-color-dark;
+        border-color: $border-color-dark;
+    }
+
+    .react-select {
+        .react-select__control {
+            background-color: $bg-color-dark;
+            color: $text-color-dark;
+            border-color: $border-color-dark;
+        }
+        .react-select__menu {
+            background-color: $bg-color-dark;
+            color: $text-color-dark-dim;
+            border-color: $border-color-dark;
+        }
+
+        .react-select__multi-value {
+            background-color: $bg-color-dark-dim;
+
+            .react-select__multi-value__label {
+                color: $text-color-dark;
+            }
+
+            color: $text-color-dark;
+            border-color: $border-color-dark;
+        }
+
+        .react-select__option--is-focused {
+            background-color: $bg-color-dark-dim;
+            color: $text-color-dark;
+        }
+    }
+
+    .text-muted {
+        color: $text-color-dark-dim;
+    }
+
+    .bg-light {
+        background-color: $bg-color-dark-dim;
+    }
+
+    .monaco-diff-editor .line-delete,
+    .monaco-editor .line-delete {
+        color: $text-color-dark;
+        background-color: #220000;
+    }
+
+    .monaco-diff-editor .line-insert,
+    .monaco-editor .line-insert {
+        background-color: $bg-color-dark !important;
+        color: $text-color-dark;
+    }
+
+    .editor.modified {
+        padding: 10px;
+        color: $text-color-dark;
+        background-color: $bg-color-dark-dim !important;
+
+        .monaco-editor,
+        .monaco-editor-background {
+            background-color: $bg-color-dark !important;
+        }
+
+        .mtk1 {
+            color: $text-color-dark;
+        }
+    }
+
+    .editor.original {
+        padding: 10px;
+        color: $text-color-dark;
+        background-color: $bg-color-dark-dim !important;
+        font-family: Helvetica;
+
+        .monaco-editor,
+        .monaco-editor-background {
+            background-color: $bg-color-dark-dim !important;
+        }
+
+        .mtk1 {
+            color: $text-color-dark-dim;
+        }
+
+        .margin {
+            display: none;
+        }
+
+        .monaco-editor .cursors-layer .cursor {
+            visibility: hidden !important;
+        }
+    }
+
+    .monaco-editor .margin {
+        background-color: $bg-color-dark !important;
+    }
+
+    .highlight {
+        background-color: #8d6700;
+    }
+
+    .deleted-style-guide-item {
+        color: rgb(202, 166, 166);
+    }
+
+    .monaco-editor .diagonal-fill {
+        // background-color: $bg-color-dark-dim !important;
+        background-image: linear-gradient(
+            -45deg,
+            rgba(177, 177, 177, 0.2) 12.5%,
+            #0000 12.5%,
+            #0000 50%,
+            rgba(34, 34, 34, 0.2) 50%,
+            rgba(177, 177, 177, 0.2) 62.5%,
+            #0000 62.5%,
+            #0000 100%
+        );
+    }
+
+    .red-highlight {
+        background-color: #5e0000;
+    }
+
+    .generated-image-thumbnail {
+        background-color: $bg-color-dark;
+        color: $text-color-dark;
+        border-color: $border-color-dark;
+    }
+
+    .modal-header {
+        .btn-close {
+            background-color: $text-color-dark;
+        }
+    }
+
+    .prompt-info {
+        .prompt {
+            background-color: lighten($bg-color-dark, 20%);
+            color: $text-color-dark;
+            border-color: $border-color-dark;
+        }
+    }
+
+    @include meta.load-css("highlight.js/styles/github-dark");
+}

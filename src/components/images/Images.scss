@@ -1,0 +1,82 @@
+$font-size-tiny: 0.6rem;
+$font-size-small: 0.8rem;
+$font-size-normal: 0.9rem;
+$image-width: 200px;
+$caption-height: 45px;
+$image-container-height: 200px;
+
+.generated-image-thumbnail {
+    font-size: $font-size-normal;
+    width: $image-width;
+    cursor: pointer;
+
+    .caption {
+        height: $caption-height;
+        text-overflow: ellipsis;
+        overflow: hidden;
+    }
+
+    .image-container {
+        height: $image-container-height;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+    }
+}
+
+.modal-image {
+    display: flex;
+    flex-direction: row;
+    height: 100%; // Set max height relative to viewport
+    overflow: hidden; // Add scrollbar if content overflows
+    align-items: flex-start; // Align items to the top of the container
+    gap: 10px;
+
+    .image-container {
+        flex: 3;
+        display: flex;
+        flex-direction: column;
+        justify-content: left;
+        max-height: 100%;
+        overflow-y: auto;
+        img {
+            width: 100%;
+            flex: 1;
+            object-fit: cover; // Ensures the image maintains aspect ratio
+        }
+    }
+
+    .text-container {
+        flex: 1;
+        display: flex;
+        height: 100%;
+        flex-direction: column;
+        justify-content: space-between;
+        gap: 10px;
+
+        .image-info {
+            flex: 0;
+            font-size: $font-size-tiny;
+        }
+
+        .prompt-info {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            .prompt-title {
+                flex: 0;
+                font-size: $font-size-small;
+                font-weight: bold;
+            }
+            .prompt {
+                flex: 1;
+                overflow-y: auto;
+                border-radius: 5px;
+                padding: 10px;
+                font-size: $font-size-small;
+            }
+        }
+    }
+}

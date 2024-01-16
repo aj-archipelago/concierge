@@ -1,0 +1,182 @@
+@use "sass:meta";
+
+$enable-important-utilities: false;
+$primary: #036aa1;
+$secondary: #6c757d;
+$warning: #856404;
+$danger: #721c24;
+$nav-tabs-border-width: 0px;
+$navbar-light-brand-color: #fff;
+$navbar-light-color: #fff;
+$navbar-light-active-color: #fff;
+$navbar-nav-link-padding-x: 1rem;
+$font-family-sans-serif:
+    "Inter",
+    system-ui,
+    -apple-system,
+    "Segoe UI",
+    Roboto,
+    "Helvetica Neue",
+    "Noto Sans",
+    "Liberation Sans",
+    Arial,
+    sans-serif,
+    "Apple Color Emoji",
+    "Segoe UI Emoji",
+    "Segoe UI Symbol",
+    "Noto Color Emoji";
+$chat-primary: #e5f0f0;
+$chat-secondary: #002425;
+
+@import "~bootstrap/scss/bootstrap";
+@import "components/chat/Chat";
+@import "components/write/Write";
+@import "components/translate/Translation";
+@import "components/Tos";
+@import "components/AIModal";
+@import "components/CopyButton";
+@import "components/transcribe/Transcribe";
+@import "components/editor/ImportSuggestions";
+@import "components/write/Timeline";
+@import "components/write/Toolbar";
+@import "components/write/Sidebar";
+@import "components/editor/Diff";
+@import "components/images/Images";
+
+@include meta.load-css("highlight.js/styles/github");
+
+.content-container {
+    flex: 1;
+}
+
+.alert-content {
+    display: flex;
+    gap: 5px;
+    padding: 10px 0;
+}
+
+.alert-logo {
+    margin: 0;
+    margin-inline-start: 8px;
+    margin-inline-end: 15px;
+}
+
+.alert-text {
+    font-size: 14px;
+}
+
+.content {
+    padding-top: 10px;
+}
+
+.footer {
+    background-color: $primary;
+    height: 30px;
+    position: fixed;
+    left: 0;
+    bottom: 0;
+    width: 100%;
+    color: #fff;
+
+    button {
+        color: #fff;
+        padding: 0;
+        font-size: 0.7rem;
+        text-decoration: none;
+
+        &:hover {
+            color: #666;
+        }
+    }
+}
+
+.footer-content {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 3px 0;
+    justify-content: space-between;
+}
+
+.footer-start {
+    display: flex;
+    align-items: center;
+    font-size: 0.7rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: white;
+    gap: 5px;
+}
+
+.footer-end {
+    display: flex;
+    align-items: center;
+    text-align: end;
+    font-size: 0.7rem;
+    white-space: nowrap;
+    color: white;
+    overflow: hidden;
+    gap: 5px;
+    justify-content: flex-end;
+}
+
+.form-control:focus {
+    box-shadow: none;
+}
+
+// Overrides for RTL support
+.btn-group {
+    border-top-left-radius: 0;
+    border-bottom-left-radius: 0;
+    border-start-start-radius: 0.375rem;
+    border-end-start-radius: 0.375rem;
+}
+
+.btn-group > .btn:not(:last-child):not(.dropdown-toggle),
+.btn-group > .btn.dropdown-toggle-split:first-child,
+.btn-group > .btn-group:not(:last-child) > .btn {
+    border-top-right-radius: initial;
+    border-bottom-right-radius: initial;
+    border-start-end-radius: 0;
+    border-end-end-radius: 0;
+}
+
+.btn-group > .btn:nth-child(n + 3),
+.btn-group > :not(.btn-check) + .btn,
+.btn-group > .btn-group:not(:first-child) > .btn {
+    border-top-left-radius: initial;
+    border-bottom-left-radius: initial;
+    border-start-start-radius: 0;
+    border-end-start-radius: 0;
+}
+
+.form-check {
+    padding-left: initial;
+    padding-inline-start: 1.5rem;
+}
+
+.form-check .form-check-input {
+    margin-left: initial;
+    margin-inline-start: -1.5rem;
+}
+
+html[dir="rtl"] {
+    .form-check .form-check-input {
+        float: right;
+    }
+}
+
+button:focus:not(:focus-visible),
+.accordion-button:not(.collapsed) {
+    box-shadow: none;
+}
+
+.prompt-info {
+    .prompt {
+        background-color: darken(white, 10%);
+    }
+}
+
+// Should be imported at the end to override colours
+@import "./themes/dark";

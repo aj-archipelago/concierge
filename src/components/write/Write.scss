@@ -1,0 +1,60 @@
+.refresh-button {
+    background-color: transparent;
+    border: 0;
+}
+
+.headline-input {
+    font-family: "Playfair Display", Georgia, "Times New Roman", Times, serif;
+    border: 0;
+    font-weight: 700;
+    font-size: 1.5rem;
+    &::placeholder {
+        color: #ccc;
+    }
+    resize: none;
+    padding-inline-start: 10px;
+    outline: 0;
+}
+
+.subhead-input {
+    font-family: "Playfair Display", Georgia, "Times New Roman", Times, serif;
+    border: 0;
+    font-weight: 400;
+    font-size: 1.2rem;
+    &::placeholder {
+        color: #ccc;
+    }
+    color: #666;
+    resize: none;
+    padding-inline-start: 10px;
+    outline: 0;
+}
+
+.story-input {
+    font-family: "Playfair Display", Georgia, "Times New Roman", Times, serif;
+    border: 0;
+    font-size: 1rem;
+    height: calc(100% - 140px);
+    resize: none;
+    padding-top: 0;
+    padding-bottom: 0;
+    padding-inline-end: 20px;
+    padding-inline-start: 10px;
+    &::placeholder {
+        color: #ccc;
+    }
+}
+
+.headline-display {
+    font-family: "Playfair Display", Georgia, "Times New Roman", Times, serif;
+}
+
+.loading-container {
+    font-size: 0.9rem;
+    color: #ccc;
+}
+
+.story-angles {
+    max-height: 110px;
+    overflow-y: auto;
+}

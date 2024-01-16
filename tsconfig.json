@@ -1,0 +1,35 @@
+// tsconfig.json
+{
+    "compilerOptions": {
+        "jsx": "preserve",
+        "lib": ["dom", "dom.iterable", "esnext"],
+        "allowJs": true,
+        "skipLibCheck": true,
+        "strict": false,
+        "noEmit": true,
+        "incremental": true,
+        "esModuleInterop": true,
+        "module": "esnext",
+        "moduleResolution": "node",
+        "resolveJsonModule": true,
+        "isolatedModules": true,
+        "plugins": [
+            {
+                "name": "next"
+            }
+        ]
+    },
+    "include": [
+        "next-env.d.ts",
+        ".next/types/**/*.ts",
+        "**/*.ts",
+        "**/*.tsx",
+        "app/page.js",
+        "app/translate/page.js",
+        "app/write/page.js",
+        "app/layout.js",
+        "app/page.js",
+        "src/app/page.js"
+    ],
+    "exclude": ["node_modules"]
+}

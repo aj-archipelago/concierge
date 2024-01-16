@@ -1,0 +1,40 @@
+.tos .modal-content {
+    //height: 60vh;
+}
+
+.tos .modal-header {
+    //width: 100%;
+    background-color: $primary;
+    margin-top: 5px;
+    margin-inline-start: 5px;
+    margin-inline-end: 5px;
+    .h4 {
+        font-size: 1.3rem;
+        font-weight: 400;
+    }
+    color: #fff;
+    margin-bottom: 0em;
+}
+
+.tos .modal-body {
+    height: 100%;
+    width: 100%;
+    overflow: auto;
+}
+
+.tos {
+    width: 80% !important;
+    max-width: none !important;
+}
+
+@media (max-width: 950px) {
+    .tos {
+        padding-inline-start: 36px;
+    }
+}
+
+@media (max-width: 775px) {
+    .tos {
+        padding-inline-start: 0px;
+    }
+}

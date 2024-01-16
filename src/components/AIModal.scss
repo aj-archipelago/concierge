@@ -1,0 +1,79 @@
+.modal-narrow .modal-content {
+    height: 80vh;
+}
+
+.modal-narrow .modal-header {
+    background-color: $primary;
+    margin-top: 5px;
+    margin-inline-start: 5px;
+    margin-inline-end: 5px;
+    .h4 {
+        font-size: 1.3rem;
+        font-weight: 400;
+    }
+    color: #fff;
+    margin-bottom: 0em;
+}
+
+.modal-narrow .modal-body {
+    height: 100%;
+    width: 100%;
+    overflow: auto;
+}
+
+.modal-narrow {
+    width: 60% !important;
+    max-width: none !important;
+}
+
+@media (max-width: 950px) {
+    .modal-narrow {
+        padding-inline-start: 36px;
+    }
+}
+
+@media (max-width: 775px) {
+    .modal-narrow {
+        padding-inline-start: 0px;
+    }
+}
+
+.modal-wide .modal-content {
+    height: 80vh;
+}
+
+.modal-wide .modal-header {
+    background-color: $primary;
+    margin-top: 5px;
+    margin-inline-start: 5px;
+    margin-inline-end: 5px;
+    .h4 {
+        font-size: 1.3rem;
+        font-weight: 400;
+    }
+    color: #fff;
+    margin-bottom: 0em;
+}
+
+.modal-wide .modal-body {
+    height: 100%;
+    width: 100%;
+    overflow: auto;
+}
+
+.modal-wide {
+    width: 90% !important;
+    max-width: none !important;
+}
+
+@media (max-width: 950px) {
+    .modal-wide {
+        padding-inline-start: 36px;
+    }
+}
+
+@media (max-width: 775px) {
+    .modal-wide {
+        padding-inline-start: 0px;
+    }
+}

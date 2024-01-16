@@ -1,0 +1,74 @@
+html[dir="rtl"],
+div[dir="rtl"] {
+    .copy-button-container {
+        float: left;
+        left: 15px;
+        right: initial;
+    }
+}
+
+html[dir="ltr"],
+div[dir="ltr"] {
+    .copy-button-container {
+        float: right;
+        right: 15px;
+        left: initial;
+    }
+
+    div[dir="rtl"] {
+        .copy-button-container {
+            float: left;
+            left: 15px;
+            right: initial;
+        }
+    }
+}
+
+.copy-button-container {
+    position: absolute;
+    top: 5px;
+    display: flex;
+}
+
+.copy-button {
+    background-color: transparent;
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    text-align: end;
+    padding: 0 !important;
+    text-decoration: none;
+    color: lighten($secondary, 30%);
+
+    &-opaque {
+        background-color: white;
+    }
+}
+
+.copy-button:hover {
+    color: $primary;
+}
+
+.copy-button:active {
+    color: lighten($primary, 50%) !important;
+}
+
+.copy-button:focus {
+    outline: none;
+}
+
+.copy-text {
+    background-color: transparent;
+    border-radius: 3;
+    font-size: 12;
+    color: $primary;
+    text-align: end;
+    padding: 0 5px;
+    margin-inline-end: 5px;
+    border-radius: 3px;
+
+    &-opaque {
+        background-color: white;
+    }
+}

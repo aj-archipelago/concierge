@@ -1,0 +1,19 @@
+.other-actions {
+    padding: 5px;
+    border: 1px solid $border-color;
+    border-top: 0;
+    border-end-start-radius: $border-radius;
+    border-end-end-radius: $border-radius;
+    margin-bottom: 10px;
+}
+
+.sidebar {
+    .accordion-button,
+    .accordion-body {
+        padding: 8px;
+    }
+}
+
+.accordion-button::after {
+    background-size: 20px !important;
+}

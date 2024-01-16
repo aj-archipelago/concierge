@@ -1,0 +1,142 @@
+.options-header {
+    font-size: 16px;
+    margin-bottom: 5px;
+}
+
+.options-section {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-bottom: 20px;
+    border: 1px solid $border-color;
+    border-radius: $border-radius;
+    padding: 10px;
+    width: 100%;
+    background-color: #eee; /* match the background color of other form components */
+
+    .radio-columns {
+        display: flex;
+        justify-content: flex-start;
+        gap: 50px;
+    }
+
+    .form-check {
+        font-size: 14px;
+    }
+}
+
+.selection-header {
+    font-size: 16px;
+    margin-bottom: 5px;
+}
+
+.selection-section {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    align-items: stretch; /* make the child elements stretch to fill the available width */
+    margin-bottom: 20px;
+
+    .url-loading-row {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+        flex-grow: 1;
+
+        .form-file {
+            flex-grow: 1;
+        }
+
+        .custom-file-input {
+            width: 100%;
+        }
+    }
+}
+
+.transcription-taxonomy-container {
+    display: flex;
+    flex-direction: column;
+    height: calc(
+        100vh - 250px
+    ); // Adjust the subtraction value based on any headers or other elements that take up vertical space
+    overflow-y: auto;
+    gap: 10px;
+
+    > * {
+        flex-grow: 1;
+    }
+
+    .transcription-header {
+        font-size: 16px;
+        margin-bottom: 5px;
+        flex: 1;
+        min-height: 1.5rem;
+    }
+
+    .transcription-section {
+        position: relative;
+    }
+
+    .transcribe-output {
+        border: 1px solid $border-color;
+        border-radius: $border-radius;
+        padding: 10px;
+        position: relative;
+        background-color: #eee;
+        // height: 30vh;
+        overflow-y: auto; // Make the content scrollable
+    }
+
+    .download-link {
+        display: flex;
+        justify-content: flex-end;
+        align-self: center;
+        cursor: pointer;
+        font-weight: bold;
+        text-decoration: underline;
+        min-height: 1.5rem;
+        flex: 1;
+        margin-right: 10px;
+    }
+
+    .taxonomy-header {
+        font-size: 16px;
+        margin-bottom: 5px;
+    }
+
+    .taxonomy-section {
+        h5 {
+            // Update the selector to target h5 elements
+            font-size: 14px;
+            margin-bottom: 5px;
+        }
+
+        min-height: 250px;
+
+        .taxonomy-row,
+        .select-button-row,
+        .result-row {
+            display: flex;
+            flex-direction: row;
+            margin-top: 1rem;
+            gap: 10px;
+            flex-grow: 1;
+            //flex-wrap: wrap;
+        }
+
+        .taxonomy-column,
+        .result-column {
+            width: 200px; // Set a fixed width for the boxes
+            margin-right: 2rem; // Increase the space between the boxes
+
+            &:last-child {
+                margin-right: 0;
+            }
+        }
+
+        .taxonomy-results-container {
+            width: 100%;
+            margin-bottom: 10px;
+        }
+    }
+}
