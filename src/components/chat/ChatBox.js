@@ -1,6 +1,6 @@
 "use client";
 
-import { useContext, useRef } from "react";
+import { useContext, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
     FaWindowClose,
@@ -15,8 +15,8 @@ import ChatContent from "./ChatContent";
 import config from "../../../config";
 
 function ChatBox() {
-    const position =
-        useSelector((state) => state.chat?.chatBox?.position) || "closed";
+    const statePosition = useSelector((state) => state.chat?.chatBox?.position);
+    const [position, setPosition] = useState("closed");
     const dispatch = useDispatch();
     // let location = useLocation();
     const dockedWidth = useSelector((state) => state?.chat?.chatBox?.width);
@@ -25,16 +25,9 @@ function ChatBox() {
     const { t } = useTranslation();
     const { language } = useContext(LanguageContext);
 
-    // useEffect(
-    //     () => {
-    //         if (firstTimeLeavingChat && ((location.state ? location.state.from : '/').indexOf('chat') !== -1)) {
-    //             // if this is the first time leaving chat, open the floating chat
-    //             setFirstTimeLeavingChat(false)
-    //         }
-    //         setVisible(location.pathname.indexOf('chat') === -1)
-    //     },
-    //     [location, firstTimeLeavingChat]
-    // )
+    useEffect(() => {
+        setPosition(statePosition);
+    }, [statePosition]);
 
     const updateChatBox = (newPosition) => {
         dispatch(setChatBoxPosition(newPosition));
