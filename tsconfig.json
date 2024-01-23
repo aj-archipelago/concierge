@@ -15,9 +15,9 @@
         "isolatedModules": true,
         "plugins": [
             {
-                "name": "next",
-            },
-        ],
+                "name": "next"
+            }
+        ]
     },
     "include": [
         "next-env.d.ts",
@@ -29,7 +29,7 @@
         "app/write/page.js",
         "app/layout.js",
         "app/page.js",
-        "src/app/page.js",
+        "src/app/page.js"
     ],
-    "exclude": ["node_modules"],
+    "exclude": ["node_modules"]
 }
