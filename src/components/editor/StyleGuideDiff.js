@@ -17,6 +17,18 @@ import { getFinalText, getIndexInFinalText } from "./style_guide/utils";
 import { ThemeContext } from "../../contexts/ThemeProvider";
 import dynamic from "next/dynamic";
 
+let diff;
+let monaco;
+
+if (typeof window !== "undefined") {
+    import("diff").then((d) => {
+        diff = d;
+    });
+    import("monaco-editor/esm/vs/editor/editor.api").then((m) => {
+        monaco = m;
+    });
+}
+
 const StyledButton = styled.div`
     padding: 2px;
 
@@ -38,19 +50,8 @@ const StyleGuideDiff = ({ styleGuideResult = "", setSelectedText }) => {
     let error;
     const { theme } = useContext(ThemeContext);
 
-    const { Editor } = useMemo(
-        () => dynamic(() => import("@monaco-editor/react"), { ssr: false }),
-        [],
-    );
-    const diff = useMemo(
-        () => dynamic(() => import("diff"), { ssr: false }),
-        [],
-    );
-    const monaco = useMemo(
-        () =>
-            dynamic(() => import("monaco-editor/esm/vs/editor/editor.api"), {
-                ssr: false,
-            }),
+    const MonacoEditor = useMemo(
+        () => dynamic(() => import("react-monaco-editor"), { ssr: false }),
         [],
     );
 
@@ -177,7 +178,6 @@ const StyleGuideDiff = ({ styleGuideResult = "", setSelectedText }) => {
             suggestion.suspect.length === 0 &&
             suggestion.suggestions.length > 0
         ) {
-            console.log("addition", replacement);
             return {
                 range: new monaco.Range(
                     startLineNumber,
@@ -796,10 +796,10 @@ const StyleGuideDiff = ({ styleGuideResult = "", setSelectedText }) => {
                             Modified Text (editable)
                         </div>
                     </div>
-                    <div style={{ height: "100%" }}>
-                        <Editor
+                    <div style={{ height: 500 }}>
+                        <MonacoEditor
                             theme={theme === "dark" ? "vs-dark" : "vs-light"}
-                            onMount={handleEditorDidMount}
+                            editorDidMount={handleEditorDidMount}
                             value={finalText}
                             language="text"
                             options={{
