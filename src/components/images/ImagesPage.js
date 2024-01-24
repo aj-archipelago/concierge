@@ -2,9 +2,9 @@
 
 import { useApolloClient } from "@apollo/client";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { Modal } from "react-bootstrap";
 import { useTranslation } from "react-i18next";
 import { FaDownload, FaTrash } from "react-icons/fa";
-import { Modal } from "../../../@/components/ui/modal";
 import { QUERIES } from "../../graphql";
 import LoadingButton from "../editor/LoadingButton";
 import ProgressUpdate from "../editor/ProgressUpdate";
