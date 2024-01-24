@@ -3,6 +3,7 @@
 import { ButtonGroup, Form, Spinner, ToggleButton } from "react-bootstrap";
 import { useEffect, useState, useRef } from "react";
 import { useTranslation } from "react-i18next";
+import { stripHTML } from "../../../../src/utils/html.utils";
 
 function getPosts(site, query) {
     return fetch(
