@@ -328,7 +328,7 @@ export function getTextSuggestionsComponent({
         }
 
         return (
-            <div>
+            <div className="h-full">
                 {debug && (
                     <DebugInfo
                         prompt={debug.prompt}
@@ -347,7 +347,7 @@ export function getTextSuggestionsComponent({
                     />
                 )}
                 {outputType !== "diff" && <h5>{outputTitle}</h5>}
-                <div>{output}</div>
+                <div className="h-full">{output}</div>
                 {redo}
             </div>
         );

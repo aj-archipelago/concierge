@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Form, Modal } from "react-bootstrap";
 import LoadingButton from "../editor/LoadingButton";
 import { useQuery } from "@apollo/client";
@@ -60,6 +60,68 @@ function ImagesPage() {
         return b.created - a.created;
     });
 
+    const imageTiles = useMemo(() => {
+        return images.map((image, index) => {
+            const key = image?.cortexRequestId;
+
+            return (
+                <ImageTile
+                    key={`image-${key}`}
+                    image={image}
+                    onClick={() => {
+                        if (image?.result?.data?.[0]?.url) {
+                            setSelectedImage(image);
+                            setShowModal(true);
+                        }
+                    }}
+                    onRegenerate={() => {
+                        setPrompt(image.prompt);
+                        setGenerationPrompt(image.prompt);
+
+                        // scroll to top
+                        window.scrollTo(0, 0);
+                    }}
+                    onGenerationComplete={(requestId, data) => {
+                        const newImages = [...images];
+
+                        const imageIndex = newImages.findIndex(
+                            (img) => img.cortexRequestId === requestId,
+                        );
+
+                        if (imageIndex !== -1) {
+                            newImages[imageIndex] = {
+                                ...newImages[imageIndex],
+                                ...data,
+                            };
+                        }
+                        setImages(newImages);
+                        localStorage.setItem(
+                            "generated-images",
+                            JSON.stringify(newImages),
+                        );
+                    }}
+                    onDelete={(image) => {
+                        const newImages = images.filter((img) => {
+                            return (
+                                img.cortexRequestId !== image.cortexRequestId
+                            );
+                        });
+
+                        if (generationPrompt === image.prompt) {
+                            setGenerationPrompt("");
+                        }
+
+                        setImages(newImages);
+                        localStorage.setItem(
+                            "generated-images",
+                            JSON.stringify(newImages),
+                        );
+                    }}
+                />
+            );
+        });
+    }, [images, generationPrompt]);
+
     return (
         <div>
             <p className="mb-2">
@@ -93,66 +155,7 @@ function ImagesPage() {
                     </LoadingButton>
                 </Form>
             </div>
-            <div className="d-flex flex-wrap">
-                {images.map((image, index) => {
-                    return (
-                        <ImageTile
-                            key={`image-${uuidv4()}`}
-                            image={image}
-                            onClick={() => {
-                                if (image?.result?.data?.[0]?.url) {
-                                    setSelectedImage(image);
-                                    setShowModal(true);
-                                }
-                            }}
-                            onRegenerate={() => {
-                                setPrompt(image.prompt);
-                                setGenerationPrompt(image.prompt);
-
-                                // scroll to top
-                                window.scrollTo(0, 0);
-                            }}
-                            onGenerationComplete={(requestId, data) => {
-                                const newImages = [...images];
-
-                                const imageIndex = newImages.findIndex(
-                                    (img) => img.cortexRequestId === requestId,
-                                );
-
-                                if (imageIndex !== -1) {
-                                    newImages[imageIndex] = {
-                                        ...newImages[imageIndex],
-                                        ...data,
-                                    };
-                                }
-                                setImages(newImages);
-                                localStorage.setItem(
-                                    "generated-images",
-                                    JSON.stringify(newImages),
-                                );
-                            }}
-                            onDelete={(image) => {
-                                const newImages = images.filter((img) => {
-                                    return (
-                                        img.cortexRequestId !==
-                                        image.cortexRequestId
-                                    );
-                                });
-
-                                if (generationPrompt === image.prompt) {
-                                    setGenerationPrompt("");
-                                }
-
-                                setImages(newImages);
-                                localStorage.setItem(
-                                    "generated-images",
-                                    JSON.stringify(newImages),
-                                );
-                            }}
-                        />
-                    );
-                })}
-            </div>
+            <div className="d-flex flex-wrap">{imageTiles}</div>
             <ImageModal
                 show={showModal}
                 image={selectedImage}
@@ -200,6 +203,10 @@ function ImageTile({
     const { cortexRequestId, prompt, result } = image || {};
     const { code, message } = result?.error || {};
 
+    const memoizedImage = useMemo(() => {
+        return <ImageComponent />;
+    }, [url]);
+
     return (
         <div className="p-3">
             <div
@@ -212,7 +219,7 @@ function ImageTile({
                     {code && code !== "ERR_BAD_REQUEST" && <OtherError />}
                     {expired && url && <ExpiredImageComponent />}
                     {loadError && <ExpiredImageComponent />}
-                    {!expired && url && !loadError && <ImageComponent />}
+                    {!expired && url && !loadError && memoizedImage}
                 </div>
                 <div className="caption p-1 text-center" title={prompt}>
                     {prompt}
