@@ -1,6 +1,6 @@
 # Concierge
 
-Concierge is an open-source web application that makes provides AI applications to enterprise customers for a company's internal use. Concierge encapsulates functions like document translation, copy editing, summarization, headline generation, tagging, entity extraction, etc. into easy-to-use task-specific interfaces rather than just making the functionality available through a chat-style prompting interface. Concierge is a one-stop shop for LLM-based AI functionality at our network. Concierge is built on top of [Cortex](https://github.com/aj-archipelago/cortex) - our open-source graphQL middle tier for AI.
+Concierge is an open-source web application that provides AI applications to enterprise customers for a company's internal use. Concierge encapsulates functions like document translation, copy editing, summarization, headline generation, tagging, entity extraction, etc. into easy-to-use task-specific interfaces rather than just making the functionality available through a chat-style prompting interface. Concierge is a one-stop shop for LLM-based AI functionality at our network. Concierge is built on top of [Cortex](https://github.com/aj-archipelago/cortex) - our open-source graphQL middle tier for AI.
 
 ## Available Scripts
 
