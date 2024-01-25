@@ -11,8 +11,7 @@ import LoadingButton from "../editor/LoadingButton";
 import { ProgressUpdate } from "../editor/TextSuggestions";
 import TaxonomySelector from "./TaxonomySelector";
 
-const NEXT_PUBLIC_MEDIA_API_URL =
-    process.env.NEXT_PUBLIC_MEDIA_API_URL;
+const NEXT_PUBLIC_MEDIA_API_URL = process.env.NEXT_PUBLIC_MEDIA_API_URL;
 
 const NEXT_PUBLIC_API_SUBSCRIPTION_KEY =
     process.env.NEXT_PUBLIC_API_SUBSCRIPTION_KEY || "";

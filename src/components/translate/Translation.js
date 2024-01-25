@@ -9,7 +9,6 @@ import { FaChevronLeft, FaChevronRight } from "react-icons/fa";
 import { LanguageContext } from "../../contexts/LanguageProvider";
 import { useRouter } from "next/navigation";
 import { stripHTML } from "../../utils/html.utils";
-import { ImportSuggestions } from "../editor/ImportSuggestions";
 
 const LANGUAGE_NAMES = {
     en: "English",
@@ -42,8 +41,6 @@ function Translation({
     showEditLink = false,
 }) {
     const { t } = useTranslation();
-    const [importedData, setImportedData] = useState("");
-    const [expanded, setExpanded] = useState(false);
     const [loading, setLoading] = useState(false);
     const router = useRouter();
     const apolloClient = useApolloClient();
@@ -180,124 +177,75 @@ function Translation({
             </Form.Group>
             <div className="grow">
                 <div className="flex gap-2 h-full">
-                    {expanded && (
-                        <div className="basis-1/2">
-                            <div style={{ margin: "10 0" }}>
-                                <Button
-                                    size="sm"
-                                    variant="secondary"
-                                    onClick={() => {
-                                        setExpanded(false);
-                                    }}
-                                >
-                                    {t("Cancel")}
-                                </Button>
-                                &nbsp;
-                                <Button
-                                    size="sm"
-                                    disabled={!importedData.text}
-                                    onClick={() => {
-                                        setTranslationInputText(
-                                            importedData.text,
-                                        );
-                                        if (importedData.direction === "rtl") {
-                                            setTranslationLanguage("en");
-                                        } else if (
-                                            importedData.direction === "ltr"
-                                        ) {
-                                            setTranslationLanguage("ar");
-                                        }
-                                        setExpanded(false);
-                                    }}
-                                >
-                                    {t("Import")}
-                                </Button>
-                            </div>
-                            <div className="import-story-box">
-                                <ImportSuggestions
-                                    onSelect={(text, direction) => {
-                                        setImportedData({ text, direction });
-                                        setTranslatedText("");
-                                    }}
-                                />
-                            </div>
-                        </div>
-                    )}
-                    {!expanded && (
-                        <div style={{ flex: 1 }}>
-                            <Form.Group
-                                style={{ marginBottom: 10, height: "100%" }}
-                            >
-                                <Form.Control
-                                    as="textarea"
-                                    style={{
-                                        resize: "none",
-                                        direction: "auto",
-                                        fontSize: "0.75em",
-                                        height: "100%",
-                                    }}
-                                    dir="auto"
-                                    rows={10}
-                                    value={inputText}
-                                    onChange={(e) =>
-                                        setTranslationInputText(e.target.value)
-                                    }
-                                />
-                            </Form.Group>
-                        </div>
-                    )}
-                    {!expanded && (
-                        <div style={{ flex: 1, position: "relative" }}>
-                            <Form.Group
-                                dir={
-                                    translationLanguage === "ar" ? "rtl" : "ltr"
-                                }
+                    <div style={{ flex: 1 }}>
+                        <Form.Group
+                            style={{ marginBottom: 10, height: "100%" }}
+                        >
+                            <Form.Control
+                                as="textarea"
                                 style={{
-                                    marginBottom: 10,
-                                    position: "relative",
+                                    resize: "none",
+                                    direction: "auto",
+                                    fontSize: "0.75em",
                                     height: "100%",
                                 }}
-                            >
-                                {translatedText && (
-                                    <CopyButton
-                                        item={translatedText}
-                                        style={{
-                                            position: "absolute",
-                                            right: 2,
-                                            top: 5,
-                                        }}
-                                        variant="opaque"
-                                    />
-                                )}
-                                <Form.Control
-                                    readOnly={true}
-                                    as="textarea"
-                                    className="translated-text"
-                                    dir="auto"
-                                    rows={10}
-                                    value={translatedText}
+                                dir="auto"
+                                rows={10}
+                                value={inputText}
+                                onChange={(e) =>
+                                    setTranslationInputText(e.target.value)
+                                }
+                            />
+                        </Form.Group>
+                    </div>
+                    <div style={{ flex: 1, position: "relative" }}>
+                        <Form.Group
+                            dir={translationLanguage === "ar" ? "rtl" : "ltr"}
+                            style={{
+                                marginBottom: 10,
+                                position: "relative",
+                                height: "100%",
+                            }}
+                        >
+                            {translatedText && (
+                                <CopyButton
+                                    item={translatedText}
+                                    style={{
+                                        position: "absolute",
+                                        right: 2,
+                                        top: 5,
+                                    }}
+                                    variant="opaque"
                                 />
-                                {showEditLink && translatedText && (
-                                    <button
-                                        className="start-editing-button flex gap-3 items-center"
-                                        onClick={(e) => {
-                                            setWriteInputText(translatedText);
-                                            router.push("/write");
-                                        }}
-                                    >
-                                        {t("Start editing")}{" "}
-                                        <span>
-                                            {language === "ar" ? (
-                                                <FaChevronLeft />
-                                            ) : (
-                                                <FaChevronRight />
-                                            )}
-                                        </span>
-                                    </button>
-                                )}
-                            </Form.Group>
-                        </div>
-                    )}
+                            )}
+                            <Form.Control
+                                readOnly={true}
+                                as="textarea"
+                                className="translated-text"
+                                dir="auto"
+                                rows={10}
+                                value={translatedText}
+                            />
+                            {showEditLink && translatedText && (
+                                <button
+                                    className="start-editing-button flex gap-3 items-center"
+                                    onClick={(e) => {
+                                        setWriteInputText(translatedText);
+                                        router.push("/write");
+                                    }}
+                                >
+                                    {t("Start editing")}{" "}
+                                    <span>
+                                        {language === "ar" ? (
+                                            <FaChevronLeft />
+                                        ) : (
+                                            <FaChevronRight />
+                                        )}
+                                    </span>
+                                </button>
+                            )}
+                        </Form.Group>
+                    </div>
                 </div>
             </div>
         </div>

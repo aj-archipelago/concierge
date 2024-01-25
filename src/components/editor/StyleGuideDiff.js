@@ -17,6 +17,18 @@ import { getFinalText, getIndexInFinalText } from "./style_guide/utils";
 import { ThemeContext } from "../../contexts/ThemeProvider";
 import dynamic from "next/dynamic";
 
+let diff;
+let monaco;
+
+if (typeof window !== "undefined") {
+    import("diff").then((d) => {
+        diff = d;
+    });
+    import("monaco-editor/esm/vs/editor/editor.api").then((m) => {
+        monaco = m;
+    });
+}
+
 const StyledButton = styled.div`
     padding: 2px;
 
@@ -38,19 +50,8 @@ const StyleGuideDiff = ({ styleGuideResult = "", setSelectedText }) => {
     let error;
     const { theme } = useContext(ThemeContext);
 
-    const { Editor } = useMemo(
-        () => dynamic(() => import("@monaco-editor/react"), { ssr: false }),
-        [],
-    );
-    const diff = useMemo(
-        () => dynamic(() => import("diff"), { ssr: false }),
-        [],
-    );
-    const monaco = useMemo(
-        () =>
-            dynamic(() => import("monaco-editor/esm/vs/editor/editor.api"), {
-                ssr: false,
-            }),
+    const MonacoEditor = useMemo(
+        () => dynamic(() => import("react-monaco-editor"), { ssr: false }),
         [],
     );
 
@@ -177,7 +178,6 @@ const StyleGuideDiff = ({ styleGuideResult = "", setSelectedText }) => {
             suggestion.suspect.length === 0 &&
             suggestion.suggestions.length > 0
         ) {
-            console.log("addition", replacement);
             return {
                 range: new monaco.Range(
                     startLineNumber,
@@ -629,8 +629,7 @@ const StyleGuideDiff = ({ styleGuideResult = "", setSelectedText }) => {
 
     return (
         <div
-            className="ai-diff"
-            style={{ height: "calc(100% - 45px)", gap: 10 }}
+            className="ai-diff overflow-auto h-full gap-2"
             onKeyDown={(e) => {
                 if (
                     typeof document !== "undefined" &&
@@ -692,8 +691,8 @@ const StyleGuideDiff = ({ styleGuideResult = "", setSelectedText }) => {
                 }
             }}
         >
-            <div className="change-container">
-                <div style={{ flexBasis: "33%" }}>
+            <div className="flex gap-2 h-full">
+                <div className="basis-1/3 overflow-auto">
                     <h6 className="text-center">Editorial notes</h6>
 
                     {suggestions.length === 0 && (
@@ -703,7 +702,7 @@ const StyleGuideDiff = ({ styleGuideResult = "", setSelectedText }) => {
                     <ul
                         style={{
                             paddingLeft: 0,
-                            height: "calc(100% - 60px)",
+                            height: "calc(100% - 82px)",
                             overflowY: "auto",
                         }}
                         className="mb-0"
@@ -796,10 +795,10 @@ const StyleGuideDiff = ({ styleGuideResult = "", setSelectedText }) => {
                             Modified Text (editable)
                         </div>
                     </div>
-                    <div style={{ height: "100%" }}>
-                        <Editor
+                    <div style={{ height: "calc(100% - 25px)" }}>
+                        <MonacoEditor
                             theme={theme === "dark" ? "vs-dark" : "vs-light"}
-                            onMount={handleEditorDidMount}
+                            editorDidMount={handleEditorDidMount}
                             value={finalText}
                             language="text"
                             options={{
