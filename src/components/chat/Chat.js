@@ -1,3 +1,5 @@
+"use client";
+
 import { useTranslation } from "react-i18next";
 import { useDispatch } from "react-redux";
 import { clearChat } from "../../stores/chatSlice";
@@ -8,22 +10,8 @@ function Chat() {
     const { t } = useTranslation();
 
     return (
-        <div
-            style={{
-                display: "flex",
-                overflow: "auto",
-                gap: 10,
-                flexDirection: "column",
-                alignItems: "center",
-            }}
-        >
-            <div
-                style={{
-                    display: "flex",
-                    width: "100%",
-                    justifyContent: "end",
-                }}
-            >
+        <div className="flex flex-col gap-3 h-full">
+            <div className="flex justify-end">
                 <button
                     className="lb-primary lb-sm"
                     size="sm"
@@ -32,7 +20,7 @@ function Chat() {
                     {t("Start over")}
                 </button>
             </div>
-            <div style={{ flex: 1, width: "100%" }}>
+            <div className="grow overflow-auto">
                 <ChatContent />
             </div>
         </div>

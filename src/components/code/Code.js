@@ -11,8 +11,8 @@ function Code() {
     const { t } = useTranslation();
 
     return (
-        <div>
-            <div className="flex justify-end mb-3">
+        <div className="flex flex-col gap-3 h-full">
+            <div className="flex justify-end">
                 <button
                     className="lb-primary lb-sm"
                     size="sm"
@@ -21,7 +21,7 @@ function Code() {
                     {t("Start over")}
                 </button>
             </div>
-            <div>
+            <div className="grow overflow-auto">
                 <CodeChatContent contextMessageCount={messageCount} />
             </div>
         </div>

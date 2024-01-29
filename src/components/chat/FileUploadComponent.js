@@ -164,7 +164,7 @@ function FileUploadComponent({ text }) {
                         size="sm"
                         type="file"
                         accept=".pdf,.docx,.xlsx,.txt"
-                        className="rounded mb-2 bg-white border"
+                        className="rounded mb-2 bg-white border w-full"
                         onChange={handleFileUpload}
                     />
                     <div style={{ padding: "2px 5px" }}>

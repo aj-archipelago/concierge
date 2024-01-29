@@ -7,37 +7,11 @@ import { useSelector } from "react-redux";
 import TextareaAutosize from "react-textarea-autosize";
 import classNames from "../../../app/utils/class-names";
 import config from "../../../config";
+import DocOptions from "./DocOptions";
 
 // Displays the list of messages and a message input box.
-function MessageInput({
-    size = "docked",
-    onSend,
-    loading,
-    placeholder,
-    container = "chatpage",
-    displayState = "closed",
-}) {
-    const codeBotName = config?.code?.botName;
-    const chatBotName = config?.chat?.botName;
-
-    // const includeAJArticles = useSelector(state => state.chat.includeAJArticles);
-    const dataSourcesSelected = useSelector(
-        (state) => state.doc.selectedSources,
-    );
-    const typingString =
-        container === "codepage"
-            ? `${codeBotName} is typing`
-            : `${chatBotName} is typing`;
-    const researchString =
-        container === "codepage"
-            ? `${codeBotName} is typing`
-            : `${chatBotName} is researching`;
+function MessageInput({ onSend, loading, enableRag, placeholder }) {
     const { t } = useTranslation();
-    const typingIndicator = (
-        <div className="typing-indicator">
-            {t(dataSourcesSelected?.length > 0 ? researchString : typingString)}
-        </div>
-    );
 
     const [inputValue, setInputValue] = useState("");
 
@@ -47,45 +21,63 @@ function MessageInput({
 
     const handleFormSubmit = (event) => {
         event.preventDefault();
-        if (inputValue) {
+        if (!loading && inputValue) {
             onSend(inputValue);
             setInputValue("");
         }
     };
 
-    let buttonWidthClass = size === "full" ? "w-20" : "w-12";
-
     return (
-        <div className="message-input">
-            {loading && <>{typingIndicator}</>}
-            <Form onSubmit={handleFormSubmit} className="d-flex mb-0 border-t">
-                <TextareaAutosize
-                    typeahead="none"
-                    className={`message-input-textarea outline-0`}
-                    rows={1}
-                    onKeyDown={(e) => {
-                        if (e.key === "Enter" && !e.shiftKey) {
-                            e.preventDefault();
-                            handleFormSubmit(e);
-                        }
-                    }}
-                    placeholder={placeholder || "Send a message"}
-                    value={inputValue}
-                    onChange={handleInputChange}
-                    autoComplete="off"
-                    autoCapitalize="off"
-                    autoCorrect="off"
-                />
-                <button
-                    type="submit"
-                    className={classNames(
-                        "py-3 hover:bg-zinc-100 active:bg-zinc-300 shadow-inner flex justify-center items-center",
-                        buttonWidthClass,
-                    )}
+        <div>
+            <div className="rounded border dark:border-zinc-200">
+                <Form
+                    onSubmit={handleFormSubmit}
+                    className="flex items-center rounded"
                 >
-                    <RiSendPlaneFill />
-                </button>
-            </Form>
+                    {enableRag && (
+                        <div className="rounded-s pt-4 ps-4 pe-3 dark:bg-zinc-100 self-stretch flex">
+                            <DocOptions />
+                        </div>
+                    )}
+                    <div className="relative grow">
+                        <div className="flex items-center">
+                            <TextareaAutosize
+                                typeahead="none"
+                                className={classNames(
+                                    `w-full border-0 outline-none focus:shadow-none [.docked_&]:text-sm focus:ring-0 py-3 resize-none dark:bg-zinc-100`,
+                                    enableRag ? "px-1" : "px-3 rounded-s",
+                                )}
+                                rows={1}
+                                onKeyDown={(e) => {
+                                    if (e.key === "Enter" && !e.shiftKey) {
+                                        e.preventDefault();
+                                        handleFormSubmit(e);
+                                    }
+                                }}
+                                placeholder={placeholder || "Send a message"}
+                                value={inputValue}
+                                onChange={handleInputChange}
+                                autoComplete="off"
+                                autoCapitalize="off"
+                                autoCorrect="off"
+                            />
+                        </div>
+                    </div>
+                    <div className=" pe-4 ps-3 dark:bg-zinc-100 self-stretch flex rounded-e">
+                        <div className="pt-4">
+                            <button
+                                type="submit"
+                                disabled={loading || inputValue === ""}
+                                className={classNames(
+                                    "text-base text-emerald-600 hover:text-emerald-600 disabled:text-gray-300 active:text-gray-800 dark:bg-zinc-100",
+                                )}
+                            >
+                                <RiSendPlaneFill />
+                            </button>
+                        </div>
+                    </div>
+                </Form>
+            </div>
         </div>
     );
 }

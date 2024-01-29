@@ -139,7 +139,7 @@ export default function Layout({ children }) {
                                 {children}
                             </div>
                             {position !== "closed" && (
-                                <div className="basis-[302px]">
+                                <div className="basis-[302px] h-[calc(100vh-118px)]">
                                     <ChatBox />
                                 </div>
                             )}

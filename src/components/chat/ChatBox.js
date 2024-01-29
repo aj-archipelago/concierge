@@ -167,10 +167,10 @@ function ChatBox() {
         );
     } else {
         return (
-            <div className="bg-white rounded border dark:border-gray-300 overflow-hidden">
+            <div className="bg-white rounded border dark:border-gray-300 overflow-hidden h-full">
                 <div
                     style={{ width: dockedWidth }}
-                    className={`d-md-block chatbox chatbox-floating chatbox-floating-${position}`}
+                    className={`flex flex-col h-full chatbox chatbox-floating chatbox-floating-${position} ${position}`}
                 >
                     <div
                         className="bg-zinc-100 flex justify-between items-center p-3"
@@ -184,7 +184,7 @@ function ChatBox() {
                         </div>
                     </div>
                     {position !== "closed" && (
-                        <div className="message-list-container">
+                        <div className="grow p-3 overflow-auto">
                             <ChatContent
                                 displayState={position}
                                 container={"chatbox"}

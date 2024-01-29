@@ -1,5 +1,7 @@
 import {
+    ChatBubbleLeftIcon,
     CodeBracketIcon,
+    GlobeAltIcon,
     MicrophoneIcon,
     PencilSquareIcon,
     PhotoIcon,
@@ -14,15 +16,22 @@ const navigation = [
     {
         name: "Write",
         icon: PencilSquareIcon,
-        children: [
-            { name: "Write", href: "/write" },
-            { name: "Translate", href: "/translate" },
-        ],
+        href: "/write",
+    },
+    {
+        name: "Translate",
+        icon: GlobeAltIcon,
+        href: "/translate",
+    },
+    {
+        name: "Chat",
+        icon: ChatBubbleLeftIcon,
+        href: "/chat",
     },
     {
         name: "Code",
         icon: CodeBracketIcon,
-        children: [{ name: config?.code?.botName, href: "/code" }],
+        href: "/code",
     },
     {
         name: "Transcribe",

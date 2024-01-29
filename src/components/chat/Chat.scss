@@ -75,11 +75,6 @@ html[dir="ltr"] {
             font-size: 1.2rem;
         }
     }
-
-    .message-container {
-        border-start-start-radius: 0;
-        border-start-end-radius: 0;
-    }
 }
 
 .chatbox-floating-title {
@@ -130,10 +125,6 @@ html[dir="ltr"] {
         border-inline-start: 1px solid $border-color;
         position: fixed;
         bottom: 0;
-
-        .message-container {
-            height: 300px;
-        }
     }
 
     .message-list-container {
@@ -256,13 +247,6 @@ pre {
 .code-block {
     position: relative;
     font-size: 0.8rem;
-}
-
-.message-container {
-    border: 1px solid $border-color;
-    border-radius: $border-radius;
-    height: calc(100vh - 202px);
-    overflow: hidden;
 }
 
 .typing-indicator {
