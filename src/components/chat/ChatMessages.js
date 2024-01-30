@@ -58,7 +58,7 @@ function ChatMessages({
                 </div>
             </div>
             <div>
-                {selectedSources.length > 0 && (
+                {selectedSources?.length > 0 && (
                     <div className="text-gray-300 text-xs ps-3 pb-1">
                         <span className="font-medium">Data sources: </span>
                         <span className="[.docked_&]:hidden text-gray-400">
@@ -86,7 +86,7 @@ function ChatMessages({
                         </span>
                     </div>
                 )}
-                {docs.length > 0 && (
+                {docs?.length > 0 && (
                     <div className="text-gray-300 text-xs ps-3 pb-1">
                         <span className="font-medium">Files: </span>
                         <span className="[.docked_&]:hidden text-gray-400">
