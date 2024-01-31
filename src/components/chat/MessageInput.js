@@ -2,11 +2,9 @@ import "highlight.js/styles/github.css";
 import { useState } from "react";
 import { Form } from "react-bootstrap";
 import { useTranslation } from "react-i18next";
-import { RiSendPlaneFill } from "react-icons/ri";
-import { useSelector } from "react-redux";
+import { RiSendPlane2Fill } from "react-icons/ri";
 import TextareaAutosize from "react-textarea-autosize";
 import classNames from "../../../app/utils/class-names";
-import config from "../../../config";
 import DocOptions from "./DocOptions";
 
 // Displays the list of messages and a message input box.
@@ -69,10 +67,10 @@ function MessageInput({ onSend, loading, enableRag, placeholder }) {
                                 type="submit"
                                 disabled={loading || inputValue === ""}
                                 className={classNames(
-                                    "text-base text-emerald-600 hover:text-emerald-600 disabled:text-gray-300 active:text-gray-800 dark:bg-zinc-100",
+                                    "text-base rtl:rotate-180 text-emerald-600 hover:text-emerald-600 disabled:text-gray-300 active:text-gray-800 dark:bg-zinc-100",
                                 )}
                             >
-                                <RiSendPlaneFill />
+                                <RiSendPlane2Fill />
                             </button>
                         </div>
                     </div>

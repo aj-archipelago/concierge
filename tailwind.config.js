@@ -1,4 +1,6 @@
 /** @type {import('tailwindcss').Config} */
+const plugin = require("tailwindcss/plugin");
+
 module.exports = {
     content: [
         "./app/**/*.{js,ts,jsx,tsx,mdx}", // Note the addition of the `app` directory.
@@ -13,6 +15,16 @@ module.exports = {
     theme: {
         extend: {},
     },
-    plugins: [require("@tailwindcss/forms"), require("nightwind")],
+    plugins: [
+        require("@tailwindcss/forms"),
+        require("nightwind"),
+        plugin(function ({ addVariant, e }) {
+            addVariant("rtl", ({ modifySelectors, separator }) => {
+                modifySelectors(({ className }) => {
+                    return `html[dir="ltr"] .${e(`rtl${separator}${className}`)}, div[dir="ltr"] .${e(`rtl${separator}${className}`)}`;
+                });
+            });
+        }),
+    ],
     darkMode: "class",
 };

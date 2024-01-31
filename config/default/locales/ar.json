@@ -34,7 +34,7 @@
     "Extract entities": "استخراج الكيانات",
     "Expand this story": "توسيع هذه القصة",
     "Start over": "البدء من جديد",
-    "Send to Jarvis": "إرسال إلى لبيب",
+    "Send message": "إرسال إلى لبيب",
     "Send a message to Jarvis": "إرسال رسالة إلى لبيب",
     "Send a message to Knuth": "إرسال رسالة إلى كنوث",
     "Chat with Jarvis": "الدردشة مع لبيب",
@@ -173,5 +173,7 @@
     "URL not found": "الرابط غير موجود",
     "Best Quality (GPT-4)": "أفضل جودة (GPT-4)",
     "Faster (GPT-4-TURBO)": "أسرع (GPT-4-TURBO)",
-    "Fastest (Azure)": "الأسرع (Azure)"
+    "Fastest (Azure)": "الأسرع (Azure)",
+    "Subhead": "العنوان الفرعي",
+    "You": "أنت"
 }

@@ -46,7 +46,11 @@ function ChatMessages({
                     <div className="hidden justify-end items-center px-3 pb-2 text-xs [.docked_&]:flex">
                         <button
                             className="flex gap-1 items-center hover:underline hover:text-sky-500 active:text-sky-700"
-                            onClick={() => dispatch(clearChat())}
+                            onClick={() => {
+                                if (window.confirm(t("Are you sure?"))) {
+                                    dispatch(clearChat());
+                                }
+                            }}
                         >
                             <AiOutlineReload />
                             {t("Reset chat")}

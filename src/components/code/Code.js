@@ -16,7 +16,11 @@ function Code() {
                 <button
                     className="lb-primary lb-sm"
                     size="sm"
-                    onClick={() => dispatch(clearChat())}
+                    onClick={() => {
+                        if (window.confirm(t("Are you sure?"))) {
+                            dispatch(clearChat());
+                        }
+                    }}
                 >
                     {t("Start over")}
                 </button>

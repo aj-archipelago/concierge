@@ -52,14 +52,17 @@ function MessageList({ messages, bot, loading }) {
 
         if (message.sender === "labeeb") {
             return (
-                <div key={message.id} className="flex bg-sky-50 rounded">
+                <div
+                    key={message.id}
+                    className="flex bg-sky-50 rounded ps-1 pt-1"
+                >
                     <div className={classNames(basis)}>{avatar}</div>
                     <div
                         className={classNames(
                             "px-1 py-3 [.docked_&]:px-0 [.docked_&]:py-3",
                         )}
                     >
-                        <div className="font-semibold">{botName}</div>
+                        <div className="font-semibold">{t(botName)}</div>
                         <div>{message.payload}</div>
                     </div>
                 </div>
@@ -70,20 +73,20 @@ function MessageList({ messages, bot, loading }) {
                     className={classNames(
                         rowHeight,
                         buttonWidthClass,
-                        "p-3",
+                        "p-2",
                         "text-gray-300",
                     )}
                 />
             );
             return (
-                <div key={message.id} className="flex">
+                <div key={message.id} className="flex ps-1 pt-1">
                     <div className={classNames(basis, "py-0")}>{avatar}</div>
                     <div
                         className={classNames(
                             "px-1 py-3 [.docked_&]:px-0 [.docked_&]:py-3",
                         )}
                     >
-                        <div className="font-semibold">You</div>
+                        <div className="font-semibold">{t("You")}</div>
                         <div>{message.payload}</div>
                     </div>
                 </div>

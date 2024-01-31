@@ -11,6 +11,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import classNames from "../../app/utils/class-names";
 import config from "../../config";
+import { useTranslation } from "react-i18next";
 
 const navigation = [
     {
@@ -50,6 +51,7 @@ export default function Sidebar() {
     const router = useRouter();
     const { getLogo, getSidebarLogo } = config.global;
     const { language } = i18next;
+    const { t } = useTranslation();
 
     return (
         <div className="flex grow flex-col gap-y-5 overflow-y-auto border-r border-gray-200 bg-white px-5">
@@ -84,7 +86,7 @@ export default function Sidebar() {
                                                     className="h-6 w-6 shrink-0 text-gray-400"
                                                     aria-hidden="true"
                                                 />
-                                                {item.name}
+                                                {t(item.name)}
                                             </Link>
                                         ) : (
                                             <div>
