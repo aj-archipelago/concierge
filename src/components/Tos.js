@@ -4,11 +4,11 @@ import i18next from "i18next";
 import { useContext, useState } from "react";
 import { Modal } from "react-bootstrap";
 import { useTranslation } from "react-i18next";
-import { CortexConfigContext } from "../contexts/CortexConfigProvider";
+import config from "../../config";
 
 const Tos = () => {
     const [showTos, setShowTos] = useState(true);
-    const { getLogo, getTosContent } = useContext(CortexConfigContext)?.global;
+    const { getLogo, getTosContent } = config.global;
     const { language } = i18next;
     const { t } = useTranslation();
     const logo = getLogo(language);

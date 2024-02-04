@@ -1,5 +1,4 @@
 "use client";
-
 import { ApolloProvider } from "@apollo/client";
 import React, { useContext } from "react";
 import { client } from "./graphql";
@@ -7,16 +6,14 @@ import "./i18n";
 
 import * as amplitude from "@amplitude/analytics-browser";
 import i18next from "i18next";
-import { Provider } from "react-redux";
 import classNames from "../app/utils/class-names";
 import "./App.scss";
-import Tos from "./components/Tos";
+import StoreProvider from "./StoreProvider";
 import { LanguageContext, LanguageProvider } from "./contexts/LanguageProvider";
 import { ThemeProvider } from "./contexts/ThemeProvider";
 import Layout from "./layout/Layout";
-import store from "./store";
 import "./tailwind.css";
-import { CortexConfigProvider } from "./contexts/CortexConfigProvider";
+import dynamic from "next/dynamic";
 
 const { NEXT_PUBLIC_AMPLITUDE_API_KEY } = process.env;
 
@@ -26,27 +23,32 @@ if (typeof document !== "undefined") {
     });
 }
 
-const App = ({ children }) => {
+const App = ({ children, language, theme }) => {
+    if (i18next.language !== language) {
+        i18next.changeLanguage(language);
+    }
+
     return (
-        <CortexConfigProvider>
-            <ApolloProvider client={client}>
-                <Provider store={store}>
-                    <ThemeProvider>
-                        <LanguageProvider>
-                            <React.StrictMode>
-                                <Layout>
-                                    <Body>{children}</Body>
-                                </Layout>
-                            </React.StrictMode>
-                        </LanguageProvider>
-                    </ThemeProvider>
-                </Provider>
-            </ApolloProvider>
-        </CortexConfigProvider>
+        <ApolloProvider client={client}>
+            <StoreProvider>
+                <ThemeProvider savedTheme={theme}>
+                    <LanguageProvider savedLanguage={language}>
+                        <React.StrictMode>
+                            <Layout>
+                                <Body>{children}</Body>
+                            </Layout>
+                        </React.StrictMode>
+                    </LanguageProvider>
+                </ThemeProvider>
+            </StoreProvider>
+        </ApolloProvider>
     );
 };
 
-const Body = ({ children }) => {
+const Body = ({ children, tosTimestamp }) => {
+    const Tos = dynamic(() => import("./components/Tos"), {
+        ssr: false,
+    });
     const containerStyles = {};
     const { language } = useContext(LanguageContext);
 

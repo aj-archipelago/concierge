@@ -69,9 +69,9 @@ export default function DocOptions() {
         (state) => state.mainPaneIndexer.error,
     );
     const fileUploaderLoading = useSelector(
-        (state) => state.fileUpload.isLoading,
+        (state) => state.fileUpload?.isLoading,
     );
-    const fileUploaderError = useSelector((state) => state.fileUpload.error);
+    const fileUploaderError = useSelector((state) => state.fileUpload?.error);
 
     const [cognitiveDelete, { loading: loadingCD }] = useLazyQuery(
         COGNITIVE_DELETE,

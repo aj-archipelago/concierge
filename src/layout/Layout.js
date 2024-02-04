@@ -1,12 +1,11 @@
 "use client";
-
 import { Dialog, Transition } from "@headlessui/react";
 import { Bars3Icon, XMarkIcon } from "@heroicons/react/24/outline";
+import dynamic from "next/dynamic";
 import { Fragment, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { IoIosChatbubbles } from "react-icons/io";
 import { useDispatch, useSelector } from "react-redux";
-import ChatBox from "../components/chat/ChatBox";
 import { setChatBoxPosition } from "../stores/chatSlice";
 import Footer from "./Footer";
 import Sidebar from "./Sidebar";
@@ -17,6 +16,9 @@ export default function Layout({ children }) {
     const statePosition = useSelector((state) => state.chat?.chatBox?.position);
     const dispatch = useDispatch();
     const { t } = useTranslation();
+    const ChatBox = dynamic(() => import("../components/chat/ChatBox"), {
+        ssr: false,
+    });
 
     useEffect(() => {
         setPosition(statePosition);

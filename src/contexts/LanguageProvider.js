@@ -8,8 +8,8 @@ import { createContext, useState } from "react";
 export const LanguageContext = createContext({});
 
 // it provides the language context to app
-export function LanguageProvider({ children }) {
-    const [language, setLanguage] = useState(i18next.language.split("-")[0]);
+export function LanguageProvider({ savedLanguage, children }) {
+    const [language, setLanguage] = useState(savedLanguage);
     const [direction, setDirection] = useState("ltr");
 
     useEffect(() => {

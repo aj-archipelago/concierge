@@ -20,3 +20,18 @@ export default configureStore({
         fileUpload: fileUploadReducer,
     },
 });
+
+export const makeStore = () => {
+    return configureStore({
+        reducer: {
+            chat: chatReducer,
+            code: codeReducer,
+            transcribe: transcribeReducer,
+            translate: translateReducer,
+            write: writeReducer,
+            doc: docReducer,
+            mainPaneIndexer: mainPaneIndexerReducer,
+        },
+        fileUpload: fileUploadReducer,
+    });
+};

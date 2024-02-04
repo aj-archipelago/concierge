@@ -1,17 +1,20 @@
-import App from "../src/App";
 import { Inter } from "next/font/google";
-import classNames from "./utils/class-names";
+import { cookies } from "next/headers";
 import config from "../config";
-import i18next from "i18next";
+import App from "../src/App";
+import classNames from "./utils/class-names";
 
 const font = Inter({ subsets: ["latin"] });
 
 export default function RootLayout({ children }) {
     const { getLogo } = config.global;
-    const { language } = i18next;
+
+    const cookieStore = cookies();
+    const language = cookieStore.get("i18next")?.value || "en";
+    const theme = cookieStore.get("theme")?.value || "light";
 
     return (
-        <html lang="en" dir="ltr">
+        <html lang={language} dir={language === "ar" ? "rtl" : "ltr"}>
             <head>
                 <link
                     rel="stylesheet"
@@ -21,9 +24,11 @@ export default function RootLayout({ children }) {
             </head>
             <body
                 id="labeeb-root"
-                className={classNames("light", font.className)}
+                className={classNames(theme, font.className)}
             >
-                <App>{children}</App>
+                <App theme={theme} language={language}>
+                    {children}
+                </App>
             </body>
         </html>
     );

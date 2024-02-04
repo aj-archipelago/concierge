@@ -1,3 +1,5 @@
+"use client";
+
 import {
     ChatBubbleLeftIcon,
     CodeBracketIcon,
@@ -12,6 +14,8 @@ import { usePathname, useRouter } from "next/navigation";
 import classNames from "../../app/utils/class-names";
 import config from "../../config";
 import { useTranslation } from "react-i18next";
+import { useContext } from "react";
+import { LanguageContext } from "../contexts/LanguageProvider";
 
 const navigation = [
     {
@@ -50,7 +54,7 @@ export default function Sidebar() {
     const pathname = usePathname();
     const router = useRouter();
     const { getLogo, getSidebarLogo } = config.global;
-    const { language } = i18next;
+    const { language } = useContext(LanguageContext);
     const { t } = useTranslation();
 
     return (
