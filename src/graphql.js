@@ -448,6 +448,14 @@ const IMAGE = gql`
     }
 `;
 
+const JIRA_STORY = gql`
+    query JiraStory($text: String!, $storyType: String, $storyCount: String, $async: Boolean) {
+        jira_story(text: $text, storyType: $storyType, storyCount: $storyCount, async: $async) {
+            result
+        }
+    }
+`;
+
 const QUERIES = {
     CHAT_PERSIST,
     CHAT_LABEEB,
@@ -484,6 +492,7 @@ const QUERIES = {
     REMOVE_CONTENT,
     HEADLINE_CUSTOM,
     SUBHEAD,
+    JIRA_STORY,
 };
 
 const SUBSCRIPTIONS = {
@@ -527,4 +536,5 @@ export {
     TRANSLATE_GPT4_TURBO,
     HIGHLIGHTS,
     REMOVE_CONTENT,
+    JIRA_STORY,
 };
