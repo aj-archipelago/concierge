@@ -3,15 +3,16 @@ import { getSidebarLogo } from "./global/sidebar";
 import { FaFileImport } from "react-icons/fa";
 import { ImportSuggestions } from "./write/actions/ImportSuggestions";
 import { getTags, getTaxonomySets, getTopics } from "./data/taxonomySets";
+import { basePath } from "../../src/utils/constants";
 
 // The entire Labeeb application can be configured here
-// Note that all assets
-
+// Note that all assets and locales are copied to the public/app and src/locales directories respectively
+// by the prebuild.js script
 export default {
     global: {
         siteTitle: "Labeeb",
         getLogo: (language) =>
-            `app/assets/labeeb-logo-${language === "ar" ? "ar" : "en"}.png`,
+            (basePath || "" ) + `/app/assets/labeeb-logo-${language === "ar" ? "ar" : "en"}.png`,
         getTosContent,
         getSidebarLogo,
     },

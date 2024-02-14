@@ -14,4 +14,5 @@ module.exports = {
         includePaths: [path.join(__dirname, "src")],
     },
     output: "standalone",
+    basePath: process.env.NEXT_PUBLIC_BASE_PATH || "",
 };
