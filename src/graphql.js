@@ -3,26 +3,18 @@ import { GraphQLWsLink } from "@apollo/client/link/subscriptions";
 import { createClient } from "graphql-ws";
 import { split, HttpLink } from "@apollo/client";
 import { getMainDefinition } from "@apollo/client/utilities";
+import config from "../config";
 
-const NEXT_PUBLIC_API_URL =
-    process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/graphql";
-
-const NEXT_PUBLIC_API_SUBSCRIPTION_KEY =
-    process.env.NEXT_PUBLIC_API_SUBSCRIPTION_KEY || "";
+const graphqlEndpoint = config.endpoints.graphql;
 
 const httpLink = new HttpLink({
-    uri: NEXT_PUBLIC_API_URL,
-    headers: {
-        "Ocp-Apim-Subscription-Key": NEXT_PUBLIC_API_SUBSCRIPTION_KEY,
-    },
+    uri: graphqlEndpoint,
 });
 
 const wsLink = new GraphQLWsLink(
     createClient({
         url:
-            NEXT_PUBLIC_API_URL.replace("http", "ws") +
-            "?subscription-key=" +
-            NEXT_PUBLIC_API_SUBSCRIPTION_KEY,
+            graphqlEndpoint.replace("http", "ws")
     }),
 );
 

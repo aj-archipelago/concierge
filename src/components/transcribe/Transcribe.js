@@ -10,11 +10,7 @@ import CopyButton from "../CopyButton";
 import LoadingButton from "../editor/LoadingButton";
 import { ProgressUpdate } from "../editor/TextSuggestions";
 import TaxonomySelector from "./TaxonomySelector";
-
-const NEXT_PUBLIC_MEDIA_API_URL = process.env.NEXT_PUBLIC_MEDIA_API_URL;
-
-const NEXT_PUBLIC_API_SUBSCRIPTION_KEY =
-    process.env.NEXT_PUBLIC_API_SUBSCRIPTION_KEY || "";
+import config from "../../../config";
 
 function Transcribe({
     dataText,
@@ -74,11 +70,7 @@ function Transcribe({
 
         try {
             const xhr = new XMLHttpRequest();
-            xhr.open("POST", NEXT_PUBLIC_MEDIA_API_URL, true);
-            xhr.setRequestHeader(
-                "Ocp-Apim-Subscription-Key",
-                NEXT_PUBLIC_API_SUBSCRIPTION_KEY,
-            );
+            xhr.open("POST", config.endpoints.mediaHelper, true);
 
             // Monitor the upload progress
             xhr.upload.onprogress = (event) => {
