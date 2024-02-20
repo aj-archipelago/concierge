@@ -75,6 +75,7 @@ ENV PORT 3000
 # set hostname to localhost
 ENV HOSTNAME "0.0.0.0"
 
+COPY entrypoint.sh ./
 ENTRYPOINT [ "./entrypoint.sh" ]
 
 # server.js is created by next build from the standalone output
