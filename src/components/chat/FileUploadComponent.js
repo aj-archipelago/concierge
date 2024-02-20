@@ -1,10 +1,6 @@
 import { Form } from "react-bootstrap";
 import { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
-import {
-    NEXT_PUBLIC_MEDIA_API_URL,
-    NEXT_PUBLIC_API_SUBSCRIPTION_KEY,
-} from "../../config";
 import { v4 as uuidv4 } from "uuid";
 import { COGNITIVE_INSERT } from "../../graphql";
 import { useApolloClient } from "@apollo/client";
@@ -15,6 +11,7 @@ import {
     clearFileLoading,
     loadingError,
 } from "../../stores/fileUploadSlice";
+import config from "../../../config";
 
 function FileUploadComponent({ text }) {
     const [url, setUrl] = useState(null);
@@ -101,11 +98,7 @@ function FileUploadComponent({ text }) {
 
         try {
             const xhr = new XMLHttpRequest();
-            xhr.open("POST", NEXT_PUBLIC_MEDIA_API_URL, true);
-            xhr.setRequestHeader(
-                "Ocp-Apim-Subscription-Key",
-                NEXT_PUBLIC_API_SUBSCRIPTION_KEY,
-            );
+            xhr.open("POST", config.endpoints.mediaHelper, true);
 
             // Monitor the upload progress
             xhr.upload.onprogress = (event) => {

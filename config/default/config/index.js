@@ -3,7 +3,8 @@ import { getSidebarLogo } from "./global/sidebar";
 import { getTosContent } from "./global/tos";
 
 // The entire Labeeb application can be configured here
-// Note that all assets
+
+const serverUrl = process.env.NEXT_PUBLIC_NEXTJS_SERVER_URL || "http://localhost:3000";
 
 export default {
     global: {
@@ -27,4 +28,8 @@ export default {
     code: {
         botName: "Knuth",
     },
+    endpoints: {
+        mediaHelper: `${serverUrl}/media-helper`,
+        graphql: `${serverUrl}/graphql`,
+    }
 };
