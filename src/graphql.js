@@ -13,8 +13,7 @@ const httpLink = new HttpLink({
 
 const wsLink = new GraphQLWsLink(
     createClient({
-        url:
-            graphqlEndpoint.replace("http", "ws")
+        url: graphqlEndpoint.replace("http", "ws"),
     }),
 );
 

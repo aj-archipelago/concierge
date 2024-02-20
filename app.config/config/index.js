@@ -12,7 +12,8 @@ export default {
     global: {
         siteTitle: "Labeeb",
         getLogo: (language) =>
-            (basePath || "" ) + `/app/assets/labeeb-logo-${language === "ar" ? "ar" : "en"}.png`,
+            (basePath || "") +
+            `/app/assets/labeeb-logo-${language === "ar" ? "ar" : "en"}.png`,
         getTosContent,
         getSidebarLogo,
     },
