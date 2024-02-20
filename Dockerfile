@@ -19,14 +19,16 @@ RUN \
   fi
 RUN  cat /root/.npm/_logs/* 
 
+COPY sshd_config /etc/ssh/
+COPY entrypoint.sh ./
+
 # Add SSH and expose the SSH port
 RUN apk add openssh \
     && echo "root:Docker!" | chpasswd \
     && chmod +x ./entrypoint.sh \
     && cd /etc/ssh/ \
     && ssh-keygen -A
-COPY sshd_config /etc/ssh/
-COPY entrypoint.sh ./
+
 EXPOSE 8000 2222
 
 # Rebuild the source code only when needed
