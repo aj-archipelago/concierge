@@ -31,6 +31,8 @@ RUN apk add openssh \
 
 EXPOSE 8000 2222
 
+ENTRYPOINT [ "./entrypoint.sh" ]
+
 # Rebuild the source code only when needed
 FROM base AS builder
 WORKDIR /app
@@ -74,9 +76,6 @@ EXPOSE 3000
 ENV PORT 3000
 # set hostname to localhost
 ENV HOSTNAME "0.0.0.0"
-
-COPY entrypoint.sh ./
-ENTRYPOINT [ "./entrypoint.sh" ]
 
 # server.js is created by next build from the standalone output
 # https://nextjs.org/docs/pages/api-reference/next-config-js/output
