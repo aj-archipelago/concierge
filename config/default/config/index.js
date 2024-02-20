@@ -4,7 +4,9 @@ import { getTosContent } from "./global/tos";
 
 // The entire Labeeb application can be configured here
 
-const serverUrl = process.env.NEXT_PUBLIC_NEXTJS_SERVER_URL || "http://localhost:3000";
+const serverUrl =
+    process.env.NEXT_PUBLIC_NEXTJS_SERVER_URL || "http://localhost:3000";
+const basePath = process.env.NEXT_PUBLIC_BASE_PATH || "";
 
 export default {
     global: {
@@ -29,7 +31,7 @@ export default {
         botName: "Knuth",
     },
     endpoints: {
-        mediaHelper: `${serverUrl}/media-helper`,
-        graphql: `${serverUrl}/graphql`,
-    }
+        mediaHelper: `${serverUrl}${basePath}/media-helper`,
+        graphql: `${serverUrl}${basePath}/graphql`,
+    },
 };
