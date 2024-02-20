@@ -1,6 +1,18 @@
 const path = require("path");
 
 module.exports = {
+    async rewrites() {
+        return [{
+            source: "/graphql",
+            destination: process.env.CORTEX_GRAPHQL_API_URL || "http://localhost:4000"
+        }, {
+            source: "/media-helper",
+            destination: process.env.CORTEX_MEDIA_API_URL || "http://localhost:5000"
+        }];
+    },
+    experimental: {
+        proxyTimeout: 1000 * 60 * 5, // 5 minutes
+    },
     redirects: async () => {
         return [
             {
