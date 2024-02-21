@@ -11,6 +11,7 @@ on:
 
 jobs:
     build:
+        environment: ${{ github.ref == 'refs/heads/main' && 'production' || 'development' }}
         runs-on: ubuntu-latest
 
         steps:
@@ -33,6 +34,14 @@ jobs:
                   push: true
                   tags: archipelagoairegistry.azurecr.io/${{ secrets.AZURE_CONTAINERREGISTRY_USERNAME }}/labeeb:${{ github.sha }}
                   file: ./Dockerfile
+                  build-args: |
+                      CORTEX_GRAPHQL_API_URL=${{secrets.CORTEX_GRAPHQL_API_URL}}
+                      CORTEX_MEDIA_API_URL=${{secrets.CORTEX_MEDIA_API_URL}}
+                      NEXT_PUBLIC_AMPLITUDE_API_KEY=${{secrets.NEXT_PUBLIC_AMPLITUDE_API_KEY}}
+                      NEXT_PUBLIC_ATLASSIAN_CLIENT_ID=${{secrets.NEXT_PUBLIC_ATLASSIAN_CLIENT_ID}}
+                      NEXT_PUBLIC_BASE_PATH=${{env.NEXT_PUBLIC_BASE_PATH}}
+                      NEXT_PUBLIC_NEXTJS_SERVER_URL=${{secrets.NEXT_PUBLIC_NEXTJS_SERVER_URL}}
+
 
     deploy:
         runs-on: ubuntu-latest

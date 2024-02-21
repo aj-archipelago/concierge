@@ -6,14 +6,16 @@ module.exports = {
             {
                 source: "/graphql",
                 destination:
-                    process.env.APPSETTING_CORTEX_GRAPHQL_API_URL ||
+                    // This is a build-time environment variable, not a runtime variable
+                    // Anything in next.config.js is compiled at build-time
                     process.env.CORTEX_GRAPHQL_API_URL ||
                     "http://localhost:4000",
             },
             {
                 source: "/media-helper",
                 destination:
-                    process.env.APPSETTING_CORTEX_MEDIA_API_URL ||
+                    // This is a build-time environment variable, not a runtime variable
+                    // Anything in next.config.js is compiled at build-time
                     process.env.CORTEX_MEDIA_API_URL ||
                     "http://localhost:5000",
             },
