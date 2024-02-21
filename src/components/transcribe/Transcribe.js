@@ -2,7 +2,7 @@
 
 import { useLazyQuery } from "@apollo/client";
 import { useCallback, useContext, useEffect, useState } from "react";
-import { Form } from "react-bootstrap";
+import { Button, Form } from "react-bootstrap";
 import { useTranslation } from "react-i18next";
 import { FaVideo } from "react-icons/fa";
 import { QUERIES } from "../../graphql";
@@ -44,7 +44,6 @@ function Transcribe({
 
     const { responseFormat, wordTimestamped, textFormatted, maxLineCount, maxLineWidth, maxWordsPerLine, highlightWords } =
         transcriptionOption ?? {};
-    const [transcriptionNeedTranslate, setTranscriptionNeedTranslate] = useState(false);
     const [transcriptionTranslationLanguage, setTranscriptionTranslationLanguage ] = useState("Arabic");
 
     const [requestId, setRequestId] = useState(null);
@@ -136,11 +135,6 @@ function Transcribe({
                 fetchParagraph({ variables: { text: finalData, async } });
                 return
             }
-            if(transcriptionNeedTranslate && transcriptionTranslationLanguage){
-                setCurrentOperation('Translating');
-                fetchTranslate({ variables: { text: finalData, to: transcriptionTranslationLanguage,  async } });
-                return
-            }
         }
         setAsyncComplete(true);
     };
@@ -206,7 +200,6 @@ function Transcribe({
         if (dataTranslate) {
             const dataResult = dataTranslate?.translate_gpt4?.result;
             if (async) {
-                setDataText("");
                 setRequestId(dataResult);
                 setAsyncComplete(false);
             }
@@ -217,9 +210,10 @@ function Transcribe({
         asyncComplete && onSelect && onSelect(dataText);
     }, [dataText, asyncComplete, onSelect]);
 
+    const currentlyTranslating = !asyncComplete && currentOperation === 'Translating';
     let transcriptionOptions = (
         <>
-            <ol>
+            <ol hidden={currentlyTranslating}>
                 <li>
                     <div className="selection-section">
                         {t("Choose file to transcribe:")}
@@ -333,74 +327,11 @@ function Transcribe({
                                 onChange={() => setTranscriptionOption({ responseFormat, wordTimestamped: true, textFormatted: false, maxLineWidth: 25, maxLineCount:1 })}
                             />
                     </div>
-
-                    <div style={{display:"flex", flexDirection:"column", textAlign:"center"}}>
-                        <Form.Select 
-                            style={{fontSize:"10px", height:"30px", minWidth:"150px", width:"180px", marginRight:"2px"}}
-                            disabled={isLoading}
-                            onChange={(event) => setLanguage(event.target.value)}
-                            defaultValue={language}
-                        >
-                            <option value="">{t("Auto detect video language")}</option>
-                            <option value="en">{t("English")}</option>
-                            <option value="ar">{t("Arabic")}</option>
-                            <option value="fr">{t("French")}</option>
-                            <option value="es">{t("Spanish")}</option>
-                            <option value="de">{t("German")}</option>
-                            <option value="it">{t("Italian")}</option>
-                            <option value="pt">{t("Portuguese")}</option>
-                            <option value="zh">{t("Chinese")}</option>
-                            <option value="ja">{t("Japanese")}</option>
-                            <option value="ko">{t("Korean")}</option>
-                            <option value="bs">{t("Bosnian")}</option>
-                            <option value="hr">{t("Croatian")}</option>
-                            <option value="sr">{t("Serbian")}</option>
-                            <option value="ru">{t("Russian")}</option>
-                            <option value="tr">{t("Turkish")}</option>
-                        </Form.Select>
-                    </div>                    <div className="radio-columns" style={{minWidth:135, marginTop:'auto'}}>
-
-                    <Form.Select 
-                                style={{fontSize:"12px", marginBottom:7, paddingRight:7}}
-                                hidden={!transcriptionNeedTranslate}
-                                disabled={isLoading}
-                                onChange={(event) => setTranscriptionTranslationLanguage(event.target.value)}
-                            >
-                                <option>{t("Arabic")}</option>
-                                <option>{t("English (UK)")}</option>
-                                <option>{t("English (US)")}</option>
-                                <option>{t("French")}</option>
-                                <option>{t("Spanish")}</option>
-                                <option>{t("German")}</option>
-                                <option>{t("Italian")}</option>
-                                <option>{t("Portuguese")}</option>
-                                <option>{t("Chinese")}</option>
-                                <option>{t("Japanese")}</option>
-                                <option>{t("Korean")}</option>
-                                <option>{t("Bosnian")}</option>
-                                <option>{t("Croatian")}</option>
-                                <option>{t("Serbian")}</option>
-                                <option>{t("Russian")}</option>
-                                <option>{t("Turkish")}</option>
-                        </Form.Select>
-
-                        <Form.Check
-                                disabled={isLoading}
-                                type="checkbox"
-                                label={t("Translate")}
-                                name="transcriptionOptions3"
-                                id="translateText"
-                                style={{fontStyle:"italic"}}
-                                checked={transcriptionNeedTranslate}
-                                onChange={(event) => setTranscriptionNeedTranslate(event.target.checked)}
-                            />
-                    </div>
                 </div>
-
             </li>
         </ol>
 
-        <div style={{ paddingInlineStart: '2rem' }}>
+        <div style={{ paddingInlineStart: currentlyTranslating ?  '0' :'2rem',paddingBottom:'1rem' }}>
             <LoadingButton
                 disabled={!url}
                 loading={isLoading}
@@ -410,23 +341,53 @@ function Transcribe({
             >
                 <FaVideo /> {t("Transcribe")}
             </LoadingButton>
-        </div>
-        {isLoading && <ProgressBar />}
-        </>
-    );
+            {isLoading && <ProgressBar />}
+        </div></>);
 
     if (dataText && asyncComplete) {
-        transcriptionOptions = (
-            <>
-                <button
-                    className="lb-outline-secondary lb-sm mb-3"
-                    size="sm"
-                    onClick={() => setDataText("")}
-                >
-                    {t("Start over")}
-                </button>
-            </>
-        );
+        transcriptionOptions = <>
+            <div style={{marginTop:'auto', display:'flex', justifyContent:'space-between'}}>
+
+            <Button variant="outline-secondary" className="mb-3" size="sm" onClick={() => { setRequestId(null); setDataText('')}}>
+                {t("Start over")}
+            </Button>
+
+            <div style={{display:'flex'}}>
+                    <Form.Select 
+                            style={{fontSize:"12px", height:"31px", minWidth:"135px", width:"135px", marginRight:"5px"}}
+                            disabled={isLoading}
+                            onChange={(event) => setTranscriptionTranslationLanguage(event.target.value)}
+                            defaultValue={transcriptionTranslationLanguage}
+                        >
+                            <option>{t("Arabic")}</option>
+                            <option>{t("English (UK)")}</option>
+                            <option>{t("English (US)")}</option>
+                            <option>{t("French")}</option>
+                            <option>{t("Spanish")}</option>
+                            <option>{t("German")}</option>
+                            <option>{t("Italian")}</option>
+                            <option>{t("Portuguese")}</option>
+                            <option>{t("Chinese")}</option>
+                            <option>{t("Japanese")}</option>
+                            <option>{t("Korean")}</option>
+                            <option>{t("Bosnian")}</option>
+                            <option>{t("Croatian")}</option>
+                            <option>{t("Serbian")}</option>
+                            <option>{t("Russian")}</option>
+                            <option>{t("Turkish")}</option>
+                    </Form.Select>
+
+                    <Button style={{display:"inline-block"}} variant="primary" className="mb-3" size="sm" 
+                    onClick={() => {
+                        setCurrentOperation('Translating');
+                        fetchTranslate({ variables: { text: dataText, to: transcriptionTranslationLanguage,  async } });
+                    }}>
+                        {t("Translate")}
+                    </Button>
+
+                </div>
+            </div>
+        </>
     }
 
     return (
@@ -439,7 +400,7 @@ function Transcribe({
                         {(error || errorParagraph || errorTranslate || fileUploadError).message}
                     </p>
                 )}
-                {dataText && asyncComplete && (
+                {dataText && (
                     <div className="transcription-taxonomy-container">
                         <div
                             style={{
