@@ -16,8 +16,7 @@ module.exports = {
                 destination:
                     // This is a build-time environment variable, not a runtime variable
                     // Anything in next.config.js is compiled at build-time
-                    process.env.CORTEX_MEDIA_API_URL ||
-                    "http://localhost:5000",
+                    process.env.CORTEX_MEDIA_API_URL || "http://localhost:5000",
             },
         ];
     },
