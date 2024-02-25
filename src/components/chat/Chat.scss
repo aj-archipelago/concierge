@@ -1,3 +1,63 @@
+$link-color: #006fe6;
+$popover-color: #333333;
+$popover-bg-color: #ffffff;
+$popover-border-color: #cccccc;
+
+.bs-popover-start > .popover-arrow::after, .bs-popover-auto[data-popper-placement^=left] > .popover-arrow::after {
+    border-left-color: $popover-bg-color;
+}
+
+.bs-popover-end > .popover-arrow::after, .bs-popover-auto[data-popper-placement^=right] > .popover-arrow::after {
+    border-right-color: $popover-bg-color;
+}
+
+.popover {
+    background-color: $popover-bg-color;
+    border: 1px solid $popover-border-color;
+    padding: 10px;
+    font-family: 'Roboto', sans-serif;
+    .popover-header {
+        background-color: darken($popover-bg-color, 10%);
+        color: $popover-color;
+        padding: .5rem $spacer;
+    }
+    .popover-link {
+        a {
+            color: $link-color;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 0.8rem;
+        }
+        a:hover {
+            text-decoration: underline;
+        }
+    }
+    .popover-title {
+        color: $popover-color;
+        font-weight: bold;
+        font-size: 0.8rem;
+    }
+    .popover-body {
+        max-height: 200px;
+        overflow-y: scroll;
+        color: $popover-color;
+        font-size: 0.8rem;
+        line-height: 1.5;
+
+    }
+}
+
+
+.text-with-citations {
+    sup {
+        color: $link-color;
+        cursor: pointer;
+        text-decoration: underline;
+        margin: 0 1px;
+        font-size: 0.9em;
+    }
+}
+
 .service-link {
     margin-top: 10px;
 }
@@ -293,7 +353,7 @@ pre {
 
 .code-chat-content {
     .chat-message {
-        font-family: $font-family-monospace;
+        font-family: $font-family-sans-serif;
     }
 }
 

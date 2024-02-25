@@ -1,107 +1,115 @@
 "use client";
 
+import { t } from "i18next";
+import Link from "next/link";
 import CodeBlock from "../code/CodeBlock";
 import React from "react";
 import TextWithCitations from "./TextWithCitations";
 import FileUploadComponent from "./FileUploadComponent";
+import Markdown from "react-markdown";
+import directive from "remark-directive";
+import remarkGfm from "remark-gfm";
+import { visit } from "unist-util-visit";
 
-function formatText(content, element = "div", citations = null) {
-    content = decodeHTML(content);
+function transformToCitation(content) {
+    return content.replace(/\[doc(\d+)\]/g, ":cd_source[$1]").replace(/\[upload\]/g, ":cd_upload");
+}
 
-    let parts = content.split(/(\[doc\d+\])|(\[upload]\.?)/g);
-    let fileUploadHandler = false;
-
-    parts = parts.map((part, index) => {
-        if (!part) return null;
-        let match = part.match(/\[doc(\d+)\]/);
-        if (match) {
-            const index = parseInt(match[1]);
-            if (Array.isArray(citations) && citations[index - 1]) {
-                return (
-                    <TextWithCitations
-                        index={index}
-                        citation={citations[index - 1]}
-                    />
-                );
+function customMarkdownDirective() {
+    return (tree) => {
+        visit(
+            tree,
+            ["textDirective", "leafDirective", "containerDirective"],
+            (node) => {
+                if (node.name === 'cd_source' || node.name === 'cd_upload' || node.name === 'cd_servicelink') {
+                    node.data = {
+                        hName: node.name,
+                        hProperties: node.attributes,
+                        ...node.data
+                    };
+                } else {
+                    node.data = {
+                        hName: 'cd_default',
+                        hProperties: { name: node.name, ...node.attributes },
+                        ...node.data
+                    };
+                }
+                return node;
             }
-            return null;
-        } else if (part.startsWith("[upload]")) {
-            fileUploadHandler = true;
-            return null; //"file upload handler"; //<FileUploadComponent />;
-        } else {
-            const styledPart = part.replace(
-                /`([^`]+)`/g,
-                '<span class="bt-highlight">`$1`</span>',
-            );
-            return (
-                <span
-                    key={index}
-                    dangerouslySetInnerHTML={{ __html: styledPart }}
-                />
-            );
-        }
-    });
-
-    fileUploadHandler && parts.push(<FileUploadComponent />);
-
-    if (element === "pre") {
-        return <pre>{parts}</pre>;
-    } else {
-        return <div>{parts}</div>;
-    }
+        );
+    };
 }
+  
+function highlightCode(input, citations = null) {
 
-function decodeHTML(html) {
-    var txt = document.createElement("textarea");
-    txt.innerHTML = html;
-    return txt.value;
-}
+    let index = 0;
 
-function highlightCode(input, element = "div", citations = null) {
     if (typeof input !== "string") {
         return input;
     }
 
-    const splitCodeBlocksRegex = /(```[\s\S]*?```)(?=\n|$)/;
-    const codeBlockRegex = /```(\w+)?\n([\s\S]*?)\n\s*```/;
-
-    const segments = input
-        .split(splitCodeBlocksRegex)
-        .map((segment) =>
-            segment.match(codeBlockRegex)
-                ? { type: "code", content: segment }
-                : { type: "text", content: segment },
-        )
-        .flat();
-
-    return (
-        <>
-            {segments.map((segment, index) => {
-                if (segment.type === "code") {
-                    const language = segment.content.match(codeBlockRegex)[1];
-                    const code = segment.content.match(codeBlockRegex)[2];
-
+    const components = {
+        ol(props) {
+            const {node, ...rest} = props
+            return <ol style={{listStyleType: 'decimal', marginBottom: '1rem', paddingLeft: '1rem'}} {...rest} />
+        },
+        ul(props) {
+            const {node, ...rest} = props
+            return <ul style={{listStyleType: 'disc', marginBottom: '1rem', paddingLeft: '1rem'}} {...rest} />
+        },
+        p(props) {
+            const {node, ...rest} = props
+            return <div style={{marginTop: '0.5rem', marginBottom: '0.5rem'}} {...rest} />
+        },
+        cd_source({node, inline, className, children, ...props}) {
+            if (children) {
+                const index = parseInt(children);
+                if (Array.isArray(citations) && citations[index - 1]) {
                     return (
-                        <CodeBlock
-                            language={language}
-                            key={`codeblock-${index}`}
-                            code={code}
+                        <TextWithCitations
+                            index={index}
+                            citation={citations[index - 1]}
+                            {...props}
                         />
-                    );
-                } else {
-                    return (
-                        <React.Fragment key={`textblock-${index}`}>
-                            {formatText(
-                                segment.content.trim(),
-                                element,
-                                citations,
-                            )}
-                        </React.Fragment>
-                    );
+                    )
                 }
-            })}
-        </>
-    );
+                return null;
+            }
+            return null;
+        },
+        cd_upload(props) {
+            return <FileUploadComponent {...props} />;
+        },
+        cd_servicelink({node, children, ...props}) {
+            //console.log("serviceLink children", children);
+            const serviceName = children;
+            const tServiceName = t(serviceName + " interface");
+            const tServiceAction = t("Click here for my");
+
+            return <div className="service-link">
+                    <Link href={`/${serviceName}`}>{ tServiceAction }&nbsp;{ tServiceName }</Link>.
+                    </div>
+        },
+        cd_default({ children, name, ...props }) {
+            return <span>{name}</span>
+        },
+        code({node, inline, className, children, ...props}) {
+            const match = /language-(\w+)/.exec(className || '')
+            const language = match ? match[1] : null
+            return !inline && match ? (
+                <CodeBlock key={`codeblock-${++index}`} code={children} language={language} {...props}/>
+            ) : (
+              <code className={className} {...props}>
+                {children}
+              </code>
+            )
+          }
+    }
+
+    //console.log("highlightCode input", input);
+    return <Markdown className="chat-message"
+            remarkPlugins={[directive, customMarkdownDirective, remarkGfm]}
+            components={components} children={transformToCitation(input)}/>;
 }
 
 export { highlightCode };

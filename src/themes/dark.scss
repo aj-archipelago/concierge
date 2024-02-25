@@ -4,11 +4,69 @@ $text-color-dark: #ddd;
 $border-color-dark: #444;
 $bg-color-dark-dim: #333;
 $text-color-dark-dim: #aaa;
+$link-color-dark: #0099cc;
+$popover-color-dark: #eeeeee;
+$popover-bg-color-dark: #474747;
+$popover-border-color-dark: #575757;
 
 body.dark {
     background-color: $bg-color-dark;
     color: $text-color-dark;
 
+    .bs-popover-start > .popover-arrow::after, .bs-popover-auto[data-popper-placement^=left] > .popover-arrow::after {
+        border-left-color: $popover-bg-color-dark;
+    }
+    
+    .bs-popover-end > .popover-arrow::after, .bs-popover-auto[data-popper-placement^=right] > .popover-arrow::after {
+        border-right-color: $popover-bg-color-dark;
+    }
+    
+    .popover {
+        background-color: $popover-bg-color-dark;
+        border: 1px solid $popover-border-color-dark;
+        padding: 10px;
+        font-family: 'Roboto', sans-serif;
+        .popover-header {
+            background-color: darken($popover-bg-color-dark, 5%);
+            color: $popover-color-dark;
+            padding: .5rem $spacer;
+        }
+        .popover-link {
+            a {
+                color: $link-color-dark;
+                cursor: pointer;
+                font-weight: bold;
+                font-size: 0.8rem;
+            }
+            a:hover {
+                text-decoration: underline;
+            }
+        }
+        .popover-title {
+            color: $popover-color-dark;
+            font-weight: bold;
+            font-size: 0.8rem;
+        }
+        .popover-body {
+            max-height: 200px;
+            overflow-y: scroll;
+            color: $popover-color-dark;
+            font-size: 0.8rem;
+            line-height: 1.5;
+
+        }
+    }
+    
+    .text-with-citations {
+        sup {
+            color: $link-color-dark;
+            cursor: pointer;
+            text-decoration: underline;
+            margin: 0 1px;
+            font-size: 0.9em;
+        }
+    }
+    
     .chat-full-container {
         background-color: $bg-color-dark;
         color: $text-color-dark;

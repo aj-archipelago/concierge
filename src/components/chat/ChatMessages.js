@@ -26,17 +26,21 @@ function ChatMessages({
     messages = messages.map((message, index) => {
         // post process the message and create a new
         // message object with the updated payload.
-        return Object.assign({}, message, {
-            payload: (
-                <React.Fragment key={`outer-${message?.id}`}>
-                    {postProcessMessage(
-                        message.payload,
-                        message.postProcessData,
-                        message.tool,
-                    )}
-                </React.Fragment>
-            ),
-        });
+        if (message.sender === "labeeb") {
+            return Object.assign({}, message, {
+                payload: (
+                    <React.Fragment key={`outer-${message?.id}`}>
+                        {postProcessMessage(
+                            message.payload,
+                            message.postProcessData,
+                            message.tool,
+                        )}
+                    </React.Fragment>
+                ),
+            });
+        } else {
+            return message;
+        }
     });
 
     return (

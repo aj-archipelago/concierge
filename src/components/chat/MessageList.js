@@ -7,7 +7,6 @@ import classNames from "../../../app/utils/class-names";
 import config from "../../../config";
 import { highlightCode } from "./ChatMessage";
 import ScrollToBottom from "./ScrollToBottom";
-import PageLoader from "next/dist/client/page-loader";
 import Loader from "../../../app/components/loader";
 
 // Displays the list of messages and a message input box.
@@ -108,7 +107,10 @@ function MessageList({ messages, bot, loading }) {
                     message = Object.assign({}, message, {
                         payload: (
                             <React.Fragment key={`inner-${message.id}`}>
-                                {highlightCode(message.payload, "pre")}
+                                {message.sender === 'labeeb' 
+                                    ? highlightCode(message.payload) 
+                                    : <div>{message.payload}</div>
+                                }
                             </React.Fragment>
                         ),
                     });
