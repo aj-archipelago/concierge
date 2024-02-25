@@ -40,12 +40,15 @@ function customMarkdownDirective() {
     };
 }
   
-function highlightCode(input, citations = null) {
+function convertMessageToMarkdown(message) {
+    const { payload, tool, id } = message;
 
-    let index = 0;
+    const citations = tool ? JSON.parse(tool).citations : null;
 
-    if (typeof input !== "string") {
-        return input;
+    let componentIndex = 0;
+
+    if (typeof payload !== "string") {
+        return payload;
     }
 
     const components = {
@@ -63,12 +66,12 @@ function highlightCode(input, citations = null) {
         },
         cd_source({node, inline, className, children, ...props}) {
             if (children) {
-                const index = parseInt(children);
-                if (Array.isArray(citations) && citations[index - 1]) {
+                const sourceIndex = parseInt(children);
+                if (Array.isArray(citations) && citations[sourceIndex - 1]) {
                     return (
                         <TextWithCitations
-                            index={index}
-                            citation={citations[index - 1]}
+                            index={sourceIndex}
+                            citation={citations[sourceIndex - 1]}
                             {...props}
                         />
                     )
@@ -97,19 +100,18 @@ function highlightCode(input, citations = null) {
             const match = /language-(\w+)/.exec(className || '')
             const language = match ? match[1] : null
             return !inline && match ? (
-                <CodeBlock key={`codeblock-${++index}`} code={children} language={language} {...props}/>
+                <CodeBlock key={`codeblock-${++componentIndex}`} code={children} language={language} {...props}/>
             ) : (
-              <code className={className} {...props}>
+              <code className="inline-code" {...props}>
                 {children}
               </code>
             )
-          }
+        }
     }
 
-    //console.log("highlightCode input", input);
-    return <Markdown className="chat-message"
+    return <Markdown className="chat-message" key={`lm-${id}`}
             remarkPlugins={[directive, customMarkdownDirective, remarkGfm]}
-            components={components} children={transformToCitation(input)}/>;
+            components={components} children={transformToCitation(payload)}/>;
 }
 
-export { highlightCode };
+export { convertMessageToMarkdown };

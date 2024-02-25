@@ -1,13 +1,13 @@
-import { postProcessMessage } from "./Message";
 import { clearChat } from "../../stores/chatSlice";
 import { useDispatch, useSelector } from "react-redux";
 import MessageInput from "./MessageInput";
 import MessageList from "./MessageList";
 import { useTranslation } from "react-i18next";
 import React from "react";
-import DocOptions, { dataSources } from "./DocOptions";
+import { dataSources } from "./DocOptions";
 import { AiOutlineReload } from "react-icons/ai";
 import config from "../../../config";
+import { convertMessageToMarkdown } from "./ChatMessage";
 
 // Displays the list of messages and a message input box.
 function ChatMessages({
@@ -30,11 +30,7 @@ function ChatMessages({
             return Object.assign({}, message, {
                 payload: (
                     <React.Fragment key={`outer-${message?.id}`}>
-                        {postProcessMessage(
-                            message.payload,
-                            message.postProcessData,
-                            message.tool,
-                        )}
+                        {convertMessageToMarkdown(message)}
                     </React.Fragment>
                 ),
             });

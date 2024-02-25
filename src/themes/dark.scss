@@ -8,6 +8,7 @@ $link-color-dark: #0099cc;
 $popover-color-dark: #eeeeee;
 $popover-bg-color-dark: #474747;
 $popover-border-color-dark: #575757;
+$code-color-dark: #ffa500;
 
 body.dark {
     background-color: $bg-color-dark;
@@ -67,6 +68,10 @@ body.dark {
         }
     }
     
+    .inline-code {
+        color: $code-color-dark;
+    }
+
     .chat-full-container {
         background-color: $bg-color-dark;
         color: $text-color-dark;

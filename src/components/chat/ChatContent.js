@@ -24,7 +24,6 @@ function ChatContent({ displayState = "full", container = "chatpage" }) {
             addMessage({
                 payload: message,
                 tool: tool,
-                postProcessData: null,
                 sentTime: "just now",
                 direction: "incoming",
                 position: "single",

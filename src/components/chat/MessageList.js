@@ -5,7 +5,7 @@ import { AiOutlineRobot } from "react-icons/ai";
 import { FaUserCircle } from "react-icons/fa";
 import classNames from "../../../app/utils/class-names";
 import config from "../../../config";
-import { highlightCode } from "./ChatMessage";
+import { convertMessageToMarkdown } from "./ChatMessage";
 import ScrollToBottom from "./ScrollToBottom";
 import Loader from "../../../app/components/loader";
 
@@ -102,14 +102,14 @@ function MessageList({ messages, bot, loading }) {
                     </div>
                 )}
                 {messages.map((message, index) => {
-                    // post process the message and create a new
+                    // process the message and create a new
                     // message object with the updated payload.
                     message = Object.assign({}, message, {
                         payload: (
                             <React.Fragment key={`inner-${message.id}`}>
                                 {message.sender === 'labeeb' 
-                                    ? highlightCode(message.payload) 
-                                    : <div>{message.payload}</div>
+                                    ? convertMessageToMarkdown(message) 
+                                    : <div key={`um-${index}`}>{message.payload}</div>
                                 }
                             </React.Fragment>
                         ),
