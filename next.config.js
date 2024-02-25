@@ -1,5 +1,7 @@
 const path = require("path");
 
+const basePath = process.env.NEXT_PUBLIC_BASE_PATH;
+
 module.exports = {
     async rewrites() {
         return [
@@ -9,7 +11,7 @@ module.exports = {
                     // This is a build-time environment variable, not a runtime variable
                     // Anything in next.config.js is compiled at build-time
                     process.env.CORTEX_GRAPHQL_API_URL ||
-                    "http://localhost:4000",
+                    "http://localhost:4000/graphql",
             },
             {
                 source: "/media-helper",
@@ -26,6 +28,12 @@ module.exports = {
     redirects: async () => {
         return [
             {
+                source: '/',
+                destination: basePath || "/",
+                basePath: false,
+                permanent: false
+            },
+            {
                 source: "/",
                 destination: "/write",
                 permanent: true,
@@ -36,5 +44,5 @@ module.exports = {
         includePaths: [path.join(__dirname, "src")],
     },
     output: "standalone",
-    basePath: process.env.NEXT_PUBLIC_BASE_PATH || "",
+    basePath: basePath || "",
 };
