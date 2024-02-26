@@ -28,8 +28,6 @@ export default function Layout({ children }) {
         setPosition(statePosition);
     }, [statePosition]);
 
-    console.log("user", user);
-
     return (
         <>
             <div>

@@ -4,12 +4,14 @@ import { ChevronDownIcon } from "@heroicons/react/20/solid";
 import classNames from "../../app/utils/class-names";
 
 export default function ProfileDropdown({ user }) {
+    const { initials, name } = user;
+
     return (
         <Menu as="div" className="relative inline-block text-left">
             <div>
                 <Menu.Button className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-gray-500">
                     <span className="text-sm font-medium leading-none text-white">
-                        {user.initials}
+                        {initials}
                     </span>
                 </Menu.Button>
             </div>
@@ -24,6 +26,18 @@ export default function ProfileDropdown({ user }) {
                 leaveTo="transform opacity-0 scale-95"
             >
                 <Menu.Items className="absolute right-0 z-10 mt-2 w-56 origin-top-right rounded-md bg-white shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none">
+                    <div className="py-1">
+                        <Menu.Item>
+                            {({ active }) => (
+                                <div className="px-4 py-2 text-gray-700 text-sm">
+                                    <div className="text-xs text-gray-400">
+                                        Signed in as
+                                    </div>
+                                    <div className="font-medium">{name}</div>
+                                </div>
+                            )}
+                        </Menu.Item>
+                    </div>
                     <div className="py-1">
                         <Menu.Item>
                             {({ active }) => (
