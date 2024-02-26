@@ -72,6 +72,62 @@ body.dark {
         color: $code-color-dark;
     }
 
+    .chat-message-bot {
+        // Typography
+        font-family: $font-family-sans-serif;
+        font-size: 16px; // Good readability size
+        line-height: 1.5; // Spacing for readability
+        color: $text-color-dark; // Light color for contrast against dark background
+    
+        // Markdown heading styling
+        h1, h2, h3, h4, h5, h6 {
+            margin: 10px 0;
+            color: $text-color-dark; // Light color for contrast
+        }
+    
+        // Markdown list styling
+        ul, ol {
+            padding-left: 20px; // Indent lists
+            line-height: 1.5; // Spacing for readability
+        }
+    
+        // Markdown link styling
+        a {
+            color: $link-color-dark; // Color for links in dark mode
+            text-decoration: none; // No underline for clean look
+            &:hover {
+                text-decoration: underline; // Underline on hover for user feedback
+            }
+        }
+    
+        // Markdown block quote styling
+        blockquote {
+            border-left: 3px solid $border-color-dark; // Left border for distinction
+            padding-left: 10px; // Padding for readability
+            color: $text-color-dark-dim; // Dimmed light color for contrast
+            margin: 10px 0; // Margin for spacing
+        }
+    
+        // Markdown table styling
+        table {
+            width: 100%; // Full width
+            border-collapse: collapse; // No space between borders
+            margin: 10px 0; // Margin for spacing
+            background-color: $bg-color-dark-dim; // Dark background color
+    
+            th, td {
+                border: 1px solid $border-color-dark; // Border for visibility
+                padding: 5px; // Padding for readability
+                text-align: left; // Align text to left
+                color: $text-color-dark; // Light color for contrast
+            }
+    
+            th {
+                background-color: darken($bg-color-dark-dim, 5%); // Dark background color for contrast
+            }
+        }
+    }
+
     .chat-full-container {
         background-color: $bg-color-dark;
         color: $text-color-dark;

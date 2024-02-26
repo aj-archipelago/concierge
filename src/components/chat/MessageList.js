@@ -62,7 +62,7 @@ function MessageList({ messages, bot, loading }) {
                         )}
                     >
                         <div className="font-semibold">{t(botName)}</div>
-                        <div>{message.payload}</div>
+                        <div className="chat-message-bot">{message.payload}</div>
                     </div>
                 </div>
             );
@@ -86,7 +86,7 @@ function MessageList({ messages, bot, loading }) {
                         )}
                     >
                         <div className="font-semibold">{t("You")}</div>
-                        <div>{message.payload}</div>
+                        <pre className="chat-message-user">{message.payload}</pre>
                     </div>
                 </div>
             );

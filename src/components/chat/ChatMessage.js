@@ -9,6 +9,9 @@ import FileUploadComponent from "./FileUploadComponent";
 import Markdown from "react-markdown";
 import directive from "remark-directive";
 import remarkGfm from "remark-gfm";
+import rehypeKatex from 'rehype-katex'
+import remarkMath from 'remark-math'
+import 'katex/dist/katex.min.css'
 import { visit } from "unist-util-visit";
 
 function transformToCitation(content) {
@@ -39,7 +42,7 @@ function customMarkdownDirective() {
         );
     };
 }
-  
+
 function convertMessageToMarkdown(message) {
     const { payload, tool, id } = message;
 
@@ -52,19 +55,17 @@ function convertMessageToMarkdown(message) {
     }
 
     const components = {
-        ol(props) {
-            const {node, ...rest} = props
+        ol({ node, ...rest }) {
             return <ol style={{listStyleType: 'decimal', marginBottom: '1rem', paddingLeft: '1rem'}} {...rest} />
         },
-        ul(props) {
-            const {node, ...rest} = props
+        ul({ node, ...rest}) {
             return <ul style={{listStyleType: 'disc', marginBottom: '1rem', paddingLeft: '1rem'}} {...rest} />
         },
-        p(props) {
-            const {node, ...rest} = props
+        p({ node, ...rest }) {
             return <div style={{marginTop: '0.5rem', marginBottom: '0.5rem'}} {...rest} />
         },
-        cd_source({node, inline, className, children, ...props}) {
+        cd_source(props) {
+            const { children } = props;
             if (children) {
                 const sourceIndex = parseInt(children);
                 if (Array.isArray(citations) && citations[sourceIndex - 1]) {
@@ -83,23 +84,25 @@ function convertMessageToMarkdown(message) {
         cd_upload(props) {
             return <FileUploadComponent {...props} />;
         },
-        cd_servicelink({node, children, ...props}) {
+        cd_servicelink(props) {
+            const { children } = props;
             //console.log("serviceLink children", children);
             const serviceName = children;
             const tServiceName = t(serviceName + " interface");
             const tServiceAction = t("Click here for my");
 
             return <div className="service-link">
-                    <Link href={`/${serviceName}`}>{ tServiceAction }&nbsp;{ tServiceName }</Link>.
+                    <Link href={`/${serviceName}`} {... props}>{ tServiceAction }&nbsp;{ tServiceName }</Link>.
                     </div>
         },
-        cd_default({ children, name, ...props }) {
+        cd_default({ name, ...rest }) {
             return <span>{name}</span>
         },
-        code({node, inline, className, children, ...props}) {
+        code(props) {
+            const { className, children } = props
             const match = /language-(\w+)/.exec(className || '')
             const language = match ? match[1] : null
-            return !inline && match ? (
+            return match ? (
                 <CodeBlock key={`codeblock-${++componentIndex}`} code={children} language={language} {...props}/>
             ) : (
               <code className="inline-code" {...props}>
@@ -110,7 +113,8 @@ function convertMessageToMarkdown(message) {
     }
 
     return <Markdown className="chat-message" key={`lm-${id}`}
-            remarkPlugins={[directive, customMarkdownDirective, remarkGfm]}
+            remarkPlugins={[directive, customMarkdownDirective, remarkGfm, remarkMath]}
+            rehypePlugins={[rehypeKatex]}
             components={components} children={transformToCitation(payload)}/>;
 }
 
