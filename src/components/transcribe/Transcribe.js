@@ -210,10 +210,9 @@ function Transcribe({
         asyncComplete && onSelect && onSelect(dataText);
     }, [dataText, asyncComplete, onSelect]);
 
-    const currentlyTranslating = !asyncComplete && currentOperation === 'Translating';
     let transcriptionOptions = (
         <>
-            <ol hidden={currentlyTranslating}>
+            <ol>
                 <li>
                     <div className="selection-section">
                         {t("Choose file to transcribe:")}
@@ -331,7 +330,7 @@ function Transcribe({
             </li>
         </ol>
 
-        <div style={{ paddingInlineStart: currentlyTranslating ?  '0' :'2rem',paddingBottom:'1rem' }}>
+        <div style={{ paddingInlineStart: '2rem',paddingBottom:'1rem' }}>
             <LoadingButton
                 disabled={!url}
                 loading={isLoading}
@@ -342,7 +341,16 @@ function Transcribe({
                 <FaVideo /> {t("Transcribe")}
             </LoadingButton>
             {isLoading && <ProgressBar />}
-        </div></>);
+        </div>
+    </>);
+
+    const currentlyTranslating = !asyncComplete && currentOperation === 'Translating';
+    if(currentlyTranslating){
+        transcriptionOptions =         
+            <div style={{ height:'47px' }}>
+            {isLoading && requestId && <ProgressUpdate requestId={requestId} setFinalData={setFinalData} initialText={t(currentOperation) + "..."}  />}
+        </div>
+    }
 
     if (dataText && asyncComplete) {
         transcriptionOptions = <>
@@ -384,7 +392,6 @@ function Transcribe({
                     }}>
                         {t("Translate")}
                     </Button>
-
                 </div>
             </div>
         </>
