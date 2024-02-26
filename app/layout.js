@@ -3,15 +3,17 @@ import { cookies } from "next/headers";
 import config from "../config";
 import App from "../src/App";
 import classNames from "./utils/class-names";
+import { getCurrentUser } from "./utils/auth";
 
 const font = Inter({ subsets: ["latin"] });
 
-export default function RootLayout({ children }) {
+export default async function RootLayout({ children }) {
     const { getLogo } = config.global;
 
     const cookieStore = cookies();
     const language = cookieStore.get("i18next")?.value || "en";
     const theme = cookieStore.get("theme")?.value || "light";
+    const user = await getCurrentUser();
 
     return (
         <html lang={language} dir={language === "ar" ? "rtl" : "ltr"}>
@@ -26,7 +28,7 @@ export default function RootLayout({ children }) {
                 id="labeeb-root"
                 className={classNames(theme, font.className)}
             >
-                <App theme={theme} language={language}>
+                <App theme={theme} language={language} user={user}>
                     {children}
                 </App>
             </body>

@@ -34,4 +34,7 @@ export default {
         mediaHelper: `${serverUrl}${basePath}/media-helper`,
         graphql: `${serverUrl}${basePath}/graphql`,
     },
+    auth: {
+        provider: null, // only one value is supported: "entra"
+    },
 };

@@ -28,10 +28,10 @@ module.exports = {
     redirects: async () => {
         return [
             {
-                source: '/',
+                source: "/",
                 destination: basePath || "/",
                 basePath: false,
-                permanent: false
+                permanent: false,
             },
             {
                 source: "/",

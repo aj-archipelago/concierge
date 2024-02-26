@@ -23,7 +23,9 @@ if (typeof document !== "undefined") {
     });
 }
 
-const App = ({ children, language, theme }) => {
+export const AuthContext = React.createContext({});
+
+const App = ({ children, language, theme, user }) => {
     if (i18next.language !== language) {
         i18next.changeLanguage(language);
     }
@@ -34,9 +36,11 @@ const App = ({ children, language, theme }) => {
                 <ThemeProvider savedTheme={theme}>
                     <LanguageProvider savedLanguage={language}>
                         <React.StrictMode>
-                            <Layout>
-                                <Body>{children}</Body>
-                            </Layout>
+                            <AuthContext.Provider value={{ user }}>
+                                <Layout>
+                                    <Body>{children}</Body>
+                                </Layout>
+                            </AuthContext.Provider>
                         </React.StrictMode>
                     </LanguageProvider>
                 </ThemeProvider>
