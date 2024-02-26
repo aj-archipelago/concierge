@@ -17,19 +17,21 @@ function ChatContent({ displayState = "full", container = "chatpage" }) {
     const dispatch = useDispatch();
 
     const updateChat = (data, result) => {
-        const dataObj = data.rag;
-        const { result: message, tool } = dataObj;
+        const dataObj = data.rag_labeeb;
         setLoading(false);
-        dispatch(
-            addMessage({
-                payload: message,
-                tool: tool,
-                sentTime: "just now",
-                direction: "incoming",
-                position: "single",
-                sender: "labeeb",
-            }),
-        );
+        if (dataObj) {
+            const { result: message, tool } = dataObj;
+            dispatch(
+                addMessage({
+                    payload: message,
+                    tool: tool,
+                    sentTime: "just now",
+                    direction: "incoming",
+                    position: "single",
+                    sender: "labeeb",
+                }),
+            );
+        };
     };
 
     const handleError = (error) => {
@@ -75,7 +77,7 @@ function ChatContent({ displayState = "full", container = "chatpage" }) {
                 (variables.dataSources = selectedSources);
                 client
                     .query({
-                        query: QUERIES.RAG,
+                        query: QUERIES.RAG_LABEEB,
                         variables,
                     })
                     .then((result) =>
