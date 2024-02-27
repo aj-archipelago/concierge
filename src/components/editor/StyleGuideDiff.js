@@ -239,7 +239,7 @@ const StyleGuideDiff = ({ styleGuideResult = "", setSelectedText }) => {
 
     const getDecorationsCallback = useCallback(
         (suggestions, i, excludedRange) => {
-            console.log("i", i);
+            //console.log("i", i);
             return suggestions
                 .map((s, sIndex) => {
                     return suggestionToRangeInModifiedTextCallback(
@@ -358,7 +358,7 @@ const StyleGuideDiff = ({ styleGuideResult = "", setSelectedText }) => {
     );
 
     const onSelectCallback = useCallback((i) => {
-        console.log("onselectCallback");
+        //console.log("onselectCallback");
         setSelectedSuggestion(i);
     }, []);
 
@@ -486,13 +486,13 @@ const StyleGuideDiff = ({ styleGuideResult = "", setSelectedText }) => {
                     return;
                 }
 
-                console.log(
-                    "clearing decorations",
-                    startColumn,
-                    startLineNumber,
-                    endColumn,
-                    endLineNumber,
-                );
+                // console.log(
+                //     "clearing decorations",
+                //     startColumn,
+                //     startLineNumber,
+                //     endColumn,
+                //     endLineNumber,
+                // );
 
                 // clear decorations in the slection range
                 const newDecorations = editor

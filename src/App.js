@@ -7,11 +7,11 @@ import "./i18n";
 import * as amplitude from "@amplitude/analytics-browser";
 import i18next from "i18next";
 import classNames from "../app/utils/class-names";
-import "./App.scss";
 import StoreProvider from "./StoreProvider";
 import { LanguageContext, LanguageProvider } from "./contexts/LanguageProvider";
 import { ThemeProvider } from "./contexts/ThemeProvider";
 import Layout from "./layout/Layout";
+import "./App.scss";
 import "./tailwind.css";
 import dynamic from "next/dynamic";
 

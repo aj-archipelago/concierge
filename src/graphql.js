@@ -113,8 +113,8 @@ const CHAT_EXTENSION = gql`
     }
 `;
 
-const RAG = gql`
-    query RAG(
+const RAG_LABEEB = gql`
+    query RagLabeeb(
         $chatHistory: [Message]!
         $dataSources: [String]
         $contextId: String
@@ -123,7 +123,7 @@ const RAG = gql`
         $indexName: String
         $semanticConfiguration: String
     ) {
-        rag(
+        rag_labeeb(
             chatHistory: $chatHistory
             dataSources: $dataSources
             contextId: $contextId
@@ -454,7 +454,7 @@ const QUERIES = {
     CHAT_EXTENSION,
     CHAT_CODE,
     IMAGE,
-    RAG,
+    RAG_LABEEB,
     EXPAND_STORY,
     FORMAT_PARAGRAPH_TURBO,
     SELECT_SERVICES,
@@ -502,6 +502,7 @@ export {
     COGNITIVE_INSERT,
     COGNITIVE_DELETE,
     EXPAND_STORY,
+    RAG_LABEEB,
     SELECT_SERVICES,
     SUMMARY,
     HASHTAGS,
