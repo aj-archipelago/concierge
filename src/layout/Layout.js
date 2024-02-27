@@ -118,7 +118,7 @@ export default function Layout({ children }) {
                             aria-hidden="true"
                         />
 
-                        <div className="flex flex-1 gap-x-4 justify-end lg:gap-x-6">
+                        <div className="flex flex-1 items-center gap-x-2 justify-end lg:gap-x-4">
                             <div>
                                 <button
                                     className="lb-sm lb-primary"
