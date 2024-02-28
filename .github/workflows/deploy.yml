@@ -39,7 +39,7 @@ jobs:
               with:
                   context: .
                   push: true
-                  tags: archipelagoairegistry.azurecr.io/${{env.slot_name}}:${{env.image_tag}}
+                  tags: archipelagoairegistry.azurecr.io/${{env.app_name}}/${{env.slot_name}}:${{env.image_tag}}
                   file: ./Dockerfile
                   build-args: |
                       CORTEX_GRAPHQL_API_URL=${{secrets.CORTEX_GRAPHQL_API_URL}}
@@ -64,4 +64,4 @@ jobs:
                   app-name: ${{ env.app_name }}
                   slot-name: ${{ env.slot_name }}
                   publish-profile: ${{ secrets.AZURE_PUBLISH_PROFILE }}
-                  images: archipelagoairegistry.azurecr.io/${{env.slot_name}}:${{env.image_tag}}
+                  images: archipelagoairegistry.azurecr.io/${{env.app_name}}/${{env.slot_name}}:${{env.image_tag}}
