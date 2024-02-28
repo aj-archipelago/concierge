@@ -7,14 +7,16 @@ on:
     push:
         branches:
             - main
+            - dev
     workflow_dispatch:
 
 env:
     image_tag: "${{ github.sha }}-${{ github.run_id }}"
+    slot_name: ${{ github.ref == 'refs/heads/main' && 'blue' || 'dev' }}
 
 jobs:
     build:
-        environment: ${{ github.ref == 'refs/heads/main' && 'production' || 'development' }}
+        environment: ${{ env.slot_name }}
         runs-on: ubuntu-latest
 
         steps:
@@ -49,7 +51,7 @@ jobs:
         runs-on: ubuntu-latest
         needs: build
         environment:
-            name: "production"
+            name: ${{ env.github_environment }}
             url: ${{ steps.deploy-to-webapp.outputs.webapp-url }}
 
         steps:
@@ -58,6 +60,6 @@ jobs:
               uses: azure/webapps-deploy@v2
               with:
                   app-name: "aj-labeeb"
-                  slot-name: "production"
+                  slot-name: ${{ env.slot_name }}
                   publish-profile: ${{ secrets.AZURE_PUBLISH_PROFILE }}
                   images: "archipelagoairegistry.azurecr.io/labeeb:${{ env.image_tag }}"
