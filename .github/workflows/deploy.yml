@@ -38,7 +38,7 @@ jobs:
               with:
                   context: .
                   push: true
-                  tags: "archipelagoairegistry.azurecr.io/labeeb:$image_tag"
+                  tags: archipelagoairegistry.azurecr.io/labeeb:${{env.image_tag}}"
                   file: ./Dockerfile
                   build-args: |
                       CORTEX_GRAPHQL_API_URL=${{secrets.CORTEX_GRAPHQL_API_URL}}
@@ -63,4 +63,4 @@ jobs:
                   app-name: "aj-labeeb"
                   slot-name: ${{ env.slot_name }}
                   publish-profile: ${{ secrets.AZURE_PUBLISH_PROFILE }}
-                  images: "archipelagoairegistry.azurecr.io/labeeb:$image_tag"
+                  images: archipelagoairegistry.azurecr.io/labeeb:${{env.image_tag}}
