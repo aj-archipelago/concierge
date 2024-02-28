@@ -17,7 +17,7 @@ env:
 
 jobs:
     build:
-        environment: "$slot_name"
+        environment: ${{ github.ref == 'refs/heads/main' && 'blue' || 'dev' }}
         runs-on: ubuntu-latest
 
         steps:
@@ -52,7 +52,7 @@ jobs:
         runs-on: ubuntu-latest
         needs: build
         environment:
-            name: "$slot_name"
+            name: ${{ github.ref == 'refs/heads/main' && 'blue' || 'dev' }}
             url: ${{ steps.deploy-to-webapp.outputs.webapp-url }}
 
         steps:
