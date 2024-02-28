@@ -14,7 +14,7 @@ on:
 env:
     image_tag: "${{ github.sha }}-${{ github.run_id }}"
     app_name: "aj-labeeb"
-    slot_name: ${{ github.ref == 'refs/heads/main' && 'blue' || 'dev' }}
+    slot_name: ${{ github.ref == 'refs/heads/main' && 'aj-labeeb-blue' || 'aj-labeeb-dev' }}
 
 jobs:
     build:
