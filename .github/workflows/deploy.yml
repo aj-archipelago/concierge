@@ -46,7 +46,6 @@ jobs:
                       NEXT_PUBLIC_AMPLITUDE_API_KEY=${{secrets.NEXT_PUBLIC_AMPLITUDE_API_KEY}}
                       NEXT_PUBLIC_ATLASSIAN_CLIENT_ID=${{secrets.NEXT_PUBLIC_ATLASSIAN_CLIENT_ID}}
                       NEXT_PUBLIC_BASE_PATH=${{vars.NEXT_PUBLIC_BASE_PATH}}
-                      NEXT_PUBLIC_NEXTJS_SERVER_URL=${{vars.NEXT_PUBLIC_NEXTJS_SERVER_URL}}
 
     deploy:
         runs-on: ubuntu-latest
