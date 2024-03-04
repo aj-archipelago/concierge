@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useState } from "react";
+import { createContext, useEffect, useState } from "react";
 
 // create the theme context with default selected theme
 export const ThemeContext = createContext({});
@@ -8,6 +8,10 @@ export const ThemeContext = createContext({});
 // it provides the theme context to app
 export function ThemeProvider({ children, savedTheme = "light" }) {
     const [theme, setTheme] = useState(savedTheme);
+
+    useEffect(() => {
+        document.documentElement.setAttribute("data-color-mode", theme);
+    }, [theme]);
 
     if (typeof document === "undefined") {
         return <>{children}</>;
@@ -21,6 +25,10 @@ export function ThemeProvider({ children, savedTheme = "light" }) {
                 document.cookie = `theme=${newTheme}; path=/`;
                 document.body.classList.remove(theme);
                 document.body.classList.add(newTheme);
+                document.documentElement.setAttribute(
+                    "data-color-mode",
+                    newTheme,
+                );
             },
         };
 

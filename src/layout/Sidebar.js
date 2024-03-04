@@ -36,7 +36,16 @@ const navigation = [
     {
         name: "Code",
         icon: CodeBracketIcon,
-        href: "/code",
+        children: [
+            {
+                name: "Knuth",
+                href: "/code/knuth",
+            },
+            {
+                name: "JIRA",
+                href: "/code/jira",
+            },
+        ],
     },
     {
         name: "Transcribe",
@@ -140,7 +149,7 @@ export default function Sidebar() {
                                                                         )
                                                                             ? "bg-gray-100"
                                                                             : "hover:bg-gray-100",
-                                                                        "block rounded-md py-2 pr-2 pl-9 text-sm leading-6 text-gray-700",
+                                                                        "block rounded-md py-2 pe-2 pl-9 text-sm leading-6 text-gray-700",
                                                                     )}
                                                                 >
                                                                     {
