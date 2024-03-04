@@ -7,14 +7,17 @@ on:
     push:
         branches:
             - main
+            - dev
     workflow_dispatch:
 
 env:
     image_tag: "${{ github.sha }}-${{ github.run_id }}"
+    app_name: "aj-labeeb"
+    slot_name: ${{ github.ref == 'refs/heads/main' && 'aj-labeeb-blue' || 'aj-labeeb-dev' }}
 
 jobs:
     build:
-        environment: ${{ github.ref == 'refs/heads/main' && 'production' || 'development' }}
+        environment: ${{ github.ref == 'refs/heads/main' && 'blue' || 'dev' }}
         runs-on: ubuntu-latest
 
         steps:
@@ -35,7 +38,7 @@ jobs:
               with:
                   context: .
                   push: true
-                  tags: archipelagoairegistry.azurecr.io/labeeb:${{ env.image_tag }}
+                  tags: archipelagoairegistry.azurecr.io/${{env.app_name}}/${{env.slot_name}}:${{env.image_tag}}
                   file: ./Dockerfile
                   build-args: |
                       CORTEX_GRAPHQL_API_URL=${{secrets.CORTEX_GRAPHQL_API_URL}}
@@ -43,21 +46,20 @@ jobs:
                       NEXT_PUBLIC_AMPLITUDE_API_KEY=${{secrets.NEXT_PUBLIC_AMPLITUDE_API_KEY}}
                       NEXT_PUBLIC_ATLASSIAN_CLIENT_ID=${{secrets.NEXT_PUBLIC_ATLASSIAN_CLIENT_ID}}
                       NEXT_PUBLIC_BASE_PATH=${{vars.NEXT_PUBLIC_BASE_PATH}}
-                      NEXT_PUBLIC_NEXTJS_SERVER_URL=${{vars.NEXT_PUBLIC_NEXTJS_SERVER_URL}}
 
     deploy:
         runs-on: ubuntu-latest
         needs: build
         environment:
-            name: "production"
+            name: ${{ github.ref == 'refs/heads/main' && 'blue' || 'dev' }}
             url: ${{ steps.deploy-to-webapp.outputs.webapp-url }}
 
         steps:
-            - name: Deploy to Azure Web App
+            - name: "Deploy to ${{env.app_name }}, '${{env.slot_name}}' slot"
               id: deploy-to-webapp
               uses: azure/webapps-deploy@v2
               with:
-                  app-name: "aj-labeeb"
-                  slot-name: "production"
+                  app-name: ${{ env.app_name }}
+                  slot-name: ${{ env.slot_name }}
                   publish-profile: ${{ secrets.AZURE_PUBLISH_PROFILE }}
-                  images: "archipelagoairegistry.azurecr.io/labeeb:${{ env.image_tag }}"
+                  images: archipelagoairegistry.azurecr.io/${{env.app_name}}/${{env.slot_name}}:${{env.image_tag}}
