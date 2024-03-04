@@ -181,6 +181,7 @@ export default function CreateStorySection({ token, ticket }) {
                         <div className="flex gap-2">
                             <a
                                 href={createdUrl}
+                                rel="noreferrer"
                                 target="_blank"
                                 className="lb-success"
                             >
@@ -200,6 +201,7 @@ export default function CreateStorySection({ token, ticket }) {
                             <a
                                 className="lb-link"
                                 href={createdUrl}
+                                rel="noreferrer"
                                 target="_blank"
                             >
                                 {createdUrl}

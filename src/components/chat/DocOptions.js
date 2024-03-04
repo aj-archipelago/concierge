@@ -1,6 +1,5 @@
 import { useLazyQuery } from "@apollo/client";
 import { Popover, Transition } from "@headlessui/react";
-import { ChevronDownIcon } from "@heroicons/react/20/solid";
 import { Fragment, useState } from "react";
 import { Form, ListGroup, Spinner } from "react-bootstrap";
 import { useTranslation } from "react-i18next";
@@ -52,7 +51,6 @@ function getFileIcon(filename) {
 export default function DocOptions() {
     const dispatch = useDispatch();
     const { t } = useTranslation();
-    const [isOpen, setIsOpen] = useState(false);
     const docs = useSelector((state) => state.doc.docs);
     const selectedSources =
         useSelector((state) => state.doc.selectedSources) || [];
@@ -79,10 +77,6 @@ export default function DocOptions() {
             fetchPolicy: "network-only",
         },
     );
-
-    const toggleMenu = () => {
-        setIsOpen(!isOpen);
-    };
 
     const handleDataSource = (source) => {
         if (selectedSources.includes(source)) {
