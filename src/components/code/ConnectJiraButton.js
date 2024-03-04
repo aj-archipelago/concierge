@@ -72,7 +72,7 @@ export default function ConnectJiraButton({ clientSecret, onTokenChange }) {
             });
 
             const { data } = response;
-            accessToken = data.access_token;
+            const accessToken = data.access_token;
 
             // we have new tokes now
             setToken(accessToken);
