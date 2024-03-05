@@ -2,6 +2,23 @@ const path = require("path");
 
 const basePath = process.env.NEXT_PUBLIC_BASE_PATH;
 
+const redirects = [
+    {
+        source: "/",
+        destination: "/write",
+        permanent: true,
+    }
+]
+
+if (basePath && basePath !== "/") {
+    redirects.unshift({
+        source: "/",
+        destination: basePath || "/",
+        basePath: false,
+        permanent: false,
+    });
+}
+
 module.exports = {
     async rewrites() {
         return [
@@ -24,21 +41,10 @@ module.exports = {
     },
     experimental: {
         proxyTimeout: 1000 * 60 * 5, // 5 minutes
+        instrumentationHook: true,
     },
     redirects: async () => {
-        return [
-            {
-                source: "/",
-                destination: basePath || "/",
-                basePath: false,
-                permanent: false,
-            },
-            {
-                source: "/",
-                destination: "/write",
-                permanent: true,
-            },
-        ];
+        return redirects;
     },
     sassOptions: {
         includePaths: [path.join(__dirname, "src")],
