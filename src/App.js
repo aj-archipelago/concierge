@@ -1,7 +1,7 @@
 "use client";
 import { ApolloProvider } from "@apollo/client";
 import React, { useContext } from "react";
-import { client } from "./graphql";
+import { getClient } from "./graphql";
 import "./i18n";
 
 import * as amplitude from "@amplitude/analytics-browser";
@@ -25,26 +25,28 @@ if (typeof document !== "undefined") {
 
 export const AuthContext = React.createContext({});
 
-const App = ({ children, language, theme, user }) => {
+const App = ({ children, language, theme, user, serverUrl }) => {
     if (i18next.language !== language) {
         i18next.changeLanguage(language);
     }
 
     return (
-        <ApolloProvider client={client}>
-            <StoreProvider>
-                <ThemeProvider savedTheme={theme}>
-                    <LanguageProvider savedLanguage={language}>
-                        <React.StrictMode>
-                            <AuthContext.Provider value={{ user }}>
-                                <Layout>
-                                    <Body>{children}</Body>
-                                </Layout>
-                            </AuthContext.Provider>
-                        </React.StrictMode>
-                    </LanguageProvider>
-                </ThemeProvider>
-            </StoreProvider>
+        <ApolloProvider client={getClient(serverUrl)}>
+            <ServerContext.Provider value={{ serverUrl }}>
+                <StoreProvider>
+                    <ThemeProvider savedTheme={theme}>
+                        <LanguageProvider savedLanguage={language}>
+                            <React.StrictMode>
+                                <AuthContext.Provider value={{ user }}>
+                                    <Layout>
+                                        <Body>{children}</Body>
+                                    </Layout>
+                                </AuthContext.Provider>
+                            </React.StrictMode>
+                        </LanguageProvider>
+                    </ThemeProvider>
+                </StoreProvider>
+            </ServerContext.Provider>
         </ApolloProvider>
     );
 };
@@ -67,5 +69,7 @@ const Body = ({ children, tosTimestamp }) => {
         </div>
     );
 };
+
+export const ServerContext = React.createContext({});
 
 export default App;
