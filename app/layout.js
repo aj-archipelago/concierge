@@ -6,6 +6,7 @@ import classNames from "./utils/class-names";
 import { getCurrentUser } from "./utils/auth";
 
 const font = Inter({ subsets: ["latin"] });
+const serverUrl = process.env.SERVER_URL || "http://localhost:3000";
 
 export default async function RootLayout({ children }) {
     const { getLogo } = config.global;
@@ -28,7 +29,7 @@ export default async function RootLayout({ children }) {
                 id="labeeb-root"
                 className={classNames(theme, font.className)}
             >
-                <App theme={theme} language={language} user={user}>
+                <App theme={theme} language={language} user={user} serverUrl={serverUrl}>
                     {children}
                 </App>
             </body>

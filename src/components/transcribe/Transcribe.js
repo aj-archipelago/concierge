@@ -1,7 +1,7 @@
 "use client";
 
 import { useLazyQuery } from "@apollo/client";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useContext, useEffect, useState } from "react";
 import { Form } from "react-bootstrap";
 import { useTranslation } from "react-i18next";
 import { FaVideo } from "react-icons/fa";
@@ -11,6 +11,7 @@ import LoadingButton from "../editor/LoadingButton";
 import { ProgressUpdate } from "../editor/TextSuggestions";
 import TaxonomySelector from "./TaxonomySelector";
 import config from "../../../config";
+import { ServerContext } from "../../App";
 
 function Transcribe({
     dataText,
@@ -47,6 +48,7 @@ function Transcribe({
     const [fileUploading, setFileUploading] = useState(false);
     const [fileUploadError, setFileUploadError] = useState(null);
     const [currentOperation, setCurrentOperation] = useState("");
+    const { serverUrl } = useContext(ServerContext);
 
     // Function to handle file upload and post it to the API
     const handleFileUpload = async (event) => {
@@ -70,7 +72,7 @@ function Transcribe({
 
         try {
             const xhr = new XMLHttpRequest();
-            xhr.open("POST", config.endpoints.mediaHelper, true);
+            xhr.open("POST", config.endpoints.mediaHelper(serverUrl), true);
 
             // Monitor the upload progress
             xhr.upload.onprogress = (event) => {
