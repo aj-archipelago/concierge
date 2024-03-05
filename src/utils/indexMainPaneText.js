@@ -1,4 +1,4 @@
-import { COGNITIVE_DELETE, COGNITIVE_INSERT, client } from "../graphql";
+import { COGNITIVE_DELETE, COGNITIVE_INSERT } from "../graphql";
 import {
     setApiLoading,
     clearApiLoading,
@@ -22,7 +22,7 @@ const leadingEdgeDebounce = (func, wait) => {
     };
 };
 
-const callApi = async (inputText, contextId) => {
+const callApi = async (inputText, contextId, client) => {
     // console.log(`API call with inputText: ${inputText}, contextId: ${contextId}`);
 
     const docId = `${contextId}-indexmainpane`;
@@ -63,7 +63,7 @@ const callApi = async (inputText, contextId) => {
     }
 };
 
-const makeApiCall = async (inputText, contextId, dispatch) => {
+const makeApiCall = async (inputText, contextId, dispatch, client) => {
     dispatch(setApiLoading());
     dispatch(apiError(null));
     if (apiCallInProgress) {
@@ -71,7 +71,7 @@ const makeApiCall = async (inputText, contextId, dispatch) => {
         nextApiCallArgs = { inputText, contextId };
     } else {
         try {
-            apiCallInProgress = callApi(inputText, contextId);
+            apiCallInProgress = callApi(inputText, contextId, client);
             await apiCallInProgress;
         } catch (err) {
             console.error(`API call failed with ${err}`);
@@ -91,8 +91,8 @@ const makeApiCall = async (inputText, contextId, dispatch) => {
 
 const leadingEdgeDebouncedMakeApiCall = leadingEdgeDebounce(makeApiCall, 1000);
 
-export function indexMainPaneText(text, contextId, dispatch) {
-    leadingEdgeDebouncedMakeApiCall(text, contextId, dispatch);
+export function indexMainPaneText(text, contextId, dispatch, client) {
+    leadingEdgeDebouncedMakeApiCall(text, contextId, dispatch, client);
 }
 
 export function easyChunker(text) {

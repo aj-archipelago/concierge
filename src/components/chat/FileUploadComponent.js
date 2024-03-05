@@ -1,5 +1,5 @@
 import { Form } from "react-bootstrap";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useContext } from "react";
 import { useTranslation } from "react-i18next";
 import { v4 as uuidv4 } from "uuid";
 import { COGNITIVE_INSERT } from "../../graphql";
@@ -12,6 +12,7 @@ import {
     loadingError,
 } from "../../stores/fileUploadSlice";
 import config from "../../../config";
+import { ServerContext } from "../../App";
 
 function FileUploadComponent({ text }) {
     const [url, setUrl] = useState(null);
@@ -23,6 +24,7 @@ function FileUploadComponent({ text }) {
     const client = useApolloClient();
     // eslint-disable-next-line
     const [data, setData] = useState(null);
+    const { serverUrl } = useContext(ServerContext);
 
     const setLoadingState = (isLoading) => {
         setIsLoading(isLoading);
@@ -98,7 +100,7 @@ function FileUploadComponent({ text }) {
 
         try {
             const xhr = new XMLHttpRequest();
-            xhr.open("POST", config.endpoints.mediaHelper, true);
+            xhr.open("POST", config.endpoints.mediaHelper(serverUrl), true);
 
             // Monitor the upload progress
             xhr.upload.onprogress = (event) => {
