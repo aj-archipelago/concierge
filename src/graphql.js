@@ -281,6 +281,7 @@ const TRANSCRIBE = gql`
     query Transcribe(
         $file: String!
         $text: String
+        $language: String
         $wordTimestamped: Boolean
         $maxLineCount: Int
         $maxLineWidth: Int
@@ -292,6 +293,7 @@ const TRANSCRIBE = gql`
         transcribe(
             file: $file
             text: $text
+            language: $language
             wordTimestamped: $wordTimestamped
             maxLineCount: $maxLineCount
             maxLineWidth: $maxLineWidth

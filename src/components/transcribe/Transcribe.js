@@ -24,6 +24,7 @@ function Transcribe({
     onSelect,
 }) {
     const [url, setUrl] = useState("");
+    const [language, setLanguage] = useState('');
     const { t } = useTranslation();
     const [fetchData, { loading, error, data }] = useLazyQuery(
         QUERIES.TRANSCRIBE,
@@ -122,9 +123,9 @@ function Transcribe({
         if (!url || isLoading) return;
         setCurrentOperation("Transcribing");
         fetchData({
-            variables: { file: url, wordTimestamped, responseFormat, maxLineCount, maxLineWidth, maxWordsPerLine, highlightWords, async },
+            variables: { file: url, language, wordTimestamped, responseFormat, maxLineCount, maxLineWidth, maxWordsPerLine, highlightWords, async },
         });
-    }, [url, wordTimestamped, responseFormat, maxLineCount, maxLineWidth, maxWordsPerLine, highlightWords, fetchData, isLoading, async]);
+    }, [url, language, wordTimestamped, responseFormat, maxLineCount, maxLineWidth, maxWordsPerLine, highlightWords, fetchData, isLoading, async]);
 
     const setFinalData = (finalData) => {
         setDataText(finalData);
@@ -333,7 +334,31 @@ function Transcribe({
                             />
                     </div>
 
-                    <div className="radio-columns" style={{minWidth:135, marginTop:'auto'}}>
+                    <div style={{display:"flex", flexDirection:"column", textAlign:"center"}}>
+                        <Form.Select 
+                            style={{fontSize:"10px", height:"30px", minWidth:"150px", width:"180px", marginRight:"2px"}}
+                            disabled={isLoading}
+                            onChange={(event) => setLanguage(event.target.value)}
+                            defaultValue={language}
+                        >
+                            <option value="">{t("Auto detect video language")}</option>
+                            <option value="en">{t("English")}</option>
+                            <option value="ar">{t("Arabic")}</option>
+                            <option value="fr">{t("French")}</option>
+                            <option value="es">{t("Spanish")}</option>
+                            <option value="de">{t("German")}</option>
+                            <option value="it">{t("Italian")}</option>
+                            <option value="pt">{t("Portuguese")}</option>
+                            <option value="zh">{t("Chinese")}</option>
+                            <option value="ja">{t("Japanese")}</option>
+                            <option value="ko">{t("Korean")}</option>
+                            <option value="bs">{t("Bosnian")}</option>
+                            <option value="hr">{t("Croatian")}</option>
+                            <option value="sr">{t("Serbian")}</option>
+                            <option value="ru">{t("Russian")}</option>
+                            <option value="tr">{t("Turkish")}</option>
+                        </Form.Select>
+                    </div>                    <div className="radio-columns" style={{minWidth:135, marginTop:'auto'}}>
 
                     <Form.Select 
                                 style={{fontSize:"12px", marginBottom:7, paddingRight:7}}
