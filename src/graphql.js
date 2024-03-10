@@ -5,19 +5,19 @@ import { split, HttpLink } from "@apollo/client";
 import { getMainDefinition } from "@apollo/client/utilities";
 import config from "../config";
 
-const getClient = serverUrl => {
+const getClient = (serverUrl) => {
     const graphqlEndpoint = config.endpoints.graphql(serverUrl);
 
     const httpLink = new HttpLink({
         uri: graphqlEndpoint,
     });
-    
+
     const wsLink = new GraphQLWsLink(
         createClient({
             url: graphqlEndpoint.replace("http", "ws"),
         }),
     );
-    
+
     // The split function takes three parameters:
     //
     // * A function that's called for each operation to execute
@@ -34,15 +34,14 @@ const getClient = serverUrl => {
         wsLink,
         httpLink,
     );
-    
+
     const client = new ApolloClient({
         link: splitLink,
         cache: new InMemoryCache(),
     });
-    
-    return client;
-}
 
+    return client;
+};
 
 const SUMMARY = gql`
     query Summary($text: String!, $async: Boolean, $targetLength: Int) {
@@ -454,8 +453,34 @@ const IMAGE = gql`
 `;
 
 const JIRA_STORY = gql`
-    query JiraStory($text: String!, $storyType: String, $storyCount: String, $async: Boolean) {
-        jira_story(text: $text, storyType: $storyType, storyCount: $storyCount, async: $async) {
+    query JiraStory(
+        $text: String!
+        $storyType: String
+        $storyCount: String
+        $async: Boolean
+    ) {
+        jira_story(
+            text: $text
+            storyType: $storyType
+            storyCount: $storyCount
+            async: $async
+        ) {
+            result
+        }
+    }
+`;
+
+const RUN_GPT35TURBO = gql`
+    query RunGPT35Turbo($text: String!, $prompt: String!, $async: Boolean) {
+        run_gpt35turbo(text: $text, prompt: $prompt, async: $async) {
+            result
+        }
+    }
+`;
+
+const RUN_GPT4 = gql`
+    query RunGPT4($text: String!, $prompt: String!, $async: Boolean) {
+        run_gpt4(text: $text, prompt: $prompt, async: $async) {
             result
         }
     }
@@ -481,6 +506,9 @@ const QUERIES = {
     TOPICS,
     KEYWORDS,
     TAGS,
+    JIRA_STORY,
+    RUN_GPT35TURBO,
+    RUN_GPT4,
     STYLE_GUIDE,
     ENTITIES,
     STORY_ANGLES,

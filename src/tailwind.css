@@ -17,7 +17,7 @@
     }
 
     .lb-primary {
-        @apply rounded-md bg-sky-700 px-2.5 py-1.5 text-sm font-medium text-white shadow-sm hover:bg-sky-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-600 flex items-center gap-1 focus:ring-2 focus:ring-offset-2 focus:ring-sky-500 active:bg-sky-900;
+        @apply rounded-md bg-sky-600 disabled:bg-sky-400 px-2.5 py-1.5 text-sm font-medium text-white disabled:text-gray-200 shadow-sm enabled:hover:bg-sky-500 enabled:active:bg-sky-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-600 flex items-center gap-1 focus:ring-2 focus:ring-offset-2 focus:ring-sky-500 active:bg-sky-900;
     }
 
     .lb-success {
@@ -37,7 +37,15 @@
     }
 
     .lb-outline-secondary {
-        @apply border rounded-md border-zinc-600 px-2.5 py-1.5 text-sm font-semibold text-zinc-600 shadow-sm hover:bg-zinc-300 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-600 active:bg-zinc-600;
+        @apply border rounded-md border-zinc-300 px-2.5 py-1.5 text-sm font-semibold text-zinc-600 shadow-sm hover:bg-zinc-300 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-600 active:bg-zinc-600 active:text-gray-200;
+    }
+
+    .lb-outline-danger {
+        @apply border rounded-md border-rose-300 px-2.5 py-1.5 text-sm font-semibold text-rose-600 shadow-sm hover:bg-rose-300 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-600 active:bg-rose-600 active:text-gray-200;
+    }
+
+    .lb-danger {
+        @apply rounded-md bg-rose-600 px-2.5 py-1.5 text-sm font-semibold text-white shadow-sm hover:bg-rose-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-600 active:bg-rose-900;
     }
 
     .lb-sm {
@@ -45,9 +53,17 @@
     }
 
     .lb-input {
-        @apply rounded-md border-gray-300 px-2.5 py-1.5 text-sm w-full text-gray-700 shadow-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-300 bg-white dark:bg-zinc-100;
+        @apply rounded-md border-gray-300 px-2.5 py-1.5 text-sm w-full text-gray-700 shadow-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-300 bg-white dark:bg-gray-50;
     }
-    
+
+    .white-button {
+        @apply bg-white hover:bg-gray-50 active:bg-gray-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-300;
+    }
+
+    .border {
+        @apply border-gray-300;
+    }
+
     .lb-select {
         @apply text-sm block w-full border rounded-md py-1 text-gray-900 shadow-sm placeholder:text-gray-400 focus:outline-2 focus:outline-gray-300 sm:leading-6 bg-white dark:bg-zinc-100;
     }
