@@ -12,6 +12,9 @@ export default function Footer() {
     return (
         <div className="flex justify-end gap-8 bottom-0 items-center text-xs text-sky-700 px-4 py-2 bg-zinc-200">
             <div>
+                {t("footer_copyright")}
+            </div>
+            <div>
                 <button
                     className="text-sky-600 hover:underline"
                     onClick={() => changeLanguage("en")}
