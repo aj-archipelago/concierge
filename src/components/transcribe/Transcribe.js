@@ -383,7 +383,7 @@ function Transcribe({
         transcriptionOptions = <>
             <div style={{marginTop:'auto', display:'flex', justifyContent:'space-between'}}>
 
-            <Button variant="outline-secondary" className="mb-3" size="sm" onClick={() => { setRequestId(null); setDataText('')}}>
+            <Button variant="outline-secondary" className="mb-3" size="sm" onClick={() => { setRequestId(null); setDataText(''); setUrl('') }}>
                 {t("Start over")}
             </Button>
 
