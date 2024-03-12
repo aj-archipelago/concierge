@@ -39,9 +39,12 @@ function Transcribe({
             data: dataParagraph,
         },
     ] = useLazyQuery(QUERIES.FORMAT_PARAGRAPH_TURBO);
+    const [fetchTranslate, { loading: loadingTranslate, error: errorTranslate, data: dataTranslate }] = useLazyQuery(QUERIES.TRANSLATE_GPT4);
 
-    const { responseFormat, wordTimestamped, textFormatted } =
+    const { responseFormat, wordTimestamped, textFormatted, maxLineCount, maxLineWidth, maxWordsPerLine, highlightWords } =
         transcriptionOption ?? {};
+    const [transcriptionNeedTranslate, setTranscriptionNeedTranslate] = useState(false);
+    const [transcriptionTranslationLanguage, setTranscriptionTranslationLanguage ] = useState("Arabic");
 
     const [requestId, setRequestId] = useState(null);
 
@@ -113,27 +116,30 @@ function Transcribe({
         ? fileUploading
         : async
           ? requestId && !asyncComplete
-          : loading || loadingParagraph;
+          : loading || loadingParagraph || loadingTranslate ;
 
     const handleSubmit = useCallback(() => {
         if (!url || isLoading) return;
         setCurrentOperation("Transcribing");
         fetchData({
-            variables: { file: url, wordTimestamped, responseFormat, async },
+            variables: { file: url, wordTimestamped, responseFormat, maxLineCount, maxLineWidth, maxWordsPerLine, highlightWords, async },
         });
-    }, [url, wordTimestamped, responseFormat, fetchData, isLoading, async]);
+    }, [url, wordTimestamped, responseFormat, maxLineCount, maxLineWidth, maxWordsPerLine, highlightWords, fetchData, isLoading, async]);
 
     const setFinalData = (finalData) => {
         setDataText(finalData);
         setRequestId(null);
-        if (
-            textFormatted &&
-            finalData.trim() &&
-            currentOperation === "Transcribing"
-        ) {
-            setCurrentOperation("Formatting");
-            fetchParagraph({ variables: { text: finalData, async } });
-            return;
+        if (finalData.trim() && currentOperation === 'Transcribing') {
+            if(textFormatted){
+                setCurrentOperation('Formatting');
+                fetchParagraph({ variables: { text: finalData, async } });
+                return
+            }
+            if(transcriptionNeedTranslate && transcriptionTranslationLanguage){
+                setCurrentOperation('Translating');
+                fetchTranslate({ variables: { text: finalData, to: transcriptionTranslationLanguage,  async } });
+                return
+            }
         }
         setAsyncComplete(true);
     };
@@ -196,6 +202,19 @@ function Transcribe({
     }, [dataParagraph, async, setDataText, setAsyncComplete]);
 
     useEffect(() => {
+        if (dataTranslate) {
+            const dataResult = dataTranslate?.translate_gpt4?.result;
+            // setDataText(dataResult);
+            // setFinalData(dataResult);
+            if (async) {
+                setDataText("");
+                setRequestId(dataResult);
+                setAsyncComplete(false);
+            }
+        }
+    }, [dataParagraph, async, setDataText, setAsyncComplete]);
+
+    useEffect(() => {
         asyncComplete && onSelect && onSelect(dataText);
     }, [dataText, asyncComplete, onSelect]);
 
@@ -214,167 +233,151 @@ function Transcribe({
                                 className="rounded border lb-input"
                                 onChange={handleFileUpload}
                             />
-                        </div>
-                        {t("Or enter URL:")}
-                        <input
-                            disabled={isLoading}
-                            placeholder={t(
-                                "Paste URL e.g. https://youtube.com/shorts/raw35iohE0o",
-                            )}
-                            value={url}
-                            type="url"
-                            size="sm"
-                            className="lb-input"
-                            onChange={(e) => setUrl(e.target.value)}
-                            onKeyPress={(e) => {
-                                if (e.key === "Enter") {
-                                    handleSubmit();
-                                }
-                            }}
-                        />
                     </div>
-                </li>
-                <li>
-                    <h4 className="options-header">
-                        {t("Transcribe audio to:")}
-                    </h4>
-                    <div className="options-section">
-                        <div className="radio-columns">
-                            <div>
-                                <Form.Check
-                                    disabled={isLoading}
-                                    type="radio"
-                                    label={t("Plain Text")}
-                                    name="transcriptionOptions"
-                                    id="plainText"
-                                    checked={
-                                        !responseFormat &&
-                                        !wordTimestamped &&
-                                        !textFormatted
-                                    }
-                                    onChange={() =>
-                                        setTranscriptionOption({
-                                            responseFormat: "",
-                                            wordTimestamped: false,
-                                            textFormatted: false,
-                                        })
-                                    }
-                                />
-                                <Form.Check
-                                    disabled={isLoading}
-                                    type="radio"
-                                    label={t("Formatted Text")}
-                                    name="transcriptionOptions"
-                                    id="formattedText"
-                                    checked={
-                                        responseFormat === "" &&
-                                        !wordTimestamped &&
-                                        textFormatted
-                                    }
-                                    onChange={() =>
-                                        setTranscriptionOption({
-                                            responseFormat: "",
-                                            wordTimestamped: false,
-                                            textFormatted: true,
-                                        })
-                                    }
-                                />
-                            </div>
-                            <div>
-                                <Form.Check
-                                    disabled={isLoading}
-                                    type="radio"
-                                    label={t("SRT Format (phrase level)")}
-                                    name="transcriptionOptions"
-                                    id="srtPhraseLevel"
-                                    checked={
-                                        responseFormat === "srt" &&
-                                        !wordTimestamped &&
-                                        !textFormatted
-                                    }
-                                    onChange={() =>
-                                        setTranscriptionOption({
-                                            responseFormat: "srt",
-                                            wordTimestamped: false,
-                                            textFormatted: false,
-                                        })
-                                    }
-                                />
-                                <Form.Check
-                                    disabled={isLoading}
-                                    type="radio"
-                                    label={t("SRT Format (word level)")}
-                                    name="transcriptionOptions"
-                                    id="srtWordLevel"
-                                    checked={
-                                        responseFormat === "srt" &&
-                                        wordTimestamped &&
-                                        !textFormatted
-                                    }
-                                    onChange={() =>
-                                        setTranscriptionOption({
-                                            responseFormat: "srt",
-                                            wordTimestamped: true,
-                                            textFormatted: false,
-                                        })
-                                    }
-                                />
-                            </div>
-                            <div>
-                                <Form.Check
-                                    disabled={isLoading}
-                                    type="radio"
-                                    label={t("VTT Format (phrase level)")}
-                                    name="transcriptionOptions"
-                                    id="vttPhraseLevel"
-                                    checked={
-                                        responseFormat === "vtt" &&
-                                        !wordTimestamped &&
-                                        !textFormatted
-                                    }
-                                    onChange={() =>
-                                        setTranscriptionOption({
-                                            responseFormat: "vtt",
-                                            wordTimestamped: false,
-                                            textFormatted: false,
-                                        })
-                                    }
-                                />
-                                <Form.Check
-                                    disabled={isLoading}
-                                    type="radio"
-                                    label={t("VTT Format (word level)")}
-                                    name="transcriptionOptions"
-                                    id="vttWordLevel"
-                                    checked={
-                                        responseFormat === "vtt" &&
-                                        wordTimestamped &&
-                                        !textFormatted
-                                    }
-                                    onChange={() =>
-                                        setTranscriptionOption({
-                                            responseFormat: "vtt",
-                                            wordTimestamped: true,
-                                            textFormatted: false,
-                                        })
-                                    }
-                                />
-                            </div>
-                        </div>
+                    {t("Or enter URL:")}
+                    <Form.Control
+                        disabled={isLoading}
+                        placeholder={t("Paste URL e.g. https://youtube.com/shorts/raw35iohE0o")}
+                        value={url}
+                        style={{ minWidth: "100px" }}
+                        type="text"
+                        size="sm"
+                        onChange={(e) => setUrl(e.target.value)}
+                        onKeyPress={(e) => {
+                            if (e.key === "Enter") {
+                                handleSubmit();
+                            }
+                        }}
+                    />
+                </div>
+            </li>
+            <li>
+                <h4 className="options-header">{t("Transcribe audio to:")}</h4>
+                <div className="options-section">
+                    <div className="radio-columns">
+                        <Form.Check
+                                disabled={isLoading}
+                                type="radio"
+                                label={t("Plain Text")}
+                                name="transcriptionOptions"
+                                id="plainText"
+                                checked={!responseFormat && !wordTimestamped && !textFormatted}
+                                onChange={() => setTranscriptionOption({ responseFormat: '', wordTimestamped: false, textFormatted: false })}
+                            />
+
+                        <Form.Check
+                                disabled={isLoading}
+                                type="radio"
+                                label={t("Formatted Text")}
+                                name="transcriptionOptions"
+                                id="formattedText"
+                                checked={!responseFormat && !wordTimestamped && textFormatted}
+                                onChange={() => setTranscriptionOption({ responseFormat: '', wordTimestamped: false, textFormatted: true })}
+                            />
+
+                        <Form.Check
+                                disabled={isLoading}
+                                type="radio"
+                                label={t("SRT Format")}
+                                name="transcriptionOptions"
+                                id="srtPhraseLevel"
+                                checked={responseFormat === 'srt'}
+                                onChange={() => setTranscriptionOption({ responseFormat: 'srt', wordTimestamped: false, textFormatted: false })}
+                            />
+
+                        <Form.Check
+                                disabled={isLoading}
+                                type="radio"
+                                label={t("VTT Format")}
+                                name="transcriptionOptions"
+                                id="vttPhraseLevel"
+                                checked={responseFormat === 'vtt'}
+                                onChange={() => setTranscriptionOption({ responseFormat: 'vtt', wordTimestamped: false, textFormatted: false })}
+                            />
                     </div>
-                </li>
-            </ol>
-            <div className="mb-3">
-                <LoadingButton
-                    disabled={!url}
-                    loading={isLoading}
-                    text={t(currentOperation)}
-                    onClick={() => handleSubmit()}
-                >
-                    <FaVideo /> {t("Transcribe")}
-                </LoadingButton>
-            </div>
-            {isLoading && <ProgressBar />}
+
+                    <div className="radio-columns" hidden={!responseFormat}>
+                        <Form.Check
+                                disabled={isLoading}
+                                type="radio"
+                                label={t("Phrase level")}
+                                name="transcriptionOptions2"
+                                id="phraseLevel"
+                                checked={!wordTimestamped && !maxLineWidth}
+                                onChange={() => setTranscriptionOption({ responseFormat,  wordTimestamped: false, textFormatted: false })}
+                            />
+                            <Form.Check
+                                disabled={isLoading}
+                                type="radio"
+                                label={t("Word level")}
+                                name="transcriptionOptions2"
+                                id="wordLevel"
+                                checked={wordTimestamped && !maxLineWidth}
+                                onChange={() => setTranscriptionOption({ responseFormat, wordTimestamped: true, textFormatted: false })}
+                            />
+                            <Form.Check
+                                disabled={isLoading}
+                                type="radio"
+                                label={t("Horizontal")}
+                                name="transcriptionOptions2"
+                                id="horizontal"
+                                checked={maxLineWidth===35}
+                                onChange={() => setTranscriptionOption({ responseFormat, wordTimestamped: true, textFormatted: false, maxLineWidth: 35, maxLineCount:1 })}
+                            />
+                            <Form.Check
+                                disabled={isLoading}
+                                type="radio"
+                                label={t("Vertical")}
+                                name="transcriptionOptions2"
+                                id="vertical"
+                                checked={maxLineWidth===25}
+                                onChange={() => setTranscriptionOption({ responseFormat, wordTimestamped: true, textFormatted: false, maxLineWidth: 25, maxLineCount:1 })}
+                            />
+                    </div>
+
+                    <div className="radio-columns" style={{minWidth:130, marginTop:'auto'}}>
+
+                    <Form.Select 
+                                style={{fontSize:"12px", marginBottom:7}}
+                                hidden={!transcriptionNeedTranslate}
+                                disabled={isLoading}
+                                onChange={(event) => setTranscriptionTranslationLanguage(event.target.value)}
+                            >
+                                <option>Arabic</option>
+                                <option>English (UK)</option>
+                                <option>English (US)</option>
+                                <option>French</option>
+                                <option>Italian</option>
+                                <option>Turkish</option>
+                        </Form.Select>
+
+                        <Form.Check
+                                disabled={isLoading}
+                                type="checkbox"
+                                label={t("Translate")}
+                                name="transcriptionOptions3"
+                                id="translateText"
+                                style={{fontStyle:"italic"}}
+                                onChange={(event) => setTranscriptionNeedTranslate(event.target.checked)}
+                            />
+                    </div>
+                </div>
+
+            </li>
+        </ol>
+
+        <div style={{ paddingInlineStart: '2rem' }}>
+            <LoadingButton
+                disabled={!url}
+                loading={isLoading}
+                text={t(currentOperation)}
+                style={{ whiteSpace: "nowrap", minWidth: "130px", marginBottom: "20px" }}
+                onClick={() => handleSubmit()}
+            >
+                <FaVideo /> {t("Transcribe")}
+            </LoadingButton>
+        </div>
+        {isLoading && <ProgressBar />}
         </>
     );
 
@@ -396,10 +399,10 @@ function Transcribe({
         <div>
             {transcriptionOptions}
             <div>
-                {(error || errorParagraph || fileUploadError) && (
+                {(error || errorParagraph || errorTranslate  || fileUploadError) && (
                     <p>
                         Error:{" "}
-                        {(error || errorParagraph || fileUploadError).message}
+                        {(error || errorParagraph || errorTranslate || fileUploadError).message}
                     </p>
                 )}
                 {dataText && asyncComplete && (
