@@ -44,12 +44,8 @@ export async function PUT(req, { params }) {
             index++;
         }
 
-        console.log("slug", slug);
-
         attrs.slug = slug;
     }
-
-    console.log("attrs", attrs);
 
     const newWorkspace = await Workspace.findByIdAndUpdate(id, attrs, {
         new: true,

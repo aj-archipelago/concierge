@@ -1,9 +1,14 @@
 import { headers } from "next/headers";
 import config from "../../../config";
 import User from "../models/user";
+import mongoose from "mongoose";
 
 export const getCurrentUser = async () => {
     const auth = config.auth;
+
+    if (!mongoose.connection.readyState) {
+        return { userId: "nodb", name: "No Database Connected" };
+    }
 
     if (!auth.provider) {
         return;

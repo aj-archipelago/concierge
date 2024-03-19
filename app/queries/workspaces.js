@@ -8,9 +8,27 @@ export function useWorkspace(id) {
             const { data } = await axios.get(`/api/workspaces/${id}`);
             return data;
         },
+        staleTime: 1000 * 60 * 5,
     });
 
     return query;
+}
+
+export function useUpdateWorkspace() {
+    const queryClient = useQueryClient();
+
+    const mutation = useMutation({
+        mutationFn: async ({ id, data }) => {
+            const { data: updatedWorkspace } = await axios.put(
+                `/api/workspaces/${id}`,
+                data,
+            );
+            queryClient.invalidateQueries(["workspaces", id]);
+            return updatedWorkspace;
+        },
+    });
+
+    return mutation;
 }
 
 export function useWorkspaces() {

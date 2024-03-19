@@ -1,9 +1,16 @@
 import { useState } from "react";
-import { FaEdit } from "react-icons/fa";
+import { FaEdit, FaPlay } from "react-icons/fa";
 import stringcase from "stringcase";
 import Loader from "../../components/loader";
+import LoadingButton from "../../../src/components/editor/LoadingButton";
 
-export default function PromptList({ prompts, onSelect, onEdit, onNew }) {
+export default function PromptList({
+    prompts,
+    onSelect,
+    onEdit,
+    onNew,
+    onRunAll,
+}) {
     const [runningPromptId, setRunningPromptId] = useState(null);
     const [filter, setFilter] = useState("");
 
@@ -14,17 +21,34 @@ export default function PromptList({ prompts, onSelect, onEdit, onNew }) {
     return (
         <div className="flex flex-col grow overflow-auto p-1">
             <div className="flex justify-between items-center mb-3">
-                <h4 className="text-lg font-medium">Prompts</h4>
-                <button className="lb-outline-secondary lb-sm" onClick={onNew}>
-                    + Add prompt
-                </button>
+                <h4 className=" font-medium">Prompts</h4>
+                <div className="flex gap-2">
+                    <button
+                        className="lb-outline-secondary lb-sm"
+                        onClick={onNew}
+                    >
+                        + Add prompt
+                    </button>
+                    <LoadingButton
+                        loading={runningPromptId}
+                        text="Running"
+                        onClick={async () => {
+                            setRunningPromptId("all");
+                            await onRunAll();
+                            setRunningPromptId(null);
+                        }}
+                        className="lb-success lb-sm flex gap-2"
+                    >
+                        <FaPlay size={9} /> Run all
+                    </LoadingButton>
+                </div>
             </div>
             <input
                 type="text"
                 placeholder="Search prompts"
                 value={filter}
                 onChange={(e) => setFilter(e.target.value)}
-                className="lb-input mb-3"
+                className="lb-input text-sm mb-3"
             />
             <ul className="text-sm grow overflow-auto">
                 {filteredPrompts.map((prompt) => (
@@ -50,7 +74,7 @@ export default function PromptList({ prompts, onSelect, onEdit, onNew }) {
                                             e.stopPropagation();
                                             e.preventDefault();
                                         }}
-                                        title="Edit prompt before running"
+                                        title="Edit prompt"
                                     >
                                         <FaEdit />
                                     </div>

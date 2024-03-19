@@ -2,7 +2,7 @@ import { getClient, QUERIES } from "../../../src/graphql";
 
 export async function POST(req, res) {
     const body = await req.json();
-    const { text, prompt } = body;
+    const { text, prompt, systemPrompt } = body;
     const serverUrl = process.env.SERVER_URL;
 
     const response = await getClient(serverUrl).query({
@@ -10,6 +10,7 @@ export async function POST(req, res) {
         variables: {
             text,
             prompt,
+            systemPrompt,
         },
     });
 

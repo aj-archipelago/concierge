@@ -9,12 +9,12 @@ import axios from "axios";
 export function usePromptsByIds(ids) {
     const queries = useQueries({
         queries: ids.map((id) => ({
-            queryKey: ["prompt", id],
+            queryKey: ["prompts", id],
             queryFn: async () => {
                 const { data } = await axios.get(`/api/prompts/${id}`);
                 return data;
             },
-            staleTime: 1000 * 60 * 5,
+            staleTime: Infinity,
         })),
     });
 
@@ -44,7 +44,7 @@ export function useUpdatePrompt() {
     return useMutation({
         mutationFn: async ({ id, data }) => {
             const response = await axios.put(`/api/prompts/${id}`, data);
-            queryClient.invalidateQueries(["prompt", id]);
+            queryClient.invalidateQueries(["prompts", id]);
             return response.data;
         },
     });
@@ -73,9 +73,8 @@ export function useDeletePrompt() {
             const response = await axios.delete(
                 `/api/workspaces/${workspaceId}/prompts/${id}`,
             );
-            queryClient.invalidateQueries(["prompt", id]);
+            queryClient.invalidateQueries(["prompts", id]);
             queryClient.setQueryData(["workspaces", workspaceId], (oldData) => {
-                console.log("oldData", oldData);
                 return {
                     ...oldData,
                     prompts: oldData?.prompts.filter((prompt) => prompt !== id),

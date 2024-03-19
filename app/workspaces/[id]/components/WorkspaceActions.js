@@ -199,7 +199,7 @@ function Name({ workspace, user }) {
                         )}
                     </div>
                 </div>
-                {user?._id?.toString() === workspace?._id?.toString() && (
+                {user?._id?.toString() === workspace?.owner?.toString() && (
                     <button
                         className="lb-outline-secondary self-start"
                         onClick={() => setEditing(true)}

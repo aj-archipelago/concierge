@@ -1,20 +1,21 @@
-import { useEffect, useState } from "react";
-import { FaPlay } from "react-icons/fa";
+import { useContext, useEffect, useState } from "react";
+import { FaEdit } from "react-icons/fa";
 import LoadingButton from "../../../src/components/editor/LoadingButton";
-import PromptList from "./PromptList";
-import { useWorkspace } from "../../queries/workspaces";
 import {
     useCreatePrompt,
     useDeletePrompt,
     usePromptsByIds,
     useUpdatePrompt,
 } from "../../queries/prompts";
+import { useUpdateWorkspace } from "../../queries/workspaces";
+import PromptList from "./PromptList";
+import { WorkspaceContext } from "./WorkspaceContent";
 
-export default function WorkspaceInput({ onRun, user, id }) {
+export default function WorkspaceInput({ onRun }) {
     const [text, setText] = useState("");
     const [selectedPrompt, setSelectedPrompt] = useState(null);
     const [editing, setEditing] = useState(false);
-    const { data: workspace } = useWorkspace(id);
+    const { workspace } = useContext(WorkspaceContext);
     const { data: prompts, isLoading: arePromptsLoading } = usePromptsByIds(
         workspace?.prompts || [],
     );
@@ -28,7 +29,7 @@ export default function WorkspaceInput({ onRun, user, id }) {
 
     return (
         <div className="h-full overflow-auto flex flex-col gap-2">
-            <div className="basis-5/12 flex flex-col gap-3 p-1">
+            <div className="basis-5/12 flex flex-col gap-3 p-1 overflow-auto">
                 <textarea
                     placeholder="Enter some text here"
                     value={text}
@@ -37,13 +38,27 @@ export default function WorkspaceInput({ onRun, user, id }) {
                     className="lb-input w-full h-full"
                 ></textarea>
             </div>
-            <div className="basis-7/12 flex flex-col overflow-y-auto">
+            <div className="basis-2/12 overflow">
+                <SystemPrompt />
+            </div>
+            <div className="basis-5/12 flex flex-col overflow-y-auto">
                 {!editing && (
                     <PromptList
                         prompts={prompts}
                         onNew={() => {
                             setSelectedPrompt(null);
                             setEditing(true);
+                        }}
+                        onRunAll={async () => {
+                            if (text) {
+                                for (const prompt of prompts) {
+                                    await onRun(
+                                        prompt.title,
+                                        text,
+                                        prompt.text,
+                                    );
+                                }
+                            }
                         }}
                         onSelect={async (prompt) => {
                             if (text) {
@@ -55,8 +70,6 @@ export default function WorkspaceInput({ onRun, user, id }) {
                 )}
                 {editing && (
                     <PromptEditor
-                        workspaceId={id}
-                        userId={user?._id}
                         selectedPrompt={selectedPrompt}
                         onBack={() => setEditing(false)}
                     />
@@ -66,12 +79,97 @@ export default function WorkspaceInput({ onRun, user, id }) {
     );
 }
 
-function PromptEditor({ workspaceId, userId, selectedPrompt, onBack }) {
+function SystemPrompt() {
+    const [editing, setEditing] = useState(false);
+    const { workspace, isOwner } = useContext(WorkspaceContext);
+    const value = workspace?.systemPrompt;
+
+    if (editing) {
+        return (
+            <SystemPromptEditor
+                value={value}
+                onCancel={() => setEditing(false)}
+                onSave={(p) => {
+                    setEditing(false);
+                }}
+            />
+        );
+    }
+
+    return (
+        <div className="p-1">
+            <div className="w-full text-left bg-gray-50 p-2 rounded border">
+                <div className="flex gap-2 items-center justify-between">
+                    <div className="text-gray-500 text-xs">{value}</div>
+                    {isOwner && (
+                        <div
+                            className="text-gray-500 hover:text-gray-700 active:text-gray-900 cursor-pointer"
+                            onClick={(e) => {
+                                setEditing(true);
+                            }}
+                            title="Edit prompt"
+                        >
+                            <FaEdit />
+                        </div>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+}
+
+function SystemPromptEditor({ value, onCancel, onSave }) {
+    const [prompt, setPrompt] = useState(value);
+    const updateWorkspace = useUpdateWorkspace();
+    const { workspace } = useContext(WorkspaceContext);
+
+    return (
+        <div className="p-1">
+            <h4 className="text-lg font-medium mb-4">System Prompt</h4>
+            <textarea
+                value={prompt}
+                onChange={(e) => setPrompt(e.target.value)}
+                className="lb-input mb-2"
+                rows={5}
+                type="text"
+                placeholder="Enter a prompt here to run against the input"
+            />
+            <div className="flex justify-between gap-2">
+                <div className="flex gap-2">
+                    <button
+                        className="lb-outline-secondary flex gap-2 px-4"
+                        onClick={() => onCancel()}
+                    >
+                        Cancel
+                    </button>
+                    <LoadingButton
+                        loading={updateWorkspace.isLoading}
+                        text="Saving..."
+                        className="lb-primary flex justify-center gap-2 px-4"
+                        disabled={!prompt}
+                        onClick={async () => {
+                            await updateWorkspace.mutateAsync({
+                                id: workspace?._id,
+                                data: { systemPrompt: prompt },
+                            });
+                            onSave(prompt);
+                        }}
+                    >
+                        Save
+                    </LoadingButton>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+function PromptEditor({ selectedPrompt, onBack }) {
     const [title, setTitle] = useState("");
     const [prompt, setPrompt] = useState("");
     const updatePrompt = useUpdatePrompt();
     const createPrompt = useCreatePrompt();
     const deletePrompt = useDeletePrompt();
+    const { user, workspace } = useContext(WorkspaceContext);
 
     useEffect(() => {
         if (selectedPrompt) {
@@ -82,7 +180,7 @@ function PromptEditor({ workspaceId, userId, selectedPrompt, onBack }) {
             setPrompt("");
         }
     }, [selectedPrompt]);
-    const isOwner = selectedPrompt?.owner?.toString() === userId?.toString();
+    const isOwner = selectedPrompt?.owner?.toString() === user._id?.toString();
 
     return (
         <div className="p-1">
@@ -115,9 +213,8 @@ function PromptEditor({ workspaceId, userId, selectedPrompt, onBack }) {
                             ) {
                                 await deletePrompt.mutateAsync({
                                     id: selectedPrompt._id,
-                                    workspaceId,
+                                    workspace,
                                 });
-                                console.log("deleted");
                                 onBack();
                             }
                         }}
@@ -148,7 +245,7 @@ function PromptEditor({ workspaceId, userId, selectedPrompt, onBack }) {
                                 onBack();
                             } else {
                                 await createPrompt.mutateAsync({
-                                    workspaceId,
+                                    workspace,
                                     prompt: { title, text: prompt },
                                 });
                                 onBack();

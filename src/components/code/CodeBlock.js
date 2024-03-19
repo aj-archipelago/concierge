@@ -7,7 +7,9 @@ const CodeBlock = ({ code, language }) => {
     const trimmedCode = code.trim();
 
     if (language && HighlightJS.getLanguage(language)) {
-        highlightedCode = HighlightJS.highlight(trimmedCode, {language: language}).value;
+        highlightedCode = HighlightJS.highlight(trimmedCode, {
+            language: language,
+        }).value;
     } else {
         highlightedCode = HighlightJS.highlightAuto(trimmedCode).value;
     }

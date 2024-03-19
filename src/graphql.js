@@ -471,16 +471,36 @@ const JIRA_STORY = gql`
 `;
 
 const RUN_GPT35TURBO = gql`
-    query RunGPT35Turbo($text: String!, $prompt: String!, $async: Boolean) {
-        run_gpt35turbo(text: $text, prompt: $prompt, async: $async) {
+    query RunGPT35Turbo(
+        $text: String!
+        $systemPrompt: String!
+        $prompt: String!
+        $async: Boolean
+    ) {
+        run_gpt35turbo(
+            text: $text
+            systemPrompt: $systemPrompt
+            prompt: $prompt
+            async: $async
+        ) {
             result
         }
     }
 `;
 
 const RUN_GPT4 = gql`
-    query RunGPT4($text: String!, $prompt: String!, $async: Boolean) {
-        run_gpt4(text: $text, prompt: $prompt, async: $async) {
+    query RunGPT4(
+        $text: String!
+        $systemPrompt: String!
+        $prompt: String!
+        $async: Boolean
+    ) {
+        run_gpt4(
+            text: $text
+            systemPrompt: $systemPrompt
+            prompt: $prompt
+            async: $async
+        ) {
             result
         }
     }
