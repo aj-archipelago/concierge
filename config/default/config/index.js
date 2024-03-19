@@ -28,8 +28,8 @@ export default {
         botName: "Knuth",
     },
     endpoints: {
-        mediaHelper: serverUrl => `${serverUrl}${basePath}/media-helper`,
-        graphql: serverUrl => `${serverUrl}${basePath}/graphql`,
+        mediaHelper: (serverUrl) => `${serverUrl}${basePath}/media-helper`,
+        graphql: (serverUrl) => `${serverUrl}${basePath}/graphql`,
     },
     auth: {
         provider: null, // only one value is supported: "entra"

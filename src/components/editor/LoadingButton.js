@@ -14,7 +14,7 @@ export default function LoadingButton({
     return (
         <button
             className={classNames(
-                "lb-primary text-center",
+                "text-center",
                 className,
                 loading ? "pe-5" : "",
             )}

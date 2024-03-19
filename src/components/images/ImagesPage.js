@@ -146,6 +146,7 @@ function ImagesPage() {
                     />
 
                     <LoadingButton
+                        className={"lb-primary"}
                         style={{ whiteSpace: "nowrap" }}
                         loading={loading}
                         text={t("Generating...")}

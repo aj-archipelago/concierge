@@ -7,6 +7,7 @@ import {
     MicrophoneIcon,
     PencilSquareIcon,
     PhotoIcon,
+    //playground
 } from "@heroicons/react/24/outline";
 import i18next from "i18next";
 import Link from "next/link";
@@ -16,6 +17,8 @@ import config from "../../config";
 import { useTranslation } from "react-i18next";
 import { useContext } from "react";
 import { LanguageContext } from "../contexts/LanguageProvider";
+import { GiKidSlide } from "react-icons/gi";
+import { MdOutlineWorkspaces } from "react-icons/md";
 
 const navigation = [
     {
@@ -56,6 +59,11 @@ const navigation = [
         name: "Images",
         icon: PhotoIcon,
         href: "/images",
+    },
+    {
+        name: "Workspaces",
+        icon: MdOutlineWorkspaces,
+        href: "/workspaces",
     },
 ];
 

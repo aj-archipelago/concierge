@@ -62,7 +62,9 @@ function MessageList({ messages, bot, loading }) {
                         )}
                     >
                         <div className="font-semibold">{t(botName)}</div>
-                        <div className="chat-message-bot">{message.payload}</div>
+                        <div className="chat-message-bot">
+                            {message.payload}
+                        </div>
                     </div>
                 </div>
             );
@@ -86,7 +88,9 @@ function MessageList({ messages, bot, loading }) {
                         )}
                     >
                         <div className="font-semibold">{t("You")}</div>
-                        <pre className="chat-message-user">{message.payload}</pre>
+                        <pre className="chat-message-user">
+                            {message.payload}
+                        </pre>
                     </div>
                 </div>
             );
@@ -107,10 +111,13 @@ function MessageList({ messages, bot, loading }) {
                     message = Object.assign({}, message, {
                         payload: (
                             <React.Fragment key={`inner-${message.id}`}>
-                                {message.sender === 'labeeb' 
-                                    ? convertMessageToMarkdown(message) 
-                                    : <div key={`um-${index}`}>{message.payload}</div>
-                                }
+                                {message.sender === "labeeb" ? (
+                                    convertMessageToMarkdown(message)
+                                ) : (
+                                    <div key={`um-${index}`}>
+                                        {message.payload}
+                                    </div>
+                                )}
                             </React.Fragment>
                         ),
                     });

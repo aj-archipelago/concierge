@@ -7,8 +7,8 @@ const redirects = [
         source: "/",
         destination: "/write",
         permanent: true,
-    }
-]
+    },
+];
 
 if (basePath && basePath !== "/") {
     redirects.unshift({

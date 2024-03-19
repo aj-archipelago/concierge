@@ -14,23 +14,25 @@ body.dark {
     background-color: $bg-color-dark;
     color: $text-color-dark;
 
-    .bs-popover-start > .popover-arrow::after, .bs-popover-auto[data-popper-placement^=left] > .popover-arrow::after {
+    .bs-popover-start > .popover-arrow::after,
+    .bs-popover-auto[data-popper-placement^="left"] > .popover-arrow::after {
         border-left-color: $popover-bg-color-dark;
     }
-    
-    .bs-popover-end > .popover-arrow::after, .bs-popover-auto[data-popper-placement^=right] > .popover-arrow::after {
+
+    .bs-popover-end > .popover-arrow::after,
+    .bs-popover-auto[data-popper-placement^="right"] > .popover-arrow::after {
         border-right-color: $popover-bg-color-dark;
     }
-    
+
     .popover {
         background-color: $popover-bg-color-dark;
         border: 1px solid $popover-border-color-dark;
         padding: 10px;
-        font-family: 'Roboto', sans-serif;
+        font-family: "Roboto", sans-serif;
         .popover-header {
             background-color: darken($popover-bg-color-dark, 5%);
             color: $popover-color-dark;
-            padding: .5rem $spacer;
+            padding: 0.5rem $spacer;
         }
         .popover-link {
             a {
@@ -54,10 +56,9 @@ body.dark {
             color: $popover-color-dark;
             font-size: 0.8rem;
             line-height: 1.5;
-
         }
     }
-    
+
     .text-with-citations {
         sup {
             color: $link-color-dark;
@@ -67,7 +68,7 @@ body.dark {
             font-size: 0.9em;
         }
     }
-    
+
     .inline-code {
         color: $code-color-dark;
     }
@@ -78,19 +79,25 @@ body.dark {
         font-size: 16px; // Good readability size
         line-height: 1.5; // Spacing for readability
         color: $text-color-dark; // Light color for contrast against dark background
-    
+
         // Markdown heading styling
-        h1, h2, h3, h4, h5, h6 {
+        h1,
+        h2,
+        h3,
+        h4,
+        h5,
+        h6 {
             margin: 10px 0;
             color: $text-color-dark; // Light color for contrast
         }
-    
+
         // Markdown list styling
-        ul, ol {
+        ul,
+        ol {
             padding-left: 20px; // Indent lists
             line-height: 1.5; // Spacing for readability
         }
-    
+
         // Markdown link styling
         a {
             color: $link-color-dark; // Color for links in dark mode
@@ -99,7 +106,7 @@ body.dark {
                 text-decoration: underline; // Underline on hover for user feedback
             }
         }
-    
+
         // Markdown block quote styling
         blockquote {
             border-left: 3px solid $border-color-dark; // Left border for distinction
@@ -107,23 +114,27 @@ body.dark {
             color: $text-color-dark-dim; // Dimmed light color for contrast
             margin: 10px 0; // Margin for spacing
         }
-    
+
         // Markdown table styling
         table {
             width: 100%; // Full width
             border-collapse: collapse; // No space between borders
             margin: 10px 0; // Margin for spacing
             background-color: $bg-color-dark-dim; // Dark background color
-    
-            th, td {
+
+            th,
+            td {
                 border: 1px solid $border-color-dark; // Border for visibility
                 padding: 5px; // Padding for readability
                 text-align: left; // Align text to left
                 color: $text-color-dark; // Light color for contrast
             }
-    
+
             th {
-                background-color: darken($bg-color-dark-dim, 5%); // Dark background color for contrast
+                background-color: darken(
+                    $bg-color-dark-dim,
+                    5%
+                ); // Dark background color for contrast
             }
         }
     }

@@ -1,9 +1,11 @@
+import mongoose from "mongoose";
 import { Inter } from "next/font/google";
 import { cookies } from "next/headers";
 import config from "../config";
 import App from "../src/App";
+import Providers from "./Providers";
+import { getCurrentUser } from "./api/utils/auth";
 import classNames from "./utils/class-names";
-import { getCurrentUser } from "./utils/auth";
 
 const font = Inter({ subsets: ["latin"] });
 const serverUrl = process.env.SERVER_URL || "http://localhost:3000";
@@ -11,10 +13,16 @@ const serverUrl = process.env.SERVER_URL || "http://localhost:3000";
 export default async function RootLayout({ children }) {
     const { getLogo } = config.global;
 
+    if (!mongoose.connection.readyState) {
+        throw new Error(
+            `Database not connected. Labeeb requires a database to function. Please set up a Mongo DB and provide the URL using the MONGO_URI environment variable.`,
+        );
+    }
+
     const cookieStore = cookies();
     const language = cookieStore.get("i18next")?.value || "en";
     const theme = cookieStore.get("theme")?.value || "light";
-    const user = await getCurrentUser();
+    let user = await getCurrentUser();
 
     return (
         <html lang={language} dir={language === "ar" ? "rtl" : "ltr"}>
@@ -29,9 +37,16 @@ export default async function RootLayout({ children }) {
                 id="labeeb-root"
                 className={classNames(theme, font.className)}
             >
-                <App theme={theme} language={language} user={user} serverUrl={serverUrl}>
-                    {children}
-                </App>
+                <Providers>
+                    <App
+                        theme={theme}
+                        language={language}
+                        user={user}
+                        serverUrl={serverUrl}
+                    >
+                        {children}
+                    </App>
+                </Providers>
             </body>
         </html>
     );

@@ -3,11 +3,13 @@ $popover-color: #333333;
 $popover-bg-color: #ffffff;
 $popover-border-color: #cccccc;
 
-.bs-popover-start > .popover-arrow::after, .bs-popover-auto[data-popper-placement^=left] > .popover-arrow::after {
+.bs-popover-start > .popover-arrow::after,
+.bs-popover-auto[data-popper-placement^="left"] > .popover-arrow::after {
     border-left-color: $popover-bg-color;
 }
 
-.bs-popover-end > .popover-arrow::after, .bs-popover-auto[data-popper-placement^=right] > .popover-arrow::after {
+.bs-popover-end > .popover-arrow::after,
+.bs-popover-auto[data-popper-placement^="right"] > .popover-arrow::after {
     border-right-color: $popover-bg-color;
 }
 
@@ -19,7 +21,7 @@ $popover-border-color: #cccccc;
     .popover-header {
         background-color: darken($popover-bg-color, 10%);
         color: $popover-color;
-        padding: .5rem $spacer;
+        padding: 0.5rem $spacer;
     }
     .popover-link {
         a {
@@ -43,10 +45,8 @@ $popover-border-color: #cccccc;
         color: $popover-color;
         font-size: 0.8rem;
         line-height: 1.5;
-
     }
 }
-
 
 .text-with-citations {
     sup {
@@ -297,56 +297,62 @@ html[dir="ltr"] {
 
 .chat-message-bot {
     // Typography
-    font-family: $font-family-sans-serif; 
+    font-family: $font-family-sans-serif;
     font-size: 16px; // Good readability size
     line-height: 1.5; // Spacing for readability
     color: #333; // Dark color for contrast
-  
+
     // Markdown heading styling
-    h1, h2, h3, h4, h5, h6 {
-      margin: 10px 0;
-      color: #333; // Dark color for contrast
+    h1,
+    h2,
+    h3,
+    h4,
+    h5,
+    h6 {
+        margin: 10px 0;
+        color: #333; // Dark color for contrast
     }
-  
+
     h1 {
-      font-size: 2em; // Large size for main headings
+        font-size: 2em; // Large size for main headings
     }
-  
+
     h2 {
-      font-size: 1.5em; // Smaller for sub-headings
+        font-size: 1.5em; // Smaller for sub-headings
     }
-  
+
     h3 {
         font-size: 1.3em; // Smaller than h2
     }
 
     h4 {
-    font-size: 1.15em; // Smaller than h3
+        font-size: 1.15em; // Smaller than h3
     }
 
     h5 {
-    font-size: 1em; // Smaller than h4
+        font-size: 1em; // Smaller than h4
     }
 
     h6 {
-    font-size: 0.85em; // Smallest heading size
+        font-size: 0.85em; // Smallest heading size
     }
 
     // Markdown list styling
-    ul, ol {
-      padding-left: 20px; // Indent lists
-      line-height: 1.5; // Spacing for readability
+    ul,
+    ol {
+        padding-left: 20px; // Indent lists
+        line-height: 1.5; // Spacing for readability
     }
-  
+
     // Markdown link styling
     a {
-      color: #007bff; // Blue for visibility
-      text-decoration: none; // No underline for clean look
-      &:hover {
-        text-decoration: underline; // Underline on hover for user feedback
-      }
+        color: #007bff; // Blue for visibility
+        text-decoration: none; // No underline for clean look
+        &:hover {
+            text-decoration: underline; // Underline on hover for user feedback
+        }
     }
-  
+
     // Markdown block quote styling
     blockquote {
         border-left: 3px solid #ddd; // Left border for distinction
@@ -354,22 +360,23 @@ html[dir="ltr"] {
         color: #666; // Lighter color for contrast
         margin: 10px 0; // Margin for spacing
     }
-    
+
     // Markdown table styling
     table {
         width: 100%; // Full width
         border-collapse: collapse; // No space between borders
         margin: 10px 0; // Margin for spacing
         background-color: #ffffff;
-    
-        th, td {
-        border: 1px solid #ddd; // Border for visibility
-        padding: 5px; // Padding for readability
-        text-align: left; // Align text to left
+
+        th,
+        td {
+            border: 1px solid #ddd; // Border for visibility
+            padding: 5px; // Padding for readability
+            text-align: left; // Align text to left
         }
-    
+
         th {
-        background-color: #f5f5f5; // Light background for contrast
+            background-color: #f5f5f5; // Light background for contrast
         }
     }
 }
