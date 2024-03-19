@@ -6,6 +6,7 @@ import {
 import { getCurrentUser } from "../../api/utils/auth";
 import WorkspaceContent from "../components/WorkspaceContent";
 import WorkspaceActions from "./components/WorkspaceActions";
+import { getWorkspace } from "../../api/workspaces/[id]/queries";
 
 export default async function Page({ params }) {
     const id = params.id;
@@ -16,7 +17,7 @@ export default async function Page({ params }) {
     await queryClient.prefetchQuery({
         queryKey: ["workspaces", id],
         queryFn: async () => {
-            return await    id);
+            return await getWorkspace(id);
             // const workspace = await Workspace.findById(id);
 
             // for (const promptId of workspace.prompts) {
