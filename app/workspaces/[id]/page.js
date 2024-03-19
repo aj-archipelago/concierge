@@ -4,7 +4,6 @@ import {
     QueryClient,
 } from "@tanstack/react-query";
 import { getCurrentUser } from "../../api/utils/auth";
-import { getWorkspace } from "../../api/workspaces/[id]/route";
 import WorkspaceContent from "../components/WorkspaceContent";
 import WorkspaceActions from "./components/WorkspaceActions";
 
@@ -17,7 +16,7 @@ export default async function Page({ params }) {
     await queryClient.prefetchQuery({
         queryKey: ["workspaces", id],
         queryFn: async () => {
-            return await getWorkspace(id);
+            return await    id);
             // const workspace = await Workspace.findById(id);
 
             // for (const promptId of workspace.prompts) {

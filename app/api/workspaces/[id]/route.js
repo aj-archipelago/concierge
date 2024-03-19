@@ -60,7 +60,7 @@ export async function GET(req, { params }) {
     return Response.json(await getWorkspace(id));
 }
 
-export async function getWorkspace(id) {
+async function getWorkspace(id) {
     let workspace;
 
     if (mongoose.isObjectIdOrHexString(id)) {
