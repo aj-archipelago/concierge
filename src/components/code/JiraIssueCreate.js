@@ -27,7 +27,7 @@ export default function JiraIssueCreate({ clientSecret }) {
                 router.push("/code/jira");
             }
         }
-    }, []);
+    }, [router]);
 
     return (
         <>

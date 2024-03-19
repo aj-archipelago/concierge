@@ -6,20 +6,20 @@ import {
     DropdownMenuItem,
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import axios from "axios";
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { FaArrowLeft, FaEdit, FaEllipsisH, FaLink } from "react-icons/fa";
-import LoadingButton from "../../../../src/components/editor/LoadingButton";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import stringcase from "stringcase";
+import LoadingButton from "../../../../src/components/editor/LoadingButton";
 import { useDeleteWorkspace, useWorkspace } from "../../../queries/workspaces";
 
 export default function WorkspaceActions({ id, user }) {
     const router = useRouter();
     const { data: workspace, isLoading } = useQuery({
         queryKey: ["workspaces", id],
-        queryFn: async ({}) => {
+        queryFn: async () => {
             const { data } = await axios.get(`/api/workspaces/${id}`);
             return data;
         },
@@ -218,7 +218,7 @@ function Actions({ user, workspace }) {
     const deleteWorkspace = useDeleteWorkspace();
 
     const handleDelete = async () => {
-        if (!confirm("Are you sure you want to delete this workspace?")) return;
+        if (!window.confirm("Are you sure you want to delete this workspace?")) return;
         await deleteWorkspace.mutateAsync({ id: workspace._id });
         router.push("/workspaces");
     };

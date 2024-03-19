@@ -34,7 +34,7 @@ function Output({ output, onDelete }) {
                 <button
                     onClick={() => {
                         if (
-                            confirm(
+                            window.confirm(
                                 "Are you sure you want to delete this output?",
                             )
                         ) {

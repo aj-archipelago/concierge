@@ -1,13 +1,11 @@
 "use client";
 
-import axios from "axios";
 import { useRouter } from "next/navigation";
 import LoadingButton from "../../../src/components/editor/LoadingButton";
-import { useState } from "react";
-import { useCreateWorkspace, useWorkspaces } from "../../queries/workspaces";
 import Loader from "../../components/loader";
+import { useCreateWorkspace, useWorkspaces } from "../../queries/workspaces";
 
-export default function Workspaces({}) {
+export default function Workspaces() {
     const router = useRouter();
     const { data: workspaces, isLoading } = useWorkspaces();
     const createWorkspace = useCreateWorkspace();

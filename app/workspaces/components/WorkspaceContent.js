@@ -2,10 +2,9 @@
 import axios from "axios";
 import { createContext, useRef, useState } from "react";
 import stringcase from "stringcase";
+import { useWorkspace } from "../../queries/workspaces";
 import WorkspaceInput from "./WorkspaceInput";
 import WorkspaceOutputs from "./WorkspaceOutputs";
-import { useWorkspace } from "../../queries/workspaces";
-import { usePrompt, usePromptsByIds } from "../../queries/prompts";
 
 export default function WorkspaceContent({ id, user }) {
     const [outputs, setOutputs] = useState([]);
