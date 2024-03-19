@@ -3,7 +3,7 @@ import { Inter } from "next/font/google";
 import { cookies } from "next/headers";
 import config from "../config";
 import App from "../src/App";
-import Providers from "./Providers";
+import Providers from "./providers";
 import { getCurrentUser } from "./api/utils/auth";
 import classNames from "./utils/class-names";
 
