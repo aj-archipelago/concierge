@@ -18,6 +18,7 @@ const promptSchema = new mongoose.Schema({
 
 // create index on user
 promptSchema.index({ owner: 1 });
+promptSchema.index({ createdAt: -1 });
 
 // Create the User model from the schema
 const Prompt = mongoose.models.Prompt || mongoose.model("Prompt", promptSchema);
