@@ -59,36 +59,42 @@ export default function ConnectJiraButton({ clientSecret, onTokenChange }) {
         }
     };
 
-    const renewToken = useCallback(async (refreshToken) => {
-        try {
-            const response = await axios.post(tokenUrl, {
-                grant_type: "refresh_token",
-                client_id: clientId,
-                client_secret: clientSecret,
-                refresh_token: refreshToken,
-                redirect_uri: redirectUri,
-                scope: "offline_access",
-            });
+    const renewToken = useCallback(
+        async (refreshToken) => {
+            try {
+                const response = await axios.post(tokenUrl, {
+                    grant_type: "refresh_token",
+                    client_id: clientId,
+                    client_secret: clientSecret,
+                    refresh_token: refreshToken,
+                    redirect_uri: redirectUri,
+                    scope: "offline_access",
+                });
 
-            const { data } = response;
-            const accessToken = data.access_token;
+                const { data } = response;
+                const accessToken = data.access_token;
 
-            // we have new tokes now
-            setToken(accessToken);
-            localStorage.setItem("jira_access_token", accessToken);
-            onTokenChange(accessToken);
-            if (data.refresh_token) {
-                setRefreshToken(data.refresh_token);
-                localStorage.setItem("jira_refresh_token", data.refresh_token);
+                // we have new tokes now
+                setToken(accessToken);
+                localStorage.setItem("jira_access_token", accessToken);
+                onTokenChange(accessToken);
+                if (data.refresh_token) {
+                    setRefreshToken(data.refresh_token);
+                    localStorage.setItem(
+                        "jira_refresh_token",
+                        data.refresh_token,
+                    );
+                }
+            } catch (error) {
+                console.warn("Error refreshing token", error);
+                setError(error);
+                onTokenChange(null);
+                setToken(null);
+                setRefreshToken(null);
             }
-        } catch (error) {
-            console.warn("Error refreshing token", error);
-            setError(error);
-            onTokenChange(null);
-            setToken(null);
-            setRefreshToken(null);
-        }
-    }, [clientId, clientSecret, onTokenChange, redirectUri]);
+        },
+        [clientId, clientSecret, onTokenChange, redirectUri],
+    );
 
     useEffect(() => {
         if (!code) {
@@ -170,7 +176,17 @@ export default function ConnectJiraButton({ clientSecret, onTokenChange }) {
             // remove code from querystring
             router.push(`/code/jira/create`);
         }
-    }, [code, token, refreshToken, redirectUri, clientId, clientSecret, onTokenChange, renewToken, router]);
+    }, [
+        code,
+        token,
+        refreshToken,
+        redirectUri,
+        clientId,
+        clientSecret,
+        onTokenChange,
+        renewToken,
+        router,
+    ]);
 
     const isConnectedToJira = () => !!token;
 

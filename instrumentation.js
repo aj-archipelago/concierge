@@ -12,6 +12,6 @@ export function register() {
         .catch((err) => {
             console.error("Error connecting to MongoDB", err);
         });
-        
+
     config.global.initialize();
 }

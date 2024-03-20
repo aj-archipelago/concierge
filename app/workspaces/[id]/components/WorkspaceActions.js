@@ -218,7 +218,8 @@ function Actions({ user, workspace }) {
     const deleteWorkspace = useDeleteWorkspace();
 
     const handleDelete = async () => {
-        if (!window.confirm("Are you sure you want to delete this workspace?")) return;
+        if (!window.confirm("Are you sure you want to delete this workspace?"))
+            return;
         await deleteWorkspace.mutateAsync({ id: workspace._id });
         router.push("/workspaces");
     };

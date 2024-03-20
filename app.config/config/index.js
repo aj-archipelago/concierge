@@ -2,7 +2,12 @@ import { getTosContent } from "./global/tos";
 import { getSidebarLogo } from "./global/sidebar";
 import { FaFileImport } from "react-icons/fa";
 import { ImportSuggestions } from "./write/actions/ImportSuggestions";
-import { getTags, getTaxonomySets, getTopics, initializeTaxonomies } from "./data/taxonomySets";
+import {
+    getTags,
+    getTaxonomySets,
+    getTopics,
+    initializeTaxonomies,
+} from "./data/taxonomySets";
 import { basePath } from "../../src/utils/constants";
 
 // The entire Labeeb application can be configured here
@@ -18,7 +23,7 @@ export default {
         getSidebarLogo,
         initialize: async () => {
             await initializeTaxonomies();
-        }
+        },
     },
     data: {
         getTaxonomySets,

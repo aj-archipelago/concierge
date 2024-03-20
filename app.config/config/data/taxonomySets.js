@@ -79,7 +79,7 @@ export async function initializeTaxonomies() {
                 ),
             },
         ]);
-};
+}
 
 export const getTaxonomySets = async function () {
     return taxonomySets;

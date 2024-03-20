@@ -45,26 +45,31 @@ export async function POST(req, res) {
 }
 
 export async function GET(req, res) {
-    const currentUser = await getCurrentUser();
-    const workspaceMemberships = await WorkspaceMembership.find({
-        user: currentUser._id,
-    });
-    let workspaces = await Workspace.find({
-        $or: [
-            {
-                owner: currentUser._id,
-            },
-            {
-                _id: {
-                    $in: workspaceMemberships.map(
-                        (membership) => membership.workspace,
-                    ),
+    try {
+        const currentUser = await getCurrentUser();
+        const workspaceMemberships = await WorkspaceMembership.find({
+            user: currentUser._id,
+        });
+        let workspaces = await Workspace.find({
+            $or: [
+                {
+                    owner: currentUser._id,
                 },
-            },
-        ],
-    }).sort({ updatedAt: -1 });
+                {
+                    _id: {
+                        $in: workspaceMemberships.map(
+                            (membership) => membership.workspace,
+                        ),
+                    },
+                },
+            ],
+        }).sort({ updatedAt: -1 });
 
-    return Response.json(workspaces);
+        return Response.json(workspaces);
+    } catch (error) {
+        console.error(error);
+        return Response.json({ error: error.message }, { status: 500 });
+    }
 }
 
 const defaultPrompts = [

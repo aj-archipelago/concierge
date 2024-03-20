@@ -11,7 +11,7 @@ export default {
         getLogo: () => "/app/assets/logo.png",
         getTosContent,
         getSidebarLogo,
-        initialize: async () => {}
+        initialize: async () => {},
     },
     data: {
         getTaxonomySets,
