@@ -1,6 +1,7 @@
 import mongoose from "mongoose";
 import Workspace from "../../models/workspace";
 import WorkspaceMembership from "../../models/workspace-membership";
+import { getCurrentUser } from "../../utils/auth";
 
 export async function getWorkspace(id) {
     let workspace;
@@ -14,7 +15,7 @@ export async function getWorkspace(id) {
     const user = await getCurrentUser();
 
     if (!workspace) {
-        return Response.json({ error: "Workspace not found" }, 404);
+        return;
     }
 
     let membership;

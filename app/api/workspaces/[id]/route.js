@@ -55,8 +55,13 @@ export async function PUT(req, { params }) {
 
 export async function GET(req, { params }) {
     const { id } = params;
+    const workspace = await getWorkspace(id);
 
-    return Response.json(await getWorkspace(id));
+    if (!workspace) {
+        return Response.json({ error: "Workspace not found" }, 404);
+    }
+
+    return Response.json(workspace);
 }
 
 

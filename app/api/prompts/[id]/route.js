@@ -1,5 +1,4 @@
 import Prompt from "../../models/prompt";
-import { getCurrentUser } from "../../utils/auth";
 
 export async function GET(req, { params }) {
     const { id } = params;

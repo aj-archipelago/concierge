@@ -7,18 +7,15 @@ import {
     MicrophoneIcon,
     PencilSquareIcon,
     PhotoIcon,
-    //playground
 } from "@heroicons/react/24/outline";
-import i18next from "i18next";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import { useContext } from "react";
+import { useTranslation } from "react-i18next";
+import { MdOutlineWorkspaces } from "react-icons/md";
 import classNames from "../../app/utils/class-names";
 import config from "../../config";
-import { useTranslation } from "react-i18next";
-import { useContext } from "react";
 import { LanguageContext } from "../contexts/LanguageProvider";
-import { GiKidSlide } from "react-icons/gi";
-import { MdOutlineWorkspaces } from "react-icons/md";
 
 const navigation = [
     {

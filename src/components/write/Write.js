@@ -70,7 +70,7 @@ function Write() {
             dispatch(setWriteInputText(getUpdatedText(t)));
             indexMainPaneText(getUpdatedText(t), contextId, dispatch, client);
         },
-        [dispatch, action, inputText, selection, contextId],
+        [dispatch, action, inputText, selection, contextId, client],
     );
 
     const handleEditorSelect = React.useCallback(
@@ -85,7 +85,7 @@ function Write() {
             dispatch(setWriteInputText(text));
             indexMainPaneText(text, contextId, dispatch, client);
         },
-        [dispatch, contextId],
+        [dispatch, contextId, client],
     );
 
     const editorPane = useMemo(() => {

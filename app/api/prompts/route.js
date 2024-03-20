@@ -9,3 +9,5 @@ export async function GET() {
     });
     return Response.json(prompts);
 }
+
+export const dynamic = 'force-dynamic' // defaults to auto

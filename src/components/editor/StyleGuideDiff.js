@@ -223,7 +223,7 @@ const StyleGuideDiff = ({ styleGuideResult = "", setSelectedText }) => {
     }
     const suggestionToRangeInModifiedTextCallback = useCallback(
         suggestionToRangeInModifiedText,
-        [originalText, monaco.Range],
+        [originalText],
     );
     const finalText = useMemo(
         () =>
@@ -613,8 +613,6 @@ const StyleGuideDiff = ({ styleGuideResult = "", setSelectedText }) => {
             suggestionToRangeInModifiedTextCallback,
             onHover,
             setSelectedText,
-            monaco.Range,
-            monaco.Position,
         ],
     );
 

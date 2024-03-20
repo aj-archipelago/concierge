@@ -545,7 +545,6 @@ const QUERIES = {
     REMOVE_CONTENT,
     HEADLINE_CUSTOM,
     SUBHEAD,
-    JIRA_STORY,
 };
 
 const SUBSCRIPTIONS = {

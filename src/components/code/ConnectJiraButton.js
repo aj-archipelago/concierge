@@ -2,7 +2,7 @@
 
 import axios from "axios";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 export default function ConnectJiraButton({ clientSecret, onTokenChange }) {
     // read parameter code from querystring
@@ -59,7 +59,7 @@ export default function ConnectJiraButton({ clientSecret, onTokenChange }) {
         }
     };
 
-    const renewToken = async (refreshToken) => {
+    const renewToken = useCallback(async (refreshToken) => {
         try {
             const response = await axios.post(tokenUrl, {
                 grant_type: "refresh_token",
@@ -88,7 +88,7 @@ export default function ConnectJiraButton({ clientSecret, onTokenChange }) {
             setToken(null);
             setRefreshToken(null);
         }
-    };
+    }, [clientId, clientSecret, onTokenChange, redirectUri]);
 
     useEffect(() => {
         if (!code) {
@@ -170,7 +170,7 @@ export default function ConnectJiraButton({ clientSecret, onTokenChange }) {
             // remove code from querystring
             router.push(`/code/jira/create`);
         }
-    }, [code, token, refreshToken, redirectUri]);
+    }, [code, token, refreshToken, redirectUri, clientId, clientSecret, onTokenChange, renewToken, router]);
 
     const isConnectedToJira = () => !!token;
 
