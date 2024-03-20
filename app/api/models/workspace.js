@@ -38,6 +38,7 @@ const workspaceSchema = new mongoose.Schema(
 
 // add index on owner
 workspaceSchema.index({ owner: 1 });
+workspaceSchema.index({ updatedAt: -1 });
 
 // Create the Workspace model from the schema
 const Workspace =
