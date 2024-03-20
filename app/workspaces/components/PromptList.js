@@ -3,6 +3,7 @@ import { FaEdit, FaPlay } from "react-icons/fa";
 import stringcase from "stringcase";
 import Loader from "../../components/loader";
 import LoadingButton from "../../../src/components/editor/LoadingButton";
+import PromptSelectorModal from "./PromptSelectorModal";
 
 export default function PromptList({
     prompts,
@@ -17,6 +18,18 @@ export default function PromptList({
     const filteredPrompts = prompts?.filter((prompt) =>
         prompt?.title.toLowerCase().includes(filter.toLowerCase()),
     );
+
+    if (!prompts?.length) {
+        return (
+            <div>
+                <p className="text-center">
+                    <button className="lb-outline-secondary" onClick={onNew}>
+                        Add prompts to this workspace
+                    </button>
+                </p>
+            </div>
+        );
+    }
 
     return (
         <div className="flex flex-col grow overflow-auto p-1">
@@ -88,7 +101,6 @@ export default function PromptList({
                         </button>
                     </li>
                 ))}
-                {!prompts?.length && "No prompts saved"}
             </ul>
         </div>
     );

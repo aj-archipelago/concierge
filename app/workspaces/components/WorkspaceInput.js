@@ -10,6 +10,7 @@ import {
 import { useUpdateWorkspace } from "../../queries/workspaces";
 import PromptList from "./PromptList";
 import { WorkspaceContext } from "./WorkspaceContent";
+import PromptSelectorModal from "./PromptSelectorModal";
 
 export default function WorkspaceInput({ onRun }) {
     const [text, setText] = useState("");
@@ -19,8 +20,7 @@ export default function WorkspaceInput({ onRun }) {
     const { data: prompts, isLoading: arePromptsLoading } = usePromptsByIds(
         workspace?.prompts || [],
     );
-
-    if (arePromptsLoading) return null;
+    const [isOpen, setIsOpen] = useState(false);
 
     const handleEdit = (prompt) => {
         setSelectedPrompt(prompt);
@@ -39,15 +39,15 @@ export default function WorkspaceInput({ onRun }) {
                 ></textarea>
             </div>
             <div className="basis-2/12 overflow">
+                <h4 className="p-1 font-medium mb-1">Context</h4>
                 <SystemPrompt />
             </div>
             <div className="basis-5/12 flex flex-col overflow-y-auto">
                 {!editing && (
                     <PromptList
-                        prompts={prompts}
+                        prompts={prompts || []}
                         onNew={() => {
-                            setSelectedPrompt(null);
-                            setEditing(true);
+                            setIsOpen(true);
                         }}
                         onRunAll={async () => {
                             if (text) {
@@ -74,6 +74,7 @@ export default function WorkspaceInput({ onRun }) {
                         onBack={() => setEditing(false)}
                     />
                 )}
+                <PromptSelectorModal isOpen={isOpen} setIsOpen={setIsOpen} />
             </div>
         </div>
     );
@@ -125,7 +126,6 @@ function SystemPromptEditor({ value, onCancel, onSave }) {
 
     return (
         <div className="p-1">
-            <h4 className="text-lg font-medium mb-4">System Prompt</h4>
             <textarea
                 value={prompt}
                 onChange={(e) => setPrompt(e.target.value)}
@@ -213,7 +213,7 @@ function PromptEditor({ selectedPrompt, onBack }) {
                             ) {
                                 await deletePrompt.mutateAsync({
                                     id: selectedPrompt._id,
-                                    workspace,
+                                    workspaceId: workspace._id,
                                 });
                                 onBack();
                             }

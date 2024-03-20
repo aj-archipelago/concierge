@@ -74,14 +74,6 @@ export function useCreateWorkspace() {
             const { data } = await axios.post(`/api/workspaces`, attrs);
             return data;
         },
-        onMutate: async (attrs) => {
-            await queryClient.cancelQueries(["workspaces"]);
-            const previousWorkspaces = queryClient.getQueryData(["workspaces"]);
-            queryClient.setQueryData(["workspaces"], (old) => {
-                return [attrs, ...old];
-            });
-            return { previousWorkspaces };
-        },
         onSuccess: () => {
             queryClient.invalidateQueries(["workspaces"]);
         },
