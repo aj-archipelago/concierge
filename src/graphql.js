@@ -6,7 +6,12 @@ import { getMainDefinition } from "@apollo/client/utilities";
 import config from "../config";
 
 const getClient = (serverUrl) => {
-    const graphqlEndpoint = config.endpoints.graphql(serverUrl);
+    let graphqlEndpoint;
+    if (serverUrl) {
+        graphqlEndpoint = config.endpoints.graphql(serverUrl);
+    } else {
+        graphqlEndpoint = process.env.CORTEX_GRAPHQL_API_URL;
+    }
 
     const httpLink = new HttpLink({
         uri: graphqlEndpoint,

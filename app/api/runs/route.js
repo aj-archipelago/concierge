@@ -5,14 +5,19 @@ export async function POST(req, res) {
     const { text, prompt, systemPrompt } = body;
     const serverUrl = process.env.SERVER_URL;
 
-    const response = await getClient(serverUrl).query({
-        query: QUERIES.RUN_GPT35TURBO,
-        variables: {
-            text,
-            prompt,
-            systemPrompt,
-        },
-    });
+    try {
+        const response = await getClient(serverUrl).query({
+            query: QUERIES.RUN_GPT35TURBO,
+            variables: {
+                text,
+                prompt,
+                systemPrompt,
+            },
+        });
 
-    return Response.json(response);
+        return Response.json(response);
+    } catch (error) {
+        console.error(error);
+        return Response.json({ error: error.message }, { status: 500 });
+    }
 }
