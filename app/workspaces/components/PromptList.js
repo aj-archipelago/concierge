@@ -16,8 +16,6 @@ export default function PromptList({
     const [runningPromptId, setRunningPromptId] = useState(null);
     const [filter, setFilter] = useState("");
 
-    console.log("inputValid", inputValid);
-
     const filteredPrompts = prompts?.filter((prompt) =>
         prompt?.title.toLowerCase().includes(filter.toLowerCase()),
     );
