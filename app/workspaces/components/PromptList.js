@@ -3,8 +3,10 @@ import { FaEdit, FaPlay } from "react-icons/fa";
 import stringcase from "stringcase";
 import Loader from "../../components/loader";
 import LoadingButton from "../../../src/components/editor/LoadingButton";
+import PromptSelectorModal from "./PromptSelectorModal";
 
 export default function PromptList({
+    inputValid,
     prompts,
     onSelect,
     onEdit,
@@ -17,6 +19,18 @@ export default function PromptList({
     const filteredPrompts = prompts?.filter((prompt) =>
         prompt?.title.toLowerCase().includes(filter.toLowerCase()),
     );
+
+    if (!prompts?.length) {
+        return (
+            <div>
+                <p className="text-center">
+                    <button className="lb-outline-secondary" onClick={onNew}>
+                        Add prompts to this workspace
+                    </button>
+                </p>
+            </div>
+        );
+    }
 
     return (
         <div className="flex flex-col grow overflow-auto p-1">
@@ -32,6 +46,7 @@ export default function PromptList({
                     <LoadingButton
                         loading={runningPromptId}
                         text="Running"
+                        disabled={!inputValid}
                         onClick={async () => {
                             setRunningPromptId("all");
                             await onRunAll();
@@ -52,10 +67,25 @@ export default function PromptList({
             />
             <ul className="text-sm grow overflow-auto">
                 {filteredPrompts.map((prompt) => (
-                    <li key={prompt._id} className="mb-2">
+                    <li key={prompt._id} className="mb-2 relative">
+                        {runningPromptId !== prompt._id && (
+                            <button
+                                className="top-2 end-2 absolute text-gray-500 hover:text-gray-700 active:text-gray-900 cursor-pointer"
+                                onClick={(e) => {
+                                    onEdit(prompt);
+                                    e.stopPropagation();
+                                    e.preventDefault();
+                                }}
+                                title="Edit prompt"
+                            >
+                                <FaEdit />
+                            </button>
+                        )}
                         <button
-                            className="w-full text-left bg-gray-50 hover:bg-gray-100 active:bg-gray-200 p-2 rounded border"
-                            disabled={runningPromptId === prompt._id}
+                            className="w-full text-left bg-gray-50 enabled:hover:bg-gray-100 enabled:active:bg-gray-200 p-2 rounded border"
+                            disabled={
+                                runningPromptId === prompt._id || !inputValid
+                            }
                             onClick={async () => {
                                 setRunningPromptId(prompt._id);
                                 await onSelect(prompt);
@@ -66,19 +96,6 @@ export default function PromptList({
                                 <div className="font-medium">
                                     {stringcase.titlecase(prompt.title)}
                                 </div>
-                                {runningPromptId !== prompt._id && (
-                                    <div
-                                        className="text-gray-500 hover:text-gray-700 active:text-gray-900 cursor-pointer"
-                                        onClick={(e) => {
-                                            onEdit(prompt);
-                                            e.stopPropagation();
-                                            e.preventDefault();
-                                        }}
-                                        title="Edit prompt"
-                                    >
-                                        <FaEdit />
-                                    </div>
-                                )}
                                 {runningPromptId === prompt._id && <Loader />}
                             </div>
 
@@ -88,7 +105,6 @@ export default function PromptList({
                         </button>
                     </li>
                 ))}
-                {!prompts?.length && "No prompts saved"}
             </ul>
         </div>
     );

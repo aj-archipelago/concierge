@@ -59,8 +59,10 @@ export function useCreatePrompt() {
                 `/api/workspaces/${workspaceId}/prompts`,
                 prompt,
             );
-            queryClient.invalidateQueries(["workspaces", workspaceId]);
             return response.data;
+        },
+        onSuccess: (data, { workspaceId }) => {
+            queryClient.invalidateQueries(["workspaces", workspaceId]);
         },
     });
 }
@@ -82,5 +84,16 @@ export function useDeletePrompt() {
             });
             return response.data;
         },
+    });
+}
+
+export function usePromptLibrary() {
+    return useQuery({
+        queryKey: "promptLibrary",
+        queryFn: async () => {
+            const response = await axios.get("/api/prompts/library");
+            return response.data;
+        },
+        staleTime: Infinity,
     });
 }
