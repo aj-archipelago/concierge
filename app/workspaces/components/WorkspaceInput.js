@@ -45,6 +45,7 @@ export default function WorkspaceInput({ onRun }) {
             <div className="basis-5/12 flex flex-col overflow-y-auto">
                 {!editing && (
                     <PromptList
+                        inputValid={!!text}
                         prompts={prompts || []}
                         onNew={() => {
                             setIsOpen(true);

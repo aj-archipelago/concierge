@@ -15,9 +15,10 @@ export default function PromptSelectorModal({ isOpen, setIsOpen }) {
     const { data: workspacePrompts } = usePromptsByIds(
         workspace?.prompts || [],
     );
+    const [promptBeingAdded, setPromptBeingAdded] = useState(null);
     const createPrompt = useCreatePrompt();
     const [title, setTitle] = useState("");
-    const [prompt, setPrompt] = useState("");
+    const [text, setText] = useState("");
 
     return (
         <>
@@ -69,6 +70,11 @@ export default function PromptSelectorModal({ isOpen, setIsOpen }) {
                                                     <input
                                                         type="text"
                                                         value={title}
+                                                        disabled={
+                                                            createPrompt.isPending &&
+                                                            promptBeingAdded ===
+                                                                text
+                                                        }
                                                         onChange={(e) =>
                                                             setTitle(
                                                                 e.target.value,
@@ -80,11 +86,16 @@ export default function PromptSelectorModal({ isOpen, setIsOpen }) {
                                                 </div>
                                                 <div>
                                                     <textarea
-                                                        value={prompt}
+                                                        value={text}
                                                         onChange={(e) =>
-                                                            setPrompt(
+                                                            setText(
                                                                 e.target.value,
                                                             )
+                                                        }
+                                                        disabled={
+                                                            createPrompt.isPending &&
+                                                            promptBeingAdded ===
+                                                                text
                                                         }
                                                         className="lb-input mb-2"
                                                         rows={5}
@@ -95,25 +106,33 @@ export default function PromptSelectorModal({ isOpen, setIsOpen }) {
                                                 <div>
                                                     <LoadingButton
                                                         loading={
-                                                            createPrompt.isLoading
+                                                            createPrompt.isPending &&
+                                                            promptBeingAdded ===
+                                                                text
                                                         }
                                                         text="Adding"
                                                         className={
                                                             "lb-primary py-2 w-24 flex justify-center"
                                                         }
                                                         onClick={async () => {
+                                                            setPromptBeingAdded(
+                                                                text,
+                                                            );
                                                             await createPrompt.mutateAsync(
                                                                 {
                                                                     workspaceId:
                                                                         workspace._id,
                                                                     prompt: {
                                                                         title,
-                                                                        text: prompt,
+                                                                        text,
                                                                     },
                                                                 },
                                                             );
+                                                            setPromptBeingAdded(
+                                                                null,
+                                                            );
                                                             setTitle("");
-                                                            setPrompt("");
+                                                            setText("");
                                                             setIsOpen(false);
                                                         }}
                                                     >
@@ -158,17 +177,25 @@ export default function PromptSelectorModal({ isOpen, setIsOpen }) {
                                                                     ) : (
                                                                         <LoadingButton
                                                                             loading={
-                                                                                createPrompt.isLoading
+                                                                                createPrompt.isPending &&
+                                                                                promptBeingAdded ===
+                                                                                    prompt.text
                                                                             }
                                                                             text="Adding"
                                                                             className="text-sm text-blue-500 hover:text-blue-700"
-                                                                            onClick={() => {
-                                                                                createPrompt.mutate(
+                                                                            onClick={async () => {
+                                                                                setPromptBeingAdded(
+                                                                                    prompt?.text,
+                                                                                );
+                                                                                await createPrompt.mutateAsync(
                                                                                     {
                                                                                         workspaceId:
                                                                                             workspace._id,
                                                                                         prompt: prompt,
                                                                                     },
+                                                                                );
+                                                                                setPromptBeingAdded(
+                                                                                    null,
                                                                                 );
                                                                             }}
                                                                         >
