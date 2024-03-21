@@ -12,7 +12,7 @@ import PromptList from "./PromptList";
 import { WorkspaceContext } from "./WorkspaceContent";
 import PromptSelectorModal from "./PromptSelectorModal";
 
-export default function WorkspaceInput({ onRun }) {
+export default function WorkspaceInput({ onRun, onRunMany }) {
     const [text, setText] = useState("");
     const [selectedPrompt, setSelectedPrompt] = useState(null);
     const [editing, setEditing] = useState(false);
@@ -50,17 +50,7 @@ export default function WorkspaceInput({ onRun }) {
                         onNew={() => {
                             setIsOpen(true);
                         }}
-                        onRunAll={async () => {
-                            if (text) {
-                                for (const prompt of prompts) {
-                                    await onRun(
-                                        prompt.title,
-                                        text,
-                                        prompt.text,
-                                    );
-                                }
-                            }
-                        }}
+                        onRunAll={onRunMany(text, prompts)}
                         onSelect={async (prompt) => {
                             if (text) {
                                 await onRun(prompt.title, text, prompt.text);

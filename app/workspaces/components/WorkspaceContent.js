@@ -32,6 +32,40 @@ export default function WorkspaceContent({ id, user }) {
                 <div className="flex gap-6 grow overflow-auto">
                     <div className="basis-6/12">
                         <WorkspaceInput
+                            onRunMany={(text, prompts) => async () => {
+                                const outputs = await Promise.all(
+                                    prompts.map(async (prompt) => {
+                                        try {
+                                            const res = await axios.post(
+                                                "/api/runs",
+                                                {
+                                                    text,
+                                                    prompt: prompt.text,
+                                                    systemPrompt:
+                                                        workspace?.systemPrompt,
+                                                },
+                                            );
+                                            return {
+                                                _id: Math.random(),
+                                                title: stringcase.titlecase(
+                                                    prompt.title,
+                                                ),
+                                                text: res.data.data
+                                                    .run_gpt35turbo.result,
+                                                createdAt: new Date(),
+                                            };
+                                        } catch (error) {
+                                            console.error(error);
+                                            setError(error);
+                                        }
+                                    }),
+                                );
+
+                                setOutputs([
+                                    ...outputs,
+                                    ...(outputsRef.current || []),
+                                ]);
+                            }}
                             onRun={async (title, text, prompt) => {
                                 try {
                                     await axios
