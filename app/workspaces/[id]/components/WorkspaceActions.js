@@ -12,13 +12,12 @@ import { useRouter } from "next/navigation";
 import { useContext, useEffect, useState } from "react";
 import { FaArrowLeft, FaEdit, FaEllipsisH, FaLink } from "react-icons/fa";
 import stringcase from "stringcase";
+import { ServerContext } from "../../../../src/App";
 import LoadingButton from "../../../../src/components/editor/LoadingButton";
 import {
     useCopyWorkspace,
-    useDeleteWorkspace,
-    useWorkspace,
+    useDeleteWorkspace
 } from "../../../queries/workspaces";
-import { ServerContext } from "../../../../src/App";
 
 export default function WorkspaceActions({ id, user }) {
     const router = useRouter();
@@ -259,40 +258,24 @@ function Actions({ user, workspace }) {
 }
 
 function MembershipActions({ id }) {
-    const queryClient = useQueryClient();
-    const { data: workspace } = useWorkspace(id);
-    const hasBeenAddedByUser = workspace?.joined;
     const router = useRouter();
     const copyWorkspace = useCopyWorkspace();
 
-    const handleAddToWorkspaces = async () => {
+    const handleCopyWorkspace = async () => {
         const workspace = await copyWorkspace.mutateAsync({ id });
         router.push(`/workspaces/${workspace._id}`);
     };
 
-    if (hasBeenAddedByUser) {
-        return (
-            <div>
-                <button
-                    className="lb-outline-secondary"
-                    onClick={handleRemoveFromWorkspaces}
-                >
-                    Remove from my workspaces
-                </button>
-            </div>
-        );
-    } else {
-        return (
-            <div>
-                <LoadingButton
-                    loading={copyWorkspace.isLoading}
-                    text="Copying..."
-                    className="lb-primary"
-                    onClick={handleAddToWorkspaces}
-                >
-                    Make a copy of this workspace
-                </LoadingButton>
-            </div>
-        );
-    }
+    return (
+        <div>
+            <LoadingButton
+                loading={copyWorkspace.isLoading}
+                text="Copying..."
+                className="lb-primary"
+                onClick={handleCopyWorkspace}
+            >
+                Make a copy of this workspace
+            </LoadingButton>
+        </div>
+    );
 }
