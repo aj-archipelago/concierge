@@ -5,12 +5,15 @@ import { split, HttpLink } from "@apollo/client";
 import { getMainDefinition } from "@apollo/client/utilities";
 import config from "../config";
 
+const CORTEX_GRAPHQL_API_URL =
+    process.env.CORTEX_GRAPHQL_API_URL || "http://localhost:4000/graphql";
+
 const getClient = (serverUrl) => {
     let graphqlEndpoint;
     if (serverUrl) {
         graphqlEndpoint = config.endpoints.graphql(serverUrl);
     } else {
-        graphqlEndpoint = process.env.CORTEX_GRAPHQL_API_URL;
+        graphqlEndpoint = CORTEX_GRAPHQL_API_URL;
     }
 
     const httpLink = new HttpLink({

@@ -30,7 +30,7 @@ export default function WorkspaceContent({ id, user }) {
                     </div>
                 )}
                 <div className="flex gap-6 grow overflow-auto">
-                    <div className="basis-6/12">
+                    <div className="basis-6/12 overflow-auto">
                         <WorkspaceInput
                             onRunMany={(text, prompts) => async () => {
                                 const outputs = await Promise.all(

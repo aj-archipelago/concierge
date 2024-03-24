@@ -9,11 +9,16 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import axios from "axios";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useContext, useEffect, useState } from "react";
 import { FaArrowLeft, FaEdit, FaEllipsisH, FaLink } from "react-icons/fa";
 import stringcase from "stringcase";
 import LoadingButton from "../../../../src/components/editor/LoadingButton";
-import { useDeleteWorkspace, useWorkspace } from "../../../queries/workspaces";
+import {
+    useCopyWorkspace,
+    useDeleteWorkspace,
+    useWorkspace,
+} from "../../../queries/workspaces";
+import { ServerContext } from "../../../../src/App";
 
 export default function WorkspaceActions({ id, user }) {
     const router = useRouter();
@@ -55,11 +60,16 @@ function Name({ workspace, user }) {
     );
     const [editing, setEditing] = useState(false);
     const queryClient = useQueryClient();
+    const serverContext = useContext(ServerContext);
 
     useEffect(() => {
         setName(workspace?.name);
         setSlug(workspace?.slug);
     }, [workspace]);
+
+    useEffect(() => {
+        setSlug(stringcase.spinalcase(name));
+    }, [name]);
 
     const updateWorkspace = useMutation({
         queryKey: ["workspace", workspace?._id],
@@ -125,7 +135,7 @@ function Name({ workspace, user }) {
                     <div className="text-sm flex items-center">
                         <div className=" flex gap-2 items-center text-gray-500">
                             <FaLink />
-                            https://labeeb.aljazeera.com/
+                            {serverContext?.serverUrl}/wokspaces/
                         </div>
                         <input
                             type="text"
@@ -184,7 +194,7 @@ function Name({ workspace, user }) {
                     <div className="text-sm flex gap-2 items-center text-gray-400">
                         <FaLink />
                         <span>
-                            https://labeeb.aljazeera.com/
+                            {serverContext?.serverUrl}/workspaces/
                             <span className="text-gray-900">{slug}</span>
                         </span>
                     </div>
@@ -252,15 +262,12 @@ function MembershipActions({ id }) {
     const queryClient = useQueryClient();
     const { data: workspace } = useWorkspace(id);
     const hasBeenAddedByUser = workspace?.joined;
+    const router = useRouter();
+    const copyWorkspace = useCopyWorkspace();
 
     const handleAddToWorkspaces = async () => {
-        await axios.post(`/api/workspaces/${workspace._id}/join`);
-        queryClient.invalidateQueries(["workspaces"]);
-    };
-
-    const handleRemoveFromWorkspaces = async () => {
-        await axios.post(`/api/workspaces/${workspace._id}/leave`);
-        queryClient.invalidateQueries(["workspaces"]);
+        const workspace = await copyWorkspace.mutateAsync({ id });
+        router.push(`/workspaces/${workspace._id}`);
     };
 
     if (hasBeenAddedByUser) {
@@ -277,9 +284,14 @@ function MembershipActions({ id }) {
     } else {
         return (
             <div>
-                <button className="lb-primary" onClick={handleAddToWorkspaces}>
-                    + Add to my workspaces
-                </button>
+                <LoadingButton
+                    loading={copyWorkspace.isLoading}
+                    text="Copying..."
+                    className="lb-primary"
+                    onClick={handleAddToWorkspaces}
+                >
+                    Make a copy of this workspace
+                </LoadingButton>
             </div>
         );
     }

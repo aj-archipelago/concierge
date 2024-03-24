@@ -1,9 +1,9 @@
-import { useState } from "react";
+import { useContext, useState } from "react";
 import { FaEdit, FaPlay } from "react-icons/fa";
 import stringcase from "stringcase";
-import Loader from "../../components/loader";
 import LoadingButton from "../../../src/components/editor/LoadingButton";
-import PromptSelectorModal from "./PromptSelectorModal";
+import Loader from "../../components/loader";
+import { WorkspaceContext } from "./WorkspaceContent";
 
 export default function PromptList({
     inputValid,
@@ -15,12 +15,13 @@ export default function PromptList({
 }) {
     const [runningPromptId, setRunningPromptId] = useState(null);
     const [filter, setFilter] = useState("");
+    const { isOwner } = useContext(WorkspaceContext);
 
     const filteredPrompts = prompts?.filter((prompt) =>
         prompt?.title.toLowerCase().includes(filter.toLowerCase()),
     );
 
-    if (!prompts?.length) {
+    if (!prompts?.length && isOwner) {
         return (
             <div>
                 <p className="text-center">
@@ -37,12 +38,14 @@ export default function PromptList({
             <div className="flex justify-between items-center mb-3">
                 <h4 className=" font-medium">Prompts</h4>
                 <div className="flex gap-2">
-                    <button
-                        className="lb-outline-secondary lb-sm"
-                        onClick={onNew}
-                    >
-                        + Add prompt
-                    </button>
+                    {isOwner && (
+                        <button
+                            className="lb-outline-secondary lb-sm"
+                            onClick={onNew}
+                        >
+                            + Add prompt
+                        </button>
+                    )}
                     <LoadingButton
                         loading={runningPromptId}
                         text="Running"
@@ -68,7 +71,7 @@ export default function PromptList({
             <ul className="text-sm grow overflow-auto">
                 {filteredPrompts.map((prompt) => (
                     <li key={prompt._id} className="mb-2 relative">
-                        {runningPromptId !== prompt._id && (
+                        {runningPromptId !== prompt._id && isOwner && (
                             <button
                                 className="top-2 end-2 absolute text-gray-500 hover:text-gray-700 active:text-gray-900 cursor-pointer"
                                 onClick={(e) => {

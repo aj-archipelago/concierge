@@ -1,32 +1,16 @@
-import Prompt from "../models/prompt";
 import Workspace from "../models/workspace";
 import WorkspaceMembership from "../models/workspace-membership";
 import { getCurrentUser } from "../utils/auth";
-import stringcase from "stringcase";
+import { createWorkspace } from "./db";
 
 export async function POST(req, res) {
     const body = await req.json();
     const currentUser = await getCurrentUser();
 
-    let bodyName = body.name || "New Workspace";
-    let index = 0;
-    let name;
-    do {
-        name = bodyName + (index > 0 ? ` ${index}` : "");
-        index++;
-    } while (await Workspace.findOne({ name }));
-
-    index = 0;
-    let slug;
-    do {
-        slug = stringcase.spinalcase(bodyName) + (index > 0 ? `-${index}` : "");
-        index++;
-    } while (await Workspace.findOne({ slug }));
-
-    const workspace = await Workspace.create({
-        name,
-        slug,
-        owner: currentUser._id,
+    let name = body.name || "New Workspace";
+    const workspace = await createWorkspace({
+        workspaceName: name,
+        ownerId: currentUser._id,
     });
 
     return Response.json(workspace);

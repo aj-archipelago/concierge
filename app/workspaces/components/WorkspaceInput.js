@@ -11,6 +11,7 @@ import { useUpdateWorkspace } from "../../queries/workspaces";
 import PromptList from "./PromptList";
 import { WorkspaceContext } from "./WorkspaceContent";
 import PromptSelectorModal from "./PromptSelectorModal";
+import Loader from "../../components/loader";
 
 export default function WorkspaceInput({ onRun, onRunMany }) {
     const [text, setText] = useState("");
@@ -29,44 +30,55 @@ export default function WorkspaceInput({ onRun, onRunMany }) {
 
     return (
         <div className="h-full overflow-auto flex flex-col gap-2">
-            <div className="basis-5/12 flex flex-col gap-3 p-1 overflow-auto">
-                <textarea
-                    placeholder="Enter some text here"
-                    value={text}
-                    onChange={(e) => setText(e.target.value)}
-                    rows={10}
-                    className="lb-input w-full h-full"
-                ></textarea>
-            </div>
-            <div className="basis-2/12 overflow">
-                <h4 className="p-1 font-medium mb-1">Context</h4>
-                <SystemPrompt />
-            </div>
-            <div className="basis-5/12 flex flex-col overflow-y-auto">
-                {!editing && (
-                    <PromptList
-                        inputValid={!!text}
-                        prompts={prompts || []}
-                        onNew={() => {
-                            setIsOpen(true);
-                        }}
-                        onRunAll={onRunMany(text, prompts)}
-                        onSelect={async (prompt) => {
-                            if (text) {
-                                await onRun(prompt.title, text, prompt.text);
-                            }
-                        }}
-                        onEdit={handleEdit}
-                    />
-                )}
-                {editing && (
-                    <PromptEditor
-                        selectedPrompt={selectedPrompt}
-                        onBack={() => setEditing(false)}
-                    />
-                )}
-                <PromptSelectorModal isOpen={isOpen} setIsOpen={setIsOpen} />
-            </div>
+            {arePromptsLoading && <Loader />}
+            {!arePromptsLoading && (
+                <>
+                    <div className="basis-5/12 min-h-[200px] flex flex-col gap-3 p-1 overflow-auto">
+                        <textarea
+                            placeholder="Enter some text here"
+                            value={text}
+                            onChange={(e) => setText(e.target.value)}
+                            rows={10}
+                            className="lb-input w-full h-full"
+                        ></textarea>
+                    </div>
+                    <div className="basis-7/12 min-h-[200px] flex flex-col overflow-y-auto">
+                        <div className="flex gap-2 items-center">
+                            <h4 className="p-1 font-medium mb-1">Context</h4>
+                            <div className="grow overflow-auto">
+                                <SystemPrompt />
+                            </div>
+                        </div>
+                        {!editing && (
+                            <PromptList
+                                inputValid={!!text}
+                                prompts={prompts || []}
+                                onNew={() => {
+                                    setIsOpen(true);
+                                }}
+                                onRunAll={onRunMany(text, prompts)}
+                                onSelect={async (prompt) => {
+                                    if (text) {
+                                        await onRun(
+                                            prompt.title,
+                                            text,
+                                            prompt.text,
+                                        );
+                                    }
+                                }}
+                                onEdit={handleEdit}
+                            />
+                        )}
+                        {editing && (
+                            <PromptEditor
+                                selectedPrompt={selectedPrompt}
+                                onBack={() => setEditing(false)}
+                            />
+                        )}
+                    </div>
+                </>
+            )}
+            <PromptSelectorModal isOpen={isOpen} setIsOpen={setIsOpen} />
         </div>
     );
 }
@@ -89,10 +101,17 @@ function SystemPrompt() {
     }
 
     return (
-        <div className="p-1">
-            <div className="w-full text-left bg-gray-50 p-2 rounded border">
+        <div className="p-1 ">
+            <div className=" text-left bg-gray-50 p-2 rounded border">
                 <div className="flex gap-2 items-center justify-between">
-                    <div className="text-gray-500 text-xs">{value}</div>
+                    <div className="min-w-0 flex-1">
+                        <div
+                            className="truncate min-w-0 text-gray-500 text-xs"
+                            title={value}
+                        >
+                            {value}
+                        </div>
+                    </div>
                     {isOwner && (
                         <div
                             className="text-gray-500 hover:text-gray-700 active:text-gray-900 cursor-pointer"

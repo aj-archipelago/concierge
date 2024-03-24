@@ -1,7 +1,7 @@
 import stringcase from "stringcase";
 import Workspace from "../../models/workspace";
 import { getCurrentUser } from "../../utils/auth";
-import { getWorkspace } from "./queries";
+import { getWorkspace } from "./db";
 
 export async function DELETE(req, { params }) {
     const { id } = params;

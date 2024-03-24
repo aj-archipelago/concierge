@@ -6,7 +6,7 @@ import {
 import { getCurrentUser } from "../../api/utils/auth";
 import WorkspaceContent from "../components/WorkspaceContent";
 import WorkspaceActions from "./components/WorkspaceActions";
-import { getWorkspace } from "../../api/workspaces/[id]/queries";
+import { getWorkspace } from "../../api/workspaces/[id]/db";
 
 export default async function Page({ params }) {
     const id = params.id;
