@@ -125,9 +125,18 @@ const CHAT_EXTENSION = gql`
     }
 `;
 
+const VISION = gql`
+    query($text: String, $chatHistory: [MultiMessage]){
+        vision(text: $text, chatHistory: $chatHistory) {
+            result
+            contextId
+        }
+    }
+`;
+
 const RAG_LABEEB = gql`
     query RagLabeeb(
-        $chatHistory: [Message]!
+        $chatHistory: [MultiMessage]!
         $dataSources: [String]
         $contextId: String
         $text: String
@@ -553,6 +562,7 @@ const QUERIES = {
     REMOVE_CONTENT,
     HEADLINE_CUSTOM,
     SUBHEAD,
+    VISION,
 };
 
 const SUBSCRIPTIONS = {
@@ -598,4 +608,5 @@ export {
     HIGHLIGHTS,
     REMOVE_CONTENT,
     JIRA_STORY,
+    VISION,
 };

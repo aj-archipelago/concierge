@@ -106,6 +106,26 @@ function MessageList({ messages, bot, loading }) {
                     </div>
                 )}
                 {messages.map((message, index) => {
+                    let display;
+                    if (Array.isArray(message.payload)) {
+                        const arr = message.payload.map(t => {
+                            try {
+                                const obj = JSON.parse(t);
+                                if(obj.type === "text"){
+                                    return obj.text;
+                                } else if(obj.type === "image_url"){
+                                    return <img key={index} src={obj.image_url.url} alt="uploadedimage" style={{maxWidth: '50%', float:'left', marginRight:'10px' }} />;
+                                }
+                                return null;
+                            } catch(e){
+                                return t;
+                            }
+                        });
+                        display = <>{arr}</>;
+                    } else {
+                        display = message.payload;
+                    }
+
                     // process the message and create a new
                     // message object with the updated payload.
                     message = Object.assign({}, message, {
@@ -115,14 +135,14 @@ function MessageList({ messages, bot, loading }) {
                                     convertMessageToMarkdown(message)
                                 ) : (
                                     <div key={`um-${index}`}>
-                                        {message.payload}
+                                        {display}
                                     </div>
                                 )}
                             </React.Fragment>
                         ),
                     });
 
-                    return renderMessage(message);
+                    return <div key={message.id}>{renderMessage(message)}</div>;
                 })}
                 {loading &&
                     renderMessage({
