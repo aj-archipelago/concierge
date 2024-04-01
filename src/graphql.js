@@ -288,14 +288,24 @@ const TRANSCRIBE = gql`
     query Transcribe(
         $file: String!
         $text: String
+        $language: String
         $wordTimestamped: Boolean
+        $maxLineCount: Int
+        $maxLineWidth: Int
+        $maxWordsPerLine: Int
+        $highlightWords: Boolean
         $responseFormat: String
         $async: Boolean
     ) {
         transcribe(
             file: $file
             text: $text
+            language: $language
             wordTimestamped: $wordTimestamped
+            maxLineCount: $maxLineCount
+            maxLineWidth: $maxLineWidth
+            maxWordsPerLine: $maxWordsPerLine
+            highlightWords: $highlightWords
             responseFormat: $responseFormat
             async: $async
         ) {
@@ -329,8 +339,8 @@ const TRANSLATE_TURBO = gql`
 `;
 
 const TRANSLATE_GPT4 = gql`
-    query TranslateGpt4($text: String!, $to: String!) {
-        translate_gpt4(text: $text, to: $to) {
+    query TranslateGpt4($text: String!, $to: String!, $async: Boolean) {
+        translate_gpt4(text: $text, to: $to, async: $async) {
             result
         }
     }
