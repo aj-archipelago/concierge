@@ -29,6 +29,9 @@ function MyFilePond({addUrl, files, setFiles, labelIdle='Drag & Drop your files 
             onload: (response) => {
               addUrl(JSON.parse(response).url);
             },
+            onerror: (response) => {
+              console.error('Error:', response);
+            },
           }
         }}
         name="files" /* sets the file input name, it's filepond by default */
