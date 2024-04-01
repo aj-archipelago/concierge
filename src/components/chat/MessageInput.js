@@ -24,20 +24,23 @@ function MessageInput({ onSend, loading, enableRag, placeholder }) {
         setInputValue(event.target.value);
     };
 
+    const prepareMessage = (inputText) => {
+        return [
+            JSON.stringify({"type": "text", "text": inputText}),
+            ...(urls || [])?.map((url) => JSON.stringify({
+            "type": "image_url",
+            "image_url": {
+                url
+            },
+            }))
+        ];
+    }
+
+
     const handleFormSubmit = (event) => {
         event.preventDefault();
         if (!loading && inputValue) {
-            //inputValue
-            const message = [
-                JSON.stringify({"type": "text", "text": inputValue}),
-                ...(urls || [])?.map((url) => JSON.stringify({
-                  "type": "image_url",
-                  "image_url": {
-                    url
-                  },
-                }))
-            ];
-            
+            const message = prepareMessage(inputValue);
             onSend(urls && urls.length>0 ? message : inputValue);
             setInputValue("");
             setFiles([]);
