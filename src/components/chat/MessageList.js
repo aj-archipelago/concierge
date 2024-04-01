@@ -118,6 +118,7 @@ function MessageList({ messages, bot, loading }) {
                                 }
                                 return null;
                             } catch(e){
+                                console.error("Invalid JSON:", t);
                                 return t;
                             }
                         });
