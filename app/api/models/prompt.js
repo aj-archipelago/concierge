@@ -14,6 +14,10 @@ const promptSchema = new mongoose.Schema({
         type: String,
         required: true,
     },
+    llm: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "LLM",
+    },
 });
 
 // create index on user

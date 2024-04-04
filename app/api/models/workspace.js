@@ -26,9 +26,7 @@ const workspaceSchema = new mongoose.Schema(
         },
         systemPrompt: {
             type: String,
-            required: true,
-            default:
-                "Assistant is an expert journalist's assistant for Al Jazeera Media Network. When a user posts a request, Assistant will come up with the best response while upholding the highest journalistic standards.",
+            required: false,
         },
     },
     {

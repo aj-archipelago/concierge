@@ -1,5 +1,13 @@
+import LLM from "../../models/llm";
+
 export async function GET() {
-    return Response.json(defaultPrompts);
+    const defaultModelId = await LLM.findOne({ isDefault: true })?._id;
+    return Response.json(
+        defaultPrompts.map((prompt) => ({
+            ...prompt,
+            llm: defaultModelId,
+        })),
+    );
 }
 
 const defaultPrompts = [
@@ -41,3 +49,5 @@ const defaultPrompts = [
         text: "PROVIDE ME WITH A VIDEO TITLE AND AN OPTIMIZED COPY TO POST ON FACEBOOK",
     },
 ];
+
+export const dynamic = "force-dynamic"; // defaults to auto

@@ -178,5 +178,14 @@ button:focus:not(:focus-visible),
     }
 }
 
+body {
+    scrollbar-color: "rgba(209, 213, 219, 0.5) rgba(209, 213, 219, 0.125)";
+}
+
+div {
+    scrollbar-width: thin;
+    scrollbar-color: "rgba(209, 213, 219, 0.5) rgba(209, 213, 219, 0.125)";
+}
+
 // Should be imported at the end to override colours
 @import "./themes/dark";

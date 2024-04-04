@@ -2,6 +2,7 @@ import stringcase from "stringcase";
 import Workspace from "../../models/workspace";
 import { getCurrentUser } from "../../utils/auth";
 import { getWorkspace } from "./db";
+import WorkspaceState from "../../models/workspace-state";
 
 export async function DELETE(req, { params }) {
     const { id } = params;
@@ -16,6 +17,7 @@ export async function DELETE(req, { params }) {
     }
 
     await Workspace.findByIdAndDelete(id);
+    await WorkspaceState.deleteMany({ workspace: id });
     return Response.json({ success: true });
 }
 
@@ -63,3 +65,5 @@ export async function GET(req, { params }) {
 
     return Response.json(workspace);
 }
+
+export const dynamic = "force-dynamic"; // defaults to auto

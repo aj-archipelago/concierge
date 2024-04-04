@@ -7,8 +7,12 @@ import {
     usePromptsByIds,
 } from "../../queries/prompts";
 import { WorkspaceContext } from "./WorkspaceContent";
+import { useLLMs } from "../../queries/llms";
+import { useTranslation } from "react-i18next";
 
 export default function PromptSelectorModal({ isOpen, setIsOpen }) {
+    const { t } = useTranslation();
+
     return (
         <>
             <Transition appear show={isOpen} as={Fragment}>
@@ -42,13 +46,15 @@ export default function PromptSelectorModal({ isOpen, setIsOpen }) {
                                 leaveFrom="opacity-100 scale-100"
                                 leaveTo="opacity-0 scale-95"
                             >
-                                <Dialog.Panel className="w-full max-w-6xl h-[500px] transform overflow-hidden rounded-2xl bg-white p-6 text-left align-middle shadow-xl transition-all">
+                                <Dialog.Panel className="w-full max-w-6xl h-[500px] transform overflow-hidden rounded-2xl bg-gray-50 p-6 text-start align-middle shadow-xl transition-all">
                                     <div className="flex flex-col gap-2 h-full">
                                         <Dialog.Title
                                             as="h3"
                                             className="text-lg font-medium leading-6 text-gray-900 mb-3"
                                         >
-                                            Add a prompt to your workspace
+                                            {t(
+                                                "Add a prompt to your workspace",
+                                            )}
                                         </Dialog.Title>
                                         <SelectorDialog setIsOpen={setIsOpen} />
 
@@ -60,7 +66,7 @@ export default function PromptSelectorModal({ isOpen, setIsOpen }) {
                                                     setIsOpen(false);
                                                 }}
                                             >
-                                                Done
+                                                {t("Done")}
                                             </button>
                                         </div>
                                     </div>
@@ -85,12 +91,16 @@ function SelectorDialog({ setIsOpen }) {
     const createPrompt = useCreatePrompt();
     const [title, setTitle] = useState("");
     const [text, setText] = useState("");
+    const [llm, setLLM] = useState("");
+    const { data: llms } = useLLMs();
+    const [addedLast, setAddedLast] = useState(null);
+    const { t } = useTranslation();
 
     return (
         <>
             <div className="flex gap-4 grow overflow-auto p-1 ">
                 <div className="basis-6/12">
-                    <h4 className="mb-2">Write your own prompt</h4>
+                    <h4 className="mb-2">{t("Write your own prompt")}</h4>
                     <div>
                         <input
                             type="text"
@@ -101,7 +111,7 @@ function SelectorDialog({ setIsOpen }) {
                             }
                             onChange={(e) => setTitle(e.target.value)}
                             className="lb-input mb-2"
-                            placeholder="Enter a name for the prompt"
+                            placeholder={t("Enter a name for the prompt")}
                         />
                     </div>
                     <div>
@@ -115,19 +125,31 @@ function SelectorDialog({ setIsOpen }) {
                             className="lb-input mb-2"
                             rows={5}
                             type="text"
-                            placeholder="Enter the prompt"
+                            placeholder={t("Enter the prompt")}
                         />
                     </div>
+                    <select
+                        value={llm}
+                        onChange={(e) => setLLM(e.target.value)}
+                        className="lb-input mb-2"
+                    >
+                        {llms?.map((llm) => (
+                            <option key={llm._id} value={llm._id}>
+                                {llm.name}
+                            </option>
+                        ))}
+                    </select>
                     <div>
                         <LoadingButton
                             loading={
                                 createPrompt.isPending &&
                                 promptBeingAdded === text
                             }
-                            text="Adding"
+                            text={t("Adding") + "..."}
                             className={
                                 "lb-primary py-2 w-24 flex justify-center"
                             }
+                            disabled={!title || !text}
                             onClick={async () => {
                                 setPromptBeingAdded(text);
                                 await createPrompt.mutateAsync({
@@ -135,66 +157,74 @@ function SelectorDialog({ setIsOpen }) {
                                     prompt: {
                                         title,
                                         text,
+                                        llm,
                                     },
                                 });
                                 setPromptBeingAdded(null);
                                 setIsOpen(false);
                             }}
                         >
-                            Add
+                            {t("Add")}
                         </LoadingButton>
                     </div>
                 </div>
-                <div className="basis-6/12 flex flex-col gap-3 h-full overflow-auto">
-                    <h4>Or add prompts from the AJ prompt library</h4>
-                    {promptLibrary?.map((prompt, index) => {
-                        const promptWithSameTitleExists =
-                            workspacePrompts?.some(
-                                (p) => p?.title === prompt.title,
-                            );
+                <div className="basis-6/12 flex flex-col gap-3 h-full">
+                    <h4>{t("Or add prompts from the AJ prompt library")}</h4>
+                    <div className="h-full overflow-auto flex flex-col gap-3">
+                        {promptLibrary?.map((prompt, index) => {
+                            const promptWithSameTitleExists =
+                                workspacePrompts?.some(
+                                    (p) => p?.title === prompt.title,
+                                ) || addedLast === prompt.title;
 
-                        return (
-                            <div
-                                key={index}
-                                className="w-full flex items-center justify-between"
-                            >
-                                <div className="bg-gray-50 p-4 rounded grow border">
-                                    <h3 className="text-sm font-medium">
-                                        {prompt.title}
-                                    </h3>
-                                    <p className="text-sm text-gray-500">
-                                        {prompt.text}
-                                    </p>
-                                    {promptWithSameTitleExists ? (
-                                        <span className="text-sm text-gray-400">
-                                            Added
-                                        </span>
-                                    ) : (
-                                        <LoadingButton
-                                            loading={
-                                                createPrompt.isPending &&
-                                                promptBeingAdded === prompt.text
-                                            }
-                                            text="Adding"
-                                            className="text-sm text-blue-500 hover:text-blue-700"
-                                            onClick={async () => {
-                                                setPromptBeingAdded(
-                                                    prompt?.text,
-                                                );
-                                                await createPrompt.mutateAsync({
-                                                    workspaceId: workspace._id,
-                                                    prompt: prompt,
-                                                });
-                                                setPromptBeingAdded(null);
-                                            }}
-                                        >
-                                            Add
-                                        </LoadingButton>
-                                    )}
+                            return (
+                                <div
+                                    key={index}
+                                    className="w-full flex items-center justify-between"
+                                >
+                                    <div className="bg-gray-100 p-4 rounded grow border">
+                                        <h3 className="text-sm font-medium">
+                                            {prompt.title}
+                                        </h3>
+                                        <p className="text-sm text-gray-500">
+                                            {prompt.text}
+                                        </p>
+                                        {promptWithSameTitleExists ? (
+                                            <span className="text-sm text-gray-400">
+                                                {t("Added")}
+                                            </span>
+                                        ) : (
+                                            <LoadingButton
+                                                loading={
+                                                    createPrompt.isPending &&
+                                                    promptBeingAdded ===
+                                                        prompt.text
+                                                }
+                                                text={t("Adding") + "..."}
+                                                className="text-sm text-blue-500 hover:text-blue-700"
+                                                onClick={async () => {
+                                                    setPromptBeingAdded(
+                                                        prompt?.text,
+                                                    );
+                                                    await createPrompt.mutateAsync(
+                                                        {
+                                                            workspaceId:
+                                                                workspace._id,
+                                                            prompt: prompt,
+                                                        },
+                                                    );
+                                                    setPromptBeingAdded(null);
+                                                    setAddedLast(prompt.title);
+                                                }}
+                                            >
+                                                {t("Add")}
+                                            </LoadingButton>
+                                        )}
+                                    </div>
                                 </div>
-                            </div>
-                        );
-                    })}
+                            );
+                        })}
+                    </div>
                 </div>
             </div>
         </>
