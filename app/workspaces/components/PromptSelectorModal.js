@@ -1,5 +1,5 @@
 import { Dialog, Transition } from "@headlessui/react";
-import { Fragment, useContext, useState } from "react";
+import { Fragment, useContext, useEffect, useState } from "react";
 import LoadingButton from "../../../src/components/editor/LoadingButton";
 import {
     useCreatePrompt,
@@ -66,7 +66,7 @@ export default function PromptSelectorModal({ isOpen, setIsOpen }) {
                                                     setIsOpen(false);
                                                 }}
                                             >
-                                                {t("Done")}
+                                                {t("Close")}
                                             </button>
                                         </div>
                                     </div>
@@ -95,6 +95,12 @@ function SelectorDialog({ setIsOpen }) {
     const { data: llms } = useLLMs();
     const [addedLast, setAddedLast] = useState(null);
     const { t } = useTranslation();
+
+    useEffect(() => {
+        if (llms) {
+            setLLM(llms[0]?._id);
+        }
+    }, [llms]);
 
     return (
         <>

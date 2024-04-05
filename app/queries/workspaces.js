@@ -2,23 +2,13 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import axios from "axios";
 
 export function useWorkspace(id) {
-    const queryClient = useQueryClient();
-
     const query = useQuery({
         queryKey: ["workspaces", id],
         queryFn: async ({ queryKey }) => {
             const { data } = await axios.get(`/api/workspaces/${id}`);
-
-            for (const workspace of data) {
-                queryClient.setQueryData(
-                    ["workspaces", workspace._id],
-                    workspace,
-                );
-            }
-
             return data;
         },
-        staleTime: 1000 * 60 * 5,
+        staleTime: Infinity,
     });
 
     return query;
@@ -116,6 +106,7 @@ export function useWorkspaceRuns(id) {
             return data;
         },
         staleTime: Infinity,
+        enabled: !!id,
     });
 
     return query;

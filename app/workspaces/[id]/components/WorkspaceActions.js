@@ -6,7 +6,7 @@ import {
     DropdownMenuItem,
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import axios from "axios";
 import { useRouter } from "next/navigation";
 import { useContext, useEffect, useState } from "react";
@@ -25,17 +25,12 @@ import { LanguageContext } from "../../../../src/contexts/LanguageProvider";
 import {
     useCopyWorkspace,
     useDeleteWorkspace,
+    useWorkspace,
 } from "../../../queries/workspaces";
 
-export default function WorkspaceActions({ id, user }) {
+export default function WorkspaceActions({ idOrSlug, user }) {
     const router = useRouter();
-    const { data: workspace, isLoading } = useQuery({
-        queryKey: ["workspaces", id],
-        queryFn: async () => {
-            const { data } = await axios.get(`/api/workspaces/${id}`);
-            return data;
-        },
-    });
+    const { data: workspace, isLoading } = useWorkspace(idOrSlug);
     const { direction } = useContext(LanguageContext);
 
     if (isLoading) return null;
@@ -77,6 +72,8 @@ function Name({ workspace, user }) {
     const { t } = useTranslation();
 
     useEffect(() => {
+        if (!workspace) return;
+
         setName(workspace?.name);
         setSlug(workspace?.slug);
     }, [workspace]);
@@ -303,7 +300,7 @@ function Actions({ user, workspace }) {
             </div>
         );
     } else {
-        return <MembershipActions user={user} id={workspace._id} />;
+        return <MembershipActions user={user} id={workspace?._id} />;
     }
 }
 

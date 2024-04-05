@@ -11,9 +11,9 @@ import {
 import WorkspaceInput from "./WorkspaceInput";
 import WorkspaceOutputs from "./WorkspaceOutputs";
 
-export default function WorkspaceContent({ id, user }) {
-    const { data: workspace } = useWorkspace(id);
-    const { data: outputs } = useWorkspaceRuns(id);
+export default function WorkspaceContent({ idOrSlug, user }) {
+    const { data: workspace } = useWorkspace(idOrSlug);
+    const { data: outputs } = useWorkspaceRuns(workspace?._id);
     const [error, setError] = useState(null);
     const createRun = useCreateRun();
     const deleteRun = useDeleteRun();
@@ -40,6 +40,7 @@ export default function WorkspaceContent({ id, user }) {
                     <div className="basis-6/12 overflow-auto">
                         <WorkspaceInput
                             onRunMany={(text, prompts) => async () => {
+                                setError(null);
                                 await Promise.all(
                                     prompts.map(async (prompt) => {
                                         try {
@@ -48,7 +49,7 @@ export default function WorkspaceContent({ id, user }) {
                                                 prompt: prompt?.text,
                                                 systemPrompt:
                                                     workspace?.systemPrompt,
-                                                workspaceId: id,
+                                                workspaceId: workspace?._id,
                                             });
                                         } catch (error) {
                                             console.error(error);
@@ -59,11 +60,12 @@ export default function WorkspaceContent({ id, user }) {
                             }}
                             onRun={async (title, text, prompt) => {
                                 try {
+                                    setError(null);
                                     await createRun.mutateAsync({
                                         text,
                                         prompt,
                                         systemPrompt: workspace?.systemPrompt,
-                                        workspaceId: id,
+                                        workspaceId: workspace?._id,
                                     });
                                 } catch (error) {
                                     console.error(error);
@@ -92,7 +94,7 @@ export default function WorkspaceContent({ id, user }) {
                                                 ) {
                                                     await deleteWorkspaceRuns.mutateAsync(
                                                         {
-                                                            id,
+                                                            id: workspace?._id,
                                                         },
                                                     );
                                                 }
