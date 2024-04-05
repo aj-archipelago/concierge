@@ -26,9 +26,9 @@ export default async function Page({ params }) {
         <HydrationBoundary state={dehydrate(queryClient)}>
             <div className="flex flex-col h-full">
                 <div>
-                    <WorkspaceActions id={id} user={user} />
+                    <WorkspaceActions idOrSlug={id} user={user} />
                 </div>
-                <WorkspaceContent id={id} user={user} />
+                <WorkspaceContent idOrSlug={id} user={user} />
             </div>
         </HydrationBoundary>
     );

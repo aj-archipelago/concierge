@@ -35,6 +35,7 @@ const workspaceSchema = new mongoose.Schema(
 );
 
 // add index on owner
+workspaceSchema.index({ slug: 1 });
 workspaceSchema.index({ owner: 1 });
 workspaceSchema.index({ updatedAt: -1 });
 

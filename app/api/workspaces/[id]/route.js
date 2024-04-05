@@ -60,7 +60,7 @@ export async function GET(req, { params }) {
     const workspace = await getWorkspace(id);
 
     if (!workspace) {
-        return Response.json({ error: "Workspace not found" }, 404);
+        return Response.json({ error: "Workspace not found" }, { status: 404 });
     }
 
     return Response.json(workspace);
