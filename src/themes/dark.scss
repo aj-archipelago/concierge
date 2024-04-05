@@ -13,6 +13,12 @@ $code-color-dark: #ffa500;
 body.dark {
     background-color: $bg-color-dark;
     color: $text-color-dark;
+    scrollbar-color: rgba(209, 213, 219, 0.5) rgba(209, 213, 219, 0.125);
+
+    div {
+        scrollbar-width: thin;
+        scrollbar-color: rgba(209, 213, 219, 0.5) rgba(209, 213, 219, 0.125);
+    }
 
     .bs-popover-start > .popover-arrow::after,
     .bs-popover-auto[data-popper-placement^="left"] > .popover-arrow::after {

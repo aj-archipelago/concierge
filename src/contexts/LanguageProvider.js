@@ -35,6 +35,7 @@ export function LanguageProvider({ savedLanguage, children }) {
 
             i18next.changeLanguage(newLanguage);
         },
+        direction,
     };
 
     return (

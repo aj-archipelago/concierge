@@ -1,17 +1,24 @@
 "use client";
-import axios from "axios";
-import { createContext, useRef, useState } from "react";
-import stringcase from "stringcase";
-import { useWorkspace } from "../../queries/workspaces";
+import { createContext, useState } from "react";
+import { useTranslation } from "react-i18next";
+import LoadingButton from "../../../src/components/editor/LoadingButton";
+import { useCreateRun, useDeleteRun } from "../../queries/runs";
+import {
+    useDeleteWorkspaceRuns,
+    useWorkspace,
+    useWorkspaceRuns,
+} from "../../queries/workspaces";
 import WorkspaceInput from "./WorkspaceInput";
 import WorkspaceOutputs from "./WorkspaceOutputs";
 
 export default function WorkspaceContent({ id, user }) {
-    const [outputs, setOutputs] = useState([]);
-    const outputsRef = useRef(outputs);
-    outputsRef.current = outputs;
     const { data: workspace } = useWorkspace(id);
+    const { data: outputs } = useWorkspaceRuns(id);
     const [error, setError] = useState(null);
+    const createRun = useCreateRun();
+    const deleteRun = useDeleteRun();
+    const deleteWorkspaceRuns = useDeleteWorkspaceRuns();
+    const { t } = useTranslation();
 
     return (
         <WorkspaceContext.Provider
@@ -33,65 +40,31 @@ export default function WorkspaceContent({ id, user }) {
                     <div className="basis-6/12 overflow-auto">
                         <WorkspaceInput
                             onRunMany={(text, prompts) => async () => {
-                                const outputs = await Promise.all(
+                                await Promise.all(
                                     prompts.map(async (prompt) => {
                                         try {
-                                            const res = await axios.post(
-                                                "/api/runs",
-                                                {
-                                                    text,
-                                                    prompt: prompt.text,
-                                                    systemPrompt:
-                                                        workspace?.systemPrompt,
-                                                },
-                                            );
-                                            return {
-                                                _id: Math.random(),
-                                                title: stringcase.titlecase(
-                                                    prompt.title,
-                                                ),
-                                                text: res.data.data
-                                                    .run_gpt35turbo.result,
-                                                createdAt: new Date(),
-                                            };
+                                            await createRun.mutateAsync({
+                                                text,
+                                                prompt: prompt?.text,
+                                                systemPrompt:
+                                                    workspace?.systemPrompt,
+                                                workspaceId: id,
+                                            });
                                         } catch (error) {
                                             console.error(error);
                                             setError(error);
                                         }
                                     }),
                                 );
-
-                                setOutputs([
-                                    ...outputs,
-                                    ...(outputsRef.current || []),
-                                ]);
                             }}
                             onRun={async (title, text, prompt) => {
                                 try {
-                                    await axios
-                                        .post("/api/runs", {
-                                            text,
-                                            prompt,
-                                            systemPrompt:
-                                                workspace?.systemPrompt,
-                                        })
-                                        .then((res) => {
-                                            const outputText =
-                                                res.data.data.run_gpt35turbo
-                                                    .result;
-
-                                            setOutputs([
-                                                {
-                                                    _id: Math.random(),
-                                                    title: stringcase.titlecase(
-                                                        title,
-                                                    ),
-                                                    text: outputText,
-                                                    createdAt: new Date(),
-                                                },
-                                                ...(outputsRef.current || []),
-                                            ]);
-                                        });
+                                    await createRun.mutateAsync({
+                                        text,
+                                        prompt,
+                                        systemPrompt: workspace?.systemPrompt,
+                                        workspaceId: id,
+                                    });
                                 } catch (error) {
                                     console.error(error);
                                     setError(error);
@@ -102,17 +75,43 @@ export default function WorkspaceContent({ id, user }) {
                     <div className="basis-6/12">
                         {outputs?.length > 0 && (
                             <>
-                                <h4 className="text-lg font-medium mb-4">
-                                    Outputs
-                                </h4>
+                                <div className="flex justify-between">
+                                    <h4 className="text-lg font-medium mb-4">
+                                        {t("Outputs")}
+                                    </h4>
+                                    <div>
+                                        <LoadingButton
+                                            text="Deleting"
+                                            onClick={async () => {
+                                                if (
+                                                    window.confirm(
+                                                        t(
+                                                            "Are you sure you want to delete all outputs?",
+                                                        ),
+                                                    )
+                                                ) {
+                                                    await deleteWorkspaceRuns.mutateAsync(
+                                                        {
+                                                            id,
+                                                        },
+                                                    );
+                                                }
+                                            }}
+                                            className="lb-sm lb-outline-secondary"
+                                        >
+                                            {t("Delete all")}
+                                        </LoadingButton>
+                                    </div>
+                                </div>
+
+                                <div className="text-gray-400 text-sm">
+                                    Outputs will be automatically deleted after
+                                    15 days
+                                </div>
                                 <WorkspaceOutputs
                                     outputs={outputs}
-                                    onDelete={(_id) => {
-                                        setOutputs(
-                                            outputs.filter(
-                                                (output) => output._id !== _id,
-                                            ),
-                                        );
+                                    onDelete={async (id) => {
+                                        await deleteRun.mutateAsync({ id });
                                     }}
                                 />
                             </>

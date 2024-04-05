@@ -9,7 +9,7 @@ import axios from "axios";
 export function usePromptsByIds(ids) {
     const queries = useQueries({
         queries: ids.map((id) => ({
-            queryKey: ["prompts", id],
+            queryKey: ["prompt", id],
             queryFn: async () => {
                 const { data } = await axios.get(`/api/prompts/${id}`);
                 return data;
@@ -26,7 +26,7 @@ export function usePromptsByIds(ids) {
 
 export function usePrompt(id) {
     const query = useQuery({
-        queryKey: ["prompts", id],
+        queryKey: ["prompt", id],
         queryFn: async () => {
             const response = await axios.get(`/api/prompts/${id}`);
             return response.data;
@@ -44,7 +44,7 @@ export function useUpdatePrompt() {
     return useMutation({
         mutationFn: async ({ id, data }) => {
             const response = await axios.put(`/api/prompts/${id}`, data);
-            queryClient.invalidateQueries(["prompts", id]);
+            queryClient.invalidateQueries(["prompt", id]);
             return response.data;
         },
     });
@@ -75,7 +75,7 @@ export function useDeletePrompt() {
             const response = await axios.delete(
                 `/api/workspaces/${workspaceId}/prompts/${id}`,
             );
-            queryClient.invalidateQueries(["prompts", id]);
+            queryClient.invalidateQueries(["prompt", id]);
             queryClient.setQueryData(["workspaces", workspaceId], (oldData) => {
                 return {
                     ...oldData,

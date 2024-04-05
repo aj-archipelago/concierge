@@ -17,20 +17,7 @@ export default async function Page({ params }) {
     await queryClient.prefetchQuery({
         queryKey: ["workspaces", id],
         queryFn: async () => {
-            return await getWorkspace(id);
-            // const workspace = await Workspace.findById(id);
-
-            // for (const promptId of workspace.prompts) {
-            //     await queryClient.prefetchQuery({
-            //         queryKey: ['prompts', promptId],
-            //         queryFn: async () => {
-            //             const prompt = await Prompt.findById(promptId);
-            //             return JSON.parse(JSON.stringify(prompt));
-            //         },
-            //         staleTime: 1000 * 60 * 5,
-            //     });
-            // }
-            // return JSON.parse(JSON.stringify(workspace));
+            return (await getWorkspace(id)).toJSON();
         },
         staleTime: 1000 * 60 * 5,
     });

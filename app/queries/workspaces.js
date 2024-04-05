@@ -107,3 +107,73 @@ export function useCopyWorkspace() {
 
     return mutation;
 }
+
+export function useWorkspaceRuns(id) {
+    const query = useQuery({
+        queryKey: ["runs", { workspaceId: id }],
+        queryFn: async () => {
+            const { data } = await axios.get(`/api/workspaces/${id}/runs`);
+            return data;
+        },
+        staleTime: Infinity,
+    });
+
+    return query;
+}
+
+export function useDeleteWorkspaceRuns() {
+    const queryClient = useQueryClient();
+
+    const mutation = useMutation({
+        mutationFn: async ({ id }) => {
+            await axios.delete(`/api/workspaces/${id}/runs`);
+        },
+        onMutate: async ({ id }) => {
+            await queryClient.cancelQueries(["runs"]);
+            const previousRuns = queryClient.getQueryData(["runs"]);
+            queryClient.setQueryData(["runs"], (old) => {
+                return old?.filter((run) => run.workspace !== id);
+            });
+            return { previousRuns };
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries(["runs"]);
+        },
+    });
+
+    return mutation;
+}
+
+export function useWorkspaceState(id) {
+    const query = useQuery({
+        queryKey: ["workspaceState", id],
+        queryFn: async ({ queryKey }) => {
+            const { data } = await axios.get(`/api/workspaces/${id}/state`);
+            return data;
+        },
+        staleTime: Infinity,
+        enabled: !!id,
+    });
+
+    return query;
+}
+
+export function useUpdateWorkspaceState() {
+    const queryClient = useQueryClient();
+
+    const mutation = useMutation({
+        mutationFn: async ({ id, attrs }) => {
+            if (!id || !attrs) return;
+            const { data } = await axios.put(
+                `/api/workspaces/${id}/state`,
+                attrs,
+            );
+            return data;
+        },
+        onSuccess: (data, { id }) => {
+            queryClient.invalidateQueries(["workspaceState", id]);
+        },
+    });
+
+    return mutation;
+}

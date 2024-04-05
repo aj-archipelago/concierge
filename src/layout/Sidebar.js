@@ -115,7 +115,7 @@ export default function Sidebar() {
                                                         )
                                                             ? "bg-gray-100"
                                                             : "hover:bg-gray-100",
-                                                        "flex items-center w-full text-left rounded-md p-2 gap-x-3 text-sm leading-6 font-semibold text-gray-700",
+                                                        "flex items-center w-full text-start rounded-md p-2 gap-x-3 text-sm leading-6 font-semibold text-gray-700",
                                                     )}
                                                     onClick={() => {
                                                         if (
@@ -133,7 +133,7 @@ export default function Sidebar() {
                                                         className="h-6 w-6 shrink-0 text-gray-400"
                                                         aria-hidden="true"
                                                     />
-                                                    {item.name}
+                                                    {t(item.name)}
                                                 </button>
                                                 <ul className="mt-1 px-2">
                                                     {item.children?.map(
@@ -157,9 +157,9 @@ export default function Sidebar() {
                                                                         "block rounded-md py-2 pe-2 pl-9 text-sm leading-6 text-gray-700",
                                                                     )}
                                                                 >
-                                                                    {
-                                                                        subItem.name
-                                                                    }
+                                                                    {t(
+                                                                        subItem.name,
+                                                                    )}
                                                                 </Link>
                                                             </li>
                                                         ),

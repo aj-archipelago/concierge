@@ -17,6 +17,17 @@ export default {
         getTaxonomySets,
         getTopics,
         getTags,
+        llms: [
+            {
+                name: "GPT 3.5 Turbo",
+                cortexModelName: "azure-turbo-chat",
+                isDefault: true,
+            },
+            {
+                name: "GPT 4.0",
+                cortexModelName: "azure-gpt4",
+            },
+        ],
     },
     write: {
         actions: {},

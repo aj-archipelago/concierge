@@ -126,7 +126,7 @@ const CHAT_EXTENSION = gql`
 `;
 
 const VISION = gql`
-    query($text: String, $chatHistory: [MultiMessage]){
+    query ($text: String, $chatHistory: [MultiMessage]) {
         vision(text: $text, chatHistory: $chatHistory) {
             result
             contextId

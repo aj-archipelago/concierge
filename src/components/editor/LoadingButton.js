@@ -16,7 +16,7 @@ export default function LoadingButton({
             className={classNames(
                 "text-center",
                 className,
-                loading ? "pe-5" : "",
+                loading ? "pe-[1.5rem]" : "",
             )}
             type={type}
             style={style}
