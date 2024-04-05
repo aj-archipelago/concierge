@@ -500,7 +500,7 @@ const JIRA_STORY = gql`
 const RUN_GPT35TURBO = gql`
     query RunGPT35Turbo(
         $text: String!
-        $systemPrompt: String!
+        $systemPrompt: String
         $prompt: String!
         $async: Boolean
     ) {
@@ -518,7 +518,7 @@ const RUN_GPT35TURBO = gql`
 const RUN_GPT4 = gql`
     query RunGPT4(
         $text: String!
-        $systemPrompt: String!
+        $systemPrompt: String
         $prompt: String!
         $async: Boolean
     ) {
