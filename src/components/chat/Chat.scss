@@ -292,13 +292,15 @@ html[dir="ltr"] {
     margin-top: 0;
     margin-bottom: 0;
     font-family: $font-family-sans-serif;
+    font-size: 14px;
+    line-height: 1.5;
     white-space: pre-wrap;
 }
 
 .chat-message-bot {
     // Typography
     font-family: $font-family-sans-serif;
-    font-size: 16px; // Good readability size
+    font-size: 14px; // Good readability size
     line-height: 1.5; // Spacing for readability
     color: #333; // Dark color for contrast
 

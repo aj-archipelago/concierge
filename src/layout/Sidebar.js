@@ -76,7 +76,7 @@ export default function Sidebar() {
             <div className="flex h-16 shrink-0 items-center gap-2">
                 <Link className="flex items-center gap-2" href="/">
                     <img
-                        className="h-8 w-auto"
+                        className="h-12 w-auto"
                         src={getLogo(language)}
                         alt="Your Company"
                     />
