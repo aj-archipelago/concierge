@@ -1,4 +1,8 @@
+import pkg from '../../../package.json';
+
 export const getSidebarLogo = (language) => {
+    const version = pkg.version;
+    
     if (language === "ar")
         return (
             <div>
@@ -11,7 +15,8 @@ export const getSidebarLogo = (language) => {
                     </div>
                 </div>
                 <div className="text-gray-400 text-[10px]">
-                    مساعد الذكاء الاصطناعي للجزيرة
+                    <div>مساعد الذكاء الاصطناعي للجزيرة</div>
+                    <div>v{version}</div>
                 </div>
             </div>
         );
@@ -22,12 +27,13 @@ export const getSidebarLogo = (language) => {
                 Labeeb
                 <div className="text-[10px] font-medium mb-2">
                     <div className="rounded text-white bg-yellow-600 px-1">
-                        Alpha
+                        Beta
                     </div>
                 </div>
             </div>
             <div className="text-gray-400 text-[10px]">
-                Al Jazeera's AI Assistant
+                <div>Al Jazeera's AI Assistant</div>
+                <div>v{version}</div>
             </div>
         </div>
     );

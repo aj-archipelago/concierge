@@ -1,6 +1,6 @@
 import { useLazyQuery } from "@apollo/client";
 import { Popover, Transition } from "@headlessui/react";
-import { Fragment, useState } from "react";
+import { Fragment } from "react";
 import { Form, ListGroup, Spinner } from "react-bootstrap";
 import { useTranslation } from "react-i18next";
 import { AiOutlineClose } from "react-icons/ai";
@@ -10,6 +10,7 @@ import {
     BsFiletypeTxt,
     BsFiletypeXlsx,
 } from "react-icons/bs";
+import { FiSettings } from "react-icons/fi";
 import { IoIosTrash } from "react-icons/io";
 import { useDispatch, useSelector } from "react-redux";
 import config from "../../../config";
@@ -21,7 +22,6 @@ import {
     removeSource,
 } from "../../stores/docSlice";
 import FileUploadComponent from "./FileUploadComponent";
-import { FiSettings } from "react-icons/fi";
 
 export const dataSources = [
     {

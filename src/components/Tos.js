@@ -1,7 +1,7 @@
 "use client";
 
 import i18next from "i18next";
-import { useContext, useState } from "react";
+import { useState } from "react";
 import { Modal } from "react-bootstrap";
 import { useTranslation } from "react-i18next";
 import config from "../../config";

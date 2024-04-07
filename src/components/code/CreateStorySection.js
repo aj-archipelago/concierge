@@ -27,50 +27,56 @@ export default function CreateStorySection({ token, ticket }) {
 
         setLoadingProjects(true);
         // load projects
-        axios.get(
-            `${window.location.origin}${basePath || ""}/api/jira/projects?siteId=${selectedSite.id}&token=${token}`,
-        ).then(response => {
-            const data = response.data;
+        axios
+            .get(
+                `${window.location.origin}${basePath || ""}/api/jira/projects?siteId=${selectedSite.id}&token=${token}`,
+            )
+            .then((response) => {
+                const data = response.data;
 
-            // sort by key
-            data.sort((a, b) => {
-                if (a.key < b.key) {
-                    return -1;
-                }
-                if (a.key > b.key) {
-                    return 1;
-                }
-                return 0;
+                // sort by key
+                data.sort((a, b) => {
+                    if (a.key < b.key) {
+                        return -1;
+                    }
+                    if (a.key > b.key) {
+                        return 1;
+                    }
+                    return 0;
+                });
+
+                setLoadingProjects(false);
+                setProjects(data);
+            })
+            .catch((error) => {
+                console.error(error);
+                setLoadingProjects(false);
             });
-
-            setLoadingProjects(false);
-            setProjects(data);
-        }).catch(error => {
-            console.error(error);
-            setLoadingProjects(false);
-        });
     }, [token, selectedSite]);
 
     useEffect(() => {
         if (token) {
-            axios.get(
-                "https://api.atlassian.com/oauth/token/accessible-resources",
-                {
-                    headers: {
-                        Authorization: `Bearer ${token}`,
+            axios
+                .get(
+                    "https://api.atlassian.com/oauth/token/accessible-resources",
+                    {
+                        headers: {
+                            Authorization: `Bearer ${token}`,
+                        },
                     },
-                },
-            ).then(response => {
-                setSites(response.data);
-                setSelectedSite(response.data?.[0]);
-            })
+                )
+                .then((response) => {
+                    setSites(response.data);
+                    setSelectedSite(response.data?.[0]);
+                });
         }
     }, [token]);
 
     if (!token) {
         return (
             <div className="mb-4 text-sm italic text-gray-500">
-                To create this issue in JIRA, please connect Labeeb to your JIRA account.
+                To create this issue in JIRA, please connect Labeeb to your JIRA
+                account.
             </div>
         );
     } else {
@@ -79,7 +85,9 @@ export default function CreateStorySection({ token, ticket }) {
                 <h4 className="font-semibold">Create Issue</h4>
                 <div className="flex gap-2">
                     <div className="basis-1/3">
-                        <h5 className="text-gray-500 font-medium text-sm mb-1">Jira Site</h5>
+                        <h5 className="text-gray-500 font-medium text-sm mb-1">
+                            Jira Site
+                        </h5>
                         <select
                             className="lb-input"
                             value={selectedSite}
@@ -93,7 +101,9 @@ export default function CreateStorySection({ token, ticket }) {
                         </select>
                     </div>
                     <div className="basis-1/3">
-                        <h5 className="text-gray-500 font-medium text-sm mb-1">Issue Type</h5>
+                        <h5 className="text-gray-500 font-medium text-sm mb-1">
+                            Issue Type
+                        </h5>
                         <select
                             className="lb-input"
                             value={issueType}
@@ -106,7 +116,9 @@ export default function CreateStorySection({ token, ticket }) {
                         </select>
                     </div>
                     <div className="basis-1/3">
-                        <h5 className="text-gray-500 font-medium text-sm mb-1">Project</h5>
+                        <h5 className="text-gray-500 font-medium text-sm mb-1">
+                            Project
+                        </h5>
                         <select
                             className="lb-input"
                             value={project}
@@ -160,11 +172,11 @@ export default function CreateStorySection({ token, ticket }) {
                                     setCreatedUrl(
                                         `https://${selectedSite.name}.atlassian.net/browse/${response.data.key}`,
                                     );
+                                } else {
+                                    setError(
+                                        `An error occurred: ${JSON.stringify(response.data.errors || response.data.error || "")}`,
+                                    );
                                 }
-                                else {
-                                    setError(`An error occurred: ${JSON.stringify(response.data.errors || response.data.error || "")}`);
-                                }
-
                             }}
                         >
                             Create issue in JIRA

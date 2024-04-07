@@ -5,8 +5,8 @@
 
 .options-section {
     display: flex;
-    flex-direction: column;
-    gap: 10px;
+    justify-content: space-between;
+    gap: 60px;
     margin-bottom: 20px;
     border: 1px solid $border-color;
     border-radius: $border-radius;
@@ -16,8 +16,7 @@
 
     .radio-columns {
         display: flex;
-        justify-content: flex-start;
-        gap: 50px;
+        flex-direction: column;
     }
 
     .form-check {

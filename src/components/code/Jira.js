@@ -34,7 +34,8 @@ export default function Jira() {
         if (data?.jira_story?.result) {
             sessionStorage.setItem(
                 "jira_story_tickets",
-                data.jira_story.result);
+                data.jira_story.result,
+            );
 
             router.push("/code/jira/create");
         }
@@ -44,8 +45,8 @@ export default function Jira() {
         <div className="">
             <div className="flex flex-col gap-4 mb-6">
                 <div>
-                    In a few sentences, describe the story you want to
-                    create in JIRA.
+                    In a few sentences, describe the story you want to create in
+                    JIRA.
                 </div>
 
                 <div className="flex flex-col gap-2">
@@ -76,13 +77,15 @@ export default function Jira() {
                                     ))}
                                 </select>
                             </div> */}
-                        <div className="whitespace-nowrap font-medium text-sm">How many stories to create</div>
+                        <div className="whitespace-nowrap font-medium text-sm">
+                            How many stories to create
+                        </div>
                         <div>
                             <select
                                 className="lb-select"
                                 value={storyCount}
                                 onChange={(e) => {
-                                    setStoryCount(e.target.value)
+                                    setStoryCount(e.target.value);
                                 }}
                             >
                                 <option value="one">One</option>
@@ -117,4 +120,3 @@ export default function Jira() {
         </div>
     );
 }
-

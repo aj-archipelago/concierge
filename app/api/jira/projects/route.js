@@ -1,5 +1,6 @@
 import axios from "axios";
-const getJiraRestUrl = siteId => `https://api.atlassian.com/ex/jira/${siteId}/rest/api/3/project`;
+const getJiraRestUrl = (siteId) =>
+    `https://api.atlassian.com/ex/jira/${siteId}/rest/api/3/project`;
 
 export async function GET(request) {
     try {
@@ -8,16 +9,13 @@ export async function GET(request) {
         const token = searchParams.get("token");
         const site = searchParams.get("siteId");
 
-        const response = await axios.get(
-            getJiraRestUrl(site),
-            {
-                headers: {
-                    Authorization: `Bearer ${token}`,
-                    Accept: "application/json",
-                    "Content-Type": "application/json",
-                },
+        const response = await axios.get(getJiraRestUrl(site), {
+            headers: {
+                Authorization: `Bearer ${token}`,
+                Accept: "application/json",
+                "Content-Type": "application/json",
             },
-        );
+        });
 
         return Response.json(response.data);
     } catch (error) {
@@ -27,3 +25,5 @@ export async function GET(request) {
         );
     }
 }
+
+export const dynamic = "force-dynamic"; // defaults to auto

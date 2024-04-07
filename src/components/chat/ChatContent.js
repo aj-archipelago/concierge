@@ -1,9 +1,11 @@
-import ChatMessages from "./ChatMessages";
 import { useDispatch, useSelector } from "react-redux";
 import { useApolloClient } from "@apollo/client";
 import { QUERIES } from "../../graphql";
 import { addMessage } from "../../stores/chatSlice";
 import { useState } from "react";
+import dynamic from 'next/dynamic'
+
+const ChatMessages = dynamic(() => import('./ChatMessages'))
 
 const contextMessageCount = 5;
 
@@ -31,7 +33,7 @@ function ChatContent({ displayState = "full", container = "chatpage" }) {
                     sender: "labeeb",
                 }),
             );
-        };
+        }
     };
 
     const handleError = (error) => {
@@ -73,16 +75,14 @@ function ChatContent({ displayState = "full", container = "chatpage" }) {
                 };
 
                 selectedSources &&
-                selectedSources.length > 0 &&
-                (variables.dataSources = selectedSources);
+                    selectedSources.length > 0 &&
+                    (variables.dataSources = selectedSources);
                 client
                     .query({
                         query: QUERIES.RAG_LABEEB,
                         variables,
                     })
-                    .then((result) =>
-                        updateChat(result.data, result.result),
-                    )
+                    .then((result) => updateChat(result.data, result.result))
                     .catch(handleError);
             }}
             messages={messages}

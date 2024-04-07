@@ -2,7 +2,7 @@
 
 import axios from "axios";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 export default function ConnectJiraButton({ clientSecret, onTokenChange }) {
     // read parameter code from querystring
@@ -46,8 +46,7 @@ export default function ConnectJiraButton({ clientSecret, onTokenChange }) {
                         },
                     },
                 );
-            }
-            catch (error) {
+            } catch (error) {
                 if (error.response.status === 401) {
                     // token is bad
                     throw error;
@@ -55,41 +54,47 @@ export default function ConnectJiraButton({ clientSecret, onTokenChange }) {
 
                 attemptCount++;
                 // sleep for 1 second
-                await new Promise(resolve => setTimeout(resolve, 1000));
+                await new Promise((resolve) => setTimeout(resolve, 1000));
             }
         }
     };
 
-    const renewToken = async (refreshToken) => {
-        try {
-            const response = await axios.post(tokenUrl, {
-                grant_type: "refresh_token",
-                client_id: clientId,
-                client_secret: clientSecret,
-                refresh_token: refreshToken,
-                redirect_uri: redirectUri,
-                scope: "offline_access",
-            });
+    const renewToken = useCallback(
+        async (refreshToken) => {
+            try {
+                const response = await axios.post(tokenUrl, {
+                    grant_type: "refresh_token",
+                    client_id: clientId,
+                    client_secret: clientSecret,
+                    refresh_token: refreshToken,
+                    redirect_uri: redirectUri,
+                    scope: "offline_access",
+                });
 
-            const { data } = response;
-            const accessToken = data.access_token;
+                const { data } = response;
+                const accessToken = data.access_token;
 
-            // we have new tokes now
-            setToken(accessToken);
-            localStorage.setItem("jira_access_token", accessToken);
-            onTokenChange(accessToken);
-            if (data.refresh_token) {
-                setRefreshToken(data.refresh_token);
-                localStorage.setItem("jira_refresh_token", data.refresh_token);
+                // we have new tokes now
+                setToken(accessToken);
+                localStorage.setItem("jira_access_token", accessToken);
+                onTokenChange(accessToken);
+                if (data.refresh_token) {
+                    setRefreshToken(data.refresh_token);
+                    localStorage.setItem(
+                        "jira_refresh_token",
+                        data.refresh_token,
+                    );
+                }
+            } catch (error) {
+                console.warn("Error refreshing token", error);
+                setError(error);
+                onTokenChange(null);
+                setToken(null);
+                setRefreshToken(null);
             }
-        } catch (error) {
-            console.warn("Error refreshing token", error);
-            setError(error);
-            onTokenChange(null);
-            setToken(null);
-            setRefreshToken(null);
-        }
-    };
+        },
+        [clientId, clientSecret, onTokenChange, redirectUri],
+    );
 
     useEffect(() => {
         if (!code) {
@@ -121,40 +126,67 @@ export default function ConnectJiraButton({ clientSecret, onTokenChange }) {
         if (code && redirectUri) {
             // if code is present, this is a callback from Jira, exchange the
             // code for a token
-            axios.post(tokenUrl, {
-                grant_type: "authorization_code",
-                client_id: clientId,
-                client_secret: clientSecret,
-                code: code,
-                redirect_uri: redirectUri,
-                scope: "offline_access",
-            }).then((response) => {
-                const { data } = response;
+            axios
+                .post(tokenUrl, {
+                    grant_type: "authorization_code",
+                    client_id: clientId,
+                    client_secret: clientSecret,
+                    code: code,
+                    redirect_uri: redirectUri,
+                    scope: "offline_access",
+                })
+                .then((response) => {
+                    const { data } = response;
 
-                if (data.access_token) {
-                    setToken(data.access_token);
-                    onTokenChange(data.access_token);
-                    localStorage.setItem("jira_access_token", data.access_token);
+                    if (data.access_token) {
+                        setToken(data.access_token);
+                        onTokenChange(data.access_token);
+                        localStorage.setItem(
+                            "jira_access_token",
+                            data.access_token,
+                        );
 
-                    if (data.refresh_token) {
-                        setRefreshToken(data.refresh_token);
-                        localStorage.setItem("jira_refresh_token", data.refresh_token);
+                        if (data.refresh_token) {
+                            setRefreshToken(data.refresh_token);
+                            localStorage.setItem(
+                                "jira_refresh_token",
+                                data.refresh_token,
+                            );
+                        }
                     }
-                }
-            }).catch((error) => {
-                console.warn('error', error);
-                setError(error?.response?.data?.error_description || error?.response?.data?.error || error?.toString() || error?.message || error?.response?.data?.error_description || error?.response?.data?.error || error?.response?.data || error?.toString());
-                onTokenChange(null);
-                setToken(null);
-                setRefreshToken(null);
-            });
+                })
+                .catch((error) => {
+                    console.warn("error", error);
+                    setError(
+                        error?.response?.data?.error_description ||
+                            error?.response?.data?.error ||
+                            error?.toString() ||
+                            error?.message ||
+                            error?.response?.data?.error_description ||
+                            error?.response?.data?.error ||
+                            error?.response?.data ||
+                            error?.toString(),
+                    );
+                    onTokenChange(null);
+                    setToken(null);
+                    setRefreshToken(null);
+                });
 
             setCode(null);
             // remove code from querystring
             router.push(`/code/jira/create`);
         }
-
-    }, [code, token, refreshToken, redirectUri]);
+    }, [
+        code,
+        token,
+        refreshToken,
+        redirectUri,
+        clientId,
+        clientSecret,
+        onTokenChange,
+        renewToken,
+        router,
+    ]);
 
     const isConnectedToJira = () => !!token;
 
@@ -162,7 +194,10 @@ export default function ConnectJiraButton({ clientSecret, onTokenChange }) {
         const connectionUri = new URL("https://auth.atlassian.com/authorize");
         connectionUri.searchParams.append("audience", "api.atlassian.com");
         connectionUri.searchParams.append("client_id", clientId);
-        connectionUri.searchParams.append("scope", "read:me read:jira-work write:jira-work");
+        connectionUri.searchParams.append(
+            "scope",
+            "read:me read:jira-work write:jira-work",
+        );
         connectionUri.searchParams.append("redirect_uri", redirectUri);
         connectionUri.searchParams.append("response_type", "code");
         connectionUri.searchParams.append("prompt", "consent");
@@ -171,10 +206,7 @@ export default function ConnectJiraButton({ clientSecret, onTokenChange }) {
         return (
             <div className="mb-4">
                 <div className="flex justify-end">
-                    <a
-                        className="lb-success"
-                        href={connectionUri.toString()}
-                    >
+                    <a className="lb-success" href={connectionUri.toString()}>
                         Connect to Jira
                     </a>
                 </div>

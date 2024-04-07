@@ -8,13 +8,13 @@ import {
     PencilSquareIcon,
     PhotoIcon,
 } from "@heroicons/react/24/outline";
-import i18next from "i18next";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import { useContext } from "react";
+import { useTranslation } from "react-i18next";
+import { MdOutlineWorkspaces } from "react-icons/md";
 import classNames from "../../app/utils/class-names";
 import config from "../../config";
-import { useTranslation } from "react-i18next";
-import { useContext } from "react";
 import { LanguageContext } from "../contexts/LanguageProvider";
 
 const navigation = [
@@ -57,6 +57,11 @@ const navigation = [
         icon: PhotoIcon,
         href: "/images",
     },
+    {
+        name: "Workspaces",
+        icon: MdOutlineWorkspaces,
+        href: "/workspaces",
+    },
 ];
 
 export default function Sidebar() {
@@ -71,7 +76,7 @@ export default function Sidebar() {
             <div className="flex h-16 shrink-0 items-center gap-2">
                 <Link className="flex items-center gap-2" href="/">
                     <img
-                        className="h-8 w-auto"
+                        className="h-12 w-auto"
                         src={getLogo(language)}
                         alt="Your Company"
                     />
@@ -110,7 +115,7 @@ export default function Sidebar() {
                                                         )
                                                             ? "bg-gray-100"
                                                             : "hover:bg-gray-100",
-                                                        "flex items-center w-full text-left rounded-md p-2 gap-x-3 text-sm leading-6 font-semibold text-gray-700",
+                                                        "flex items-center w-full text-start rounded-md p-2 gap-x-3 text-sm leading-6 font-semibold text-gray-700",
                                                     )}
                                                     onClick={() => {
                                                         if (
@@ -128,7 +133,7 @@ export default function Sidebar() {
                                                         className="h-6 w-6 shrink-0 text-gray-400"
                                                         aria-hidden="true"
                                                     />
-                                                    {item.name}
+                                                    {t(item.name)}
                                                 </button>
                                                 <ul className="mt-1 px-2">
                                                     {item.children?.map(
@@ -152,9 +157,9 @@ export default function Sidebar() {
                                                                         "block rounded-md py-2 pe-2 pl-9 text-sm leading-6 text-gray-700",
                                                                     )}
                                                                 >
-                                                                    {
-                                                                        subItem.name
-                                                                    }
+                                                                    {t(
+                                                                        subItem.name,
+                                                                    )}
                                                                 </Link>
                                                             </li>
                                                         ),

@@ -5,33 +5,65 @@ import { RiSendPlane2Fill } from "react-icons/ri";
 import TextareaAutosize from "react-textarea-autosize";
 import classNames from "../../../app/utils/class-names";
 import DocOptions from "./DocOptions";
+import { LuUpload } from "react-icons/lu";
+import dynamic from 'next/dynamic'
+ 
+const DynamicFilepond = dynamic(() => import('./MyFilePond'), {
+  ssr: false,
+})
+
 
 // Displays the list of messages and a message input box.
 function MessageInput({ onSend, loading, enableRag, placeholder }) {
     const [inputValue, setInputValue] = useState("");
+    const [urls, setUrls ] = useState([]);
+    const [files, setFiles] = useState([]);
+    const [showFileUpload, setShowFileUpload] = useState(false);
 
     const handleInputChange = (event) => {
         setInputValue(event.target.value);
     };
 
+    const prepareMessage = (inputText) => {
+        return [
+            JSON.stringify({"type": "text", "text": inputText}),
+            ...(urls || [])?.map((url) => JSON.stringify({
+            "type": "image_url",
+            "image_url": {
+                url
+            },
+            }))
+        ];
+    }
+
+
     const handleFormSubmit = (event) => {
         event.preventDefault();
         if (!loading && inputValue) {
-            onSend(inputValue);
+            const message = prepareMessage(inputValue);
+            onSend(urls && urls.length>0 ? message : inputValue);
             setInputValue("");
+            setFiles([]);
+            setUrls([]);
         }
     };
 
+    const addUrl = (url) => {
+        setUrls([...urls, url]);
+    }
+
     return (
         <div>
+            {showFileUpload && <DynamicFilepond addUrl={addUrl} files={files} setFiles={setFiles} /> }
             <div className="rounded border dark:border-zinc-200">
                 <Form
                     onSubmit={handleFormSubmit}
-                    className="flex items-center rounded"
+                    className="flex items-center rounded dark:bg-zinc-100"
                 >
                     {enableRag && (
                         <div className="rounded-s pt-4 ps-4 pe-3 dark:bg-zinc-100 self-stretch flex">
                             <DocOptions />
+                            <LuUpload onClick={() => setShowFileUpload(!showFileUpload)}  className='mx-2 text-gray-500 group flex items-center text-base font-medium hover:text-gray-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/75 cursor-pointer' />
                         </div>
                     )}
                     <div className="relative grow">

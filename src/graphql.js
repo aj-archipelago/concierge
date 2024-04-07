@@ -5,19 +5,27 @@ import { split, HttpLink } from "@apollo/client";
 import { getMainDefinition } from "@apollo/client/utilities";
 import config from "../config";
 
-const getClient = serverUrl => {
-    const graphqlEndpoint = config.endpoints.graphql(serverUrl);
+const CORTEX_GRAPHQL_API_URL =
+    process.env.CORTEX_GRAPHQL_API_URL || "http://localhost:4000/graphql";
+
+const getClient = (serverUrl) => {
+    let graphqlEndpoint;
+    if (serverUrl) {
+        graphqlEndpoint = config.endpoints.graphql(serverUrl);
+    } else {
+        graphqlEndpoint = CORTEX_GRAPHQL_API_URL;
+    }
 
     const httpLink = new HttpLink({
         uri: graphqlEndpoint,
     });
-    
+
     const wsLink = new GraphQLWsLink(
         createClient({
             url: graphqlEndpoint.replace("http", "ws"),
         }),
     );
-    
+
     // The split function takes three parameters:
     //
     // * A function that's called for each operation to execute
@@ -34,15 +42,14 @@ const getClient = serverUrl => {
         wsLink,
         httpLink,
     );
-    
+
     const client = new ApolloClient({
         link: splitLink,
         cache: new InMemoryCache(),
     });
-    
-    return client;
-}
 
+    return client;
+};
 
 const SUMMARY = gql`
     query Summary($text: String!, $async: Boolean, $targetLength: Int) {
@@ -118,9 +125,18 @@ const CHAT_EXTENSION = gql`
     }
 `;
 
+const VISION = gql`
+    query ($text: String, $chatHistory: [MultiMessage]) {
+        vision(text: $text, chatHistory: $chatHistory) {
+            result
+            contextId
+        }
+    }
+`;
+
 const RAG_LABEEB = gql`
     query RagLabeeb(
-        $chatHistory: [Message]!
+        $chatHistory: [MultiMessage]!
         $dataSources: [String]
         $contextId: String
         $text: String
@@ -281,14 +297,24 @@ const TRANSCRIBE = gql`
     query Transcribe(
         $file: String!
         $text: String
+        $language: String
         $wordTimestamped: Boolean
+        $maxLineCount: Int
+        $maxLineWidth: Int
+        $maxWordsPerLine: Int
+        $highlightWords: Boolean
         $responseFormat: String
         $async: Boolean
     ) {
         transcribe(
             file: $file
             text: $text
+            language: $language
             wordTimestamped: $wordTimestamped
+            maxLineCount: $maxLineCount
+            maxLineWidth: $maxLineWidth
+            maxWordsPerLine: $maxWordsPerLine
+            highlightWords: $highlightWords
             responseFormat: $responseFormat
             async: $async
         ) {
@@ -322,8 +348,8 @@ const TRANSLATE_TURBO = gql`
 `;
 
 const TRANSLATE_GPT4 = gql`
-    query TranslateGpt4($text: String!, $to: String!) {
-        translate_gpt4(text: $text, to: $to) {
+    query TranslateGpt4($text: String!, $to: String!, $async: Boolean) {
+        translate_gpt4(text: $text, to: $to, async: $async) {
             result
         }
     }
@@ -454,8 +480,54 @@ const IMAGE = gql`
 `;
 
 const JIRA_STORY = gql`
-    query JiraStory($text: String!, $storyType: String, $storyCount: String, $async: Boolean) {
-        jira_story(text: $text, storyType: $storyType, storyCount: $storyCount, async: $async) {
+    query JiraStory(
+        $text: String!
+        $storyType: String
+        $storyCount: String
+        $async: Boolean
+    ) {
+        jira_story(
+            text: $text
+            storyType: $storyType
+            storyCount: $storyCount
+            async: $async
+        ) {
+            result
+        }
+    }
+`;
+
+const RUN_GPT35TURBO = gql`
+    query RunGPT35Turbo(
+        $text: String!
+        $systemPrompt: String
+        $prompt: String!
+        $async: Boolean
+    ) {
+        run_gpt35turbo(
+            text: $text
+            systemPrompt: $systemPrompt
+            prompt: $prompt
+            async: $async
+        ) {
+            result
+        }
+    }
+`;
+
+const RUN_GPT4 = gql`
+    query RunGPT4(
+        $text: String!
+        $systemPrompt: String
+        $prompt: String!
+        $async: Boolean
+    ) {
+        run_gpt4(
+            text: $text
+            systemPrompt: $systemPrompt
+            prompt: $prompt
+            async: $async
+        ) {
             result
         }
     }
@@ -481,6 +553,9 @@ const QUERIES = {
     TOPICS,
     KEYWORDS,
     TAGS,
+    JIRA_STORY,
+    RUN_GPT35TURBO,
+    RUN_GPT4,
     STYLE_GUIDE,
     ENTITIES,
     STORY_ANGLES,
@@ -497,7 +572,7 @@ const QUERIES = {
     REMOVE_CONTENT,
     HEADLINE_CUSTOM,
     SUBHEAD,
-    JIRA_STORY,
+    VISION,
 };
 
 const SUBSCRIPTIONS = {
@@ -543,4 +618,5 @@ export {
     HIGHLIGHTS,
     REMOVE_CONTENT,
     JIRA_STORY,
+    VISION,
 };

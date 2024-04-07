@@ -17,7 +17,9 @@ export default function JiraIssueCreate({ clientSecret }) {
             let tickets = [];
 
             if (sessionStorage.getItem("jira_story_tickets")) {
-                tickets = JSON.parse(sessionStorage.getItem("jira_story_tickets"));
+                tickets = JSON.parse(
+                    sessionStorage.getItem("jira_story_tickets"),
+                );
                 setTickets(tickets);
             }
 
@@ -25,53 +27,56 @@ export default function JiraIssueCreate({ clientSecret }) {
                 router.push("/code/jira");
             }
         }
-    }, []);
+    }, [router]);
 
-    return <>
-        <div className="flex justify-between gap-4 mb-3">
-            <div>
-                <button
-                    className="lb-primary"
-                    onClick={() => {
-                        if (window.confirm("Are you sure?")) {
-                            router.push("/code/jira");
-                        }
+    return (
+        <>
+            <div className="flex justify-between gap-4 mb-3">
+                <div>
+                    <button
+                        className="lb-primary"
+                        onClick={() => {
+                            if (window.confirm("Are you sure?")) {
+                                router.push("/code/jira");
+                            }
+                        }}
+                    >
+                        <AiOutlineReload />
+                        Start over
+                    </button>
+                </div>
+                <ConnectJiraButton
+                    onTokenChange={(t) => {
+                        setToken(t);
                     }}
-                >
-                    <AiOutlineReload />
-                    Start over
-                </button>
+                    clientSecret={clientSecret}
+                />
             </div>
-            <ConnectJiraButton
-                onTokenChange={t => {
-                    setToken(t)
-                }
-                }
-                clientSecret={clientSecret}
-            />
-        </div>
-        <h4 className="font-semibold mb-4">JIRA Issues suggested by AI</h4>
-        <div className="flex flex-col gap-8">
-            {tickets.map((ticket, index) => (
-                <JiraTicketContent
-                    key={index}
-                    value={ticket}
-                    token={token}
-                    onDelete={() => {
-                        const newTickets = tickets.filter((t) => t !== ticket);
-                        setTickets(newTickets);
-                        sessionStorage.setItem(
-                            "jira_story_tickets",
-                            JSON.stringify(newTickets),
-                        );
-                        if (!newTickets?.length) {
-                            router.push("/code/jira");
-                        }
-                    }}
-                />))}
-        </div>
-
-    </>;
+            <h4 className="font-semibold mb-4">JIRA Issues suggested by AI</h4>
+            <div className="flex flex-col gap-8">
+                {tickets.map((ticket, index) => (
+                    <JiraTicketContent
+                        key={index}
+                        value={ticket}
+                        token={token}
+                        onDelete={() => {
+                            const newTickets = tickets.filter(
+                                (t) => t !== ticket,
+                            );
+                            setTickets(newTickets);
+                            sessionStorage.setItem(
+                                "jira_story_tickets",
+                                JSON.stringify(newTickets),
+                            );
+                            if (!newTickets?.length) {
+                                router.push("/code/jira");
+                            }
+                        }}
+                    />
+                ))}
+            </div>
+        </>
+    );
 }
 
 function JiraTicketContent({ value, token, onDelete }) {
@@ -99,7 +104,9 @@ function JiraTicketContent({ value, token, onDelete }) {
                 </button>
             </div>
             <div className="grid grid-cols-[100px_1fr] gap-2 p-4">
-                <h6 className="font-medium self-center text-sm text-gray-500">Title</h6>
+                <h6 className="font-medium self-center text-sm text-gray-500">
+                    Title
+                </h6>
                 <div className="grow">
                     <input
                         type="text"
@@ -109,7 +116,9 @@ function JiraTicketContent({ value, token, onDelete }) {
                     />
                 </div>
                 <div>
-                    <h6 className="font-medium text-sm text-gray-500">Description</h6>
+                    <h6 className="font-medium text-sm text-gray-500">
+                        Description
+                    </h6>
                 </div>
                 <div className="">
                     <textarea
@@ -122,16 +131,15 @@ function JiraTicketContent({ value, token, onDelete }) {
                     />
                 </div>
                 <div>
-                    <h6 className="font-medium text-sm text-gray-500">Issue type</h6>
+                    <h6 className="font-medium text-sm text-gray-500">
+                        Issue type
+                    </h6>
                 </div>
                 <div className="text-sm">{ticket.issueType}</div>
-
             </div>
 
             <div className="p-4">
-                <CreateStorySection
-                    token={token}
-                    ticket={ticket} />
+                <CreateStorySection token={token} ticket={ticket} />
             </div>
         </div>
     );

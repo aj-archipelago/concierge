@@ -7,8 +7,8 @@ const redirects = [
         source: "/",
         destination: "/write",
         permanent: true,
-    }
-]
+    },
+];
 
 if (basePath && basePath !== "/") {
     redirects.unshift({
@@ -19,25 +19,43 @@ if (basePath && basePath !== "/") {
     });
 }
 
+const anonymizeUrl = (urlString) => {
+    // Create a URL object from the string
+    let url = new URL(urlString);
+
+    // Modify each parameter in the query string
+    url.searchParams.forEach((value, key) => {
+        // If the value is an API key, anonymize it
+        if (key.toLowerCase().includes('key')) {
+            url.searchParams.set(key, value.substring(0, 4) + '*'.repeat(value.length - 4));
+        }
+    });
+
+    return url.toString();
+}
+
 module.exports = {
     async rewrites() {
-        return [
+        const rewrites = [
             {
                 source: "/graphql",
                 destination:
-                    // This is a build-time environment variable, not a runtime variable
-                    // Anything in next.config.js is compiled at build-time
                     process.env.CORTEX_GRAPHQL_API_URL ||
                     "http://localhost:4000/graphql",
             },
             {
                 source: "/media-helper",
                 destination:
-                    // This is a build-time environment variable, not a runtime variable
-                    // Anything in next.config.js is compiled at build-time
                     process.env.CORTEX_MEDIA_API_URL || "http://localhost:5000",
             },
         ];
+        
+        // Log the URLs to console
+        rewrites.forEach(rewrite => {
+            console.log(`Connecting to URL: ${anonymizeUrl(rewrite.destination)}`);
+        });
+
+        return rewrites;
     },
     experimental: {
         proxyTimeout: 1000 * 60 * 5, // 5 minutes

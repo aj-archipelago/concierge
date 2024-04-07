@@ -1,8 +1,6 @@
-import i18next from "i18next";
-import { useEffect } from "react";
-import { createContext, useState } from "react";
-import { LanguageProvider } from "./LanguageProvider";
 import { cookies } from "next/headers";
+import { createContext } from "react";
+import { LanguageProvider } from "./LanguageProvider";
 
 // create the language context with default selected language
 export const LanguageContext = createContext({});

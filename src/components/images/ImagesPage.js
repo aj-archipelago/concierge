@@ -1,14 +1,13 @@
 "use client";
 
+import { useQuery } from "@apollo/client";
 import { useEffect, useMemo, useState } from "react";
 import { Form, Modal } from "react-bootstrap";
-import LoadingButton from "../editor/LoadingButton";
-import { useQuery } from "@apollo/client";
-import { QUERIES } from "../../graphql";
-import { ProgressUpdate } from "../editor/TextSuggestions";
-import { FaDownload, FaTrash } from "react-icons/fa";
 import { useTranslation } from "react-i18next";
-import { v4 as uuidv4 } from "uuid";
+import { FaDownload, FaTrash } from "react-icons/fa";
+import { QUERIES } from "../../graphql";
+import LoadingButton from "../editor/LoadingButton";
+import { ProgressUpdate } from "../editor/TextSuggestions";
 
 function ImagesPage() {
     const [prompt, setPrompt] = useState("");
@@ -146,6 +145,7 @@ function ImagesPage() {
                     />
 
                     <LoadingButton
+                        className={"lb-primary"}
                         style={{ whiteSpace: "nowrap" }}
                         loading={loading}
                         text={t("Generating...")}
@@ -205,7 +205,7 @@ function ImageTile({
 
     const memoizedImage = useMemo(() => {
         return <ImageComponent />;
-    }, [url]);
+    }, []);
 
     return (
         <div className="p-3">

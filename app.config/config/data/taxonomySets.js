@@ -29,7 +29,7 @@ const fetchTaxonomyData = async (site, taxonomyName) => {
 
 let taxonomySets;
 
-(async function () {
+export async function initializeTaxonomies() {
     const taxonomySetsContext = require.context(
         "./taxonomy-sets",
         false,
@@ -79,7 +79,7 @@ let taxonomySets;
                 ),
             },
         ]);
-})();
+}
 
 export const getTaxonomySets = async function () {
     return taxonomySets;

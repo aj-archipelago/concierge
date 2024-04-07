@@ -9,13 +9,15 @@ import FileUploadComponent from "./FileUploadComponent";
 import Markdown from "react-markdown";
 import directive from "remark-directive";
 import remarkGfm from "remark-gfm";
-import rehypeKatex from 'rehype-katex'
-import remarkMath from 'remark-math'
-import 'katex/dist/katex.min.css'
+import rehypeKatex from "rehype-katex";
+import remarkMath from "remark-math";
+import "katex/dist/katex.min.css";
 import { visit } from "unist-util-visit";
 
 function transformToCitation(content) {
-    return content.replace(/\[doc(\d+)\]/g, ":cd_source[$1]").replace(/\[upload\]/g, ":cd_upload");
+    return content
+        .replace(/\[doc(\d+)\]/g, ":cd_source[$1]")
+        .replace(/\[upload\]/g, ":cd_upload");
 }
 
 function customMarkdownDirective() {
@@ -24,21 +26,25 @@ function customMarkdownDirective() {
             tree,
             ["textDirective", "leafDirective", "containerDirective"],
             (node) => {
-                if (node.name === 'cd_source' || node.name === 'cd_upload' || node.name === 'cd_servicelink') {
+                if (
+                    node.name === "cd_source" ||
+                    node.name === "cd_upload" ||
+                    node.name === "cd_servicelink"
+                ) {
                     node.data = {
                         hName: node.name,
                         hProperties: node.attributes,
-                        ...node.data
+                        ...node.data,
                     };
                 } else {
                     node.data = {
-                        hName: 'cd_default',
+                        hName: "cd_default",
                         hProperties: { name: node.name, ...node.attributes },
-                        ...node.data
+                        ...node.data,
                     };
                 }
                 return node;
-            }
+            },
         );
     };
 }
@@ -56,13 +62,36 @@ function convertMessageToMarkdown(message) {
 
     const components = {
         ol({ node, ...rest }) {
-            return <ol style={{listStyleType: 'decimal', marginBottom: '1rem', paddingLeft: '1rem'}} {...rest} />
+            return (
+                <ol
+                    style={{
+                        listStyleType: "decimal",
+                        marginBottom: "1rem",
+                        paddingInlineStart: "1rem",
+                    }}
+                    {...rest}
+                />
+            );
         },
-        ul({ node, ...rest}) {
-            return <ul style={{listStyleType: 'disc', marginBottom: '1rem', paddingLeft: '1rem'}} {...rest} />
+        ul({ node, ...rest }) {
+            return (
+                <ul
+                    style={{
+                        listStyleType: "disc",
+                        marginBottom: "1rem",
+                        paddingInlineStart: "1rem",
+                    }}
+                    {...rest}
+                />
+            );
         },
         p({ node, ...rest }) {
-            return <div style={{marginTop: '0.5rem', marginBottom: '0.5rem'}} {...rest} />
+            return (
+                <div
+                    style={{ marginTop: "0.5rem", marginBottom: "0.5rem" }}
+                    {...rest}
+                />
+            );
         },
         cd_source(props) {
             const { children } = props;
@@ -75,7 +104,7 @@ function convertMessageToMarkdown(message) {
                             citation={citations[sourceIndex - 1]}
                             {...props}
                         />
-                    )
+                    );
                 }
                 return null;
             }
@@ -91,31 +120,52 @@ function convertMessageToMarkdown(message) {
             const tServiceName = t(serviceName + " interface");
             const tServiceAction = t("Click here for my");
 
-            return <div className="service-link">
-                    <Link href={`/${serviceName}`} {... props}>{ tServiceAction }&nbsp;{ tServiceName }</Link>.
-                    </div>
+            return (
+                <div className="service-link">
+                    <Link href={`/${serviceName}`} {...props}>
+                        {tServiceAction}&nbsp;{tServiceName}
+                    </Link>
+                    .
+                </div>
+            );
         },
         cd_default({ name, ...rest }) {
-            return <span>{name}</span>
+            return <span>{name}</span>;
         },
         code(props) {
-            const { className, children } = props
-            const match = /language-(\w+)/.exec(className || '')
-            const language = match ? match[1] : null
+            const { className, children } = props;
+            const match = /language-(\w+)/.exec(className || "");
+            const language = match ? match[1] : null;
             return match ? (
-                <CodeBlock key={`codeblock-${++componentIndex}`} code={children} language={language} {...props}/>
+                <CodeBlock
+                    key={`codeblock-${++componentIndex}`}
+                    code={children}
+                    language={language}
+                    {...props}
+                />
             ) : (
-              <code className="inline-code" {...props}>
-                {children}
-              </code>
-            )
-        }
-    }
+                <code className="inline-code" {...props}>
+                    {children}
+                </code>
+            );
+        },
+    };
 
-    return <Markdown className="chat-message" key={`lm-${id}`}
-            remarkPlugins={[directive, customMarkdownDirective, remarkGfm, remarkMath]}
+    return (
+        <Markdown
+            className="chat-message"
+            key={`lm-${id}`}
+            remarkPlugins={[
+                directive,
+                customMarkdownDirective,
+                remarkGfm,
+                remarkMath,
+            ]}
             rehypePlugins={[rehypeKatex]}
-            components={components} children={transformToCitation(payload)}/>;
+            components={components}
+            children={transformToCitation(payload)}
+        />
+    );
 }
 
 export { convertMessageToMarkdown };

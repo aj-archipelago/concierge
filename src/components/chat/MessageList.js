@@ -62,7 +62,9 @@ function MessageList({ messages, bot, loading }) {
                         )}
                     >
                         <div className="font-semibold">{t(botName)}</div>
-                        <div className="chat-message-bot">{message.payload}</div>
+                        <div className="chat-message-bot">
+                            {message.payload}
+                        </div>
                     </div>
                 </div>
             );
@@ -86,7 +88,9 @@ function MessageList({ messages, bot, loading }) {
                         )}
                     >
                         <div className="font-semibold">{t("You")}</div>
-                        <pre className="chat-message-user">{message.payload}</pre>
+                        <pre className="chat-message-user">
+                            {message.payload}
+                        </pre>
                     </div>
                 </div>
             );
@@ -102,20 +106,44 @@ function MessageList({ messages, bot, loading }) {
                     </div>
                 )}
                 {messages.map((message, index) => {
+                    let display;
+                    if (Array.isArray(message.payload)) {
+                        const arr = message.payload.map(t => {
+                            try {
+                                const obj = JSON.parse(t);
+                                if(obj.type === "text"){
+                                    return obj.text;
+                                } else if(obj.type === "image_url"){
+                                    return <img key={index} src={obj.image_url.url} alt="uploadedimage" style={{maxWidth: '50%', float:'left', marginRight:'10px' }} />;
+                                }
+                                return null;
+                            } catch(e){
+                                console.error("Invalid JSON:", t);
+                                return t;
+                            }
+                        });
+                        display = <>{arr}</>;
+                    } else {
+                        display = message.payload;
+                    }
+
                     // process the message and create a new
                     // message object with the updated payload.
                     message = Object.assign({}, message, {
                         payload: (
                             <React.Fragment key={`inner-${message.id}`}>
-                                {message.sender === 'labeeb' 
-                                    ? convertMessageToMarkdown(message) 
-                                    : <div key={`um-${index}`}>{message.payload}</div>
-                                }
+                                {message.sender === "labeeb" ? (
+                                    convertMessageToMarkdown(message)
+                                ) : (
+                                    <div key={`um-${index}`}>
+                                        {display}
+                                    </div>
+                                )}
                             </React.Fragment>
                         ),
                     });
 
-                    return renderMessage(message);
+                    return <div key={message.id}>{renderMessage(message)}</div>;
                 })}
                 {loading &&
                     renderMessage({
