@@ -159,7 +159,7 @@ function Translation({
                         <LoadingButton
                             disabled={!inputText || inputText.length === 0}
                             loading={loading}
-                            className="lb-sm"
+                            className="lb-sm lb-primary"
                             text={t("Translating")}
                             onClick={() => {
                                 setLoading(true);
