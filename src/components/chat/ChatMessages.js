@@ -9,7 +9,7 @@ import config from "../../../config";
 import { convertMessageToMarkdown } from "./ChatMessage";
 import dynamic from "next/dynamic";
 
-const ChatTopMenuDynamic = dynamic(() => import('./ChatTopMenu'))
+const ChatTopMenuDynamic = dynamic(() => import("./ChatTopMenu"));
 
 // Displays the list of messages and a message input box.
 function ChatMessages({

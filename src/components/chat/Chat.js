@@ -6,8 +6,7 @@ import { clearChat } from "../../stores/chatSlice";
 import ChatContent from "./ChatContent";
 import dynamic from "next/dynamic";
 
-const ChatTopMenuDynamic = dynamic(() => import('./ChatTopMenu'))
-
+const ChatTopMenuDynamic = dynamic(() => import("./ChatTopMenu"));
 
 function Chat() {
     const dispatch = useDispatch();

@@ -4,8 +4,8 @@ import { Form } from "react-bootstrap";
 import { RiSendPlane2Fill } from "react-icons/ri";
 import TextareaAutosize from "react-textarea-autosize";
 import classNames from "../../../app/utils/class-names";
-import dynamic from 'next/dynamic'
-import { v4 as uuidv4 } from 'uuid';
+import dynamic from "next/dynamic";
+import { v4 as uuidv4 } from "uuid";
 import { useApolloClient } from "@apollo/client";
 import { COGNITIVE_INSERT } from "../../graphql";
 import { useDispatch, useSelector } from "react-redux";
@@ -19,10 +19,9 @@ import { FaFileCirclePlus } from "react-icons/fa6";
 import { IoCloseCircle } from "react-icons/io5";
 import { isDocumentUrl } from "./MyFilePond";
 
-const DynamicFilepond = dynamic(() => import('./MyFilePond'), {
-  ssr: false,
-})
-
+const DynamicFilepond = dynamic(() => import("./MyFilePond"), {
+    ssr: false,
+});
 
 // Displays the list of messages and a message input box.
 function MessageInput({ onSend, loading, enableRag, placeholder }) {
@@ -64,13 +63,17 @@ function MessageInput({ onSend, loading, enableRag, placeholder }) {
     };
 
     const addUrl = (url) => {
-
         const fetchData = async (url) => {
             if (!url) return;
 
             try {
                 const docId = uuidv4();
-                const filename = url.split('/').pop().split('_').slice(1).join('_');
+                const filename = url
+                    .split("/")
+                    .pop()
+                    .split("_")
+                    .slice(1)
+                    .join("_");
 
                 dispatch(setFileLoading());
 
@@ -104,10 +107,10 @@ function MessageInput({ onSend, loading, enableRag, placeholder }) {
         //check if url is doc type and process accordingly
         if (isDocumentUrl(url)) {
             fetchData(url);
-        }else{
+        } else {
             setUrls([...urls, url]); //rest of it: images
         }
-    }
+    };
 
     return (
         <div>
@@ -125,11 +128,21 @@ function MessageInput({ onSend, loading, enableRag, placeholder }) {
                 >
                     {enableRag && (
                         <div className="rounded-s pt-3.5 ps-4 pe-3 dark:bg-zinc-100 self-stretch flex">
-                        {!showFileUpload  ? (
-                            <FaFileCirclePlus onClick={() => setShowFileUpload(!showFileUpload)}  className='text-gray-500 group flex items-center text-base font-medium hover:text-gray-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/75 cursor-pointer' />
-                        ) : (
-                            <IoCloseCircle onClick={() => setShowFileUpload(!showFileUpload)}  className='text-gray-500 group flex items-center text-base font-medium hover:text-gray-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/75 cursor-pointer' />
-                        )}
+                            {!showFileUpload ? (
+                                <FaFileCirclePlus
+                                    onClick={() =>
+                                        setShowFileUpload(!showFileUpload)
+                                    }
+                                    className="text-gray-500 group flex items-center text-base font-medium hover:text-gray-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/75 cursor-pointer"
+                                />
+                            ) : (
+                                <IoCloseCircle
+                                    onClick={() =>
+                                        setShowFileUpload(!showFileUpload)
+                                    }
+                                    className="text-gray-500 group flex items-center text-base font-medium hover:text-gray-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/75 cursor-pointer"
+                                />
+                            )}
                         </div>
                     )}
                     <div className="relative grow">
