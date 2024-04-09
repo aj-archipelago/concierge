@@ -490,24 +490,6 @@ function Transcribe({
             {isLoading && <ProgressBar />}
         </div>
     </>);
-            <div style={{ paddingInlineStart: "0rem", paddingBottom: "1rem" }}>
-                <LoadingButton
-                    disabled={!url}
-                    loading={isLoading}
-                    text={t(currentOperation)}
-                    style={{
-                        whiteSpace: "nowrap",
-                        minWidth: "130px",
-                        marginBottom: "20px",
-                    }}
-                    onClick={() => handleSubmit()}
-                >
-                    <FaVideo /> {t("Transcribe")}
-                </LoadingButton>
-                {isLoading && <ProgressBar />}
-            </div>
-        </>
-    );
 
     const currentlyTranslating =
         !asyncComplete && currentOperation === "Translating";
