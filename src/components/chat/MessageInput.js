@@ -16,7 +16,6 @@ import {
     loadingError,
 } from "../../stores/fileUploadSlice";
 import { FaFileCirclePlus } from "react-icons/fa6";
-import { IoMdCloseCircle } from "react-icons/io";
 import { IoCloseCircle } from "react-icons/io5";
 import { isDocumentUrl } from "./MyFilePond";
 
