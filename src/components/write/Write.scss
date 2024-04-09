@@ -4,7 +4,7 @@
 }
 
 .headline-input {
-    font-family: "Playfair Display", Georgia, "Times New Roman", Times, serif;
+    font-family: $font-family-serif;
     border: 0;
     font-weight: 700;
     font-size: 1.5rem;
@@ -17,7 +17,7 @@
 }
 
 .subhead-input {
-    font-family: "Playfair Display", Georgia, "Times New Roman", Times, serif;
+    font-family: $font-family-serif;
     border: 0;
     font-weight: 400;
     font-size: 1.2rem;
@@ -31,7 +31,7 @@
 }
 
 .story-input {
-    font-family: "Playfair Display", Georgia, "Times New Roman", Times, serif;
+    font-family: $font-family-serif;
     border: 0;
     font-size: 1rem;
     height: calc(100% - 140px);
@@ -46,7 +46,7 @@
 }
 
 .headline-display {
-    font-family: "Playfair Display", Georgia, "Times New Roman", Times, serif;
+    font-family: $font-family-serif;
 }
 
 .loading-container {
