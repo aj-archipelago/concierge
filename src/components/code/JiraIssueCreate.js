@@ -130,7 +130,7 @@ function JiraTicketContent({ value, token, onDelete }) {
                         rows={5}
                         className="lb-input"
                         value={description}
-                        onChange={setDescription}
+                        onChange={(e) => setDescription(e.target.value)}
                         height={400}
                         preview="live"
                     />
