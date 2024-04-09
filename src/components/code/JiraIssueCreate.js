@@ -6,11 +6,13 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { FaTrash } from "react-icons/fa";
 import CreateStorySection from "./CreateStorySection";
+import { useTranslation } from "react-i18next";
 
 export default function JiraIssueCreate({ clientSecret }) {
     const [tickets, setTickets] = useState([]);
     const [token, setToken] = useState(null);
     const router = useRouter();
+    const { t } = useTranslation();
 
     useEffect(() => {
         if (typeof sessionStorage !== "undefined") {
@@ -42,7 +44,7 @@ export default function JiraIssueCreate({ clientSecret }) {
                         }}
                     >
                         <AiOutlineReload />
-                        Start over
+                        {t("Start over")}
                     </button>
                 </div>
                 <ConnectJiraButton
@@ -52,7 +54,7 @@ export default function JiraIssueCreate({ clientSecret }) {
                     clientSecret={clientSecret}
                 />
             </div>
-            <h4 className="font-semibold mb-4">JIRA Issues suggested by AI</h4>
+            <h4 className="font-semibold mb-4">{t("JIRA Issues suggested by AI")}</h4>
             <div className="flex flex-col gap-8">
                 {tickets.map((ticket, index) => (
                     <JiraTicketContent
@@ -83,6 +85,7 @@ function JiraTicketContent({ value, token, onDelete }) {
     const ticket = value;
     const [title, setTitle] = useState(ticket.title);
     const [description, setDescription] = useState(ticket.description);
+    const { t } = useTranslation();
 
     useEffect(() => {
         setTitle(ticket.title);
@@ -105,7 +108,7 @@ function JiraTicketContent({ value, token, onDelete }) {
             </div>
             <div className="grid grid-cols-[100px_1fr] gap-2 p-4">
                 <h6 className="font-medium self-center text-sm text-gray-500">
-                    Title
+                    {t("Title")}
                 </h6>
                 <div className="grow">
                     <input
@@ -117,7 +120,7 @@ function JiraTicketContent({ value, token, onDelete }) {
                 </div>
                 <div>
                     <h6 className="font-medium text-sm text-gray-500">
-                        Description
+                        {t("Description")}
                     </h6>
                 </div>
                 <div className="">
@@ -132,7 +135,7 @@ function JiraTicketContent({ value, token, onDelete }) {
                 </div>
                 <div>
                     <h6 className="font-medium text-sm text-gray-500">
-                        Issue type
+                        {t("Issue type")}
                     </h6>
                 </div>
                 <div className="text-sm">{ticket.issueType}</div>

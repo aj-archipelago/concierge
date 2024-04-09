@@ -4,6 +4,7 @@ import axios from "axios";
 import { useEffect, useState } from "react";
 import LoadingButton from "../editor/LoadingButton";
 import { basePath } from "../../utils/constants";
+import { useTranslation } from "react-i18next";
 
 export default function CreateStorySection({ token, ticket }) {
     // read parameter code from querystring
@@ -19,6 +20,7 @@ export default function CreateStorySection({ token, ticket }) {
     const [projects, setProjects] = useState([]);
     const [loadingProjects, setLoadingProjects] = useState(true);
     const { title, description } = ticket;
+    const { t } = useTranslation();
 
     useEffect(() => {
         if (!token || !selectedSite) {
@@ -75,18 +77,17 @@ export default function CreateStorySection({ token, ticket }) {
     if (!token) {
         return (
             <div className="mb-4 text-sm italic text-gray-500">
-                To create this issue in JIRA, please connect Labeeb to your JIRA
-                account.
+                {t("To create this issue in JIRA, please connect Labeeb to your JIRA account.")}
             </div>
         );
     } else {
         return (
             <div className="flex flex-col gap-3 mt-3 mb-4">
-                <h4 className="font-semibold">Create Issue</h4>
+                <h4 className="font-semibold">{t("Create Issue")}</h4>
                 <div className="flex gap-2">
                     <div className="basis-1/3">
                         <h5 className="text-gray-500 font-medium text-sm mb-1">
-                            Jira Site
+                            {t("Jira Site")}
                         </h5>
                         <select
                             className="lb-input"
@@ -102,7 +103,7 @@ export default function CreateStorySection({ token, ticket }) {
                     </div>
                     <div className="basis-1/3">
                         <h5 className="text-gray-500 font-medium text-sm mb-1">
-                            Issue Type
+                            {t("Issue type")}
                         </h5>
                         <select
                             className="lb-input"
@@ -117,7 +118,7 @@ export default function CreateStorySection({ token, ticket }) {
                     </div>
                     <div className="basis-1/3">
                         <h5 className="text-gray-500 font-medium text-sm mb-1">
-                            Project
+                            {t("Project")}
                         </h5>
                         <select
                             className="lb-input"
@@ -132,7 +133,7 @@ export default function CreateStorySection({ token, ticket }) {
                         >
                             {loadingProjects && (
                                 <option value={project} disabled>
-                                    Loading projects...
+                                    {t("Loading projects")}...
                                 </option>
                             )}
                             {projects.map((project) => (
@@ -148,7 +149,7 @@ export default function CreateStorySection({ token, ticket }) {
                     <div>
                         <LoadingButton
                             loading={creating}
-                            text="Creating..."
+                            text={t("Creating") + "..."}
                             className="lb-primary"
                             onClick={async () => {
                                 setCreating(true);
@@ -179,7 +180,7 @@ export default function CreateStorySection({ token, ticket }) {
                                 }
                             }}
                         >
-                            Create issue in JIRA
+                            {t("Create issue in JIRA")}
                         </LoadingButton>
                     </div>
                 )}
@@ -197,7 +198,7 @@ export default function CreateStorySection({ token, ticket }) {
                                 target="_blank"
                                 className="lb-success"
                             >
-                                View created story
+                                {t("View created story")}
                             </a>
                             <button
                                 className="lb-warning"
@@ -205,11 +206,11 @@ export default function CreateStorySection({ token, ticket }) {
                                     setCreatedUrl("");
                                 }}
                             >
-                                Create another
+                                {t("Create another")}
                             </button>
                         </div>
                         <p className="text-sm">
-                            Story created successfully:{" "}
+                            {t("Story created successfully")}:{" "}
                             <a
                                 className="lb-link"
                                 href={createdUrl}

@@ -5,12 +5,14 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { QUERIES } from "../../graphql";
 import LoadingButton from "../editor/LoadingButton";
+import { useTranslation } from "react-i18next";
 
 export default function Jira() {
     const [prompt, setPrompt] = useState("");
     const [text, setText] = useState("");
     const [storyCount, setStoryCount] = useState("one");
     const router = useRouter();
+    const { t } = useTranslation();
 
     const variables = {
         text: prompt,
@@ -45,8 +47,7 @@ export default function Jira() {
         <div className="">
             <div className="flex flex-col gap-4 mb-6">
                 <div>
-                    In a few sentences, describe the story you want to create in
-                    JIRA.
+                    {t("In a few sentences, describe the story you want to create in JIRA.")}
                 </div>
 
                 <div className="flex flex-col gap-2">
@@ -78,7 +79,7 @@ export default function Jira() {
                                 </select>
                             </div> */}
                         <div className="whitespace-nowrap font-medium text-sm">
-                            How many stories to create
+                            {t("How many stories to create")}
                         </div>
                         <div>
                             <select
@@ -99,13 +100,13 @@ export default function Jira() {
                     <div className="mb-6">
                         <LoadingButton
                             variant="primary"
-                            text="Loading..."
+                            text={t("Loading") + "..."}
                             loading={loading}
                             onClick={async () => {
                                 setPrompt(text);
                             }}
                         >
-                            Get JIRA Story Details
+                            {t("Get JIRA Story Details")}
                         </LoadingButton>
                     </div>
                 </div>
@@ -113,7 +114,7 @@ export default function Jira() {
             <div>
                 {error && (
                     <p>
-                        An error occurred: {error.message || error.toString()}
+                        {t("An error occurred")}: {error.message || error.toString()}
                     </p>
                 )}
             </div>
