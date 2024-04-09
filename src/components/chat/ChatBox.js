@@ -13,6 +13,7 @@ import { LanguageContext } from "../../contexts/LanguageProvider";
 import { setChatBoxPosition } from "../../stores/chatSlice";
 import ChatContent from "./ChatContent";
 import config from "../../../config";
+import { useRouter } from "next/navigation";
 
 function ChatBox() {
     const statePosition = useSelector((state) => state.chat?.chatBox?.position);
@@ -24,6 +25,7 @@ function ChatBox() {
     dockedWidthRef.current = dockedWidth;
     const { t } = useTranslation();
     const { language } = useContext(LanguageContext);
+    const router = useRouter();
 
     useEffect(() => {
         setPosition(statePosition);
@@ -88,7 +90,12 @@ function ChatBox() {
             case "docked":
                 return (
                     <>
-                        {/* <FaWindowMaximize onClick={(e) => { e.stopPropagation(); updateChatBox({ position: 'full' }) }} />&nbsp;&nbsp; */}
+                        <FaWindowMaximize
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                router.push("/chat");
+                            }}
+                        />
                         <FaWindowClose
                             onClick={(e) => {
                                 e.stopPropagation();
