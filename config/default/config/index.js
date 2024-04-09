@@ -20,12 +20,24 @@ export default {
         llms: [
             {
                 name: "GPT 3.5 Turbo",
-                cortexModelName: "azure-turbo-chat",
+                cortexPathwayName: "run_gpt35turbo",
                 isDefault: true,
             },
             {
                 name: "GPT 4.0",
-                cortexModelName: "azure-gpt4",
+                cortexPathwayName: "run_gpt4",
+            },
+            {
+                name: "GPT 4.0 32k",
+                cortexPathwayName: "run_gpt4_32",
+            },
+            {
+                name: "Claude 3 Haiku",
+                cortexPathwayName: "run_claude3_haiku",
+            },
+            {
+                name: "Claude 3 Sonnet",
+                cortexPathwayName: "run_claude3_haiku",
             },
         ],
     },

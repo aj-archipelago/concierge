@@ -97,11 +97,7 @@ export default function WorkspaceInput({ onRun, onRunMany }) {
                                 onRunAll={onRunMany(text, prompts)}
                                 onRun={async (prompt) => {
                                     if (text) {
-                                        await onRun(
-                                            prompt.title,
-                                            text,
-                                            prompt.text,
-                                        );
+                                        await onRun(text, prompt);
                                     }
                                 }}
                                 onEdit={handleEdit}

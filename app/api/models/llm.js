@@ -6,7 +6,7 @@ const llmSchema = new mongoose.Schema({
         type: String,
         required: true,
     },
-    cortexModelName: {
+    cortexPathwayName: {
         type: String,
         required: true,
     },

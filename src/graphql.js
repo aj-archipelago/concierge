@@ -497,41 +497,25 @@ const JIRA_STORY = gql`
     }
 `;
 
-const RUN_GPT35TURBO = gql`
-    query RunGPT35Turbo(
-        $text: String!
-        $systemPrompt: String
-        $prompt: String!
-        $async: Boolean
-    ) {
-        run_gpt35turbo(
-            text: $text
-            systemPrompt: $systemPrompt
-            prompt: $prompt
-            async: $async
+const getWorkspacePromptQuery = (pathwayName) => {
+    return gql`
+        query ${pathwayName}(
+            $text: String!
+            $systemPrompt: String
+            $prompt: String!
+            $async: Boolean
         ) {
-            result
+            ${pathwayName}(
+                text: $text
+                systemPrompt: $systemPrompt
+                prompt: $prompt
+                async: $async
+            ) {
+                result
+            }
         }
-    }
-`;
-
-const RUN_GPT4 = gql`
-    query RunGPT4(
-        $text: String!
-        $systemPrompt: String
-        $prompt: String!
-        $async: Boolean
-    ) {
-        run_gpt4(
-            text: $text
-            systemPrompt: $systemPrompt
-            prompt: $prompt
-            async: $async
-        ) {
-            result
-        }
-    }
-`;
+    `;
+};
 
 const QUERIES = {
     CHAT_PERSIST,
@@ -554,8 +538,7 @@ const QUERIES = {
     KEYWORDS,
     TAGS,
     JIRA_STORY,
-    RUN_GPT35TURBO,
-    RUN_GPT4,
+    getWorkspacePromptQuery,
     STYLE_GUIDE,
     ENTITIES,
     STORY_ANGLES,

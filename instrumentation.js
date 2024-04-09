@@ -23,7 +23,6 @@ export function register() {
 async function seed() {
     // seed data
     for (const llm of config.data.llms) {
-        console.log("creating", llm.name);
         await LLM.findOneAndUpdate({ name: llm.name }, llm, { upsert: true });
     }
 }
