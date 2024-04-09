@@ -475,6 +475,21 @@ function Transcribe({
                 </li>
             </ol>
 
+        <div style={{ paddingInlineStart: '0rem',paddingBottom:'1rem' }}>
+            <LoadingButton
+                className={"lb-primary"}
+                // type="submit"
+                disabled={!url}
+                loading={isLoading}
+                text={t(currentOperation)}
+                style={{ whiteSpace: "nowrap" }}
+                onClick={() => handleSubmit()}
+            >
+                <FaVideo /> {t("Transcribe")}
+            </LoadingButton>
+            {isLoading && <ProgressBar />}
+        </div>
+    </>);
             <div style={{ paddingInlineStart: "0rem", paddingBottom: "1rem" }}>
                 <LoadingButton
                     disabled={!url}

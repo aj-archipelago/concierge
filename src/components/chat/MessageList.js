@@ -115,16 +115,14 @@ function MessageList({ messages, bot, loading }) {
                                     return obj.text;
                                 } else if (obj.type === "image_url") {
                                     return (
-                                        <img
-                                            key={index}
-                                            src={obj.image_url.url}
-                                            alt="uploadedimage"
-                                            style={{
-                                                maxWidth: "50%",
-                                                float: "left",
-                                                marginRight: "10px",
-                                            }}
-                                        />
+                                        <div>
+                                            <img
+                                                key={index}
+                                                src={obj.image_url.url}
+                                                alt="uploadedimage"
+                                                className="max-h-[20%] max-w-[60%] rounded border bg-white p-1 my-2 dark:border-neutral-700 dark:bg-neutral-800 shadow-lg dark:shadow-black/30"
+                                            />
+                                        </div>
                                     );
                                 }
                                 return null;

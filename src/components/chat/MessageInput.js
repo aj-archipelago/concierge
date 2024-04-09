@@ -4,13 +4,26 @@ import { Form } from "react-bootstrap";
 import { RiSendPlane2Fill } from "react-icons/ri";
 import TextareaAutosize from "react-textarea-autosize";
 import classNames from "../../../app/utils/class-names";
-import DocOptions from "./DocOptions";
-import { LuUpload } from "react-icons/lu";
-import dynamic from "next/dynamic";
+import dynamic from 'next/dynamic'
+import { v4 as uuidv4 } from 'uuid';
+import { useApolloClient } from "@apollo/client";
+import { COGNITIVE_INSERT } from "../../graphql";
+import { useDispatch, useSelector } from "react-redux";
+import { addDoc, addSource } from "../../stores/docSlice";
+import {
+    setFileLoading,
+    clearFileLoading,
+    loadingError,
+} from "../../stores/fileUploadSlice";
+import { FaFileCirclePlus } from "react-icons/fa6";
+import { IoMdCloseCircle } from "react-icons/io";
+import { IoCloseCircle } from "react-icons/io5";
+import { isDocumentUrl } from "./MyFilePond";
 
-const DynamicFilepond = dynamic(() => import("./MyFilePond"), {
-    ssr: false,
-});
+const DynamicFilepond = dynamic(() => import('./MyFilePond'), {
+  ssr: false,
+})
+
 
 // Displays the list of messages and a message input box.
 function MessageInput({ onSend, loading, enableRag, placeholder }) {
@@ -18,6 +31,9 @@ function MessageInput({ onSend, loading, enableRag, placeholder }) {
     const [urls, setUrls] = useState([]);
     const [files, setFiles] = useState([]);
     const [showFileUpload, setShowFileUpload] = useState(false);
+    const client = useApolloClient();
+    const contextId = useSelector((state) => state.chat.contextId);
+    const dispatch = useDispatch();
 
     const handleInputChange = (event) => {
         setInputValue(event.target.value);
@@ -49,8 +65,50 @@ function MessageInput({ onSend, loading, enableRag, placeholder }) {
     };
 
     const addUrl = (url) => {
-        setUrls([...urls, url]);
-    };
+
+        const fetchData = async (url) => {
+            if (!url) return;
+
+            try {
+                const docId = uuidv4();
+                const filename = url.split('/').pop().split('_').slice(1).join('_');
+
+                dispatch(setFileLoading());
+
+                client
+                    .query({
+                        query: COGNITIVE_INSERT,
+                        variables: {
+                            file: url,
+                            privateData: true,
+                            contextId,
+                            docId,
+                        },
+                        fetchPolicy: "network-only",
+                    })
+                    .then(() => {
+                        // completed successfully
+                        dispatch(addDoc({ docId, filename }));
+                        dispatch(addSource("mydata"));
+                        dispatch(clearFileLoading());
+                    })
+                    .catch((err) => {
+                        console.error(err);
+                        dispatch(loadingError(err.toString()));
+                    });
+            } catch (err) {
+                console.warn("Error in file upload", err);
+                dispatch(loadingError(err.toString()));
+            }
+        };
+
+        //check if url is doc type and process accordingly
+        if (isDocumentUrl(url)) {
+            fetchData(url);
+        }else{
+            setUrls([...urls, url]); //rest of it: images
+        }
+    }
 
     return (
         <div>
@@ -67,14 +125,12 @@ function MessageInput({ onSend, loading, enableRag, placeholder }) {
                     className="flex items-center rounded dark:bg-zinc-100"
                 >
                     {enableRag && (
-                        <div className="rounded-s pt-4 ps-4 pe-3 dark:bg-zinc-100 self-stretch flex">
-                            <DocOptions />
-                            <LuUpload
-                                onClick={() =>
-                                    setShowFileUpload(!showFileUpload)
-                                }
-                                className="mx-2 text-gray-500 group flex items-center text-base font-medium hover:text-gray-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/75 cursor-pointer"
-                            />
+                        <div className="rounded-s pt-3.5 ps-4 pe-3 dark:bg-zinc-100 self-stretch flex">
+                        {!showFileUpload  ? (
+                            <FaFileCirclePlus onClick={() => setShowFileUpload(!showFileUpload)}  className='text-gray-500 group flex items-center text-base font-medium hover:text-gray-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/75 cursor-pointer' />
+                        ) : (
+                            <IoCloseCircle onClick={() => setShowFileUpload(!showFileUpload)}  className='text-gray-500 group flex items-center text-base font-medium hover:text-gray-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/75 cursor-pointer' />
+                        )}
                         </div>
                     )}
                     <div className="relative grow">
