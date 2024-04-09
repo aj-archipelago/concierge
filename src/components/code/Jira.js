@@ -47,7 +47,9 @@ export default function Jira() {
         <div className="">
             <div className="flex flex-col gap-4 mb-6">
                 <div>
-                    {t("In a few sentences, describe the story you want to create in JIRA.")}
+                    {t(
+                        "In a few sentences, describe the story you want to create in JIRA.",
+                    )}
                 </div>
 
                 <div className="flex flex-col gap-2">
@@ -114,7 +116,8 @@ export default function Jira() {
             <div>
                 {error && (
                     <p>
-                        {t("An error occurred")}: {error.message || error.toString()}
+                        {t("An error occurred")}:{" "}
+                        {error.message || error.toString()}
                     </p>
                 )}
             </div>

@@ -54,7 +54,9 @@ export default function JiraIssueCreate({ clientSecret }) {
                     clientSecret={clientSecret}
                 />
             </div>
-            <h4 className="font-semibold mb-4">{t("JIRA Issues suggested by AI")}</h4>
+            <h4 className="font-semibold mb-4">
+                {t("JIRA Issues suggested by AI")}
+            </h4>
             <div className="flex flex-col gap-8">
                 {tickets.map((ticket, index) => (
                     <JiraTicketContent

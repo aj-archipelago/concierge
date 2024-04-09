@@ -42,7 +42,9 @@ function TaxonomySelector({ text }) {
 
     useEffect(() => {
         config?.data?.getTaxonomySets().then((sets) => {
-            setTaxonomySets(sets?.sort((a, b) => a.name.localeCompare(b.name)) || []);
+            setTaxonomySets(
+                sets?.sort((a, b) => a.name.localeCompare(b.name)) || [],
+            );
         });
     }, []);
 

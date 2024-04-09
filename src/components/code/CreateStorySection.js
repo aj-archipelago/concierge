@@ -77,7 +77,9 @@ export default function CreateStorySection({ token, ticket }) {
     if (!token) {
         return (
             <div className="mb-4 text-sm italic text-gray-500">
-                {t("To create this issue in JIRA, please connect Labeeb to your JIRA account.")}
+                {t(
+                    "To create this issue in JIRA, please connect Labeeb to your JIRA account.",
+                )}
             </div>
         );
     } else {

@@ -631,9 +631,10 @@ function Transcribe({
                                         onClick={downloadFile}
                                     >
                                         {t(
-                                            `Download result as ${responseFormat === "vtt"
-                                                ? "VTT"
-                                                : "SRT"
+                                            `Download result as ${
+                                                responseFormat === "vtt"
+                                                    ? "VTT"
+                                                    : "SRT"
                                             } file`,
                                         )}
                                     </span>
