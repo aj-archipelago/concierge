@@ -108,16 +108,27 @@ function MessageList({ messages, bot, loading }) {
                 {messages.map((message, index) => {
                     let display;
                     if (Array.isArray(message.payload)) {
-                        const arr = message.payload.map(t => {
+                        const arr = message.payload.map((t) => {
                             try {
                                 const obj = JSON.parse(t);
-                                if(obj.type === "text"){
+                                if (obj.type === "text") {
                                     return obj.text;
-                                } else if(obj.type === "image_url"){
-                                    return <img key={index} src={obj.image_url.url} alt="uploadedimage" style={{maxWidth: '50%', float:'left', marginRight:'10px' }} />;
+                                } else if (obj.type === "image_url") {
+                                    return (
+                                        <img
+                                            key={index}
+                                            src={obj.image_url.url}
+                                            alt="uploadedimage"
+                                            style={{
+                                                maxWidth: "50%",
+                                                float: "left",
+                                                marginRight: "10px",
+                                            }}
+                                        />
+                                    );
                                 }
                                 return null;
-                            } catch(e){
+                            } catch (e) {
                                 console.error("Invalid JSON:", t);
                                 return t;
                             }
@@ -135,9 +146,7 @@ function MessageList({ messages, bot, loading }) {
                                 {message.sender === "labeeb" ? (
                                     convertMessageToMarkdown(message)
                                 ) : (
-                                    <div key={`um-${index}`}>
-                                        {display}
-                                    </div>
+                                    <div key={`um-${index}`}>{display}</div>
                                 )}
                             </React.Fragment>
                         ),

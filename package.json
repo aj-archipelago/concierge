@@ -72,7 +72,7 @@
         "prebuild": "node ./scripts/prebuild.js",
         "build": "next build",
         "start": "next start",
-        "lint": "next lint",
+        "lint": "next lint && npx prettier --check .",
         "format": "npx prettier --write ."
     },
     "eslintConfig": {

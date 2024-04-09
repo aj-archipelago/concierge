@@ -60,7 +60,7 @@ export default function WorkspaceInput({ onRun, onRunMany }) {
                 attrs: { inputText: text },
             });
         }, 1000);
-        // eslint-disable-next-line 
+        // eslint-disable-next-line
     }, [text, workspace?._id]);
 
     if (isStateLoading || !workspace) {

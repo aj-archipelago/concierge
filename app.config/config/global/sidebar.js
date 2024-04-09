@@ -1,8 +1,8 @@
-import pkg from '../../../package.json';
+import pkg from "../../../package.json";
 
 export const getSidebarLogo = (language) => {
     const version = pkg.version;
-    
+
     if (language === "ar")
         return (
             <div>
