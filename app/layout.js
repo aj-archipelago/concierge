@@ -20,7 +20,10 @@ export default async function RootLayout({ children }) {
     return (
         <html lang={language} dir={language === "ar" ? "rtl" : "ltr"}>
             <head>
-                <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto&display=swap" />
+                <link
+                    rel="stylesheet"
+                    href="https://fonts.googleapis.com/css?family=Roboto&display=swap"
+                />
                 <link
                     rel="stylesheet"
                     href="https://fonts.googleapis.com/css?family=Playfair Display"
