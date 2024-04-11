@@ -33,7 +33,7 @@ function getFileIcon(filename) {
 
 const DELETE_ALL_UPLOADS_STR = "__ALL__";
 
-function ChatTopMenu() {
+function ChatTopMenu({ displayState = "full"}) {
     const dispatch = useDispatch();
     const docs = useSelector((state) => state.doc.docs);
     const { t } = useTranslation();
@@ -46,6 +46,7 @@ function ChatTopMenu() {
         (state) => state.fileUpload?.isLoading,
     );
     const currentlyIndexing = fileUploaderLoading || mainPaneIndexerLoading;
+    const displayStateFull = displayState === "full";
 
     const [cognitiveDelete, { loading: loadingCD }] = useLazyQuery(
         COGNITIVE_DELETE,
@@ -75,7 +76,7 @@ function ChatTopMenu() {
             {!docs || docs?.length === 0 ? (
                 <>
                     <span className="text-gray-400">
-                        {t("No active files")}
+                    { displayStateFull && (t("No active files")) }
                     </span>
                 </>
             ) : (
@@ -83,7 +84,7 @@ function ChatTopMenu() {
                     {/* bg-slate-50  hover:bg-slate-300 */}
                     <Popover.Button className="flex gap-0 focus:outline-none items-center rounded-md underline hover:text-sky-500 active:text-sky-700">
                         <MdOutlineSdStorage />
-                        {t("Files active")} ({docs?.length})
+                        {displayStateFull ? t("Files active in this conversation") : t("Files")} ({docs?.length})
                         {currentlyIndexing && (
                             <div className="px-2">
                                 <Loader size="small" />
@@ -134,7 +135,7 @@ function ChatTopMenu() {
                         </div>
 
                         <div
-                            className="chat-option text-center justify-center pt-2.5"
+                            className="chat-option text-center justify-center pt-2.5 text-white dark:text-black"
                             onClick={() => handleDeleteAll()}
                         >
                             {t("Delete all uploads")}

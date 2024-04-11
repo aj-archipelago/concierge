@@ -42,7 +42,7 @@ function ChatMessages({
         <div className="h-full flex flex-col gap-3">
             <div className="grow overflow-auto flex flex-col chat-content">
                 <div className="hidden justify-between items-center px-3 pb-2 text-xs [.docked_&]:flex">
-                    <ChatTopMenuDynamic />
+                    <ChatTopMenuDynamic displayState={displayState} />
                     {messages.length > 0 && (
                         <button
                             className="flex gap-1 items-center hover:underline hover:text-sky-500 active:text-sky-700"

@@ -56,21 +56,23 @@ function MyFilePond({
                         onerror: (response) => {
                             console.error("Error:", response);
                         },
-                        onprocessfile: (error, file) => {
-                            if (error) {
-                                console.error("Error:", error);
-                            } else {
-                                console.log("File uploaded", file);
-                                if (isDocumentUrl(file.file.name)) {
-                                    setFiles((oldFiles) =>
-                                        oldFiles.filter(
-                                            (f) => f.serverId !== file.serverId,
-                                        ),
-                                    );
-                                }
-                            }
-                        },
                     },
+                }}
+                onprocessfile = {(error, file) => {
+                    setTimeout( () => {
+                        if (error) {
+                            console.error("Error:", error);
+                        } else {
+                            console.log("File uploaded", file);
+                            if (isDocumentUrl(file.file.name)) {
+                                setFiles((oldFiles) =>
+                                    oldFiles.filter(
+                                        (f) => f.serverId !== file.serverId,
+                                    ),
+                                );
+                            }
+                        }
+                    }, 5000); // Delay file removal from upload screen timeout
                 }}
                 name="files" /* sets the file input name, it's filepond by default */
                 labelIdle={labelIdle}

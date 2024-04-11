@@ -253,5 +253,8 @@
     "Issue Type": "نوع القضية",
     "To create this issue in JIRA, please connect Labeeb to your JIRA account.": "لإنشاء هذه المشكلة في JIRA ، يرجى الاتصال بلبيب بحساب JIRA الخاص بك.",
     "Connect to Jira": "الاتصال بـ JIRA",
-    "Disconnect from Jira": "الافصاح عن الاتصال بـ JIRA"
+    "Disconnect from Jira": "الافصاح عن الاتصال بـ JIRA",
+    "Files active in this conversation": "الملفات النشطة في هذه المحادثة",
+    "Files": "الملفات",
+    "No active files": "لا توجد ملفات نشطة"
 }
