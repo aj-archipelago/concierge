@@ -58,8 +58,8 @@ function MyFilePond({
                         },
                     },
                 }}
-                onprocessfile = {(error, file) => {
-                    setTimeout( () => {
+                onprocessfile={(error, file) => {
+                    setTimeout(() => {
                         if (error) {
                             console.error("Error:", error);
                         } else {

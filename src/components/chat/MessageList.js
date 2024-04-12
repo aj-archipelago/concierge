@@ -115,7 +115,7 @@ function MessageList({ messages, bot, loading }) {
                                     return obj.text;
                                 } else if (obj.type === "image_url") {
                                     return (
-                                        <div key={index} >
+                                        <div key={index}>
                                             <img
                                                 src={obj.image_url.url}
                                                 alt="uploadedimage"
