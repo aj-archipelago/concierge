@@ -81,10 +81,12 @@ function ChatContent({ displayState = "full", container = "chatpage" }) {
                         variables,
                     })
                     .then((result) => {
-                        let resultMessage = '';
+                        let resultMessage = "";
                         let searchRequired = false;
                         try {
-                            const resultObj = JSON.parse(result.data.rag_start.result);
+                            const resultObj = JSON.parse(
+                                result.data.rag_start.result,
+                            );
                             resultMessage = resultObj?.response;
                             searchRequired = resultObj?.search;
                         } catch (e) {
@@ -99,7 +101,8 @@ function ChatContent({ displayState = "full", container = "chatpage" }) {
                                     variables,
                                 })
                                 .then((result) => {
-                                    const { result: message, tool } = result.data.rag_finish;
+                                    const { result: message, tool } =
+                                        result.data.rag_finish;
                                     updateChat(message, tool);
                                 })
                                 .catch(handleError);

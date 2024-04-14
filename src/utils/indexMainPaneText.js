@@ -94,7 +94,8 @@ const makeApiCall = async (inputText, contextId, dispatch, client) => {
 const leadingEdgeDebouncedMakeApiCall = leadingEdgeDebounce(makeApiCall, 2000);
 
 export function indexMainPaneText(text, contextId, dispatch, client) {
-    client && leadingEdgeDebouncedMakeApiCall(text, contextId, dispatch, client);
+    client &&
+        leadingEdgeDebouncedMakeApiCall(text, contextId, dispatch, client);
 }
 
 export function easyChunker(text) {
