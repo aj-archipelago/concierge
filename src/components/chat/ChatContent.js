@@ -18,11 +18,9 @@ function ChatContent({ displayState = "full", container = "chatpage" }) {
 
     const dispatch = useDispatch();
 
-    const updateChat = (data, result) => {
-        const dataObj = data.rag_labeeb;
+    const updateChat = (message, tool) => {
         setLoading(false);
-        if (dataObj) {
-            const { result: message, tool } = dataObj;
+        if (message) {
             dispatch(
                 addMessage({
                     payload: message,
@@ -79,10 +77,34 @@ function ChatContent({ displayState = "full", container = "chatpage" }) {
                     (variables.dataSources = selectedSources);
                 client
                     .query({
-                        query: QUERIES.RAG_LABEEB,
+                        query: QUERIES.RAG_START,
                         variables,
                     })
-                    .then((result) => updateChat(result.data, result.result))
+                    .then((result) => {
+                        let resultMessage = '';
+                        let searchRequired = false;
+                        try {
+                            const resultObj = JSON.parse(result.data.rag_start.result);
+                            resultMessage = resultObj?.response;
+                            searchRequired = resultObj?.search;
+                        } catch (e) {
+                            resultMessage = e.message;
+                        }
+                        updateChat(resultMessage, null);
+                        if (searchRequired) {
+                            setLoading(true);
+                            client
+                                .query({
+                                    query: QUERIES.RAG_FINISH,
+                                    variables,
+                                })
+                                .then((result) => {
+                                    const { result: message, tool } = result.data.rag_finish;
+                                    updateChat(message, tool);
+                                })
+                                .catch(handleError);
+                        }
+                    })
                     .catch(handleError);
             }}
             messages={messages}

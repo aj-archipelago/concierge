@@ -134,8 +134,8 @@ const VISION = gql`
     }
 `;
 
-const RAG_LABEEB = gql`
-    query RagLabeeb(
+const RAG_START = gql`
+    query RagStart(
         $chatHistory: [MultiMessage]!
         $dataSources: [String]
         $contextId: String
@@ -144,7 +144,33 @@ const RAG_LABEEB = gql`
         $indexName: String
         $semanticConfiguration: String
     ) {
-        rag_labeeb(
+        rag_start(
+            chatHistory: $chatHistory
+            dataSources: $dataSources
+            contextId: $contextId
+            text: $text
+            roleInformation: $roleInformation
+            indexName: $indexName
+            semanticConfiguration: $semanticConfiguration
+        ) {
+            result
+            contextId
+            tool
+        }
+    }
+`;
+
+const RAG_FINISH = gql`
+    query RagFinish(
+        $chatHistory: [MultiMessage]!
+        $dataSources: [String]
+        $contextId: String
+        $text: String
+        $roleInformation: String
+        $indexName: String
+        $semanticConfiguration: String
+    ) {
+        rag_finish(
             chatHistory: $chatHistory
             dataSources: $dataSources
             contextId: $contextId
@@ -522,8 +548,11 @@ const QUERIES = {
     CHAT_LABEEB,
     CHAT_EXTENSION,
     CHAT_CODE,
+    COGNITIVE_DELETE,
+    COGNITIVE_INSERT,
     IMAGE,
-    RAG_LABEEB,
+    RAG_START,
+    RAG_FINISH,
     EXPAND_STORY,
     FORMAT_PARAGRAPH_TURBO,
     SELECT_SERVICES,
@@ -574,7 +603,8 @@ export {
     COGNITIVE_INSERT,
     COGNITIVE_DELETE,
     EXPAND_STORY,
-    RAG_LABEEB,
+    RAG_START,
+    RAG_FINISH,
     SELECT_SERVICES,
     SUMMARY,
     HASHTAGS,

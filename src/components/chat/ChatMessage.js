@@ -159,7 +159,7 @@ function convertMessageToMarkdown(message) {
                 directive,
                 customMarkdownDirective,
                 remarkGfm,
-                remarkMath,
+                [remarkMath, { singleDollarTextMath: false }]
             ]}
             rehypePlugins={[rehypeKatex]}
             components={components}

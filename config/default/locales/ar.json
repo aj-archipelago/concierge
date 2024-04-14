@@ -174,7 +174,7 @@
     "Image Error: ": "خطأ في الصورة: ",
     "URL not found": "الرابط غير موجود",
     "Best Quality (GPT-4)": "أفضل جودة (GPT-4)",
-    "Faster (GPT-4-TURBO)": "أسرع (GPT-4-TURBO)",
+    "Faster (GPT-3.5-TURBO)": "أسرع (GPT-3.5-TURBO)",
     "Fastest (Azure)": "الأسرع (Azure)",
     "Subhead": "العنوان الفرعي",
     "You": "أنت",
