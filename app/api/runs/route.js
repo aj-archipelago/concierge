@@ -1,37 +1,41 @@
 import { getClient, QUERIES } from "../../../src/graphql";
+import LLM from "../models/llm";
+import Prompt from "../models/prompt";
 import Run from "../models/run";
 import { getCurrentUser } from "../utils/auth";
 
 export async function POST(req, res) {
     const body = await req.json();
-    const { text, prompt, systemPrompt, model, workspaceId } = body;
+    const { text, promptId, systemPrompt, workspaceId } = body;
     const user = await getCurrentUser();
+    const { getWorkspacePromptQuery } = QUERIES;
 
     try {
         let responseText;
 
-        if (model === "4.0") {
-            const response = await getClient().query({
-                query: QUERIES.RUN_GPT4,
-                variables: {
-                    text,
-                    prompt,
-                    systemPrompt,
-                },
-            });
-            responseText = response.data.run_gpt4.result;
-        } else {
-            const response = await getClient().query({
-                query: QUERIES.RUN_GPT35TURBO,
-                variables: {
-                    text,
-                    prompt,
-                    systemPrompt,
-                },
-            });
+        const prompt = await Prompt.findById(promptId);
+        const llmId = prompt.llm;
 
-            responseText = response.data.run_gpt35turbo.result;
+        let llm;
+        if (llmId) {
+            llm = await LLM.findOne({ _id: llmId });
+        } else {
+            llm = await LLM.findOne({ isDefault: true });
         }
+
+        const promptToSend = prompt.text;
+        const pathwayName = llm.cortexPathwayName;
+
+        const query = getWorkspacePromptQuery(pathwayName);
+        const response = await getClient().query({
+            query,
+            variables: {
+                text,
+                prompt: promptToSend,
+                systemPrompt,
+            },
+        });
+        responseText = response.data[pathwayName].result;
 
         const run = await Run.create({
             output: responseText,

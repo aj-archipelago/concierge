@@ -22,6 +22,10 @@ export default async function RootLayout({ children }) {
             <head>
                 <link
                     rel="stylesheet"
+                    href="https://fonts.googleapis.com/css?family=Roboto&display=swap"
+                />
+                <link
+                    rel="stylesheet"
                     href="https://fonts.googleapis.com/css?family=Playfair Display"
                 />
                 <link rel="icon" type="image/png" href={getLogo(language)} />

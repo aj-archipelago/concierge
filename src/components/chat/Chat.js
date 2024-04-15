@@ -4,6 +4,9 @@ import { useTranslation } from "react-i18next";
 import { useDispatch } from "react-redux";
 import { clearChat } from "../../stores/chatSlice";
 import ChatContent from "./ChatContent";
+import dynamic from "next/dynamic";
+
+const ChatTopMenuDynamic = dynamic(() => import("./ChatTopMenu"));
 
 function Chat() {
     const dispatch = useDispatch();
@@ -11,7 +14,8 @@ function Chat() {
 
     return (
         <div className="flex flex-col gap-3 h-full">
-            <div className="flex justify-end">
+            <div className="flex justify-between">
+                <ChatTopMenuDynamic />
                 <button
                     className="lb-primary lb-sm"
                     size="sm"

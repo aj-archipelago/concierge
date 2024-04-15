@@ -34,7 +34,7 @@ body.dark {
         background-color: $popover-bg-color-dark;
         border: 1px solid $popover-border-color-dark;
         padding: 10px;
-        font-family: "Roboto", sans-serif;
+        font-family: $font-family-sans-serif;
         .popover-header {
             background-color: darken($popover-bg-color-dark, 5%);
             color: $popover-color-dark;
@@ -440,7 +440,7 @@ body.dark {
         padding: 10px;
         color: $text-color-dark;
         background-color: $bg-color-dark-dim !important;
-        font-family: Helvetica;
+        font-family: $font-family-sans-serif;
 
         .monaco-editor,
         .monaco-editor-background {

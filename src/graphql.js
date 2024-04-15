@@ -134,8 +134,8 @@ const VISION = gql`
     }
 `;
 
-const RAG_LABEEB = gql`
-    query RagLabeeb(
+const RAG_START = gql`
+    query RagStart(
         $chatHistory: [MultiMessage]!
         $dataSources: [String]
         $contextId: String
@@ -144,7 +144,33 @@ const RAG_LABEEB = gql`
         $indexName: String
         $semanticConfiguration: String
     ) {
-        rag_labeeb(
+        rag_start(
+            chatHistory: $chatHistory
+            dataSources: $dataSources
+            contextId: $contextId
+            text: $text
+            roleInformation: $roleInformation
+            indexName: $indexName
+            semanticConfiguration: $semanticConfiguration
+        ) {
+            result
+            contextId
+            tool
+        }
+    }
+`;
+
+const RAG_FINISH = gql`
+    query RagFinish(
+        $chatHistory: [MultiMessage]!
+        $dataSources: [String]
+        $contextId: String
+        $text: String
+        $roleInformation: String
+        $indexName: String
+        $semanticConfiguration: String
+    ) {
+        rag_finish(
             chatHistory: $chatHistory
             dataSources: $dataSources
             contextId: $contextId
@@ -497,49 +523,36 @@ const JIRA_STORY = gql`
     }
 `;
 
-const RUN_GPT35TURBO = gql`
-    query RunGPT35Turbo(
-        $text: String!
-        $systemPrompt: String
-        $prompt: String!
-        $async: Boolean
-    ) {
-        run_gpt35turbo(
-            text: $text
-            systemPrompt: $systemPrompt
-            prompt: $prompt
-            async: $async
+const getWorkspacePromptQuery = (pathwayName) => {
+    return gql`
+        query ${pathwayName}(
+            $text: String!
+            $systemPrompt: String
+            $prompt: String!
+            $async: Boolean
         ) {
-            result
+            ${pathwayName}(
+                text: $text
+                systemPrompt: $systemPrompt
+                prompt: $prompt
+                async: $async
+            ) {
+                result
+            }
         }
-    }
-`;
-
-const RUN_GPT4 = gql`
-    query RunGPT4(
-        $text: String!
-        $systemPrompt: String
-        $prompt: String!
-        $async: Boolean
-    ) {
-        run_gpt4(
-            text: $text
-            systemPrompt: $systemPrompt
-            prompt: $prompt
-            async: $async
-        ) {
-            result
-        }
-    }
-`;
+    `;
+};
 
 const QUERIES = {
     CHAT_PERSIST,
     CHAT_LABEEB,
     CHAT_EXTENSION,
     CHAT_CODE,
+    COGNITIVE_DELETE,
+    COGNITIVE_INSERT,
     IMAGE,
-    RAG_LABEEB,
+    RAG_START,
+    RAG_FINISH,
     EXPAND_STORY,
     FORMAT_PARAGRAPH_TURBO,
     SELECT_SERVICES,
@@ -554,8 +567,7 @@ const QUERIES = {
     KEYWORDS,
     TAGS,
     JIRA_STORY,
-    RUN_GPT35TURBO,
-    RUN_GPT4,
+    getWorkspacePromptQuery,
     STYLE_GUIDE,
     ENTITIES,
     STORY_ANGLES,
@@ -591,7 +603,8 @@ export {
     COGNITIVE_INSERT,
     COGNITIVE_DELETE,
     EXPAND_STORY,
-    RAG_LABEEB,
+    RAG_START,
+    RAG_FINISH,
     SELECT_SERVICES,
     SUMMARY,
     HASHTAGS,

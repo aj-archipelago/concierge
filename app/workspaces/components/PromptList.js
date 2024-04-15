@@ -115,11 +115,9 @@ function PromptListItem({ prompt, onEdit, onRun, isRunning, inputValid }) {
     return (
         <li key={prompt._id} className="mb-2 relative">
             <div className="w-full text-start bg-gray-50 rounded border flex">
-                <div className="p-2 relative border-e border-gray-300 overflow-auto basis-[calc(100%-5em)] overflow-auto">
+                <div className="p-2 relative border-e border-gray-300 overflow-auto basis-[calc(100%-5em)]">
                     <div className="flex gap-2 items-center justify-between mb-1">
-                        <div className="font-medium">
-                            {stringcase.titlecase(prompt.title)}
-                        </div>
+                        <div className="font-medium">{prompt.title}</div>
                         <div className="flex items-center gap-2">
                             {llm && (
                                 <span className="inline-flex items-center rounded-md bg-yellow-50 px-2 py-1 text-xs font-medium text-yellow-800 ring-1 ring-inset ring-yellow-600/20">

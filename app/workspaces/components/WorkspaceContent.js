@@ -46,7 +46,7 @@ export default function WorkspaceContent({ idOrSlug, user }) {
                                         try {
                                             await createRun.mutateAsync({
                                                 text,
-                                                prompt: prompt?.text,
+                                                promptId: prompt._id,
                                                 systemPrompt:
                                                     workspace?.systemPrompt,
                                                 workspaceId: workspace?._id,
@@ -58,12 +58,12 @@ export default function WorkspaceContent({ idOrSlug, user }) {
                                     }),
                                 );
                             }}
-                            onRun={async (title, text, prompt) => {
+                            onRun={async (text, prompt) => {
                                 try {
                                     setError(null);
                                     await createRun.mutateAsync({
                                         text,
-                                        prompt,
+                                        promptId: prompt?._id,
                                         systemPrompt: workspace?.systemPrompt,
                                         workspaceId: workspace?._id,
                                     });

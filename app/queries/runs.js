@@ -28,10 +28,10 @@ export function useCreateRun() {
     const queryClient = useQueryClient();
 
     const mutation = useMutation({
-        mutationFn: async ({ text, prompt, systemPrompt, workspaceId }) => {
+        mutationFn: async ({ text, promptId, systemPrompt, workspaceId }) => {
             const { data } = await axios.post(`/api/runs`, {
                 text,
-                prompt,
+                promptId,
                 systemPrompt,
                 workspaceId,
             });

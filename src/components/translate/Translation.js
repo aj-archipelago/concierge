@@ -56,9 +56,9 @@ function Translation({
                 resultKey = "translate_gpt4";
                 to = LANGUAGE_NAMES[to];
                 break;
-            case "GPT-4-TURBO":
-                query = QUERIES.TRANSLATE_GPT4_TURBO;
-                resultKey = "translate_gpt4_turbo";
+            case "GPT-3.5-TURBO":
+                query = QUERIES.TRANSLATE_TURBO;
+                resultKey = "translate_turbo";
                 to = LANGUAGE_NAMES[to];
                 break;
             case "traditional":
@@ -149,8 +149,8 @@ function Translation({
                             <option value="GPT-4">
                                 {t("Best Quality (GPT-4)")}
                             </option>
-                            <option value="GPT-4-TURBO">
-                                {t("Faster (GPT-4-TURBO)")}
+                            <option value="GPT-3.5-TURBO">
+                                {t("Faster (GPT-3.5-TURBO)")}
                             </option>
                             <option value="traditional">
                                 {t("Fastest (Azure)")}
@@ -159,7 +159,7 @@ function Translation({
                         <LoadingButton
                             disabled={!inputText || inputText.length === 0}
                             loading={loading}
-                            className="lb-sm"
+                            className="lb-sm lb-primary"
                             text={t("Translating")}
                             onClick={() => {
                                 setLoading(true);

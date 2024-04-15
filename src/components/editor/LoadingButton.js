@@ -7,7 +7,7 @@ export default function LoadingButton({
     onClick,
     style,
     children,
-    className,
+    className = "lb-primary",
     type,
     text = "",
 }) {

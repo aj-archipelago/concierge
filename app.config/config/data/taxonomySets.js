@@ -6,8 +6,14 @@ const URLS = {
 
 const API_URL = "/wp-json/wp/v2/";
 
+// initialize only on client side since the server
+// does not have access to the vpn
+if (typeof window !== "undefined") {
+    initializeTaxonomies();
+}
+
 // get taxonomy data from the WP API
-const fetchTaxonomyData = async (site, taxonomyName) => {
+async function fetchTaxonomyData(site, taxonomyName) {
     let data = [];
     let page = 1;
 
@@ -25,7 +31,7 @@ const fetchTaxonomyData = async (site, taxonomyName) => {
     }
 
     return data;
-};
+}
 
 let taxonomySets;
 

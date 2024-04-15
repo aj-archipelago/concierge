@@ -12,6 +12,7 @@ import Footer from "./Footer";
 import ProfileDropdown from "./ProfileDropdown";
 import Sidebar from "./Sidebar";
 import config from "../../config";
+import { usePathname } from "next/navigation";
 
 export default function Layout({ children }) {
     const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -23,10 +24,13 @@ export default function Layout({ children }) {
         ssr: false,
     });
     const { user } = useContext(AuthContext);
+    const pathname = usePathname();
 
     useEffect(() => {
         setPosition(statePosition);
     }, [statePosition]);
+
+    const showChatbox = position !== "closed" && pathname !== "/chat";
 
     return (
         <>
@@ -122,6 +126,7 @@ export default function Layout({ children }) {
                             <div>
                                 <button
                                     className="lb-sm lb-primary"
+                                    disabled={pathname === "/chat"}
                                     onClick={() => {
                                         dispatch(
                                             setChatBoxPosition({
@@ -149,7 +154,7 @@ export default function Layout({ children }) {
                             >
                                 {children}
                             </div>
-                            {position !== "closed" && (
+                            {showChatbox && (
                                 <div className="basis-[302px] h-[calc(100vh-118px)]">
                                     <ChatBox />
                                 </div>

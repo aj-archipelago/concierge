@@ -60,7 +60,7 @@ export default function WorkspaceInput({ onRun, onRunMany }) {
                 attrs: { inputText: text },
             });
         }, 1000);
-        // eslint-disable-next-line 
+        // eslint-disable-next-line
     }, [text, workspace?._id]);
 
     if (isStateLoading || !workspace) {
@@ -97,11 +97,7 @@ export default function WorkspaceInput({ onRun, onRunMany }) {
                                 onRunAll={onRunMany(text, prompts)}
                                 onRun={async (prompt) => {
                                     if (text) {
-                                        await onRun(
-                                            prompt.title,
-                                            text,
-                                            prompt.text,
-                                        );
+                                        await onRun(text, prompt);
                                     }
                                 }}
                                 onEdit={handleEdit}

@@ -3,12 +3,14 @@
 import axios from "axios";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 
 export default function ConnectJiraButton({ clientSecret, onTokenChange }) {
     // read parameter code from querystring
     const searchParams = useSearchParams();
     const [code, setCode] = useState(searchParams.get("code"));
     const router = useRouter();
+    const { t } = useTranslation();
 
     const clientId = process.env.NEXT_PUBLIC_ATLASSIAN_CLIENT_ID;
 
@@ -46,6 +48,7 @@ export default function ConnectJiraButton({ clientSecret, onTokenChange }) {
                         },
                     },
                 );
+                break;
             } catch (error) {
                 if (error.response.status === 401) {
                     // token is bad
@@ -207,13 +210,13 @@ export default function ConnectJiraButton({ clientSecret, onTokenChange }) {
             <div className="mb-4">
                 <div className="flex justify-end">
                     <a className="lb-success" href={connectionUri.toString()}>
-                        Connect to Jira
+                        {t("Connect to Jira")}
                     </a>
                 </div>
                 {error && (
                     <div className="text-red-500 text-sm text-end mt-2">
                         <p>
-                            An error occurred:{" "}
+                            {t("An error occurred")}:{" "}
                             {error.message || error.toString()}
                         </p>
                     </div>
@@ -236,7 +239,7 @@ export default function ConnectJiraButton({ clientSecret, onTokenChange }) {
                             }
                         }}
                     >
-                        Disconnect from Jira
+                        {t("Disconnect from Jira")}
                     </button>
                 </div>
             </div>

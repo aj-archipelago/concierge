@@ -204,8 +204,8 @@ function ImageTile({
     const { code, message } = result?.error || {};
 
     const memoizedImage = useMemo(() => {
-        return <ImageComponent />;
-    }, []);
+        return <ImageComponent url={url} />;
+    }, [url]);
 
     return (
         <div className="p-3">
@@ -259,7 +259,7 @@ function ImageTile({
         );
     }
 
-    function ImageComponent() {
+    function ImageComponent({ url }) {
         return (
             <img
                 className="img-fluid"
