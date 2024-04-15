@@ -35,7 +35,7 @@ const defaultPrompts = [
     {
         title: "AJ+ ES YOUTUBE DESCRIPTION",
         text: `Provide me with a description of 300 characters or less with the video's keywords optimized for YouTube. Add the appropriate hashtags to optimize SEO searches on YouTube. Avoid using 'the truth'.`,
-    }
+    },
 ].sort((a, b) => a.title.localeCompare(b.title));
 
 export const dynamic = "force-dynamic"; // defaults to auto
