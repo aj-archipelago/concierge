@@ -118,7 +118,7 @@ function PromptListItem({ prompt, onEdit, onRun, isRunning, inputValid }) {
                 <div className="p-2 relative border-e border-gray-300 overflow-auto basis-[calc(100%-5em)]">
                     <div className="flex gap-2 items-center justify-between mb-1">
                         <div className="font-medium">
-                            {stringcase.titlecase(prompt.title)}
+                            {prompt.title}
                         </div>
                         <div className="flex items-center gap-2">
                             {llm && (
