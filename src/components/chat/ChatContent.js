@@ -70,6 +70,7 @@ function ChatContent({ displayState = "full", container = "chatpage" }) {
                 const variables = {
                     chatHistory: conversation,
                     contextId: contextId,
+                    aiName: "Labeeb",
                 };
 
                 selectedSources &&
@@ -97,12 +98,12 @@ function ChatContent({ displayState = "full", container = "chatpage" }) {
                             setLoading(true);
                             client
                                 .query({
-                                    query: QUERIES.RAG_FINISH,
+                                    query: QUERIES.RAG_GENERATOR_RESULTS,
                                     variables,
                                 })
                                 .then((result) => {
                                     const { result: message, tool } =
-                                        result.data.rag_finish;
+                                        result.data.rag_generator_results;
                                     updateChat(message, tool);
                                 })
                                 .catch(handleError);
