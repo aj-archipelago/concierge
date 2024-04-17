@@ -1,6 +1,6 @@
 import { FilePond, registerPlugin } from "react-filepond";
-import FilePondPluginFileValidateType from 'filepond-plugin-file-validate-type';
-import mime from 'mime-types';
+import FilePondPluginFileValidateType from "filepond-plugin-file-validate-type";
+import mime from "mime-types";
 
 // Import FilePond styles
 import "filepond/dist/filepond.min.css";
@@ -13,7 +13,11 @@ import FilePondPluginImagePreview from "filepond-plugin-image-preview";
 import "filepond-plugin-image-preview/dist/filepond-plugin-image-preview.css";
 
 // Register the plugins
-registerPlugin(FilePondPluginImageExifOrientation, FilePondPluginImagePreview, FilePondPluginFileValidateType);
+registerPlugin(
+    FilePondPluginImageExifOrientation,
+    FilePondPluginImagePreview,
+    FilePondPluginFileValidateType,
+);
 
 const DOC_EXTENSIONS = [
     ".txt",
@@ -35,27 +39,56 @@ function isDocumentUrl(url) {
 }
 
 const IMAGE_EXTENSIONS = [
-    '.jpg',
-    '.jpeg',
-    '.png',
-    '.gif',
-    '.bmp',
-    '.webp',
-    '.tiff',
-    '.svg'
+    ".jpg",
+    ".jpeg",
+    ".png",
+    ".gif",
+    ".bmp",
+    ".webp",
+    ".tiff",
+    ".svg",
+];
+
+const VIDEO_EXTENSIONS = [
+    ".mp4",
+    ".webm",
+    ".ogg",
+    ".mov",
+    ".avi",
+    ".flv",
+    ".wmv",
+    ".mkv",
 ];
 
 function isImageUrl(url) {
-    const urlExt = '.' + url.split('.').pop();
+    const urlExt = "." + url.split(".").pop();
     const mimeType = mime.contentType(urlExt);
-    
-    return IMAGE_EXTENSIONS.includes(urlExt) && mimeType.startsWith('image/');
+
+    return IMAGE_EXTENSIONS.includes(urlExt) && mimeType.startsWith("image/");
 }
 
-const DOC_MIME_TYPES = DOC_EXTENSIONS.map(ext => mime.lookup(ext));
-const IMAGE_MIME_TYPES = IMAGE_EXTENSIONS.map(ext => mime.lookup(ext));
-const ACCEPTED_FILE_TYPES = [...DOC_MIME_TYPES, ...IMAGE_MIME_TYPES];
-const FILE_TYPE_NOT_ALLOWED_ERROR = "File of type {fileExtension} is not allowed.";
+function isVideoUrl(url) {
+    const urlExt = "." + url.split(".").pop();
+    const mimeType = mime.contentType(urlExt);
+
+    return VIDEO_EXTENSIONS.includes(urlExt) && mimeType.startsWith("video/");
+}
+
+function isMediaUrl(url) {
+    return isImageUrl(url) || isVideoUrl(url);
+}
+
+const DOC_MIME_TYPES = DOC_EXTENSIONS.map((ext) => mime.lookup(ext));
+const IMAGE_MIME_TYPES = IMAGE_EXTENSIONS.map((ext) => mime.lookup(ext));
+const VIDEO_MIME_TYPES = VIDEO_EXTENSIONS.map((ext) => mime.lookup(ext));
+
+const ACCEPTED_FILE_TYPES = [
+    ...DOC_MIME_TYPES,
+    ...IMAGE_MIME_TYPES,
+    ...VIDEO_MIME_TYPES,
+];
+const FILE_TYPE_NOT_ALLOWED_ERROR =
+    "File of type {fileExtension} is not allowed.";
 
 // Our app
 function MyFilePond({
@@ -78,7 +111,8 @@ function MyFilePond({
                     url: "/media-helper",
                     process: {
                         onload: (response) => {
-                            addUrl(JSON.parse(response).url);
+                            const data = JSON.parse(response);
+                            addUrl(data);
                         },
                         onerror: (response) => {
                             console.error("Error:", response);
@@ -90,15 +124,14 @@ function MyFilePond({
                         if (error) {
                             console.error("Error:", error);
                         } else {
-                            console.log("File uploaded", file);
-                            if (ACCEPTED_FILE_TYPES.includes(file.file.type)) {
+                            const filetype = file.file.type;
+                            //only doc files should be timed as rag ll pick them
+                            if (DOC_MIME_TYPES.includes(filetype)) {
                                 setFiles((oldFiles) =>
                                     oldFiles.filter(
-                                        (f) => f.serverId !== file.serverId
+                                        (f) => f.serverId !== file.serverId,
                                     ),
                                 );
-                            } else {
-                                console.error('Unsupported file type:', file.file.type);
                             }
                         }
                     }, 10000);
@@ -116,4 +149,4 @@ function MyFilePond({
 
 export default MyFilePond;
 
-export { isDocumentUrl, isImageUrl };
+export { isDocumentUrl, isImageUrl, isVideoUrl, isMediaUrl };

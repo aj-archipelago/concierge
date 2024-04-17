@@ -8,6 +8,7 @@ import config from "../../../config";
 import { convertMessageToMarkdown } from "./ChatMessage";
 import ScrollToBottom from "./ScrollToBottom";
 import Loader from "../../../app/components/loader";
+import { isVideoUrl } from "./MyFilePond";
 
 // Displays the list of messages and a message input box.
 function MessageList({ messages, bot, loading }) {
@@ -114,10 +115,27 @@ function MessageList({ messages, bot, loading }) {
                                 if (obj.type === "text") {
                                     return obj.text;
                                 } else if (obj.type === "image_url") {
+                                    const src =
+                                        obj?.url ||
+                                        obj?.image_url?.url ||
+                                        obj?.gcs;
+                                    if (isVideoUrl(src)) {
+                                        // Display the video
+                                        return (
+                                            <video
+                                                key={index}
+                                                src={src}
+                                                className="max-h-[20%] max-w-[60%] rounded border bg-white p-1 my-2 dark:border-neutral-700 dark:bg-neutral-800 shadow-lg dark:shadow-black/30"
+                                                controls
+                                            />
+                                        );
+                                    }
+
+                                    // Display the image
                                     return (
                                         <div key={index}>
                                             <img
-                                                src={obj.image_url.url}
+                                                src={src}
                                                 alt="uploadedimage"
                                                 className="max-h-[20%] max-w-[60%] rounded border bg-white p-1 my-2 dark:border-neutral-700 dark:bg-neutral-800 shadow-lg dark:shadow-black/30"
                                             />
