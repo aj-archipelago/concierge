@@ -17,7 +17,7 @@ import {
 } from "../../stores/fileUploadSlice";
 import { FaFileCirclePlus } from "react-icons/fa6";
 import { IoCloseCircle } from "react-icons/io5";
-import { isDocumentUrl } from "./MyFilePond";
+import { isDocumentUrl, isImageUrl } from "./MyFilePond";
 
 const DynamicFilepond = dynamic(() => import("./MyFilePond"), {
     ssr: false,
@@ -108,7 +108,9 @@ function MessageInput({ onSend, loading, enableRag, placeholder }) {
         if (isDocumentUrl(url)) {
             fetchData(url);
         } else {
-            setUrls([...urls, url]); //rest of it: images
+            if (isImageUrl(url)) {
+                setUrls([...urls, url]); //rest of it: images
+            }
         }
     };
 
