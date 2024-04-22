@@ -108,7 +108,7 @@ function MyFilePond({
                 allowMultiple={true}
                 // maxFiles={3}
                 server={{
-                    url: "/media-helper",
+                    url: "/media-helper?useGoogle=true",
                     process: {
                         onload: (response) => {
                             const data = JSON.parse(response);
