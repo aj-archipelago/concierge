@@ -113,28 +113,38 @@ function MyFilePond({
                 // maxFiles={3}
                 server={{
                     url: serverUrl,
-                    process: async (fieldName, file, metadata, load, error, progress, abort) => {
+                    process: async (
+                        fieldName,
+                        file,
+                        metadata,
+                        load,
+                        error,
+                        progress,
+                        abort,
+                    ) => {
                         // Create a new hash object
-                        const hash = crypto.createHash('sha256');
+                        const hash = crypto.createHash("sha256");
 
                         // Read the file into a buffer
                         const arrayBuffer = await file.arrayBuffer();
                         const array = new Uint8Array(arrayBuffer);
                         // Update the hash object with data from file
-                        array.forEach(chunk => {
+                        array.forEach((chunk) => {
                             hash.update(new Uint8Array([chunk]));
                         });
                         // Obtain the hash of the file
-                        const fileHash = hash.digest('hex');
+                        const fileHash = hash.digest("hex");
 
                         // console.log('File hash', fileHash);
 
                         // Check if file with same hash is already on the server
                         try {
-                            const response = await axios.get(`${serverUrl}&hash=${fileHash}&checkHash=true`);
+                            const response = await axios.get(
+                                `${serverUrl}&hash=${fileHash}&checkHash=true`,
+                            );
                             if (response.status === 200) {
                                 // console.log(response.data)
-                                if(response.data && response.data.url) {
+                                if (response.data && response.data.url) {
                                     load(response.data);
                                     addUrl(response.data);
                                     return;
@@ -149,24 +159,25 @@ function MyFilePond({
                         formData.append("hash", fileHash); // add fileHash to formData
                         formData.append(fieldName, file, file.name);
                         const request = new XMLHttpRequest();
-                        request.open('POST', `${serverUrl}&hash=${fileHash}`); // attach fileHash as a URL parameter
+                        request.open("POST", `${serverUrl}&hash=${fileHash}`); // attach fileHash as a URL parameter
 
                         request.upload.onprogress = (e) => {
                             progress(e.lengthComputable, e.loaded, e.total);
                         };
-                        request.onload = function() {
+                        request.onload = function () {
                             if (request.status >= 200 && request.status < 300) {
                                 let responseData = request.responseText;
-                                try{
-                                    responseData = JSON.parse(request.responseText); // Parse the response to a JS object
-                                }catch(err){
+                                try {
+                                    responseData = JSON.parse(
+                                        request.responseText,
+                                    ); // Parse the response to a JS object
+                                } catch (err) {
                                     console.error(err);
-                                } 
+                                }
                                 load(responseData);
                                 addUrl(responseData); // Call 'addUrl' with the parsed response data
-                            }
-                            else {
-                                error('Error while uploading');
+                            } else {
+                                error("Error while uploading");
                             }
                         };
                         request.send(formData);
@@ -177,9 +188,9 @@ function MyFilePond({
                                 request.abort();
                                 // Let FilePond know the request has been cancelled
                                 abort();
-                            }
+                            },
                         };
-                    }
+                    },
                 }}
                 onprocessfile={(error, file) => {
                     setTimeout(() => {
