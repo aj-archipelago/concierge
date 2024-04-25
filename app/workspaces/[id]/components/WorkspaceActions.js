@@ -94,21 +94,27 @@ function Name({ workspace, user }) {
         queryKey: ["workspace", workspace?._id],
         mutationFn: async (attrs) => {
             setEditing(false);
-            await axios.put(`/api/workspaces/${workspace._id}`, attrs);
+            const response = await axios.put(
+                `/api/workspaces/${workspace._id}`,
+                attrs,
+            );
+            return response.data;
         },
         onMutate: async (attrs) => {
-            await queryClient.cancelQueries(["workspaces", workspace?._id]);
+            await queryClient.cancelQueries(["workspace", workspace?._id]);
             const previousWorkspace = queryClient.getQueryData([
-                "workspaces",
+                "workspace",
                 workspace?._id,
             ]);
-            queryClient.setQueryData(["workspaces", workspace?._id], (old) => {
+            queryClient.setQueryData(["workspace", workspace?._id], (old) => {
                 return { ...old, name };
             });
             return { previousWorkspace };
         },
         onSuccess: () => {
-            queryClient.invalidateQueries(["workspaces", workspace?._id]);
+            queryClient.invalidateQueries({
+                queryKey: ["workspace", workspace?._id],
+            });
         },
     });
 

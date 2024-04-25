@@ -17,7 +17,7 @@ export function useDeleteRun() {
             return { previousRuns };
         },
         onSuccess: () => {
-            queryClient.invalidateQueries(["runs"]);
+            queryClient.invalidateQueries({ queryKey: ["runs"] });
         },
     });
 
@@ -38,7 +38,7 @@ export function useCreateRun() {
             return data;
         },
         onSuccess: () => {
-            queryClient.invalidateQueries(["runs"]);
+            queryClient.invalidateQueries({ queryKey: ["runs"] });
         },
     });
 
