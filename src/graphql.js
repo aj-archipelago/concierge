@@ -134,6 +134,20 @@ const VISION = gql`
     }
 `;
 
+const RAG_SAVE_MEMORY = gql`
+    query RagSaveMemory(
+        $aiMemory: String!,
+        $contextId: String!,
+    ) {
+        rag_save_memory(
+            aiMemory: $aiMemory,
+            contextId: $contextId
+        ) {
+            result
+        }
+    }
+`;
+
 const RAG_START = gql`
     query RagStart(
         $chatHistory: [MultiMessage]!
@@ -144,6 +158,7 @@ const RAG_START = gql`
         $indexName: String
         $semanticConfiguration: String
         $aiName: String
+        $aiMemorySelfModify: Boolean
     ) {
         rag_start(
             chatHistory: $chatHistory
@@ -154,6 +169,7 @@ const RAG_START = gql`
             indexName: $indexName
             semanticConfiguration: $semanticConfiguration
             aiName: $aiName
+            aiMemorySelfModify: $aiMemorySelfModify
         ) {
             result
             contextId
@@ -555,6 +571,7 @@ const QUERIES = {
     COGNITIVE_DELETE,
     COGNITIVE_INSERT,
     IMAGE,
+    RAG_SAVE_MEMORY,
     RAG_START,
     RAG_GENERATOR_RESULTS,
     EXPAND_STORY,
@@ -607,6 +624,7 @@ export {
     COGNITIVE_INSERT,
     COGNITIVE_DELETE,
     EXPAND_STORY,
+    RAG_SAVE_MEMORY,
     RAG_START,
     RAG_GENERATOR_RESULTS,
     SELECT_SERVICES,

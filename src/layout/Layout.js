@@ -10,11 +10,13 @@ import { AuthContext } from "../App";
 import { setChatBoxPosition } from "../stores/chatSlice";
 import Footer from "./Footer";
 import ProfileDropdown from "./ProfileDropdown";
+import UserOptions from "../components/UserOptions";
 import Sidebar from "./Sidebar";
 import config from "../../config";
 import { usePathname } from "next/navigation";
 
 export default function Layout({ children }) {
+    const [showOptions, setShowOptions] = useState(false);
     const [sidebarOpen, setSidebarOpen] = useState(false);
     const [position, setPosition] = useState("closed");
     const statePosition = useSelector((state) => state.chat?.chatBox?.position);
@@ -25,6 +27,9 @@ export default function Layout({ children }) {
     });
     const { user } = useContext(AuthContext);
     const pathname = usePathname();
+
+    const handleShowOptions = () => setShowOptions(true);
+    const handleCloseOptions = () => setShowOptions(false);
 
     useEffect(() => {
         setPosition(statePosition);
@@ -140,7 +145,7 @@ export default function Layout({ children }) {
                             </div>
                             {config.auth?.provider && (
                                 <div>
-                                    <ProfileDropdown user={user} />
+                                    <ProfileDropdown user={user} handleShowOptions={handleShowOptions}/>
                                 </div>
                             )}
                         </div>
@@ -152,6 +157,7 @@ export default function Layout({ children }) {
                                 className={`${"grow"} bg-white dark:border-gray-200 rounded border p-3 lg:p-4 overflow-auto`}
                                 style={{ height: "calc(100vh - 118px)" }}
                             >
+                                <UserOptions show={showOptions} handleClose={handleCloseOptions} />
                                 {children}
                             </div>
                             {showChatbox && (

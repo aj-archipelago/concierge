@@ -2,6 +2,7 @@ import { headers } from "next/headers";
 import config from "../../../config";
 import User from "../models/user";
 import mongoose from "mongoose";
+import { v4 as uuidv4 } from "uuid";
 
 export const getCurrentUser = async () => {
     const auth = config.auth;
@@ -27,11 +28,17 @@ export const getCurrentUser = async () => {
         const username =
             headerList.get("X-MS-CLIENT-PRINCIPAL-NAME") || "Anonymous";
         const name = username;
+        const contextId = uuidv4();
+        const aiMemory = "{}";
+        const aiMemorySelfModify = true;
 
         user = await User.create({
             userId: id,
             username,
             name,
+            contextId,
+            aiMemory,
+            aiMemorySelfModify,
         });
     }
 
