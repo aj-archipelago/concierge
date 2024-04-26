@@ -62,7 +62,6 @@
     "Use Corrected Version": "استخدام الإصدار المصحوح",
     "Use Corrected Text": "استخدام النص المصحوح",
     "Use Updated Text": "استخدام النص المحدث",
-    "Target Summary Length": "طول الملخص الهدف",
     "characters": "الأحرف,",
     "Search Google": "البحث عن طريق جوجل",
     "SEO-optimized": "التحسين لمحركات البحث",
@@ -256,5 +255,6 @@
     "Disconnect from Jira": "الافصاح عن الاتصال بـ JIRA",
     "Files active in this conversation": "الملفات النشطة في هذه المحادثة",
     "Files": "الملفات",
-    "No active files": "لا توجد ملفات نشطة"
+    "No active files": "لا توجد ملفات نشطة",
+    "Length": "الطول"
 }

@@ -111,36 +111,45 @@ function TimelineBox({ inputText }) {
     );
 }
 
-const SummaryOptions = ({ value, loading, onChange, onCommit }) => {
+const SummaryOptions = ({ value, loading, onChange, onCommit, handleClearSummary }) => {
     const { t } = useTranslation();
 
     return (
-        <div
-            style={{ display: "flex", gap: 10, alignItems: "center" }}
-            className="mb-3"
+    <div
+        style={{ display: "flex", gap: 10, alignItems: "center", fontSize: "12px" }}
+        className="mb-3"
+    >
+        <div>{t("Length")}</div>
+        <Form.Control
+            style={{ 
+                flexBasis: "20%", 
+                height: "25px", 
+                fontSize: "12px", 
+                padding: "5px", 
+                minWidth: "50px"
+            }}
+            key="summary-length"
+            size="sm"
+            type="number"
+            value={value.targetLength}
+            onChange={(e) =>
+                onChange({ targetLength: parseInt(e.target.value) })
+            }
+        ></Form.Control>
+        <LoadingButton
+            text={t("Generating")}
+            loading={loading}
+            disabled={loading}
+            variant="secondary"
+            style={{ fontSize: "10px", padding: "2px 5px" }}
+            onClick={() => {
+                handleClearSummary();
+                onCommit();
+            }}
         >
-            <div>{t("Target Summary Length")}</div>
-            <Form.Control
-                style={{ flexBasis: "20%" }}
-                key="summary-length"
-                size="sm"
-                type="number"
-                value={value.targetLength}
-                onChange={(e) =>
-                    onChange({ targetLength: parseInt(e.target.value) })
-                }
-            ></Form.Control>
-            <LoadingButton
-                text={t("Generating")}
-                loading={loading}
-                disabled={loading}
-                variant="secondary"
-                size="sm"
-                onClick={onCommit}
-            >
-                {t("Generate")}
-            </LoadingButton>
-        </div>
+            {t("Generate")}
+        </LoadingButton>
+    </div>
     );
 };
 
@@ -153,8 +162,8 @@ function Summary({ inputText }) {
             name="Summary"
             icon={<MdOutlineSummarize />}
             output={summary}
-            defaultParameters={{ targetLength: 500 }}
-            Options={SummaryOptions}
+            defaultParameters={{ targetLength: 120 }}
+            Options={(props) => <SummaryOptions {...props} handleClearSummary={() => setSummary("")} />}
             renderOutput={() => (
                 <div>
                     <pre
@@ -236,13 +245,13 @@ function Entities({ inputText }) {
 function Sidebar({ onAction, inputText }) {
     return (
         <Accordion variant="sm" alwaysOpen>
-            <Highlights inputText={inputText} onAction={onAction} />
-            <TimelineBox inputText={inputText} />
             <Summary inputText={inputText} />
+            <Highlights inputText={inputText} onAction={onAction} />
             <SearchKeywords inputText={inputText} />
             <Topics inputText={inputText} />
             <Tags inputText={inputText} />
             <Entities inputText={inputText} />
+            <TimelineBox inputText={inputText} />
         </Accordion>
     );
 }

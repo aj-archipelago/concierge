@@ -195,5 +195,10 @@ div {
     scrollbar-color: "rgba(209, 213, 219, 0.5) rgba(209, 213, 219, 0.125)";
 }
 
+pre {
+    white-space: pre-wrap;
+}
+  
+
 // Should be imported at the end to override colours
 @import "./themes/dark";

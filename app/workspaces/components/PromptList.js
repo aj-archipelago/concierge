@@ -90,7 +90,7 @@ export default function PromptList({
                             await onRunAll();
                             setRunningPromptId(null);
                         }}
-                        className={"lb-success lb-sm flex gap-2"}
+                        className={"lb-success lb-sm flex gap-2 mb-0"}
                     >
                         <span
                             className={direction === "rtl" ? "rotate-180" : ""}
