@@ -145,7 +145,10 @@ export default function Layout({ children }) {
                             </div>
                             {config.auth?.provider && (
                                 <div>
-                                    <ProfileDropdown user={user} handleShowOptions={handleShowOptions}/>
+                                    <ProfileDropdown
+                                        user={user}
+                                        handleShowOptions={handleShowOptions}
+                                    />
                                 </div>
                             )}
                         </div>
@@ -157,7 +160,10 @@ export default function Layout({ children }) {
                                 className={`${"grow"} bg-white dark:border-gray-200 rounded border p-3 lg:p-4 overflow-auto`}
                                 style={{ height: "calc(100vh - 118px)" }}
                             >
-                                <UserOptions show={showOptions} handleClose={handleCloseOptions} />
+                                <UserOptions
+                                    show={showOptions}
+                                    handleClose={handleCloseOptions}
+                                />
                                 {children}
                             </div>
                             {showChatbox && (

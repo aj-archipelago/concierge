@@ -10,9 +10,9 @@ export async function POST(req) {
         if (!mongoose.connection.readyState) {
             throw new Error("Database is not connected");
         }
-    
+
         let user = await User.findOne({ userId: userId });
-    
+
         if (user) {
             if (aiMemorySelfModify !== undefined) {
                 user.aiMemorySelfModify = aiMemorySelfModify;
@@ -28,22 +28,24 @@ export async function POST(req) {
         } else {
             throw new Error(`User with id ${userId} not found`);
         }
-
     } catch (error) {
         console.error(
             error?.response?.data?.errors ||
-            error?.response?.data?.error ||
-            error?.response?.data ||
-            error?.toString(),
-        );
-        return Response.json({
-            error: JSON.stringify(
-                error?.response?.data?.errors ||
                 error?.response?.data?.error ||
                 error?.response?.data ||
                 error?.toString(),
-            ),
-        }, {status: 500});
+        );
+        return Response.json(
+            {
+                error: JSON.stringify(
+                    error?.response?.data?.errors ||
+                        error?.response?.data?.error ||
+                        error?.response?.data ||
+                        error?.toString(),
+                ),
+            },
+            { status: 500 },
+        );
     }
 }
 

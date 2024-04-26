@@ -5,7 +5,7 @@ import { addMessage } from "../../stores/chatSlice";
 import { useState, useContext } from "react";
 import dynamic from "next/dynamic";
 import { useUpdateAiMemory } from "../../../app/queries/options";
-import { AuthContext } from '../../App.js';
+import { AuthContext } from "../../App.js";
 
 const ChatMessages = dynamic(() => import("./ChatMessages"));
 
@@ -99,7 +99,12 @@ function ChatContent({ displayState = "full", container = "chatpage" }) {
                             searchRequired = resultObj?.search;
                             aiMemory = resultObj?.aiMemory;
 
-                            updateAiMemoryMutation.mutateAsync({ userId, contextId, aiMemory, aiMemorySelfModify }); 
+                            updateAiMemoryMutation.mutateAsync({
+                                userId,
+                                contextId,
+                                aiMemory,
+                                aiMemorySelfModify,
+                            });
                         } catch (e) {
                             resultMessage = e.message;
                         }

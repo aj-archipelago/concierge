@@ -135,14 +135,8 @@ const VISION = gql`
 `;
 
 const RAG_SAVE_MEMORY = gql`
-    query RagSaveMemory(
-        $aiMemory: String!,
-        $contextId: String!,
-    ) {
-        rag_save_memory(
-            aiMemory: $aiMemory,
-            contextId: $contextId
-        ) {
+    query RagSaveMemory($aiMemory: String!, $contextId: String!) {
+        rag_save_memory(aiMemory: $aiMemory, contextId: $contextId) {
             result
         }
     }

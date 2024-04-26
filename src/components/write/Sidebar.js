@@ -111,45 +111,56 @@ function TimelineBox({ inputText }) {
     );
 }
 
-const SummaryOptions = ({ value, loading, onChange, onCommit, handleClearSummary }) => {
+const SummaryOptions = ({
+    value,
+    loading,
+    onChange,
+    onCommit,
+    handleClearSummary,
+}) => {
     const { t } = useTranslation();
 
     return (
-    <div
-        style={{ display: "flex", gap: 10, alignItems: "center", fontSize: "12px" }}
-        className="mb-3"
-    >
-        <div>{t("Length")}</div>
-        <Form.Control
-            style={{ 
-                flexBasis: "20%", 
-                height: "25px", 
-                fontSize: "12px", 
-                padding: "5px", 
-                minWidth: "50px"
+        <div
+            style={{
+                display: "flex",
+                gap: 10,
+                alignItems: "center",
+                fontSize: "12px",
             }}
-            key="summary-length"
-            size="sm"
-            type="number"
-            value={value.targetLength}
-            onChange={(e) =>
-                onChange({ targetLength: parseInt(e.target.value) })
-            }
-        ></Form.Control>
-        <LoadingButton
-            text={t("Generating")}
-            loading={loading}
-            disabled={loading}
-            variant="secondary"
-            style={{ fontSize: "10px", padding: "2px 5px" }}
-            onClick={() => {
-                handleClearSummary();
-                onCommit();
-            }}
+            className="mb-3"
         >
-            {t("Generate")}
-        </LoadingButton>
-    </div>
+            <div>{t("Length")}</div>
+            <Form.Control
+                style={{
+                    flexBasis: "20%",
+                    height: "25px",
+                    fontSize: "12px",
+                    padding: "5px",
+                    minWidth: "50px",
+                }}
+                key="summary-length"
+                size="sm"
+                type="number"
+                value={value.targetLength}
+                onChange={(e) =>
+                    onChange({ targetLength: parseInt(e.target.value) })
+                }
+            ></Form.Control>
+            <LoadingButton
+                text={t("Generating")}
+                loading={loading}
+                disabled={loading}
+                variant="secondary"
+                style={{ fontSize: "10px", padding: "2px 5px" }}
+                onClick={() => {
+                    handleClearSummary();
+                    onCommit();
+                }}
+            >
+                {t("Generate")}
+            </LoadingButton>
+        </div>
     );
 };
 
@@ -163,7 +174,12 @@ function Summary({ inputText }) {
             icon={<MdOutlineSummarize />}
             output={summary}
             defaultParameters={{ targetLength: 120 }}
-            Options={(props) => <SummaryOptions {...props} handleClearSummary={() => setSummary("")} />}
+            Options={(props) => (
+                <SummaryOptions
+                    {...props}
+                    handleClearSummary={() => setSummary("")}
+                />
+            )}
             renderOutput={() => (
                 <div>
                     <pre

@@ -3,22 +3,42 @@ import { useApolloClient } from "@apollo/client";
 import { QUERIES } from "../../src/graphql";
 import axios from "axios";
 
-export function useUpdateAiMemory(userId, contextId, aiMemory, aiMemorySelfModify) {
+export function useUpdateAiMemory(
+    userId,
+    contextId,
+    aiMemory,
+    aiMemorySelfModify,
+) {
     const queryClient = useQueryClient();
     const apolloClient = useApolloClient();
 
     const mutation = useMutation({
-        mutationFn: async ({ userId, contextId, aiMemory, aiMemorySelfModify }) => {
+        mutationFn: async ({
+            userId,
+            contextId,
+            aiMemory,
+            aiMemorySelfModify,
+        }) => {
             // persist it to user options in the database
-            const response = await axios.post(
-                `/api/options`,
-                { userId, contextId, aiMemory, aiMemorySelfModify },
-            );
+            const response = await axios.post(`/api/options`, {
+                userId,
+                contextId,
+                aiMemory,
+                aiMemorySelfModify,
+            });
             return response.data;
         },
-        onMutate: async ({ userId, contextId, aiMemory, aiMemorySelfModify }) => {
+        onMutate: async ({
+            userId,
+            contextId,
+            aiMemory,
+            aiMemorySelfModify,
+        }) => {
             await queryClient.cancelQueries(["user", userId]);
-            const previousUser = await queryClient.getQueryData(["user", userId]);
+            const previousUser = await queryClient.getQueryData([
+                "user",
+                userId,
+            ]);
 
             queryClient.setQueryData(["user", userId], (old) => {
                 return {
@@ -49,7 +69,7 @@ export function useUpdateAiMemory(userId, contextId, aiMemory, aiMemorySelfModif
 
             return { previousUser };
         },
-        onSuccess: ( data ) => {
+        onSuccess: (data) => {
             queryClient.invalidateQueries(["user", userId]);
         },
     });
