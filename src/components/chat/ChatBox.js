@@ -1,6 +1,6 @@
 "use client";
 
-import { useContext, useEffect, useRef, useState } from "react";
+import { useContext, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import {
     FaWindowClose,
@@ -17,9 +17,7 @@ import { useRouter } from "next/navigation";
 
 function ChatBox() {
     const statePosition = useSelector((state) => state.chat?.chatBox?.position);
-    const [position, setPosition] = useState("closed");
     const dispatch = useDispatch();
-    // let location = useLocation();
     const dockedWidth = useSelector((state) => state?.chat?.chatBox?.width);
     const dockedWidthRef = useRef();
     dockedWidthRef.current = dockedWidth;
@@ -27,18 +25,14 @@ function ChatBox() {
     const { language } = useContext(LanguageContext);
     const router = useRouter();
 
-    useEffect(() => {
-        setPosition(statePosition);
-    }, [statePosition]);
-
     const updateChatBox = (newPosition) => {
         dispatch(setChatBoxPosition(newPosition));
     };
 
     const titleBarClick = () => {
-        if (position === "docked") {
+        if (statePosition === "docked") {
             // updateChatBox({ position: 'full' })
-        } else if (position === "full") {
+        } else if (statePosition === "full") {
             updateChatBox({ position: "docked" });
         }
     };
@@ -47,7 +41,7 @@ function ChatBox() {
         const lastOpenPosition = useSelector(
             (state) => state.chat?.chatBox?.lastOpenPosition,
         );
-        switch (position) {
+        switch (statePosition) {
             case "closed":
                 return (
                     <>
@@ -127,33 +121,7 @@ function ChatBox() {
         }
     };
 
-    // const mouseDownHandler = (e) => {
-    //     const startPosition = e.pageX;
-    //     const startSize = document.querySelector('.message-list-container').clientWidth;
-
-    //     const mouseMoveHandler = e => {
-    //         const newPosition = language === 'ar' ?
-    //             startSize - startPosition + e.pageX :
-    //             startSize + startPosition - e.pageX;
-    //         let newWidth = Math.min(newPosition, document.body.clientWidth);
-    //         newWidth = Math.max(200, newWidth);
-    //         updateChatBox({ position: 'docked', width: newWidth });
-    //     }
-
-    //     const mouseUpHandler = e => {
-    //         document.removeEventListener("mousemove", mouseMoveHandler, false);
-    //     }
-
-    //     document.addEventListener("mouseup", mouseUpHandler, { once: true });
-
-    //     const rect = e.target.getBoundingClientRect()
-    //     const start = language === 'ar' ? rect.right : rect.left;
-    //     if (e.pageX <= start + 5 && e.pageX >= start - 5) {
-    //         document.addEventListener("mousemove", mouseMoveHandler, false);
-    //     }
-    // }
-
-    if (position === "full") {
+    if (statePosition === "full") {
         return (
             <div className="chat-full-container bg-white">
                 <div
@@ -168,7 +136,7 @@ function ChatBox() {
                 <ChatContent />
             </div>
         );
-    } else if (position === "closed") {
+    } else if (statePosition === "closed") {
         return (
             <div className="chatbox chatbox-floating chatbox-floating-closed"></div>
         );
@@ -177,7 +145,7 @@ function ChatBox() {
             <div className="bg-white rounded border dark:border-gray-300 overflow-hidden h-full">
                 <div
                     style={{ width: dockedWidth }}
-                    className={`flex flex-col h-full chatbox chatbox-floating chatbox-floating-${position} ${position}`}
+                    className={`flex flex-col h-full chatbox chatbox-floating chatbox-floating-${statePosition} ${statePosition}`}
                 >
                     <div
                         className="bg-zinc-100 flex justify-between items-center p-3"
@@ -190,10 +158,10 @@ function ChatBox() {
                             <Actions />
                         </div>
                     </div>
-                    {position !== "closed" && (
+                    {statePosition !== "closed" && (
                         <div className="grow p-3 overflow-auto">
                             <ChatContent
-                                displayState={position}
+                                displayState={statePosition}
                                 container={"chatbox"}
                             />
                         </div>

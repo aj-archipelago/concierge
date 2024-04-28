@@ -3,11 +3,9 @@ import { useApolloClient } from "@apollo/client";
 import { QUERIES } from "../../graphql";
 import { addMessage } from "../../stores/chatSlice";
 import { useState, useContext } from "react";
-import dynamic from "next/dynamic";
 import { useUpdateAiMemory } from "../../../app/queries/options";
 import { AuthContext } from "../../App.js";
-
-const ChatMessages = dynamic(() => import("./ChatMessages"));
+import ChatMessages from "./ChatMessages";
 
 const contextMessageCount = 5;
 

@@ -1,8 +1,7 @@
 "use client";
 import { Dialog, Transition } from "@headlessui/react";
 import { Bars3Icon, XMarkIcon } from "@heroicons/react/24/outline";
-import dynamic from "next/dynamic";
-import { Fragment, useContext, useEffect, useState } from "react";
+import { Fragment, useContext, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { IoIosChatbubbles } from "react-icons/io";
 import { useDispatch, useSelector } from "react-redux";
@@ -14,28 +13,21 @@ import UserOptions from "../components/UserOptions";
 import Sidebar from "./Sidebar";
 import config from "../../config";
 import { usePathname } from "next/navigation";
+import ChatBox from "../components/chat/ChatBox";
 
 export default function Layout({ children }) {
     const [showOptions, setShowOptions] = useState(false);
     const [sidebarOpen, setSidebarOpen] = useState(false);
-    const [position, setPosition] = useState("closed");
     const statePosition = useSelector((state) => state.chat?.chatBox?.position);
     const dispatch = useDispatch();
     const { t } = useTranslation();
-    const ChatBox = dynamic(() => import("../components/chat/ChatBox"), {
-        ssr: false,
-    });
     const { user } = useContext(AuthContext);
     const pathname = usePathname();
 
     const handleShowOptions = () => setShowOptions(true);
     const handleCloseOptions = () => setShowOptions(false);
 
-    useEffect(() => {
-        setPosition(statePosition);
-    }, [statePosition]);
-
-    const showChatbox = position !== "closed" && pathname !== "/chat";
+    const showChatbox = statePosition !== "closed" && pathname !== "/chat";
 
     return (
         <>
@@ -160,10 +152,12 @@ export default function Layout({ children }) {
                                 className={`${"grow"} bg-white dark:border-gray-200 rounded border p-3 lg:p-4 overflow-auto`}
                                 style={{ height: "calc(100vh - 118px)" }}
                             >
-                                <UserOptions
-                                    show={showOptions}
-                                    handleClose={handleCloseOptions}
-                                />
+                                {showOptions && (
+                                    <UserOptions
+                                        show={showOptions}
+                                        handleClose={handleCloseOptions}
+                                    />
+                                )}
                                 {children}
                             </div>
                             {showChatbox && (
