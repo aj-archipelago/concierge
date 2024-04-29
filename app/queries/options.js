@@ -34,13 +34,12 @@ export function useUpdateAiMemory(
             aiMemory,
             aiMemorySelfModify,
         }) => {
-            await queryClient.cancelQueries(["user", userId]);
+            await queryClient.cancelQueries({ queryKey: ["currentUser"] });
             const previousUser = await queryClient.getQueryData([
-                "user",
-                userId,
+                "currentUser",
             ]);
 
-            queryClient.setQueryData(["user", userId], (old) => {
+            queryClient.setQueryData(["currentUser"], (old) => {
                 return {
                     ...old,
                     contextId,
@@ -70,7 +69,7 @@ export function useUpdateAiMemory(
             return { previousUser };
         },
         onSuccess: (data) => {
-            queryClient.invalidateQueries(["user", userId]);
+            queryClient.invalidateQueries({ queryKey: ["currentUser"] });
         },
     });
 

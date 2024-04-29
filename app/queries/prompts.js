@@ -47,7 +47,7 @@ export function useUpdatePrompt() {
             return response.data;
         },
         onMutate: async ({ id, data }) => {
-            await queryClient.cancelQueries(["prompt", id]);
+            await queryClient.cancelQueries({ queryKey: ["prompt", id] });
             const previousPrompt = queryClient.getQueryData(["prompt", id]);
             queryClient.setQueryData(["prompt", id], (old) => {
                 return { ...old, ...data };

@@ -22,7 +22,7 @@ export function useUpdateWorkspace() {
             await axios.put(`/api/workspaces/${id}`, data);
         },
         onMutate: async ({ id, data }) => {
-            await queryClient.cancelQueries(["workspace", id]);
+            await queryClient.cancelQueries({ queryKey: ["workspace", id] });
             const previousWorkspaces = queryClient.getQueryData([
                 "workspace",
                 id,
@@ -63,7 +63,7 @@ export function useDeleteWorkspace() {
             await axios.delete(`/api/workspaces/${id}`);
         },
         onMutate: async ({ id }) => {
-            await queryClient.cancelQueries(["workspaces"]);
+            await queryClient.cancelQueries({ queryKey: ["workspaces"] });
             const previousWorkspaces = queryClient.getQueryData(["workspaces"]);
             queryClient.setQueryData(["workspaces"], (old) => {
                 return old?.filter((workspace) => workspace._id !== id);
@@ -132,7 +132,7 @@ export function useDeleteWorkspaceRuns() {
             await axios.delete(`/api/workspaces/${id}/runs`);
         },
         onMutate: async ({ id }) => {
-            await queryClient.cancelQueries(["runs"]);
+            await queryClient.cancelQueries({ queryKey: ["runs"] });
             const previousRuns = queryClient.getQueryData(["runs"]);
             queryClient.setQueryData(["runs"], (old) => {
                 return old?.filter((run) => run.workspace !== id);
