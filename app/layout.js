@@ -5,6 +5,11 @@ import App from "../src/App";
 import { getCurrentUser } from "./api/utils/auth";
 import Providers from "./providers";
 import classNames from "./utils/class-names";
+import {
+    HydrationBoundary,
+    QueryClient,
+    dehydrate,
+} from "@tanstack/react-query";
 
 const font = Inter({ subsets: ["latin"] });
 const serverUrl = process.env.SERVER_URL || "http://localhost:3000";
@@ -15,7 +20,18 @@ export default async function RootLayout({ children }) {
     const cookieStore = cookies();
     const language = cookieStore.get("i18next")?.value || "en";
     const theme = cookieStore.get("theme")?.value || "light";
-    let user = await getCurrentUser();
+
+    // This is optional, but it will make the initial load faster
+    // The approach is outlined here (look at the app router example, not the pages router example )
+    // https://tanstack.com/query/v5/docs/framework/react/guides/advanced-ssr#prefetching-and-dehydrating-data
+    const queryClient = new QueryClient();
+    await queryClient.prefetchQuery({
+        queryKey: ["currentUser"],
+        queryFn: async () => {
+            return (await getCurrentUser()).toJSON();
+        },
+        staleTime: Infinity,
+    });
 
     return (
         <html lang={language} dir={language === "ar" ? "rtl" : "ltr"}>
@@ -35,14 +51,15 @@ export default async function RootLayout({ children }) {
                 className={classNames(theme, font.className)}
             >
                 <Providers>
-                    <App
-                        theme={theme}
-                        language={language}
-                        user={user}
-                        serverUrl={serverUrl}
-                    >
-                        {children}
-                    </App>
+                    <HydrationBoundary state={dehydrate(queryClient)}>
+                        <App
+                            theme={theme}
+                            language={language}
+                            serverUrl={serverUrl}
+                        >
+                            {children}
+                        </App>
+                    </HydrationBoundary>
                 </Providers>
             </body>
         </html>
