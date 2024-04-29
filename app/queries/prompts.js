@@ -31,7 +31,7 @@ export function usePrompt(id) {
             const response = await axios.get(`/api/prompts/${id}`);
             return response.data;
         },
-        staleTime: 1000 * 60 * 5,
+        staleTime: Infinity,
         enabled: !!id,
     });
 
@@ -44,8 +44,20 @@ export function useUpdatePrompt() {
     return useMutation({
         mutationFn: async ({ id, data }) => {
             const response = await axios.put(`/api/prompts/${id}`, data);
-            queryClient.invalidateQueries(["prompt", id]);
             return response.data;
+        },
+        onMutate: async ({ id, data }) => {
+            await queryClient.cancelQueries(["prompt", id]);
+            const previousPrompt = queryClient.getQueryData(["prompt", id]);
+            queryClient.setQueryData(["prompt", id], (old) => {
+                return { ...old, ...data };
+            });
+            return { previousPrompt };
+        },
+        onSuccess: (data, variables, context) => {
+            queryClient.invalidateQueries({
+                queryKey: ["prompt", variables.id],
+            });
         },
     });
 }
@@ -62,7 +74,9 @@ export function useCreatePrompt() {
             return response.data;
         },
         onSuccess: (data, { workspaceId }) => {
-            queryClient.invalidateQueries(["workspaces", workspaceId]);
+            queryClient.invalidateQueries({
+                queryKey: ["workspace", workspaceId],
+            });
         },
     });
 }
@@ -75,8 +89,8 @@ export function useDeletePrompt() {
             const response = await axios.delete(
                 `/api/workspaces/${workspaceId}/prompts/${id}`,
             );
-            queryClient.invalidateQueries(["prompt", id]);
-            queryClient.setQueryData(["workspaces", workspaceId], (oldData) => {
+            queryClient.invalidateQueries({ queryKey: ["prompt", id] });
+            queryClient.setQueryData(["workspace", workspaceId], (oldData) => {
                 return {
                     ...oldData,
                     prompts: oldData?.prompts.filter((prompt) => prompt !== id),
