@@ -11,20 +11,27 @@ $navbar-light-color: #fff;
 $navbar-light-active-color: #fff;
 $navbar-nav-link-padding-x: 1rem;
 $font-family-sans-serif:
-    "Inter",
+    Roboto,
+    Inter,
     system-ui,
     -apple-system,
-    "Segoe UI",
-    Roboto,
-    "Helvetica Neue",
-    "Noto Sans",
-    "Liberation Sans",
+    Segoe UI,
+    Helvetica Neue,
+    Noto Sans,
+    Liberation Sans,
     Arial,
     sans-serif,
-    "Apple Color Emoji",
-    "Segoe UI Emoji",
-    "Segoe UI Symbol",
-    "Noto Color Emoji";
+    Apple Color Emoji,
+    Segoe UI Emoji,
+    Segoe UI Symbol,
+    Noto Color Emoji;
+$font-family-serif:
+    Playfair Display,
+    Georgia,
+    Cambria,
+    Times New Roman,
+    Times,
+    serif;
 $chat-primary: #e5f0f0;
 $chat-secondary: #002425;
 
@@ -176,6 +183,16 @@ button:focus:not(:focus-visible),
     .prompt {
         background-color: darken(white, 10%);
     }
+}
+
+body {
+    font-family: $font-family-sans-serif;
+    scrollbar-color: "rgba(209, 213, 219, 0.5) rgba(209, 213, 219, 0.125)";
+}
+
+div {
+    scrollbar-width: thin;
+    scrollbar-color: "rgba(209, 213, 219, 0.5) rgba(209, 213, 219, 0.125)";
 }
 
 // Should be imported at the end to override colours

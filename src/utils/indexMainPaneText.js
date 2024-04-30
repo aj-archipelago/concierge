@@ -1,4 +1,4 @@
-import { COGNITIVE_DELETE, COGNITIVE_INSERT, client } from "../graphql";
+import { COGNITIVE_DELETE, COGNITIVE_INSERT } from "../graphql";
 import {
     setApiLoading,
     clearApiLoading,
@@ -22,48 +22,50 @@ const leadingEdgeDebounce = (func, wait) => {
     };
 };
 
-const callApi = async (inputText, contextId) => {
-    // console.log(`API call with inputText: ${inputText}, contextId: ${contextId}`);
+const callApi = async (inputText, contextId, client) => {
+    if (client) {
+        //console.log(`API call with inputText: ${inputText}, contextId: ${contextId}`);
 
-    const docId = `${contextId}-indexmainpane`;
+        const docId = `${contextId}-indexmainpane`;
 
-    try {
-        !nextApiCallArgs &&
-            (await client.query({
-                query: COGNITIVE_DELETE,
-                variables: { contextId, docId },
-                fetchPolicy: "network-only",
-            }));
+        try {
+            !nextApiCallArgs &&
+                (await client.query({
+                    query: COGNITIVE_DELETE,
+                    variables: { contextId, docId },
+                    fetchPolicy: "network-only",
+                }));
 
-        if (!nextApiCallArgs) {
-            const chunkedTexts = easyChunker(inputText);
-            await Promise.all(
-                chunkedTexts.map(
-                    (chunk) =>
-                        chunk &&
-                        chunk.length > 0 &&
-                        client.query({
-                            query: COGNITIVE_INSERT,
-                            variables: {
-                                text: chunk,
-                                privateData: true,
-                                contextId,
-                                docId,
-                            },
-                            fetchPolicy: "network-only",
-                        }),
-                ),
-            );
+            if (!nextApiCallArgs) {
+                const chunkedTexts = easyChunker(inputText);
+                await Promise.all(
+                    chunkedTexts.map(
+                        (chunk) =>
+                            chunk &&
+                            chunk.length > 0 &&
+                            client.query({
+                                query: COGNITIVE_INSERT,
+                                variables: {
+                                    text: chunk,
+                                    privateData: true,
+                                    contextId,
+                                    docId,
+                                },
+                                fetchPolicy: "network-only",
+                            }),
+                    ),
+                );
 
-            // console.log(`API call complete with ${inputText}`);
+                //console.log(`API call complete with ${inputText}`);
+            }
+        } catch (error) {
+            console.error("Error executing queries:", error);
+            throw error;
         }
-    } catch (error) {
-        console.error("Error executing queries:", error);
-        throw error;
     }
 };
 
-const makeApiCall = async (inputText, contextId, dispatch) => {
+const makeApiCall = async (inputText, contextId, dispatch, client) => {
     dispatch(setApiLoading());
     dispatch(apiError(null));
     if (apiCallInProgress) {
@@ -71,7 +73,7 @@ const makeApiCall = async (inputText, contextId, dispatch) => {
         nextApiCallArgs = { inputText, contextId };
     } else {
         try {
-            apiCallInProgress = callApi(inputText, contextId);
+            apiCallInProgress = callApi(inputText, contextId, client);
             await apiCallInProgress;
         } catch (err) {
             console.error(`API call failed with ${err}`);
@@ -89,10 +91,11 @@ const makeApiCall = async (inputText, contextId, dispatch) => {
     }
 };
 
-const leadingEdgeDebouncedMakeApiCall = leadingEdgeDebounce(makeApiCall, 1000);
+const leadingEdgeDebouncedMakeApiCall = leadingEdgeDebounce(makeApiCall, 2000);
 
-export function indexMainPaneText(text, contextId, dispatch) {
-    leadingEdgeDebouncedMakeApiCall(text, contextId, dispatch);
+export function indexMainPaneText(text, contextId, dispatch, client) {
+    client &&
+        leadingEdgeDebouncedMakeApiCall(text, contextId, dispatch, client);
 }
 
 export function easyChunker(text) {

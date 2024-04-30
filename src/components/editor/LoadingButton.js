@@ -7,16 +7,16 @@ export default function LoadingButton({
     onClick,
     style,
     children,
-    className,
+    className = "lb-primary",
     type,
     text = "",
 }) {
     return (
         <button
             className={classNames(
-                "lb-primary text-center",
+                "text-center",
                 className,
-                loading ? "pe-5" : "",
+                loading ? "pe-[1.5rem]" : "",
             )}
             type={type}
             style={style}

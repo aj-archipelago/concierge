@@ -35,14 +35,6 @@ export const chatSlice = createSlice({
             const message = action.payload;
             if (!message.id) message.id = uuidv4();
             state.messages.push(message);
-
-            if (state.chatBox.position === "closed") {
-                chatSlice.caseReducers.setChatBoxPosition(state, {
-                    payload: {
-                        position: "opened",
-                    },
-                });
-            }
         },
         setContextId: (state, action) => {
             const contextId = action.payload || uuidv4();

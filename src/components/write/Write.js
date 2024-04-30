@@ -13,6 +13,7 @@ import Sidebar from "./Sidebar";
 import Toolbar from "./Toolbar";
 import { indexMainPaneText } from "../../utils/indexMainPaneText";
 import * as amplitude from "@amplitude/analytics-browser";
+import { useApolloClient } from "@apollo/client";
 
 const WriteTab = styled.div`
     display: flex;
@@ -38,6 +39,7 @@ function Write() {
     const dispatch = useDispatch();
     const [headline, setHeadline] = useState("");
     const [subhead, setSubhead] = useState("");
+    const client = useApolloClient();
 
     // The action is the AI action that the user has selected.
     // It triggers the AI modal.
@@ -66,9 +68,9 @@ function Write() {
             };
 
             dispatch(setWriteInputText(getUpdatedText(t)));
-            indexMainPaneText(getUpdatedText(t), contextId, dispatch);
+            indexMainPaneText(getUpdatedText(t), contextId, dispatch, client);
         },
-        [dispatch, action, inputText, selection, contextId],
+        [dispatch, action, inputText, selection, contextId, client],
     );
 
     const handleEditorSelect = React.useCallback(
@@ -81,9 +83,9 @@ function Write() {
     const handleEditorChange = React.useCallback(
         (text) => {
             dispatch(setWriteInputText(text));
-            indexMainPaneText(text, contextId, dispatch);
+            indexMainPaneText(text, contextId, dispatch, client);
         },
-        [dispatch, contextId],
+        [dispatch, contextId, client],
     );
 
     const editorPane = useMemo(() => {

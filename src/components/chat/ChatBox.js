@@ -1,6 +1,6 @@
 "use client";
 
-import { useContext, useRef } from "react";
+import { useContext, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
     FaWindowClose,
@@ -13,10 +13,11 @@ import { LanguageContext } from "../../contexts/LanguageProvider";
 import { setChatBoxPosition } from "../../stores/chatSlice";
 import ChatContent from "./ChatContent";
 import config from "../../../config";
+import { useRouter } from "next/navigation";
 
 function ChatBox() {
-    const position =
-        useSelector((state) => state.chat?.chatBox?.position) || "closed";
+    const statePosition = useSelector((state) => state.chat?.chatBox?.position);
+    const [position, setPosition] = useState("closed");
     const dispatch = useDispatch();
     // let location = useLocation();
     const dockedWidth = useSelector((state) => state?.chat?.chatBox?.width);
@@ -24,17 +25,11 @@ function ChatBox() {
     dockedWidthRef.current = dockedWidth;
     const { t } = useTranslation();
     const { language } = useContext(LanguageContext);
+    const router = useRouter();
 
-    // useEffect(
-    //     () => {
-    //         if (firstTimeLeavingChat && ((location.state ? location.state.from : '/').indexOf('chat') !== -1)) {
-    //             // if this is the first time leaving chat, open the floating chat
-    //             setFirstTimeLeavingChat(false)
-    //         }
-    //         setVisible(location.pathname.indexOf('chat') === -1)
-    //     },
-    //     [location, firstTimeLeavingChat]
-    // )
+    useEffect(() => {
+        setPosition(statePosition);
+    }, [statePosition]);
 
     const updateChatBox = (newPosition) => {
         dispatch(setChatBoxPosition(newPosition));
@@ -95,7 +90,12 @@ function ChatBox() {
             case "docked":
                 return (
                     <>
-                        {/* <FaWindowMaximize onClick={(e) => { e.stopPropagation(); updateChatBox({ position: 'full' }) }} />&nbsp;&nbsp; */}
+                        <FaWindowMaximize
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                router.push("/chat");
+                            }}
+                        />
                         <FaWindowClose
                             onClick={(e) => {
                                 e.stopPropagation();
@@ -174,10 +174,10 @@ function ChatBox() {
         );
     } else {
         return (
-            <div className="bg-white rounded border dark:border-gray-300 overflow-hidden">
+            <div className="bg-white rounded border dark:border-gray-300 overflow-hidden h-full">
                 <div
                     style={{ width: dockedWidth }}
-                    className={`d-md-block chatbox chatbox-floating chatbox-floating-${position}`}
+                    className={`flex flex-col h-full chatbox chatbox-floating chatbox-floating-${position} ${position}`}
                 >
                     <div
                         className="bg-zinc-100 flex justify-between items-center p-3"
@@ -191,7 +191,7 @@ function ChatBox() {
                         </div>
                     </div>
                     {position !== "closed" && (
-                        <div className="message-list-container">
+                        <div className="grow p-3 overflow-auto">
                             <ChatContent
                                 displayState={position}
                                 container={"chatbox"}

@@ -16,9 +16,11 @@ export default function Tags({ inputText }) {
     const [potentialTags, setPotentialTags] = useState([]);
 
     useEffect(() => {
-        config?.data?.getTags(language).then((tags) => {
-            setPotentialTags(tags || []);
-        });
+        setTimeout(() => {
+            config?.data?.getTags(language).then((tags) => {
+                setPotentialTags(tags || []);
+            });
+        }, 1);
     }, [potentialTags, language]);
 
     if (!potentialTags) {

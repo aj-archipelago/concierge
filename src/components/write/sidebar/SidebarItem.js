@@ -120,7 +120,7 @@ export default function SidebarItem({
             </Accordion.Header>
             <Accordion.Body
                 onEnter={() => {
-                    console.log("test", output.length, haveEnoughText);
+                    //console.log("test", output.length, haveEnoughText);
 
                     if (!output.length && haveEnoughText) {
                         request();
