@@ -1,6 +1,6 @@
 {
-    "name": "labeeb",
-    "version": "2.3.01",
+    "name": "concierge",
+    "version": "0.3.0",
     "private": true,
     "dependencies": {
         "@amplitude/analytics-browser": "^2.3.2",
