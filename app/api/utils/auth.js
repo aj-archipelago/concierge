@@ -25,7 +25,7 @@ export const getCurrentUser = async () => {
             headerList.get("X-MS-CLIENT-PRINCIPAL-NAME") || "Anonymous";
         const name = username;
         const contextId = uuidv4();
-        const aiMemory = "{}";
+        const aiMemory = "";
         const aiMemorySelfModify = true;
 
         user = await User.create({
