@@ -98,7 +98,7 @@ function MyFilePond({
     files,
     setFiles,
     labelIdle = 'Drag & Drop your files or <span class="filepond--label-action">Browse</span>',
-    setIsUploadingMedia
+    setIsUploadingMedia,
 }) {
     const serverUrl = "/media-helper?useGoogle=true";
 
@@ -123,7 +123,7 @@ function MyFilePond({
                         progress,
                         abort,
                     ) => {
-                        if(isMediaUrl(file?.name)){
+                        if (isMediaUrl(file?.name)) {
                             setIsUploadingMedia(true);
                         }
                         // Create a new hash object

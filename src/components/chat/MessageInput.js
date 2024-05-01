@@ -187,7 +187,11 @@ function MessageInput({ onSend, loading, enableRag, placeholder }) {
                         <div className="pt-4">
                             <button
                                 type="submit"
-                                disabled={loading || inputValue === "" || isUploadingMedia}
+                                disabled={
+                                    loading ||
+                                    inputValue === "" ||
+                                    isUploadingMedia
+                                }
                                 className={classNames(
                                     "text-base rtl:rotate-180 text-emerald-600 hover:text-emerald-600 disabled:text-gray-300 active:text-gray-800 dark:bg-zinc-100",
                                 )}
