@@ -72,6 +72,14 @@ $chat-secondary: #002425;
     font-size: 14px;
 }
 
+.btn-primary-custom {
+    background-color: $primary !important;
+}
+
+.btn-secondary-custom {
+    background-color: $secondary !important;
+}
+
 .content {
     padding-top: 10px;
 }
