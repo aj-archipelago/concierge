@@ -1,5 +1,5 @@
 import "highlight.js/styles/github.css";
-import { useState } from "react";
+import { useContext, useState } from "react";
 import { Form } from "react-bootstrap";
 import { RiSendPlane2Fill } from "react-icons/ri";
 import TextareaAutosize from "react-textarea-autosize";
@@ -8,7 +8,7 @@ import dynamic from "next/dynamic";
 import { v4 as uuidv4 } from "uuid";
 import { useApolloClient } from "@apollo/client";
 import { COGNITIVE_INSERT } from "../../graphql";
-import { useDispatch, useSelector } from "react-redux";
+import { useDispatch } from "react-redux";
 import { addDoc, addSource } from "../../stores/docSlice";
 import {
     setFileLoading,
@@ -18,6 +18,7 @@ import {
 import { FaFileCirclePlus } from "react-icons/fa6";
 import { IoCloseCircle } from "react-icons/io5";
 import { isDocumentUrl, isMediaUrl } from "./MyFilePond";
+import { AuthContext } from "../../App";
 
 const DynamicFilepond = dynamic(() => import("./MyFilePond"), {
     ssr: false,
@@ -30,7 +31,8 @@ function MessageInput({ onSend, loading, enableRag, placeholder }) {
     const [files, setFiles] = useState([]);
     const [showFileUpload, setShowFileUpload] = useState(false);
     const client = useApolloClient();
-    const contextId = useSelector((state) => state.chat.contextId);
+    const { user } = useContext(AuthContext);
+    const contextId = user?.contextId;
     const dispatch = useDispatch();
     const [isUploadingMedia, setIsUploadingMedia] = useState(false);
 
