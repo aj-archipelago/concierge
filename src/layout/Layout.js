@@ -135,14 +135,12 @@ export default function Layout({ children }) {
                                     <IoIosChatbubbles /> {t("Chat")}
                                 </button>
                             </div>
-                            {config.auth?.provider && (
-                                <div>
-                                    <ProfileDropdown
-                                        user={user}
-                                        handleShowOptions={handleShowOptions}
-                                    />
-                                </div>
-                            )}
+                            <div>
+                                <ProfileDropdown
+                                    user={user}
+                                    handleShowOptions={handleShowOptions}
+                                />
+                            </div>
                         </div>
                     </div>
 
