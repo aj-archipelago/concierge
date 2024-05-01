@@ -25,7 +25,7 @@ export const getCurrentUser = async () => {
             headerList.get("X-MS-CLIENT-PRINCIPAL-NAME") || "Anonymous";
         const name = username;
         const contextId = uuidv4();
-        const aiMemory = "{}";
+        const aiMemory = "";
         const aiMemorySelfModify = true;
 
         user = await User.create({
@@ -36,6 +36,16 @@ export const getCurrentUser = async () => {
             aiMemory,
             aiMemorySelfModify,
         });
+    } else if (!user.contextId) {
+        console.log(
+            `User ${user.userId} has no contextId, creating the contextId`,
+        );
+        user.contextId = uuidv4();
+        try {
+            user = await user.save();
+        } catch (err) {
+            console.log("Error saving user: ", err);
+        }
     }
 
     // user._id coming from mongoose is an object, even after calling toJSON()
