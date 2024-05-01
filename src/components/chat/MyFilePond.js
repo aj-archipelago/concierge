@@ -1,6 +1,8 @@
 import { FilePond, registerPlugin } from "react-filepond";
 import FilePondPluginFileValidateType from "filepond-plugin-file-validate-type";
 import mime from "mime-types";
+import crypto from "crypto";
+import axios from "axios";
 
 // Import FilePond styles
 import "filepond/dist/filepond.min.css";
@@ -97,6 +99,8 @@ function MyFilePond({
     setFiles,
     labelIdle = 'Drag & Drop your files or <span class="filepond--label-action">Browse</span>',
 }) {
+    const serverUrl = "/media-helper?useGoogle=true";
+
     return (
         <>
             <FilePond
@@ -108,15 +112,84 @@ function MyFilePond({
                 allowMultiple={true}
                 // maxFiles={3}
                 server={{
-                    url: "/media-helper",
-                    process: {
-                        onload: (response) => {
-                            const data = JSON.parse(response);
-                            addUrl(data);
-                        },
-                        onerror: (response) => {
-                            console.error("Error:", response);
-                        },
+                    url: serverUrl,
+                    process: async (
+                        fieldName,
+                        file,
+                        metadata,
+                        load,
+                        error,
+                        progress,
+                        abort,
+                    ) => {
+                        // Create a new hash object
+                        const hash = crypto.createHash("sha256");
+
+                        // Read the file into a buffer
+                        const arrayBuffer = await file.arrayBuffer();
+                        const array = new Uint8Array(arrayBuffer);
+                        // Update the hash object with data from file
+                        array.forEach((chunk) => {
+                            hash.update(new Uint8Array([chunk]));
+                        });
+                        // Obtain the hash of the file
+                        const fileHash = hash.digest("hex");
+
+                        // console.log('File hash', fileHash);
+
+                        // Check if file with same hash is already on the server
+                        try {
+                            const response = await axios.get(
+                                `${serverUrl}&hash=${fileHash}&checkHash=true`,
+                            );
+                            if (response.status === 200) {
+                                // console.log(response.data)
+                                if (response.data && response.data.url) {
+                                    load(response.data);
+                                    addUrl(response.data);
+                                    return;
+                                }
+                            }
+                        } catch (err) {
+                            console.error(err);
+                        }
+
+                        // Do the uploading after checking
+                        const formData = new FormData();
+                        formData.append("hash", fileHash); // add fileHash to formData
+                        formData.append(fieldName, file, file.name);
+                        const request = new XMLHttpRequest();
+                        request.open("POST", `${serverUrl}&hash=${fileHash}`); // attach fileHash as a URL parameter
+
+                        request.upload.onprogress = (e) => {
+                            progress(e.lengthComputable, e.loaded, e.total);
+                        };
+                        request.onload = function () {
+                            if (request.status >= 200 && request.status < 300) {
+                                let responseData = request.responseText;
+                                try {
+                                    responseData = JSON.parse(
+                                        request.responseText,
+                                    ); // Parse the response to a JS object
+                                } catch (err) {
+                                    console.error(err);
+                                }
+                                load(responseData);
+                                addUrl(responseData); // Call 'addUrl' with the parsed response data
+                            } else {
+                                error("Error while uploading");
+                            }
+                        };
+                        request.send(formData);
+
+                        // expose an abort method so FilePond can cancel the file if requested
+                        return {
+                            abort: () => {
+                                request.abort();
+                                // Let FilePond know the request has been cancelled
+                                abort();
+                            },
+                        };
                     },
                 }}
                 onprocessfile={(error, file) => {
