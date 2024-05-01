@@ -25,7 +25,7 @@ export function useUpdateCurrentUser() {
             // return response.data;
         },
         onSettled: () => {
-            queryClient.invalidateQueries(["currentUser"]);
+            queryClient.invalidateQueries({ queryKey: ["currentUser"] });
         },
     });
 

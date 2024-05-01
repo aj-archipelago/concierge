@@ -11,11 +11,7 @@ export const getCurrentUser = async () => {
         return { userId: "nodb", name: "No Database Connected" };
     }
 
-    if (!auth.provider) {
-        return;
-    }
-
-    if (auth.provider !== "entra") {
+    if (auth.provider && auth.provider !== "entra") {
         throw new Error(`Unsupported auth provider: ${auth.provider}`);
     }
 
