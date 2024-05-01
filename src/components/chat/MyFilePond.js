@@ -98,6 +98,7 @@ function MyFilePond({
     files,
     setFiles,
     labelIdle = 'Drag & Drop your files or <span class="filepond--label-action">Browse</span>',
+    setIsUploadingMedia,
 }) {
     const serverUrl = "/media-helper?useGoogle=true";
 
@@ -122,6 +123,9 @@ function MyFilePond({
                         progress,
                         abort,
                     ) => {
+                        if (isMediaUrl(file?.name)) {
+                            setIsUploadingMedia(true);
+                        }
                         // Create a new hash object
                         const hash = crypto.createHash("sha256");
 
@@ -147,11 +151,13 @@ function MyFilePond({
                                 if (response.data && response.data.url) {
                                     load(response.data);
                                     addUrl(response.data);
+                                    setIsUploadingMedia(false);
                                     return;
                                 }
                             }
                         } catch (err) {
                             console.error(err);
+                            setIsUploadingMedia(false);
                         }
 
                         // Do the uploading after checking
@@ -176,8 +182,10 @@ function MyFilePond({
                                 }
                                 load(responseData);
                                 addUrl(responseData); // Call 'addUrl' with the parsed response data
+                                setIsUploadingMedia(false);
                             } else {
                                 error("Error while uploading");
+                                setIsUploadingMedia(false);
                             }
                         };
                         request.send(formData);
