@@ -80,16 +80,16 @@ const UserOptions = ({ show, handleClose }) => {
             </Modal.Body>
             <Modal.Footer style={{ padding: "1rem" }}>
                 <Button
+                    className='btn-secondary-custom'
                     variant="secondary"
-                    style={{ backGroundColor: "secondary" }}
                     size="sm"
                     onClick={handleClose}
                 >
                     {t("Close")}
                 </Button>
                 <Button
+                    className='btn-primary-custom'
                     variant="primary"
-                    style={{ backGroundColor: "primary" }}
                     size="sm"
                     onClick={handleSave}
                 >
