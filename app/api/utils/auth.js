@@ -37,7 +37,9 @@ export const getCurrentUser = async () => {
             aiMemorySelfModify,
         });
     } else if (!user.contextId) {
-        console.log(`User ${user.userId} has no contextId, creating the contextId`);
+        console.log(
+            `User ${user.userId} has no contextId, creating the contextId`,
+        );
         user.contextId = uuidv4();
         try {
             user = await user.save();
