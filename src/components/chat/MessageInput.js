@@ -32,6 +32,7 @@ function MessageInput({ onSend, loading, enableRag, placeholder }) {
     const client = useApolloClient();
     const contextId = useSelector((state) => state.chat.contextId);
     const dispatch = useDispatch();
+    const [isUploadingMedia, setIsUploadingMedia] = useState(false);
 
     const handleInputChange = (event) => {
         setInputValue(event.target.value);
@@ -131,6 +132,7 @@ function MessageInput({ onSend, loading, enableRag, placeholder }) {
                     addUrl={addUrl}
                     files={files}
                     setFiles={setFiles}
+                    setIsUploadingMedia={setIsUploadingMedia}
                 />
             )}
             <div className="rounded border dark:border-zinc-200">
@@ -185,7 +187,7 @@ function MessageInput({ onSend, loading, enableRag, placeholder }) {
                         <div className="pt-4">
                             <button
                                 type="submit"
-                                disabled={loading || inputValue === ""}
+                                disabled={loading || inputValue === "" || isUploadingMedia}
                                 className={classNames(
                                     "text-base rtl:rotate-180 text-emerald-600 hover:text-emerald-600 disabled:text-gray-300 active:text-gray-800 dark:bg-zinc-100",
                                 )}
