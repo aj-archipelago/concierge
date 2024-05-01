@@ -40,6 +40,14 @@ export const getCurrentUser = async () => {
             aiMemory,
             aiMemorySelfModify,
         });
+    } else if (!user.contextId) {
+        console.log(`User ${user.userId} has no contextId, creating the contextId`);
+        user.contextId = uuidv4();
+        try {
+            user = await user.save();
+        } catch (err) {
+            console.log("Error saving user: ", err);
+        }
     }
 
     // user._id coming from mongoose is an object, even after calling toJSON()
