@@ -153,7 +153,10 @@ function convertMessageToMarkdown(message) {
 
     // Currency doesn't play well with math markdown
     const currencyRegex = /\$[0-9,.]+[0-9]*?/g;
-    const modifiedPayload = payload.replace(currencyRegex, match => '\\' + match);
+    const modifiedPayload = payload.replace(
+        currencyRegex,
+        (match) => "\\" + match,
+    );
 
     return (
         <Markdown
