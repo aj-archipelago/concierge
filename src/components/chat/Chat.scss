@@ -218,6 +218,7 @@ html[dir="ltr"] {
         border-start-start-radius: 0;
         position: relative;
         max-width: calc(50vw);
+        overflow: hidden;
 
         .chatbox-floating-title {
             height: 87px;
@@ -291,10 +292,11 @@ html[dir="ltr"] {
 .chat-message-user {
     margin-top: 0;
     margin-bottom: 0;
+    padding-inline-end: 4px;
     font-family: $font-family-sans-serif;
     font-size: 14px;
     line-height: 1.5;
-    white-space: pre-wrap;
+    overflow: hidden;
 }
 
 .chat-message-bot {
@@ -303,6 +305,8 @@ html[dir="ltr"] {
     font-size: 14px; // Good readability size
     line-height: 1.5; // Spacing for readability
     color: #333; // Dark color for contrast
+    padding-inline-end: 4px;
+    overflow: hidden;
 
     // Markdown heading styling
     h1,
@@ -394,6 +398,8 @@ html[dir="ltr"] {
 .code-block {
     position: relative;
     font-size: 0.8rem;
+    overflow-x: auto;
+    overflow-y: auto;
 }
 
 .typing-indicator {

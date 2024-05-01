@@ -2,12 +2,10 @@ import { useContext, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { FaEdit } from "react-icons/fa";
 import LoadingButton from "../../../src/components/editor/LoadingButton";
-import Loader from "../../components/loader";
 import { useLLMs } from "../../queries/llms";
 import {
     useCreatePrompt,
     useDeletePrompt,
-    usePromptsByIds,
     useUpdatePrompt,
 } from "../../queries/prompts";
 import {

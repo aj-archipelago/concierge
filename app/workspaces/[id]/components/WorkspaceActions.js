@@ -101,7 +101,9 @@ function Name({ workspace, user }) {
             return response.data;
         },
         onMutate: async (attrs) => {
-            await queryClient.cancelQueries(["workspace", workspace?._id]);
+            await queryClient.cancelQueries({
+                queryKey: ["workspace", workspace?._id],
+            });
             const previousWorkspace = queryClient.getQueryData([
                 "workspace",
                 workspace?._id,

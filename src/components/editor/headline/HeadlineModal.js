@@ -143,7 +143,7 @@ function HeadlineModal({ text, onSelect, args }) {
                     </div>
                     <div style={{ flexBasis: "60%" }}>
                         <LoadingButton
-                            className="mb-3"
+                            className={"lb-primary mb-2.5"}
                             onClick={() => {
                                 if (
                                     parameters.idea !== workingIdea ||

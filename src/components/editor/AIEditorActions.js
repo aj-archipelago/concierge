@@ -105,7 +105,7 @@ const actions = {
                         <div
                             style={{ fontWeight: "bold", marginRight: "10px" }}
                         >
-                            {t("Target Summary Length")}:
+                            {t("Length")}:
                         </div>
                         <div style={{}}>
                             <input

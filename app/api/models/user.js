@@ -21,6 +21,22 @@ const userSchema = new mongoose.Schema(
             required: true,
             trim: true, // Trims whitespace from the name
         },
+        aiMemorySelfModify: {
+            type: Boolean,
+            required: true,
+            default: true,
+        },
+        contextId: {
+            type: String,
+            required: true,
+            trim: true,
+        },
+        aiMemory: {
+            type: String,
+            required: false,
+            trim: true,
+            default: "{}",
+        },
     },
     {
         timestamps: true,
