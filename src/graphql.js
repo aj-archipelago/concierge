@@ -143,6 +143,7 @@ const RAG_START = gql`
         $roleInformation: String
         $indexName: String
         $semanticConfiguration: String
+        $aiName: String
     ) {
         rag_start(
             chatHistory: $chatHistory
@@ -152,6 +153,7 @@ const RAG_START = gql`
             roleInformation: $roleInformation
             indexName: $indexName
             semanticConfiguration: $semanticConfiguration
+            aiName: $aiName
         ) {
             result
             contextId
@@ -160,7 +162,7 @@ const RAG_START = gql`
     }
 `;
 
-const RAG_FINISH = gql`
+const RAG_GENERATOR_RESULTS = gql`
     query RagFinish(
         $chatHistory: [MultiMessage]!
         $dataSources: [String]
@@ -169,8 +171,9 @@ const RAG_FINISH = gql`
         $roleInformation: String
         $indexName: String
         $semanticConfiguration: String
+        $aiName: String
     ) {
-        rag_finish(
+        rag_generator_results(
             chatHistory: $chatHistory
             dataSources: $dataSources
             contextId: $contextId
@@ -178,6 +181,7 @@ const RAG_FINISH = gql`
             roleInformation: $roleInformation
             indexName: $indexName
             semanticConfiguration: $semanticConfiguration
+            aiName: $aiName
         ) {
             result
             contextId
@@ -552,7 +556,7 @@ const QUERIES = {
     COGNITIVE_INSERT,
     IMAGE,
     RAG_START,
-    RAG_FINISH,
+    RAG_GENERATOR_RESULTS,
     EXPAND_STORY,
     FORMAT_PARAGRAPH_TURBO,
     SELECT_SERVICES,
@@ -604,7 +608,7 @@ export {
     COGNITIVE_DELETE,
     EXPAND_STORY,
     RAG_START,
-    RAG_FINISH,
+    RAG_GENERATOR_RESULTS,
     SELECT_SERVICES,
     SUMMARY,
     HASHTAGS,

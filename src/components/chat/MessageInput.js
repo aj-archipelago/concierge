@@ -17,7 +17,7 @@ import {
 } from "../../stores/fileUploadSlice";
 import { FaFileCirclePlus } from "react-icons/fa6";
 import { IoCloseCircle } from "react-icons/io5";
-import { isDocumentUrl } from "./MyFilePond";
+import { isDocumentUrl, isMediaUrl } from "./MyFilePond";
 
 const DynamicFilepond = dynamic(() => import("./MyFilePond"), {
     ssr: false,
@@ -26,7 +26,7 @@ const DynamicFilepond = dynamic(() => import("./MyFilePond"), {
 // Displays the list of messages and a message input box.
 function MessageInput({ onSend, loading, enableRag, placeholder }) {
     const [inputValue, setInputValue] = useState("");
-    const [urls, setUrls] = useState([]);
+    const [urlsData, setUrlsData] = useState([]);
     const [files, setFiles] = useState([]);
     const [showFileUpload, setShowFileUpload] = useState(false);
     const client = useApolloClient();
@@ -40,14 +40,23 @@ function MessageInput({ onSend, loading, enableRag, placeholder }) {
     const prepareMessage = (inputText) => {
         return [
             JSON.stringify({ type: "text", text: inputText }),
-            ...(urls || [])?.map((url) =>
-                JSON.stringify({
+            ...(urlsData || [])?.map(({ url, gcs }) => {
+                const obj = {
                     type: "image_url",
-                    image_url: {
-                        url,
-                    },
-                }),
-            ),
+                };
+
+                if (gcs) {
+                    obj.gcs = gcs;
+                    obj.url = url;
+                    obj.image_url = {
+                        url: gcs,
+                    };
+                } else {
+                    obj.image_url = { url };
+                }
+
+                return JSON.stringify(obj);
+            }),
         ];
     };
 
@@ -55,14 +64,15 @@ function MessageInput({ onSend, loading, enableRag, placeholder }) {
         event.preventDefault();
         if (!loading && inputValue) {
             const message = prepareMessage(inputValue);
-            onSend(urls && urls.length > 0 ? message : inputValue);
+            onSend(urlsData && urlsData.length > 0 ? message : inputValue);
             setInputValue("");
             setFiles([]);
-            setUrls([]);
+            setUrlsData([]);
         }
     };
 
-    const addUrl = (url) => {
+    const addUrl = (urlData) => {
+        const { url } = urlData;
         const fetchData = async (url) => {
             if (!url) return;
 
@@ -108,7 +118,9 @@ function MessageInput({ onSend, loading, enableRag, placeholder }) {
         if (isDocumentUrl(url)) {
             fetchData(url);
         } else {
-            setUrls([...urls, url]); //rest of it: images
+            if (isMediaUrl(url)) {
+                setUrlsData([...urlsData, urlData]); //rest of it: images
+            }
         }
     };
 
