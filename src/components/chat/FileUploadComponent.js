@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 import { v4 as uuidv4 } from "uuid";
 import { COGNITIVE_INSERT } from "../../graphql";
 import { useApolloClient } from "@apollo/client";
-import { useDispatch, useSelector } from "react-redux";
+import { useDispatch } from "react-redux";
 import { addDoc, addSource } from "../../stores/docSlice";
 import {
     setFileLoading,
@@ -12,13 +12,14 @@ import {
     loadingError,
 } from "../../stores/fileUploadSlice";
 import config from "../../../config";
-import { ServerContext } from "../../App";
+import { AuthContext, ServerContext } from "../../App";
 
 function FileUploadComponent({ text }) {
     const [url, setUrl] = useState(null);
     const [filename, setFilename] = useState(null);
     const { t } = useTranslation();
-    const contextId = useSelector((state) => state.chat.contextId);
+    const { user } = useContext(AuthContext);
+    const contextId = user?.contextId;
     const dispatch = useDispatch();
     const [isLoading, setIsLoading] = useState(false);
     const client = useApolloClient();
