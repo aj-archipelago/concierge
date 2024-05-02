@@ -9,7 +9,7 @@ export function useDeleteRun() {
             await axios.delete(`/api/runs/${id}`);
         },
         onMutate: async ({ id }) => {
-            await queryClient.cancelQueries(["runs"]);
+            await queryClient.cancelQueries({ queryKey: ["runs"] });
             const previousRuns = queryClient.getQueryData(["runs"]);
             queryClient.setQueryData(["runs"], (old) =>
                 old?.filter((run) => run.id !== id),
@@ -17,7 +17,7 @@ export function useDeleteRun() {
             return { previousRuns };
         },
         onSuccess: () => {
-            queryClient.invalidateQueries(["runs"]);
+            queryClient.invalidateQueries({ queryKey: ["runs"] });
         },
     });
 
@@ -38,7 +38,7 @@ export function useCreateRun() {
             return data;
         },
         onSuccess: () => {
-            queryClient.invalidateQueries(["runs"]);
+            queryClient.invalidateQueries({ queryKey: ["runs"] });
         },
     });
 

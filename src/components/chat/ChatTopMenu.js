@@ -12,8 +12,9 @@ import {
 import { COGNITIVE_DELETE } from "../../graphql";
 import { useLazyQuery } from "@apollo/client";
 import { removeDoc, removeDocs } from "../../stores/docSlice";
-import { useState } from "react";
+import { useContext, useState } from "react";
 import Loader from "../../../app/components/loader";
+import { AuthContext } from "../../App";
 
 function getFileIcon(filename) {
     const extension = filename?.split(".").pop().toLowerCase();
@@ -37,7 +38,8 @@ function ChatTopMenu({ displayState = "full" }) {
     const dispatch = useDispatch();
     const docs = useSelector((state) => state.doc.docs);
     const { t } = useTranslation();
-    const contextId = useSelector((state) => state.chat.contextId);
+    const { user } = useContext(AuthContext);
+    const contextId = user?.contextId;
     const [currentlyDeletingDocId, setCurrentlyDeletingDocId] = useState(null);
     const mainPaneIndexerLoading = useSelector(
         (state) => state.mainPaneIndexer.isLoading,

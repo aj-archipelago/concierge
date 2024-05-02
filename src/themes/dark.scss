@@ -496,12 +496,6 @@ body.dark {
         border-color: $border-color-dark;
     }
 
-    .modal-header {
-        .btn-close {
-            background-color: $text-color-dark;
-        }
-    }
-
     .prompt-info {
         .prompt {
             background-color: lighten($bg-color-dark, 20%);

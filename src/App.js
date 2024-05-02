@@ -14,6 +14,7 @@ import Layout from "./layout/Layout";
 import "./App.scss";
 import "./tailwind.css";
 import dynamic from "next/dynamic";
+import { useCurrentUser } from "../app/queries/users";
 
 const { NEXT_PUBLIC_AMPLITUDE_API_KEY } = process.env;
 
@@ -25,9 +26,15 @@ if (typeof document !== "undefined") {
 
 export const AuthContext = React.createContext({});
 
-const App = ({ children, language, theme, user, serverUrl }) => {
+const App = ({ children, language, theme, serverUrl }) => {
     if (i18next.language !== language) {
         i18next.changeLanguage(language);
+    }
+
+    const { data: currentUser } = useCurrentUser();
+
+    if (!currentUser) {
+        return null;
     }
 
     return (
@@ -37,7 +44,9 @@ const App = ({ children, language, theme, user, serverUrl }) => {
                     <ThemeProvider savedTheme={theme}>
                         <LanguageProvider savedLanguage={language}>
                             <React.StrictMode>
-                                <AuthContext.Provider value={{ user }}>
+                                <AuthContext.Provider
+                                    value={{ user: currentUser }}
+                                >
                                     <Layout>
                                         <Body>{children}</Body>
                                     </Layout>

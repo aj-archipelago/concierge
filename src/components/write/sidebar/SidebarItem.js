@@ -90,7 +90,14 @@ export default function SidebarItem({
         <Accordion.Item eventKey={key}>
             <Accordion.Header>
                 <div className="flex justify-between items-center w-full me-3">
-                    <div className="flex gap-1 items-center">
+                    <div
+                        className="flex gap-1 items-center"
+                        style={{
+                            whiteSpace: "nowrap",
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                        }}
+                    >
                         {icon}&nbsp;
                         {t(name)}&nbsp;
                     </div>

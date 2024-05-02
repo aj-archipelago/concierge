@@ -39,6 +39,10 @@ export default {
                 name: "Claude 3 Sonnet",
                 cortexPathwayName: "run_claude3_sonnet",
             },
+            {
+                name: "Claude 3 Opus",
+                cortexPathwayName: "run_claude3_opus",
+            },
         ],
     },
     write: {

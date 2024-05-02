@@ -1,26 +1,34 @@
-import { useContext, useState } from "react";
-import { FaEdit, FaPlay } from "react-icons/fa";
-import stringcase from "stringcase";
-import LoadingButton from "../../../src/components/editor/LoadingButton";
-import Loader from "../../components/loader";
-import { WorkspaceContext } from "./WorkspaceContent";
-import { useLLM, useLLMs } from "../../queries/llms";
+import { DragDropContext, Draggable, Droppable } from "@hello-pangea/dnd";
+import { useContext, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { FaEdit, FaPlay } from "react-icons/fa";
+import LoadingButton from "../../../src/components/editor/LoadingButton";
 import { LanguageContext } from "../../../src/contexts/LanguageProvider";
+import Loader from "../../components/loader";
+import { useLLM, useLLMs } from "../../queries/llms";
+import { usePromptsByIds } from "../../queries/prompts";
+import { WorkspaceContext } from "./WorkspaceContent";
 
 export default function PromptList({
     inputValid,
-    prompts,
+    promptIds,
     onRun,
     onEdit,
     onNew,
     onRunAll,
+    onReorder,
 }) {
     const [runningPromptId, setRunningPromptId] = useState(null);
     const [filter, setFilter] = useState("");
     const { isOwner } = useContext(WorkspaceContext);
     const { t } = useTranslation();
     const { direction } = useContext(LanguageContext);
+    const [tempPromptIds, setTempPromptIds] = useState(promptIds);
+    const { data: prompts } = usePromptsByIds(tempPromptIds);
+
+    useEffect(() => {
+        setTempPromptIds(promptIds);
+    }, [promptIds]);
 
     const filteredPrompts = prompts?.filter((prompt) =>
         prompt?.title.toLowerCase().includes(filter.toLowerCase()),
@@ -41,6 +49,25 @@ export default function PromptList({
         await onRun(prompt);
         setRunningPromptId(null);
     };
+
+    const onDragEnd = (result) => {
+        if (!result.destination) {
+            return;
+        }
+
+        console.log(
+            "result.source.index",
+            result.source.index,
+            "result.destination.index",
+            result.destination.index,
+        );
+        const items = Array.from(promptIds);
+        const [reorderedItem] = items.splice(result.source.index, 1);
+        items.splice(result.destination.index, 0, reorderedItem);
+        setTempPromptIds(items);
+        onReorder(items);
+    };
+
     return (
         <div className="flex flex-col grow overflow-auto p-1">
             <div className="flex justify-between items-center mb-3">
@@ -63,7 +90,7 @@ export default function PromptList({
                             await onRunAll();
                             setRunningPromptId(null);
                         }}
-                        className={"lb-success lb-sm flex gap-2"}
+                        className={"lb-success lb-sm flex gap-2 mb-0"}
                     >
                         <span
                             className={direction === "rtl" ? "rotate-180" : ""}
@@ -81,22 +108,55 @@ export default function PromptList({
                 onChange={(e) => setFilter(e.target.value)}
                 className="lb-input text-sm mb-3"
             />
-            <ul className="text-sm grow overflow-auto">
-                {filteredPrompts.map((prompt) => {
-                    const isPromptRunning = runningPromptId === prompt._id;
+            <DragDropContext onDragEnd={onDragEnd}>
+                <Droppable droppableId="droppable">
+                    {(provided, snapshot) => (
+                        <div
+                            className="text-sm grow overflow-auto"
+                            {...provided.droppableProps}
+                            ref={provided.innerRef}
+                        >
+                            {filteredPrompts.map((prompt, index) => {
+                                const isPromptRunning =
+                                    runningPromptId === prompt._id;
 
-                    return (
-                        <PromptListItem
-                            key={prompt._id}
-                            prompt={prompt}
-                            isRunning={isPromptRunning}
-                            onEdit={onEdit}
-                            onRun={() => onPromptRun(prompt)}
-                            inputValid={inputValid}
-                        />
-                    );
-                })}
-            </ul>
+                                return (
+                                    <Draggable
+                                        key={prompt._id}
+                                        draggableId={prompt._id}
+                                        isDragDisabled={!isOwner}
+                                        index={index}
+                                    >
+                                        {(provided, snapshot) => (
+                                            <div
+                                                ref={provided.innerRef}
+                                                {...provided.draggableProps}
+                                                {...provided.dragHandleProps}
+                                                style={
+                                                    provided.draggableProps
+                                                        .style
+                                                }
+                                            >
+                                                <PromptListItem
+                                                    key={prompt._id}
+                                                    prompt={prompt}
+                                                    isRunning={isPromptRunning}
+                                                    onEdit={onEdit}
+                                                    onRun={() =>
+                                                        onPromptRun(prompt)
+                                                    }
+                                                    inputValid={inputValid}
+                                                />
+                                            </div>
+                                        )}
+                                    </Draggable>
+                                );
+                            })}
+                            {provided.placeholder}
+                        </div>
+                    )}
+                </Droppable>
+            </DragDropContext>
         </div>
     );
 }
@@ -113,7 +173,7 @@ function PromptListItem({ prompt, onEdit, onRun, isRunning, inputValid }) {
     }
 
     return (
-        <li key={prompt._id} className="mb-2 relative">
+        <div key={prompt._id} className="mb-2 relative">
             <div className="w-full text-start bg-gray-50 rounded border flex">
                 <div className="p-2 relative border-e border-gray-300 overflow-auto basis-[calc(100%-5em)]">
                     <div className="flex gap-2 items-center justify-between mb-1">
@@ -162,6 +222,6 @@ function PromptListItem({ prompt, onEdit, onRun, isRunning, inputValid }) {
                     )}
                 </button>
             </div>
-        </li>
+        </div>
     );
 }

@@ -72,6 +72,14 @@ $chat-secondary: #002425;
     font-size: 14px;
 }
 
+.btn-primary-custom {
+    background-color: $primary !important;
+}
+
+.btn-secondary-custom {
+    background-color: $secondary !important;
+}
+
 .content {
     padding-top: 10px;
 }
@@ -193,6 +201,10 @@ body {
 div {
     scrollbar-width: thin;
     scrollbar-color: "rgba(209, 213, 219, 0.5) rgba(209, 213, 219, 0.125)";
+}
+
+pre {
+    white-space: pre-wrap;
 }
 
 // Should be imported at the end to override colours

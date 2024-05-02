@@ -2,10 +2,10 @@ import { useDispatch, useSelector } from "react-redux";
 import { useApolloClient } from "@apollo/client";
 import { QUERIES } from "../../graphql";
 import { addMessage } from "../../stores/chatSlice";
-import { useState } from "react";
-import dynamic from "next/dynamic";
-
-const ChatMessages = dynamic(() => import("./ChatMessages"));
+import { useState, useContext } from "react";
+import { useUpdateAiMemory } from "../../../app/queries/options";
+import { AuthContext } from "../../App.js";
+import ChatMessages from "./ChatMessages";
 
 const contextMessageCount = 5;
 
@@ -13,8 +13,9 @@ function ChatContent({ displayState = "full", container = "chatpage" }) {
     const client = useApolloClient();
     const [loading, setLoading] = useState(false);
     const messages = useSelector((state) => state.chat.messages);
-    const contextId = useSelector((state) => state.chat.contextId);
     const selectedSources = useSelector((state) => state.doc.selectedSources);
+    const { user } = useContext(AuthContext);
+    const updateAiMemoryMutation = useUpdateAiMemory();
 
     const dispatch = useDispatch();
 
@@ -67,9 +68,13 @@ function ChatContent({ displayState = "full", container = "chatpage" }) {
 
                 conversation.push({ role: "user", content: text });
 
+                const { userId, contextId, aiMemorySelfModify } = user;
+
                 const variables = {
                     chatHistory: conversation,
                     contextId: contextId,
+                    aiName: "Labeeb",
+                    aiMemorySelfModify: aiMemorySelfModify,
                 };
 
                 selectedSources &&
@@ -83,12 +88,21 @@ function ChatContent({ displayState = "full", container = "chatpage" }) {
                     .then((result) => {
                         let resultMessage = "";
                         let searchRequired = false;
+                        let aiMemory = "";
                         try {
                             const resultObj = JSON.parse(
                                 result.data.rag_start.result,
                             );
                             resultMessage = resultObj?.response;
                             searchRequired = resultObj?.search;
+                            aiMemory = resultObj?.aiMemory;
+
+                            updateAiMemoryMutation.mutateAsync({
+                                userId,
+                                contextId,
+                                aiMemory,
+                                aiMemorySelfModify,
+                            });
                         } catch (e) {
                             resultMessage = e.message;
                         }
@@ -97,12 +111,12 @@ function ChatContent({ displayState = "full", container = "chatpage" }) {
                             setLoading(true);
                             client
                                 .query({
-                                    query: QUERIES.RAG_FINISH,
+                                    query: QUERIES.RAG_GENERATOR_RESULTS,
                                     variables,
                                 })
                                 .then((result) => {
                                     const { result: message, tool } =
-                                        result.data.rag_finish;
+                                        result.data.rag_generator_results;
                                     updateChat(message, tool);
                                 })
                                 .catch(handleError);

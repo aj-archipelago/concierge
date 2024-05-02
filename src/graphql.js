@@ -134,6 +134,14 @@ const VISION = gql`
     }
 `;
 
+const RAG_SAVE_MEMORY = gql`
+    query RagSaveMemory($aiMemory: String!, $contextId: String!) {
+        rag_save_memory(aiMemory: $aiMemory, contextId: $contextId) {
+            result
+        }
+    }
+`;
+
 const RAG_START = gql`
     query RagStart(
         $chatHistory: [MultiMessage]!
@@ -143,6 +151,8 @@ const RAG_START = gql`
         $roleInformation: String
         $indexName: String
         $semanticConfiguration: String
+        $aiName: String
+        $aiMemorySelfModify: Boolean
     ) {
         rag_start(
             chatHistory: $chatHistory
@@ -152,6 +162,8 @@ const RAG_START = gql`
             roleInformation: $roleInformation
             indexName: $indexName
             semanticConfiguration: $semanticConfiguration
+            aiName: $aiName
+            aiMemorySelfModify: $aiMemorySelfModify
         ) {
             result
             contextId
@@ -160,7 +172,7 @@ const RAG_START = gql`
     }
 `;
 
-const RAG_FINISH = gql`
+const RAG_GENERATOR_RESULTS = gql`
     query RagFinish(
         $chatHistory: [MultiMessage]!
         $dataSources: [String]
@@ -169,8 +181,9 @@ const RAG_FINISH = gql`
         $roleInformation: String
         $indexName: String
         $semanticConfiguration: String
+        $aiName: String
     ) {
-        rag_finish(
+        rag_generator_results(
             chatHistory: $chatHistory
             dataSources: $dataSources
             contextId: $contextId
@@ -178,6 +191,7 @@ const RAG_FINISH = gql`
             roleInformation: $roleInformation
             indexName: $indexName
             semanticConfiguration: $semanticConfiguration
+            aiName: $aiName
         ) {
             result
             contextId
@@ -551,8 +565,9 @@ const QUERIES = {
     COGNITIVE_DELETE,
     COGNITIVE_INSERT,
     IMAGE,
+    RAG_SAVE_MEMORY,
     RAG_START,
-    RAG_FINISH,
+    RAG_GENERATOR_RESULTS,
     EXPAND_STORY,
     FORMAT_PARAGRAPH_TURBO,
     SELECT_SERVICES,
@@ -603,8 +618,9 @@ export {
     COGNITIVE_INSERT,
     COGNITIVE_DELETE,
     EXPAND_STORY,
+    RAG_SAVE_MEMORY,
     RAG_START,
-    RAG_FINISH,
+    RAG_GENERATOR_RESULTS,
     SELECT_SERVICES,
     SUMMARY,
     HASHTAGS,

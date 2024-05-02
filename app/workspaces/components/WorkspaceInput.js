@@ -2,12 +2,10 @@ import { useContext, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { FaEdit } from "react-icons/fa";
 import LoadingButton from "../../../src/components/editor/LoadingButton";
-import Loader from "../../components/loader";
 import { useLLMs } from "../../queries/llms";
 import {
     useCreatePrompt,
     useDeletePrompt,
-    usePromptsByIds,
     useUpdatePrompt,
 } from "../../queries/prompts";
 import {
@@ -24,9 +22,6 @@ export default function WorkspaceInput({ onRun, onRunMany }) {
     const [selectedPrompt, setSelectedPrompt] = useState(null);
     const [editing, setEditing] = useState(false);
     const { workspace } = useContext(WorkspaceContext);
-    const { data: prompts, isLoading: arePromptsLoading } = usePromptsByIds(
-        workspace?.prompts || [],
-    );
     const [isOpen, setIsOpen] = useState(false);
     const [systemPromptEditing, setSystemPromptEditing] = useState(false);
     const { t } = useTranslation();
@@ -34,6 +29,8 @@ export default function WorkspaceInput({ onRun, onRunMany }) {
         workspace?._id,
     );
     const updateWorkspaceState = useUpdateWorkspaceState();
+    const updateWorkspace = useUpdateWorkspace();
+    const promptIds = workspace?.prompts || [];
 
     const handleEdit = (prompt) => {
         setSelectedPrompt(prompt);
@@ -69,49 +66,54 @@ export default function WorkspaceInput({ onRun, onRunMany }) {
 
     return (
         <div className="h-full overflow-auto flex flex-col gap-2">
-            {arePromptsLoading && <Loader />}
-            {!arePromptsLoading && (
-                <>
-                    <div className="basis-5/12 min-h-[200px] flex flex-col gap-3 p-1 overflow-auto">
-                        <textarea
-                            placeholder={t("Enter some text here")}
-                            value={text}
-                            onChange={(e) => setText(e.target.value)}
-                            rows={10}
-                            className="lb-input w-full h-full"
-                        ></textarea>
-                    </div>
-                    <div className="basis-7/12 min-h-[200px] flex flex-col overflow-y-auto">
-                        <SystemPrompt
-                            editing={systemPromptEditing}
-                            setEditing={setSystemPromptEditing}
-                        />
+            <>
+                <div className="basis-4/12 min-h-[150px] flex flex-col gap-3 p-1 overflow-auto">
+                    <textarea
+                        placeholder={t("Enter some text here")}
+                        value={text}
+                        onChange={(e) => setText(e.target.value)}
+                        rows={8}
+                        className="lb-input w-full h-full"
+                    ></textarea>
+                </div>
+                <div className="basis-8/12 min-h-[250px] flex flex-col overflow-y-auto">
+                    <SystemPrompt
+                        editing={systemPromptEditing}
+                        setEditing={setSystemPromptEditing}
+                    />
 
-                        {!editing && !systemPromptEditing && (
-                            <PromptList
-                                inputValid={!!text}
-                                prompts={prompts || []}
-                                onNew={() => {
-                                    setIsOpen(true);
-                                }}
-                                onRunAll={onRunMany(text, prompts)}
-                                onRun={async (prompt) => {
-                                    if (text) {
-                                        await onRun(text, prompt);
-                                    }
-                                }}
-                                onEdit={handleEdit}
-                            />
-                        )}
-                        {editing && (
-                            <PromptEditor
-                                selectedPrompt={selectedPrompt}
-                                onBack={() => setEditing(false)}
-                            />
-                        )}
-                    </div>
-                </>
-            )}
+                    {!editing && !systemPromptEditing && (
+                        <PromptList
+                            inputValid={!!text}
+                            promptIds={promptIds}
+                            onNew={() => {
+                                setIsOpen(true);
+                            }}
+                            onRunAll={onRunMany(text, promptIds)}
+                            onRun={async (prompt) => {
+                                if (text) {
+                                    await onRun(text, prompt);
+                                }
+                            }}
+                            onReorder={async (promptIds) => {
+                                updateWorkspace.mutate({
+                                    id: workspace?._id,
+                                    data: {
+                                        prompts: promptIds,
+                                    },
+                                });
+                            }}
+                            onEdit={handleEdit}
+                        />
+                    )}
+                    {editing && (
+                        <PromptEditor
+                            selectedPrompt={selectedPrompt}
+                            onBack={() => setEditing(false)}
+                        />
+                    )}
+                </div>
+            </>
             <PromptSelectorModal isOpen={isOpen} setIsOpen={setIsOpen} />
         </div>
     );
@@ -264,7 +266,7 @@ function PromptEditor({ selectedPrompt, onBack }) {
     const deletePrompt = useDeletePrompt();
     const { user, workspace } = useContext(WorkspaceContext);
     const { data: llms } = useLLMs();
-    const [llm, setLLM] = useState(null);
+    const [llm, setLLM] = useState("");
     const { t } = useTranslation();
 
     useEffect(() => {

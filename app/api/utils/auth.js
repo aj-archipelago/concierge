@@ -2,6 +2,7 @@ import { headers } from "next/headers";
 import config from "../../../config";
 import User from "../models/user";
 import mongoose from "mongoose";
+import { v4 as uuidv4 } from "uuid";
 
 export const getCurrentUser = async () => {
     const auth = config.auth;
@@ -10,11 +11,7 @@ export const getCurrentUser = async () => {
         return { userId: "nodb", name: "No Database Connected" };
     }
 
-    if (!auth.provider) {
-        return;
-    }
-
-    if (auth.provider !== "entra") {
+    if (auth.provider && auth.provider !== "entra") {
         throw new Error(`Unsupported auth provider: ${auth.provider}`);
     }
 
@@ -27,12 +24,28 @@ export const getCurrentUser = async () => {
         const username =
             headerList.get("X-MS-CLIENT-PRINCIPAL-NAME") || "Anonymous";
         const name = username;
+        const contextId = uuidv4();
+        const aiMemory = "";
+        const aiMemorySelfModify = true;
 
         user = await User.create({
             userId: id,
             username,
             name,
+            contextId,
+            aiMemory,
+            aiMemorySelfModify,
         });
+    } else if (!user.contextId) {
+        console.log(
+            `User ${user.userId} has no contextId, creating the contextId`,
+        );
+        user.contextId = uuidv4();
+        try {
+            user = await user.save();
+        } catch (err) {
+            console.log("Error saving user: ", err);
+        }
     }
 
     // user._id coming from mongoose is an object, even after calling toJSON()

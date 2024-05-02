@@ -477,7 +477,7 @@ function Transcribe({
 
             <div style={{ paddingInlineStart: "0rem", paddingBottom: "1rem" }}>
                 <LoadingButton
-                    className={"lb-primary"}
+                    className="lb-primary mb-2.5"
                     // type="submit"
                     disabled={!url}
                     loading={isLoading}

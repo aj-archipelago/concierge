@@ -3,7 +3,7 @@ import axios from "axios";
 
 export function useWorkspace(id) {
     const query = useQuery({
-        queryKey: ["workspaces", id],
+        queryKey: ["workspace", id],
         queryFn: async ({ queryKey }) => {
             const { data } = await axios.get(`/api/workspaces/${id}`);
             return data;
@@ -19,12 +19,24 @@ export function useUpdateWorkspace() {
 
     const mutation = useMutation({
         mutationFn: async ({ id, data }) => {
-            const { data: updatedWorkspace } = await axios.put(
-                `/api/workspaces/${id}`,
-                data,
-            );
-            queryClient.invalidateQueries(["workspaces", id]);
-            return updatedWorkspace;
+            await axios.put(`/api/workspaces/${id}`, data);
+        },
+        onMutate: async ({ id, data }) => {
+            await queryClient.cancelQueries({ queryKey: ["workspace", id] });
+            const previousWorkspaces = queryClient.getQueryData([
+                "workspace",
+                id,
+            ]);
+            queryClient.setQueryData(["workspace", id], (old) => {
+                return { ...old, ...data };
+            });
+            return { previousWorkspaces };
+        },
+        onSettled: (data, error, variables, context) => {
+            queryClient.invalidateQueries({
+                queryKey: ["workspace", variables.id],
+            });
+            queryClient.invalidateQueries({ queryKey: ["workspaces"] });
         },
     });
 
@@ -51,7 +63,7 @@ export function useDeleteWorkspace() {
             await axios.delete(`/api/workspaces/${id}`);
         },
         onMutate: async ({ id }) => {
-            await queryClient.cancelQueries(["workspaces"]);
+            await queryClient.cancelQueries({ queryKey: ["workspaces"] });
             const previousWorkspaces = queryClient.getQueryData(["workspaces"]);
             queryClient.setQueryData(["workspaces"], (old) => {
                 return old?.filter((workspace) => workspace._id !== id);
@@ -59,7 +71,7 @@ export function useDeleteWorkspace() {
             return { previousWorkspaces };
         },
         onSuccess: () => {
-            queryClient.invalidateQueries(["workspaces"]);
+            queryClient.invalidateQueries({ queryKey: ["workspaces"] });
         },
     });
 
@@ -75,7 +87,7 @@ export function useCreateWorkspace() {
             return data;
         },
         onSuccess: () => {
-            queryClient.invalidateQueries(["workspaces"]);
+            queryClient.invalidateQueries({ queryKey: ["workspaces"] });
         },
     });
 
@@ -91,7 +103,7 @@ export function useCopyWorkspace() {
             return data;
         },
         onSuccess: () => {
-            queryClient.invalidateQueries(["workspaces"]);
+            queryClient.invalidateQueries({ queryKey: ["workspaces"] });
         },
     });
 
@@ -120,7 +132,7 @@ export function useDeleteWorkspaceRuns() {
             await axios.delete(`/api/workspaces/${id}/runs`);
         },
         onMutate: async ({ id }) => {
-            await queryClient.cancelQueries(["runs"]);
+            await queryClient.cancelQueries({ queryKey: ["runs"] });
             const previousRuns = queryClient.getQueryData(["runs"]);
             queryClient.setQueryData(["runs"], (old) => {
                 return old?.filter((run) => run.workspace !== id);
@@ -128,7 +140,7 @@ export function useDeleteWorkspaceRuns() {
             return { previousRuns };
         },
         onSuccess: () => {
-            queryClient.invalidateQueries(["runs"]);
+            queryClient.invalidateQueries({ queryKey: ["runs"] });
         },
     });
 
@@ -162,7 +174,7 @@ export function useUpdateWorkspaceState() {
             return data;
         },
         onSuccess: (data, { id }) => {
-            queryClient.invalidateQueries(["workspaceState", id]);
+            queryClient.invalidateQueries({ queryKey: ["workspaceState", id] });
         },
     });
 

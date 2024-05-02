@@ -15,11 +15,11 @@ export default async function Page({ params }) {
     const queryClient = new QueryClient();
 
     await queryClient.prefetchQuery({
-        queryKey: ["workspaces", id],
+        queryKey: ["workspace", id],
         queryFn: async () => {
             return (await getWorkspace(id)).toJSON();
         },
-        staleTime: 1000 * 60 * 5,
+        staleTime: Infinity,
     });
 
     return (

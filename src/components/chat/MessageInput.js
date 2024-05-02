@@ -1,5 +1,5 @@
 import "highlight.js/styles/github.css";
-import { useState } from "react";
+import { useContext, useState } from "react";
 import { Form } from "react-bootstrap";
 import { RiSendPlane2Fill } from "react-icons/ri";
 import TextareaAutosize from "react-textarea-autosize";
@@ -8,7 +8,7 @@ import dynamic from "next/dynamic";
 import { v4 as uuidv4 } from "uuid";
 import { useApolloClient } from "@apollo/client";
 import { COGNITIVE_INSERT } from "../../graphql";
-import { useDispatch, useSelector } from "react-redux";
+import { useDispatch } from "react-redux";
 import { addDoc, addSource } from "../../stores/docSlice";
 import {
     setFileLoading,
@@ -17,7 +17,8 @@ import {
 } from "../../stores/fileUploadSlice";
 import { FaFileCirclePlus } from "react-icons/fa6";
 import { IoCloseCircle } from "react-icons/io5";
-import { isDocumentUrl } from "./MyFilePond";
+import { isDocumentUrl, isMediaUrl } from "./MyFilePond";
+import { AuthContext } from "../../App";
 
 const DynamicFilepond = dynamic(() => import("./MyFilePond"), {
     ssr: false,
@@ -26,12 +27,14 @@ const DynamicFilepond = dynamic(() => import("./MyFilePond"), {
 // Displays the list of messages and a message input box.
 function MessageInput({ onSend, loading, enableRag, placeholder }) {
     const [inputValue, setInputValue] = useState("");
-    const [urls, setUrls] = useState([]);
+    const [urlsData, setUrlsData] = useState([]);
     const [files, setFiles] = useState([]);
     const [showFileUpload, setShowFileUpload] = useState(false);
     const client = useApolloClient();
-    const contextId = useSelector((state) => state.chat.contextId);
+    const { user } = useContext(AuthContext);
+    const contextId = user?.contextId;
     const dispatch = useDispatch();
+    const [isUploadingMedia, setIsUploadingMedia] = useState(false);
 
     const handleInputChange = (event) => {
         setInputValue(event.target.value);
@@ -40,14 +43,23 @@ function MessageInput({ onSend, loading, enableRag, placeholder }) {
     const prepareMessage = (inputText) => {
         return [
             JSON.stringify({ type: "text", text: inputText }),
-            ...(urls || [])?.map((url) =>
-                JSON.stringify({
+            ...(urlsData || [])?.map(({ url, gcs }) => {
+                const obj = {
                     type: "image_url",
-                    image_url: {
-                        url,
-                    },
-                }),
-            ),
+                };
+
+                if (gcs) {
+                    obj.gcs = gcs;
+                    obj.url = url;
+                    obj.image_url = {
+                        url: gcs,
+                    };
+                } else {
+                    obj.image_url = { url };
+                }
+
+                return JSON.stringify(obj);
+            }),
         ];
     };
 
@@ -55,14 +67,15 @@ function MessageInput({ onSend, loading, enableRag, placeholder }) {
         event.preventDefault();
         if (!loading && inputValue) {
             const message = prepareMessage(inputValue);
-            onSend(urls && urls.length > 0 ? message : inputValue);
+            onSend(urlsData && urlsData.length > 0 ? message : inputValue);
             setInputValue("");
             setFiles([]);
-            setUrls([]);
+            setUrlsData([]);
         }
     };
 
-    const addUrl = (url) => {
+    const addUrl = (urlData) => {
+        const { url } = urlData;
         const fetchData = async (url) => {
             if (!url) return;
 
@@ -108,7 +121,9 @@ function MessageInput({ onSend, loading, enableRag, placeholder }) {
         if (isDocumentUrl(url)) {
             fetchData(url);
         } else {
-            setUrls([...urls, url]); //rest of it: images
+            if (isMediaUrl(url)) {
+                setUrlsData([...urlsData, urlData]); //rest of it: images
+            }
         }
     };
 
@@ -119,6 +134,7 @@ function MessageInput({ onSend, loading, enableRag, placeholder }) {
                     addUrl={addUrl}
                     files={files}
                     setFiles={setFiles}
+                    setIsUploadingMedia={setIsUploadingMedia}
                 />
             )}
             <div className="rounded border dark:border-zinc-200">
@@ -173,7 +189,11 @@ function MessageInput({ onSend, loading, enableRag, placeholder }) {
                         <div className="pt-4">
                             <button
                                 type="submit"
-                                disabled={loading || inputValue === ""}
+                                disabled={
+                                    loading ||
+                                    inputValue === "" ||
+                                    isUploadingMedia
+                                }
                                 className={classNames(
                                     "text-base rtl:rotate-180 text-emerald-600 hover:text-emerald-600 disabled:text-gray-300 active:text-gray-800 dark:bg-zinc-100",
                                 )}

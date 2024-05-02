@@ -67,7 +67,6 @@ function convertMessageToMarkdown(message) {
                     style={{
                         listStyleType: "decimal",
                         marginBottom: "1rem",
-                        paddingInlineStart: "1rem",
                     }}
                     {...rest}
                 />
@@ -79,7 +78,6 @@ function convertMessageToMarkdown(message) {
                     style={{
                         listStyleType: "disc",
                         marginBottom: "1rem",
-                        paddingInlineStart: "1rem",
                     }}
                     {...rest}
                 />
@@ -151,6 +149,13 @@ function convertMessageToMarkdown(message) {
         },
     };
 
+    // Currency doesn't play well with math markdown
+    const currencyRegex = /\$[0-9,.]+[0-9]*?/g;
+    const modifiedPayload = payload.replace(
+        currencyRegex,
+        (match) => "\\" + match,
+    );
+
     return (
         <Markdown
             className="chat-message"
@@ -159,11 +164,11 @@ function convertMessageToMarkdown(message) {
                 directive,
                 customMarkdownDirective,
                 remarkGfm,
-                [remarkMath, { singleDollarTextMath: false }],
+                [remarkMath, { singleDollarTextMath: true }],
             ]}
             rehypePlugins={[rehypeKatex]}
             components={components}
-            children={transformToCitation(payload)}
+            children={transformToCitation(modifiedPayload)}
         />
     );
 }
