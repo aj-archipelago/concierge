@@ -1,6 +1,6 @@
 import { useLazyQuery } from "@apollo/client";
 import { Popover, Transition } from "@headlessui/react";
-import { Fragment } from "react";
+import { Fragment, useContext } from "react";
 import { Form, ListGroup, Spinner } from "react-bootstrap";
 import { useTranslation } from "react-i18next";
 import { AiOutlineClose } from "react-icons/ai";
@@ -22,6 +22,7 @@ import {
     removeSource,
 } from "../../stores/docSlice";
 import FileUploadComponent from "./FileUploadComponent";
+import { AuthContext } from "../../App";
 
 export const dataSources = [
     {
@@ -54,7 +55,8 @@ export default function DocOptions() {
     const docs = useSelector((state) => state.doc.docs);
     const selectedSources =
         useSelector((state) => state.doc.selectedSources) || [];
-    const contextId = useSelector((state) => state.chat.contextId);
+    const { user } = useContext(AuthContext);
+    const contextId = user?.contextId;
     // check if selectedSources include mydata
     const mydataSelected = useSelector(
         (state) => state.doc.selectedSources,

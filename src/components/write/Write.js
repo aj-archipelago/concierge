@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useMemo, useState } from "react";
+import React, { useContext, useCallback, useMemo, useState } from "react";
 import "react-quill/dist/quill.snow.css";
 import { useDispatch, useSelector } from "react-redux";
 import styled from "styled-components";
@@ -14,6 +14,7 @@ import Toolbar from "./Toolbar";
 import { indexMainPaneText } from "../../utils/indexMainPaneText";
 import * as amplitude from "@amplitude/analytics-browser";
 import { useApolloClient } from "@apollo/client";
+import { AuthContext } from "../../App";
 
 const WriteTab = styled.div`
     display: flex;
@@ -34,7 +35,8 @@ const SidebarPane = styled.div`
 
 function Write() {
     const inputText = useSelector((state) => state.write?.inputText);
-    const contextId = useSelector((state) => state.chat.contextId);
+    const { user } = useContext(AuthContext);
+    const contextId = user?.contextId;
     const [selection, setSelection] = useState(null);
     const dispatch = useDispatch();
     const [headline, setHeadline] = useState("");
