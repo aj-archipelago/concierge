@@ -1,7 +1,7 @@
 import i18next from "i18next";
 import React from "react";
 import { useTranslation } from "react-i18next";
-import { AiOutlineRobot } from "react-icons/ai";
+import { AiFillFilePdf, AiOutlineRobot } from "react-icons/ai";
 import { FaUserCircle } from "react-icons/fa";
 import classNames from "../../../app/utils/class-names";
 import config from "../../../config";
@@ -128,6 +128,26 @@ function MessageList({ messages, bot, loading }) {
                                                 className="max-h-[20%] max-w-[60%] rounded border bg-white p-1 my-2 dark:border-neutral-700 dark:bg-neutral-800 shadow-lg dark:shadow-black/30"
                                                 controls
                                             />
+                                        );
+                                    }
+
+                                    if (src.endsWith(".pdf")) {
+                                        // Display the PDF icon
+                                        const filenameWithPrefix = src
+                                            .split("/")
+                                            .pop();
+                                        const filename = filenameWithPrefix
+                                            .split("_")
+                                            .slice(1)
+                                            .join("_");
+                                        return (
+                                            <div key={index}>
+                                                <AiFillFilePdf
+                                                    size={100}
+                                                    className="max-h-[20%] max-w-[60%] rounded border bg-white p-1 my-2 dark:border-neutral-700 dark:bg-neutral-800 shadow-lg dark:shadow-black/30"
+                                                />
+                                                <i>{filename}</i>
+                                            </div>
                                         );
                                     }
 
