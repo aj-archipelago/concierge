@@ -30,7 +30,6 @@ const DOC_EXTENSIONS = [
     ".js",
     ".html",
     ".css",
-    ".pdf",
     ".docx",
     ".xlsx",
 ];
@@ -49,6 +48,7 @@ const IMAGE_EXTENSIONS = [
     ".webp",
     ".tiff",
     ".svg",
+    ".pdf",
 ];
 
 const VIDEO_EXTENSIONS = [
@@ -66,7 +66,10 @@ function isImageUrl(url) {
     const urlExt = "." + url.split(".").pop();
     const mimeType = mime.contentType(urlExt);
 
-    return IMAGE_EXTENSIONS.includes(urlExt) && mimeType.startsWith("image/");
+    return (
+        IMAGE_EXTENSIONS.includes(urlExt) &&
+        (mimeType.startsWith("image/") || mimeType === "application/pdf")
+    );
 }
 
 function isVideoUrl(url) {
