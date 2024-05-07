@@ -66,7 +66,10 @@ function isImageUrl(url) {
     const urlExt = "." + url.split(".").pop();
     const mimeType = mime.contentType(urlExt);
 
-    return IMAGE_EXTENSIONS.includes(urlExt) && (mimeType.startsWith("image/") || mimeType==="application/pdf");
+    return (
+        IMAGE_EXTENSIONS.includes(urlExt) &&
+        (mimeType.startsWith("image/") || mimeType === "application/pdf")
+    );
 }
 
 function isVideoUrl(url) {
