@@ -141,10 +141,10 @@ function MessageList({ messages, bot, loading }) {
                                             .slice(1)
                                             .join("_");
                                         return (
-                                            <div key={index}>
+                                            <div key={index} style={{ display: 'flex', alignItems: 'center', marginTop: '10px' }}>
                                                 <AiFillFilePdf
-                                                    size={100}
-                                                    className="max-h-[20%] max-w-[60%] rounded border bg-white p-1 my-2 dark:border-neutral-700 dark:bg-neutral-800 shadow-lg dark:shadow-black/30"
+                                                    size={40}
+                                                    style={{ marginRight: '8px' }}
                                                 />
                                                 <i>{filename}</i>
                                             </div>
