@@ -371,6 +371,36 @@ const TRANSCRIBE = gql`
     }
 `;
 
+const TRANSCRIBE_NEURALSPACE = gql`
+    query TranscribeNeuralSpace(
+        $file: String!
+        $text: String
+        $language: String
+        $wordTimestamped: Boolean
+        $maxLineCount: Int
+        $maxLineWidth: Int
+        $maxWordsPerLine: Int
+        $highlightWords: Boolean
+        $responseFormat: String
+        $async: Boolean
+    ) {
+        transcribe_neuralspace(
+            file: $file
+            text: $text
+            language: $language
+            wordTimestamped: $wordTimestamped
+            maxLineCount: $maxLineCount
+            maxLineWidth: $maxLineWidth
+            maxWordsPerLine: $maxWordsPerLine
+            highlightWords: $highlightWords
+            responseFormat: $responseFormat
+            async: $async
+        ) {
+            result
+        }
+    }
+`;
+
 const TRANSLATE = gql`
     query Translate($text: String!, $to: String!) {
         translate(text: $text, to: $to) {
@@ -604,6 +634,7 @@ const QUERIES = {
     STORY_ANGLES,
     SUMMARIZE_TURBO,
     TRANSCRIBE,
+    TRANSCRIBE_NEURALSPACE,
     TRANSLATE,
     TRANSLATE_AZURE,
     TRANSLATE_CONTEXT,

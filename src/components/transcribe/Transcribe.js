@@ -11,6 +11,9 @@ import CopyButton from "../CopyButton";
 import LoadingButton from "../editor/LoadingButton";
 import { ProgressUpdate } from "../editor/TextSuggestions";
 import TaxonomySelector from "./TaxonomySelector";
+const NEURALSPACE_ENABLED =
+    process.env.NEXT_PUBLIC_ENABLE_NEURALSPACE &&
+    process.env.NEXT_PUBLIC_ENABLE_NEURALSPACE === "true";
 
 function Transcribe({
     dataText,
@@ -32,6 +35,7 @@ function Transcribe({
     const [loading, setLoading] = useState(false);
     const [loadingParagraph, setLoadingParagraph] = useState(false);
     const [loadingTranslate, setLoadingTranslate] = useState(false);
+    const [selectedModelOption, setSelectedModelOption] = useState("Whisper"); // default is Whisper
 
     const {
         responseFormat,
@@ -53,6 +57,14 @@ function Transcribe({
     const [fileUploadError, setFileUploadError] = useState(null);
     const [currentOperation, setCurrentOperation] = useState("");
     const { serverUrl } = useContext(ServerContext);
+
+    // Create a function to handle option change
+    const handleOptionChange = (event) => {
+        setRequestId(null);
+        setAsyncComplete(true);
+        setCurrentOperation("");
+        setSelectedModelOption(event.target.value);
+    };
 
     // Function to handle file upload and post it to the API
     const handleFileUpload = async (event) => {
@@ -124,8 +136,10 @@ function Transcribe({
         setCurrentOperation("Transcribing");
         try {
             setLoading(true);
+
+            const _query = selectedModelOption === "NeuralSpace" ?  QUERIES.TRANSCRIBE_NEURALSPACE : QUERIES.TRANSCRIBE;
             const { data } = await apolloClient.query({
-                query: QUERIES.TRANSCRIBE,
+                query: _query,
                 variables: {
                     file: url,
                     language,
@@ -140,8 +154,11 @@ function Transcribe({
                 fetchPolicy: "network-only",
             });
 
-            if (data?.transcribe?.result) {
-                const dataResult = data.transcribe.result;
+            const dataResult =
+                data?.transcribe?.result ||
+                data?.transcribe_neuralspace?.result;
+
+            if (dataResult) {
                 if (async) {
                     setDataText("");
                     setRequestId(dataResult);
@@ -316,7 +333,25 @@ function Transcribe({
                     <h4 className="options-header mb-1">
                         {t("Transcribe audio to:")}
                     </h4>
+                    {NEURALSPACE_ENABLED && (
+                    <span className="flex items-center pb-2">
+                            <label className="text-sm px-1">
+                                {t("Using model")}
+                            </label>
+                            <select
+                                className="lb-select ml-2 w-auto flex-shrink-0"
+                                disabled={isLoading}
+                                value={selectedModelOption}
+                                onChange={handleOptionChange}
+                            >
+                                <option value="Whisper">Whisper</option>
+                                <option value="NeuralSpace">NeuralSpace</option>
+                            </select>
+                        </span>
+                    )}
+
                     <div className="options-section flex flex-col sm:flex-row justify-between gap-4 sm:gap-14 mb-5 p-2.5 border border-gray-300 rounded-md bg-neutral-100 w-full">
+
                         <div className="radio-columns flex flex-col">
                             <h5 className="font-semibold">
                                 {t("Output format")}
@@ -534,6 +569,7 @@ function Transcribe({
                             </select>
                         </div>
                     </div>
+
                 </li>
             </ol>
 
