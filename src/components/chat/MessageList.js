@@ -1,5 +1,5 @@
 import i18next from "i18next";
-import React from "react";
+import React, { useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { AiFillFilePdf, AiOutlineRobot } from "react-icons/ai";
 import { FaUserCircle } from "react-icons/fa";
@@ -10,11 +10,54 @@ import ScrollToBottom from "./ScrollToBottom";
 import Loader from "../../../app/components/loader";
 import { isVideoUrl } from "./MyFilePond";
 
+const getLoadState = (message) => {
+    const hasImage =
+        Array.isArray(message.payload) &&
+        message.payload.some((p) => {
+            try {
+                const obj = JSON.parse(p);
+                return obj.type === "image_url";
+            } catch (e) {
+                return false;
+            }
+        });
+
+    if (hasImage) {
+        return false;
+    } else {
+        return true;
+    }
+};
+
 // Displays the list of messages and a message input box.
 function MessageList({ messages, bot, loading }) {
     const { language } = i18next;
     const { getLogo } = config.global;
     const { t } = useTranslation();
+    const [messageLoadState, setMessageLoadState] = React.useState(
+        messages.map((m) => {
+            return {
+                id: m.id,
+                loaded: getLoadState(m),
+            };
+        }),
+    );
+
+    useEffect(() => {
+        // merge load state
+        const newMessageLoadState = messages.map((m) => {
+            const existing = messageLoadState.find((mls) => mls.id === m.id);
+            if (existing) {
+                return existing;
+            }
+            return {
+                id: m.id,
+                loaded: getLoadState(m),
+            };
+        });
+
+        setMessageLoadState(newMessageLoadState);
+    }, [messages]);
 
     let rowHeight = "h-12 [.docked_&]:h-10";
     let basis =
@@ -98,9 +141,25 @@ function MessageList({ messages, bot, loading }) {
         }
     };
 
+    const handleMessageLoad = (id) => {
+        setMessageLoadState((prev) => {
+            return prev.map((m) => {
+                if (m.id === id) {
+                    return {
+                        id: m.id,
+                        loaded: true,
+                    };
+                }
+                return m;
+            });
+        });
+    };
+
+    const loadComplete = messageLoadState.every((m) => m.loaded);
+
     return (
         <>
-            <ScrollToBottom>
+            <ScrollToBottom loadComplete={loadComplete}>
                 {messages.length === 0 && (
                     <div className="no-message-message text-gray-400">
                         {t("Send a message to start a conversation")}
@@ -123,6 +182,11 @@ function MessageList({ messages, bot, loading }) {
                                         // Display the video
                                         return (
                                             <video
+                                                onLoad={() => {
+                                                    handleMessageLoad(
+                                                        message.id,
+                                                    );
+                                                }}
                                                 key={index}
                                                 src={src}
                                                 className="max-h-[20%] max-w-[60%] rounded border bg-white p-1 my-2 dark:border-neutral-700 dark:bg-neutral-800 shadow-lg dark:shadow-black/30"
@@ -148,6 +212,11 @@ function MessageList({ messages, bot, loading }) {
                                                     alignItems: "center",
                                                     marginTop: "10px",
                                                 }}
+                                                onLoad={() => {
+                                                    handleMessageLoad(
+                                                        message.id,
+                                                    );
+                                                }}
                                             >
                                                 <AiFillFilePdf
                                                     size={40}
@@ -164,6 +233,11 @@ function MessageList({ messages, bot, loading }) {
                                     return (
                                         <div key={index}>
                                             <img
+                                                onLoad={() => {
+                                                    handleMessageLoad(
+                                                        message.id,
+                                                    );
+                                                }}
                                                 src={src}
                                                 alt="uploadedimage"
                                                 className="max-h-[20%] max-w-[60%] rounded border bg-white p-1 my-2 dark:border-neutral-700 dark:bg-neutral-800 shadow-lg dark:shadow-black/30"
