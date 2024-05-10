@@ -47,9 +47,9 @@ const Tos = ({ showTos, setShowTos }) => {
 
     console.log("showTos", showTos);
     console.log("checkShowTos", checkShowTos());
-    
+
     return (
-        <Modal dialogClassName="tos" show={ showTos }>
+        <Modal dialogClassName="tos" show={showTos}>
             <Modal.Header>
                 <Modal.Title>{t("Terms of Service")}</Modal.Title>
             </Modal.Header>

@@ -23,7 +23,7 @@ export const getCurrentUser = async () => {
         id = headerList.get("X-MS-CLIENT-PRINCIPAL-ID");
         username = headerList.get("X-MS-CLIENT-PRINCIPAL-NAME");
     }
-    
+
     id = id || "anonymous";
     username = username || "Anonymous";
 

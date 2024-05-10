@@ -8,7 +8,7 @@ export function register() {
     if (!mongoose?.connect) {
         return;
     }
-    
+
     mongoose
         .connect(MONGO_URI)
         .then(() => {

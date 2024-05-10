@@ -160,7 +160,7 @@ export default function Layout({ children }) {
                                 )}
                                 <Tos
                                     showTos={showTos}
-                                    setShowTos={setShowTos} 
+                                    setShowTos={setShowTos}
                                 />
                                 {children}
                             </div>

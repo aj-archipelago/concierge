@@ -1,36 +1,38 @@
 import authConfig from "./config/index";
 
 if (!authConfig) {
-  throw new Error('Config not found');
+    throw new Error("Config not found");
 }
 
 const { auth } = authConfig;
 
 export const config = {
-  matcher: '/:path*',
-}
+    matcher: "/:path*",
+};
 
 const isAuthorized = (request) => {
-    if ( auth?.provider === 'entra' ) {
+    if (auth?.provider === "entra") {
+        const tenantId = request.headers
+            .get("X-MS-CLIENT-PRINCIPAL-TENANT-ID")
+            ?.toLowerCase();
 
-      const tenantId = request.headers.get("X-MS-CLIENT-PRINCIPAL-TENANT-ID")?.toLowerCase();
+        const allowedTenantIds = process.env.ENTRA_AUTHORIZED_TENANTS
+            ? process.env.ENTRA_AUTHORIZED_TENANTS.split(",")
+            : [];
 
-      const allowedTenantIds = process.env.ENTRA_AUTHORIZED_TENANTS ? process.env.ENTRA_AUTHORIZED_TENANTS.split(',') : [];
-
-      if (!tenantId || !allowedTenantIds.includes(tenantId)) {
-          return false;
-      }
-
+        if (!tenantId || !allowedTenantIds.includes(tenantId)) {
+            return false;
+        }
     }
 
     return true;
-}
- 
+};
+
 export function middleware(request) {
-  if (!isAuthorized(request)) {
-    return Response.json(
-      { success: false, message: 'Unauthorized' },
-      { status: 401 }
-    )
-  }
+    if (!isAuthorized(request)) {
+        return Response.json(
+            { success: false, message: "Unauthorized" },
+            { status: 401 },
+        );
+    }
 }

@@ -5,7 +5,11 @@ import { LanguageContext } from "../contexts/LanguageProvider";
 import { useTranslation } from "react-i18next";
 import React from "react";
 
-export default function ProfileDropdown({ user, handleShowOptions, setShowTos }) {
+export default function ProfileDropdown({
+    user,
+    handleShowOptions,
+    setShowTos,
+}) {
     const { initials, name } = user;
     const { direction } = useContext(LanguageContext);
     const { t } = useTranslation();
@@ -72,18 +76,20 @@ export default function ProfileDropdown({ user, handleShowOptions, setShowTos })
                                 </div>
                             )}
                         </Menu.Item>
-                                        </div>
+                    </div>
                     <div className="py-1">
                         <Menu.Item>
                             {({ active }) => (
                                 <div
                                     className={classNames(
-                                        active ? "bg-gray-100 text-gray-900" : "text-gray-700"
+                                        active
+                                            ? "bg-gray-100 text-gray-900"
+                                            : "text-gray-700",
                                     )}
                                 >
                                     <a
                                         className={classNames(
-                                            "block w-full px-4 py-2 text-start text-sm"
+                                            "block w-full px-4 py-2 text-start text-sm",
                                         )}
                                         href="."
                                         onClick={(e) => {
