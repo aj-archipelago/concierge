@@ -1,13 +1,12 @@
 "use client";
 
 import i18next from "i18next";
-import { useState } from "react";
 import { Modal } from "react-bootstrap";
+import { useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import config from "../../config";
 
-const Tos = () => {
-    const [showTos, setShowTos] = useState(true);
+const Tos = ({ showTos, setShowTos }) => {
     const { getLogo, getTosContent } = config.global;
     const { language } = i18next;
     const { t } = useTranslation();
@@ -19,6 +18,11 @@ const Tos = () => {
         const rightNow = new Date(Date.now());
         localStorage.setItem("cortexWebShowTos", rightNow.toString());
     };
+
+    useEffect(() => {
+        const shouldShowTos = checkShowTos();
+        setShowTos(shouldShowTos);
+    }, [setShowTos]);
 
     const checkShowTos = () => {
         const acceptDateString =
@@ -41,8 +45,11 @@ const Tos = () => {
         }
     };
 
+    console.log("showTos", showTos);
+    console.log("checkShowTos", checkShowTos());
+    
     return (
-        <Modal dialogClassName="tos" show={showTos && checkShowTos()}>
+        <Modal dialogClassName="tos" show={ showTos }>
             <Modal.Header>
                 <Modal.Title>{t("Terms of Service")}</Modal.Title>
             </Modal.Header>

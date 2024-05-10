@@ -5,6 +5,10 @@ import config from "./config/index";
 const { MONGO_URI } = process.env;
 
 export function register() {
+    if (!mongoose?.connect) {
+        return;
+    }
+    
     mongoose
         .connect(MONGO_URI)
         .then(() => {

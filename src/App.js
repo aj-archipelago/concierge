@@ -13,7 +13,6 @@ import { ThemeProvider } from "./contexts/ThemeProvider";
 import Layout from "./layout/Layout";
 import "./App.scss";
 import "./tailwind.css";
-import dynamic from "next/dynamic";
 import { useCurrentUser } from "../app/queries/users";
 
 const { NEXT_PUBLIC_AMPLITUDE_API_KEY } = process.env;
@@ -61,9 +60,6 @@ const App = ({ children, language, theme, serverUrl }) => {
 };
 
 const Body = ({ children, tosTimestamp }) => {
-    const Tos = dynamic(() => import("./components/Tos"), {
-        ssr: false,
-    });
     const containerStyles = {};
     const { language } = useContext(LanguageContext);
 
@@ -74,7 +70,6 @@ const Body = ({ children, tosTimestamp }) => {
             style={containerStyles}
         >
             {children}
-            <Tos />
         </div>
     );
 };
