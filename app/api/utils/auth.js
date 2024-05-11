@@ -11,18 +11,26 @@ export const getCurrentUser = async () => {
         return { userId: "nodb", name: "No Database Connected" };
     }
 
-    if (auth.provider && auth.provider !== "entra") {
-        throw new Error(`Unsupported auth provider: ${auth.provider}`);
+    let id = null;
+    let username = null;
+
+    if (auth.provider) {
+        if (auth.provider !== "entra") {
+            throw new Error(`Unsupported auth provider: ${auth.provider}`);
+        }
+
+        const headerList = headers();
+        id = headerList.get("X-MS-CLIENT-PRINCIPAL-ID");
+        username = headerList.get("X-MS-CLIENT-PRINCIPAL-NAME");
     }
 
-    const headerList = headers();
-    const id = headerList.get("X-MS-CLIENT-PRINCIPAL-ID") || "anonymous";
+    id = id || "anonymous";
+    username = username || "Anonymous";
+
     let user = await User.findOne({ userId: id });
 
     if (!user) {
         console.log("User not found in DB: ", id);
-        const username =
-            headerList.get("X-MS-CLIENT-PRINCIPAL-NAME") || "Anonymous";
         const name = username;
         const contextId = uuidv4();
         const aiMemory = "";

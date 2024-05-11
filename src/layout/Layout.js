@@ -11,13 +11,14 @@ import Footer from "./Footer";
 import ProfileDropdown from "./ProfileDropdown";
 import UserOptions from "../components/UserOptions";
 import Sidebar from "./Sidebar";
-import config from "../../config";
 import { usePathname } from "next/navigation";
 import ChatBox from "../components/chat/ChatBox";
+import Tos from "../components/Tos";
 
 export default function Layout({ children }) {
     const [showOptions, setShowOptions] = useState(false);
     const [sidebarOpen, setSidebarOpen] = useState(false);
+    const [showTos, setShowTos] = useState(false);
     const statePosition = useSelector((state) => state.chat?.chatBox?.position);
     const dispatch = useDispatch();
     const { t } = useTranslation();
@@ -139,6 +140,7 @@ export default function Layout({ children }) {
                                 <ProfileDropdown
                                     user={user}
                                     handleShowOptions={handleShowOptions}
+                                    setShowTos={setShowTos}
                                 />
                             </div>
                         </div>
@@ -156,6 +158,10 @@ export default function Layout({ children }) {
                                         handleClose={handleCloseOptions}
                                     />
                                 )}
+                                <Tos
+                                    showTos={showTos}
+                                    setShowTos={setShowTos}
+                                />
                                 {children}
                             </div>
                             {showChatbox && (
