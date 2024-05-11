@@ -17,7 +17,9 @@ const isAuthorized = (request) => {
             ?.toLowerCase();
 
         const allowedTenantIds = process.env.ENTRA_AUTHORIZED_TENANTS
-            ? process.env.ENTRA_AUTHORIZED_TENANTS.split(",").toLowerCase()
+            ? process.env.ENTRA_AUTHORIZED_TENANTS.split(",").map((tenantId) =>
+                  tenantId.toLowerCase(),
+              )
             : [];
 
         if (!tenantId || !allowedTenantIds.includes(tenantId)) {
