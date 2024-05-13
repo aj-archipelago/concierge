@@ -5,22 +5,10 @@ import { v4 as uuidv4 } from "uuid";
 
 export const toggleAJArticles = createAction("chat/toggleAJArticles");
 
-function getContextId() {
-    if (typeof localStorage === "undefined") return null;
-
-    let contextId = localStorage.getItem("chatContextId");
-    if (!contextId || contextId === "null" || contextId === "undefined") {
-        contextId = uuidv4();
-        localStorage.setItem("chatContextId", contextId);
-    }
-    return contextId;
-}
-
 export const chatSlice = createSlice({
     name: "chat",
     initialState: {
         messages: [],
-        contextId: getContextId(),
         chatBox:
             typeof localStorage !== "undefined"
                 ? localStorage.getItem("chatbox")
@@ -35,19 +23,6 @@ export const chatSlice = createSlice({
             const message = action.payload;
             if (!message.id) message.id = uuidv4();
             state.messages.push(message);
-
-            if (state.chatBox.position === "closed") {
-                chatSlice.caseReducers.setChatBoxPosition(state, {
-                    payload: {
-                        position: "opened",
-                    },
-                });
-            }
-        },
-        setContextId: (state, action) => {
-            const contextId = action.payload || uuidv4();
-            state.contextId = contextId;
-            localStorage.setItem("chatContextId", contextId);
         },
         clearChat: (state, action) => {
             state.messages = [];
@@ -110,7 +85,6 @@ export const chatSlice = createSlice({
 export const {
     addMessage,
     clearChat,
-    setContextId,
     firstRunMessage,
     setChatBoxPosition,
     includeAJArticles,

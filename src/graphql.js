@@ -3,50 +3,53 @@ import { GraphQLWsLink } from "@apollo/client/link/subscriptions";
 import { createClient } from "graphql-ws";
 import { split, HttpLink } from "@apollo/client";
 import { getMainDefinition } from "@apollo/client/utilities";
+import config from "../config";
 
-const NEXT_PUBLIC_API_URL =
-    process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/graphql";
+const CORTEX_GRAPHQL_API_URL =
+    process.env.CORTEX_GRAPHQL_API_URL || "http://localhost:4000/graphql";
 
-const NEXT_PUBLIC_API_SUBSCRIPTION_KEY =
-    process.env.NEXT_PUBLIC_API_SUBSCRIPTION_KEY || "";
+const getClient = (serverUrl) => {
+    let graphqlEndpoint;
+    if (serverUrl) {
+        graphqlEndpoint = config.endpoints.graphql(serverUrl);
+    } else {
+        graphqlEndpoint = CORTEX_GRAPHQL_API_URL;
+    }
 
-const httpLink = new HttpLink({
-    uri: NEXT_PUBLIC_API_URL,
-    headers: {
-        "Ocp-Apim-Subscription-Key": NEXT_PUBLIC_API_SUBSCRIPTION_KEY,
-    },
-});
+    const httpLink = new HttpLink({
+        uri: graphqlEndpoint,
+    });
 
-const wsLink = new GraphQLWsLink(
-    createClient({
-        url:
-            NEXT_PUBLIC_API_URL.replace("http", "ws") +
-            "?subscription-key=" +
-            NEXT_PUBLIC_API_SUBSCRIPTION_KEY,
-    }),
-);
+    const wsLink = new GraphQLWsLink(
+        createClient({
+            url: graphqlEndpoint.replace("http", "ws"),
+        }),
+    );
 
-// The split function takes three parameters:
-//
-// * A function that's called for each operation to execute
-// * The Link to use for an operation if the function returns a "truthy" value
-// * The Link to use for an operation if the function returns a "falsy" value
-const splitLink = split(
-    ({ query }) => {
-        const definition = getMainDefinition(query);
-        return (
-            definition.kind === "OperationDefinition" &&
-            definition.operation === "subscription"
-        );
-    },
-    wsLink,
-    httpLink,
-);
+    // The split function takes three parameters:
+    //
+    // * A function that's called for each operation to execute
+    // * The Link to use for an operation if the function returns a "truthy" value
+    // * The Link to use for an operation if the function returns a "falsy" value
+    const splitLink = split(
+        ({ query }) => {
+            const definition = getMainDefinition(query);
+            return (
+                definition.kind === "OperationDefinition" &&
+                definition.operation === "subscription"
+            );
+        },
+        wsLink,
+        httpLink,
+    );
 
-const client = new ApolloClient({
-    link: splitLink,
-    cache: new InMemoryCache(),
-});
+    const client = new ApolloClient({
+        link: splitLink,
+        cache: new InMemoryCache(),
+    });
+
+    return client;
+};
 
 const SUMMARY = gql`
     query Summary($text: String!, $async: Boolean, $targetLength: Int) {
@@ -122,17 +125,36 @@ const CHAT_EXTENSION = gql`
     }
 `;
 
-const RAG = gql`
-    query RAG(
-        $chatHistory: [Message]!
+const VISION = gql`
+    query ($text: String, $chatHistory: [MultiMessage]) {
+        vision(text: $text, chatHistory: $chatHistory) {
+            result
+            contextId
+        }
+    }
+`;
+
+const RAG_SAVE_MEMORY = gql`
+    query RagSaveMemory($aiMemory: String!, $contextId: String!) {
+        rag_save_memory(aiMemory: $aiMemory, contextId: $contextId) {
+            result
+        }
+    }
+`;
+
+const RAG_START = gql`
+    query RagStart(
+        $chatHistory: [MultiMessage]!
         $dataSources: [String]
         $contextId: String
         $text: String
         $roleInformation: String
         $indexName: String
         $semanticConfiguration: String
+        $aiName: String
+        $aiMemorySelfModify: Boolean
     ) {
-        rag(
+        rag_start(
             chatHistory: $chatHistory
             dataSources: $dataSources
             contextId: $contextId
@@ -140,6 +162,36 @@ const RAG = gql`
             roleInformation: $roleInformation
             indexName: $indexName
             semanticConfiguration: $semanticConfiguration
+            aiName: $aiName
+            aiMemorySelfModify: $aiMemorySelfModify
+        ) {
+            result
+            contextId
+            tool
+        }
+    }
+`;
+
+const RAG_GENERATOR_RESULTS = gql`
+    query RagFinish(
+        $chatHistory: [MultiMessage]!
+        $dataSources: [String]
+        $contextId: String
+        $text: String
+        $roleInformation: String
+        $indexName: String
+        $semanticConfiguration: String
+        $aiName: String
+    ) {
+        rag_generator_results(
+            chatHistory: $chatHistory
+            dataSources: $dataSources
+            contextId: $contextId
+            text: $text
+            roleInformation: $roleInformation
+            indexName: $indexName
+            semanticConfiguration: $semanticConfiguration
+            aiName: $aiName
         ) {
             result
             contextId
@@ -285,14 +337,24 @@ const TRANSCRIBE = gql`
     query Transcribe(
         $file: String!
         $text: String
+        $language: String
         $wordTimestamped: Boolean
+        $maxLineCount: Int
+        $maxLineWidth: Int
+        $maxWordsPerLine: Int
+        $highlightWords: Boolean
         $responseFormat: String
         $async: Boolean
     ) {
         transcribe(
             file: $file
             text: $text
+            language: $language
             wordTimestamped: $wordTimestamped
+            maxLineCount: $maxLineCount
+            maxLineWidth: $maxLineWidth
+            maxWordsPerLine: $maxWordsPerLine
+            highlightWords: $highlightWords
             responseFormat: $responseFormat
             async: $async
         ) {
@@ -326,8 +388,8 @@ const TRANSLATE_TURBO = gql`
 `;
 
 const TRANSLATE_GPT4 = gql`
-    query TranslateGpt4($text: String!, $to: String!) {
-        translate_gpt4(text: $text, to: $to) {
+    query TranslateGpt4($text: String!, $to: String!, $async: Boolean) {
+        translate_gpt4(text: $text, to: $to, async: $async) {
             result
         }
     }
@@ -457,13 +519,55 @@ const IMAGE = gql`
     }
 `;
 
+const JIRA_STORY = gql`
+    query JiraStory(
+        $text: String!
+        $storyType: String
+        $storyCount: String
+        $async: Boolean
+    ) {
+        jira_story(
+            text: $text
+            storyType: $storyType
+            storyCount: $storyCount
+            async: $async
+        ) {
+            result
+        }
+    }
+`;
+
+const getWorkspacePromptQuery = (pathwayName) => {
+    return gql`
+        query ${pathwayName}(
+            $text: String!
+            $systemPrompt: String
+            $prompt: String!
+            $async: Boolean
+        ) {
+            ${pathwayName}(
+                text: $text
+                systemPrompt: $systemPrompt
+                prompt: $prompt
+                async: $async
+            ) {
+                result
+            }
+        }
+    `;
+};
+
 const QUERIES = {
     CHAT_PERSIST,
     CHAT_LABEEB,
     CHAT_EXTENSION,
     CHAT_CODE,
+    COGNITIVE_DELETE,
+    COGNITIVE_INSERT,
     IMAGE,
-    RAG,
+    RAG_SAVE_MEMORY,
+    RAG_START,
+    RAG_GENERATOR_RESULTS,
     EXPAND_STORY,
     FORMAT_PARAGRAPH_TURBO,
     SELECT_SERVICES,
@@ -477,6 +581,8 @@ const QUERIES = {
     TOPICS,
     KEYWORDS,
     TAGS,
+    JIRA_STORY,
+    getWorkspacePromptQuery,
     STYLE_GUIDE,
     ENTITIES,
     STORY_ANGLES,
@@ -493,6 +599,7 @@ const QUERIES = {
     REMOVE_CONTENT,
     HEADLINE_CUSTOM,
     SUBHEAD,
+    VISION,
 };
 
 const SUBSCRIPTIONS = {
@@ -504,13 +611,16 @@ const MUTATIONS = {
 };
 
 export {
-    client,
+    getClient,
     CHAT_PERSIST,
     CHAT_LABEEB,
     CHAT_CODE,
     COGNITIVE_INSERT,
     COGNITIVE_DELETE,
     EXPAND_STORY,
+    RAG_SAVE_MEMORY,
+    RAG_START,
+    RAG_GENERATOR_RESULTS,
     SELECT_SERVICES,
     SUMMARY,
     HASHTAGS,
@@ -536,4 +646,6 @@ export {
     TRANSLATE_GPT4_TURBO,
     HIGHLIGHTS,
     REMOVE_CONTENT,
+    JIRA_STORY,
+    VISION,
 };

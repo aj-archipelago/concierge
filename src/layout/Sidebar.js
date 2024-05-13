@@ -1,28 +1,51 @@
+"use client";
+
 import {
+    ChatBubbleLeftIcon,
     CodeBracketIcon,
+    GlobeAltIcon,
     MicrophoneIcon,
     PencilSquareIcon,
     PhotoIcon,
 } from "@heroicons/react/24/outline";
-import i18next from "i18next";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import { useContext } from "react";
+import { useTranslation } from "react-i18next";
+import { MdOutlineWorkspaces } from "react-icons/md";
 import classNames from "../../app/utils/class-names";
 import config from "../../config";
+import { LanguageContext } from "../contexts/LanguageProvider";
 
 const navigation = [
     {
         name: "Write",
         icon: PencilSquareIcon,
-        children: [
-            { name: "Write", href: "/write" },
-            { name: "Translate", href: "/translate" },
-        ],
+        href: "/write",
+    },
+    {
+        name: "Translate",
+        icon: GlobeAltIcon,
+        href: "/translate",
+    },
+    {
+        name: "Chat",
+        icon: ChatBubbleLeftIcon,
+        href: "/chat",
     },
     {
         name: "Code",
         icon: CodeBracketIcon,
-        children: [{ name: config?.code?.botName, href: "/code" }],
+        children: [
+            {
+                name: "Knuth",
+                href: "/code/knuth",
+            },
+            {
+                name: "JIRA",
+                href: "/code/jira",
+            },
+        ],
     },
     {
         name: "Transcribe",
@@ -34,20 +57,26 @@ const navigation = [
         icon: PhotoIcon,
         href: "/images",
     },
+    {
+        name: "Workspaces",
+        icon: MdOutlineWorkspaces,
+        href: "/workspaces",
+    },
 ];
 
 export default function Sidebar() {
     const pathname = usePathname();
     const router = useRouter();
     const { getLogo, getSidebarLogo } = config.global;
-    const { language } = i18next;
+    const { language } = useContext(LanguageContext);
+    const { t } = useTranslation();
 
     return (
         <div className="flex grow flex-col gap-y-5 overflow-y-auto border-r border-gray-200 bg-white px-5">
             <div className="flex h-16 shrink-0 items-center gap-2">
                 <Link className="flex items-center gap-2" href="/">
                     <img
-                        className="h-8 w-auto"
+                        className="h-12 w-auto"
                         src={getLogo(language)}
                         alt="Your Company"
                     />
@@ -75,7 +104,7 @@ export default function Sidebar() {
                                                     className="h-6 w-6 shrink-0 text-gray-400"
                                                     aria-hidden="true"
                                                 />
-                                                {item.name}
+                                                {t(item.name)}
                                             </Link>
                                         ) : (
                                             <div>
@@ -86,7 +115,7 @@ export default function Sidebar() {
                                                         )
                                                             ? "bg-gray-100"
                                                             : "hover:bg-gray-100",
-                                                        "flex items-center w-full text-left rounded-md p-2 gap-x-3 text-sm leading-6 font-semibold text-gray-700",
+                                                        "flex items-center w-full text-start rounded-md p-2 gap-x-3 text-sm leading-6 font-semibold text-gray-700",
                                                     )}
                                                     onClick={() => {
                                                         if (
@@ -104,7 +133,7 @@ export default function Sidebar() {
                                                         className="h-6 w-6 shrink-0 text-gray-400"
                                                         aria-hidden="true"
                                                     />
-                                                    {item.name}
+                                                    {t(item.name)}
                                                 </button>
                                                 <ul className="mt-1 px-2">
                                                     {item.children?.map(
@@ -125,12 +154,12 @@ export default function Sidebar() {
                                                                         )
                                                                             ? "bg-gray-100"
                                                                             : "hover:bg-gray-100",
-                                                                        "block rounded-md py-2 pr-2 pl-9 text-sm leading-6 text-gray-700",
+                                                                        "block rounded-md py-2 pe-2 pl-9 text-sm leading-6 text-gray-700",
                                                                     )}
                                                                 >
-                                                                    {
-                                                                        subItem.name
-                                                                    }
+                                                                    {t(
+                                                                        subItem.name,
+                                                                    )}
                                                                 </Link>
                                                             </li>
                                                         ),

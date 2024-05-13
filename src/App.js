@@ -1,22 +1,20 @@
 "use client";
-
 import { ApolloProvider } from "@apollo/client";
-import React from "react";
-import { client } from "./graphql";
+import React, { useContext } from "react";
+import { getClient } from "./graphql";
 import "./i18n";
 
 import * as amplitude from "@amplitude/analytics-browser";
 import i18next from "i18next";
-import { Provider } from "react-redux";
 import classNames from "../app/utils/class-names";
-import "./App.scss";
-import Tos from "./components/Tos";
-import { LanguageProvider } from "./contexts/LanguageProvider";
+import StoreProvider from "./StoreProvider";
+import { LanguageContext, LanguageProvider } from "./contexts/LanguageProvider";
 import { ThemeProvider } from "./contexts/ThemeProvider";
 import Layout from "./layout/Layout";
-import store from "./store";
+import "./App.scss";
 import "./tailwind.css";
-import { CortexConfigProvider } from "./contexts/CortexConfigProvider";
+import dynamic from "next/dynamic";
+import { useCurrentUser } from "../app/queries/users";
 
 const { NEXT_PUBLIC_AMPLITUDE_API_KEY } = process.env;
 
@@ -26,32 +24,52 @@ if (typeof document !== "undefined") {
     });
 }
 
-const App = ({ children }) => {
+export const AuthContext = React.createContext({});
+
+const App = ({ children, language, theme, serverUrl }) => {
+    if (i18next.language !== language) {
+        i18next.changeLanguage(language);
+    }
+
+    const { data: currentUser } = useCurrentUser();
+
+    if (!currentUser) {
+        return null;
+    }
+
     return (
-        <CortexConfigProvider>
-            <ApolloProvider client={client}>
-                <Provider store={store}>
-                    <ThemeProvider>
-                        <LanguageProvider>
+        <ApolloProvider client={getClient(serverUrl)}>
+            <ServerContext.Provider value={{ serverUrl }}>
+                <StoreProvider>
+                    <ThemeProvider savedTheme={theme}>
+                        <LanguageProvider savedLanguage={language}>
                             <React.StrictMode>
-                                <Layout>
-                                    <Body>{children}</Body>
-                                </Layout>
+                                <AuthContext.Provider
+                                    value={{ user: currentUser }}
+                                >
+                                    <Layout>
+                                        <Body>{children}</Body>
+                                    </Layout>
+                                </AuthContext.Provider>
                             </React.StrictMode>
                         </LanguageProvider>
                     </ThemeProvider>
-                </Provider>
-            </ApolloProvider>
-        </CortexConfigProvider>
+                </StoreProvider>
+            </ServerContext.Provider>
+        </ApolloProvider>
     );
 };
 
-const Body = ({ children }) => {
+const Body = ({ children, tosTimestamp }) => {
+    const Tos = dynamic(() => import("./components/Tos"), {
+        ssr: false,
+    });
     const containerStyles = {};
+    const { language } = useContext(LanguageContext);
 
     return (
         <div
-            dir={i18next.language === "ar" ? "rtl" : "ltr"}
+            dir={language === "ar" ? "rtl" : "ltr"}
             className={classNames("h-full")}
             style={containerStyles}
         >
@@ -60,5 +78,7 @@ const Body = ({ children }) => {
         </div>
     );
 };
+
+export const ServerContext = React.createContext({});
 
 export default App;

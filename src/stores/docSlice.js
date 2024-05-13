@@ -16,7 +16,7 @@ export const docSlice = createSlice({
     },
     reducers: {
         addDoc: (state, action) => {
-            state.docs.push(action.payload);
+            state.docs.unshift(action.payload);
             localStorage.setItem("docs", JSON.stringify(current(state).docs));
         },
         removeDoc: (state, action) => {

@@ -1,23 +1,11 @@
-import React, { useState } from "react";
+import React, { useState, useRef, useContext } from "react";
+import { Overlay, Popover } from "react-bootstrap";
+import { LanguageContext } from "../../contexts/LanguageProvider";
 
 function TextWithCitations({ index, citation }) {
-    const [activeCitation, setActiveCitation] = useState(null);
-
-    const handleClick = (event) => {
-        event.preventDefault();
-        event.stopPropagation();
-        if (activeCitation) {
-            setActiveCitation(null);
-        } else {
-            setActiveCitation(citation);
-        }
-    };
-
-    const handleClose = (event) => {
-        event.preventDefault();
-        event.stopPropagation();
-        setActiveCitation(null);
-    };
+    const [show, setShow] = useState(false);
+    const target = useRef(null);
+    const { language } = useContext(LanguageContext);
 
     const { title, url, content } = citation;
 
@@ -28,67 +16,49 @@ function TextWithCitations({ index, citation }) {
     strippedContent = strippedContent.replace(/\[.*?\]/g, "");
 
     return (
-        <span key={index}>
-            <sup
-                onClick={handleClick}
-                style={{
-                    cursor: "pointer",
-                    color: "#009BFF",
-                    textDecoration: "underline",
-                    margin: "0 1px",
-                    fontSize: "0.9em",
-                }}
+        <span
+            key={index}
+            ref={target}
+            onClick={() => setShow(!show)}
+            className="text-with-citations"
+        >
+            <sup>{index}</sup>
+            <Overlay
+                show={show}
+                target={target.current}
+                placement={language === "ar" ? "right" : "left"}
+                containerPadding={20}
+                transition={true}
+                rootClose
+                onHide={() => setShow(false)}
             >
-                {index}
-            </sup>
-            {activeCitation && (
-                <div
-                    className="citation-text"
-                    style={{
-                        position: "relative",
-                        marginTop: "10px",
-                        border: "1px solid #dee2e6",
-                        borderRadius: ".25rem",
-                        padding: "10px",
-                        marginBottom: "10px",
-                    }}
-                >
-                    <div
-                        onClick={handleClose}
-                        style={{
-                            position: "absolute",
-                            right: "10px",
-                            top: "5px",
-                            cursor: "pointer",
-                            fontSize: "1.2em",
-                        }}
-                    >
-                        x
-                    </div>
-                    <div
-                        style={{
-                            display: "flex",
-                            justifyContent: "center",
-                            marginBottom: "10px",
-                        }}
-                    >
-                        <a
-                            href={url}
-                            target="_blank"
-                            rel="noreferrer"
-                            style={{
-                                color: "#007BFF",
-                                textDecoration: "underline",
-                            }}
-                        >
-                            {title}
-                        </a>
-                    </div>
-                    <div style={{ fontSize: "0.8rem", lineHeight: "1.2" }}>
-                        {strippedContent}
-                    </div>
-                </div>
-            )}
+                <Popover id="popover-contained">
+                    <Popover.Header>
+                        {url ? (
+                            <div className="popover-link">
+                                <a
+                                    href={url}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    onClick={(e) => e.stopPropagation()}
+                                >
+                                    {title}
+                                </a>
+                            </div>
+                        ) : (
+                            <div
+                                onClick={(e) => e.stopPropagation()}
+                                className="popover-title"
+                            >
+                                {title}
+                            </div>
+                        )}
+                    </Popover.Header>
+                    <Popover.Body>
+                        <p>{strippedContent}</p>
+                    </Popover.Body>
+                </Popover>
+            </Overlay>
         </span>
     );
 }

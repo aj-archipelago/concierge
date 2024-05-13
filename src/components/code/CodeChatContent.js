@@ -17,13 +17,12 @@ function CodeBox({ contextMessageCount }) {
     const { t } = useTranslation();
 
     const content = (
-        <div>
-            <div className="d-flex flex-column code-chat-content message-container">
-                <div className="flex-grow-1 overflow-auto chat-message-list">
-                    <MessageList messages={messages} bot="code" size="full" />
-                </div>
+        <div className="h-full flex flex-col gap-3 code-chat-content message-container">
+            <div className="grow overflow-auto chat-message-list">
+                <MessageList messages={messages} bot="code" loading={loading} />
+            </div>
+            <div>
                 <MessageInput
-                    size="full"
                     container="codepage"
                     placeholder={t(
                         `Send a message to ${config?.code?.botName}`,

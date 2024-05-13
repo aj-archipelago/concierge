@@ -15,9 +15,11 @@ export default function Topics({ inputText }) {
     const [potentialTopics, setPotentialTopics] = useState([]);
 
     useEffect(() => {
-        config?.data?.getTopics(language).then((topics) => {
-            setPotentialTopics(topics || []);
-        });
+        setTimeout(() => {
+            config?.data?.getTopics(language).then((topics) => {
+                setPotentialTopics(topics || []);
+            });
+        }, 1);
     }, [potentialTopics, language]);
 
     return (

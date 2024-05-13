@@ -1,31 +1,31 @@
 import { Form } from "react-bootstrap";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useContext } from "react";
 import { useTranslation } from "react-i18next";
-import {
-    NEXT_PUBLIC_MEDIA_API_URL,
-    NEXT_PUBLIC_API_SUBSCRIPTION_KEY,
-} from "../../config";
 import { v4 as uuidv4 } from "uuid";
 import { COGNITIVE_INSERT } from "../../graphql";
 import { useApolloClient } from "@apollo/client";
-import { useDispatch, useSelector } from "react-redux";
+import { useDispatch } from "react-redux";
 import { addDoc, addSource } from "../../stores/docSlice";
 import {
     setFileLoading,
     clearFileLoading,
     loadingError,
 } from "../../stores/fileUploadSlice";
+import config from "../../../config";
+import { AuthContext, ServerContext } from "../../App";
 
 function FileUploadComponent({ text }) {
     const [url, setUrl] = useState(null);
     const [filename, setFilename] = useState(null);
     const { t } = useTranslation();
-    const contextId = useSelector((state) => state.chat.contextId);
+    const { user } = useContext(AuthContext);
+    const contextId = user?.contextId;
     const dispatch = useDispatch();
     const [isLoading, setIsLoading] = useState(false);
     const client = useApolloClient();
     // eslint-disable-next-line
     const [data, setData] = useState(null);
+    const { serverUrl } = useContext(ServerContext);
 
     const setLoadingState = (isLoading) => {
         setIsLoading(isLoading);
@@ -101,11 +101,7 @@ function FileUploadComponent({ text }) {
 
         try {
             const xhr = new XMLHttpRequest();
-            xhr.open("POST", NEXT_PUBLIC_MEDIA_API_URL, true);
-            xhr.setRequestHeader(
-                "Ocp-Apim-Subscription-Key",
-                NEXT_PUBLIC_API_SUBSCRIPTION_KEY,
-            );
+            xhr.open("POST", config.endpoints.mediaHelper(serverUrl), true);
 
             // Monitor the upload progress
             xhr.upload.onprogress = (event) => {
@@ -164,7 +160,7 @@ function FileUploadComponent({ text }) {
                         size="sm"
                         type="file"
                         accept=".pdf,.docx,.xlsx,.txt"
-                        className="rounded mb-2 bg-white border"
+                        className="rounded mb-2 bg-white border w-full"
                         onChange={handleFileUpload}
                     />
                     <div style={{ padding: "2px 5px" }}>

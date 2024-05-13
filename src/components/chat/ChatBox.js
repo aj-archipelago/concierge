@@ -13,37 +13,26 @@ import { LanguageContext } from "../../contexts/LanguageProvider";
 import { setChatBoxPosition } from "../../stores/chatSlice";
 import ChatContent from "./ChatContent";
 import config from "../../../config";
+import { useRouter } from "next/navigation";
 
 function ChatBox() {
-    const position =
-        useSelector((state) => state.chat?.chatBox?.position) || "closed";
+    const statePosition = useSelector((state) => state.chat?.chatBox?.position);
     const dispatch = useDispatch();
-    // let location = useLocation();
     const dockedWidth = useSelector((state) => state?.chat?.chatBox?.width);
     const dockedWidthRef = useRef();
     dockedWidthRef.current = dockedWidth;
     const { t } = useTranslation();
     const { language } = useContext(LanguageContext);
-
-    // useEffect(
-    //     () => {
-    //         if (firstTimeLeavingChat && ((location.state ? location.state.from : '/').indexOf('chat') !== -1)) {
-    //             // if this is the first time leaving chat, open the floating chat
-    //             setFirstTimeLeavingChat(false)
-    //         }
-    //         setVisible(location.pathname.indexOf('chat') === -1)
-    //     },
-    //     [location, firstTimeLeavingChat]
-    // )
+    const router = useRouter();
 
     const updateChatBox = (newPosition) => {
         dispatch(setChatBoxPosition(newPosition));
     };
 
     const titleBarClick = () => {
-        if (position === "docked") {
+        if (statePosition === "docked") {
             // updateChatBox({ position: 'full' })
-        } else if (position === "full") {
+        } else if (statePosition === "full") {
             updateChatBox({ position: "docked" });
         }
     };
@@ -52,7 +41,7 @@ function ChatBox() {
         const lastOpenPosition = useSelector(
             (state) => state.chat?.chatBox?.lastOpenPosition,
         );
-        switch (position) {
+        switch (statePosition) {
             case "closed":
                 return (
                     <>
@@ -95,7 +84,12 @@ function ChatBox() {
             case "docked":
                 return (
                     <>
-                        {/* <FaWindowMaximize onClick={(e) => { e.stopPropagation(); updateChatBox({ position: 'full' }) }} />&nbsp;&nbsp; */}
+                        <FaWindowMaximize
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                router.push("/chat");
+                            }}
+                        />
                         <FaWindowClose
                             onClick={(e) => {
                                 e.stopPropagation();
@@ -127,33 +121,7 @@ function ChatBox() {
         }
     };
 
-    // const mouseDownHandler = (e) => {
-    //     const startPosition = e.pageX;
-    //     const startSize = document.querySelector('.message-list-container').clientWidth;
-
-    //     const mouseMoveHandler = e => {
-    //         const newPosition = language === 'ar' ?
-    //             startSize - startPosition + e.pageX :
-    //             startSize + startPosition - e.pageX;
-    //         let newWidth = Math.min(newPosition, document.body.clientWidth);
-    //         newWidth = Math.max(200, newWidth);
-    //         updateChatBox({ position: 'docked', width: newWidth });
-    //     }
-
-    //     const mouseUpHandler = e => {
-    //         document.removeEventListener("mousemove", mouseMoveHandler, false);
-    //     }
-
-    //     document.addEventListener("mouseup", mouseUpHandler, { once: true });
-
-    //     const rect = e.target.getBoundingClientRect()
-    //     const start = language === 'ar' ? rect.right : rect.left;
-    //     if (e.pageX <= start + 5 && e.pageX >= start - 5) {
-    //         document.addEventListener("mousemove", mouseMoveHandler, false);
-    //     }
-    // }
-
-    if (position === "full") {
+    if (statePosition === "full") {
         return (
             <div className="chat-full-container bg-white">
                 <div
@@ -168,16 +136,16 @@ function ChatBox() {
                 <ChatContent />
             </div>
         );
-    } else if (position === "closed") {
+    } else if (statePosition === "closed") {
         return (
             <div className="chatbox chatbox-floating chatbox-floating-closed"></div>
         );
     } else {
         return (
-            <div className="bg-white rounded border dark:border-gray-300 overflow-hidden">
+            <div className="bg-white rounded border dark:border-gray-300 overflow-hidden h-full">
                 <div
                     style={{ width: dockedWidth }}
-                    className={`d-md-block chatbox chatbox-floating chatbox-floating-${position}`}
+                    className={`flex flex-col h-full chatbox chatbox-floating chatbox-floating-${statePosition} ${statePosition}`}
                 >
                     <div
                         className="bg-zinc-100 flex justify-between items-center p-3"
@@ -190,10 +158,10 @@ function ChatBox() {
                             <Actions />
                         </div>
                     </div>
-                    {position !== "closed" && (
-                        <div className="message-list-container">
+                    {statePosition !== "closed" && (
+                        <div className="grow p-3 overflow-auto">
                             <ChatContent
-                                displayState={position}
+                                displayState={statePosition}
                                 container={"chatbox"}
                             />
                         </div>

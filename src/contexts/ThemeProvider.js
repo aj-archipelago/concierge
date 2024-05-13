@@ -1,17 +1,17 @@
 "use client";
 
-import { createContext, useState } from "react";
+import { createContext, useEffect, useState } from "react";
 
 // create the theme context with default selected theme
 export const ThemeContext = createContext({});
 
 // it provides the theme context to app
-export function ThemeProvider({ children }) {
-    const [theme, setTheme] = useState(
-        typeof localStorage !== "undefined"
-            ? localStorage.getItem("labeeb-theme")
-            : "light",
-    );
+export function ThemeProvider({ children, savedTheme = "light" }) {
+    const [theme, setTheme] = useState(savedTheme);
+
+    useEffect(() => {
+        document.documentElement.setAttribute("data-color-mode", theme);
+    }, [theme]);
 
     if (typeof document === "undefined") {
         return <>{children}</>;
@@ -22,9 +22,13 @@ export function ThemeProvider({ children }) {
             theme,
             changeTheme: (newTheme) => {
                 setTheme(newTheme);
-                localStorage.setItem("labeeb-theme", newTheme);
+                document.cookie = `theme=${newTheme}; path=/`;
                 document.body.classList.remove(theme);
                 document.body.classList.add(newTheme);
+                document.documentElement.setAttribute(
+                    "data-color-mode",
+                    newTheme,
+                );
             },
         };
 

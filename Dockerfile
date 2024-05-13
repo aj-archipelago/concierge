@@ -19,6 +19,19 @@ RUN \
   fi
 RUN  cat /root/.npm/_logs/* 
 
+# COPY sshd_config /etc/ssh/
+# COPY entrypoint.sh ./
+
+# # Add SSH and expose the SSH port
+# RUN apk add openssh \
+#     && echo "root:Docker!" | chpasswd \
+#     && chmod +x ./entrypoint.sh \
+#     && cd /etc/ssh/ \
+#     && ssh-keygen -A
+
+# EXPOSE 8000 2222
+
+# ENTRYPOINT [ "./entrypoint.sh" ]
 
 # Rebuild the source code only when needed
 FROM base AS builder
@@ -31,7 +44,18 @@ COPY . .
 # Uncomment the following line in case you want to disable telemetry during the build.
 ENV NEXT_TELEMETRY_DISABLED 1
 
-# If using npm comment out above and use below instead
+# read args and set env variables
+ARG CORTEX_GRAPHQL_API_URL
+ENV CORTEX_GRAPHQL_API_URL=$CORTEX_GRAPHQL_API_URL
+ARG CORTEX_MEDIA_API_URL
+ENV CORTEX_MEDIA_API_URL=$CORTEX_MEDIA_API_URL
+ARG NEXT_PUBLIC_AMPLITUDE_API_KEY
+ENV NEXT_PUBLIC_AMPLITUDE_API_KEY=$NEXT_PUBLIC_AMPLITUDE_API_KEY
+ARG NEXT_PUBLIC_ATLASSIAN_CLIENT_ID
+ENV NEXT_PUBLIC_ATLASSIAN_CLIENT_ID=$NEXT_PUBLIC_ATLASSIAN_CLIENT_ID
+ARG NEXT_PUBLIC_BASE_PATH
+ENV NEXT_PUBLIC_BASE_PATH=$NEXT_PUBLIC_BASE_PATH
+
 RUN npm run build --legacy-peer-deps
 
 # Production image, copy all the files and run next

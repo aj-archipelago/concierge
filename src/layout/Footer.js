@@ -2,6 +2,7 @@ import { useContext } from "react";
 import { useTranslation } from "react-i18next";
 import { LanguageContext } from "../contexts/LanguageProvider";
 import { ThemeContext } from "../contexts/ThemeProvider";
+import { basePath } from "../utils/constants";
 
 export default function Footer() {
     const { t } = useTranslation();
@@ -10,6 +11,7 @@ export default function Footer() {
 
     return (
         <div className="flex justify-end gap-8 bottom-0 items-center text-xs text-sky-700 px-4 py-2 bg-zinc-200">
+            <div>{t("footer_copyright")}</div>
             <div>
                 <button
                     className="text-sky-600 hover:underline"
@@ -43,7 +45,7 @@ export default function Footer() {
             <div className="flex gap-2 items-center">
                 {t("Powered by")}
                 <img
-                    src="/assets/azure-openai-logo.png"
+                    src={`${basePath || ""}/assets/azure-openai-logo.png`}
                     alt="azure openai logo"
                     style={{ height: 20 }}
                     height="20px"
