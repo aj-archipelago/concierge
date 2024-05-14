@@ -12,17 +12,22 @@ export const config = {
 
 const isAuthorized = (request) => {
     if (auth?.provider === "entra") {
-        const tenantId = request.headers
-            .get("X-MS-CLIENT-PRINCIPAL-TENANT-ID")
+        const emailName = request.headers
+            .get("X-MS-CLIENT-PRINCIPAL-NAME")
             ?.toLowerCase();
 
-        const allowedTenantIds = process.env.ENTRA_AUTHORIZED_TENANTS
-            ? process.env.ENTRA_AUTHORIZED_TENANTS.split(",").map((tenantId) =>
-                  tenantId.toLowerCase(),
+        const allowedEmailDomains = process.env.ENTRA_AUTHORIZED_DOMAINS
+            ? process.env.ENTRA_AUTHORIZED_DOMAINS.split(",").map((emailDomain) =>
+                  emailDomain.toLowerCase(),
               )
             : [];
 
-        if (!tenantId || !allowedTenantIds.includes(tenantId)) {
+        if (!emailName || !allowedEmailDomains.length) {
+            return false;
+        }
+
+        const emailDomain = emailName.split("@")[1];
+        if (!allowedEmailDomains.includes(emailDomain)) {
             return false;
         }
     }
