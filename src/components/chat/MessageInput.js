@@ -121,8 +121,9 @@ function MessageInput({ onSend, loading, enableRag, placeholder }) {
         if (isDocumentUrl(url)) {
             fetchData(url);
         } else {
+            //media urls, 'll be sent with active message
             if (isMediaUrl(url)) {
-                setUrlsData([...urlsData, urlData]); //rest of it: images
+                setUrlsData((prevUrlsData) => [...prevUrlsData, urlData]); 
             }
         }
     };
