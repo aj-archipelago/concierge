@@ -39,14 +39,14 @@ export default function WorkspaceContent({ idOrSlug, user }) {
                 <div className="flex gap-6 grow overflow-auto">
                     <div className="basis-6/12 overflow-auto">
                         <WorkspaceInput
-                            onRunMany={(text, prompts) => async () => {
+                            onRunMany={(text, promptIds) => async () => {
                                 setError(null);
                                 await Promise.all(
-                                    prompts.map(async (prompt) => {
+                                    promptIds.map(async (promptId) => {
                                         try {
                                             await createRun.mutateAsync({
                                                 text,
-                                                promptId: prompt._id,
+                                                promptId,
                                                 systemPrompt:
                                                     workspace?.systemPrompt,
                                                 workspaceId: workspace?._id,
