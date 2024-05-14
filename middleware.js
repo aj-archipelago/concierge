@@ -17,8 +17,8 @@ const isAuthorized = (request) => {
             ?.toLowerCase();
 
         const allowedEmailDomains = process.env.ENTRA_AUTHORIZED_DOMAINS
-            ? process.env.ENTRA_AUTHORIZED_DOMAINS.split(",").map((emailDomain) =>
-                  emailDomain.toLowerCase(),
+            ? process.env.ENTRA_AUTHORIZED_DOMAINS.split(",").map(
+                  (emailDomain) => emailDomain.toLowerCase(),
               )
             : [];
 
