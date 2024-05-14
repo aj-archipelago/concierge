@@ -123,7 +123,7 @@ function MessageInput({ onSend, loading, enableRag, placeholder }) {
         } else {
             //media urls, 'll be sent with active message
             if (isMediaUrl(url)) {
-                setUrlsData((prevUrlsData) => [...prevUrlsData, urlData]); 
+                setUrlsData((prevUrlsData) => [...prevUrlsData, urlData]);
             }
         }
     };
