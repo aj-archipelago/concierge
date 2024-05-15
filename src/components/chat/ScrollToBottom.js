@@ -1,6 +1,6 @@
 import React, { useEffect, useRef } from "react";
 
-const ScrollToBottom = ({ children }) => {
+const ScrollToBottom = ({ children, loadComplete }) => {
     const containerRef = useRef(null);
 
     useEffect(() => {
@@ -14,7 +14,8 @@ const ScrollToBottom = ({ children }) => {
         };
 
         scroll();
-    }, [children]); // Dependency array ensures effect runs when 'children' changes
+        // Dependency array ensures effect runs when 'children' changes or when loading is complete
+    }, [children, loadComplete]);
 
     return (
         <div ref={containerRef} style={{ overflowY: "auto", height: "100%" }}>

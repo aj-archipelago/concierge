@@ -16,6 +16,6 @@ const llmSchema = new mongoose.Schema({
     },
 });
 
-const LLM = mongoose.models.LLM || mongoose.model("LLM", llmSchema);
+const LLM = mongoose.models?.LLM || mongoose.model("LLM", llmSchema);
 
 export default LLM;
