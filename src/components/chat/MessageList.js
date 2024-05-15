@@ -231,7 +231,7 @@ function MessageList({ messages, bot, loading }) {
 
                                     // Display the image
                                     return (
-                                        <div key={index}>
+                                        <div key={src}>
                                             <img
                                                 onLoad={() => {
                                                     handleMessageLoad(
