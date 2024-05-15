@@ -7,7 +7,7 @@ if (!authConfig) {
 const { auth } = authConfig;
 
 export const config = {
-    matcher: '/((?!graphql).*)',
+    matcher: "/((?!graphql).*)",
 };
 
 const isAuthorized = (request) => {
