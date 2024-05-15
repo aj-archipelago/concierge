@@ -7,7 +7,7 @@ import { useUpdateAiMemory } from "../../../app/queries/options";
 import { AuthContext } from "../../App.js";
 import ChatMessages from "./ChatMessages";
 
-const contextMessageCount = 5;
+const contextMessageCount = 50;
 
 function ChatContent({ displayState = "full", container = "chatpage" }) {
     const client = useApolloClient();
