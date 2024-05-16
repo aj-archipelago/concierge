@@ -4,7 +4,7 @@ import User from "../models/user";
 import mongoose from "mongoose";
 import { v4 as uuidv4 } from "uuid";
 
-export const getCurrentUser = async () => {
+export const getCurrentUser = async (convertToJsonObj = true) => {
     const auth = config.auth;
 
     if (!mongoose.connection.readyState) {
@@ -59,6 +59,28 @@ export const getCurrentUser = async () => {
     // user._id coming from mongoose is an object, even after calling toJSON()
     // and nextJS does not like passing it from a server to a client component
     // so we convert to JSON stringify and parse to get a plain object
-    user = JSON.parse(JSON.stringify(user.toJSON()));
+    if (convertToJsonObj) {
+        user = JSON.parse(JSON.stringify(user.toJSON()));
+    }
     return user;
+};
+
+export const handleError = (error) => {
+    console.error(
+        error?.response?.data?.errors ||
+            error?.response?.data?.error ||
+            error?.response?.data ||
+            error?.toString(),
+    );
+    return Response.json(
+        {
+            error: JSON.stringify(
+                error?.response?.data?.errors ||
+                    error?.response?.data?.error ||
+                    error?.response?.data ||
+                    error?.toString(),
+            ),
+        },
+        { status: 500 },
+    );
 };
