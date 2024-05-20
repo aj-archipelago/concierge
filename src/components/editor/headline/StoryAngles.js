@@ -1,5 +1,5 @@
 import { useQuery } from "@apollo/client";
-import { Button } from "react-bootstrap";
+import { Button } from "@/components/ui/button"; // Adjust the import path based on your project structure
 import { QUERIES } from "../../../graphql";
 import LoadingButton from "../LoadingButton";
 
@@ -19,8 +19,8 @@ function StoryAngles({ text, onSelect, currentAngle }) {
     const angles = data?.[query.toLowerCase()]?.result || [];
 
     return (
-        <div className="mb-3 story-angles">
-            <div className="d-flex gap-2 p-3" style={{ flexWrap: "wrap" }}>
+        <div className="mb-3 story-angles text-sm">
+            <div className="flex gap-2 flex-wrap">
                 {loading && (
                     <LoadingButton
                         size="sm"
@@ -35,15 +35,15 @@ function StoryAngles({ text, onSelect, currentAngle }) {
                 )}
                 {!loading &&
                     angles.map((angle, i) => (
-                        <Button
-                            size="sm"
+                        <button
+                            className="lb-sm lb-outline-secondary"
+                            variant="outline"
                             onClick={() => onSelect(angle)}
-                            variant="outline-secondary"
                             disabled={currentAngle === angle}
                             key={i}
                         >
                             {angle}
-                        </Button>
+                        </button>
                     ))}
             </div>
         </div>

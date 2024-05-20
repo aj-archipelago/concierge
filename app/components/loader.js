@@ -1,6 +1,9 @@
-export default function Loader({ size = "default" }) {
-    let heightClass = "h-4";
-    let widthClass = "w-4";
+import { Loader2 } from "lucide-react";
+import classNames from "../utils/class-names";
+
+export default function Loader({ size = "default", className = "" }) {
+    let heightClass = "h-5";
+    let widthClass = "w-5";
 
     if (size === "small") {
         heightClass = "h-3";
@@ -8,13 +11,16 @@ export default function Loader({ size = "default" }) {
     }
 
     return (
-        <div
-            className={`inline-block ${heightClass} ${widthClass} animate-[spinner-grow_0.75s_linear_infinite] rounded-full bg-current align-[-0.125em] opacity-0 motion-reduce:animate-[spinner-grow_1.5s_linear_infinite]`}
+        <Loader2
+            className={classNames(
+                `ms-1 inline-block ${heightClass} ${widthClass} animate-spin`,
+                className || "text-sky-500",
+            )}
             role="status"
         >
             <span className="!absolute !-m-px !h-px !w-px !overflow-hidden !whitespace-nowrap !border-0 !p-0 ![clip:rect(0,0,0,0)]">
                 Loading...
             </span>
-        </div>
+        </Loader2>
     );
 }

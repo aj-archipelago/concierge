@@ -1,6 +1,5 @@
 "use client";
 import { useContext, useEffect, useState } from "react";
-import { ListGroup } from "react-bootstrap";
 import { AiOutlineTag } from "react-icons/ai";
 import config from "../../../../config";
 import { LanguageContext } from "../../../contexts/LanguageProvider";
@@ -34,14 +33,17 @@ export default function Tags({ inputText }) {
             name="Tags"
             output={tags}
             renderOutput={() => (
-                <ListGroup className="mb-2">
+                <div className="mb-2">
                     {tags.map((item, i) => (
-                        <ListGroup.Item key={`tag-${i}`}>
+                        <div
+                            key={`tag-${i}`}
+                            className="p-2 border-b last:border-none"
+                        >
                             <CopyButton item={item} />
                             {item}
-                        </ListGroup.Item>
+                        </div>
                     ))}
-                </ListGroup>
+                </div>
             )}
             query={{
                 query: QUERIES.TAGS,

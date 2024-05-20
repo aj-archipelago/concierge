@@ -68,6 +68,7 @@ function convertMessageToMarkdown(message) {
                     style={{
                         listStyleType: "decimal",
                         marginBottom: "1rem",
+                        listStylePosition: "inside",
                     }}
                     {...rest}
                 />

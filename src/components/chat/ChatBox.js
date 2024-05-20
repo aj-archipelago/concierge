@@ -125,7 +125,7 @@ function ChatBox() {
         return (
             <div className="chat-full-container bg-white">
                 <div
-                    className="chatbox-floating-title bg-sky-700"
+                    className="chatbox-floating-title bg-sky-700 rounded-t"
                     onClick={titleBarClick}
                 >
                     <div className="chatbox-floating-title-text">
@@ -138,11 +138,11 @@ function ChatBox() {
         );
     } else if (statePosition === "closed") {
         return (
-            <div className="chatbox chatbox-floating chatbox-floating-closed"></div>
+            <div className="chatbox chatbox-floating rounded-t chatbox-floating-closed"></div>
         );
     } else {
         return (
-            <div className="bg-white rounded border dark:border-gray-300 overflow-hidden h-full">
+            <div className="bg-white rounded-md border dark:border-gray-300 overflow-hidden h-full">
                 <div
                     style={{ width: dockedWidth }}
                     className={`flex flex-col h-full chatbox chatbox-floating chatbox-floating-${statePosition} ${statePosition}`}

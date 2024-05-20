@@ -10,7 +10,7 @@ export default function Footer() {
     const { changeTheme } = useContext(ThemeContext);
 
     return (
-        <div className="flex justify-end gap-8 bottom-0 items-center text-xs text-sky-700 px-4 py-2 bg-zinc-200">
+        <div className="flex flex-col gap-1 sm:flex-row sm:justify-end gap-8 bottom-0 items-center text-xs text-sky-700 px-4 py-2 bg-zinc-200">
             <div>{t("footer_copyright")}</div>
             <div>
                 <button

@@ -19,6 +19,7 @@ export default function WorkspaceContent({ idOrSlug, user }) {
     const deleteRun = useDeleteRun();
     const deleteWorkspaceRuns = useDeleteWorkspaceRuns();
     const { t } = useTranslation();
+    const [runCompleted, setRunCompleted] = useState(1);
 
     return (
         <WorkspaceContext.Provider
@@ -36,8 +37,8 @@ export default function WorkspaceContent({ idOrSlug, user }) {
                             JSON.stringify(error)}
                     </div>
                 )}
-                <div className="flex gap-6 grow overflow-auto">
-                    <div className="basis-6/12 overflow-auto">
+                <div className="md:flex md:flex-row md:gap-6 grow overflow-auto">
+                    <div className="md:basis-6/12 overflow-auto">
                         <WorkspaceInput
                             onRunMany={(text, promptIds) => async () => {
                                 setError(null);
@@ -57,6 +58,7 @@ export default function WorkspaceContent({ idOrSlug, user }) {
                                         }
                                     }),
                                 );
+                                setRunCompleted((prev) => prev + 1);
                             }}
                             onRun={async (text, prompt) => {
                                 try {
@@ -67,6 +69,7 @@ export default function WorkspaceContent({ idOrSlug, user }) {
                                         systemPrompt: workspace?.systemPrompt,
                                         workspaceId: workspace?._id,
                                     });
+                                    setRunCompleted((prev) => prev + 1);
                                 } catch (error) {
                                     console.error(error);
                                     setError(error);
@@ -74,7 +77,7 @@ export default function WorkspaceContent({ idOrSlug, user }) {
                             }}
                         />
                     </div>
-                    <div className="basis-6/12">
+                    <div className="md:basis-6/12">
                         {outputs?.length > 0 && (
                             <>
                                 <div className="flex justify-between">
@@ -111,6 +114,7 @@ export default function WorkspaceContent({ idOrSlug, user }) {
                                     15 days
                                 </div>
                                 <WorkspaceOutputs
+                                    runCompleted={runCompleted}
                                     outputs={outputs}
                                     onDelete={async (id) => {
                                         await deleteRun.mutateAsync({ id });

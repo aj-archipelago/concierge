@@ -188,7 +188,7 @@ function SelectorDialog({ setIsOpen }) {
                                     key={index}
                                     className="w-full flex items-center justify-between"
                                 >
-                                    <div className="bg-gray-100 p-4 rounded grow border">
+                                    <div className="bg-gray-100 p-4 rounded-md grow border">
                                         <h3 className="text-sm font-medium">
                                             {prompt.title}
                                         </h3>

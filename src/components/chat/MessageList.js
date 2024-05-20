@@ -97,7 +97,7 @@ function MessageList({ messages, bot, loading }) {
             return (
                 <div
                     key={message.id}
-                    className="flex bg-sky-50 rounded ps-1 pt-1"
+                    className="flex bg-sky-50 rounded-md ps-1 pt-1"
                 >
                     <div className={classNames(basis)}>{avatar}</div>
                     <div
@@ -204,7 +204,7 @@ function MessageList({ messages, bot, loading }) {
                                                 }}
                                                 key={index}
                                                 src={src}
-                                                className="max-h-[20%] max-w-[100%] [.docked_&]:max-w-[80%] rounded border bg-white p-1 my-2 dark:border-neutral-700 dark:bg-neutral-800 shadow-lg dark:shadow-black/30"
+                                                className="max-h-[20%] max-w-[100%] [.docked_&]:max-w-[80%] rounded-md border bg-white p-1 my-2 dark:border-neutral-700 dark:bg-neutral-800 shadow-lg dark:shadow-black/30"
                                                 controls
                                             />
                                         );
@@ -255,7 +255,7 @@ function MessageList({ messages, bot, loading }) {
                                                 }}
                                                 src={src}
                                                 alt="uploadedimage"
-                                                className="max-h-[20%] max-w-[60%] [.docked_&]:max-w-[90%] rounded border bg-white p-1 my-2 dark:border-neutral-700 dark:bg-neutral-800 shadow-lg dark:shadow-black/30"
+                                                className="max-h-[20%] max-w-[60%] [.docked_&]:max-w-[90%] rounded-md border bg-white p-1 my-2 dark:border-neutral-700 dark:bg-neutral-800 shadow-lg dark:shadow-black/30"
                                             />
                                         </div>
                                     );
@@ -291,7 +291,11 @@ function MessageList({ messages, bot, loading }) {
                     renderMessage({
                         id: "loading",
                         sender: "labeeb",
-                        payload: <Loader />,
+                        payload: (
+                            <div className="mt-1 mb-2">
+                                <Loader />
+                            </div>
+                        ),
                     })}
             </ScrollToBottom>
         </>

@@ -1,7 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import Modal from "react-bootstrap/Modal";
 import { useTranslation } from "react-i18next";
 import actions from "./editor/AIEditorActions";
+// import { Dialog, DialogTitle, DialogContent, DialogHeader, DialogFooter } from "@/components/ui/dialog"
+import { Dialog, Transition } from "@headlessui/react";
+import { Fragment } from "react";
+import { X } from "lucide-react";
 
 export default function AIModal({
     show,
@@ -73,44 +76,97 @@ export default function AIModal({
     };
     return (
         <>
-            <Modal
-                dialogClassName={dialogClassName}
-                animation={false}
-                show={show}
-                onHide={close}
-            >
-                <Modal.Header>
-                    <Modal.Title>{t(title)}</Modal.Title>
-                </Modal.Header>
-                <Modal.Body>{modalBody}</Modal.Body>
-                <Modal.Footer>
-                    <button className="lb-secondary" onClick={close}>
-                        {commitLabel ? t("Cancel") : t("Close")}
-                    </button>
-                    {commitLabel && (
-                        <button
-                            className="lb-primary"
-                            disabled={!result}
-                            onClick={() => {
-                                const value = diffEditorRef.current
-                                    ? diffEditorRef.current
-                                          .getModifiedEditor()
-                                          .getValue()
-                                    : result;
+            <Transition appear show={show} as={Fragment}>
+                <Dialog
+                    as="div"
+                    className="relative z-50"
+                    onClose={() => {
+                        null;
+                    }}
+                >
+                    <Transition.Child
+                        as={Fragment}
+                        enter="ease-out duration-300"
+                        enterFrom="opacity-0"
+                        enterTo="opacity-100"
+                        leave="ease-in duration-200"
+                        leaveFrom="opacity-100"
+                        leaveTo="opacity-0"
+                    >
+                        <div className="fixed inset-0 bg-black/25" />
+                    </Transition.Child>
 
-                                if (inputType === "full") {
-                                    onCommit(value, "full");
-                                } else {
-                                    onCommit(value, "selection");
-                                }
-                                close();
-                            }}
-                        >
-                            {t(commitLabel)}
-                        </button>
-                    )}
-                </Modal.Footer>
-            </Modal>
+                    <div className="fixed inset-0 overflow-y-auto">
+                        <div className="flex min-h-full items-center justify-center p-4 text-center">
+                            <Transition.Child
+                                as={Fragment}
+                                enter="ease-out duration-300"
+                                enterFrom="opacity-0 scale-95"
+                                enterTo="opacity-100 scale-100"
+                                leave="ease-in duration-200"
+                                leaveFrom="opacity-100 scale-100"
+                                leaveTo="opacity-0 scale-95"
+                            >
+                                <Dialog.Panel className="w-full max-w-6xl transform overflow-hidden rounded-md bg-white p-6 text-left align-middle shadow-xl transition-all">
+                                    <Dialog.Title
+                                        as="h3"
+                                        className="text-lg font-medium leading-6 text-gray-900"
+                                    >
+                                        <div className="justify-between flex">
+                                            <div>{t(title)}</div>
+                                            <div>
+                                                <button
+                                                    onClick={close}
+                                                    className="p-1 rounded-full hover:bg-gray-100"
+                                                >
+                                                    <X size={16} />
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </Dialog.Title>
+                                    {modalBody}
+                                    <div className="justify-end flex gap-2 mt-4">
+                                        <button
+                                            className="lb-secondary"
+                                            onClick={close}
+                                        >
+                                            {commitLabel
+                                                ? t("Cancel")
+                                                : t("Close")}
+                                        </button>
+                                        {commitLabel && (
+                                            <button
+                                                className="lb-primary"
+                                                disabled={!result}
+                                                onClick={() => {
+                                                    const value =
+                                                        diffEditorRef.current
+                                                            ? diffEditorRef.current
+                                                                  .getModifiedEditor()
+                                                                  .getValue()
+                                                            : result;
+
+                                                    if (inputType === "full") {
+                                                        onCommit(value, "full");
+                                                    } else {
+                                                        onCommit(
+                                                            value,
+                                                            "selection",
+                                                        );
+                                                    }
+                                                    close();
+                                                }}
+                                            >
+                                                {t(commitLabel)}
+                                            </button>
+                                        )}
+                                    </div>
+                                </Dialog.Panel>
+                            </Transition.Child>
+                        </div>
+                    </div>
+                </Dialog>
+            </Transition>
         </>
     );
 }

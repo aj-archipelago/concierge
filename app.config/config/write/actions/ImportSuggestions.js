@@ -1,7 +1,8 @@
 "use client";
 
-import { ButtonGroup, Form, Spinner, ToggleButton } from "react-bootstrap";
-import { useEffect, useState, useRef } from "react";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { Loader2Icon } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { stripHTML } from "../../../../src/utils/html.utils";
 
@@ -104,76 +105,32 @@ export function ImportSuggestions({ text, onSelect, diffEditorRef }) {
 
     return (
         <div>
-            <ButtonGroup style={{ width: "50%" }}>
-                <ToggleButton
-                    size="sm"
-                    key={`radio-selector-${"aja"}`}
-                    id={`radio-selector-${"aja"}`}
-                    type="radio"
-                    variant={"outline-secondary"}
-                    name="radio"
-                    value={"aja"}
-                    checked={storyFlow === "aja"}
-                    onChange={(e) => {
-                        setStoryFlow("aja");
-                    }}
-                >
-                    {t("AJA")}
-                </ToggleButton>
-                <ToggleButton
-                    size="sm"
-                    key={`radio-selector-${"aje"}`}
-                    id={`radio-selector-${"aje"}`}
-                    type="radio"
-                    variant={"outline-secondary"}
-                    name="radio"
-                    value={"aje"}
-                    checked={storyFlow === "aje"}
-                    onChange={(e) => {
-                        setStoryFlow("aje");
-                    }}
-                >
-                    {t("AJE")}
-                </ToggleButton>
-                <ToggleButton
-                    key={`radio-selector-${"ajb"}`}
-                    id={`radio-selector-${"ajb"}`}
-                    type="radio"
-                    size="sm"
-                    variant={"outline-secondary"}
-                    name="radio"
-                    value={"ajb"}
-                    checked={storyFlow === "ajb"}
-                    onChange={(e) => {
-                        setStoryFlow("ajb");
-                    }}
-                >
-                    {t("AJ Balkans")}
-                </ToggleButton>
-                <ToggleButton
-                    key={`radio-selector-${"chinese"}`}
-                    id={`radio-selector-${"chinese"}`}
-                    type="radio"
-                    size="sm"
-                    variant={"outline-secondary"}
-                    name="radio"
-                    value={"chinese"}
-                    checked={storyFlow === "chinese"}
-                    onChange={(e) => {
-                        setStoryFlow("chinese");
-                    }}
-                >
+            <ToggleGroup
+                type="single"
+                value={storyFlow}
+                onValueChange={(value) => {
+                    if (!value) {
+                        return;
+                    }
+                    setStoryFlow(value);
+                }}
+                className="mb-4 flex"
+            >
+                <ToggleGroupItem value="aja">{t("AJA")}</ToggleGroupItem>
+                <ToggleGroupItem value="aje">{t("AJE")}</ToggleGroupItem>
+                <ToggleGroupItem value="ajb">{t("AJ Balkans")}</ToggleGroupItem>
+                <ToggleGroupItem value="chinese">
                     {t("AJ Chinese")}
-                </ToggleButton>
-            </ButtonGroup>
+                </ToggleGroupItem>
+            </ToggleGroup>
             {error && (
                 <div className="mt-2">
                     {t("Error retrieving data")}: {error.toString()}
                 </div>
             )}
-            <div style={{ marginTop: 20 }}>
-                <Form.Control
-                    size="sm"
+            <div className="mt-4">
+                <input
+                    className="lb-input w-full"
                     type="search"
                     placeholder={t("Search")}
                     value={query}
@@ -181,40 +138,16 @@ export function ImportSuggestions({ text, onSelect, diffEditorRef }) {
                 />
             </div>
             <div
-                style={{
-                    paddingInlineStart: 10,
-                    marginTop: 20,
-                    minHeight: 200,
-                    height: "calc(100% - 120px)",
-                    overflowY: "auto",
-                    direction: storyFlow === "aja" ? "rtl" : "ltr",
-                }}
+                className={`h-[calc(100vh-400px)] min-h-[200px] mt-4 overflow-y-auto ${storyFlow === "aja" ? "rtl" : "ltr"}`}
             >
                 {loading && (
-                    <div
-                        style={{
-                            display: "flex",
-                            paddingTop: 50,
-                            justifyContent: "center",
-                        }}
-                    >
-                        <Spinner
-                            size="lg"
-                            variant="primary"
-                            animation="border"
-                        />
+                    <div className="flex justify-center pt-12">
+                        <Loader2Icon className="animate-spin text-sky-600" />
                     </div>
                 )}
                 {!loading && (
-                    <ul
-                        style={{
-                            paddingInlineStart: 0,
-                            listStyleType: "none",
-                            paddingLeft: 0,
-                            paddingTop: 10,
-                        }}
-                    >
-                        <Form
+                    <ul className="list-none ps-0 pt-2">
+                        <form
                             onChange={(e) => {
                                 const postId = e.target.id.split("-")[1];
                                 selectPost(postId);
@@ -222,52 +155,45 @@ export function ImportSuggestions({ text, onSelect, diffEditorRef }) {
                         >
                             {posts.map((post, i) => (
                                 <li
-                                    className={`importable-story mb-3 ${parseInt(selectedPost) === post.id ? "active" : ""}`}
+                                    className={`rounded-md border p-4 mb-3 ${parseInt(selectedPost) === post.id ? "bg-sky-50" : ""}`}
                                     key={`post-${post.id}`}
                                 >
-                                    <div style={{ display: "flex" }}>
-                                        <div style={{ marginInlineEnd: 10 }}>
-                                            <Form.Check
-                                                type={"radio"}
+                                    <div
+                                        className="flex flex-col sm:flex-row gap-2 sm:gap-3 cursor-pointer"
+                                        onClick={(e) => {
+                                            e.preventDefault();
+                                            selectPost(post.id);
+                                        }}
+                                    >
+                                        <div className="flex gap-2 items-center">
+                                            <input
+                                                type="radio"
+                                                className="lb-radio"
                                                 checked={
                                                     parseInt(selectedPost) ===
                                                     parseInt(post.id)
                                                 }
                                                 onChange={() => {}}
-                                                name={`post-radio`}
+                                                name="post-radio"
                                                 id={`post-${post.id}`}
                                             />
+                                            <span className="sm:hidden">
+                                                Tap here to select
+                                            </span>
                                         </div>
-                                        <div
-                                            style={{
-                                                flexBasis: "150px",
-                                                marginInlineEnd: 10,
-                                                padding: "4px 0",
-                                            }}
-                                        >
+                                        <div className="w-full sm:w-[150px] sm:shrink-0">
                                             {thumbnails[parseInt(post.id)] && (
                                                 <img
                                                     alt={post.title.rendered}
-                                                    style={{ borderRadius: 5 }}
+                                                    className="rounded w-full"
                                                     src={`https://${storyFlow}.aj-harbinger.com${thumbnails[parseInt(post.id)]}`}
                                                 />
                                             )}
                                         </div>
-                                        <div
-                                            style={{
-                                                flex: 1,
-                                                cursor: "pointer",
-                                            }}
-                                            onClick={(e) => {
-                                                e.preventDefault();
-                                                selectPost(post.id);
-                                            }}
-                                        >
+                                        <div className="grow">
                                             <div
+                                                className="font-bold text-lg mb-1"
                                                 style={{
-                                                    fontWeight: "bold",
-                                                    marginBottom: 0,
-                                                    fontSize: 16,
                                                     fontFamily:
                                                         storyFlow === "aja"
                                                             ? "auto"
@@ -276,7 +202,7 @@ export function ImportSuggestions({ text, onSelect, diffEditorRef }) {
                                             >
                                                 {post.title.rendered}
                                             </div>
-                                            <div style={{ fontSize: 15 }}>
+                                            <div className="text-sm">
                                                 <div
                                                     style={{
                                                         fontFamily:
@@ -285,17 +211,8 @@ export function ImportSuggestions({ text, onSelect, diffEditorRef }) {
                                                                 : "",
                                                     }}
                                                 >
-                                                    <div
-                                                        style={{
-                                                            color: "#999",
-                                                        }}
-                                                    >
-                                                        <span
-                                                            style={{
-                                                                fontFamily:
-                                                                    "Arial",
-                                                            }}
-                                                        >
+                                                    <div className="text-gray-600">
+                                                        <span className="font-sans">
                                                             {
                                                                 post.date_gmt.split(
                                                                     "T",
@@ -306,15 +223,11 @@ export function ImportSuggestions({ text, onSelect, diffEditorRef }) {
                                                         {post.excerpt.rendered}
                                                     </div>
                                                 </div>
-                                                <div
-                                                    style={{
-                                                        fontSize: 14,
-                                                        marginTop: 2,
-                                                    }}
-                                                >
+                                                <div className="mt-1 text-xs">
                                                     <a
                                                         target="_blank"
                                                         rel="noreferrer"
+                                                        className="text-sky-600"
                                                         href={`https://${storyFlow}.aj-harbinger.com${post.link}`}
                                                     >
                                                         View on site
@@ -324,6 +237,7 @@ export function ImportSuggestions({ text, onSelect, diffEditorRef }) {
                                                         href={`https://wordpress.${storyFlow}.aj-harbinger.com/wp-admin/post.php?post=${post.id}`}
                                                         rel="noreferrer"
                                                         target="_blank"
+                                                        className="text-sky-600"
                                                     >
                                                         View in UCMS
                                                     </a>
@@ -333,7 +247,7 @@ export function ImportSuggestions({ text, onSelect, diffEditorRef }) {
                                     </div>
                                 </li>
                             ))}
-                        </Form>
+                        </form>
                     </ul>
                 )}
             </div>

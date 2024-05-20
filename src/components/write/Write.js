@@ -15,6 +15,7 @@ import { indexMainPaneText } from "../../utils/indexMainPaneText";
 import * as amplitude from "@amplitude/analytics-browser";
 import { useApolloClient } from "@apollo/client";
 import { AuthContext } from "../../App";
+import Loader from "../../../app/components/loader";
 
 const WriteTab = styled.div`
     display: flex;
@@ -170,23 +171,7 @@ function Write() {
         onCommitCallback,
     ]);
 
-    return (
-        <>
-            <div
-                style={{
-                    display: "flex",
-                    gap: 10,
-                    width: "100%",
-                    flexDirection: "column",
-                    alignItems: "center",
-                }}
-            >
-                <div style={{ flex: 1, width: "100%" }}>
-                    <WriteTab>{editorPane}</WriteTab>
-                </div>
-            </div>
-        </>
-    );
+    return <WriteTab>{editorPane}</WriteTab>;
 }
 
 export default Write;

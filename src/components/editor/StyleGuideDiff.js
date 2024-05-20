@@ -9,7 +9,6 @@ import React, {
     useRef,
     useState,
 } from "react";
-import { Button } from "react-bootstrap";
 import styled from "styled-components";
 import KeyboardShortcutsHelp from "./style_guide/KeyboardShortcutsHelp";
 import Suggestion from "./style_guide/Suggestion";
@@ -712,7 +711,7 @@ const StyleGuideDiff = ({ styleGuideResult = "", setSelectedText }) => {
                                 <li key={`suggestion-${c.index}`}>
                                     <StyledButton
                                         tabIndex={0}
-                                        className="w-100 p-0 border-0 rounded mb-2"
+                                        className="w-full p-0 border-0 rounded-md mb-2"
                                         id={`suggestion-${c.index}`}
                                         onClick={() => {
                                             setSelectedSuggestion(i);
@@ -769,10 +768,9 @@ const StyleGuideDiff = ({ styleGuideResult = "", setSelectedText }) => {
                             }
                         </small>
                     </div>
-                    <div className="d-flex justify-content-between text-muted fs-8 mt-2 gap-2">
-                        <Button
-                            variant="outline-secondary"
-                            size="sm"
+                    <div className="flex justify-between text-muted fs-8 mt-2 gap-2">
+                        <button
+                            className="lb-outline-secondary"
                             onClick={() => {
                                 const newSuggestions = [...suggestions];
                                 newSuggestions.forEach(
@@ -783,13 +781,13 @@ const StyleGuideDiff = ({ styleGuideResult = "", setSelectedText }) => {
                             }}
                         >
                             Mark all as unread
-                        </Button>
+                        </button>
                         <KeyboardShortcutsHelp />
                     </div>
                 </div>
-                <div className="flex-grow-1">
-                    <div className="d-flex justify-content-between text-center">
-                        <div className="flex-grow-1 fw-bold fs-6">
+                <div className="flex-1">
+                    <div className="flex justify-between text-center">
+                        <div className="flex-1 text-semibol text-sm">
                             Modified Text (editable)
                         </div>
                     </div>

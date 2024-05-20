@@ -1,6 +1,10 @@
 import React, { useState, useRef, useContext } from "react";
-import { Overlay, Popover } from "react-bootstrap";
 import { LanguageContext } from "../../contexts/LanguageProvider";
+import {
+    PopoverTrigger,
+    Popover,
+    PopoverContent,
+} from "@/components/ui/popover";
 
 function TextWithCitations({ index, citation }) {
     const [show, setShow] = useState(false);
@@ -16,50 +20,41 @@ function TextWithCitations({ index, citation }) {
     strippedContent = strippedContent.replace(/\[.*?\]/g, "");
 
     return (
-        <span
-            key={index}
-            ref={target}
-            onClick={() => setShow(!show)}
-            className="text-with-citations"
-        >
-            <sup>{index}</sup>
-            <Overlay
-                show={show}
-                target={target.current}
-                placement={language === "ar" ? "right" : "left"}
-                containerPadding={20}
-                transition={true}
-                rootClose
-                onHide={() => setShow(false)}
-            >
-                <Popover id="popover-contained">
-                    <Popover.Header>
-                        {url ? (
-                            <div className="popover-link">
-                                <a
-                                    href={url}
-                                    target="_blank"
-                                    rel="noreferrer"
-                                    onClick={(e) => e.stopPropagation()}
-                                >
-                                    {title}
-                                </a>
-                            </div>
-                        ) : (
-                            <div
-                                onClick={(e) => e.stopPropagation()}
-                                className="popover-title"
-                            >
-                                {title}
-                            </div>
-                        )}
-                    </Popover.Header>
-                    <Popover.Body>
-                        <p>{strippedContent}</p>
-                    </Popover.Body>
-                </Popover>
-            </Overlay>
-        </span>
+        <Popover id="popover-contained">
+            <PopoverTrigger>
+                <span
+                    key={index}
+                    ref={target}
+                    onClick={() => setShow(!show)}
+                    className="text-with-citations"
+                ></span>
+            </PopoverTrigger>
+
+            <PopoverContent>
+                <sup>{index}</sup>
+
+                {url ? (
+                    <div className="popover-link">
+                        <a
+                            href={url}
+                            target="_blank"
+                            rel="noreferrer"
+                            onClick={(e) => e.stopPropagation()}
+                        >
+                            {title}
+                        </a>
+                    </div>
+                ) : (
+                    <div
+                        onClick={(e) => e.stopPropagation()}
+                        className="popover-title"
+                    >
+                        {title}
+                    </div>
+                )}
+                <p>{strippedContent}</p>
+            </PopoverContent>
+        </Popover>
     );
 }
 

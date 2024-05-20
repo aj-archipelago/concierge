@@ -129,7 +129,7 @@ export default function Layout({ children }) {
                         <div className="flex flex-1 items-center gap-x-2 justify-end lg:gap-x-4">
                             <div>
                                 <button
-                                    className="lb-sm lb-primary"
+                                    className="lb-primary"
                                     disabled={pathname === "/chat"}
                                     onClick={() => {
                                         dispatch(
@@ -155,7 +155,7 @@ export default function Layout({ children }) {
                     <div className="relative flex-col">
                         <main className="p-2 bg-slate-50 flex gap-2">
                             <div
-                                className={`${"grow"} bg-white dark:border-gray-200 rounded border p-3 lg:p-4 overflow-auto`}
+                                className={`${"grow"} bg-white dark:border-gray-200 rounded-md border p-3 lg:p-4 overflow-auto`}
                                 style={{ height: "calc(100vh - 118px)" }}
                             >
                                 {showOptions && (

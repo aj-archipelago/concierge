@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Form } from "react-bootstrap";
 import { useTranslation } from "react-i18next";
 import CopyButton from "../CopyButton";
 
@@ -43,16 +42,14 @@ function Editor({ value, onChange, onSelect }) {
         };
     }, [onSelect, lastSelection]);
 
-    // return <ReactQuill value={value} onChange={onChange} />;
     return (
-        <div style={{ position: "relative", flexGrow: 1 }}>
+        <div className="relative grow ">
             {value && <CopyButton item={value} variant="opaque" />}
-            <Form.Control
-                style={{ height: "100%" }}
+            <textarea
                 ref={textAreaRef}
-                className="story-input"
+                className="w-full px-1 py-1 focus:ring-offset-2 focus:ring-sky-400 h-full border-0 font-serif resize-none
+                placeholder-gray-400"
                 placeholder={t("Enter story content")}
-                as="textarea"
                 value={value}
                 onChange={(e) => onChange(e.target.value)}
             />

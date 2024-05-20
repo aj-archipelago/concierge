@@ -1,7 +1,6 @@
 import { useApolloClient } from "@apollo/client";
 import { useRouter } from "next/navigation";
 import { useContext, useState } from "react";
-import { Form } from "react-bootstrap";
 import { useTranslation } from "react-i18next";
 import { FaChevronLeft, FaChevronRight } from "react-icons/fa";
 import { LanguageContext } from "../../contexts/LanguageProvider";
@@ -9,6 +8,8 @@ import { QUERIES } from "../../graphql";
 import { stripHTML } from "../../utils/html.utils";
 import CopyButton from "../CopyButton";
 import LoadingButton from "../editor/LoadingButton";
+import classNames from "../../../app/utils/class-names";
+import { XIcon } from "lucide-react";
 
 const LANGUAGE_NAMES = {
     en: "English",
@@ -95,20 +96,17 @@ function Translation({
 
     return (
         <div className="flex flex-col h-full gap-2">
-            <Form.Group>
-                <div className="flex gap-2 items-center">
-                    <div className="basis-1/2 flex gap-2 items-center">
-                        {/* <div style={{ display: 'flex', fontSize: '0.9em', alignItems: 'center', justifyContent: 'space-between', marginBottom: 5 }}> */}
-                        <span style={{ fontSize: "0.9em" }}>
+            <div className="flex flex-col gap-2">
+                <div className="flex flex-col sm:flex-row gap-2 items-center">
+                    <div className="flex-1 flex gap-2 items-center justify-between w-full">
+                        <span className="text-sm whitespace-nowrap">
                             {t("Translate to")}
                         </span>
                         &nbsp;&nbsp;
-                        {/* </div> */}
-                        <Form.Select
-                            size="sm"
+                        <select
+                            className="lb-select"
                             id="translateLanguageSelect"
                             name="language"
-                            style={{ flex: 1 }}
                             value={translationLanguage}
                             onChange={(e) => {
                                 const language = e.target.value;
@@ -116,29 +114,20 @@ function Translation({
                                 setTranslatedText("");
                             }}
                         >
-                            <option value="en">{t("English")}</option>
-                            <option value="ar">{t("Arabic")}</option>
-                            <option value="bs">{t("Bosnian")}</option>
-                            <option value="zh">{t("Chinese")}</option>
-                            <option value="hr">{t("Croatian")}</option>
-                            <option value="fr">{t("French")}</option>
-                            <option value="de">{t("German")}</option>
-                            <option value="it">{t("Italian")}</option>
-                            <option value="ja">{t("Japanese")}</option>
-                            <option value="ko">{t("Korean")}</option>
-                            <option value="pt">{t("Portuguese")}</option>
-                            <option value="ru">{t("Russian")}</option>
-                            <option value="sr">{t("Serbian")}</option>
-                            <option value="es">{t("Spanish")}</option>
-                            <option value="tr">{t("Turkish")}</option>
-                        </Form.Select>
+                            {Object.entries(LANGUAGE_NAMES).map(
+                                ([code, name]) => (
+                                    <option key={code} value={code}>
+                                        {t(name)}
+                                    </option>
+                                ),
+                            )}
+                        </select>
                     </div>
-                    <div className="flex gap-2 basis-1/2 items-center">
-                        <Form.Select
-                            size="sm"
+                    <div className="flex-1 flex gap-2 items-center justify-between w-full">
+                        <select
+                            className="lb-select"
                             name="strategy"
                             id="translateStrategySelect"
-                            style={{ flex: 1 }}
                             value={translationStrategy}
                             onChange={(e) => {
                                 const strategy = e.target.value;
@@ -155,11 +144,11 @@ function Translation({
                             <option value="traditional">
                                 {t("Fastest (Azure)")}
                             </option>
-                        </Form.Select>
+                        </select>
                         <LoadingButton
                             disabled={!inputText || inputText.length === 0}
                             loading={loading}
-                            className="lb-sm lb-primary"
+                            className="lb-primary"
                             text={t("Translating")}
                             onClick={() => {
                                 setLoading(true);
@@ -174,78 +163,75 @@ function Translation({
                         </LoadingButton>
                     </div>
                 </div>
-            </Form.Group>
-            <div className="grow">
-                <div className="flex gap-2 h-full">
-                    <div style={{ flex: 1 }}>
-                        <Form.Group
-                            style={{ marginBottom: 10, height: "100%" }}
-                        >
-                            <Form.Control
-                                as="textarea"
-                                style={{
-                                    resize: "none",
-                                    direction: "auto",
-                                    fontSize: "0.75em",
-                                    height: "100%",
-                                }}
-                                dir="auto"
-                                rows={10}
-                                value={inputText}
-                                onChange={(e) =>
-                                    setTranslationInputText(e.target.value)
-                                }
-                            />
-                        </Form.Group>
+            </div>
+            <div className="flex-1 flex gap-2 h-full">
+                <div
+                    className={classNames(
+                        "flex-1",
+                        translatedText ? "hidden sm:block" : "block",
+                    )}
+                >
+                    <textarea
+                        className="lb-input w-full h-full p-2 border border-gray-300 rounded-md resize-none text-xs"
+                        dir="auto"
+                        disabled={loading}
+                        rows={10}
+                        value={inputText}
+                        onChange={(e) =>
+                            setTranslationInputText(e.target.value)
+                        }
+                    />
+                </div>
+                <div
+                    className={classNames(
+                        !translatedText ? "hidden sm:block" : "block",
+                        "flex-1 relative",
+                    )}
+                >
+                    <div
+                        className={`h-full rounded-md ${translationLanguage === "ar" ? "rtl" : "ltr"}`}
+                    >
+                        {translatedText && (
+                            <div className="absolute top-1 end-2 flex gap-1 items-center">
+                                <CopyButton item={translatedText} />
+                                <button
+                                    className="text-gray-300"
+                                    onClick={() => setTranslatedText("")}
+                                >
+                                    <XIcon
+                                        className="h-6 w-6"
+                                        aria-hidden="true"
+                                    />
+                                </button>
+                            </div>
+                        )}
+                        <textarea
+                            readOnly
+                            className="w-full h-full lb-input p-2 border border-gray-300 rounded-md resize-none text-xs bg-gray-100"
+                            dir="auto"
+                            rows={10}
+                            value={translatedText}
+                        />
                     </div>
-                    <div style={{ flex: 1, position: "relative" }}>
-                        <Form.Group
-                            dir={translationLanguage === "ar" ? "rtl" : "ltr"}
-                            style={{
-                                marginBottom: 10,
-                                position: "relative",
-                                height: "100%",
+
+                    {showEditLink && translatedText && (
+                        <button
+                            className="flex gap-2 items-center absolute bottom-1 p-2 px-14 bg-gray-200 border border-gray-300 border-l-0 border-b-0 rounded-bl rounded-br hover:bg-gray-300 active:bg-gray-400"
+                            onClick={() => {
+                                setWriteInputText(translatedText);
+                                router.push("/write");
                             }}
                         >
-                            {translatedText && (
-                                <CopyButton
-                                    item={translatedText}
-                                    style={{
-                                        position: "absolute",
-                                        right: 2,
-                                        top: 5,
-                                    }}
-                                    variant="opaque"
-                                />
-                            )}
-                            <Form.Control
-                                readOnly={true}
-                                as="textarea"
-                                className="translated-text"
-                                dir="auto"
-                                rows={10}
-                                value={translatedText}
-                            />
-                            {showEditLink && translatedText && (
-                                <button
-                                    className="start-editing-button flex gap-3 items-center"
-                                    onClick={(e) => {
-                                        setWriteInputText(translatedText);
-                                        router.push("/write");
-                                    }}
-                                >
-                                    {t("Start editing")}{" "}
-                                    <span>
-                                        {language === "ar" ? (
-                                            <FaChevronLeft />
-                                        ) : (
-                                            <FaChevronRight />
-                                        )}
-                                    </span>
-                                </button>
-                            )}
-                        </Form.Group>
-                    </div>
+                            {t("Start editing")}
+                            <span>
+                                {language === "ar" ? (
+                                    <FaChevronLeft />
+                                ) : (
+                                    <FaChevronRight />
+                                )}
+                            </span>
+                        </button>
+                    )}
                 </div>
             </div>
         </div>

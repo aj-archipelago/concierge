@@ -174,7 +174,7 @@ function PromptListItem({ prompt, onEdit, onRun, isRunning, inputValid }) {
 
     return (
         <div key={prompt._id} className="mb-2 relative">
-            <div className="w-full text-start bg-gray-50 rounded border flex">
+            <div className="w-full text-start bg-gray-50 rounded-md border flex">
                 <div className="p-2 relative border-e border-gray-300 overflow-auto basis-[calc(100%-5em)]">
                     <div className="flex gap-2 items-center justify-between mb-1">
                         <div className="font-medium">{prompt.title}</div>
