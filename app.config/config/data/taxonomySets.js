@@ -32,9 +32,7 @@ async function fetchTaxonomyData(site, taxonomyName) {
         } catch (error) {
             taxonomyDownloadError = error;
             if (error.code === "ERR_NETWORK") {
-                taxonomyDownloadError = new Error(
-                    `To use taxonomy selection, please make sure you're connected to the VPN. After connecting to the VPN, please refresh the page.`,
-                );
+                taxonomyDownloadError = new Error("vpn_connection_error");
             }
             break;
         }
