@@ -23,7 +23,9 @@ export default function WorkspaceOutputs({
     const ref = useRef(null);
 
     useEffect(() => {
-        ref.current.scrollIntoView({ behavior: "smooth" });
+        if (runCompleted) {
+            ref.current.scrollIntoView({ behavior: "smooth" });
+        }
     }, [runCompleted]);
 
     return (

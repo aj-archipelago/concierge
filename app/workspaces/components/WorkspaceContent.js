@@ -19,7 +19,7 @@ export default function WorkspaceContent({ idOrSlug, user }) {
     const deleteRun = useDeleteRun();
     const deleteWorkspaceRuns = useDeleteWorkspaceRuns();
     const { t } = useTranslation();
-    const [runCompleted, setRunCompleted] = useState(1);
+    const [runCompleted, setRunCompleted] = useState(0);
 
     return (
         <WorkspaceContext.Provider
