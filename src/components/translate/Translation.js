@@ -56,9 +56,9 @@ function Translation({
                 resultKey = "translate_gpt4";
                 to = LANGUAGE_NAMES[to];
                 break;
-            case "GPT-3.5-TURBO":
-                query = QUERIES.TRANSLATE_TURBO;
-                resultKey = "translate_turbo";
+            case "GPT-4-OMNI":
+                query = QUERIES.TRANSLATE_GPT4_OMNI;
+                resultKey = "translate_gpt4_omni";
                 to = LANGUAGE_NAMES[to];
                 break;
             case "traditional":
@@ -66,8 +66,8 @@ function Translation({
                 resultKey = "translate_azure";
                 break;
             default:
-                query = QUERIES.TRANSLATE_GPT4;
-                resultKey = "translate_gpt4";
+                query = QUERIES.TRANSLATE_GPT4_OMNI;
+                resultKey = "translate_gpt4_omni";
                 to = LANGUAGE_NAMES[to];
                 break;
         }
@@ -146,11 +146,11 @@ function Translation({
                                 setTranslatedText("");
                             }}
                         >
-                            <option value="GPT-4">
-                                {t("Best Quality (GPT-4)")}
+                            <option value="GPT-4-OMNI">
+                                {t("Fast, High Quality (GPT-4-OMNI)")}
                             </option>
-                            <option value="GPT-3.5-TURBO">
-                                {t("Faster (GPT-3.5-TURBO)")}
+                            <option value="GPT-4">
+                                {t("Slower, Reliable (GPT-4)")}
                             </option>
                             <option value="traditional">
                                 {t("Fastest (Azure)")}

@@ -168,6 +168,8 @@ const RAG_START = gql`
             result
             contextId
             tool
+            warnings
+            errors
         }
     }
 `;
@@ -196,6 +198,8 @@ const RAG_GENERATOR_RESULTS = gql`
             result
             contextId
             tool
+            warnings
+            errors
         }
     }
 `;
@@ -403,6 +407,14 @@ const TRANSLATE_GPT4_TURBO = gql`
     }
 `;
 
+const TRANSLATE_GPT4_OMNI = gql`
+    query TranslateGpt4Omni($text: String!, $to: String!) {
+        translate_gpt4_omni(text: $text, to: $to) {
+            result
+        }
+    }
+`;
+
 const TRANSLATE_AZURE = gql`
     query TranslateAzure($text: String!, $to: String!) {
         translate_azure(text: $text, to: $to) {
@@ -595,6 +607,7 @@ const QUERIES = {
     TRANSLATE_TURBO,
     TRANSLATE_GPT4,
     TRANSLATE_GPT4_TURBO,
+    TRANSLATE_GPT4_OMNI,
     HIGHLIGHTS,
     REMOVE_CONTENT,
     HEADLINE_CUSTOM,

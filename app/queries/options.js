@@ -1,6 +1,4 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useApolloClient } from "@apollo/client";
-import { QUERIES } from "../../src/graphql";
 import axios from "axios";
 
 export function useUpdateAiMemory(
@@ -10,7 +8,6 @@ export function useUpdateAiMemory(
     aiMemorySelfModify,
 ) {
     const queryClient = useQueryClient();
-    const apolloClient = useApolloClient();
 
     const mutation = useMutation({
         mutationFn: async ({
@@ -47,24 +44,6 @@ export function useUpdateAiMemory(
                     aiMemorySelfModify,
                 };
             });
-
-            // update the Cortex copy
-            const variables = {
-                contextId: contextId,
-                aiMemory: aiMemory,
-            };
-
-            apolloClient
-                .query({
-                    query: QUERIES.RAG_SAVE_MEMORY,
-                    variables,
-                })
-                .then((result) => {
-                    //console.log("Saved memory to Cortex", result);
-                })
-                .catch((error) => {
-                    console.error("Failed to save memory to Cortex", error);
-                });
 
             return { previousUser };
         },

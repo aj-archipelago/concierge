@@ -6,10 +6,13 @@ import { useState, useContext } from "react";
 import { useUpdateAiMemory } from "../../../app/queries/options";
 import { AuthContext } from "../../App.js";
 import ChatMessages from "./ChatMessages";
+import { toast } from "react-toastify";
+import { useTranslation } from "react-i18next";
 
 const contextMessageCount = 50;
 
 function ChatContent({ displayState = "full", container = "chatpage" }) {
+    const { t } = useTranslation();
     const client = useApolloClient();
     const [loading, setLoading] = useState(false);
     const messages = useSelector((state) => state.chat.messages);
@@ -36,98 +39,108 @@ function ChatContent({ displayState = "full", container = "chatpage" }) {
     };
 
     const handleError = (error) => {
-        console.error(error);
+        toast.error(error.message);
+        updateChat(
+            t(
+                "Something went wrong trying to respond to your request. Please try something else or start over to continue.",
+            ),
+            null,
+        );
         setLoading(false);
     };
 
     return (
-        <ChatMessages
-            loading={loading}
-            onSend={(text) => {
-                const display = text;
+        <>
+            <ChatMessages
+                loading={loading}
+                onSend={(text) => {
+                    const display = text;
 
-                dispatch(
-                    addMessage({
-                        payload: display,
-                        sender: "user",
-                        sentTime: "just now",
-                        direction: "outgoing",
-                        position: "single",
-                    }),
-                );
-
-                let conversation = messages
-                    .slice(-contextMessageCount)
-                    .map((m) =>
-                        m.sender === "labeeb"
-                            ? { role: "assistant", content: m.payload }
-                            : { role: "user", content: m.payload },
+                    dispatch(
+                        addMessage({
+                            payload: display,
+                            sender: "user",
+                            sentTime: "just now",
+                            direction: "outgoing",
+                            position: "single",
+                        }),
                     );
 
-                setLoading(true);
+                    let conversation = messages
+                        .slice(-contextMessageCount)
+                        .map((m) =>
+                            m.sender === "labeeb"
+                                ? { role: "assistant", content: m.payload }
+                                : { role: "user", content: m.payload },
+                        );
 
-                conversation.push({ role: "user", content: text });
+                    setLoading(true);
 
-                const { userId, contextId, aiMemorySelfModify } = user;
+                    conversation.push({ role: "user", content: text });
 
-                const variables = {
-                    chatHistory: conversation,
-                    contextId: contextId,
-                    aiName: "Labeeb",
-                    aiMemorySelfModify: aiMemorySelfModify,
-                };
+                    const { userId, contextId, aiMemorySelfModify } = user;
 
-                selectedSources &&
-                    selectedSources.length > 0 &&
-                    (variables.dataSources = selectedSources);
-                client
-                    .query({
-                        query: QUERIES.RAG_START,
-                        variables,
-                    })
-                    .then((result) => {
-                        let resultMessage = "";
-                        let searchRequired = false;
-                        let aiMemory = "";
-                        try {
-                            const resultObj = JSON.parse(
-                                result.data.rag_start.result,
-                            );
-                            resultMessage = resultObj?.response;
-                            searchRequired = resultObj?.search;
-                            aiMemory = resultObj?.aiMemory;
+                    const variables = {
+                        chatHistory: conversation,
+                        contextId: contextId,
+                        aiName: "Labeeb",
+                        aiMemorySelfModify: aiMemorySelfModify,
+                    };
 
-                            updateAiMemoryMutation.mutateAsync({
-                                userId,
-                                contextId,
-                                aiMemory,
-                                aiMemorySelfModify,
-                            });
-                        } catch (e) {
-                            resultMessage = e.message;
-                        }
-                        updateChat(resultMessage, null);
-                        if (searchRequired) {
-                            setLoading(true);
-                            client
-                                .query({
-                                    query: QUERIES.RAG_GENERATOR_RESULTS,
-                                    variables,
-                                })
-                                .then((result) => {
-                                    const { result: message, tool } =
-                                        result.data.rag_generator_results;
-                                    updateChat(message, tool);
-                                })
-                                .catch(handleError);
-                        }
-                    })
-                    .catch(handleError);
-            }}
-            messages={messages}
-            container={container}
-            displayState={displayState}
-        ></ChatMessages>
+                    selectedSources &&
+                        selectedSources.length > 0 &&
+                        (variables.dataSources = selectedSources);
+                    client
+                        .query({
+                            query: QUERIES.RAG_START,
+                            variables,
+                        })
+                        .then((result) => {
+                            let resultMessage = "";
+                            let searchRequired = false;
+                            let aiMemory = "";
+
+                            try {
+                                const resultObj = JSON.parse(
+                                    result.data.rag_start.result,
+                                );
+                                resultMessage = resultObj?.response;
+                                searchRequired = resultObj?.search;
+                                aiMemory = resultObj?.aiMemory;
+
+                                updateAiMemoryMutation.mutateAsync({
+                                    userId,
+                                    contextId,
+                                    aiMemory,
+                                    aiMemorySelfModify,
+                                });
+                            } catch (e) {
+                                handleError(e);
+                                resultMessage = e.message;
+                            }
+                            updateChat(resultMessage, null);
+                            if (searchRequired) {
+                                setLoading(true);
+                                client
+                                    .query({
+                                        query: QUERIES.RAG_GENERATOR_RESULTS,
+                                        variables,
+                                    })
+                                    .then((result) => {
+                                        const { result: message, tool } =
+                                            result.data.rag_generator_results;
+                                        updateChat(message, tool);
+                                    })
+                                    .catch(handleError);
+                            }
+                        })
+                        .catch(handleError);
+                }}
+                messages={messages}
+                container={container}
+                displayState={displayState}
+            ></ChatMessages>
+        </>
     );
 }
 
