@@ -24,6 +24,10 @@ export default {
                 isDefault: true,
             },
             {
+                name: "GPT 4o",
+                cortexPathwayName: "run_gpt4_o",
+            },
+            {
                 name: "GPT 4.0",
                 cortexPathwayName: "run_gpt4",
             },
