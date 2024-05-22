@@ -5,7 +5,7 @@ import { v4 as uuidv4 } from "uuid";
 import { COGNITIVE_INSERT } from "../../graphql";
 import { useApolloClient } from "@apollo/client";
 import { useDispatch } from "react-redux";
-import { addDoc, addSource } from "../../stores/docSlice";
+import { addSource } from "../../stores/docSlice";
 import {
     setFileLoading,
     clearFileLoading,
@@ -13,6 +13,7 @@ import {
 } from "../../stores/fileUploadSlice";
 import config from "../../../config";
 import { AuthContext, ServerContext } from "../../App";
+import { useAddDocument } from "../../../app/queries/uploadedDocs";
 
 function FileUploadComponent({ text }) {
     const [url, setUrl] = useState(null);
@@ -26,6 +27,7 @@ function FileUploadComponent({ text }) {
     // eslint-disable-next-line
     const [data, setData] = useState(null);
     const { serverUrl } = useContext(ServerContext);
+    const addDocument = useAddDocument();
 
     const setLoadingState = (isLoading) => {
         setIsLoading(isLoading);
@@ -55,7 +57,7 @@ function FileUploadComponent({ text }) {
                         // completed successfully
                         setLoadingState(false);
                         setData(true);
-                        dispatch(addDoc({ docId, filename }));
+                        addDocument.mutateAsync({ docId, filename });
                         dispatch(addSource("mydata"));
                         setUrl(null);
                     })
