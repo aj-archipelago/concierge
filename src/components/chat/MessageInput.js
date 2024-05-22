@@ -9,7 +9,7 @@ import { v4 as uuidv4 } from "uuid";
 import { useApolloClient } from "@apollo/client";
 import { COGNITIVE_INSERT } from "../../graphql";
 import { useDispatch } from "react-redux";
-import { addDoc, addSource } from "../../stores/docSlice";
+import { addSource } from "../../stores/docSlice";
 import {
     setFileLoading,
     clearFileLoading,
@@ -19,6 +19,7 @@ import { FaFileCirclePlus } from "react-icons/fa6";
 import { IoCloseCircle } from "react-icons/io5";
 import { isDocumentUrl, isMediaUrl } from "./MyFilePond";
 import { AuthContext } from "../../App";
+import { useAddDocument } from "../../../app/queries/uploadedDocs";
 
 const DynamicFilepond = dynamic(() => import("./MyFilePond"), {
     ssr: false,
@@ -35,7 +36,7 @@ function MessageInput({ onSend, loading, enableRag, placeholder }) {
     const contextId = user?.contextId;
     const dispatch = useDispatch();
     const [isUploadingMedia, setIsUploadingMedia] = useState(false);
-
+    const addDocument = useAddDocument();
     const handleInputChange = (event) => {
         setInputValue(event.target.value);
     };
@@ -103,7 +104,7 @@ function MessageInput({ onSend, loading, enableRag, placeholder }) {
                     })
                     .then(() => {
                         // completed successfully
-                        dispatch(addDoc({ docId, filename }));
+                        addDocument.mutateAsync({ docId, filename });
                         dispatch(addSource("mydata"));
                         dispatch(clearFileLoading());
                     })

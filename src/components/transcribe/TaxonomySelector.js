@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, use } from "react";
 import { AiOutlineTag } from "react-icons/ai";
 import { Form } from "react-bootstrap";
 import LoadingButton from "../editor/LoadingButton";
@@ -39,13 +39,20 @@ function TaxonomySelector({ text }) {
     const isSelectingTaxonomy =
         loadingCategories || loadingTopics || loadingTags || loadingHashtags;
     const [taxonomySets, setTaxonomySets] = useState([]);
+    const [error, setError] = useState(null);
 
     useEffect(() => {
-        config?.data?.getTaxonomySets().then((sets) => {
-            setTaxonomySets(
-                sets?.sort((a, b) => a.name.localeCompare(b.name)) || [],
-            );
-        });
+        config?.data
+            ?.getTaxonomySets()
+            .then((sets) => {
+                setTaxonomySets(
+                    sets?.sort((a, b) => a.name.localeCompare(b.name)) || [],
+                );
+            })
+            .catch((e) => {
+                console.log("failed", e);
+                setError(e);
+            });
     }, []);
 
     const handleSelect = () => {
@@ -110,6 +117,10 @@ function TaxonomySelector({ text }) {
             setResultHashtags(dataHashtags.hashtags.result);
         }
     }, [dataCategories, dataTopics, dataTags, dataHashtags]);
+
+    if (error) {
+        return <div className="text-red-500">{t(error.message)}</div>;
+    }
 
     return (
         <div className="taxonomy-section mb-5">

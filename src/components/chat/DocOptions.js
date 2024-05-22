@@ -15,14 +15,13 @@ import { IoIosTrash } from "react-icons/io";
 import { useDispatch, useSelector } from "react-redux";
 import config from "../../../config";
 import { COGNITIVE_DELETE } from "../../graphql";
-import {
-    addSource,
-    removeDoc,
-    removeDocs,
-    removeSource,
-} from "../../stores/docSlice";
+import { addSource, removeSource } from "../../stores/docSlice";
 import FileUploadComponent from "./FileUploadComponent";
 import { AuthContext } from "../../App";
+import {
+    useDeleteAllDocuments,
+    useDeleteDocument,
+} from "../../../app/queries/uploadedDocs";
 
 export const dataSources = [
     {
@@ -52,11 +51,15 @@ function getFileIcon(filename) {
 export default function DocOptions() {
     const dispatch = useDispatch();
     const { t } = useTranslation();
-    const docs = useSelector((state) => state.doc.docs);
     const selectedSources =
         useSelector((state) => state.doc.selectedSources) || [];
     const { user } = useContext(AuthContext);
+    const docs = user?.uploadedDocs;
     const contextId = user?.contextId;
+
+    const deleteDocument = useDeleteDocument();
+    const deleteAllDocuments = useDeleteAllDocuments();
+
     // check if selectedSources include mydata
     const mydataSelected = useSelector(
         (state) => state.doc.selectedSources,
@@ -90,7 +93,7 @@ export default function DocOptions() {
 
     const handleDelete = (id) => {
         cognitiveDelete({ variables: { contextId, docId: id } });
-        dispatch(removeDoc(id));
+        deleteDocument.mutateAsync({ docId: id });
     };
     return (
         <Popover className="relative">
@@ -171,9 +174,7 @@ export default function DocOptions() {
                                                                     contextId,
                                                                 },
                                                             });
-                                                            dispatch(
-                                                                removeDocs(),
-                                                            );
+                                                            deleteAllDocuments.mutateAsync();
                                                         }}
                                                     >
                                                         {t(

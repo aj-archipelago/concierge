@@ -1,4 +1,4 @@
-import { useDispatch, useSelector } from "react-redux";
+import { useSelector } from "react-redux";
 import { useTranslation } from "react-i18next";
 import { MdOutlineSdStorage } from "react-icons/md";
 import { Popover } from "@headlessui/react";
@@ -11,10 +11,13 @@ import {
 } from "react-icons/bs";
 import { COGNITIVE_DELETE } from "../../graphql";
 import { useLazyQuery } from "@apollo/client";
-import { removeDoc, removeDocs } from "../../stores/docSlice";
 import { useContext, useState } from "react";
 import Loader from "../../../app/components/loader";
 import { AuthContext } from "../../App";
+import {
+    useDeleteAllDocuments,
+    useDeleteDocument,
+} from "../../../app/queries/uploadedDocs";
 
 function getFileIcon(filename) {
     const extension = filename?.split(".").pop().toLowerCase();
@@ -35,10 +38,11 @@ function getFileIcon(filename) {
 const DELETE_ALL_UPLOADS_STR = "__ALL__";
 
 function ChatTopMenu({ displayState = "full" }) {
-    const dispatch = useDispatch();
-    const docs = useSelector((state) => state.doc.docs);
     const { t } = useTranslation();
     const { user } = useContext(AuthContext);
+    const docs = user?.uploadedDocs;
+    const deleteDocument = useDeleteDocument();
+    const deleteAllDocuments = useDeleteAllDocuments();
     const contextId = user?.contextId;
     const [currentlyDeletingDocId, setCurrentlyDeletingDocId] = useState(null);
     const mainPaneIndexerLoading = useSelector(
@@ -61,7 +65,7 @@ function ChatTopMenu({ displayState = "full" }) {
         setCurrentlyDeletingDocId(id);
         cognitiveDelete({ variables: { contextId, docId: id } }).then(() => {
             setCurrentlyDeletingDocId(null);
-            dispatch(removeDoc(id));
+            deleteDocument.mutate({ docId: id });
         });
     };
 
@@ -69,7 +73,7 @@ function ChatTopMenu({ displayState = "full" }) {
         setCurrentlyDeletingDocId(DELETE_ALL_UPLOADS_STR);
         cognitiveDelete({ variables: { contextId } }).then(() => {
             setCurrentlyDeletingDocId(null);
-            dispatch(removeDocs());
+            deleteAllDocuments.mutate();
         });
     };
 

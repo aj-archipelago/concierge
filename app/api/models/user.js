@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import uploadedDocsSchema from "./uploaded-docs";
 
 // Define the User schema
 const userSchema = new mongoose.Schema(
@@ -36,6 +37,11 @@ const userSchema = new mongoose.Schema(
             required: false,
             trim: true,
             default: "{}",
+        },
+        uploadedDocs: {
+            type: [uploadedDocsSchema],
+            required: false,
+            default: [],
         },
     },
     {
