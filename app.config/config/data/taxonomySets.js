@@ -18,22 +18,31 @@ async function fetchTaxonomyData(site, taxonomyName) {
     let page = 1;
 
     while (true) {
-        const response = await axios.get(
-            `${URLS[site]}${API_URL}${taxonomyName}?per_page=100&page=${page}`,
-        );
-        data = data.concat(response.data);
+        try {
+            const response = await axios.get(
+                `${URLS[site]}${API_URL}${taxonomyName}?per_page=100&page=${page}`,
+            );
+            data = data.concat(response.data);
 
-        if (response.data.length < 100) {
+            if (response.data.length < 100) {
+                break;
+            }
+
+            page++;
+        } catch (error) {
+            taxonomyDownloadError = error;
+            if (error.code === "ERR_NETWORK") {
+                taxonomyDownloadError = new Error("vpn_connection_error");
+            }
             break;
         }
-
-        page++;
     }
 
     return data;
 }
 
 let taxonomySets;
+let taxonomyDownloadError;
 
 export async function initializeTaxonomies() {
     const taxonomySetsContext = require.context(
@@ -88,6 +97,10 @@ export async function initializeTaxonomies() {
 }
 
 export const getTaxonomySets = async function () {
+    if (taxonomyDownloadError) {
+        throw taxonomyDownloadError;
+    }
+
     return taxonomySets;
 };
 
