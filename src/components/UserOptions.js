@@ -35,7 +35,6 @@ const UserOptions = ({ show, handleClose }) => {
             aiMemorySelfModify,
         });
 
-
         // update the Cortex copy
         const variables = {
             contextId: user.contextId,

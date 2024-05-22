@@ -154,11 +154,11 @@ function convertMessageToMarkdown(message) {
     // and we need to change it here so that the markdown parser can
     // handle it correctly.
     const modifiedPayload = payload
-        .replace(/\\\[/g, "$$$") 
-        .replace(/\\\]/g, "$$$") 
-        .replace(/\\\(/g, "$$$") 
+        .replace(/\\\[/g, "$$$")
+        .replace(/\\\]/g, "$$$")
+        .replace(/\\\(/g, "$$$")
         .replace(/\\\)/g, "$$$");
-    
+
     return (
         <Markdown
             className="chat-message"

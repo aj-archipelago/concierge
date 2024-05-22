@@ -15,7 +15,7 @@ import { usePathname } from "next/navigation";
 import ChatBox from "../components/chat/ChatBox";
 import Tos from "../components/Tos";
 import { ToastContainer, Flip } from "react-toastify";
-import 'react-toastify/dist/ReactToastify.css';
+import "react-toastify/dist/ReactToastify.css";
 import { ThemeContext } from "../contexts/ThemeProvider";
 import { LanguageContext } from "../contexts/LanguageProvider";
 
@@ -176,7 +176,11 @@ export default function Layout({ children }) {
                                 </div>
                             )}
                             <ToastContainer
-                                position={direction === "rtl" ? "top-left" : "top-right"}
+                                position={
+                                    direction === "rtl"
+                                        ? "top-left"
+                                        : "top-right"
+                                }
                                 autoClose={10000}
                                 hideProgressBar={false}
                                 newestOnTop={false}

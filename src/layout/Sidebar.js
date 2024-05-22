@@ -61,7 +61,7 @@ const navigation = [
                 href: "/code/jira",
             },
         ],
-    }
+    },
 ];
 
 export default function Sidebar() {
