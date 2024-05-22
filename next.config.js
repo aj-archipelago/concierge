@@ -8,6 +8,11 @@ const redirects = [
         destination: "/chat",
         permanent: true,
     },
+    {
+        source: "/code",
+        destination: "/code/knuth",
+        permanent: true,
+    }
 ];
 
 if (basePath && basePath !== "/") {
