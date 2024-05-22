@@ -12,7 +12,7 @@ const redirects = [
         source: "/code",
         destination: "/code/knuth",
         permanent: true,
-    }
+    },
 ];
 
 if (basePath && basePath !== "/") {
