@@ -54,7 +54,6 @@ export const docSlice = createSlice({
     },
 });
 
-export const { addDoc, removeDoc, removeDocs, addSource, removeSource } =
-    docSlice.actions;
+export const { addSource, removeSource } = docSlice.actions;
 
 export default docSlice.reducer;

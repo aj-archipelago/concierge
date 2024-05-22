@@ -83,6 +83,45 @@ function isMediaUrl(url) {
     return isImageUrl(url) || isVideoUrl(url);
 }
 
+async function hashMediaFile(file) {
+    const hash = crypto.createHash("sha256");
+
+    const chunkSize = 512 * 1024;
+
+    const numOfChunks = Math.ceil(file.size / chunkSize);
+
+    const reader = new FileReader();
+
+    async function processChunk(index) {
+        const start = index * chunkSize;
+        const end = start + chunkSize;
+        const blobSlice = file.slice(start, end);
+
+        return new Promise((resolve, reject) => {
+            reader.onload = (event) => {
+                const arrayBuffer = event.target.result;
+                const array = new Uint8Array(arrayBuffer);
+                array.forEach((chunk) => {
+                    hash.update(new Uint8Array([chunk]));
+                });
+
+                resolve();
+            };
+
+            reader.onerror = reject;
+
+            reader.readAsArrayBuffer(blobSlice);
+        });
+    }
+
+    for (let i = 0; i < numOfChunks; i++) {
+        await processChunk(i);
+    }
+
+    // Obtain the hash of the file
+    return hash.digest("hex");
+}
+
 const DOC_MIME_TYPES = DOC_EXTENSIONS.map((ext) => mime.lookup(ext));
 const IMAGE_MIME_TYPES = IMAGE_EXTENSIONS.map((ext) => mime.lookup(ext));
 const VIDEO_MIME_TYPES = VIDEO_EXTENSIONS.map((ext) => mime.lookup(ext));
@@ -129,20 +168,7 @@ function MyFilePond({
                         if (isMediaUrl(file?.name)) {
                             setIsUploadingMedia(true);
                         }
-                        // Create a new hash object
-                        const hash = crypto.createHash("sha256");
-
-                        // Read the file into a buffer
-                        const arrayBuffer = await file.arrayBuffer();
-                        const array = new Uint8Array(arrayBuffer);
-                        // Update the hash object with data from file
-                        array.forEach((chunk) => {
-                            hash.update(new Uint8Array([chunk]));
-                        });
-                        // Obtain the hash of the file
-                        const fileHash = hash.digest("hex");
-
-                        // console.log('File hash', fileHash);
+                        const fileHash = await hashMediaFile(file);
 
                         // Check if file with same hash is already on the server
                         try {
@@ -165,7 +191,7 @@ function MyFilePond({
 
                         // Do the uploading after checking
                         const formData = new FormData();
-                        formData.append("hash", fileHash); // add fileHash to formData
+                        formData.append("hash", fileHash);
                         formData.append(fieldName, file, file.name);
                         const request = new XMLHttpRequest();
                         request.open("POST", `${serverUrl}&hash=${fileHash}`); // attach fileHash as a URL parameter

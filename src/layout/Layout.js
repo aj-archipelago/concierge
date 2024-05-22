@@ -14,6 +14,10 @@ import Sidebar from "./Sidebar";
 import { usePathname } from "next/navigation";
 import ChatBox from "../components/chat/ChatBox";
 import Tos from "../components/Tos";
+import { ToastContainer, Flip } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
+import { ThemeContext } from "../contexts/ThemeProvider";
+import { LanguageContext } from "../contexts/LanguageProvider";
 
 export default function Layout({ children }) {
     const [showOptions, setShowOptions] = useState(false);
@@ -24,6 +28,8 @@ export default function Layout({ children }) {
     const { t } = useTranslation();
     const { user } = useContext(AuthContext);
     const pathname = usePathname();
+    const { theme } = useContext(ThemeContext);
+    const { direction } = useContext(LanguageContext);
 
     const handleShowOptions = () => setShowOptions(true);
     const handleCloseOptions = () => setShowOptions(false);
@@ -169,6 +175,23 @@ export default function Layout({ children }) {
                                     <ChatBox />
                                 </div>
                             )}
+                            <ToastContainer
+                                position={
+                                    direction === "rtl"
+                                        ? "top-left"
+                                        : "top-right"
+                                }
+                                autoClose={10000}
+                                hideProgressBar={false}
+                                newestOnTop={false}
+                                closeOnClick
+                                rtl={direction === "rtl"}
+                                pauseOnFocusLoss
+                                draggable
+                                pauseOnHover
+                                theme={theme === "dark" ? "dark" : "light"}
+                                transition={Flip}
+                            />
                         </main>
                         <Footer />
                     </div>
