@@ -3,6 +3,8 @@ import { Modal, Button, Form } from "react-bootstrap";
 import { AuthContext } from "../App";
 import { useUpdateAiMemory } from "../../app/queries/options";
 import { useTranslation } from "react-i18next";
+import { QUERIES } from "../../src/graphql";
+import { useApolloClient } from "@apollo/client";
 
 const UserOptions = ({ show, handleClose }) => {
     const { t } = useTranslation();
@@ -13,6 +15,7 @@ const UserOptions = ({ show, handleClose }) => {
     );
 
     const updateAiMemoryMutation = useUpdateAiMemory();
+    const apolloClient = useApolloClient();
 
     useEffect(() => {
         setAiMemory(user.aiMemory || "");
@@ -31,6 +34,26 @@ const UserOptions = ({ show, handleClose }) => {
             aiMemory,
             aiMemorySelfModify,
         });
+
+
+        // update the Cortex copy
+        const variables = {
+            contextId: user.contextId,
+            aiMemory: aiMemory,
+        };
+
+        apolloClient
+            .query({
+                query: QUERIES.RAG_SAVE_MEMORY,
+                variables,
+            })
+            .then((result) => {
+                console.log("Saved memory to Cortex", result);
+            })
+            .catch((error) => {
+                console.error("Failed to save memory to Cortex", error);
+            });
+
         handleClose();
     };
 

@@ -6,10 +6,13 @@ import { useState, useContext } from "react";
 import { useUpdateAiMemory } from "../../../app/queries/options";
 import { AuthContext } from "../../App.js";
 import ChatMessages from "./ChatMessages";
+import { toast } from "react-toastify";
+import { useTranslation } from "react-i18next";
 
 const contextMessageCount = 50;
 
 function ChatContent({ displayState = "full", container = "chatpage" }) {
+    const { t } = useTranslation();
     const client = useApolloClient();
     const [loading, setLoading] = useState(false);
     const messages = useSelector((state) => state.chat.messages);
@@ -36,11 +39,13 @@ function ChatContent({ displayState = "full", container = "chatpage" }) {
     };
 
     const handleError = (error) => {
-        console.error(error);
+        toast.error(error.message);
+        updateChat(t('Something went wrong trying to respond to your request. Please try something else or start over to continue.'), null);
         setLoading(false);
     };
 
     return (
+        <>
         <ChatMessages
             loading={loading}
             onSend={(text) => {
@@ -89,6 +94,7 @@ function ChatContent({ displayState = "full", container = "chatpage" }) {
                         let resultMessage = "";
                         let searchRequired = false;
                         let aiMemory = "";
+
                         try {
                             const resultObj = JSON.parse(
                                 result.data.rag_start.result,
@@ -104,6 +110,7 @@ function ChatContent({ displayState = "full", container = "chatpage" }) {
                                 aiMemorySelfModify,
                             });
                         } catch (e) {
+                            handleError(e);
                             resultMessage = e.message;
                         }
                         updateChat(resultMessage, null);
@@ -128,6 +135,7 @@ function ChatContent({ displayState = "full", container = "chatpage" }) {
             container={container}
             displayState={displayState}
         ></ChatMessages>
+        </>
     );
 }
 

@@ -10,6 +10,7 @@ import Markdown from "react-markdown";
 import directive from "remark-directive";
 import remarkGfm from "remark-gfm";
 import rehypeKatex from "rehype-katex";
+import rehypeRaw from "rehype-raw";
 import remarkMath from "remark-math";
 import "katex/dist/katex.min.css";
 import { visit } from "unist-util-visit";
@@ -149,13 +150,15 @@ function convertMessageToMarkdown(message) {
         },
     };
 
-    // Currency doesn't play well with math markdown
-    const currencyRegex = /\$[0-9,.]+[0-9]*?/g;
-    const modifiedPayload = payload.replace(
-        currencyRegex,
-        (match) => "\\" + match,
-    );
-
+    // Some models, like GPT-4o, will use inline LaTeX math markdown
+    // and we need to change it here so that the markdown parser can
+    // handle it correctly.
+    const modifiedPayload = payload
+        .replace(/\\\[/g, "$$$") 
+        .replace(/\\\]/g, "$$$") 
+        .replace(/\\\(/g, "$$$") 
+        .replace(/\\\)/g, "$$$");
+    
     return (
         <Markdown
             className="chat-message"
@@ -164,9 +167,9 @@ function convertMessageToMarkdown(message) {
                 directive,
                 customMarkdownDirective,
                 remarkGfm,
-                [remarkMath, { singleDollarTextMath: true }],
+                [remarkMath, { singleDollarTextMath: false }],
             ]}
-            rehypePlugins={[rehypeKatex]}
+            rehypePlugins={[rehypeRaw, rehypeKatex]}
             components={components}
             children={transformToCitation(modifiedPayload)}
         />

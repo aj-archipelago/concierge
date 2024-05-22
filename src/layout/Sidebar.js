@@ -19,9 +19,9 @@ import { LanguageContext } from "../contexts/LanguageProvider";
 
 const navigation = [
     {
-        name: "Write",
-        icon: PencilSquareIcon,
-        href: "/write",
+        name: "Chat",
+        icon: ChatBubbleLeftIcon,
+        href: "/chat",
     },
     {
         name: "Translate",
@@ -29,9 +29,24 @@ const navigation = [
         href: "/translate",
     },
     {
-        name: "Chat",
-        icon: ChatBubbleLeftIcon,
-        href: "/chat",
+        name: "Transcribe",
+        icon: MicrophoneIcon,
+        href: "/transcribe",
+    },
+    {
+        name: "Write",
+        icon: PencilSquareIcon,
+        href: "/write",
+    },
+    {
+        name: "Workspaces",
+        icon: MdOutlineWorkspaces,
+        href: "/workspaces",
+    },
+    {
+        name: "Images",
+        icon: PhotoIcon,
+        href: "/images",
     },
     {
         name: "Code",
@@ -46,22 +61,7 @@ const navigation = [
                 href: "/code/jira",
             },
         ],
-    },
-    {
-        name: "Transcribe",
-        icon: MicrophoneIcon,
-        href: "/transcribe",
-    },
-    {
-        name: "Images",
-        icon: PhotoIcon,
-        href: "/images",
-    },
-    {
-        name: "Workspaces",
-        icon: MdOutlineWorkspaces,
-        href: "/workspaces",
-    },
+    }
 ];
 
 export default function Sidebar() {
