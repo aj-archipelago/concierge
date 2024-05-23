@@ -1,15 +1,15 @@
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useApolloClient } from "@apollo/client";
 import { useRouter } from "next/navigation";
 import { useContext, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { FaChevronLeft, FaChevronRight } from "react-icons/fa";
+import classNames from "../../../app/utils/class-names";
 import { LanguageContext } from "../../contexts/LanguageProvider";
 import { QUERIES } from "../../graphql";
 import { stripHTML } from "../../utils/html.utils";
 import CopyButton from "../CopyButton";
 import LoadingButton from "../editor/LoadingButton";
-import classNames from "../../../app/utils/class-names";
-import { XIcon } from "lucide-react";
 
 const LANGUAGE_NAMES = {
     en: "English",
@@ -46,6 +46,7 @@ function Translation({
     const router = useRouter();
     const apolloClient = useApolloClient();
     const { language } = useContext(LanguageContext);
+    const [activeTab, setActiveTab] = useState("input");
 
     const executeTranslation = (strategy, inputText, to) => {
         let query;
@@ -95,7 +96,7 @@ function Translation({
     };
 
     return (
-        <div className="flex flex-col h-full gap-2">
+        <div className="flex flex-col h-full gap-4">
             <div className="flex flex-col gap-2">
                 <div className="flex flex-col sm:flex-row gap-2 items-center">
                     <div className="flex-1 flex gap-2 items-center justify-between w-full">
@@ -164,76 +165,86 @@ function Translation({
                     </div>
                 </div>
             </div>
-            <div className="flex-1 flex gap-2 h-full">
-                <div
-                    className={classNames(
-                        "flex-1",
-                        translatedText ? "hidden sm:block" : "block",
-                    )}
-                >
-                    <textarea
-                        className="lb-input w-full h-full p-2 border border-gray-300 rounded-md resize-none text-xs"
-                        dir="auto"
-                        disabled={loading}
-                        rows={10}
-                        value={inputText}
-                        onChange={(e) =>
-                            setTranslationInputText(e.target.value)
-                        }
-                    />
-                </div>
-                <div
-                    className={classNames(
-                        !translatedText ? "hidden sm:block" : "block",
-                        "flex-1 relative",
-                    )}
-                >
+
+            <Tabs
+                className="w-full flex flex-col gap-2 grow"
+                value={activeTab}
+                onValueChange={(value) => setActiveTab(value)}
+            >
+                <TabsList className="w-full block sm:hidden">
+                    <TabsTrigger value="input" className="w-1/2">
+                        Input
+                    </TabsTrigger>
+                    <TabsTrigger value="output" className="w-1/2">
+                        Output
+                    </TabsTrigger>
+                </TabsList>
+                <div className="flex-1 flex gap-2 grow">
                     <div
-                        className={`h-full rounded-md ${translationLanguage === "ar" ? "rtl" : "ltr"}`}
-                    >
-                        {translatedText && (
-                            <div className="absolute top-1 end-2 flex gap-1 items-center">
-                                <CopyButton item={translatedText} />
-                                <button
-                                    className="text-gray-300"
-                                    onClick={() => setTranslatedText("")}
-                                >
-                                    <XIcon
-                                        className="h-6 w-6"
-                                        aria-hidden="true"
-                                    />
-                                </button>
-                            </div>
+                        className={classNames(
+                            "flex-1",
+                            activeTab === "input" ? "block" : "hidden sm:block",
                         )}
+                    >
                         <textarea
-                            readOnly
-                            className="w-full h-full lb-input p-2 border border-gray-300 rounded-md resize-none text-xs bg-gray-100"
+                            className="lb-input w-full h-full p-2 border border-gray-300 rounded-md resize-none text-xs"
                             dir="auto"
+                            disabled={loading}
                             rows={10}
-                            value={translatedText}
+                            placeholder="Enter text to translate..."
+                            value={inputText}
+                            onChange={(e) =>
+                                setTranslationInputText(e.target.value)
+                            }
                         />
                     </div>
-
-                    {showEditLink && translatedText && (
-                        <button
-                            className="flex gap-2 items-center absolute bottom-1 p-2 px-14 bg-gray-200 border border-gray-300 border-l-0 border-b-0 rounded-bl rounded-br hover:bg-gray-300 active:bg-gray-400"
-                            onClick={() => {
-                                setWriteInputText(translatedText);
-                                router.push("/write");
-                            }}
+                    <div
+                        className={classNames(
+                            activeTab === "output"
+                                ? "block"
+                                : "hidden sm:block",
+                            "flex-1 relative",
+                        )}
+                    >
+                        <div
+                            className={`h-full rounded-md ${translationLanguage === "ar" ? "rtl" : "ltr"}`}
                         >
-                            {t("Start editing")}
-                            <span>
-                                {language === "ar" ? (
-                                    <FaChevronLeft />
-                                ) : (
-                                    <FaChevronRight />
-                                )}
-                            </span>
-                        </button>
-                    )}
+                            {translatedText && (
+                                <div className="absolute top-1 end-2 flex gap-1 items-center">
+                                    <CopyButton item={translatedText} />
+                                </div>
+                            )}
+                            <textarea
+                                readOnly
+                                className="w-full h-full lb-input p-2 border border-gray-300 rounded-md resize-none text-xs bg-gray-100"
+                                dir="auto"
+                                placeholder="Translation will appear here..."
+                                rows={10}
+                                value={translatedText}
+                            />
+                        </div>
+
+                        {showEditLink && translatedText && (
+                            <button
+                                className="flex gap-2 items-center absolute bottom-1 p-2 px-14 bg-gray-200 border border-gray-300 border-l-0 border-b-0 rounded-bl rounded-br hover:bg-gray-300 active:bg-gray-400"
+                                onClick={() => {
+                                    setWriteInputText(translatedText);
+                                    router.push("/write");
+                                }}
+                            >
+                                {t("Start editing")}
+                                <span>
+                                    {language === "ar" ? (
+                                        <FaChevronLeft />
+                                    ) : (
+                                        <FaChevronRight />
+                                    )}
+                                </span>
+                            </button>
+                        )}
+                    </div>
                 </div>
-            </div>
+            </Tabs>
         </div>
     );
 }

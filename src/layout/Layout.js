@@ -1,7 +1,7 @@
 "use client";
 import { Dialog, Transition } from "@headlessui/react";
 import { Bars3Icon, XMarkIcon } from "@heroicons/react/24/outline";
-import { Fragment, useContext, useState } from "react";
+import { Fragment, useContext, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { IoIosChatbubbles } from "react-icons/io";
 import { useDispatch, useSelector } from "react-redux";
@@ -35,6 +35,10 @@ export default function Layout({ children }) {
     const handleCloseOptions = () => setShowOptions(false);
 
     const showChatbox = statePosition !== "closed" && pathname !== "/chat";
+
+    useEffect(() => {
+        setSidebarOpen(false);
+    }, [pathname]);
 
     return (
         <>

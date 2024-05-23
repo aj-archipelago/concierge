@@ -305,31 +305,31 @@ function ImageModal({ show, image, onHide }) {
 
     return (
         <Modal show={show} onHide={onHide} title={t("Generated image")}>
-            <div className="flex gap-6">
-                <div className="basis-9/12 rounded-md overflow-hidden">
+            <div className="flex flex-col gap-4 sm:flex-row sm:gap-6">
+                <div className="sm:basis-9/12 ">
                     <img
-                        className=""
+                        className="rounded-md"
                         src={image?.result?.data?.[0]?.url}
                         alt={image?.prompt}
                     />
                 </div>
-                <div className="basis-3/12">
-                    <div className="text-sm">
+                <div className="sm:basis-3/12">
+                    <div className="sm:text-sm">
                         <ImageInfo data={image} />
                     </div>
-                    <div className="prompt-info">
-                        <div className="prompt-title">
+                    <div>
+                        <div className="font-semibold text-gray-500">
                             {t("Original prompt")}
                         </div>
-                        <div className="prompt">
+                        <div>
                             <p>{image?.prompt}</p>
                         </div>
                     </div>
-                    <div className="prompt-info">
-                        <div className="prompt-title">
+                    <div>
+                        <div className="font-semibold text-gray-500">
                             {t("System revised prompt")}
                         </div>
-                        <div className="prompt">
+                        <div>
                             <p>{image?.result?.data?.[0].revised_prompt}</p>
                         </div>
                     </div>
@@ -337,7 +337,7 @@ function ImageModal({ show, image, onHide }) {
             </div>
 
             <div className="justify-end flex gap-2 mt-4">
-                <button className="btn btn-primary" onClick={onHide}>
+                <button className="lb-primary" onClick={onHide}>
                     {t("Close")}
                 </button>
             </div>
@@ -388,7 +388,9 @@ function ImageInfo({ data }) {
         <div>
             <div className="mb-2">
                 <div>
-                    <strong>{t("Created")}</strong>
+                    <div className="font-semibold text-gray-500">
+                        {t("Created")}
+                    </div>
                 </div>
                 <div>
                     {data?.result?.created
@@ -400,7 +402,9 @@ function ImageInfo({ data }) {
             </div>
             <div className="mb-2">
                 <div>
-                    <strong>{t("Expires")}</strong>
+                    <div className="font-semibold text-gray-500">
+                        {t("Expires")}
+                    </div>
                 </div>
                 <div>
                     {data?.expires
@@ -410,17 +414,26 @@ function ImageInfo({ data }) {
             </div>
             <div className="mb-2">
                 <div>
-                    <strong>{t("Cortex Request ID")}</strong>
+                    <div className="font-semibold text-gray-500">
+                        {t("Cortex Request ID")}
+                    </div>
                 </div>
                 <div>{data?.cortexRequestId}</div>
             </div>
             <div className="mb-2">
                 <div>
-                    <strong>{t("Dall-E URL")}</strong>
+                    <div className="font-semibold text-gray-500">
+                        {t("Dall-E URL")}
+                    </div>
                 </div>
                 <div style={{ lineBreak: "anywhere" }}>
                     {url ? (
-                        <a href={url} target="_blank" rel="noreferrer">
+                        <a
+                            href={url}
+                            target="_blank"
+                            className="text-sky-500"
+                            rel="noreferrer"
+                        >
                             {t("Link")}
                         </a>
                     ) : (

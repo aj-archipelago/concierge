@@ -83,8 +83,8 @@
     "Terms of Service": "شروط الخدمة",
     "I Accept": "أوافق",
     "Error retrieving data": "خطأ في استرداد البيانات",
-    "Light": "وضع الضوء",
-    "Dark": "وضع الظلام",
+    "Light mode": "وضع الضوء",
+    "Dark mode": "وضع الظلام",
     "Start editing": "بدء التحرير",
     "Headline": "عنوان",
     "Actions": "الإجراءات",
@@ -267,5 +267,7 @@
     "Add Youtube / Remote Media Url": "إضافة عنوان URL لمقطع فيديو من يوتيوب أو وسائط عن بعد",
     "Drag & Drop your files or": "اسحب وأسقط ملفاتك أو",
     "Browse": "تصفح",
-    "e.g.": "على سبيل المثال"
+    "e.g.": "على سبيل المثال",
+    "Write your own": "كتابة تلميحك الخاص",
+    "Pick from library": "اختيار من مكتبة التلميحات"
 }

@@ -33,7 +33,7 @@ function CopyButton({
                 {copied && (
                     <div
                         className={
-                            "text-xs whitespace-nowrap absolute top-0 end-0 bg-gray-800/90 text-white p-1 rounded"
+                            "text-xs whitespace-nowrap absolute top-0 end-0 bg-gray-800/90 dark:bg-gray-100/90 text-white p-1 rounded"
                         }
                     >
                         {t("Copied to clipboard")}

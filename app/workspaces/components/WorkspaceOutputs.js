@@ -1,11 +1,11 @@
 import TimeAgo from "javascript-time-ago";
 import ar from "javascript-time-ago/locale/ar.json";
 import en from "javascript-time-ago/locale/en.json";
+import { useEffect, useRef } from "react";
+import { useTranslation } from "react-i18next";
 import ReactTimeAgo from "react-time-ago";
 import CopyButton from "../../../src/components/CopyButton";
 import { convertMessageToMarkdown } from "../../../src/components/chat/ChatMessage";
-import { useTranslation } from "react-i18next";
-import { useEffect, useRef } from "react";
 
 if (typeof document !== "undefined") {
     TimeAgo.addLocale(ar);
@@ -15,24 +15,9 @@ if (typeof document !== "undefined") {
     );
 }
 
-export default function WorkspaceOutputs({
-    runCompleted,
-    outputs = [],
-    onDelete,
-}) {
-    const ref = useRef(null);
-
-    useEffect(() => {
-        if (runCompleted) {
-            ref.current.scrollIntoView({ behavior: "smooth" });
-        }
-    }, [runCompleted]);
-
+export default function WorkspaceOutputs({ outputs = [], onDelete }) {
     return (
-        <div
-            className="flex flex-col gap-2 h-[calc(100vh-260px)] overflow-auto"
-            ref={ref}
-        >
+        <div className="flex flex-col gap-2">
             {outputs.map((output) => (
                 <Output output={output} key={output._id} onDelete={onDelete} />
             ))}
