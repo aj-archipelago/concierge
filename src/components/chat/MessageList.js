@@ -8,7 +8,7 @@ import config from "../../../config";
 import { convertMessageToMarkdown } from "./ChatMessage";
 import ScrollToBottom from "./ScrollToBottom";
 import Loader from "../../../app/components/loader";
-import { isVideoUrl } from "./MyFilePond";
+import { isAudioUrl, isVideoUrl } from "./MyFilePond";
 
 const getLoadState = (message) => {
     const hasImage =
@@ -189,7 +189,22 @@ function MessageList({ messages, bot, loading }) {
                                                 }}
                                                 key={index}
                                                 src={src}
-                                                className="max-h-[20%] max-w-[60%] rounded border bg-white p-1 my-2 dark:border-neutral-700 dark:bg-neutral-800 shadow-lg dark:shadow-black/30"
+                                                className="max-h-[20%] max-w-[60%] [.docked_&]:max-w-[90%] rounded border bg-white p-1 my-2 dark:border-neutral-700 dark:bg-neutral-800 shadow-lg dark:shadow-black/30"
+                                                controls
+                                            />
+                                        );
+                                    } else if (isAudioUrl(src)) {
+                                        // Display the audio
+                                        return (
+                                            <audio
+                                                onLoad={() => {
+                                                    handleMessageLoad(
+                                                        message.id,
+                                                    );
+                                                }}
+                                                key={index}
+                                                src={src}
+                                                className="max-h-[20%] max-w-[100%] [.docked_&]:max-w-[80%] rounded border bg-white p-1 my-2 dark:border-neutral-700 dark:bg-neutral-800 shadow-lg dark:shadow-black/30"
                                                 controls
                                             />
                                         );
@@ -240,7 +255,7 @@ function MessageList({ messages, bot, loading }) {
                                                 }}
                                                 src={src}
                                                 alt="uploadedimage"
-                                                className="max-h-[20%] max-w-[60%] rounded border bg-white p-1 my-2 dark:border-neutral-700 dark:bg-neutral-800 shadow-lg dark:shadow-black/30"
+                                                className="max-h-[20%] max-w-[60%] [.docked_&]:max-w-[90%] rounded border bg-white p-1 my-2 dark:border-neutral-700 dark:bg-neutral-800 shadow-lg dark:shadow-black/30"
                                             />
                                         </div>
                                     );
