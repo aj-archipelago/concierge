@@ -145,7 +145,7 @@ function MessageInput({ onSend, loading, enableRag, placeholder }) {
                     className="flex items-center rounded dark:bg-zinc-100"
                 >
                     {enableRag && (
-                        <div className="rounded-s pt-3.5 ps-4 pe-3 dark:bg-zinc-100 self-stretch flex">
+                        <div className="rounded-s pt-4 [.docked_&]:pt-3.5 ps-4 pe-3 dark:bg-zinc-100 self-stretch flex">
                             {!showFileUpload ? (
                                 <FaFileCirclePlus
                                     onClick={() =>
