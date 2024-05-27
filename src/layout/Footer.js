@@ -22,10 +22,13 @@ export default function Footer() {
 
             <div className="flex gap-8 items-center">
                 <DropdownMenu>
-                    <DropdownMenuTrigger>Settings</DropdownMenuTrigger>
+                    <DropdownMenuTrigger>
+                        <span className="text-sky-700">{t("Settings")}</span>
+                    </DropdownMenuTrigger>
                     <DropdownMenuContent side="top">
                         <DropdownMenuItem>
                             <button
+                                className="w-full"
                                 onClick={() => {
                                     if (language === "en") {
                                         changeLanguage("ar");
@@ -41,6 +44,7 @@ export default function Footer() {
                         </DropdownMenuItem>
                         <DropdownMenuItem>
                             <button
+                                className="w-full"
                                 onClick={() => {
                                     if (theme === "light") {
                                         changeTheme("dark");

@@ -269,5 +269,11 @@
     "Browse": "تصفح",
     "e.g.": "على سبيل المثال",
     "Write your own": "كتابة تلميحك الخاص",
-    "Pick from library": "اختيار من مكتبة التلميحات"
+    "Pick from library": "اختيار من مكتبة التلميحات",
+    "Settings": "الإعدادات",
+    "Auto-detect video language": "الكشف التلقائي عن لغة الفيديو",
+    "Output format": "تنسيق الناتج",
+    "Show AI commands": "عرض أوامر الذكاء الاصطناعي",
+    "Show editor": "عرض المحرر",
+    "Currently stored memory": "الذاكرة المخزنة حاليًا"
 }

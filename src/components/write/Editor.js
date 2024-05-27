@@ -43,7 +43,7 @@ function Editor({ value, onChange, onSelect }) {
     }, [onSelect, lastSelection]);
 
     return (
-        <div className="relative grow ">
+        <div className="relative grow h-full">
             {value && <CopyButton item={value} variant="opaque" />}
             <textarea
                 ref={textAreaRef}

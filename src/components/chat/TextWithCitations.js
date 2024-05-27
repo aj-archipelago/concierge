@@ -27,12 +27,12 @@ function TextWithCitations({ index, citation }) {
                     ref={target}
                     onClick={() => setShow(!show)}
                     className="text-with-citations"
-                ></span>
+                >
+                    <sup>{index}</sup>
+                </span>
             </PopoverTrigger>
 
             <PopoverContent>
-                <sup>{index}</sup>
-
                 {url ? (
                     <div className="popover-link">
                         <a

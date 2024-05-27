@@ -58,43 +58,48 @@ const UserOptions = ({ show, handleClose }) => {
 
     return (
         <Modal
+            widthClassName="max-w-2xl"
             title={t("Options")}
             show={show}
             onHide={handleClose}
             style={{ fontSize: "0.875rem" }}
         >
-            <div style={{ margin: "0.5rem", padding: "0.5rem" }}>
-                <label>{t("AI Memory")}</label>
-                <input
-                    type="text"
-                    className="text-muted"
-                    style={{ display: "block" }}
-                >
+            <div>
+                <h4 className="font-semibold mb-2">{t("AI Memory")}</h4>
+                <p className="text-gray-600">
                     {t(
                         "You can customize your interactions with the AI assistant by giving it things to remember. You can enter plain text or something more structured like JSON or XML. If you allow it, the AI will periodically modify its own memory to improve its ability to assist you, but it will likely rewrite the memory into a JSON object.",
                     )}
-                </input>
-                <input
-                    type="checkbox"
-                    size="sm"
-                    label={t("Allow the AI to modify its own memory")}
-                    checked={aiMemorySelfModify}
-                    onChange={(e) => setAiMemorySelfModify(e.target.checked)}
-                    style={{ margin: "0.5rem 0" }}
-                />
-                <textarea
-                    value={aiMemory}
-                    onChange={(e) => setAiMemory(e.target.value)}
-                    style={{
-                        height: "300px",
-                        fontFamily: "Courier New, monospace",
-                        fontSize: "0.75rem",
-                        padding: "10px",
-                        margin: "0.5rem 0",
-                    }}
-                />
+                </p>
+                <div className="flex gap-2 items-center mb-4">
+                    <input
+                        type="checkbox"
+                        size="sm"
+                        id="aiMemorySelfModify"
+                        className="accent-sky-500"
+                        checked={aiMemorySelfModify}
+                        onChange={(e) =>
+                            setAiMemorySelfModify(e.target.checked)
+                        }
+                        style={{ margin: "0.5rem 0" }}
+                    />
+                    <label for="aiMemorySelfModify">
+                        {t("Allow the AI to modify its own memory")}
+                    </label>
+                </div>
+                <div>
+                    <h4 className="font-semibold mb-2">
+                        {t("Currently stored memory")}
+                    </h4>
+                    <textarea
+                        value={aiMemory}
+                        onChange={(e) => setAiMemory(e.target.value)}
+                        className="lb-input font-mono"
+                        rows={10}
+                    />
+                </div>
             </div>
-            <div clsasName="justify-end flex mt-4">
+            <div className="justify-end flex gap-2 mt-4">
                 <button className="lb-outline-secondary" onClick={handleClose}>
                     {t("Close")}
                 </button>

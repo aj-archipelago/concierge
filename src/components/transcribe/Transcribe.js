@@ -287,7 +287,9 @@ function Transcribe({
                     </h4>
                     <div className="options-section flex flex-col sm:flex-row justify-between gap-4 sm:gap-14 mb-5 p-2.5 border border-gray-300 rounded-md bg-neutral-100 w-full">
                         <div className="radio-columns flex flex-col">
-                            <h5 className="font-semibold">Output format</h5>
+                            <h5 className="font-semibold">
+                                {t("Output format")}
+                            </h5>
                             <label className="flex items-center">
                                 <input
                                     disabled={isLoading}
@@ -471,7 +473,7 @@ function Transcribe({
                         </div>
 
                         <div className="flex flex-col">
-                            <h5 className="font-semibold">Language</h5>
+                            <h5 className="font-semibold">{t("Language")}</h5>
                             <select
                                 className="lb-select text-sm"
                                 disabled={isLoading}
@@ -481,7 +483,7 @@ function Transcribe({
                                 defaultValue={language}
                             >
                                 <option value="">
-                                    {t("Auto detect video language")}
+                                    {t("Auto-detect video language")}
                                 </option>
                                 <option value="en">{t("English")}</option>
                                 <option value="ar">{t("Arabic")}</option>

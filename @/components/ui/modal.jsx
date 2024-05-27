@@ -3,7 +3,13 @@ import { Dialog, Transition } from "@headlessui/react";
 import { X } from "lucide-react";
 import { Fragment } from "react";
 
-export function Modal({ show, onHide, title, children }) {
+export function Modal({
+    show,
+    onHide,
+    title,
+    children,
+    widthClassName = "max-w-6xl",
+}) {
     return (
         <Transition appear show={show} as={Fragment}>
             <Dialog
@@ -36,7 +42,9 @@ export function Modal({ show, onHide, title, children }) {
                             leaveFrom="opacity-100 scale-100"
                             leaveTo="opacity-0 scale-95"
                         >
-                            <Dialog.Panel className="w-full max-w-6xl transform overflow-hidden rounded-md bg-white p-6 text-left align-middle shadow-xl transition-all">
+                            <Dialog.Panel
+                                className={`w-full ${widthClassName} transform overflow-hidden rounded-md bg-white p-6 text-left align-middle shadow-xl transition-all`}
+                            >
                                 <Dialog.Title
                                     as="h3"
                                     className="text-lg font-medium leading-6 text-gray-900 mb-4"

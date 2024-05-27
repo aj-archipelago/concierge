@@ -292,7 +292,7 @@ function MessageList({ messages, bot, loading }) {
                         id: "loading",
                         sender: "labeeb",
                         payload: (
-                            <div className="mt-1 mb-2">
+                            <div className="mt-1 ms-1 mb-2">
                                 <Loader />
                             </div>
                         ),

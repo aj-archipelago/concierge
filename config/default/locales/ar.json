@@ -252,5 +252,12 @@
     "Add Youtube / Remote Media Url": "إضافة عنوان URL لمقطع فيديو من يوتيوب أو وسائط عن بعد",
     "Drag & Drop your files or": "اسحب وأسقط ملفاتك أو",
     "Browse": "تصفح",
-    "e.g.": "على سبيل المثال"
+    "e.g.": "على سبيل المثال",
+    "Write your own": "كتابة تلميحك الخاص",
+    "Pick from library": "اختيار من مكتبة التلميحات",
+    "Settings": "الإعدادات",
+    "Auto-detect video language": "الكشف التلقائي عن لغة الفيديو",
+    "Output format": "تنسيق الناتج",
+    "Show AI commands": "عرض أوامر الذكاء الاصطناعي",
+    "Show editor": "عرض المحرر"
 }

@@ -71,7 +71,7 @@ export default function Layout({ children }) {
                                 leaveFrom="translate-x-0"
                                 leaveTo="-translate-x-full"
                             >
-                                <Dialog.Panel className="relative mr-16 flex w-full max-w-xs flex-1">
+                                <Dialog.Panel className="relative me-16 flex w-full max-w-xs flex-1">
                                     <Transition.Child
                                         as={Fragment}
                                         enter="ease-in-out duration-300"
@@ -81,7 +81,7 @@ export default function Layout({ children }) {
                                         leaveFrom="opacity-100"
                                         leaveTo="opacity-0"
                                     >
-                                        <div className="absolute left-full top-0 flex w-16 justify-center pt-5">
+                                        <div className="absolute start-full top-0 flex w-16 justify-center pt-5">
                                             <button
                                                 type="button"
                                                 className="-m-2.5 p-2.5"
@@ -131,7 +131,7 @@ export default function Layout({ children }) {
                         />
 
                         <div className="flex flex-1 items-center gap-x-2 justify-end lg:gap-x-4">
-                            <div>
+                            <div className="hidden sm:block">
                                 <button
                                     className="lb-primary"
                                     disabled={pathname === "/chat"}
@@ -175,7 +175,7 @@ export default function Layout({ children }) {
                                 {children}
                             </div>
                             {showChatbox && (
-                                <div className="basis-[302px] h-[calc(100vh-118px)]">
+                                <div className="hidden sm:block basis-[302px] h-[calc(100vh-118px)]">
                                     <ChatBox />
                                 </div>
                             )}
