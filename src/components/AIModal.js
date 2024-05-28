@@ -37,13 +37,8 @@ export default function AIModal({
     const onSelectCallback = useCallback((h) => setResult(h), [setResult]);
 
     const options = actions[action] || {};
-    const {
-        title,
-        dialogClassName,
-        SuggestionsComponent,
-        commitLabel,
-        regenerateLabel,
-    } = options;
+    const { title, SuggestionsComponent, commitLabel, regenerateLabel } =
+        options;
 
     const modalBody = useMemo(
         () =>
@@ -77,13 +72,7 @@ export default function AIModal({
     return (
         <>
             <Transition appear show={show} as={Fragment}>
-                <Dialog
-                    as="div"
-                    className="relative z-50"
-                    onClose={() => {
-                        null;
-                    }}
-                >
+                <Dialog as="div" className="relative z-50" onClose={() => {}}>
                     <Transition.Child
                         as={Fragment}
                         enter="ease-out duration-300"

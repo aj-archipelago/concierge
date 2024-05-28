@@ -1,7 +1,6 @@
 import TimeAgo from "javascript-time-ago";
 import ar from "javascript-time-ago/locale/ar.json";
 import en from "javascript-time-ago/locale/en.json";
-import { useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import ReactTimeAgo from "react-time-ago";
 import CopyButton from "../../../src/components/CopyButton";

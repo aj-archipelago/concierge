@@ -1,16 +1,13 @@
-import React, { useState, useRef, useContext } from "react";
-import { LanguageContext } from "../../contexts/LanguageProvider";
 import {
-    PopoverTrigger,
     Popover,
     PopoverContent,
+    PopoverTrigger,
 } from "@/components/ui/popover";
+import { useRef, useState } from "react";
 
 function TextWithCitations({ index, citation }) {
     const [show, setShow] = useState(false);
     const target = useRef(null);
-    const { language } = useContext(LanguageContext);
-
     const { title, url, content } = citation;
 
     var parser = new DOMParser();

@@ -57,7 +57,7 @@ function MessageList({ messages, bot, loading }) {
         });
 
         setMessageLoadState(newMessageLoadState);
-    }, [messages]);
+    }, [messages, messageLoadState]);
 
     let rowHeight = "h-12 [.docked_&]:h-10";
     let basis =

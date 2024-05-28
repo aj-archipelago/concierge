@@ -1,15 +1,14 @@
-import { useContext } from "react";
-import { useTranslation } from "react-i18next";
-import { LanguageContext } from "../contexts/LanguageProvider";
-import { ThemeContext } from "../contexts/ThemeProvider";
-import { basePath } from "../utils/constants";
 import {
     DropdownMenu,
     DropdownMenuContent,
     DropdownMenuItem,
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { FaGear } from "react-icons/fa6";
+import { useContext } from "react";
+import { useTranslation } from "react-i18next";
+import { LanguageContext } from "../contexts/LanguageProvider";
+import { ThemeContext } from "../contexts/ThemeProvider";
+import { basePath } from "../utils/constants";
 
 export default function Footer() {
     const { t } = useTranslation();

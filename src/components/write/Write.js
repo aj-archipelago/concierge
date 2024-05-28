@@ -1,23 +1,21 @@
 "use client";
 
-import React, { useContext, useCallback, useMemo, useState } from "react";
+import * as amplitude from "@amplitude/analytics-browser";
+import { useApolloClient } from "@apollo/client";
+import React, { useCallback, useContext, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import "react-quill/dist/quill.snow.css";
 import { useDispatch, useSelector } from "react-redux";
-import styled from "styled-components";
+import classNames from "../../../app/utils/class-names";
+import { AuthContext } from "../../App";
 import { setWriteInputText } from "../../stores/writeSlice";
+import { indexMainPaneText } from "../../utils/indexMainPaneText";
 import AIModal from "../AIModal";
 import actions from "../editor/AIEditorActions";
 import HeadlineEditor from "../editor/headline/HeadlineEditor";
 import Editor from "./Editor";
 import Sidebar from "./Sidebar";
 import Toolbar from "./Toolbar";
-import { indexMainPaneText } from "../../utils/indexMainPaneText";
-import * as amplitude from "@amplitude/analytics-browser";
-import { useApolloClient } from "@apollo/client";
-import { AuthContext } from "../../App";
-import Loader from "../../../app/components/loader";
-import classNames from "../../../app/utils/class-names";
-import { useTranslation } from "react-i18next";
 
 function Write() {
     const inputText = useSelector((state) => state.write?.inputText);

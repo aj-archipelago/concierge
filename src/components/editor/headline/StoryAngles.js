@@ -1,5 +1,4 @@
 import { useQuery } from "@apollo/client";
-import { Button } from "@/components/ui/button"; // Adjust the import path based on your project structure
 import { QUERIES } from "../../../graphql";
 import LoadingButton from "../LoadingButton";
 
