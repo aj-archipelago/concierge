@@ -5,16 +5,31 @@ import { v4 as uuidv4 } from "uuid";
 
 export const toggleAJArticles = createAction("chat/toggleAJArticles");
 
+const getInitialMessages = () => {
+    if (typeof localStorage !== "undefined") {
+        const storedMessages = localStorage.getItem("messages");
+        return storedMessages ? JSON.parse(storedMessages) : [];
+    } else {
+        return [];
+    }
+};
+
+const getInitialChatBox = () => {
+    if (typeof localStorage !== "undefined") {
+        const storedChatBox = localStorage.getItem("chatbox");
+        return storedChatBox
+            ? JSON.parse(storedChatBox)
+            : { width: 300, position: "closed" };
+    } else {
+        return null;
+    }
+};
+
 export const chatSlice = createSlice({
     name: "chat",
     initialState: {
-        messages: [],
-        chatBox:
-            typeof localStorage !== "undefined"
-                ? localStorage.getItem("chatbox")
-                    ? JSON.parse(localStorage.getItem("chatbox"))
-                    : { width: 300, position: "closed" }
-                : null,
+        messages: getInitialMessages(),
+        chatBox: getInitialChatBox(),
         unreadCount: 0,
         includeAJArticles: false,
     },
@@ -23,10 +38,35 @@ export const chatSlice = createSlice({
             const message = action.payload;
             if (!message.id) message.id = uuidv4();
             state.messages.push(message);
+
+            if (typeof localStorage !== "undefined") {
+                try {
+                    localStorage.setItem(
+                        "messages",
+                        JSON.stringify(state.messages),
+                    );
+                } catch (error) {
+                    console.error(
+                        "Error storing messages in localStorage:",
+                        error,
+                    );
+                }
+            }
         },
-        clearChat: (state, action) => {
+        clearChat: (state) => {
             state.messages = [];
             state.lastContext = "";
+
+            if (typeof localStorage !== "undefined") {
+                try {
+                    localStorage.removeItem("messages");
+                } catch (error) {
+                    console.error(
+                        "Error clearing messages from localStorage:",
+                        error,
+                    );
+                }
+            }
         },
         firstRunMessage: (state, action) => {
             const { id, message } = action.payload;
