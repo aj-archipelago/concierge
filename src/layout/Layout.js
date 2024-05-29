@@ -65,11 +65,27 @@ export default function Layout({ children }) {
                             <Transition.Child
                                 as={Fragment}
                                 enter="transition ease-in-out duration-300 transform"
-                                enterFrom="-translate-x-full"
-                                enterTo="translate-x-0"
+                                enterFrom={
+                                    direction === "ltr"
+                                        ? "-translate-x-full"
+                                        : "translate-x-full"
+                                }
+                                enterTo={
+                                    direction === "ltr"
+                                        ? "translate-x-0"
+                                        : "-translate-x-0"
+                                }
                                 leave="transition ease-in-out duration-300 transform"
-                                leaveFrom="translate-x-0"
-                                leaveTo="-translate-x-full"
+                                leaveFrom={
+                                    direction === "ltr"
+                                        ? "translate-x-0"
+                                        : "-translate-x-0"
+                                }
+                                leaveTo={
+                                    direction === "ltr"
+                                        ? "-translate-x-full"
+                                        : "translate-x-full"
+                                }
                             >
                                 <Dialog.Panel className="relative me-16 flex w-full max-w-xs flex-1">
                                     <Transition.Child
@@ -93,7 +109,7 @@ export default function Layout({ children }) {
                                                     Close sidebar
                                                 </span>
                                                 <XMarkIcon
-                                                    className="h-6 w-6 text-white"
+                                                    className="h-6 w-6 text-white dark:text-gray-900"
                                                     aria-hidden="true"
                                                 />
                                             </button>
