@@ -43,10 +43,12 @@ function MessageList({ messages, bot, loading }) {
         }),
     );
 
+    const messageLoadStateRef = React.useRef(messageLoadState);
+
     useEffect(() => {
         // merge load state
         const newMessageLoadState = messages.map((m) => {
-            const existing = messageLoadState.find((mls) => mls.id === m.id);
+            const existing = messageLoadStateRef.current.find((mls) => mls.id === m.id);
             if (existing) {
                 return existing;
             }
@@ -57,7 +59,7 @@ function MessageList({ messages, bot, loading }) {
         });
 
         setMessageLoadState(newMessageLoadState);
-    }, [messages, messageLoadState]);
+    }, [messages]);
 
     let rowHeight = "h-12 [.docked_&]:h-10";
     let basis =
