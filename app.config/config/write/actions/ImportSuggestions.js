@@ -124,19 +124,24 @@ export function ImportSuggestions({ text, onSelect, diffEditorRef }) {
                 </ToggleGroupItem>
             </ToggleGroup>
             {error && (
-                <div className="mt-2">
-                    {t("Error retrieving data")}: {error.toString()}
+                <div className="mt-2 text-red-700 p-4 rounded bg-red-50">
+                    {t(
+                        "Unable to connect to the UCMS. Please make sure that you're connected to the VPN. The error received was:",
+                    )}{" "}
+                    {error.toString()}
                 </div>
             )}
-            <div className="mt-4">
-                <input
-                    className="lb-input w-full"
-                    type="search"
-                    placeholder={t("Search")}
-                    value={query}
-                    onChange={(e) => setQuery(e.target.value)}
-                />
-            </div>
+            {!error && (
+                <div className="mt-4">
+                    <input
+                        className="lb-input w-full"
+                        type="search"
+                        placeholder={t("Search")}
+                        value={query}
+                        onChange={(e) => setQuery(e.target.value)}
+                    />
+                </div>
+            )}
             <div
                 className={`h-[calc(100vh-400px)] min-h-[200px] mt-4 overflow-y-auto ${storyFlow === "aja" ? "rtl" : "ltr"}`}
             >
