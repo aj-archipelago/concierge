@@ -48,7 +48,9 @@ function MessageList({ messages, bot, loading }) {
     useEffect(() => {
         // merge load state
         const newMessageLoadState = messages.map((m) => {
-            const existing = messageLoadStateRef.current.find((mls) => mls.id === m.id);
+            const existing = messageLoadStateRef.current.find(
+                (mls) => mls.id === m.id,
+            );
             if (existing) {
                 return existing;
             }
@@ -104,7 +106,7 @@ function MessageList({ messages, bot, loading }) {
                     <div className={classNames(basis)}>{avatar}</div>
                     <div
                         className={classNames(
-                            "px-1 py-3 [.docked_&]:px-0 [.docked_&]:py-3",
+                            "px-1 pb-3 pt-2 [.docked_&]:px-0 [.docked_&]:py-3",
                         )}
                     >
                         <div className="font-semibold">{t(botName)}</div>
@@ -130,7 +132,7 @@ function MessageList({ messages, bot, loading }) {
                     <div className={classNames(basis, "py-0")}>{avatar}</div>
                     <div
                         className={classNames(
-                            "px-1 py-3 [.docked_&]:px-0 [.docked_&]:py-3",
+                            "px-1 pb-3 pt-2 [.docked_&]:px-0 [.docked_&]:py-3",
                         )}
                     >
                         <div className="font-semibold">{t("You")}</div>
