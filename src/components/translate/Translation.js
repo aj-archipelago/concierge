@@ -85,6 +85,7 @@ function Translation({
             .then((e) => {
                 setLoading(false);
                 setTranslatedText(e.data[resultKey].result.trim());
+                setActiveTab("output");
             })
             .catch((e) => {
                 setLoading(false);
@@ -207,10 +208,17 @@ function Translation({
                         )}
                     >
                         <div
-                            className={`h-full rounded-md ${translationLanguage === "ar" ? "rtl" : "ltr"}`}
+                            className={`h-full relative rounded-md ${translationLanguage === "ar" ? "rtl" : "ltr"}`}
                         >
                             {translatedText && (
-                                <div className="absolute top-1 end-2 flex gap-1 items-center">
+                                <div
+                                    className={classNames(
+                                        "absolute top-1 flex gap-1 items-center",
+                                        translationLanguage === "ar"
+                                            ? "start-7"
+                                            : "end-1",
+                                    )}
+                                >
                                     <CopyButton item={translatedText} />
                                 </div>
                             )}
