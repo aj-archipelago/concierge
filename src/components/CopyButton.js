@@ -3,11 +3,7 @@ import { useTranslation } from "react-i18next";
 import { MdOutlineContentCopy } from "react-icons/md";
 import classNames from "../../app/utils/class-names";
 
-function CopyButton({
-    item,
-    className = "absolute top-1 end-1 ",
-    variant = "default",
-}) {
+function CopyButton({ item, className = "absolute top-1 end-1 " }) {
     const [copied, setCopied] = useState(false);
     const { t } = useTranslation();
 
