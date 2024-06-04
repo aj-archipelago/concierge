@@ -14,10 +14,10 @@ const contextMessageCount = 50;
 function ChatContent({ displayState = "full", container = "chatpage" }) {
     const { t } = useTranslation();
     const client = useApolloClient();
+    const { user } = useContext(AuthContext);
     const [loading, setLoading] = useState(false);
     const messages = useSelector((state) => state.chat.messages);
     const selectedSources = useSelector((state) => state.doc.selectedSources);
-    const { user } = useContext(AuthContext);
     const updateAiMemoryMutation = useUpdateAiMemory();
 
     const dispatch = useDispatch();

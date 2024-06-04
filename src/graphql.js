@@ -260,8 +260,18 @@ const HASHTAGS = gql`
 `;
 
 const HEADLINE = gql`
-    query Headline($text: String!, $seoOptimized: Boolean) {
-        headline(text: $text, seoOptimized: $seoOptimized) {
+    query Headline(
+        $text: String!
+        $seoOptimized: Boolean
+        $count: Int
+        $targetLength: Int
+    ) {
+        headline(
+            text: $text
+            seoOptimized: $seoOptimized
+            count: $count
+            targetLength: $targetLength
+        ) {
             result
             debug
         }

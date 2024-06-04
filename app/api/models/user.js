@@ -1,5 +1,6 @@
 import mongoose from "mongoose";
 import uploadedDocsSchema from "./uploaded-docs";
+import chatSchema from "./chat";
 
 // Define the User schema
 const userSchema = new mongoose.Schema(
@@ -40,6 +41,11 @@ const userSchema = new mongoose.Schema(
         },
         uploadedDocs: {
             type: [uploadedDocsSchema],
+            required: false,
+            default: [],
+        },
+        savedChats: {
+            type: [chatSchema],
             required: false,
             default: [],
         },

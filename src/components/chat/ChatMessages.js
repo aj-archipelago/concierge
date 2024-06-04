@@ -4,14 +4,17 @@ import MessageInput from "./MessageInput";
 import MessageList from "./MessageList";
 import { useTranslation } from "react-i18next";
 import React from "react";
-import { AiOutlineReload } from "react-icons/ai";
+import { AiOutlineReload, AiOutlineSave } from "react-icons/ai";
 import config from "../../../config";
 import { convertMessageToMarkdown } from "./ChatMessage";
 import dynamic from "next/dynamic";
+import { useAddChat } from "../../../app/queries/chats";
+import { useApolloClient } from "@apollo/client";
+import SavedChats from "./SavedChats";
+import { handleSaveChat } from "./SaveChat";
 
 const ChatTopMenuDynamic = dynamic(() => import("./ChatTopMenu"));
 
-// Displays the list of messages and a message input box.
 function ChatMessages({
     messages = [],
     onSend,
@@ -21,40 +24,59 @@ function ChatMessages({
 }) {
     const dispatch = useDispatch();
     const { t } = useTranslation();
+    const client = useApolloClient();
+    const addChat = useAddChat();
+    const originalMessages = messages;
 
-    messages = messages.map((message, index) => {
-        // post process the message and create a new
-        // message object with the updated payload.
-        if (message.sender === "labeeb") {
-            return Object.assign({}, message, {
-                payload: (
-                    <React.Fragment key={`outer-${message?.id}`}>
-                        {convertMessageToMarkdown(message)}
-                    </React.Fragment>
-                ),
-            });
-        } else {
-            return message;
-        }
-    });
+    messages = Array.isArray(messages)
+        ? messages.map((message, index) => {
+              if (message.sender === "labeeb") {
+                  return {
+                      ...message,
+                      payload: (
+                          <React.Fragment key={`outer-${message?.id}`}>
+                              {convertMessageToMarkdown(message)}
+                          </React.Fragment>
+                      ),
+                  };
+              }
+              return message;
+          })
+        : [];
 
     return (
         <div className="h-full flex flex-col gap-3">
             <div className="grow overflow-auto flex flex-col chat-content">
                 <div className="hidden justify-between items-center px-3 pb-2 text-xs [.docked_&]:flex">
+                    <SavedChats displayState={displayState} />
                     <ChatTopMenuDynamic displayState={displayState} />
                     {messages.length > 0 && (
-                        <button
-                            className="flex gap-1 items-center hover:underline hover:text-sky-500 active:text-sky-700"
-                            onClick={() => {
-                                if (window.confirm(t("Are you sure?"))) {
-                                    dispatch(clearChat());
+                        <div className="flex gap-2">
+                            <button
+                                className="flex gap-1 items-center hover:underline hover:text-sky-500 active:text-sky-700"
+                                onClick={() => {
+                                    if (window.confirm(t("Are you sure?"))) {
+                                        dispatch(clearChat());
+                                    }
+                                }}
+                            >
+                                <AiOutlineReload />
+                                {t("Reset chat")}
+                            </button>
+                            <button
+                                className="flex gap-1 items-center hover:underline hover:text-sky-500 active:text-sky-700"
+                                onClick={() =>
+                                    handleSaveChat(
+                                        originalMessages,
+                                        client,
+                                        addChat,
+                                    )
                                 }
-                            }}
-                        >
-                            <AiOutlineReload />
-                            {t("Reset chat")}
-                        </button>
+                            >
+                                <AiOutlineSave />
+                                {t("Save chat")}
+                            </button>
+                        </div>
                     )}
                 </div>
                 <div className="grow overflow-auto chat-message-list">
