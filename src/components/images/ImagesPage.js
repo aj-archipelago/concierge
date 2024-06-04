@@ -1,6 +1,6 @@
 "use client";
 
-import { useQuery } from "@apollo/client";
+import { useApolloClient, useQuery } from "@apollo/client";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { FaDownload, FaTrash } from "react-icons/fa";
@@ -16,6 +16,7 @@ function ImagesPage() {
     const [showModal, setShowModal] = useState(false);
     const [selectedImage, setSelectedImage] = useState(null);
     const { t } = useTranslation();
+    const [loading, setLoading] = useState(false);
 
     useEffect(() => {
         const imagesInStorage = localStorage.getItem("generated-images");
@@ -24,19 +25,23 @@ function ImagesPage() {
         }
     }, []);
 
-    const variables = {
-        text: generationPrompt,
-        async: true,
-    };
+    const apolloClient = useApolloClient();
 
-    const { data, loading } = useQuery(QUERIES.IMAGE, {
-        variables,
-        notifyOnNetworkStatusChange: true,
-        fetchPolicy: "network-only",
-    });
+    const generateImage = async (prompt) => {
+        const variables = {
+            text: prompt,
+            async: true,
+        };
 
-    useEffect(() => {
-        if (data?.image?.result && generationPrompt) {
+        setLoading(true);
+        const { data } = await apolloClient.query({
+            query: QUERIES.IMAGE,
+            variables,
+            fetchPolicy: "network-only",
+        });
+        setLoading(false);
+
+        if (data?.image?.result) {
             const requestId = data?.image?.result;
 
             // if already in images, ignore
@@ -53,7 +58,9 @@ function ImagesPage() {
                 return newImages;
             });
         }
-    }, [data?.image?.result, generationPrompt, images]);
+
+        return data;
+    };
 
     images.sort((a, b) => {
         return b.created - a.created;
@@ -76,6 +83,7 @@ function ImagesPage() {
                     onRegenerate={() => {
                         setPrompt(image.prompt);
                         setGenerationPrompt(image.prompt);
+                        generateImage(image.prompt);
 
                         // scroll to top
                         window.scrollTo(0, 0);
@@ -134,6 +142,7 @@ function ImagesPage() {
                     onSubmit={(e) => {
                         e.preventDefault();
                         setGenerationPrompt(prompt);
+                        generateImage(prompt);
                     }}
                 >
                     <input
