@@ -44,7 +44,9 @@ function Editor({ value, onChange, onSelect }) {
 
     return (
         <div className="relative grow h-full">
-            {value && <CopyButton item={value} variant="opaque" />}
+            {value && (
+                <CopyButton item={value} className="absolute top-1 end-4" />
+            )}
             <textarea
                 ref={textAreaRef}
                 className="w-full px-1 py-1 focus:ring-offset-2 focus:ring-sky-400 h-full border-0 font-serif resize-none

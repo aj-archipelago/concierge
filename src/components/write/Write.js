@@ -81,8 +81,8 @@ function Write() {
             <>
                 <div
                     className={classNames(
-                        "grow sm:basis-2/3",
-                        open ? "hidden sm:block" : "",
+                        "grow md:basis-2/3 flex flex-col",
+                        open ? "hidden md:block" : "",
                     )}
                 >
                     <div className="mb-2">
@@ -127,8 +127,8 @@ function Write() {
                 </div>
                 <div
                     className={classNames(
-                        "grow sm:basis-1/3",
-                        open ? "" : "hidden sm:block",
+                        "grow md:basis-1/3",
+                        open ? "" : "hidden md:block",
                     )}
                 >
                     <Sidebar
@@ -169,16 +169,14 @@ function Write() {
 
     return (
         <>
-            <div className="block sm:hidden flex justify-end">
+            <div className="block md:hidden flex justify-end">
                 <button className="" onClick={() => setOpen(!open)}>
                     <span className="text-sm text-sky-500">
                         {open ? t("Show editor") : t("Show AI commands")}
                     </span>
                 </button>
             </div>
-            <div className="flex gap-8 pt-2 min-h-[calc(100vh - 170px)]">
-                {editorPane}
-            </div>
+            <div className="flex gap-8 pt-2 h-full">{editorPane}</div>
         </>
     );
 }
