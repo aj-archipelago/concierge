@@ -110,13 +110,15 @@ export default function Suggestion({
     changeMarkup = (
         <>
             <div className="flex justify-between grow">
-                <div className="grow px-3 py-2 text-lg font-bold">{title}</div>
+                <div className="grow px-3 py-2 text-md font-semibold">
+                    {title}
+                </div>
                 <div
                     className="text-end mb-3 text-gray-500"
                     style={{ width: 105, whiteSpace: "nowrap" }}
                 >
                     <button
-                        className="bg-transparent border-0 py-2 px-3 border-l border-b text-sm text-gray-600 bg-gray-300 rounded-bl-md"
+                        className="bg-transparent border-0 py-2 px-3 border-l border-b text-xs hover:bg-gray-200 text-gray-600 bg-gray-300 rounded-bl-md"
                         onClick={(e) => {
                             onDismiss(true, false, i);
                             e.stopPropagation();
@@ -128,7 +130,7 @@ export default function Suggestion({
                     </button>
                 </div>
             </div>
-            <p className="px-3">
+            <p className="px-3 text-sm">
                 <small className="uppercase text-gray-500">Notes:</small>&nbsp;
                 {notes}
                 {!notes && <span className="text-gray-500">(None)</span>}

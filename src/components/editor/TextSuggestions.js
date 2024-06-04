@@ -317,7 +317,7 @@ export function getTextSuggestionsComponent({
         }
 
         return (
-            <div className="h-full">
+            <div className="overflow-auto h-full">
                 {debug && (
                     <DebugInfo
                         prompt={debug.prompt}
