@@ -1,11 +1,11 @@
-import React, { useState, useEffect, use } from "react";
-import { AiOutlineTag } from "react-icons/ai";
-import LoadingButton from "../editor/LoadingButton";
 import { useLazyQuery } from "@apollo/client";
+import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
+import { AiOutlineTag } from "react-icons/ai";
+import config from "../../../config";
 import { QUERIES } from "../../graphql";
 import CopyButton from "../CopyButton";
-import { useTranslation } from "react-i18next";
-import config from "../../../config";
+import LoadingButton from "../editor/LoadingButton";
 
 function TaxonomySelector({ text }) {
     const [resultCategories, setResultCategories] = useState([]);

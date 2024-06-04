@@ -1,16 +1,16 @@
 "use client";
 
+import { useApolloClient } from "@apollo/client";
 import { useCallback, useContext, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { FaVideo } from "react-icons/fa";
+import config from "../../../config";
+import { ServerContext } from "../../App";
 import { QUERIES } from "../../graphql";
 import CopyButton from "../CopyButton";
 import LoadingButton from "../editor/LoadingButton";
 import { ProgressUpdate } from "../editor/TextSuggestions";
 import TaxonomySelector from "./TaxonomySelector";
-import config from "../../../config";
-import { ServerContext } from "../../App";
-import { useApolloClient } from "@apollo/client";
 
 function Transcribe({
     dataText,
@@ -29,6 +29,9 @@ function Transcribe({
     const [error, setError] = useState(null);
     const [errorParagraph, setErrorParagraph] = useState(null);
     const [errorTranslate, setErrorTranslate] = useState(null);
+    const [loading, setLoading] = useState(false);
+    const [loadingParagraph, setLoadingParagraph] = useState(false);
+    const [loadingTranslate, setLoadingTranslate] = useState(false);
 
     const {
         responseFormat,
@@ -120,6 +123,7 @@ function Transcribe({
         if (!url || isLoading) return;
         setCurrentOperation("Transcribing");
         try {
+            setLoading(true);
             const { data } = await apolloClient.query({
                 query: QUERIES.TRANSCRIBE,
                 variables: {
@@ -135,6 +139,7 @@ function Transcribe({
                 },
                 fetchPolicy: "network-only",
             });
+
             if (data?.transcribe?.result) {
                 const dataResult = data.transcribe.result;
                 if (async) {
@@ -148,7 +153,10 @@ function Transcribe({
         } catch (e) {
             setError(e);
             console.error(e);
+        } finally {
+            setLoading(false);
         }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [
         url,
         language,
@@ -165,6 +173,7 @@ function Transcribe({
     const fetchParagraph = useCallback(
         async (text) => {
             try {
+                setLoadingParagraph(true);
                 const { data } = await apolloClient.query({
                     query: QUERIES.FORMAT_PARAGRAPH_TURBO,
                     variables: { text, async },
@@ -180,17 +189,21 @@ function Transcribe({
                         setFinalData(dataResult);
                     }
                 }
-            } catch (E) {
+            } catch (e) {
                 setErrorParagraph(e);
                 console.error(e);
+            } finally {
+                setLoadingParagraph(false);
             }
         },
+        // eslint-disable-next-line react-hooks/exhaustive-deps
         [async],
     );
 
     const fetchTranslate = useCallback(
         async (text, language) => {
             try {
+                setLoadingTranslate(true);
                 const { data } = await apolloClient.query({
                     query: QUERIES.TRANSLATE_GPT4,
                     variables: { text, to: language, async },
@@ -208,8 +221,11 @@ function Transcribe({
             } catch (e) {
                 setErrorTranslate(e);
                 console.error(e);
+            } finally {
+                setLoadingTranslate(false);
             }
         },
+        // eslint-disable-next-line react-hooks/exhaustive-deps
         [async],
     );
 

@@ -1,7 +1,8 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import PropTypes from "prop-types";
-import React, {
+import {
     useCallback,
     useContext,
     useEffect,
@@ -9,12 +10,10 @@ import React, {
     useRef,
     useState,
 } from "react";
-import styled from "styled-components";
+import { ThemeContext } from "../../contexts/ThemeProvider";
 import KeyboardShortcutsHelp from "./style_guide/KeyboardShortcutsHelp";
 import Suggestion from "./style_guide/Suggestion";
 import { getFinalText, getIndexInFinalText } from "./style_guide/utils";
-import { ThemeContext } from "../../contexts/ThemeProvider";
-import dynamic from "next/dynamic";
 
 let diff;
 let monaco;

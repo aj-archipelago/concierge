@@ -1,13 +1,13 @@
 "use client";
 
-import { useApolloClient, useQuery } from "@apollo/client";
-import { useEffect, useMemo, useState } from "react";
+import { useApolloClient } from "@apollo/client";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { FaDownload, FaTrash } from "react-icons/fa";
+import { Modal } from "../../../@/components/ui/modal";
 import { QUERIES } from "../../graphql";
 import LoadingButton from "../editor/LoadingButton";
 import { ProgressUpdate } from "../editor/TextSuggestions";
-import { Modal } from "../../../@/components/ui/modal";
 
 function ImagesPage() {
     const [prompt, setPrompt] = useState("");
@@ -27,40 +27,43 @@ function ImagesPage() {
 
     const apolloClient = useApolloClient();
 
-    const generateImage = async (prompt) => {
-        const variables = {
-            text: prompt,
-            async: true,
-        };
+    const generateImage = useCallback(
+        async (prompt) => {
+            const variables = {
+                text: prompt,
+                async: true,
+            };
 
-        setLoading(true);
-        const { data } = await apolloClient.query({
-            query: QUERIES.IMAGE,
-            variables,
-            fetchPolicy: "network-only",
-        });
-        setLoading(false);
+            setLoading(true);
+            const { data } = await apolloClient.query({
+                query: QUERIES.IMAGE,
+                variables,
+                fetchPolicy: "network-only",
+            });
+            setLoading(false);
 
-        if (data?.image?.result) {
-            const requestId = data?.image?.result;
+            if (data?.image?.result) {
+                const requestId = data?.image?.result;
 
-            // if already in images, ignore
-            if (images.find((img) => img.cortexRequestId === requestId)) {
-                return;
+                // if already in images, ignore
+                if (images.find((img) => img.cortexRequestId === requestId)) {
+                    return;
+                }
+
+                setImages((images) => {
+                    const newImages = [...images];
+                    newImages.unshift({
+                        cortexRequestId: requestId,
+                        prompt: generationPrompt,
+                    });
+                    return newImages;
+                });
             }
 
-            setImages((images) => {
-                const newImages = [...images];
-                newImages.unshift({
-                    cortexRequestId: requestId,
-                    prompt: generationPrompt,
-                });
-                return newImages;
-            });
-        }
-
-        return data;
-    };
+            return data;
+        },
+        [apolloClient, generationPrompt, images],
+    );
 
     images.sort((a, b) => {
         return b.created - a.created;
@@ -127,7 +130,7 @@ function ImagesPage() {
                 />
             );
         });
-    }, [images, generationPrompt]);
+    }, [images, generationPrompt, generateImage]);
 
     return (
         <div>
