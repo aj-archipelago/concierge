@@ -1,6 +1,5 @@
 "use client";
 
-import { useLazyQuery } from "@apollo/client";
 import { useCallback, useContext, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { FaVideo } from "react-icons/fa";
@@ -11,6 +10,7 @@ import { ProgressUpdate } from "../editor/TextSuggestions";
 import TaxonomySelector from "./TaxonomySelector";
 import config from "../../../config";
 import { ServerContext } from "../../App";
+import { useApolloClient } from "@apollo/client";
 
 function Transcribe({
     dataText,
@@ -25,28 +25,10 @@ function Transcribe({
     const [url, setUrl] = useState("");
     const [language, setLanguage] = useState("");
     const { t } = useTranslation();
-    const [fetchData, { loading, error, data }] = useLazyQuery(
-        QUERIES.TRANSCRIBE,
-        {
-            fetchPolicy: "network-only",
-        },
-    );
-    const [
-        fetchParagraph,
-        {
-            loading: loadingParagraph,
-            error: errorParagraph,
-            data: dataParagraph,
-        },
-    ] = useLazyQuery(QUERIES.FORMAT_PARAGRAPH_TURBO);
-    const [
-        fetchTranslate,
-        {
-            loading: loadingTranslate,
-            error: errorTranslate,
-            data: dataTranslate,
-        },
-    ] = useLazyQuery(QUERIES.TRANSLATE_GPT4);
+    const apolloClient = useApolloClient();
+    const [error, setError] = useState(null);
+    const [errorParagraph, setErrorParagraph] = useState(null);
+    const [errorTranslate, setErrorTranslate] = useState(null);
 
     const {
         responseFormat,
@@ -134,22 +116,39 @@ function Transcribe({
           ? requestId && !asyncComplete
           : loading || loadingParagraph || loadingTranslate;
 
-    const handleSubmit = useCallback(() => {
+    const handleSubmit = useCallback(async () => {
         if (!url || isLoading) return;
         setCurrentOperation("Transcribing");
-        fetchData({
-            variables: {
-                file: url,
-                language,
-                wordTimestamped,
-                responseFormat,
-                maxLineCount,
-                maxLineWidth,
-                maxWordsPerLine,
-                highlightWords,
-                async,
-            },
-        });
+        try {
+            const { data } = await apolloClient.query({
+                query: QUERIES.TRANSCRIBE,
+                variables: {
+                    file: url,
+                    language,
+                    wordTimestamped,
+                    responseFormat,
+                    maxLineCount,
+                    maxLineWidth,
+                    maxWordsPerLine,
+                    highlightWords,
+                    async,
+                },
+                fetchPolicy: "network-only",
+            });
+            if (data?.transcribe?.result) {
+                const dataResult = data.transcribe.result;
+                if (async) {
+                    setDataText("");
+                    setRequestId(dataResult);
+                    setAsyncComplete(false);
+                } else {
+                    setFinalData(dataResult);
+                }
+            }
+        } catch (e) {
+            setError(e);
+            console.error(e);
+        }
     }, [
         url,
         language,
@@ -159,10 +158,60 @@ function Transcribe({
         maxLineWidth,
         maxWordsPerLine,
         highlightWords,
-        fetchData,
         isLoading,
         async,
     ]);
+
+    const fetchParagraph = useCallback(
+        async (text) => {
+            try {
+                const { data } = await apolloClient.query({
+                    query: QUERIES.FORMAT_PARAGRAPH_TURBO,
+                    variables: { text, async },
+                    fetchPolicy: "network-only",
+                });
+                if (data?.format_paragraph_turbo?.result) {
+                    const dataResult = data.format_paragraph_turbo.result;
+                    if (async) {
+                        setDataText("");
+                        setRequestId(dataResult);
+                        setAsyncComplete(false);
+                    } else {
+                        setFinalData(dataResult);
+                    }
+                }
+            } catch (E) {
+                setErrorParagraph(e);
+                console.error(e);
+            }
+        },
+        [async],
+    );
+
+    const fetchTranslate = useCallback(
+        async (text, language) => {
+            try {
+                const { data } = await apolloClient.query({
+                    query: QUERIES.TRANSLATE_GPT4,
+                    variables: { text, to: language, async },
+                    fetchPolicy: "network-only",
+                });
+                if (data?.translate_gpt4?.result) {
+                    const dataResult = data.translate_gpt4.result;
+                    if (async) {
+                        setRequestId(dataResult);
+                        setAsyncComplete(false);
+                    } else {
+                        setFinalData(dataResult);
+                    }
+                }
+            } catch (e) {
+                setErrorTranslate(e);
+                console.error(e);
+            }
+        },
+        [async],
+    );
 
     const setFinalData = (finalData) => {
         setDataText(finalData);
@@ -170,7 +219,7 @@ function Transcribe({
         if (finalData.trim() && currentOperation === "Transcribing") {
             if (textFormatted) {
                 setCurrentOperation("Formatting");
-                fetchParagraph({ variables: { text: finalData, async } });
+                fetchParagraph(finalData);
                 return;
             }
         }
@@ -209,40 +258,6 @@ function Transcribe({
             URL.revokeObjectURL(element.href);
         }, 100);
     };
-
-    useEffect(() => {
-        // data contains requestId if async else contains text
-        if (data) {
-            const dataResult = data?.transcribe?.result;
-            if (async) {
-                setDataText("");
-                setRequestId(dataResult);
-                setAsyncComplete(false);
-            }
-        }
-    }, [data, async, setDataText, setAsyncComplete]);
-
-    useEffect(() => {
-        // data contains requestId if async else contains text
-        if (dataParagraph) {
-            const dataResult = dataParagraph?.format_paragraph_turbo?.result;
-            if (async) {
-                setDataText("");
-                setRequestId(dataResult);
-                setAsyncComplete(false);
-            }
-        }
-    }, [dataParagraph, async, setDataText, setAsyncComplete]);
-
-    useEffect(() => {
-        if (dataTranslate) {
-            const dataResult = dataTranslate?.translate_gpt4?.result;
-            if (async) {
-                setRequestId(dataResult);
-                setAsyncComplete(false);
-            }
-        }
-    }, [dataParagraph, async, setDataText, setAsyncComplete, dataTranslate]);
 
     useEffect(() => {
         asyncComplete && onSelect && onSelect(dataText);
@@ -540,9 +555,9 @@ function Transcribe({
     if (dataText && asyncComplete) {
         transcriptionOptions = (
             <>
-                <div className="flex justify-between mt-auto">
+                <div className="flex justify-between items-center gap-2 mb-4">
                     <button
-                        className="text-xs border border-gray-300 px-2 py-1 rounded-md mb-3"
+                        className="lb-outline-secondary lb-sm"
                         onClick={() => {
                             setRequestId(null);
                             setDataText("");
@@ -552,9 +567,9 @@ function Transcribe({
                         {t("Start over")}
                     </button>
 
-                    <div className="flex">
+                    <div className="flex gap-2 items-center">
                         <select
-                            className="text-xs h-8 p-1 border border-gray-300 rounded-md mr-2"
+                            className="lb-select"
                             disabled={isLoading}
                             onChange={(event) =>
                                 setTranscriptionTranslationLanguage(
@@ -582,16 +597,13 @@ function Transcribe({
                         </select>
 
                         <button
-                            className="text-xs border border-blue-300 text-blue-600 px-2 py-1 rounded-md mb-3"
+                            className="lb-primary"
                             onClick={() => {
                                 setCurrentOperation("Translating");
-                                fetchTranslate({
-                                    variables: {
-                                        text: dataText,
-                                        to: transcriptionTranslationLanguage,
-                                        async,
-                                    },
-                                });
+                                fetchTranslate(
+                                    dataText,
+                                    transcriptionTranslationLanguage,
+                                );
                             }}
                         >
                             {t("Translate")}
@@ -625,7 +637,7 @@ function Transcribe({
                 {dataText && (
                     <div className="transcription-taxonomy-container flex flex-col gap-2 overflow-y-auto h-[calc(100vh-250px)]">
                         <div className="flex items-center justify-between">
-                            <h4 className="transcription-header text-lg mb-1">
+                            <h4 className="font-semibold text-lg">
                                 {t("Transcription results:")}
                             </h4>
                             <div className="download-link cursor-pointer font-bold underline text-right mr-2">
@@ -654,7 +666,7 @@ function Transcribe({
                         </div>
                         {!responseFormat && (
                             <div className="mt-4">
-                                <h4 className="taxonomy-header text-lg mb-1">
+                                <h4 className="font-semibold text-lg">
                                     {t("Taxonomy: ")}
                                 </h4>
                                 <TaxonomySelector text={dataText} />

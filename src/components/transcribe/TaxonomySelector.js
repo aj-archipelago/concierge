@@ -122,11 +122,11 @@ function TaxonomySelector({ text }) {
     }
 
     return (
-        <div className="taxonomy-section mb-5">
-            <div className="taxonomy-row flex items-center space-x-4">
-                <h5>{t("Property")}</h5>
+        <div className="mb-5">
+            <div className="flex items-center space-x-4">
+                <h5 className="font-medium">{t("Property")}</h5>
                 <select
-                    className="form-select form-select-sm"
+                    className="lb-select w-48"
                     value={selectedSet}
                     onChange={(e) => setSelectedSet(e.target.value)}
                 >
@@ -141,7 +141,7 @@ function TaxonomySelector({ text }) {
                     disabled={!selectedSet}
                     loading={isSelectingTaxonomy}
                     text={t("Selecting")}
-                    className="whitespace-nowrap"
+                    className="lb-primary"
                     onClick={() => handleSelect()}
                 >
                     <AiOutlineTag /> {t("Select")}
@@ -150,10 +150,10 @@ function TaxonomySelector({ text }) {
 
             <div className="taxonomy-row mt-4">
                 <div className="taxonomy-results-container">
-                    <h5>{t("Hashtags")}</h5>
+                    <h5 className="font-medium">{t("Hashtags")}</h5>
                     <div className="relative">
                         <textarea
-                            className="form-textarea"
+                            className="lb-input"
                             rows={2}
                             value={
                                 resultHashtags.join(" ") ||
@@ -175,10 +175,10 @@ function TaxonomySelector({ text }) {
                 ?.length > 0 && (
                 <div className="taxonomy-row mt-4">
                     <div className="taxonomy-results-container">
-                        <h5>{t("Categories")}</h5>
+                        <h5 className="font-medium">{t("Categories")}</h5>
                         <div className="relative">
                             <textarea
-                                className="form-textarea"
+                                className="lb-input"
                                 rows={2}
                                 value={
                                     resultCategories.join(", ") ||
@@ -198,10 +198,10 @@ function TaxonomySelector({ text }) {
             )}
             <div className="taxonomy-row mt-4">
                 <div className="taxonomy-results-container">
-                    <h5>{t("Topics")}</h5>
+                    <h5 className="font-medium">{t("Topics")}</h5>
                     <div className="relative">
                         <textarea
-                            className="form-textarea"
+                            className="lb-input"
                             rows={2}
                             value={
                                 resultTopics.join(", ") ||
@@ -226,7 +226,7 @@ function TaxonomySelector({ text }) {
                         <h5>{t("Tags")}</h5>
                         <div className="relative">
                             <textarea
-                                className="form-textarea"
+                                className="lb-input"
                                 rows={2}
                                 value={
                                     resultTags.join(", ") ||
