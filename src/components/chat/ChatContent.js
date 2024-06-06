@@ -120,7 +120,7 @@ function ChatContent({ displayState = "full", container = "chatpage" }) {
                                 tool = result.data.rag_start.tool;
                                 if (tool) {
                                     const toolObj = JSON.parse(
-                                        result.data.rag_start.tool
+                                        result.data.rag_start.tool,
                                     );
                                     searchRequired = toolObj?.search;
                                     aiMemory = toolObj?.aiMemory;
