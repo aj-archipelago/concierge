@@ -16,7 +16,12 @@ import { MdOutlineWorkspaces } from "react-icons/md";
 import classNames from "../../app/utils/class-names";
 import config from "../../config";
 import { LanguageContext } from "../contexts/LanguageProvider";
-import { useDeleteChat, useGetActiveChatId, useGetChats, useSetActiveChatId } from "../../app/queries/chats";
+import {
+    useDeleteChat,
+    useGetActiveChatId,
+    useGetChats,
+    useSetActiveChatId,
+} from "../../app/queries/chats";
 
 const navigation = [
     {
@@ -88,9 +93,9 @@ export default function Sidebar() {
         console.log(`Deleting chat: ${chatId}`);
         // Get the current active chat ID
         const currentActiveChatId = activeChatId.data;
-        
+
         deleteChat.mutate({ chatId });
-        
+
         // Only navigate if the deleted chat was the active chat
         if (chatId === currentActiveChatId) {
             setActiveChatId.mutate(null);
@@ -163,7 +168,10 @@ export default function Sidebar() {
                                     );
                                 } else {
                                     return (
-                                        <li key={item.name} className="cursor-pointer">
+                                        <li
+                                            key={item.name}
+                                            className="cursor-pointer"
+                                        >
                                             <div className="flex items-center justify-between">
                                                 <button
                                                     className={classNames(
@@ -222,13 +230,15 @@ export default function Sidebar() {
                                                                 "group flex items-center justify-between rounded-md cursor-pointer",
                                                             )}
                                                             onClick={() => {
-                                                                setActiveChatId.mutate(subItem.key);
-                                                                router.push(subItem.href);
+                                                                setActiveChatId.mutate(
+                                                                    subItem.key,
+                                                                );
+                                                                router.push(
+                                                                    subItem.href,
+                                                                );
                                                             }}
                                                         >
-                                                            <div
-                                                                className="block py-2 pe-2 pl-9 text-sm leading-6 text-gray-700 w-full"
-                                                            >
+                                                            <div className="block py-2 pe-2 pl-9 text-sm leading-6 text-gray-700 w-full">
                                                                 {t(
                                                                     subItem.name,
                                                                 )}
@@ -240,7 +250,9 @@ export default function Sidebar() {
                                                                     <TrashIcon
                                                                         className="h-4 w-4 mr-2 text-gray-400 hover:text-red-600 cursor-pointer"
                                                                         aria-hidden="true"
-                                                                        onClick={(e) => {
+                                                                        onClick={(
+                                                                            e,
+                                                                        ) => {
                                                                             e.stopPropagation();
                                                                             handleDeleteChat(
                                                                                 subItem.key,

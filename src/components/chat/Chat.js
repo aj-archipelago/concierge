@@ -1,27 +1,26 @@
 "use client";
 
-import { useTranslation } from "react-i18next";
 import ChatContent from "./ChatContent";
 import dynamic from "next/dynamic";
-import SavedChats from "./SavedChats";
-import { useAddChat, useGetActiveChat } from "../../../app/queries/chats"; // Assuming your hooks are in this path
-import { AiOutlineSave } from "react-icons/ai";
-import { handleSaveChat } from "./SaveChat";
-import { useApolloClient } from "@apollo/client";
+// import { useGetActiveChat } from "../../../app/queries/chats"; // Assuming your hooks are in this path
+// import { useTranslation } from "react-i18next";
+// import SavedChats from "./SavedChats";
+// import { AiOutlineSave } from "react-icons/ai";
+// import { handleSaveChat } from "./SaveChat";
+// import { useApolloClient } from "@apollo/client";
 
 const ChatTopMenuDynamic = dynamic(() => import("./ChatTopMenu"));
 
 function Chat() {
-    const { t } = useTranslation();
-    const addChat = useAddChat();
-    const client = useApolloClient();
-    const chat = useGetActiveChat();
-    const messages = chat?.data?.messages || [];
-    console.log(messages);
+    // const { t } = useTranslation();
+    // const addChat = useAddChat();
+    // const client = useApolloClient();
+    // const chat = useGetActiveChat();
+    // const messages = chat?.data?.messages || [];
 
     return (
         <div className="flex flex-col gap-3 h-full">
-            <h3>{chat?.data?._id}</h3>
+            {/* <h3>{chat?.data?._id}</h3> */}
             <div className="flex justify-between">
                 {/* <SavedChats /> */}
                 <ChatTopMenuDynamic />

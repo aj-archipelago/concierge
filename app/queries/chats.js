@@ -108,7 +108,8 @@ export function useSetActiveChatId() {
     return useMutation({
         mutationFn: async (activeChatId) => {
             const response = await axios.put(`/api/chats/active`, {
-                activeChatId: activeChatId !== null ? String(activeChatId) : null,
+                activeChatId:
+                    activeChatId !== null ? String(activeChatId) : null,
             });
             return response.data;
         },
@@ -128,25 +129,37 @@ export function useAddMessage() {
     return useMutation({
         mutationFn: async ({ message }) => {
             let chatData;
-            let chatId = activeChatId != null ? String(activeChatId) : String(DEFAULT_CHAT_ID);
+            let chatId =
+                activeChatId != null
+                    ? String(activeChatId)
+                    : String(DEFAULT_CHAT_ID);
 
-            console.log("Active Chat ID:", activeChatId, "chatid", chatId);
+            // console.log("Active Chat ID:", activeChatId, "chatid", chatId);
 
             if (!chatId || chatId === DEFAULT_CHAT_ID) {
                 try {
                     console.log("Creating new chat with message:", message);
-                    const title = (message?.payload || "").substring(0, 13) || "New Chat";
+                    const title =
+                        (message?.payload || "").substring(0, 14) || "New Chat";
                     const newChat = await addChatMutation.mutateAsync({
                         messages: [message],
                         title,
                     });
                     chatId = String(newChat?._id);
                     chatData = newChat;
-                    console.log("New chat created:", chatData, "Chat ID:", chatId);
-                    
+                    console.log(
+                        "New chat created:",
+                        chatData,
+                        "Chat ID:",
+                        chatId,
+                    );
+
                     // Update the query cache with the newly created chat
-                    queryClient.setQueryData(["chats"], (oldChats) => [...(oldChats || []), newChat]);
-                    
+                    queryClient.setQueryData(["chats"], (oldChats) => [
+                        ...(oldChats || []),
+                        newChat,
+                    ]);
+
                     // Set the active chat ID to the new chat ID
                     await setActiveChatIdMutation.mutateAsync(String(chatId));
                 } catch (error) {
@@ -155,24 +168,44 @@ export function useAddMessage() {
                 }
             } else {
                 try {
-                    console.log("Adding message to existing chat:", chatId, message);
-                    const chatResponse = await axios.get(`/api/chats/${String(chatId)}`);
+                    // Update the query cache with the expected update
+                    const existingChat = queryClient.getQueryData([
+                        "chat",
+                        chatId,
+                    ]);
+                    // console.log("Chat ID:", chatId, "Chat Data:", existingChat);
+                    const expectedChatData = {
+                        ...existingChat,
+                        messages: [...existingChat.messages, message],
+                    };
+                    queryClient.setQueryData(
+                        ["chat", chatId],
+                        expectedChatData,
+                    );
+
+                    // console.log("Adding message to existing chat:", chatId, message);
+                    const chatResponse = await axios.get(
+                        `/api/chats/${String(chatId)}`,
+                    );
                     chatData = chatResponse.data;
-                    if(!chatData.title || chatData.title === "Default Chat" || chatData.title === "New Chat") {
-                        chatData.title = (message?.payload || "").substring(0, 13) || "New Chat";
+                    if (
+                        !chatData.title ||
+                        chatData.title === "Default Chat" ||
+                        chatData.title === "New Chat"
+                    ) {
+                        chatData.title =
+                            (message?.payload || "").substring(0, 14) ||
+                            "New Chat";
                     }
                     chatData.messages.push(message);
                     await axios.put(`/api/chats/${chatId}`, chatData);
-                    
-                    // Update the query cache with the updated chat
-                    queryClient.setQueryData(["chat", chatId], chatData);
                 } catch (error) {
                     console.error("Error updating chat:", error);
                     throw new Error("Failed to update chat");
                 }
             }
 
-            console.log("Chat ID:", chatId, "Chat Data:", chatData);
+            // console.log("Chat ID:", chatId, "Chat Data:", chatData);
 
             return chatData;
         },
