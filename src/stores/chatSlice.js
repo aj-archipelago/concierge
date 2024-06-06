@@ -140,10 +140,10 @@ export const chatSlice = createSlice({
 
 // Action creators are generated for each case reducer function
 export const {
-    addMessage,
-    setMessages,
-    clearChat,
-    firstRunMessage,
+    // addMessage,
+    // setMessages,
+    // clearChat,
+    // firstRunMessage,
     setChatBoxPosition,
     includeAJArticles,
 } = chatSlice.actions;

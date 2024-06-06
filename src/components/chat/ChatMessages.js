@@ -1,5 +1,3 @@
-import { clearChat } from "../../stores/chatSlice";
-import { useDispatch } from "react-redux";
 import MessageInput from "./MessageInput";
 import MessageList from "./MessageList";
 import { useTranslation } from "react-i18next";
@@ -22,7 +20,6 @@ function ChatMessages({
     container,
     displayState,
 }) {
-    const dispatch = useDispatch();
     const { t } = useTranslation();
     const client = useApolloClient();
     const addChat = useAddChat();
@@ -48,15 +45,15 @@ function ChatMessages({
         <div className="h-full flex flex-col gap-3">
             <div className="grow overflow-auto flex flex-col chat-content">
                 <div className="hidden justify-between items-center px-3 pb-2 text-xs [.docked_&]:flex">
-                    <SavedChats displayState={displayState} />
+                    {/* <SavedChats displayState={displayState} /> */}
                     <ChatTopMenuDynamic displayState={displayState} />
-                    {messages.length > 0 && (
+                    {false && messages.length > 0 && (
                         <div className="flex gap-2">
                             <button
                                 className="flex gap-1 items-center hover:underline hover:text-sky-500 active:text-sky-700"
                                 onClick={() => {
                                     if (window.confirm(t("Are you sure?"))) {
-                                        dispatch(clearChat());
+                                        console.log("Reset chat");
                                     }
                                 }}
                             >

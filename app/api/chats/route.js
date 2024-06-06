@@ -1,38 +1,43 @@
-import User from "../models/user";
+import { NextResponse } from "next/server";
+import Chat from "../models/chat";
 import { getCurrentUser, handleError } from "../utils/auth";
 
 // Handle GET request to fetch saved messages of the current user
 export async function GET(req) {
     try {
         const user = await getCurrentUser(false);
-        const savedChats = user.savedChats;
-        return Response.json({ status: "success", savedChats });
+        const userId = user._id;
+
+        // Fetch chats using the userId reference and sort by updatedAt in descending order
+        const chats = await Chat.find({ userId }).sort({ updatedAt: -1 });
+
+        return NextResponse.json(chats); // Use NextResponse to return JSON
     } catch (error) {
         return handleError(error);
     }
 }
 
+// Handle POST request to create a new chat
 export async function POST(req) {
     try {
-        const { messageList, title } = await req.json();
+        const { messages, title } = await req.json();
         const currentUser = await getCurrentUser(false);
+        const userId = currentUser._id;
 
-        const user = await User.findByIdAndUpdate(
-            currentUser._id,
-            {
-                $push: {
-                    savedChats: {
-                        $each: [{ messages: messageList, title }], // Wrapping in an object to match the schema
-                        $position: 0, // Push to the top
-                    },
-                },
-            },
-            { new: true, useFindAndModify: false }, // Correct options for findByIdAndUpdate
-        );
+        // Ensure messages is always an array
+        const normalizedMessages = Array.isArray(messages)
+            ? messages
+            : [messages];
 
-        if (!user) throw new Error("User not found");
+        const newChat = new Chat({
+            userId,
+            messages: normalizedMessages,
+            title,
+        });
 
-        return Response.json({ status: "success", user });
+        await newChat.save();
+
+        return Response.json(newChat);
     } catch (error) {
         return handleError(error); // Handle errors appropriately
     }
@@ -41,22 +46,22 @@ export async function POST(req) {
 // Handle PUT request to edit existing saved messages for the current user
 export async function PUT(req) {
     try {
-        const { messageId, newMessageContent } = await req.json();
+        const { chatId, newMessageContent } = await req.json();
         const currentUser = await getCurrentUser(false);
 
-        const user = await User.findOneAndUpdate(
-            { _id: currentUser._id, "savedChats._id": messageId },
+        const chat = await Chat.findOneAndUpdate(
+            { _id: chatId, userId: currentUser._id },
             {
                 $set: {
-                    "savedChats.$.content": newMessageContent,
+                    messages: newMessageContent,
                 },
             },
             { new: true, useFindAndModify: false },
         );
 
-        if (!user) throw new Error("User or message not found");
+        if (!chat) throw new Error("Chat not found");
 
-        return Response.json({ status: "success", user });
+        return Response.json(chat);
     } catch (error) {
         return handleError(error);
     }

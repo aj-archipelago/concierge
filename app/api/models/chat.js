@@ -27,10 +27,6 @@ const messageSchema = new mongoose.Schema(
             type: String,
             required: true,
         },
-        id: {
-            type: String,
-            required: true,
-        },
     },
     {
         timestamps: true,
@@ -49,10 +45,17 @@ const chatSchema = new mongoose.Schema(
             type: String,
             default: "Chat",
         },
+        userId: {
+            type: String,
+            required: true,
+        },
     },
     {
         timestamps: true,
     },
 );
 
-export default chatSchema;
+// Create the Chat model from the schema
+const Chat = mongoose.models.Chat || mongoose.model("Chat", chatSchema);
+
+export default Chat;

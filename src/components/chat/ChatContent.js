@@ -1,14 +1,14 @@
-import { useDispatch, useSelector } from "react-redux";
+import { useSelector } from "react-redux";
 import { useApolloClient } from "@apollo/client";
 import { QUERIES } from "../../graphql";
-import { addMessage } from "../../stores/chatSlice";
 import { useState, useContext } from "react";
 import { useUpdateAiMemory } from "../../../app/queries/options";
 import { AuthContext } from "../../App.js";
 import ChatMessages from "./ChatMessages";
 import { toast } from "react-toastify";
 import { useTranslation } from "react-i18next";
-
+import { useGetActiveChat, useAddMessage } from "../../../app/queries/chats";
+import { useRouter } from "next/navigation";
 const contextMessageCount = 50;
 
 function ChatContent({ displayState = "full", container = "chatpage" }) {
@@ -16,24 +16,38 @@ function ChatContent({ displayState = "full", container = "chatpage" }) {
     const client = useApolloClient();
     const { user } = useContext(AuthContext);
     const [loading, setLoading] = useState(false);
-    const messages = useSelector((state) => state.chat.messages);
+    const chat = useGetActiveChat();
+    const messages = chat?.data?.messages || [];
     const selectedSources = useSelector((state) => state.doc.selectedSources);
     const updateAiMemoryMutation = useUpdateAiMemory();
+    const addMessage = useAddMessage();
+    const router = useRouter();
 
-    const dispatch = useDispatch();
 
     const updateChat = (message, tool) => {
         setLoading(false);
         if (message) {
-            dispatch(
-                addMessage({
-                    payload: message,
-                    tool: tool,
-                    sentTime: "just now",
-                    direction: "incoming",
-                    position: "single",
-                    sender: "labeeb",
-                }),
+            addMessage.mutate(
+                {
+                    chatId: chat._id,
+                    message: {
+                        payload: message,
+                        tool: tool,
+                        sentTime: "just now",
+                        direction: "incoming",
+                        position: "single",
+                        sender: "labeeb",
+                    },
+                },
+                {
+                    onSuccess: (data, variables) => {
+                        if (!chat._id) {
+                            const newChatId = data?._id;
+                            console.log("New chat ID", newChatId);
+                            router.push(`/chat/${newChatId}`);
+                        }
+                    },
+                }
             );
         }
     };
@@ -56,15 +70,16 @@ function ChatContent({ displayState = "full", container = "chatpage" }) {
                 onSend={(text) => {
                     const display = text;
 
-                    dispatch(
-                        addMessage({
+                    addMessage.mutate({
+                        chatId: chat._id,
+                        message: {
                             payload: display,
                             sender: "user",
                             sentTime: "just now",
                             direction: "outgoing",
                             position: "single",
-                        }),
-                    );
+                        },
+                    });
 
                     let conversation = messages
                         .slice(-contextMessageCount)

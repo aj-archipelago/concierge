@@ -166,6 +166,9 @@ function MessageList({ messages, bot, loading }) {
                     </div>
                 )}
                 {messages.map((message, index) => {
+                    if (!message.id) {
+                        message.id = message._id || index;
+                    }
                     let display;
                     if (Array.isArray(message.payload)) {
                         const arr = message.payload.map((t) => {
