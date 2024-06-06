@@ -1,17 +1,16 @@
 "use client";
 
-import { useLazyQuery } from "@apollo/client";
+import { useApolloClient } from "@apollo/client";
 import { useCallback, useContext, useEffect, useState } from "react";
-import { Button, Form } from "react-bootstrap";
 import { useTranslation } from "react-i18next";
 import { FaVideo } from "react-icons/fa";
+import config from "../../../config";
+import { ServerContext } from "../../App";
 import { QUERIES } from "../../graphql";
 import CopyButton from "../CopyButton";
 import LoadingButton from "../editor/LoadingButton";
 import { ProgressUpdate } from "../editor/TextSuggestions";
 import TaxonomySelector from "./TaxonomySelector";
-import config from "../../../config";
-import { ServerContext } from "../../App";
 
 function Transcribe({
     dataText,
@@ -26,28 +25,13 @@ function Transcribe({
     const [url, setUrl] = useState("");
     const [language, setLanguage] = useState("");
     const { t } = useTranslation();
-    const [fetchData, { loading, error, data }] = useLazyQuery(
-        QUERIES.TRANSCRIBE,
-        {
-            fetchPolicy: "network-only",
-        },
-    );
-    const [
-        fetchParagraph,
-        {
-            loading: loadingParagraph,
-            error: errorParagraph,
-            data: dataParagraph,
-        },
-    ] = useLazyQuery(QUERIES.FORMAT_PARAGRAPH_TURBO);
-    const [
-        fetchTranslate,
-        {
-            loading: loadingTranslate,
-            error: errorTranslate,
-            data: dataTranslate,
-        },
-    ] = useLazyQuery(QUERIES.TRANSLATE_GPT4);
+    const apolloClient = useApolloClient();
+    const [error, setError] = useState(null);
+    const [errorParagraph, setErrorParagraph] = useState(null);
+    const [errorTranslate, setErrorTranslate] = useState(null);
+    const [loading, setLoading] = useState(false);
+    const [loadingParagraph, setLoadingParagraph] = useState(false);
+    const [loadingTranslate, setLoadingTranslate] = useState(false);
 
     const {
         responseFormat,
@@ -135,22 +119,44 @@ function Transcribe({
           ? requestId && !asyncComplete
           : loading || loadingParagraph || loadingTranslate;
 
-    const handleSubmit = useCallback(() => {
+    const handleSubmit = useCallback(async () => {
         if (!url || isLoading) return;
         setCurrentOperation("Transcribing");
-        fetchData({
-            variables: {
-                file: url,
-                language,
-                wordTimestamped,
-                responseFormat,
-                maxLineCount,
-                maxLineWidth,
-                maxWordsPerLine,
-                highlightWords,
-                async,
-            },
-        });
+        try {
+            setLoading(true);
+            const { data } = await apolloClient.query({
+                query: QUERIES.TRANSCRIBE,
+                variables: {
+                    file: url,
+                    language,
+                    wordTimestamped,
+                    responseFormat,
+                    maxLineCount,
+                    maxLineWidth,
+                    maxWordsPerLine,
+                    highlightWords,
+                    async,
+                },
+                fetchPolicy: "network-only",
+            });
+
+            if (data?.transcribe?.result) {
+                const dataResult = data.transcribe.result;
+                if (async) {
+                    setDataText("");
+                    setRequestId(dataResult);
+                    setAsyncComplete(false);
+                } else {
+                    setFinalData(dataResult);
+                }
+            }
+        } catch (e) {
+            setError(e);
+            console.error(e);
+        } finally {
+            setLoading(false);
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [
         url,
         language,
@@ -160,10 +166,68 @@ function Transcribe({
         maxLineWidth,
         maxWordsPerLine,
         highlightWords,
-        fetchData,
         isLoading,
         async,
     ]);
+
+    const fetchParagraph = useCallback(
+        async (text) => {
+            try {
+                setLoadingParagraph(true);
+                const { data } = await apolloClient.query({
+                    query: QUERIES.FORMAT_PARAGRAPH_TURBO,
+                    variables: { text, async },
+                    fetchPolicy: "network-only",
+                });
+                if (data?.format_paragraph_turbo?.result) {
+                    const dataResult = data.format_paragraph_turbo.result;
+                    if (async) {
+                        setDataText("");
+                        setRequestId(dataResult);
+                        setAsyncComplete(false);
+                    } else {
+                        setFinalData(dataResult);
+                    }
+                }
+            } catch (e) {
+                setErrorParagraph(e);
+                console.error(e);
+            } finally {
+                setLoadingParagraph(false);
+            }
+        },
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+        [async],
+    );
+
+    const fetchTranslate = useCallback(
+        async (text, language) => {
+            try {
+                setLoadingTranslate(true);
+                const { data } = await apolloClient.query({
+                    query: QUERIES.TRANSLATE_GPT4,
+                    variables: { text, to: language, async },
+                    fetchPolicy: "network-only",
+                });
+                if (data?.translate_gpt4?.result) {
+                    const dataResult = data.translate_gpt4.result;
+                    if (async) {
+                        setRequestId(dataResult);
+                        setAsyncComplete(false);
+                    } else {
+                        setFinalData(dataResult);
+                    }
+                }
+            } catch (e) {
+                setErrorTranslate(e);
+                console.error(e);
+            } finally {
+                setLoadingTranslate(false);
+            }
+        },
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+        [async],
+    );
 
     const setFinalData = (finalData) => {
         setDataText(finalData);
@@ -171,7 +235,7 @@ function Transcribe({
         if (finalData.trim() && currentOperation === "Transcribing") {
             if (textFormatted) {
                 setCurrentOperation("Formatting");
-                fetchParagraph({ variables: { text: finalData, async } });
+                fetchParagraph(finalData);
                 return;
             }
         }
@@ -212,67 +276,31 @@ function Transcribe({
     };
 
     useEffect(() => {
-        // data contains requestId if async else contains text
-        if (data) {
-            const dataResult = data?.transcribe?.result;
-            if (async) {
-                setDataText("");
-                setRequestId(dataResult);
-                setAsyncComplete(false);
-            }
-        }
-    }, [data, async, setDataText, setAsyncComplete]);
-
-    useEffect(() => {
-        // data contains requestId if async else contains text
-        if (dataParagraph) {
-            const dataResult = dataParagraph?.format_paragraph_turbo?.result;
-            if (async) {
-                setDataText("");
-                setRequestId(dataResult);
-                setAsyncComplete(false);
-            }
-        }
-    }, [dataParagraph, async, setDataText, setAsyncComplete]);
-
-    useEffect(() => {
-        if (dataTranslate) {
-            const dataResult = dataTranslate?.translate_gpt4?.result;
-            if (async) {
-                setRequestId(dataResult);
-                setAsyncComplete(false);
-            }
-        }
-    }, [dataParagraph, async, setDataText, setAsyncComplete, dataTranslate]);
-
-    useEffect(() => {
         asyncComplete && onSelect && onSelect(dataText);
     }, [dataText, asyncComplete, onSelect]);
 
     let transcriptionOptions = (
         <>
-            <ol>
-                <li>
-                    <div className="selection-section">
+            <ol className="list-inside">
+                <li className="mb-4">
+                    <div className="flex flex-col gap-2 items-stretch mb-5">
                         {t("Choose file to transcribe:")}
-                        <div className="url-loading-row">
+                        <div className="url-loading-row flex gap-2 items-center grow mb-4">
                             <input
                                 disabled={isLoading}
-                                size="sm"
                                 type="file"
-                                accept=".mp3,.wav,.mp4"
-                                className="rounded border lb-input"
+                                className="lb-input text-sm py-"
                                 onChange={handleFileUpload}
                             />
                         </div>
                         {t("Or enter URL:")}
-                        <Form.Control
+                        <input
                             disabled={isLoading}
                             placeholder={t(
                                 "Paste URL e.g. https://youtube.com/shorts/raw35iohE0o",
                             )}
                             value={url}
-                            style={{ minWidth: "100px" }}
+                            className="lb-input"
                             type="text"
                             size="sm"
                             onChange={(e) => setUrl(e.target.value)}
@@ -284,167 +312,201 @@ function Transcribe({
                         />
                     </div>
                 </li>
-                <li>
-                    <h4 className="options-header">
+                <li className="mb-4">
+                    <h4 className="options-header mb-1">
                         {t("Transcribe audio to:")}
                     </h4>
-                    <div className="options-section">
-                        <div className="radio-columns">
-                            <Form.Check
-                                disabled={isLoading}
-                                type="radio"
-                                label={t("Plain Text")}
-                                name="transcriptionOptions"
-                                id="plainText"
-                                checked={
-                                    !responseFormat &&
-                                    !wordTimestamped &&
-                                    !textFormatted
-                                }
-                                onChange={() =>
-                                    setTranscriptionOption({
-                                        responseFormat: "",
-                                        wordTimestamped: false,
-                                        textFormatted: false,
-                                    })
-                                }
-                            />
-
-                            <Form.Check
-                                disabled={isLoading}
-                                type="radio"
-                                label={t("Formatted Text")}
-                                name="transcriptionOptions"
-                                id="formattedText"
-                                checked={
-                                    !responseFormat &&
-                                    !wordTimestamped &&
-                                    textFormatted
-                                }
-                                onChange={() =>
-                                    setTranscriptionOption({
-                                        responseFormat: "",
-                                        wordTimestamped: false,
-                                        textFormatted: true,
-                                    })
-                                }
-                            />
-
-                            <Form.Check
-                                disabled={isLoading}
-                                type="radio"
-                                label={t("SRT Format")}
-                                name="transcriptionOptions"
-                                id="srtPhraseLevel"
-                                checked={responseFormat === "srt"}
-                                onChange={() =>
-                                    setTranscriptionOption({
-                                        responseFormat: "srt",
-                                        wordTimestamped: false,
-                                        textFormatted: false,
-                                    })
-                                }
-                            />
-
-                            <Form.Check
-                                disabled={isLoading}
-                                type="radio"
-                                label={t("VTT Format")}
-                                name="transcriptionOptions"
-                                id="vttPhraseLevel"
-                                checked={responseFormat === "vtt"}
-                                onChange={() =>
-                                    setTranscriptionOption({
-                                        responseFormat: "vtt",
-                                        wordTimestamped: false,
-                                        textFormatted: false,
-                                    })
-                                }
-                            />
-                        </div>
-
-                        <div className="radio-columns" hidden={!responseFormat}>
-                            <Form.Check
-                                disabled={isLoading}
-                                type="radio"
-                                label={t("Phrase level")}
-                                name="transcriptionOptions2"
-                                id="phraseLevel"
-                                checked={!wordTimestamped && !maxLineWidth}
-                                onChange={() =>
-                                    setTranscriptionOption({
-                                        responseFormat,
-                                        wordTimestamped: false,
-                                        textFormatted: false,
-                                    })
-                                }
-                            />
-                            <Form.Check
-                                disabled={isLoading}
-                                type="radio"
-                                label={t("Word level")}
-                                name="transcriptionOptions2"
-                                id="wordLevel"
-                                checked={wordTimestamped && !maxLineWidth}
-                                onChange={() =>
-                                    setTranscriptionOption({
-                                        responseFormat,
-                                        wordTimestamped: true,
-                                        textFormatted: false,
-                                    })
-                                }
-                            />
-                            <Form.Check
-                                disabled={isLoading}
-                                type="radio"
-                                label={t("Horizontal")}
-                                name="transcriptionOptions2"
-                                id="horizontal"
-                                checked={maxLineWidth === 35}
-                                onChange={() =>
-                                    setTranscriptionOption({
-                                        responseFormat,
-                                        wordTimestamped: true,
-                                        textFormatted: false,
-                                        maxLineWidth: 35,
-                                        maxLineCount: 1,
-                                    })
-                                }
-                            />
-                            <Form.Check
-                                disabled={isLoading}
-                                type="radio"
-                                label={t("Vertical")}
-                                name="transcriptionOptions2"
-                                id="vertical"
-                                checked={maxLineWidth === 25}
-                                onChange={() =>
-                                    setTranscriptionOption({
-                                        responseFormat,
-                                        wordTimestamped: true,
-                                        textFormatted: false,
-                                        maxLineWidth: 25,
-                                        maxLineCount: 1,
-                                    })
-                                }
-                            />
+                    <div className="options-section flex flex-col sm:flex-row justify-between gap-4 sm:gap-14 mb-5 p-2.5 border border-gray-300 rounded-md bg-neutral-100 w-full">
+                        <div className="radio-columns flex flex-col">
+                            <h5 className="font-semibold">
+                                {t("Output format")}
+                            </h5>
+                            <label className="flex items-center">
+                                <input
+                                    disabled={isLoading}
+                                    type="radio"
+                                    className="lb-radio"
+                                    name="transcriptionOptions"
+                                    id="plainText"
+                                    checked={
+                                        !responseFormat &&
+                                        !wordTimestamped &&
+                                        !textFormatted
+                                    }
+                                    onChange={() =>
+                                        setTranscriptionOption({
+                                            responseFormat: "",
+                                            wordTimestamped: false,
+                                            textFormatted: false,
+                                        })
+                                    }
+                                />
+                                <span className="ml-2 text-base">
+                                    {t("Plain Text")}
+                                </span>
+                            </label>
+                            <label className="flex items-center">
+                                <input
+                                    disabled={isLoading}
+                                    type="radio"
+                                    className="lb-radio"
+                                    name="transcriptionOptions"
+                                    id="formattedText"
+                                    checked={
+                                        !responseFormat &&
+                                        !wordTimestamped &&
+                                        textFormatted
+                                    }
+                                    onChange={() =>
+                                        setTranscriptionOption({
+                                            responseFormat: "",
+                                            wordTimestamped: false,
+                                            textFormatted: true,
+                                        })
+                                    }
+                                />
+                                <span className="ml-2 text-base">
+                                    {t("Formatted Text")}
+                                </span>
+                            </label>
+                            <label className="flex items-center">
+                                <input
+                                    disabled={isLoading}
+                                    type="radio"
+                                    className="lb-radio"
+                                    name="transcriptionOptions"
+                                    id="srtPhraseLevel"
+                                    checked={responseFormat === "srt"}
+                                    onChange={() =>
+                                        setTranscriptionOption({
+                                            responseFormat: "srt",
+                                            wordTimestamped: false,
+                                            textFormatted: false,
+                                        })
+                                    }
+                                />
+                                <span className="ml-2 text-base">
+                                    {t("SRT Format")}
+                                </span>
+                            </label>
+                            <label className="flex items-center">
+                                <input
+                                    disabled={isLoading}
+                                    type="radio"
+                                    className="lb-radio"
+                                    name="transcriptionOptions"
+                                    id="vttPhraseLevel"
+                                    checked={responseFormat === "vtt"}
+                                    onChange={() =>
+                                        setTranscriptionOption({
+                                            responseFormat: "vtt",
+                                            wordTimestamped: false,
+                                            textFormatted: false,
+                                        })
+                                    }
+                                />
+                                <span className="ml-2 text-base">
+                                    {t("VTT Format")}
+                                </span>
+                            </label>
                         </div>
 
                         <div
-                            style={{
-                                display: "flex",
-                                flexDirection: "column",
-                                textAlign: "center",
-                            }}
+                            className={`radio-columns flex flex-col ${!responseFormat ? "hidden" : ""}`}
                         >
-                            <Form.Select
-                                style={{
-                                    fontSize: "10px",
-                                    height: "30px",
-                                    minWidth: "150px",
-                                    width: "180px",
-                                    marginRight: "2px",
-                                }}
+                            <h5 className="font-semibold">
+                                Transcription type
+                            </h5>
+                            <label className="flex items-center">
+                                <input
+                                    disabled={isLoading}
+                                    type="radio"
+                                    className="lb-radio"
+                                    name="transcriptionOptions2"
+                                    id="phraseLevel"
+                                    checked={!wordTimestamped && !maxLineWidth}
+                                    onChange={() =>
+                                        setTranscriptionOption({
+                                            responseFormat,
+                                            wordTimestamped: false,
+                                            textFormatted: false,
+                                        })
+                                    }
+                                />
+                                <span className="ml-2 text-base">
+                                    {t("Phrase level")}
+                                </span>
+                            </label>
+                            <label className="flex items-center">
+                                <input
+                                    disabled={isLoading}
+                                    type="radio"
+                                    className="lb-radio"
+                                    name="transcriptionOptions2"
+                                    id="wordLevel"
+                                    checked={wordTimestamped && !maxLineWidth}
+                                    onChange={() =>
+                                        setTranscriptionOption({
+                                            responseFormat,
+                                            wordTimestamped: true,
+                                            textFormatted: false,
+                                        })
+                                    }
+                                />
+                                <span className="ml-2 text-base">
+                                    {t("Word level")}
+                                </span>
+                            </label>
+                            <label className="flex items-center">
+                                <input
+                                    disabled={isLoading}
+                                    type="radio"
+                                    className="lb-radio"
+                                    name="transcriptionOptions2"
+                                    id="horizontal"
+                                    checked={maxLineWidth === 35}
+                                    onChange={() =>
+                                        setTranscriptionOption({
+                                            responseFormat,
+                                            wordTimestamped: true,
+                                            textFormatted: false,
+                                            maxLineWidth: 35,
+                                            maxLineCount: 1,
+                                        })
+                                    }
+                                />
+                                <span className="ml-2 text-base">
+                                    {t("Horizontal")}
+                                </span>
+                            </label>
+                            <label className="flex items-center">
+                                <input
+                                    disabled={isLoading}
+                                    type="radio"
+                                    className="lb-radio"
+                                    name="transcriptionOptions2"
+                                    id="vertical"
+                                    checked={maxLineWidth === 25}
+                                    onChange={() =>
+                                        setTranscriptionOption({
+                                            responseFormat,
+                                            wordTimestamped: true,
+                                            textFormatted: false,
+                                            maxLineWidth: 25,
+                                            maxLineCount: 1,
+                                        })
+                                    }
+                                />
+                                <span className="ml-2 text-base">
+                                    {t("Vertical")}
+                                </span>
+                            </label>
+                        </div>
+
+                        <div className="flex flex-col">
+                            <h5 className="font-semibold">{t("Language")}</h5>
+                            <select
+                                className="lb-select text-sm"
                                 disabled={isLoading}
                                 onChange={(event) =>
                                     setLanguage(event.target.value)
@@ -452,7 +514,7 @@ function Transcribe({
                                 defaultValue={language}
                             >
                                 <option value="">
-                                    {t("Auto detect video language")}
+                                    {t("Auto-detect video language")}
                                 </option>
                                 <option value="en">{t("English")}</option>
                                 <option value="ar">{t("Arabic")}</option>
@@ -469,20 +531,18 @@ function Transcribe({
                                 <option value="sr">{t("Serbian")}</option>
                                 <option value="ru">{t("Russian")}</option>
                                 <option value="tr">{t("Turkish")}</option>
-                            </Form.Select>
+                            </select>
                         </div>
                     </div>
                 </li>
             </ol>
 
-            <div style={{ paddingInlineStart: "0rem", paddingBottom: "1rem" }}>
+            <div className="pt-0 pb-4">
                 <LoadingButton
-                    className="lb-primary mb-2.5"
-                    // type="submit"
+                    className="mb-2.5 lb-primary"
                     disabled={!url}
                     loading={isLoading}
                     text={t(currentOperation)}
-                    style={{ whiteSpace: "nowrap" }}
                     onClick={() => handleSubmit()}
                 >
                     <FaVideo /> {t("Transcribe")}
@@ -496,7 +556,7 @@ function Transcribe({
         !asyncComplete && currentOperation === "Translating";
     if (currentlyTranslating) {
         transcriptionOptions = (
-            <div style={{ height: "47px" }}>
+            <div className="h-12">
                 {isLoading && requestId && (
                     <ProgressUpdate
                         requestId={requestId}
@@ -511,17 +571,9 @@ function Transcribe({
     if (dataText && asyncComplete) {
         transcriptionOptions = (
             <>
-                <div
-                    style={{
-                        marginTop: "auto",
-                        display: "flex",
-                        justifyContent: "space-between",
-                    }}
-                >
-                    <Button
-                        variant="outline-secondary"
-                        className="mb-3"
-                        size="sm"
+                <div className="flex justify-between items-center gap-2 mb-4">
+                    <button
+                        className="lb-outline-secondary lb-sm"
                         onClick={() => {
                             setRequestId(null);
                             setDataText("");
@@ -529,17 +581,11 @@ function Transcribe({
                         }}
                     >
                         {t("Start over")}
-                    </Button>
+                    </button>
 
-                    <div style={{ display: "flex" }}>
-                        <Form.Select
-                            style={{
-                                fontSize: "12px",
-                                height: "31px",
-                                minWidth: "135px",
-                                width: "135px",
-                                marginRight: "5px",
-                            }}
+                    <div className="flex gap-2 items-center">
+                        <select
+                            className="lb-select"
                             disabled={isLoading}
                             onChange={(event) =>
                                 setTranscriptionTranslationLanguage(
@@ -564,26 +610,20 @@ function Transcribe({
                             <option>{t("Serbian")}</option>
                             <option>{t("Russian")}</option>
                             <option>{t("Turkish")}</option>
-                        </Form.Select>
+                        </select>
 
-                        <Button
-                            style={{ display: "inline-block" }}
-                            variant="outline-primary"
-                            className="mb-3"
-                            size="sm"
+                        <button
+                            className="lb-primary"
                             onClick={() => {
                                 setCurrentOperation("Translating");
-                                fetchTranslate({
-                                    variables: {
-                                        text: dataText,
-                                        to: transcriptionTranslationLanguage,
-                                        async,
-                                    },
-                                });
+                                fetchTranslate(
+                                    dataText,
+                                    transcriptionTranslationLanguage,
+                                );
                             }}
                         >
                             {t("Translate")}
-                        </Button>
+                        </button>
                     </div>
                 </div>
             </>
@@ -611,23 +651,14 @@ function Transcribe({
                     </p>
                 )}
                 {dataText && (
-                    <div className="transcription-taxonomy-container">
-                        <div
-                            style={{
-                                display: "flex",
-                                alignItems: "center",
-                                justifyContent: "space-around",
-                            }}
-                        >
-                            <h4 className="transcription-header">
+                    <div className="transcription-taxonomy-container flex flex-col gap-2 overflow-y-auto h-[calc(100vh-250px)]">
+                        <div className="flex items-center justify-between">
+                            <h4 className="font-semibold text-lg">
                                 {t("Transcription results:")}
                             </h4>
-                            <div className="download-link">
+                            <div className="download-link cursor-pointer font-bold underline text-right mr-2">
                                 {responseFormat && (
-                                    <span
-                                        style={{ textAlign: "center" }}
-                                        onClick={downloadFile}
-                                    >
+                                    <span onClick={downloadFile}>
                                         {t(
                                             `Download result as ${
                                                 responseFormat === "vtt"
@@ -639,21 +670,19 @@ function Transcribe({
                                 )}
                             </div>
                         </div>
-                        <div className="transcription-section">
-                            <pre className="transcribe-output">{dataText}</pre>
+                        <div className="transcription-section relative">
+                            <pre className="transcribe-output border border-gray-300 rounded-md p-2.5 bg-gray-200 overflow-y-auto">
+                                {dataText}
+                            </pre>
                             <CopyButton
                                 item={dataText}
                                 variant={"opaque"}
-                                style={{
-                                    position: "absolute",
-                                    top: "5px",
-                                    right: "5px",
-                                }}
+                                className="absolute top-1 right-1"
                             />
                         </div>
                         {!responseFormat && (
-                            <div>
-                                <h4 className="taxonomy-header">
+                            <div className="mt-4">
+                                <h4 className="font-semibold text-lg">
                                     {t("Taxonomy: ")}
                                 </h4>
                                 <TaxonomySelector text={dataText} />

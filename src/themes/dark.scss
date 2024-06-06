@@ -38,7 +38,6 @@ body.dark {
         .popover-header {
             background-color: darken($popover-bg-color-dark, 5%);
             color: $popover-color-dark;
-            padding: 0.5rem $spacer;
         }
         .popover-link {
             a {
@@ -202,26 +201,11 @@ body.dark {
     .chat-message-container-user {
         background-color: lighten($bg-color-dark-dim, 5%);
         border-color: $border-color-dark;
-        border-start-start-radius: $border-radius;
-        border-start-end-radius: $border-radius;
     }
 
     .chat-message-container-labeeb {
         border-color: $border-color-dark;
         background-color: darken($bg-color-dark-dim, 5%);
-    }
-
-    .message-input-send {
-        background-color: $bg-color-dark-dim;
-        border-top: 1px solid $border-color-dark;
-        color: $text-color-dark;
-        svg {
-            color: $text-color-dark;
-        }
-
-        &:hover {
-            background-color: lighten($bg-color-dark-dim, 10%);
-        }
     }
 
     .accordion-item {
@@ -279,15 +263,6 @@ body.dark {
     .import-story-box {
         border-color: $border-color-dark;
         background-color: $bg-color-dark-dim;
-    }
-
-    .importable-story {
-        border-color: $border-color-dark;
-        background-color: $bg-color-dark-dim;
-
-        &.active {
-            background-color: rgb(16, 42, 43);
-        }
     }
 
     .start-editing-button {

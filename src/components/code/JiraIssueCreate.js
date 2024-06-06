@@ -95,7 +95,7 @@ function JiraTicketContent({ value, token, onDelete }) {
     }, [ticket]);
 
     return (
-        <div className="bg-gray-50 p-3 rounded border ">
+        <div className="bg-gray-50 p-3 rounded-md border ">
             <div className="flex justify-end">
                 <button
                     className="text-gray-400"

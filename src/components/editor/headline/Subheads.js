@@ -1,6 +1,5 @@
 import { useQuery } from "@apollo/client";
 import { useState } from "react";
-import { Form, Spinner } from "react-bootstrap";
 import { QUERIES } from "../../../graphql";
 
 export default function Subheads({ headline, text, onSelect }) {
@@ -22,8 +21,9 @@ export default function Subheads({ headline, text, onSelect }) {
 
     if (loading) {
         return (
-            <p>
-                <Spinner size="sm" /> Loading subhead suggestions
+            <p className="flex items-center">
+                <span className="loader mr-2"></span> Loading subhead
+                suggestions
             </p>
         );
     }
@@ -41,8 +41,10 @@ export default function Subheads({ headline, text, onSelect }) {
     const subheads = data?.[query.toLowerCase()]?.result || [];
 
     return subheads.map((subhead) => (
-        <div className="d-flex gap-3 mb-2">
-            <Form.Check
+        <div key={subhead} className="flex items-center gap-3 mb-2">
+            <input
+                type="checkbox"
+                className="form-checkbox"
                 value={subhead}
                 checked={selectedSubhead === subhead}
                 onChange={(e) => {
@@ -51,8 +53,8 @@ export default function Subheads({ headline, text, onSelect }) {
                         setSelectedSubhead(subhead);
                     }
                 }}
-            ></Form.Check>
-            {subhead}
+            />
+            <span>{subhead}</span>
         </div>
     ));
 }

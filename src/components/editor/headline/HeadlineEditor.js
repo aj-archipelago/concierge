@@ -1,5 +1,4 @@
 import { useCallback, useState } from "react";
-import { Button, FormGroup } from "react-bootstrap";
 import { useTranslation } from "react-i18next";
 import { AiOutlineMinusCircle, AiOutlinePlusCircle } from "react-icons/ai";
 import TextareaAutosize from "react-textarea-autosize";
@@ -13,11 +12,11 @@ function HeadlineEditor({ articleText, headline, subhead, onChange }) {
     const onCommitCallback = useCallback((t) => onChange(t), [onChange]);
 
     return (
-        <FormGroup className="d-flex gap-3">
-            <div className="flex-grow-1">
+        <div className="flex gap-3">
+            <div className="flex-1">
                 <div>
                     <TextareaAutosize
-                        className="headline-input w-100"
+                        className="px-1 font-serif placeholder-gray-400 border-0 resize-none focus:ring-sky-400 text-3xl w-full py-0 font-medium"
                         placeholder={t("Headline")}
                         value={headline}
                         onChange={(e) =>
@@ -31,7 +30,7 @@ function HeadlineEditor({ articleText, headline, subhead, onChange }) {
 
                 <div>
                     <TextareaAutosize
-                        className="subhead-input w-100"
+                        className="px-1 font-serif placeholder-gray-400 border-0 resize-none text-xl focus:ring-sky-400 w-full text-gray-600 py-0 font-normal"
                         placeholder={t("Subhead")}
                         value={subhead}
                         onChange={(e) =>
@@ -55,7 +54,7 @@ function HeadlineEditor({ articleText, headline, subhead, onChange }) {
                         onCommit={onCommitCallback}
                     />
                     <div
-                        className="flex-grow-1 border rounded"
+                        className="flex-1 border rounded"
                         style={{ padding: 20, backgroundColor: "#eee" }}
                     >
                         <p>What's the main point of the story?</p>
@@ -81,13 +80,13 @@ function HeadlineEditor({ articleText, headline, subhead, onChange }) {
                             onChange={(e) => onChange(e.target.value)}
                         />
 
-                        <Button
-                            variant="secondary"
+                        <button
+                            className="lb-secondary"
                             style={{ marginTop: 10 }}
                             onClick={() => setExpanded(false)}
                         >
                             {t("Create a headline")}
-                        </Button>
+                        </button>
                     </div>
                 </>
             )}
@@ -105,7 +104,7 @@ function HeadlineEditor({ articleText, headline, subhead, onChange }) {
                     {expanded && <AiOutlineMinusCircle />}
                 </button>
             )}
-        </FormGroup>
+        </div>
     );
 }
 

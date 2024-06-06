@@ -1,6 +1,5 @@
 "use client";
 import { useContext, useEffect, useState } from "react";
-import { ListGroup } from "react-bootstrap";
 import { MdOutlineTopic } from "react-icons/md";
 import config from "../../../../config";
 import { LanguageContext } from "../../../contexts/LanguageProvider";
@@ -29,14 +28,17 @@ export default function Topics({ inputText }) {
             name="Topics"
             output={topics}
             renderOutput={() => (
-                <ListGroup className="mb-2">
+                <div className="mb-2">
                     {topics.map((item, i) => (
-                        <ListGroup.Item key={`topic-${i}`}>
+                        <div
+                            key={`topic-${i}`}
+                            className="p-2 border-b last:border-none"
+                        >
                             <CopyButton item={item} />
                             {item}
-                        </ListGroup.Item>
+                        </div>
                     ))}
-                </ListGroup>
+                </div>
             )}
             query={{
                 query: QUERIES.TOPICS,

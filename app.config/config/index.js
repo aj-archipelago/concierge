@@ -58,7 +58,7 @@ export default {
     code: {
         botName: "Knuth",
     },
-    auth: {
-        provider: "entra",
-    },
+    // auth: {
+    //     provider: "entra",
+    // },
 };

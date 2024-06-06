@@ -1,6 +1,5 @@
 import "highlight.js/styles/github.css";
 import { useContext, useState } from "react";
-import { Form } from "react-bootstrap";
 import { RiSendPlane2Fill } from "react-icons/ri";
 import TextareaAutosize from "react-textarea-autosize";
 import classNames from "../../../app/utils/class-names";
@@ -139,10 +138,10 @@ function MessageInput({ onSend, loading, enableRag, placeholder }) {
                     setIsUploadingMedia={setIsUploadingMedia}
                 />
             )}
-            <div className="rounded border dark:border-zinc-200">
-                <Form
+            <div className="rounded-md border dark:border-zinc-200">
+                <form
                     onSubmit={handleFormSubmit}
-                    className="flex items-center rounded dark:bg-zinc-100"
+                    className="flex items-center rounded-md dark:bg-zinc-100"
                 >
                     {enableRag && (
                         <div className="rounded-s pt-4 [.docked_&]:pt-3.5 ps-4 pe-3 dark:bg-zinc-100 self-stretch flex">
@@ -204,7 +203,7 @@ function MessageInput({ onSend, loading, enableRag, placeholder }) {
                             </button>
                         </div>
                     </div>
-                </Form>
+                </form>
             </div>
         </div>
     );

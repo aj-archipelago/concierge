@@ -8,13 +8,16 @@ export default function Loader({ size = "default" }) {
     }
 
     return (
-        <div
-            className={`inline-block ${heightClass} ${widthClass} animate-[spinner-grow_0.75s_linear_infinite] rounded-full bg-current align-[-0.125em] opacity-0 motion-reduce:animate-[spinner-grow_1.5s_linear_infinite]`}
-            role="status"
-        >
-            <span className="!absolute !-m-px !h-px !w-px !overflow-hidden !whitespace-nowrap !border-0 !p-0 ![clip:rect(0,0,0,0)]">
-                Loading...
-            </span>
+        <div className="relative inline-flex">
+            <div
+                className={`${heightClass} ${widthClass} bg-sky-500 rounded-full`}
+            ></div>
+            <div
+                className={`${heightClass} ${widthClass} bg-sky-500 rounded-full absolute top-0 left-0 animate-ping`}
+            ></div>
+            <div
+                className={`${heightClass} ${widthClass} bg-sky-500 rounded-full absolute top-0 left-0 animate-pulse`}
+            ></div>
         </div>
     );
 }
