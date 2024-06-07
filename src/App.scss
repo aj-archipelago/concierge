@@ -35,17 +35,13 @@ $font-family-serif:
 $chat-primary: #e5f0f0;
 $chat-secondary: #002425;
 
-@import "~bootstrap/scss/bootstrap";
 @import "components/chat/Chat";
 @import "components/write/Write";
-@import "components/translate/Translation";
 @import "components/Tos";
 @import "components/AIModal";
 @import "components/CopyButton";
-@import "components/transcribe/Transcribe";
 @import "components/editor/ImportSuggestions";
 @import "components/write/Timeline";
-@import "components/write/Toolbar";
 @import "components/write/Sidebar";
 @import "components/editor/Diff";
 @import "components/images/Images";

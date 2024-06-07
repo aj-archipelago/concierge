@@ -1,37 +1,21 @@
 "use client";
 
-import React, { useContext, useCallback, useMemo, useState } from "react";
+import * as amplitude from "@amplitude/analytics-browser";
+import { useApolloClient } from "@apollo/client";
+import React, { useCallback, useContext, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import "react-quill/dist/quill.snow.css";
 import { useDispatch, useSelector } from "react-redux";
-import styled from "styled-components";
+import classNames from "../../../app/utils/class-names";
+import { AuthContext } from "../../App";
 import { setWriteInputText } from "../../stores/writeSlice";
+import { indexMainPaneText } from "../../utils/indexMainPaneText";
 import AIModal from "../AIModal";
 import actions from "../editor/AIEditorActions";
 import HeadlineEditor from "../editor/headline/HeadlineEditor";
 import Editor from "./Editor";
 import Sidebar from "./Sidebar";
 import Toolbar from "./Toolbar";
-import { indexMainPaneText } from "../../utils/indexMainPaneText";
-import * as amplitude from "@amplitude/analytics-browser";
-import { useApolloClient } from "@apollo/client";
-import { AuthContext } from "../../App";
-
-const WriteTab = styled.div`
-    display: flex;
-    gap: 20px;
-    min-height: calc(100vh - 170px);
-    padding-top: 10px;
-`;
-
-const EditorPane = styled.div`
-    flex-grow: 1;
-    display: flex;
-    flex-direction: column;
-`;
-
-const SidebarPane = styled.div`
-    flex-basis: 40%;
-`;
 
 function Write() {
     const inputText = useSelector((state) => state.write?.inputText);
@@ -42,11 +26,13 @@ function Write() {
     const [headline, setHeadline] = useState("");
     const [subhead, setSubhead] = useState("");
     const client = useApolloClient();
+    const [open, setOpen] = useState(false);
 
     // The action is the AI action that the user has selected.
     // It triggers the AI modal.
     const [action, setAction] = useState(null);
     const [args, setArgs] = useState(null);
+    const { t } = useTranslation();
 
     // If the action is a selection, then we want to pass the selected text
     // to the AI modal. Otherwise, we want to pass the entire text.
@@ -93,7 +79,12 @@ function Write() {
     const editorPane = useMemo(() => {
         return (
             <>
-                <EditorPane>
+                <div
+                    className={classNames(
+                        "grow md:basis-2/3 flex flex-col",
+                        open ? "hidden md:block" : "",
+                    )}
+                >
                     <div className="mb-2">
                         <HeadlineEditor
                             headline={headline}
@@ -133,8 +124,13 @@ function Write() {
                         onSelect={handleEditorSelect}
                         onChange={handleEditorChange}
                     ></Editor>
-                </EditorPane>
-                <SidebarPane>
+                </div>
+                <div
+                    className={classNames(
+                        "grow md:basis-1/3",
+                        open ? "" : "hidden md:block",
+                    )}
+                >
                     <Sidebar
                         actions={actions}
                         onAction={(a, args) => {
@@ -145,7 +141,7 @@ function Write() {
                         isTextSelected={!!selection?.text}
                         inputText={inputText}
                     />
-                </SidebarPane>
+                </div>
                 <AIModal
                     show={!!action}
                     onHide={onHideCallback}
@@ -168,23 +164,19 @@ function Write() {
         args,
         modalInputText,
         onCommitCallback,
+        open,
     ]);
 
     return (
         <>
-            <div
-                style={{
-                    display: "flex",
-                    gap: 10,
-                    width: "100%",
-                    flexDirection: "column",
-                    alignItems: "center",
-                }}
-            >
-                <div style={{ flex: 1, width: "100%" }}>
-                    <WriteTab>{editorPane}</WriteTab>
-                </div>
+            <div className="block md:hidden flex justify-end">
+                <button className="" onClick={() => setOpen(!open)}>
+                    <span className="text-sm text-sky-500">
+                        {open ? t("Show editor") : t("Show AI commands")}
+                    </span>
+                </button>
             </div>
+            <div className="flex gap-8 pt-2 h-full">{editorPane}</div>
         </>
     );
 }

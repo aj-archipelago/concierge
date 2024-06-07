@@ -1,4 +1,3 @@
-import { Form } from "react-bootstrap";
 import { useState, useEffect, useContext } from "react";
 import { useTranslation } from "react-i18next";
 import { v4 as uuidv4 } from "uuid";
@@ -156,37 +155,33 @@ function FileUploadComponent({ text }) {
         <div className="file-upload-component" style={{ width: "100%" }}>
             {text}
             <div style={{ paddingTop: 10 }}>
-                <Form.Group controlId="fileChooser">
-                    <input
-                        disabled={isLoading}
-                        size="sm"
-                        type="file"
-                        accept=".pdf,.docx,.xlsx,.txt"
-                        className="rounded mb-2 bg-white border w-full"
-                        onChange={handleFileUpload}
-                    />
-                    <div style={{ padding: "2px 5px" }}>
-                        {t("Or enter URL:")}
-                    </div>
-                    <input
-                        disabled={isLoading}
-                        className="lb-input text-xs"
-                        placeholder={t(
-                            "Paste URL e.g. http://example.com/2942.PDF",
-                        )}
-                        value={url || ""}
-                        type="url"
-                        onChange={(e) => handleUrlChange(e.target.value)}
-                        onKeyDown={(e) => {
-                            if (e.key === "Enter") {
-                                handleUrlEnter(e.target.value);
-                            }
-                        }}
-                        autoComplete="off"
-                        autoCapitalize="off"
-                        autoCorrect="off"
-                    />
-                </Form.Group>
+                <input
+                    disabled={isLoading}
+                    size="sm"
+                    type="file"
+                    accept=".pdf,.docx,.xlsx,.txt"
+                    className="rounded-md mb-2 bg-white border w-full"
+                    onChange={handleFileUpload}
+                />
+                <div style={{ padding: "2px 5px" }}>{t("Or enter URL:")}</div>
+                <input
+                    disabled={isLoading}
+                    className="lb-input text-xs"
+                    placeholder={t(
+                        "Paste URL e.g. http://example.com/2942.PDF",
+                    )}
+                    value={url || ""}
+                    type="url"
+                    onChange={(e) => handleUrlChange(e.target.value)}
+                    onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                            handleUrlEnter(e.target.value);
+                        }
+                    }}
+                    autoComplete="off"
+                    autoCapitalize="off"
+                    autoCorrect="off"
+                />
             </div>
         </div>
     );

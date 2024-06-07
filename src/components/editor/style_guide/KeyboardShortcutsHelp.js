@@ -1,9 +1,13 @@
 import React from "react";
-import { OverlayTrigger, Popover } from "react-bootstrap";
+import {
+    Popover,
+    PopoverContent,
+    PopoverTrigger,
+} from "@/components/ui/popover";
 
 export default function KeyboardShortcutsHelp() {
-    const popoverTop = (
-        <Popover
+    const popoverContnt = (
+        <PopoverContent
             id="popover-positioned-top"
             title="Popover top"
             className="p-2"
@@ -36,19 +40,17 @@ export default function KeyboardShortcutsHelp() {
                     </tr>
                 </tbody>
             </table>
-        </Popover>
+        </PopoverContent>
     );
 
     return (
-        <OverlayTrigger
-            trigger="click"
-            placement="top"
-            overlay={popoverTop}
-            rootClose
-        >
-            <button className="lb-outline-secondary lb-sm">
-                View keyboard shortcuts
-            </button>
-        </OverlayTrigger>
+        <Popover>
+            <PopoverTrigger trigger="click" placement="top" rootClose>
+                <button className="lb-outline-secondary lb-sm">
+                    View keyboard shortcuts
+                </button>
+            </PopoverTrigger>
+            {popoverContnt}
+        </Popover>
     );
 }

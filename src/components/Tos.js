@@ -1,10 +1,10 @@
 "use client";
 
 import i18next from "i18next";
-import { Modal } from "react-bootstrap";
 import { useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import config from "../../config";
+import { Modal } from "@/components/ui/modal";
 
 const Tos = ({ showTos, setShowTos }) => {
     const { getLogo, getTosContent } = config.global;
@@ -46,23 +46,22 @@ const Tos = ({ showTos, setShowTos }) => {
     };
 
     return (
-        <Modal dialogClassName="tos" show={showTos}>
-            <Modal.Header>
-                <Modal.Title>{t("Terms of Service")}</Modal.Title>
-            </Modal.Header>
-            <Modal.Body>
-                <div className="alert-content">
-                    <div className="alert-logo">
-                        <img src={logo} height="40px" alt="alert logo" />
-                    </div>
-                    <div className="alert-text">{tosContent}</div>
+        <Modal
+            dialogClassName="tos"
+            show={showTos}
+            title={t("Terms of Service")}
+        >
+            <div className="alert-content">
+                <div className="alert-logo">
+                    <img src={logo} height="40px" alt="alert logo" />
                 </div>
-            </Modal.Body>
-            <Modal.Footer>
+                <div className="alert-text">{tosContent}</div>
+            </div>
+            <div className="flex justify-end mt-4">
                 <button className="lb-primary" onClick={handleTosClose}>
                     {t("I Accept")}
                 </button>
-            </Modal.Footer>
+            </div>
         </Modal>
     );
 };

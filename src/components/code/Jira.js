@@ -96,7 +96,7 @@ export default function Jira() {
                             </select>
                         </div>
                     </div>
-                    {/* <div className="rounded bg-gray-50 p-3 text-sm">
+                    {/* <div className="rounded-md bg-gray-50 p-3 text-sm">
                             {ticketTypes[storyType]}
                         </div> */}
                     <div className="mb-6">

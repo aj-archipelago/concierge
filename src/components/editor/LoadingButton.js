@@ -23,7 +23,7 @@ export default function LoadingButton({
             onClick={onClick}
             disabled={disabled || loading}
         >
-            {loading && <Loader size="small" />}
+            {loading && <Loader size="small" className="text-white" />}
             {loading ? <>&nbsp;{text}</> : <>{children}</>}
         </button>
     );

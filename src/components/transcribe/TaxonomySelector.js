@@ -1,12 +1,11 @@
-import React, { useState, useEffect, use } from "react";
-import { AiOutlineTag } from "react-icons/ai";
-import { Form } from "react-bootstrap";
-import LoadingButton from "../editor/LoadingButton";
 import { useLazyQuery } from "@apollo/client";
+import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
+import { AiOutlineTag } from "react-icons/ai";
+import config from "../../../config";
 import { QUERIES } from "../../graphql";
 import CopyButton from "../CopyButton";
-import { useTranslation } from "react-i18next";
-import config from "../../../config";
+import LoadingButton from "../editor/LoadingButton";
 
 function TaxonomySelector({ text }) {
     const [resultCategories, setResultCategories] = useState([]);
@@ -123,11 +122,11 @@ function TaxonomySelector({ text }) {
     }
 
     return (
-        <div className="taxonomy-section mb-5">
-            <div className="taxonomy-row align-items-center">
-                <h5>{t("Property")}</h5>
-                <Form.Select
-                    size="sm"
+        <div className="mb-5">
+            <div className="flex items-center space-x-4">
+                <h5 className="font-medium">{t("Property")}</h5>
+                <select
+                    className="lb-select w-48"
                     value={selectedSet}
                     onChange={(e) => setSelectedSet(e.target.value)}
                 >
@@ -137,24 +136,24 @@ function TaxonomySelector({ text }) {
                             {set.name}
                         </option>
                     ))}
-                </Form.Select>
+                </select>
                 <LoadingButton
                     disabled={!selectedSet}
                     loading={isSelectingTaxonomy}
                     text={t("Selecting")}
-                    style={{ whiteSpace: "nowrap" }}
+                    className="lb-primary"
                     onClick={() => handleSelect()}
                 >
                     <AiOutlineTag /> {t("Select")}
                 </LoadingButton>
             </div>
 
-            <div className="taxonomy-row">
+            <div className="taxonomy-row mt-4">
                 <div className="taxonomy-results-container">
-                    <h5>{t("Hashtags")}</h5>
-                    <div style={{ position: "relative" }}>
-                        <Form.Control
-                            as="textarea"
+                    <h5 className="font-medium">{t("Hashtags")}</h5>
+                    <div className="relative">
+                        <textarea
+                            className="lb-input"
                             rows={2}
                             value={
                                 resultHashtags.join(" ") ||
@@ -166,11 +165,7 @@ function TaxonomySelector({ text }) {
                         <CopyButton
                             text={resultHashtags.join(" ")}
                             variant={"opaque"}
-                            style={{
-                                position: "absolute",
-                                top: "5px",
-                                right: "5px",
-                            }}
+                            className="absolute top-1 right-1"
                         />
                     </div>
                 </div>
@@ -178,12 +173,12 @@ function TaxonomySelector({ text }) {
 
             {taxonomySets.find((t) => t.setName === selectedSet)?.categories
                 ?.length > 0 && (
-                <div className="taxonomy-row">
+                <div className="taxonomy-row mt-4">
                     <div className="taxonomy-results-container">
-                        <h5>{t("Categories")}</h5>
-                        <div style={{ position: "relative" }}>
-                            <Form.Control
-                                as="textarea"
+                        <h5 className="font-medium">{t("Categories")}</h5>
+                        <div className="relative">
+                            <textarea
+                                className="lb-input"
                                 rows={2}
                                 value={
                                     resultCategories.join(", ") ||
@@ -195,22 +190,18 @@ function TaxonomySelector({ text }) {
                             <CopyButton
                                 text={resultCategories.join(", ")}
                                 variant={"opaque"}
-                                style={{
-                                    position: "absolute",
-                                    top: "5px",
-                                    right: "5px",
-                                }}
+                                className="absolute top-1 right-1"
                             />
                         </div>
                     </div>
                 </div>
             )}
-            <div className="taxonomy-row">
+            <div className="taxonomy-row mt-4">
                 <div className="taxonomy-results-container">
-                    <h5>{t("Topics")}</h5>
-                    <div style={{ position: "relative" }}>
-                        <Form.Control
-                            as="textarea"
+                    <h5 className="font-medium">{t("Topics")}</h5>
+                    <div className="relative">
+                        <textarea
+                            className="lb-input"
                             rows={2}
                             value={
                                 resultTopics.join(", ") ||
@@ -222,25 +213,20 @@ function TaxonomySelector({ text }) {
                         <CopyButton
                             text={resultTopics.join(", ")}
                             variant={"opaque"}
-                            style={{
-                                position: "absolute",
-                                top: "5px",
-                                right: "5px",
-                            }}
+                            className="absolute top-1 right-1"
                         />
                     </div>
                 </div>
             </div>
 
-            {/* If selectedSet has tags, render tags */}
             {taxonomySets.find((t) => t.setName === selectedSet)?.tags?.length >
                 0 && (
-                <div className="taxonomy-row">
+                <div className="taxonomy-row mt-4">
                     <div className="taxonomy-results-container">
                         <h5>{t("Tags")}</h5>
-                        <div style={{ position: "relative" }}>
-                            <Form.Control
-                                as="textarea"
+                        <div className="relative">
+                            <textarea
+                                className="lb-input"
                                 rows={2}
                                 value={
                                     resultTags.join(", ") ||
@@ -252,11 +238,7 @@ function TaxonomySelector({ text }) {
                             <CopyButton
                                 text={resultTags.join(", ")}
                                 variant={"opaque"}
-                                style={{
-                                    position: "absolute",
-                                    top: "5px",
-                                    right: "5px",
-                                }}
+                                className="absolute top-1 right-1"
                             />
                         </div>
                     </div>

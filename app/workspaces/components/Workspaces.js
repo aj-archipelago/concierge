@@ -43,7 +43,7 @@ export default function Workspaces() {
                 ))}
                 <LoadingButton
                     text={t("Creating") + "..."}
-                    className="border border-dashed rounded w-64 h-12 p-6 flex items-center hover:bg-gray-50 active:bg-gray-100"
+                    className="border border-dashed rounded-md w-64 h-12 p-6 flex items-center hover:bg-gray-50 active:bg-gray-100"
                     loading={createWorkspace.isPending}
                     onClick={handleCreate}
                 >
@@ -57,7 +57,7 @@ export default function Workspaces() {
 function WorkspaceTile({ children, onClick }) {
     return (
         <button
-            className="white-button w-64 h-12 p-6 border rounded flex items-center "
+            className="white-button w-64 h-12 p-6 border rounded-md flex items-center "
             onClick={onClick}
         >
             {children}

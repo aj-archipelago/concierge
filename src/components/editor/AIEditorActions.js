@@ -1,4 +1,3 @@
-import { ListGroup } from "react-bootstrap";
 import { useTranslation } from "react-i18next";
 import { BiNews } from "react-icons/bi";
 import { BsArrowsExpand, BsBook } from "react-icons/bs";
@@ -23,14 +22,14 @@ const ListRenderer = ({ value }) => {
     value.sort();
 
     return (
-        <ListGroup style={{ marginBottom: 20 }}>
+        <ul style={{ marginBottom: 20 }} className="border rounded-md p-2">
             {value.map((item) => (
-                <ListGroup.Item>
+                <li>
                     <CopyButton item={item} />
                     {item}
-                </ListGroup.Item>
+                </li>
             ))}
-        </ListGroup>
+        </ul>
     );
 };
 
@@ -218,18 +217,18 @@ const actions = {
             query: "ENTITIES",
             OutputRenderer: ({ value }) => {
                 return (
-                    <ListGroup>
+                    <ul className="border rounded-md p-2">
                         {value.map((entity) => (
-                            <ListGroup.Item>
+                            <li>
                                 <CopyButton
                                     item={`${entity.name}: ${entity.definition}`}
                                 />
                                 <strong>{entity.name}</strong>
                                 <br></br>
                                 {entity.definition}
-                            </ListGroup.Item>
+                            </li>
                         ))}
-                    </ListGroup>
+                    </ul>
                 );
             },
             outputTitle: "Entities extracted from text",

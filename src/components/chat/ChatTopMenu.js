@@ -78,7 +78,7 @@ function ChatTopMenu({ displayState = "full" }) {
     };
 
     return (
-        <div className="flex justify-center rounded shadow-lg items-center px-0 text-xs [.docked_&]:flex">
+        <div className="flex justify-center rounded-md items-center px-0 text-xs [.docked_&]:flex">
             {!docs || docs?.length === 0 ? (
                 <>
                     <span className="text-gray-400">
@@ -101,7 +101,7 @@ function ChatTopMenu({ displayState = "full" }) {
                         )}
                     </Popover.Button>
 
-                    <Popover.Panel className="absolute z-10 bg-slate-950 p-4 rounded">
+                    <Popover.Panel className="absolute shadow-lg z-10 bg-slate-950 p-4 rounded">
                         <div>
                             {docs?.map(({ docId: id, filename }) => {
                                 const isCurrentlyGettingDeleted =
@@ -112,7 +112,7 @@ function ChatTopMenu({ displayState = "full" }) {
                                 return (
                                     <div
                                         key={id}
-                                        className={`flex border justify-between items-center mx-1 my-2 py-1 px-1 rounded cursor-default ${isCurrentlyGettingDeleted ? "bg-red-400" : "bg-gray-100"}`}
+                                        className={`flex border justify-between items-center mx-1 my-2 py-1 px-1 rounded-md cursor-default ${isCurrentlyGettingDeleted ? "bg-red-400" : "bg-gray-100"}`}
                                     >
                                         <div className="flex gap-1 items-center">
                                             {getFileIcon(filename)}
