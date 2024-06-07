@@ -137,7 +137,10 @@ function Transcribe({
         try {
             setLoading(true);
 
-            const _query = selectedModelOption === "NeuralSpace" ?  QUERIES.TRANSCRIBE_NEURALSPACE : QUERIES.TRANSCRIBE;
+            const _query =
+                selectedModelOption === "NeuralSpace"
+                    ? QUERIES.TRANSCRIBE_NEURALSPACE
+                    : QUERIES.TRANSCRIBE;
             const { data } = await apolloClient.query({
                 query: _query,
                 variables: {
@@ -334,7 +337,7 @@ function Transcribe({
                         {t("Transcribe audio to:")}
                     </h4>
                     {NEURALSPACE_ENABLED && (
-                    <span className="flex items-center pb-2">
+                        <span className="flex items-center pb-2">
                             <label className="text-sm px-1">
                                 {t("Using model")}
                             </label>
@@ -351,7 +354,6 @@ function Transcribe({
                     )}
 
                     <div className="options-section flex flex-col sm:flex-row justify-between gap-4 sm:gap-14 mb-5 p-2.5 border border-gray-300 rounded-md bg-neutral-100 w-full">
-
                         <div className="radio-columns flex flex-col">
                             <h5 className="font-semibold">
                                 {t("Output format")}
@@ -569,7 +571,6 @@ function Transcribe({
                             </select>
                         </div>
                     </div>
-
                 </li>
             </ol>
 
