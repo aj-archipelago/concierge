@@ -180,9 +180,11 @@ function MessageInput({ onSend, loading, enableRag, placeholder }) {
                                 placeholder={placeholder || "Send a message"}
                                 value={inputValue}
                                 onChange={handleInputChange}
-                                autoComplete="off"
-                                autoCapitalize="off"
-                                autoCorrect="off"
+                                autoComplete="on"
+                                autoCapitalize="sentences"
+                                autoCorrect="on"
+                                spellCheck="true"
+                                inputMode="text"
                             />
                         </div>
                     </div>
