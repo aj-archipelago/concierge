@@ -7,7 +7,11 @@ import { AuthContext } from "../../App.js";
 import ChatMessages from "./ChatMessages";
 import { toast } from "react-toastify";
 import { useTranslation } from "react-i18next";
-import { useGetActiveChat, useAddMessage, useUpdateChat } from "../../../app/queries/chats";
+import {
+    useGetActiveChat,
+    useAddMessage,
+    useUpdateChat,
+} from "../../../app/queries/chats";
 const contextMessageCount = 50;
 
 function ChatContent({ displayState = "full", container = "chatpage" }) {
@@ -29,37 +33,41 @@ function ChatContent({ displayState = "full", container = "chatpage" }) {
     const updateChat = (message, tool) => {
         setLoading(false);
         if (message) {
-            addMessage.mutate(
-                {
-                    chatId: String(chat?._id),
-                    message: {
-                        payload: message,
-                        tool: tool,
-                        sentTime: "just now",
-                        direction: "incoming",
-                        position: "single",
-                        sender: "labeeb",
-                    },
-                }
-            );
-
-
-        if(!chat?.title || chat?.title === "New Chat") {
-            const text = messages.map(({payload}) => payload).join(" ") + message;
-            client.query({
-                query: QUERIES.HEADLINE,
-                variables: {
-                    text,
-                    targetLength: 30,
-                    count: 1,
+            addMessage.mutate({
+                chatId: String(chat?._id),
+                message: {
+                    payload: message,
+                    tool: tool,
+                    sentTime: "just now",
+                    direction: "incoming",
+                    position: "single",
+                    sender: "labeeb",
                 },
-            }).then(async (result) => {
-                const title = result.data?.headline?.result[0];
-                await updateChatHook.mutateAsync({ chatId: String(chat?._id), title });
-            }).catch((error) => {
-                // console.error("Error fetching chat title:", error);
             });
-        }
+
+            if (!chat?.title || chat?.title === "New Chat") {
+                const text =
+                    messages.map(({ payload }) => payload).join(" ") + message;
+                client
+                    .query({
+                        query: QUERIES.HEADLINE,
+                        variables: {
+                            text,
+                            targetLength: 30,
+                            count: 1,
+                        },
+                    })
+                    .then(async (result) => {
+                        const title = result.data?.headline?.result[0];
+                        await updateChatHook.mutateAsync({
+                            chatId: String(chat?._id),
+                            title,
+                        });
+                    })
+                    .catch((error) => {
+                        // console.error("Error fetching chat title:", error);
+                    });
+            }
         }
     };
 

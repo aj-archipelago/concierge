@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
 import Chat from "../../models/chat";
 import { getCurrentUser, handleError } from "../../utils/auth";
 
-
 // Handle POST request to add a message to an existing chat for the current user
 export async function POST(req, { params }) {
     try {

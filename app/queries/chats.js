@@ -153,7 +153,6 @@ export function useAddMessage() {
                         newChat,
                         ...(oldChats || []),
                     ]);
-
                 } catch (error) {
                     console.error("Error creating new chat:", error);
                     throw new Error("Failed to create new chat");
@@ -165,7 +164,6 @@ export function useAddMessage() {
                         { message },
                     );
                     chatData = chatResponse.data;
-                    
                 } catch (error) {
                     console.error("Error updating chat:", error);
                     throw new Error("Failed to update chat");
@@ -191,7 +189,12 @@ export function useAddMessage() {
             const chatId = String(updatedChat?._id);
             const activeChatId = queryClient.getQueryData(["activeChatId"]);
             if (String(chatId) !== String(activeChatId)) {
-                console.log("Updating active chat ID:", chatId, "ex:", activeChatId);
+                console.log(
+                    "Updating active chat ID:",
+                    chatId,
+                    "ex:",
+                    activeChatId,
+                );
                 queryClient.invalidateQueries(["activeChatId"]);
                 queryClient.setQueryData(["activeChatId"], String(chatId));
             }
@@ -211,7 +214,10 @@ export function useUpdateChat() {
             if (!chatId || !updateData) {
                 throw new Error("chatId and updateData are required");
             }
-            const response = await axios.put(`/api/chats/${String(chatId)}`, updateData);
+            const response = await axios.put(
+                `/api/chats/${String(chatId)}`,
+                updateData,
+            );
             return response.data;
         },
         onMutate: async ({ chatId, updateData }) => {
@@ -231,7 +237,10 @@ export function useUpdateChat() {
         onError: (err, variables, context) => {
             console.error("Error updating chat:", err);
             if (context && context.previousChat) {
-                queryClient.setQueryData(["chat", variables.chatId], context.previousChat);
+                queryClient.setQueryData(
+                    ["chat", variables.chatId],
+                    context.previousChat,
+                );
             }
         },
         onSuccess: (updatedChat, { chatId }) => {

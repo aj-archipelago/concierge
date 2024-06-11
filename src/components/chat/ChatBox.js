@@ -17,7 +17,9 @@ import { useRouter, usePathname } from "next/navigation";
 
 function ChatBox() {
     const statePosition = useSelector((state) => state.chat?.chatBox?.position);
-    const lastOpenPosition = useSelector((state) => state.chat?.chatBox?.lastOpenPosition);
+    const lastOpenPosition = useSelector(
+        (state) => state.chat?.chatBox?.lastOpenPosition,
+    );
     const dispatch = useDispatch();
     const dockedWidth = useSelector((state) => state?.chat?.chatBox?.width);
     const dockedWidthRef = useRef();
@@ -27,9 +29,12 @@ function ChatBox() {
     const router = useRouter();
     const pathname = usePathname(); // Get the current pathname
 
-    const updateChatBox = useCallback((newPosition) => {
-        dispatch(setChatBoxPosition(newPosition));
-    }, [dispatch]);
+    const updateChatBox = useCallback(
+        (newPosition) => {
+            dispatch(setChatBoxPosition(newPosition));
+        },
+        [dispatch],
+    );
 
     const titleBarClick = () => {
         if (statePosition === "docked") {
@@ -49,7 +54,7 @@ function ChatBox() {
             }
         } else {
             // Restore to the last open position if it's different from current
-            if(statePosition !== lastOpenPosition) {
+            if (statePosition !== lastOpenPosition) {
                 updateChatBox({ position: lastOpenPosition });
             }
         }

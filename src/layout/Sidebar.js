@@ -276,7 +276,9 @@ export default function Sidebar() {
                                                                 );
                                                             }}
                                                         >
-                                                            <div className={`block py-2 pe-2 pl-6 ${item.name === "Chat" ? "text-xs" : "text-sm"} leading-6 text-gray-700 w-full select-none`}>
+                                                            <div
+                                                                className={`block py-2 pe-2 pl-6 ${item.name === "Chat" ? "text-xs" : "text-sm"} leading-6 text-gray-700 w-full select-none`}
+                                                            >
                                                                 {t(
                                                                     subItem.name,
                                                                 )}
