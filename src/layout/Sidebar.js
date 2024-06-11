@@ -150,7 +150,11 @@ export default function Sidebar() {
                 ...item,
                 children: [
                     ...items.map((chat) => ({
-                        name: chat.title || t("Chat") + " " + chat._id,
+                        name: (chat?.title && chat.title !== "New Chat"
+                            ? chat.title
+                            : (chat.messages && chat.messages[0]?.payload) ||
+                              "New Chat"
+                        ).slice(0, 21),
                         href: `/chat/${chat._id}`,
                         key: chat._id, // Unique key for each child
                     })),
@@ -277,7 +281,7 @@ export default function Sidebar() {
                                                             }}
                                                         >
                                                             <div
-                                                                className={`block py-2 pe-2 pl-6 ${item.name === "Chat" ? "text-xs" : "text-sm"} leading-6 text-gray-700 w-full select-none`}
+                                                                className={`block py-2 pe-2 ${item.name === "Chat" ? "text-xs pl-4" : "text-sm pl-9"} leading-6 text-gray-700 w-full select-none`}
                                                             >
                                                                 {t(
                                                                     subItem.name,
