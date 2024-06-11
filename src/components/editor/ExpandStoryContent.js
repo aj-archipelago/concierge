@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { ListGroup } from "react-bootstrap";
 import { useTranslation } from "react-i18next";
 import CopyButton from "../CopyButton";
 import { getTextSuggestionsComponent } from "./TextSuggestions";
@@ -12,10 +11,10 @@ export default getTextSuggestionsComponent({
         const { t } = useTranslation();
 
         return (
-            <ListGroup style={{ marginBottom: 20 }}>
+            <ul style={{ marginBottom: 20 }} className="border rounded-md p-2">
                 {value.map((question) => {
                     return (
-                        <ListGroup.Item>
+                        <li>
                             <div className="absolute end-5 top-0">
                                 <CopyButton
                                     item={`${question}\n${answers[question] || ""}`}
@@ -42,10 +41,10 @@ export default getTextSuggestionsComponent({
                                     <p>{answers[question]}</p>
                                 </div>
                             )}
-                        </ListGroup.Item>
+                        </li>
                     );
                 })}
-            </ListGroup>
+            </ul>
         );
     },
 });

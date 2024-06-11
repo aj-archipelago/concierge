@@ -1,13 +1,12 @@
-import React from "react";
-import { Badge, Form } from "react-bootstrap";
+import { Badge } from "@/components/ui/badge"; // Adjust the import path as necessary
 
-const green = { color: "green" };
-const red = { color: "red" };
-const redBackground = { backgroundColor: "#fec4c0" };
-const greenBackground = { backgroundColor: "#b5efdb" };
-const bold = { fontWeight: "bold" };
-const faded = { opacity: 0.5 };
-const strikeThrough = { textDecoration: "line-through" };
+const green = "text-green-500";
+const red = "text-red-500";
+const redBackground = "bg-red-200";
+const greenBackground = "bg-green-200";
+const bold = "font-bold";
+const faded = "opacity-50";
+const strikeThrough = "line-through";
 
 export default function Suggestion({
     active,
@@ -28,7 +27,6 @@ export default function Suggestion({
     if (hasReplacement) {
         let displaySuspect = suspect;
 
-        // if displaySuspect is all whitespace, surround it in quotes and use &nbsp;'s
         if (displaySuspect.trim().length === 0 && displaySuspect.length > 0) {
             displaySuspect = `"${displaySuspect.replace(/ /gm, "\u00a0")}"`;
         }
@@ -37,7 +35,6 @@ export default function Suggestion({
             suggestions[suggestionIndex || 0] || ""
         ).replace(/\n/gm, "(newline)");
 
-        // if displaySuggestion is all whitespace, surround it in quotes and use &nbsp;'s
         if (
             displaySuggestion.trim().length === 0 &&
             displaySuggestion.length > 0
@@ -48,154 +45,108 @@ export default function Suggestion({
         if (accepted) {
             title = (
                 <div>
-                    <Form.Check
+                    <input
+                        type="checkbox"
                         checked={accepted}
                         tabIndex="-1"
                         onChange={(e) => {
                             onAcceptChange(e.target.checked, i);
                         }}
                         onClick={(e) => e.stopPropagation()}
-                        label={
-                            <div>
-                                {!suggestions[suggestionIndex] && "Remove "}
-                                <span
-                                    style={{
-                                        ...faded,
-                                        ...redBackground,
-                                        ...red,
-                                        ...strikeThrough,
-                                    }}
-                                >
-                                    {displaySuspect.replace(
-                                        /\n/gm,
-                                        "(newline)",
-                                    )}
-                                </span>
-                                {suggestions[suggestionIndex] && (
-                                    <>
-                                        {suspect?.length > 0 ? "→ " : "Add "}
-                                        <span style={{ ...green, ...bold }}>
-                                            {displaySuggestion}
-                                        </span>
-                                    </>
-                                )}
-                            </div>
-                        }
+                        className="mr-2"
                     />
+                    {!suggestions[suggestionIndex] && "Remove "}
+                    <span
+                        className={`${faded} ${redBackground} ${red} ${strikeThrough}`}
+                    >
+                        {displaySuspect.replace(/\n/gm, "(newline)")}
+                    </span>
+                    {suggestions[suggestionIndex] && (
+                        <>
+                            {suspect?.length > 0 ? "→ " : "Add "}
+                            <span className={`${green} ${bold}`}>
+                                {displaySuggestion}
+                            </span>
+                        </>
+                    )}
                 </div>
             );
         } else {
             title = (
                 <div>
-                    <Form.Check
+                    <input
+                        type="checkbox"
                         checked={accepted}
                         tabIndex="-1"
                         onChange={(e) => {
                             onAcceptChange(e.target.checked, i);
                         }}
                         onClick={(e) => e.stopPropagation()}
-                        label={
-                            <div>
-                                {!suggestions[suggestionIndex] &&
-                                    "Don't remove "}
-                                {suspect && (
-                                    <span style={{ ...red, ...bold }}>
-                                        {displaySuspect.replace(
-                                            /\n/gm,
-                                            "(newline)",
-                                        )}
-                                    </span>
-                                )}
-                                {suggestions[suggestionIndex] && (
-                                    <>
-                                        {suspect?.length > 0
-                                            ? "→ "
-                                            : "Don't add "}
-                                        <span
-                                            style={{
-                                                ...faded,
-                                                ...greenBackground,
-                                                ...green,
-                                                ...strikeThrough,
-                                            }}
-                                        >
-                                            {displaySuggestion}
-                                        </span>
-                                    </>
-                                )}
-                            </div>
-                        }
+                        className="mr-2"
                     />
+                    {!suggestions[suggestionIndex] && "Don't remove "}
+                    {suspect && (
+                        <span className={`${red} ${bold}`}>
+                            {displaySuspect.replace(/\n/gm, "(newline)")}
+                        </span>
+                    )}
+                    {suggestions[suggestionIndex] && (
+                        <>
+                            {suspect?.length > 0 ? "→ " : "Don't add "}
+                            <span
+                                className={`${faded} ${greenBackground} ${green} ${strikeThrough}`}
+                            >
+                                {displaySuggestion}
+                            </span>
+                        </>
+                    )}
                 </div>
             );
         }
     } else {
-        title = (
-            <div>
-                <span style={{ ...bold }}>{suspect}</span>
-            </div>
-        );
+        title = <span className={bold}>{suspect}</span>;
     }
 
     changeMarkup = (
         <>
-            <div className="d-flex justify-content-between flex-grow-1">
-                <div
-                    className="flex-grow-1 px-3 py-2"
-                    style={{ fontSize: 14, fontWeight: "bold" }}
-                >
+            <div className="flex justify-between grow">
+                <div className="grow px-3 py-2 text-md font-semibold">
                     {title}
                 </div>
                 <div
-                    className="text-end mb-3"
-                    style={{ color: "#999", width: 105, whiteSpace: "nowrap" }}
+                    className="text-end mb-3 text-gray-500"
+                    style={{ width: 105, whiteSpace: "nowrap" }}
                 >
-                    <div
-                        className="bg-transparent border-0 py-2 px-3 border-start border-bottom"
-                        style={{
-                            fontSize: 12,
-                            color: "#666",
-                            backgroundColor: "#ccc",
-                            borderEndStartRadius: 5,
-                        }}
+                    <button
+                        className="bg-transparent border-0 py-2 px-3 border-l border-b text-xs hover:bg-gray-200 text-gray-600 bg-gray-300 rounded-bl-md"
                         onClick={(e) => {
                             onDismiss(true, false, i);
                             e.stopPropagation();
                         }}
                     >
-                        <div className="d-flex gap-2 align-items-center">
+                        <div className="flex gap-2 items-center">
                             Mark as read
                         </div>
-                    </div>
+                    </button>
                 </div>
             </div>
-            <p className="px-3">
-                <small style={{ textTransform: "uppercase", color: "#999" }}>
-                    Notes:
-                </small>
-                &nbsp;
+            <p className="px-3 text-sm">
+                <small className="uppercase text-gray-500">Notes:</small>&nbsp;
                 {notes}
-                {!notes && <span style={{ color: "#999" }}>(None)</span>}
+                {!notes && <span className="text-gray-500">(None)</span>}
             </p>
             <div className="px-3">
                 <div className="mb-2">
-                    <small
-                        style={{ textTransform: "uppercase", color: "#999" }}
-                    >
+                    <small className="uppercase text-gray-500">
                         Replacements:
                     </small>
                 </div>
-                <span style={{ ...green, ...bold }}>
+                <span className={`${green} ${bold}`}>
                     {suggestions.map((s, index) =>
                         s === suspect ? null : (
                             <button
                                 key={`suggestion-button-${index}`}
-                                className="me-2"
-                                style={{
-                                    padding: 0,
-                                    border: 0,
-                                    backgroundColor: "transparent",
-                                }}
+                                className="mr-2 bg-transparent border-0"
                                 onKeyDown={(e) => {
                                     if (e.key === "Enter") {
                                         setSuggestionIndex(i, index);
@@ -210,15 +161,7 @@ export default function Suggestion({
                                 }}
                             >
                                 <Badge
-                                    style={{
-                                        backgroundColor:
-                                            index === suggestionIndex &&
-                                            accepted
-                                                ? "green"
-                                                : "#999",
-                                    }}
-                                    className="mb-1"
-                                    bg="fake"
+                                    className={`mb-1 ${index === suggestionIndex && accepted ? "bg-green-500" : "bg-gray-500"}`}
                                 >
                                     {s.replace(/\n/gm, "(newline)")}
                                 </Badge>
@@ -226,10 +169,7 @@ export default function Suggestion({
                         ),
                     )}
                     {suggestions.filter((s) => s !== suspect).length === 0 && (
-                        <span
-                            className="me-2"
-                            style={{ color: "#999", fontWeight: 400 }}
-                        >
+                        <span className="mr-2 text-gray-500 font-normal">
                             (None)
                         </span>
                     )}
@@ -240,16 +180,8 @@ export default function Suggestion({
 
     if (hasBeenDeleted) {
         return (
-            <div
-                style={{
-                    opacity: 0.5,
-                    color: "#888",
-                    fontSize: 12,
-                    width: "100%",
-                }}
-                className="px-2 pt-2 d-flex justify-content-between deleted-style-guide-item"
-            >
-                <div className="text-italic mb-2">{title}</div>
+            <div className="opacity-50 text-gray-500 text-xs w-full px-2 pt-2 flex justify-between">
+                <div className="italic mb-2">{title}</div>
                 <div>Deleted</div>
             </div>
         );
@@ -258,14 +190,8 @@ export default function Suggestion({
     if (dismissed) {
         return (
             <button
-                style={{
-                    opacity: 0.5,
-                    color: "#888",
-                    fontSize: 12,
-                    width: "100%",
-                }}
+                className={`opacity-50 text-gray-500 text-xs w-full flex justify-between items-center bg-transparent border-0 px-3 py-2 ${active ? "active" : ""}`}
                 onClick={() => onDismiss(false, false, i)}
-                className={`d-flex justify-content-between align-items-center bg-transparent border-0 change-button ${active ? "active" : ""} px-3 py-2`}
             >
                 <div className="text-muted">{title}</div>
                 <div>Mark as unread</div>
@@ -276,30 +202,26 @@ export default function Suggestion({
     return (
         <div
             id={`button-suggestion-${i}`}
-            className={`change-button ${active ? "active" : ""}`}
-            style={{ cursor: "pointer" }}
+            className={`cursor-pointer ${active ? "active" : ""}`}
         >
-            <div>
-                <div
-                    className="flex-grow-1 mb-3"
-                    style={{ opacity: hasBeenDeleted ? 0.5 : 1 }}
-                >
-                    {changeMarkup}
-                </div>
-
-                {notes !== "Suggested by AI" && (
-                    <div className="text-center mb-2">
-                        <button
-                            className="text-center bg-transparent border-0 p-0"
-                            style={{ fontSize: 12, color: "#999" }}
-                            onClick={() => onDismiss(true, true, i)}
-                        >
-                            Mark all instances of <strong>"{suspect}"</strong>{" "}
-                            as read
-                        </button>
-                    </div>
-                )}
+            <div
+                className="grow mb-3"
+                style={{ opacity: hasBeenDeleted ? 0.5 : 1 }}
+            >
+                {changeMarkup}
             </div>
+
+            {notes !== "Suggested by AI" && (
+                <div className="text-center mb-2">
+                    <button
+                        className="bg-transparent border-0 p-0 text-xs text-gray-500"
+                        onClick={() => onDismiss(true, true, i)}
+                    >
+                        Mark all instances of <strong>"{suspect}"</strong> as
+                        read
+                    </button>
+                </div>
+            )}
         </div>
     );
 }

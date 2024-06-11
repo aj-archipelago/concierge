@@ -95,6 +95,16 @@ function ChatContent({ displayState = "full", container = "chatpage" }) {
 
                     let conversation = messages
                         .slice(-contextMessageCount)
+                        .filter((m) => {
+                            if (!m.tool) return true;
+                            try {
+                                const tool = JSON.parse(m.tool);
+                                return !tool.hideFromModel;
+                            } catch (e) {
+                                console.error("Invalid JSON in tool:", e);
+                                return true;
+                            }
+                        })
                         .map((m) =>
                             m.sender === "labeeb"
                                 ? { role: "assistant", content: m.payload }
@@ -124,26 +134,34 @@ function ChatContent({ displayState = "full", container = "chatpage" }) {
                             let resultMessage = "";
                             let searchRequired = false;
                             let aiMemory = "";
+                            let tool = null;
 
                             try {
                                 const resultObj = JSON.parse(
                                     result.data.rag_start.result,
                                 );
                                 resultMessage = resultObj?.response;
-                                searchRequired = resultObj?.search;
-                                aiMemory = resultObj?.aiMemory;
 
-                                updateAiMemoryMutation.mutateAsync({
-                                    userId,
-                                    contextId,
-                                    aiMemory,
-                                    aiMemorySelfModify,
-                                });
+                                tool = result.data.rag_start.tool;
+                                if (tool) {
+                                    const toolObj = JSON.parse(
+                                        result.data.rag_start.tool,
+                                    );
+                                    searchRequired = toolObj?.search;
+                                    aiMemory = toolObj?.aiMemory;
+
+                                    updateAiMemoryMutation.mutateAsync({
+                                        userId,
+                                        contextId,
+                                        aiMemory,
+                                        aiMemorySelfModify,
+                                    });
+                                }
                             } catch (e) {
                                 handleError(e);
                                 resultMessage = e.message;
                             }
-                            updateChat(resultMessage, null);
+                            updateChat(resultMessage, tool);
                             if (searchRequired) {
                                 setLoading(true);
                                 client

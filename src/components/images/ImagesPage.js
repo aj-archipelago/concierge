@@ -1,10 +1,10 @@
 "use client";
 
-import { useQuery } from "@apollo/client";
-import { useEffect, useMemo, useState } from "react";
-import { Form, Modal } from "react-bootstrap";
+import { useApolloClient } from "@apollo/client";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { FaDownload, FaTrash } from "react-icons/fa";
+import { Modal } from "../../../@/components/ui/modal";
 import { QUERIES } from "../../graphql";
 import LoadingButton from "../editor/LoadingButton";
 import { ProgressUpdate } from "../editor/TextSuggestions";
@@ -16,6 +16,7 @@ function ImagesPage() {
     const [showModal, setShowModal] = useState(false);
     const [selectedImage, setSelectedImage] = useState(null);
     const { t } = useTranslation();
+    const [loading, setLoading] = useState(false);
 
     useEffect(() => {
         const imagesInStorage = localStorage.getItem("generated-images");
@@ -24,36 +25,45 @@ function ImagesPage() {
         }
     }, []);
 
-    const variables = {
-        text: generationPrompt,
-        async: true,
-    };
+    const apolloClient = useApolloClient();
 
-    const { data, loading } = useQuery(QUERIES.IMAGE, {
-        variables,
-        notifyOnNetworkStatusChange: true,
-        fetchPolicy: "network-only",
-    });
+    const generateImage = useCallback(
+        async (prompt) => {
+            const variables = {
+                text: prompt,
+                async: true,
+            };
 
-    useEffect(() => {
-        if (data?.image?.result && generationPrompt) {
-            const requestId = data?.image?.result;
+            setLoading(true);
+            const { data } = await apolloClient.query({
+                query: QUERIES.IMAGE,
+                variables,
+                fetchPolicy: "network-only",
+            });
+            setLoading(false);
 
-            // if already in images, ignore
-            if (images.find((img) => img.cortexRequestId === requestId)) {
-                return;
+            if (data?.image?.result) {
+                const requestId = data?.image?.result;
+
+                // if already in images, ignore
+                if (images.find((img) => img.cortexRequestId === requestId)) {
+                    return;
+                }
+
+                setImages((images) => {
+                    const newImages = [...images];
+                    newImages.unshift({
+                        cortexRequestId: requestId,
+                        prompt: generationPrompt,
+                    });
+                    return newImages;
+                });
             }
 
-            setImages((images) => {
-                const newImages = [...images];
-                newImages.unshift({
-                    cortexRequestId: requestId,
-                    prompt: generationPrompt,
-                });
-                return newImages;
-            });
-        }
-    }, [data?.image?.result, generationPrompt, images]);
+            return data;
+        },
+        [apolloClient, generationPrompt, images],
+    );
 
     images.sort((a, b) => {
         return b.created - a.created;
@@ -76,6 +86,7 @@ function ImagesPage() {
                     onRegenerate={() => {
                         setPrompt(image.prompt);
                         setGenerationPrompt(image.prompt);
+                        generateImage(image.prompt);
 
                         // scroll to top
                         window.scrollTo(0, 0);
@@ -119,7 +130,7 @@ function ImagesPage() {
                 />
             );
         });
-    }, [images, generationPrompt]);
+    }, [images, generationPrompt, generateImage]);
 
     return (
         <div>
@@ -128,12 +139,13 @@ function ImagesPage() {
                     "Generate images using the OpenAI Dall-E model. Enter a prompt below to get started.",
                 )}
             </p>
-            <div>
-                <Form
-                    className="d-flex gap-2"
+            <div className="mb-4">
+                <form
+                    className="flex gap-2"
                     onSubmit={(e) => {
                         e.preventDefault();
                         setGenerationPrompt(prompt);
+                        generateImage(prompt);
                     }}
                 >
                     <input
@@ -153,9 +165,9 @@ function ImagesPage() {
                     >
                         {t("Generate")}
                     </LoadingButton>
-                </Form>
+                </form>
             </div>
-            <div className="d-flex flex-wrap">{imageTiles}</div>
+            <div className="flex flex-wrap gap-4 ">{imageTiles}</div>
             <ImageModal
                 show={showModal}
                 image={selectedImage}
@@ -208,24 +220,30 @@ function ImageTile({
     }, [url]);
 
     return (
-        <div className="p-3">
-            <div
-                className="img-thumbnail generated-image-thumbnail"
-                onClick={onClick}
-            >
-                <div className="image-container">
+        <div
+            className="border rounded-md basis-[100%] sm:basis-48 p-2 cursor-pointer relative"
+            onClick={onClick}
+        >
+            {!expired && url && !loadError ? (
+                <div className="h-40 rounded-md overflow-hidden">
+                    {memoizedImage}
+                </div>
+            ) : (
+                <div className="h-40 border overflow-hidden rounded-md bg-gray-50 p-4 text-sm">
                     {cortexRequestId && !url && !code && <ProgressComponent />}
                     {code === "ERR_BAD_REQUEST" && <BadRequestError />}
                     {code && code !== "ERR_BAD_REQUEST" && <OtherError />}
                     {expired && url && <ExpiredImageComponent />}
                     {loadError && <ExpiredImageComponent />}
-                    {!expired && url && !loadError && memoizedImage}
                 </div>
-                <div className="caption p-1 text-center" title={prompt}>
-                    {prompt}
-                </div>
-                <Actions image={image} onDelete={onDelete} />
+            )}
+            <div
+                className="text-sm text-gray-500 p-1 text-center"
+                title={prompt}
+            >
+                {prompt}
             </div>
+            <Actions image={image} onDelete={onDelete} />
         </div>
     );
 
@@ -274,16 +292,20 @@ function ImageTile({
     function ExpiredImageComponent() {
         return (
             <div>
-                <div>{t("Image expired or not available.")}</div>
-                <button
-                    className="btn btn-primary btn-sm"
-                    onClick={(e) => {
-                        e.stopPropagation();
-                        onRegenerate();
-                    }}
-                >
-                    {t("Regenerate")}
-                </button>
+                <div className="mb-4 text-center">
+                    {t("Image expired or not available.")}
+                </div>
+                <div className="flex justify-center">
+                    <button
+                        className="lb-primary"
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            onRegenerate();
+                        }}
+                    >
+                        {t("Regenerate")}
+                    </button>
+                </div>
             </div>
         );
     }
@@ -294,51 +316,43 @@ function ImageModal({ show, image, onHide }) {
     const { t } = useTranslation();
 
     return (
-        <Modal show={show} onHide={onHide} dialogClassName="modal-wide">
-            <Modal.Header closeButton>
-                <Modal.Title className="flex-grow-1">
-                    {t("Generated image")}
-                </Modal.Title>
-            </Modal.Header>
-
-            <Modal.Body>
-                <div className="modal-image">
-                    <div className="image-container">
-                        <img
-                            className="img-fluid"
-                            src={image?.result?.data?.[0]?.url}
-                            alt={image?.prompt}
-                        />
+        <Modal show={show} onHide={onHide} title={t("Generated image")}>
+            <div className="flex flex-col gap-4 sm:flex-row sm:gap-6">
+                <div className="sm:basis-9/12 ">
+                    <img
+                        className="rounded-md"
+                        src={image?.result?.data?.[0]?.url}
+                        alt={image?.prompt}
+                    />
+                </div>
+                <div className="sm:basis-3/12">
+                    <div className="sm:text-sm">
+                        <ImageInfo data={image} />
                     </div>
-                    <div className="text-container">
-                        <div className="image-info">
-                            <ImageInfo data={image} />
+                    <div>
+                        <div className="font-semibold text-gray-500">
+                            {t("Original prompt")}
                         </div>
-                        <div className="prompt-info">
-                            <div className="prompt-title">
-                                {t("Original prompt:")}
-                            </div>
-                            <div className="prompt">
-                                <p>{image?.prompt}</p>
-                            </div>
+                        <div>
+                            <p>{image?.prompt}</p>
                         </div>
-                        <div className="prompt-info">
-                            <div className="prompt-title">
-                                {t("System revised prompt:")}
-                            </div>
-                            <div className="prompt">
-                                <p>{image?.result?.data?.[0].revised_prompt}</p>
-                            </div>
+                    </div>
+                    <div>
+                        <div className="font-semibold text-gray-500">
+                            {t("System revised prompt")}
+                        </div>
+                        <div>
+                            <p>{image?.result?.data?.[0].revised_prompt}</p>
                         </div>
                     </div>
                 </div>
-            </Modal.Body>
+            </div>
 
-            <Modal.Footer>
-                <button className="btn btn-primary" onClick={onHide}>
+            <div className="justify-end flex gap-2 mt-4">
+                <button className="lb-primary" onClick={onHide}>
                     {t("Close")}
                 </button>
-            </Modal.Footer>
+            </div>
         </Modal>
     );
 }
@@ -347,37 +361,33 @@ function Actions({ image, onDelete }) {
     const { t } = useTranslation();
 
     return (
-        <div className="actions text-end p-2">
-            <div className="btn-group">
-                <button
-                    className="btn btn-sm btn-outline-secondary"
-                    title={t("Download")}
-                    onClick={(e) => {
-                        e.stopPropagation();
-                        window.open(image?.result?.data?.[0]?.url, "_blank");
-                    }}
-                >
-                    <FaDownload />
-                </button>
-                <button
-                    className="btn btn-sm btn-outline-secondary"
-                    title={t("Delete")}
-                    onClick={(e) => {
-                        if (
-                            window.confirm(
-                                t(
-                                    "Are you sure you want to delete this image?",
-                                ),
-                            )
-                        ) {
-                            onDelete(image);
-                        }
-                        e.stopPropagation();
-                    }}
-                >
-                    <FaTrash />
-                </button>
-            </div>
+        <div className="text-gray-500 text-end">
+            <button
+                className="lb-sm lb-outline-secondary"
+                title={t("Download")}
+                onClick={(e) => {
+                    e.stopPropagation();
+                    window.open(image?.result?.data?.[0]?.url, "_blank");
+                }}
+            >
+                <FaDownload />
+            </button>
+            <button
+                className="lb-sm lb-outline-secondary"
+                title={t("Delete")}
+                onClick={(e) => {
+                    if (
+                        window.confirm(
+                            t("Are you sure you want to delete this image?"),
+                        )
+                    ) {
+                        onDelete(image);
+                    }
+                    e.stopPropagation();
+                }}
+            >
+                <FaTrash />
+            </button>
         </div>
     );
 }
@@ -388,54 +398,61 @@ function ImageInfo({ data }) {
 
     return (
         <div>
-            <table className="w-100 image-info">
-                <tbody>
-                    <tr>
-                        <td>
-                            <strong>{t("Created")}</strong>
-                        </td>
-                        <td>
-                            {data?.result?.created
-                                ? new Date(
-                                      data?.result?.created * 1000,
-                                  ).toLocaleString()
-                                : t("(not found)")}
-                        </td>
-                    </tr>
-                    <tr>
-                        <td>
-                            <strong>{t("Expires")}</strong>
-                        </td>
-                        <td>
-                            {data?.expires
-                                ? new Date(
-                                      data?.expires * 1000,
-                                  ).toLocaleString()
-                                : t("(not set)")}
-                        </td>
-                    </tr>
-                    <tr>
-                        <td>
-                            <strong>{t("Cortex Request ID")}</strong>
-                        </td>
-                        <td>{data?.cortexRequestId}</td>
-                    </tr>
-                    <tr>
-                        <td>
-                            <strong>{t("Dall-E URL")}</strong>
-                        </td>
-                        <td style={{ lineBreak: "anywhere" }}>
-                            {url ? (
-                                <a href={url} target="_blank" rel="noreferrer">
-                                    {t("Link")}
-                                </a>
-                            ) : (
-                                t("URL not found")
-                            )}
-                        </td>
-                    </tr>
-                </tbody>
-            </table>
+            <div className="mb-2">
+                <div>
+                    <div className="font-semibold text-gray-500">
+                        {t("Created")}
+                    </div>
+                </div>
+                <div>
+                    {data?.result?.created
+                        ? new Date(
+                              data?.result?.created * 1000,
+                          ).toLocaleString()
+                        : t("(not found)")}
+                </div>
+            </div>
+            <div className="mb-2">
+                <div>
+                    <div className="font-semibold text-gray-500">
+                        {t("Expires")}
+                    </div>
+                </div>
+                <div>
+                    {data?.expires
+                        ? new Date(data?.expires * 1000).toLocaleString()
+                        : t("(not set)")}
+                </div>
+            </div>
+            <div className="mb-2">
+                <div>
+                    <div className="font-semibold text-gray-500">
+                        {t("Cortex Request ID")}
+                    </div>
+                </div>
+                <div>{data?.cortexRequestId}</div>
+            </div>
+            <div className="mb-2">
+                <div>
+                    <div className="font-semibold text-gray-500">
+                        {t("Dall-E URL")}
+                    </div>
+                </div>
+                <div style={{ lineBreak: "anywhere" }}>
+                    {url ? (
+                        <a
+                            href={url}
+                            target="_blank"
+                            className="text-sky-500"
+                            rel="noreferrer"
+                        >
+                            {t("Link")}
+                        </a>
+                    ) : (
+                        t("URL not found")
+                    )}
+                </div>
+            </div>
         </div>
     );
 }

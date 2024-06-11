@@ -1,5 +1,5 @@
 "use client";
-import { ApolloProvider } from "@apollo/client";
+import { ApolloNextAppProvider } from "@apollo/experimental-nextjs-app-support";
 import React, { useContext } from "react";
 import { getClient } from "./graphql";
 import "./i18n";
@@ -37,7 +37,7 @@ const App = ({ children, language, theme, serverUrl }) => {
     }
 
     return (
-        <ApolloProvider client={getClient(serverUrl)}>
+        <ApolloNextAppProvider makeClient={() => getClient(serverUrl)}>
             <ServerContext.Provider value={{ serverUrl }}>
                 <StoreProvider>
                     <ThemeProvider savedTheme={theme}>
@@ -55,7 +55,7 @@ const App = ({ children, language, theme, serverUrl }) => {
                     </ThemeProvider>
                 </StoreProvider>
             </ServerContext.Provider>
-        </ApolloProvider>
+        </ApolloNextAppProvider>
     );
 };
 

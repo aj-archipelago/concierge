@@ -1,4 +1,8 @@
-import { ApolloClient, InMemoryCache, gql } from "@apollo/client";
+import {
+    ApolloClient,
+    InMemoryCache,
+} from "@apollo/experimental-nextjs-app-support";
+import { gql } from "@apollo/client";
 import { GraphQLWsLink } from "@apollo/client/link/subscriptions";
 import { createClient } from "graphql-ws";
 import { split, HttpLink } from "@apollo/client";

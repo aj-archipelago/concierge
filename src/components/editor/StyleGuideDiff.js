@@ -1,7 +1,8 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import PropTypes from "prop-types";
-import React, {
+import {
     useCallback,
     useContext,
     useEffect,
@@ -9,13 +10,10 @@ import React, {
     useRef,
     useState,
 } from "react";
-import { Button } from "react-bootstrap";
-import styled from "styled-components";
+import { ThemeContext } from "../../contexts/ThemeProvider";
 import KeyboardShortcutsHelp from "./style_guide/KeyboardShortcutsHelp";
 import Suggestion from "./style_guide/Suggestion";
 import { getFinalText, getIndexInFinalText } from "./style_guide/utils";
-import { ThemeContext } from "../../contexts/ThemeProvider";
-import dynamic from "next/dynamic";
 
 let diff;
 let monaco;
@@ -28,22 +26,6 @@ if (typeof window !== "undefined") {
         monaco = m;
     });
 }
-
-const StyledButton = styled.div`
-    padding: 2px;
-
-    &:focus {
-        padding: 0;
-        border: 2px solid #666;
-        outline: none;
-        box-shadow: none;
-    }
-    &:focus-visible {
-        padding: 0;
-        box-shadow: none;
-        outline: none;
-    }
-`;
 
 const StyleGuideDiff = ({ styleGuideResult = "", setSelectedText }) => {
     let result;
@@ -700,7 +682,7 @@ const StyleGuideDiff = ({ styleGuideResult = "", setSelectedText }) => {
                     <ul
                         style={{
                             paddingLeft: 0,
-                            height: "calc(100% - 82px)",
+                            height: "calc(100% - 90px)",
                             overflowY: "auto",
                         }}
                         className="mb-0"
@@ -710,42 +692,49 @@ const StyleGuideDiff = ({ styleGuideResult = "", setSelectedText }) => {
 
                             return (
                                 <li key={`suggestion-${c.index}`}>
-                                    <StyledButton
-                                        tabIndex={0}
-                                        className="w-100 p-0 border-0 rounded mb-2"
-                                        id={`suggestion-${c.index}`}
-                                        onClick={() => {
-                                            setSelectedSuggestion(i);
-                                            if (
-                                                currentlyHoveredIndexRef.current !==
-                                                i
-                                            ) {
-                                                selectAndFocus(suggestions, i);
-                                                currentlyHoveredIndexRef.current =
-                                                    i;
-                                            }
-                                        }}
-                                    >
-                                        <Suggestion
-                                            active={selectedSuggestion === i}
-                                            i={i}
-                                            token={c}
-                                            dismissed={c.dismissed}
-                                            accepted={c.accepted}
-                                            onAcceptChange={
-                                                onAcceptChangeCallback
-                                            }
-                                            hasBeenDeleted={hasBeenDeleted}
-                                            setSuggestionIndex={
-                                                setSuggestionIndexCallback
-                                            }
-                                            onDismiss={onDismissCallback}
-                                            onSelect={onSelectCallback}
-                                            suggestionToRangeInModifiedText={
-                                                suggestionToRangeInModifiedTextCallback
-                                            }
-                                        />
-                                    </StyledButton>
+                                    <div className="p-1">
+                                        <div
+                                            tabIndex={0}
+                                            className="border w-full p-0 bg-gray-50 rounded-md mb-2 focus:ring-2 focus:ring-sky-600 focus:outline-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-300 "
+                                            id={`suggestion-${c.index}`}
+                                            onClick={() => {
+                                                setSelectedSuggestion(i);
+                                                if (
+                                                    currentlyHoveredIndexRef.current !==
+                                                    i
+                                                ) {
+                                                    selectAndFocus(
+                                                        suggestions,
+                                                        i,
+                                                    );
+                                                    currentlyHoveredIndexRef.current =
+                                                        i;
+                                                }
+                                            }}
+                                        >
+                                            <Suggestion
+                                                active={
+                                                    selectedSuggestion === i
+                                                }
+                                                i={i}
+                                                token={c}
+                                                dismissed={c.dismissed}
+                                                accepted={c.accepted}
+                                                onAcceptChange={
+                                                    onAcceptChangeCallback
+                                                }
+                                                hasBeenDeleted={hasBeenDeleted}
+                                                setSuggestionIndex={
+                                                    setSuggestionIndexCallback
+                                                }
+                                                onDismiss={onDismissCallback}
+                                                onSelect={onSelectCallback}
+                                                suggestionToRangeInModifiedText={
+                                                    suggestionToRangeInModifiedTextCallback
+                                                }
+                                            />
+                                        </div>
+                                    </div>
                                 </li>
                             );
                         })}
@@ -769,10 +758,9 @@ const StyleGuideDiff = ({ styleGuideResult = "", setSelectedText }) => {
                             }
                         </small>
                     </div>
-                    <div className="d-flex justify-content-between text-muted fs-8 mt-2 gap-2">
-                        <Button
-                            variant="outline-secondary"
-                            size="sm"
+                    <div className="flex justify-between text-muted text-sm mt-2 gap-2">
+                        <button
+                            className="lb-outline-secondary lb-sm"
                             onClick={() => {
                                 const newSuggestions = [...suggestions];
                                 newSuggestions.forEach(
@@ -783,13 +771,13 @@ const StyleGuideDiff = ({ styleGuideResult = "", setSelectedText }) => {
                             }}
                         >
                             Mark all as unread
-                        </Button>
+                        </button>
                         <KeyboardShortcutsHelp />
                     </div>
                 </div>
-                <div className="flex-grow-1">
-                    <div className="d-flex justify-content-between text-center">
-                        <div className="flex-grow-1 fw-bold fs-6">
+                <div className="flex-1">
+                    <div className="flex justify-between text-center">
+                        <div className="flex-1 text-semibol text-sm">
                             Modified Text (editable)
                         </div>
                     </div>

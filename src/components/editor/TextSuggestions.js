@@ -1,19 +1,16 @@
 "use client";
 
-import { useQuery } from "@apollo/client";
-import { useState } from "react";
-import { Button, Form, Spinner } from "react-bootstrap";
+import { useQuery, useSubscription, useApolloClient } from "@apollo/client";
+import { useState, useEffect, useRef, useCallback } from "react";
+import { Button } from "@/components/ui/button";
+import { Progress } from "@/components/ui/progress";
 import stringcase from "stringcase";
-import { useApolloClient, useSubscription } from "@apollo/client";
-import { useEffect, useRef } from "react";
-import { ProgressBar } from "react-bootstrap";
 import ProgressTimer from "react-progress-timer";
 import ReactTimeAgo from "react-time-ago";
 import { MUTATIONS, QUERIES, SUBSCRIPTIONS } from "../../graphql";
 import Diff from "./Diff";
 import LoadingButton from "./LoadingButton";
 import StyleGuideDiff from "./StyleGuideDiff";
-import { useCallback } from "react";
 import * as amplitude from "@amplitude/analytics-browser";
 import TimeAgo from "javascript-time-ago";
 import en from "javascript-time-ago/locale/en.json";
@@ -29,7 +26,7 @@ const DebugInfo = ({ prompt, temperature }) => {
     if (localStorage.getItem("ai_debug") === "true") {
         if (!showDebug) {
             return (
-                <div style={{ textAlign: "end" }}>
+                <div className="text-right">
                     <Button variant="link" onClick={() => setShowDebug(true)}>
                         Show debug info
                     </Button>
@@ -40,22 +37,14 @@ const DebugInfo = ({ prompt, temperature }) => {
                 <div>
                     <div>
                         <strong>Prompt:</strong>
-                        <pre
-                            style={{
-                                whiteSpace: "pre-wrap",
-                                wordWrap: "break-word",
-                                fontFamily: "monospace",
-                                padding: 10,
-                                backgroundColor: "#eee",
-                            }}
-                        >
+                        <pre className="whitespace-pre-wrap break-words font-mono p-2 bg-gray-200">
                             {prompt}
                         </pre>
                     </div>
                     <div>
                         <strong>Temperature:</strong> {temperature || "-"}
                     </div>
-                    <div style={{ textAlign: "end" }}>
+                    <div className="text-right">
                         <Button
                             variant="link"
                             onClick={() => setShowDebug(false)}
@@ -112,7 +101,9 @@ export const ProgressUpdate = ({
     if (!result) {
         return (
             <>
-                <ProgressBar now={progress} />
+                <div className="mb-2">
+                    <Progress value={progress} />
+                </div>
                 <ProgressTimer
                     initialText={initialText}
                     percentage={progress}
@@ -233,10 +224,8 @@ export function getTextSuggestionsComponent({
             output = showLoadingMessage && (
                 <div>
                     <p>
-                        <Spinner as="span" animation="border" size="sm" />{" "}
-                        Loading
+                        <span className="animate-spin">Loading</span>
                     </p>
-                    {/* <div><Button size="sm" onClick={() => onBackgroundProcess()}>Notify me when this is complete</Button></div> */}
                     {requestId && (
                         <ProgressUpdate
                             requestId={requestId}
@@ -250,7 +239,7 @@ export function getTextSuggestionsComponent({
                 output = (
                     <div>
                         An error was received from the API server:{" "}
-                        <pre style={{ fontFamily: "monospace" }}>
+                        <pre className="font-mono">
                             {JSON.stringify(error, null, 2)}
                         </pre>
                     </div>
@@ -264,7 +253,7 @@ export function getTextSuggestionsComponent({
                         output = (
                             <p>
                                 An error was received from the API server:{" "}
-                                <pre style={{ fontFamily: "monospace" }}>
+                                <pre className="font-mono">
                                     {response.error}
                                 </pre>
                             </p>
@@ -328,7 +317,7 @@ export function getTextSuggestionsComponent({
         }
 
         return (
-            <div className="h-full">
+            <div className="overflow-auto h-full">
                 {debug && (
                     <DebugInfo
                         prompt={debug.prompt}
@@ -403,32 +392,34 @@ function getSuggestionOutputComponent({ outputType, value, onChange }) {
         output = <p>{value}</p>;
     } else if (outputType === "editable") {
         output = (
-            <Form.Control
+            <textarea
                 dir="auto"
-                as="textarea"
                 rows={10}
+                className="form-textarea"
                 value={value}
                 onChange={(e) => onChange(e.target.value)}
             />
         );
     } else if (outputType === "list") {
         output = (
-            <Form
+            <div
                 onChange={(e) => onChange(e.target.labels[0].innerText)}
-                style={{ background: "#fff" }}
-                className="mb-3"
+                className="bg-white mb-3"
             >
                 {value.slice(0, Math.min(5, value.length)).map((label, i) => (
                     <div key={`output-list-${i}`} className="mb-3">
-                        <Form.Check
-                            type={"radio"}
-                            name={`output-list-radio`}
-                            id={`output-list-${i}`}
-                            label={label.replace(/^"+|[".]+$/g, "")}
-                        />
+                        <label>
+                            <input
+                                type="radio"
+                                name={`output-list-radio`}
+                                id={`output-list-${i}`}
+                                className="mr-2"
+                            />
+                            {label.replace(/^"+|[".]+$/g, "")}
+                        </label>
                     </div>
                 ))}
-            </Form>
+            </div>
         );
     } else {
         output = null;
@@ -449,17 +440,17 @@ export function getSuggestionInputComponent({
         if (inputType === "editable") {
             input = (
                 <>
-                    <Form.Group style={{ marginBottom: 10 }}>
-                        <Form.Control
+                    <div className="mb-2">
+                        <textarea
                             dir="auto"
-                            as="textarea"
                             rows={10}
+                            className="form-textarea"
                             value={tempText}
                             onChange={(e) => setTempText(e.target.value)}
                         />
-                    </Form.Group>
+                    </div>
                     <Button
-                        style={{ marginBottom: 20 }}
+                        className="mb-5"
                         disabled={tempText === value}
                         onClick={() => onChange(tempText)}
                     >

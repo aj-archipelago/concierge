@@ -68,6 +68,7 @@ function convertMessageToMarkdown(message) {
                     style={{
                         listStyleType: "decimal",
                         marginBottom: "1rem",
+                        paddingLeft: "1.5rem",
                     }}
                     {...rest}
                 />
@@ -85,12 +86,7 @@ function convertMessageToMarkdown(message) {
             );
         },
         p({ node, ...rest }) {
-            return (
-                <div
-                    style={{ marginTop: "0.5rem", marginBottom: "0.5rem" }}
-                    {...rest}
-                />
-            );
+            return <div className="mb-1" {...rest} />;
         },
         cd_source(props) {
             const { children } = props;
