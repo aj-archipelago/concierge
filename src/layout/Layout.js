@@ -129,7 +129,7 @@ export default function Layout({ children }) {
                         <div className="flex flex-1 items-center gap-x-2 justify-end lg:gap-x-4">
                             <div>
                                 <button
-                                    className="lb-sm lb-primary"
+                                    className="lb-primary"
                                     disabled={/^\/chat(\/|$)/.test(pathname)}
                                     onClick={() => {
                                         dispatch(
