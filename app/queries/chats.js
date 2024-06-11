@@ -1,10 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import axios from "axios";
-import mongoose from "mongoose";
-
-// Default chat object
-const defaultChat = { chat: { messages: [], title: "Default Chat" } };
-const DEFAULT_CHAT_ID = "default";
 
 // Hook to get all chats
 export function useGetChats() {
@@ -29,11 +24,21 @@ export function useAddChat() {
             });
             return response.data;
         },
+        onMutate: async ({ messages }) => {
+            await queryClient.cancelQueries(["chats"]);
+            await queryClient.cancelQueries(["activeChatId"]);
+            await queryClient.setQueryData(["activeChatId"], null);
+        },
         onSuccess: (newChat) => {
             queryClient.invalidateQueries(["chats"]);
-            queryClient.setQueryData(["chats"], (old = []) => {
-                return [...(Array.isArray(old) ? old : []), newChat];
+            queryClient.setQueryData(["chats"], (oldChats = []) => {
+                return [
+                    newChat,
+                    ...oldChats.filter((chat) => chat._id !== newChat._id),
+                ];
             });
+            queryClient.invalidateQueries(["activeChatId"]);
+            queryClient.setQueryData(["activeChatId"], String(newChat._id));
         },
     });
 }
@@ -74,7 +79,7 @@ export function useGetActiveChatId() {
         queryKey: ["activeChatId"],
         queryFn: async () => {
             const response = await axios.get(`/api/chats/active`);
-            return String(response.data.activeChatId || DEFAULT_CHAT_ID);
+            return String(response.data);
         },
         staleTime: 1000 * 60 * 5,
     });
@@ -84,12 +89,7 @@ export function useGetChatById(chatId) {
     return useQuery({
         queryKey: ["chat", chatId],
         queryFn: async () => {
-            if (chatId === DEFAULT_CHAT_ID) {
-                return defaultChat;
-            }
-            if (!mongoose.Types.ObjectId.isValid(chatId)) {
-                return defaultChat;
-            }
+            if (!chatId) throw new Error("chatId is required");
             const response = await axios.get(`/api/chats/${String(chatId)}`);
             return response.data;
         },
@@ -98,7 +98,8 @@ export function useGetChatById(chatId) {
 }
 
 export function useGetActiveChat() {
-    const { data: activeChatId } = useGetActiveChatId();
+    const data = useGetActiveChatId();
+    const activeChatId = data?.data;
     return useGetChatById(activeChatId);
 }
 
@@ -107,11 +108,15 @@ export function useSetActiveChatId() {
 
     return useMutation({
         mutationFn: async (activeChatId) => {
+            if (!activeChatId) throw new Error("activeChatId is required");
             const response = await axios.put(`/api/chats/active`, {
-                activeChatId:
-                    activeChatId !== null ? String(activeChatId) : null,
+                activeChatId,
             });
             return response.data;
+        },
+        onMutate: async (activeChatId) => {
+            activeChatId &&
+                queryClient.setQueryData(["activeChatId"], activeChatId);
         },
         onSuccess: (updatedActiveChatId) => {
             queryClient.invalidateQueries(["activeChatId"]);
@@ -123,27 +128,16 @@ export function useSetActiveChatId() {
 export function useAddMessage() {
     const queryClient = useQueryClient();
     const addChatMutation = useAddChat();
-    const { data: activeChatId } = useGetActiveChatId();
-    const setActiveChatIdMutation = useSetActiveChatId();
 
     return useMutation({
-        mutationFn: async ({ message }) => {
+        mutationFn: async ({ message, chatId }) => {
             let chatData;
-            let chatId =
-                activeChatId != null
-                    ? String(activeChatId)
-                    : String(DEFAULT_CHAT_ID);
 
-            // console.log("Active Chat ID:", activeChatId, "chatid", chatId);
-
-            if (!chatId || chatId === DEFAULT_CHAT_ID) {
+            if (!chatId) {
                 try {
-                    console.log("Creating new chat with message:", message);
-                    const title =
-                        (message?.payload || "").substring(0, 14) || "New Chat";
+                    console.log("No active chat ID, creating new chat!");
                     const newChat = await addChatMutation.mutateAsync({
                         messages: [message],
-                        title,
                     });
                     chatId = String(newChat?._id);
                     chatData = newChat;
@@ -156,58 +150,89 @@ export function useAddMessage() {
 
                     // Update the query cache with the newly created chat
                     queryClient.setQueryData(["chats"], (oldChats) => [
-                        ...(oldChats || []),
                         newChat,
+                        ...(oldChats || []),
                     ]);
 
-                    // Set the active chat ID to the new chat ID
-                    await setActiveChatIdMutation.mutateAsync(String(chatId));
                 } catch (error) {
                     console.error("Error creating new chat:", error);
                     throw new Error("Failed to create new chat");
                 }
             } else {
                 try {
-                    // Update the query cache with the expected update
-                    const existingChat = queryClient.getQueryData([
-                        "chat",
-                        chatId,
-                    ]);
-                    // console.log("Chat ID:", chatId, "Chat Data:", existingChat);
-                    const expectedChatData = {
-                        ...existingChat,
-                        messages: [...existingChat.messages, message],
-                    };
-                    queryClient.setQueryData(
-                        ["chat", chatId],
-                        expectedChatData,
-                    );
-
-                    // console.log("Adding message to existing chat:", chatId, message);
-                    const chatResponse = await axios.get(
+                    const chatResponse = await axios.post(
                         `/api/chats/${String(chatId)}`,
+                        { message },
                     );
                     chatData = chatResponse.data;
-                    if (
-                        !chatData.title ||
-                        chatData.title === "Default Chat" ||
-                        chatData.title === "New Chat"
-                    ) {
-                        chatData.title =
-                            (message?.payload || "").substring(0, 14) ||
-                            "New Chat";
-                    }
-                    chatData.messages.push(message);
-                    await axios.put(`/api/chats/${chatId}`, chatData);
+                    
                 } catch (error) {
                     console.error("Error updating chat:", error);
                     throw new Error("Failed to update chat");
                 }
             }
 
-            // console.log("Chat ID:", chatId, "Chat Data:", chatData);
-
             return chatData;
+        },
+        onMutate: ({ message, chatId }) => {
+            if (!chatId || !message) {
+                return;
+            }
+
+            // Update the query cache with the expected update
+            const existingChat = queryClient.getQueryData(["chat", chatId]);
+            const expectedChatData = {
+                ...existingChat,
+                messages: [...existingChat.messages, message],
+            };
+            queryClient.setQueryData(["chat", chatId], expectedChatData);
+        },
+        onSuccess: (updatedChat) => {
+            const chatId = String(updatedChat?._id);
+            const activeChatId = queryClient.getQueryData(["activeChatId"]);
+            if (String(chatId) !== String(activeChatId)) {
+                console.log("Updating active chat ID:", chatId, "ex:", activeChatId);
+                queryClient.invalidateQueries(["activeChatId"]);
+                queryClient.setQueryData(["activeChatId"], String(chatId));
+            }
+            queryClient.invalidateQueries(["chat", chatId]);
+            queryClient.setQueryData(["chat", chatId], updatedChat);
+        },
+    });
+}
+
+// Hook to update a chat by ID
+export function useUpdateChat() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: async (variables) => {
+            const { chatId, ...updateData } = variables;
+            if (!chatId || !updateData) {
+                throw new Error("chatId and updateData are required");
+            }
+            const response = await axios.put(`/api/chats/${String(chatId)}`, updateData);
+            return response.data;
+        },
+        onMutate: async ({ chatId, updateData }) => {
+            await queryClient.cancelQueries(["chat", chatId]);
+
+            const previousChat = queryClient.getQueryData(["chat", chatId]);
+
+            queryClient.setQueryData(["chat", chatId], (oldChat) => {
+                return {
+                    ...oldChat,
+                    ...updateData,
+                };
+            });
+
+            return { previousChat };
+        },
+        onError: (err, variables, context) => {
+            console.error("Error updating chat:", err);
+            if (context && context.previousChat) {
+                queryClient.setQueryData(["chat", variables.chatId], context.previousChat);
+            }
         },
         onSuccess: (updatedChat, { chatId }) => {
             queryClient.invalidateQueries(["chat", chatId]);

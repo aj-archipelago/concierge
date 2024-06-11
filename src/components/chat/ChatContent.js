@@ -1,13 +1,13 @@
 import { useSelector } from "react-redux";
 import { useApolloClient } from "@apollo/client";
 import { QUERIES } from "../../graphql";
-import { useState, useContext, useEffect, useMemo } from "react";
+import { useState, useContext, useMemo } from "react";
 import { useUpdateAiMemory } from "../../../app/queries/options";
 import { AuthContext } from "../../App.js";
 import ChatMessages from "./ChatMessages";
 import { toast } from "react-toastify";
 import { useTranslation } from "react-i18next";
-import { useGetActiveChat, useAddMessage } from "../../../app/queries/chats";
+import { useGetActiveChat, useAddMessage, useUpdateChat } from "../../../app/queries/chats";
 const contextMessageCount = 50;
 
 function ChatContent({ displayState = "full", container = "chatpage" }) {
@@ -15,21 +15,23 @@ function ChatContent({ displayState = "full", container = "chatpage" }) {
     const client = useApolloClient();
     const { user } = useContext(AuthContext);
     const [loading, setLoading] = useState(false);
-    const chat = useGetActiveChat();
-    const messages = useMemo(
-        () => chat?.data?.messages || [],
-        [chat?.data?.messages],
-    );
+    const chat = useGetActiveChat()?.data;
+    // const messages = useMemo(
+    //     () => chat?.messages || [],
+    //     [chat?.messages],
+    // );
+    const messages = chat?.messages || [];
     const selectedSources = useSelector((state) => state.doc.selectedSources);
     const updateAiMemoryMutation = useUpdateAiMemory();
     const addMessage = useAddMessage();
+    const updateChatHook = useUpdateChat();
 
     const updateChat = (message, tool) => {
         setLoading(false);
         if (message) {
             addMessage.mutate(
                 {
-                    chatId: chat._id,
+                    chatId: String(chat?._id),
                     message: {
                         payload: message,
                         tool: tool,
@@ -38,17 +40,26 @@ function ChatContent({ displayState = "full", container = "chatpage" }) {
                         position: "single",
                         sender: "labeeb",
                     },
-                },
-                {
-                    onSuccess: (data, variables) => {
-                        // if (!chat._id) {
-                        //     const newChatId = data?._id;
-                        //     console.log("New chat ID", newChatId);
-                        //     router.push(`/chat/${newChatId}`);
-                        // }
-                    },
-                },
+                }
             );
+
+
+        if(!chat?.title || chat?.title === "New Chat") {
+            const text = messages.map(({payload}) => payload).join(" ") + message;
+            client.query({
+                query: QUERIES.HEADLINE,
+                variables: {
+                    text,
+                    targetLength: 30,
+                    count: 1,
+                },
+            }).then(async (result) => {
+                const title = result.data?.headline?.result[0];
+                await updateChatHook.mutateAsync({ chatId: String(chat?._id), title });
+            }).catch((error) => {
+                // console.error("Error fetching chat title:", error);
+            });
+        }
         }
     };
 
@@ -69,9 +80,8 @@ function ChatContent({ displayState = "full", container = "chatpage" }) {
                 loading={loading}
                 onSend={(text) => {
                     const display = text;
-
                     addMessage.mutate({
-                        chatId: chat._id,
+                        chatId: String(chat?._id),
                         message: {
                             payload: display,
                             sender: "user",

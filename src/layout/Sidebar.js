@@ -17,11 +17,13 @@ import classNames from "../../app/utils/class-names";
 import config from "../../config";
 import { LanguageContext } from "../contexts/LanguageProvider";
 import {
+    useAddChat,
     useDeleteChat,
     useGetActiveChatId,
     useGetChats,
     useSetActiveChatId,
 } from "../../app/queries/chats";
+import { useQueryClient } from "@tanstack/react-query";
 
 const navigation = [
     {
@@ -87,34 +89,67 @@ export default function Sidebar() {
     const chats = chatsData || [];
     const deleteChat = useDeleteChat();
     const setActiveChatId = useSetActiveChatId();
-    const activeChatId = useGetActiveChatId();
+    const getActiveChatId = useGetActiveChatId();
+    const activeChatId = getActiveChatId?.data || getActiveChatId;
+    const addChat = useAddChat();
+    const queryClient = useQueryClient();
 
     const handleDeleteChat = (chatId) => {
         console.log(`Deleting chat: ${chatId}`);
         // Get the current active chat ID
-        const currentActiveChatId = activeChatId.data;
-
+        const currentActiveChatId = activeChatId;
         deleteChat.mutate({ chatId });
 
         // Only navigate if the deleted chat was the active chat
         if (chatId === currentActiveChatId) {
-            setActiveChatId.mutate(null);
-            router.push("/chat");
+            //setActiveChatId.mutate(null);
+            //set top chat as active chat if not create new chat
+            const topChat = chats.filter((chat) => chat._id !== chatId)[0];
+            if (topChat) {
+                console.log("Setting top chat as active chat", topChat._id);
+                setActiveChatId.mutate(topChat._id);
+                router.push(`/chat/${topChat._id}`);
+            } else {
+                handleNewChat();
+            }
         }
     };
 
     const handleNewChat = async () => {
-        console.log("Creating new chat");
-        await setActiveChatId.mutateAsync(null); // Wait for the mutation to complete
-        router.push("/chat/");
+        if (chats.length > 0 && chats[0].messages.length === 0) {
+            console.log("Active chat is empty, not creating new chat");
+            router.push(`/chat/${chats[0]._id}`);
+            return;
+        }
+        // console.log("Creating new chat");
+        const newChat = await addChat.mutateAsync({ messages: [] });
+        if (newChat && newChat._id) {
+            const newChatId = newChat._id;
+            // console.log("Setting active chat ID to:", newChatId);
+            setActiveChatId.mutate(newChatId);
+            router.push(`/chat/${newChatId}`);
+            //invalidate chats
+            queryClient.invalidateQueries("chats");
+        }
     };
 
     const updatedNavigation = navigation.map((item) => {
         if (item.name === "Chat" && Array.isArray(chats)) {
+            const items = chats.slice(0, 4);
+            //active chat should always be included
+            const activeChat = chats.find((chat) => chat._id === activeChatId);
+            const itemsHasActiveChat = items.some(
+                (chat) => chat._id === activeChatId,
+            );
+            if (!itemsHasActiveChat && activeChat) {
+                items.pop();
+                items.push(activeChat);
+            }
+
             return {
                 ...item,
                 children: [
-                    ...chats.map((chat) => ({
+                    ...items.map((chat) => ({
                         name: chat.title || t("Chat") + " " + chat._id,
                         href: `/chat/${chat._id}`,
                         key: chat._id, // Unique key for each child
@@ -225,7 +260,10 @@ export default function Sidebar() {
                                                                 pathname.includes(
                                                                     subItem.href,
                                                                 )
-                                                                    ? "bg-gray-100"
+                                                                    ? //  ||
+                                                                      //     subItem.key ===
+                                                                      //         activeChatId.data
+                                                                      "bg-gray-100"
                                                                     : "hover:bg-gray-100",
                                                                 "group flex items-center justify-between rounded-md cursor-pointer",
                                                             )}
@@ -238,7 +276,7 @@ export default function Sidebar() {
                                                                 );
                                                             }}
                                                         >
-                                                            <div className="block py-2 pe-2 pl-9 text-sm leading-6 text-gray-700 w-full">
+                                                            <div className={`block py-2 pe-2 pl-6 ${item.name === "Chat" ? "text-xs" : "text-sm"} leading-6 text-gray-700 w-full select-none`}>
                                                                 {t(
                                                                     subItem.name,
                                                                 )}

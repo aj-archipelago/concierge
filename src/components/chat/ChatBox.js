@@ -1,6 +1,6 @@
 "use client";
 
-import { useContext, useRef } from "react";
+import { useCallback, useContext, useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import {
     FaWindowClose,
@@ -10,13 +10,14 @@ import {
 } from "react-icons/fa";
 import { useDispatch, useSelector } from "react-redux";
 import { LanguageContext } from "../../contexts/LanguageProvider";
-import { setChatBoxPosition } from "../../stores/chatSlice";
+import { setChatBoxPosition } from "../../stores/chatSlice"; // Ensure you have this action in your slice
 import ChatContent from "./ChatContent";
 import config from "../../../config";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 
 function ChatBox() {
     const statePosition = useSelector((state) => state.chat?.chatBox?.position);
+    const lastOpenPosition = useSelector((state) => state.chat?.chatBox?.lastOpenPosition);
     const dispatch = useDispatch();
     const dockedWidth = useSelector((state) => state?.chat?.chatBox?.width);
     const dockedWidthRef = useRef();
@@ -24,10 +25,11 @@ function ChatBox() {
     const { t } = useTranslation();
     const { language } = useContext(LanguageContext);
     const router = useRouter();
+    const pathname = usePathname(); // Get the current pathname
 
-    const updateChatBox = (newPosition) => {
+    const updateChatBox = useCallback((newPosition) => {
         dispatch(setChatBoxPosition(newPosition));
-    };
+    }, [dispatch]);
 
     const titleBarClick = () => {
         if (statePosition === "docked") {
@@ -37,10 +39,23 @@ function ChatBox() {
         }
     };
 
+    useEffect(() => {
+        console.log("ChatBox: pathname", pathname);
+        console.log("ChatBox: statePosition", statePosition, lastOpenPosition);
+        if (pathname === "/chat" || pathname.startsWith("/chat/")) {
+            // Store the previous position before changing to 'full'
+            if (statePosition !== "closed") {
+                updateChatBox({ position: "closed" });
+            }
+        } else {
+            // Restore to the last open position if it's different from current
+            if(statePosition !== lastOpenPosition) {
+                updateChatBox({ position: lastOpenPosition });
+            }
+        }
+    }, [lastOpenPosition, pathname, statePosition, updateChatBox]);
+
     const Actions = () => {
-        const lastOpenPosition = useSelector(
-            (state) => state.chat?.chatBox?.lastOpenPosition,
-        );
         switch (statePosition) {
             case "closed":
                 return (

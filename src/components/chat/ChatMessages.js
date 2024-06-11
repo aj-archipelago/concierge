@@ -8,7 +8,6 @@ import { convertMessageToMarkdown } from "./ChatMessage";
 import dynamic from "next/dynamic";
 import { useAddChat } from "../../../app/queries/chats";
 import { useApolloClient } from "@apollo/client";
-import SavedChats from "./SavedChats";
 import { handleSaveChat } from "./SaveChat";
 
 const ChatTopMenuDynamic = dynamic(() => import("./ChatTopMenu"));

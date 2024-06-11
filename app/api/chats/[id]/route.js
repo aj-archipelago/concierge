@@ -2,6 +2,37 @@ import { NextResponse } from "next/server";
 import Chat from "../../models/chat";
 import { getCurrentUser, handleError } from "../../utils/auth";
 
+
+// Handle POST request to add a message to an existing chat for the current user
+export async function POST(req, { params }) {
+    try {
+        const { id } = params;
+        if (!id) {
+            throw new Error("Chat ID is required");
+        }
+
+        const currentUser = await getCurrentUser(false);
+        const { message } = await req.json();
+
+        const chat = await Chat.findOneAndUpdate(
+            {
+                _id: id,
+                userId: currentUser._id,
+            },
+            { $push: { messages: message } },
+            { new: true },
+        );
+
+        if (!chat) {
+            throw new Error("Chat not found");
+        }
+
+        return NextResponse.json(chat);
+    } catch (error) {
+        return handleError(error);
+    }
+}
+
 // Handle DELETE request to delete a chat for the current user
 export async function DELETE(req, { params }) {
     try {

@@ -1,3 +1,4 @@
+import { NextResponse } from "next/server";
 import User from "../../models/user";
 import { getCurrentUser, handleError } from "../../utils/auth";
 
@@ -5,26 +6,7 @@ import { getCurrentUser, handleError } from "../../utils/auth";
 export async function GET(req) {
     try {
         const currentUser = await getCurrentUser(false);
-
-        if (!currentUser.activeChatId) {
-            // No active chat ID, return default
-            return new Response(
-                JSON.stringify({ status: "success", activeChatId: null }),
-                {
-                    headers: { "Content-Type": "application/json" },
-                },
-            );
-        }
-
-        return new Response(
-            JSON.stringify({
-                status: "success",
-                activeChatId: currentUser.activeChatId,
-            }),
-            {
-                headers: { "Content-Type": "application/json" },
-            },
-        );
+        return NextResponse.json(currentUser.activeChatId);
     } catch (error) {
         return handleError(error);
     }
@@ -34,6 +16,9 @@ export async function GET(req) {
 export async function PUT(req) {
     try {
         const { activeChatId } = await req.json();
+        // console.log("PUT activeChatId", activeChatId);
+        if (!activeChatId) throw new Error("activeChatId is required");
+
         const currentUser = await getCurrentUser(false);
 
         const updatedUser = await User.findByIdAndUpdate(
@@ -46,12 +31,7 @@ export async function PUT(req) {
 
         if (!updatedUser) throw new Error("User not found");
 
-        return new Response(
-            JSON.stringify({ status: "success", user: updatedUser }),
-            {
-                headers: { "Content-Type": "application/json" },
-            },
-        );
+        return NextResponse.json(updatedUser.activeChatId);
     } catch (error) {
         return handleError(error);
     }

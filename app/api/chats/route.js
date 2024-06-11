@@ -17,7 +17,10 @@ export async function GET(req) {
     }
 }
 
-// Handle POST request to create a new chat
+const getSimpleTitle = (message) => {
+    return (message?.payload || "").substring(0, 14) || "New Chat";
+};
+
 export async function POST(req) {
     try {
         const { messages, title } = await req.json();
@@ -25,19 +28,27 @@ export async function POST(req) {
         const userId = currentUser._id;
 
         // Ensure messages is always an array
-        const normalizedMessages = Array.isArray(messages)
-            ? messages
-            : [messages];
+        const normalizedMessages = !messages
+            ? []
+            : Array.isArray(messages)
+              ? messages
+              : [messages];
 
+        // Check for an existing default chat with 0 messages and remove it
+        await Chat.deleteOne({ userId, messages: { $exists: true, $size: 0 } });
+
+        // Create a new chat
         const newChat = new Chat({
             userId,
             messages: normalizedMessages,
-            title,
+            title: title || getSimpleTitle(normalizedMessages[0]),
+            // createdAt: new Date(),
+            // updatedAt: new Date(),
         });
 
         await newChat.save();
 
-        return Response.json(newChat);
+        return NextResponse.json(newChat);
     } catch (error) {
         return handleError(error); // Handle errors appropriately
     }
