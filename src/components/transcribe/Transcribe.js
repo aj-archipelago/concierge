@@ -11,9 +11,6 @@ import CopyButton from "../CopyButton";
 import LoadingButton from "../editor/LoadingButton";
 import { ProgressUpdate } from "../editor/TextSuggestions";
 import TaxonomySelector from "./TaxonomySelector";
-const NEURALSPACE_ENABLED =
-    process.env.NEXT_PUBLIC_ENABLE_NEURALSPACE &&
-    process.env.NEXT_PUBLIC_ENABLE_NEURALSPACE === "true";
 
 function Transcribe({
     dataText,
@@ -36,6 +33,8 @@ function Transcribe({
     const [loadingParagraph, setLoadingParagraph] = useState(false);
     const [loadingTranslate, setLoadingTranslate] = useState(false);
     const [selectedModelOption, setSelectedModelOption] = useState("Whisper"); // default is Whisper
+    const { neuralspaceEnabled } = useContext(ServerContext);
+
 
     const {
         responseFormat,
@@ -336,7 +335,7 @@ function Transcribe({
                     <h4 className="options-header mb-1">
                         {t("Transcribe audio to:")}
                     </h4>
-                    {NEURALSPACE_ENABLED && (
+                    {neuralspaceEnabled && (
                         <span className="flex items-center pb-2">
                             <label className="text-sm px-1">
                                 {t("Using model")}
