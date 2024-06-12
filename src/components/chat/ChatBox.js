@@ -45,8 +45,6 @@ function ChatBox() {
     };
 
     useEffect(() => {
-        console.log("ChatBox: pathname", pathname);
-        console.log("ChatBox: statePosition", statePosition, lastOpenPosition);
         if (pathname === "/chat" || pathname.startsWith("/chat/")) {
             // Store the previous position before changing to 'full'
             if (statePosition !== "closed") {

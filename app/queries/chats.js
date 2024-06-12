@@ -79,7 +79,7 @@ export function useGetActiveChatId() {
         queryKey: ["activeChatId"],
         queryFn: async () => {
             const response = await axios.get(`/api/chats/active`);
-            return String(response.data);
+            return response.data.activeChatId;
         },
         staleTime: 1000 * 60 * 5,
     });
@@ -112,15 +112,15 @@ export function useSetActiveChatId() {
             const response = await axios.put(`/api/chats/active`, {
                 activeChatId,
             });
-            return response.data;
+            return response.data.activeChatId;
         },
         onMutate: async (activeChatId) => {
             activeChatId &&
                 queryClient.setQueryData(["activeChatId"], activeChatId);
         },
-        onSuccess: (updatedActiveChatId) => {
+        onSuccess: ({ activeChatId }) => {
             queryClient.invalidateQueries(["activeChatId"]);
-            queryClient.setQueryData(["activeChatId"], updatedActiveChatId);
+            queryClient.setQueryData(["activeChatId"], activeChatId);
         },
     });
 }
@@ -178,26 +178,35 @@ export function useAddMessage() {
             }
 
             // Update the query cache with the expected update
-            const existingChat = queryClient.getQueryData(["chat", chatId]);
+            const existingChat = queryClient.getQueryData([
+                "chat",
+                String(chatId),
+            ]);
             const expectedChatData = {
                 ...existingChat,
                 messages: [...existingChat.messages, message],
             };
-            queryClient.setQueryData(["chat", chatId], expectedChatData);
+            queryClient.setQueryData(
+                ["chat", String(chatId)],
+                expectedChatData,
+            );
         },
         onSuccess: (updatedChat) => {
             const chatId = String(updatedChat?._id);
-            const activeChatId = queryClient.getQueryData(["activeChatId"]);
-            if (String(chatId) !== String(activeChatId)) {
-                console.log(
-                    "Updating active chat ID:",
-                    chatId,
-                    "ex:",
-                    activeChatId,
-                );
-                queryClient.invalidateQueries(["activeChatId"]);
-                queryClient.setQueryData(["activeChatId"], String(chatId));
-            }
+            //for case e.g. when user navigates to another chat
+            // const activeChatId = String(
+            //     queryClient.getQueryData(["activeChatId"]),
+            // );
+            // if (String(chatId) !== String(activeChatId)) {
+            //     console.log(
+            //         "Updating active chat ID:",
+            //         chatId,
+            //         "ex:",
+            //         activeChatId,
+            //     );
+            //     queryClient.invalidateQueries(["activeChatId"]);
+            //     queryClient.setQueryData(["activeChatId"], String(chatId));
+            // }
             queryClient.invalidateQueries(["chat", chatId]);
             queryClient.setQueryData(["chat", chatId], updatedChat);
         },

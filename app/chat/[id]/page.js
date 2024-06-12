@@ -17,7 +17,7 @@ export default async function ChatPage({ params }) {
     const url = `${serverUrl}/api/chats/active`;
 
     // Set user's activeChatId to the provided id
-    await axios.put(url, { activeChatId: id });
+    await axios.put(url, { activeChatId: String(id) });
 
     const queryClient = new QueryClient();
 

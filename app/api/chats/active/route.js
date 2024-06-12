@@ -6,7 +6,9 @@ import { getCurrentUser, handleError } from "../../utils/auth";
 export async function GET(req) {
     try {
         const currentUser = await getCurrentUser(false);
-        return NextResponse.json(currentUser.activeChatId);
+        return NextResponse.json({
+            activeChatId: String(currentUser.activeChatId),
+        });
     } catch (error) {
         return handleError(error);
     }
@@ -24,14 +26,16 @@ export async function PUT(req) {
         const updatedUser = await User.findByIdAndUpdate(
             currentUser._id,
             {
-                $set: { activeChatId },
+                $set: { activeChatId: String(activeChatId) },
             },
             { new: true, useFindAndModify: false },
         );
 
         if (!updatedUser) throw new Error("User not found");
 
-        return NextResponse.json(updatedUser.activeChatId);
+        return NextResponse.json({
+            activeChatId: String(updatedUser.activeChatId),
+        });
     } catch (error) {
         return handleError(error);
     }
