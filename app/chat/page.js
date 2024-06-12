@@ -4,8 +4,7 @@ import {
     QueryClient,
 } from "@tanstack/react-query";
 import Chat from "../../src/components/chat/Chat";
-import { setActiveChatId } from "./../api/chats/active/route";
-import { createNewChat } from "../api/chats/route";
+import { createNewChat, setActiveChatId } from "../api/chats/_lib";
 
 export default async function ChatPage() {
     // Create a new chat

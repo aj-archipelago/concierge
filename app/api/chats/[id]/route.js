@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import Chat from "../../models/chat";
 import { getCurrentUser, handleError } from "../../utils/auth";
+import { getChatById } from "../_lib";
 
 // Handle POST request to add a message to an existing chat for the current user
 export async function POST(req, { params }) {
@@ -55,26 +56,6 @@ export async function DELETE(req, { params }) {
     } catch (error) {
         return handleError(error);
     }
-}
-
-// Function to fetch a chat by ID for the current user
-export async function getChatById(chatId) {
-    if (!chatId) {
-        throw new Error("Chat ID is required");
-    }
-
-    const currentUser = await getCurrentUser(false);
-
-    const chat = await Chat.findOne({
-        _id: chatId,
-        userId: currentUser._id,
-    });
-
-    if (!chat) {
-        throw new Error("Chat not found");
-    }
-
-    return chat;
 }
 
 // Handle GET request to retrieve a chat for the current user

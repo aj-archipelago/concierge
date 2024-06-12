@@ -1,7 +1,7 @@
 import { useSelector } from "react-redux";
 import { useApolloClient } from "@apollo/client";
 import { QUERIES } from "../../graphql";
-import { useState, useContext, useMemo } from "react";
+import { useState, useContext } from "react";
 import { useUpdateAiMemory } from "../../../app/queries/options";
 import { AuthContext } from "../../App.js";
 import ChatMessages from "./ChatMessages";
