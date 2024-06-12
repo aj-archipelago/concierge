@@ -1,23 +1,17 @@
-import axios from "axios";
-import { serverUrl } from "../../src/utils/constants";
 import {
     dehydrate,
     HydrationBoundary,
     QueryClient,
 } from "@tanstack/react-query";
 import Chat from "../../src/components/chat/Chat";
+import { setActiveChatId } from "./../api/chats/active/route";
+import { createNewChat } from "../api/chats/route";
 
 export default async function ChatPage() {
-    const chatsUrl = `${serverUrl}/api/chats`;
-    const activeChatUrl = `${serverUrl}/api/chats/active`;
-
     // Create a new chat
-    const response = await axios.post(chatsUrl, {
-        messages: [],
-    });
-    const newChat = response.data;
-    const id = String(newChat._id);
-    await axios.put(activeChatUrl, { activeChatId: id });
+    const newChat = await createNewChat({});
+    const id = await setActiveChatId(String(newChat._id));
+    console.log(newChat, id);
 
     const queryClient = new QueryClient();
 
@@ -25,7 +19,7 @@ export default async function ChatPage() {
     await queryClient.prefetchQuery({
         queryKey: ["chat", id],
         queryFn: async () => {
-            return newChat;
+            return newChat.toJSON();
         },
         staleTime: Infinity,
     });
@@ -34,7 +28,7 @@ export default async function ChatPage() {
     await queryClient.prefetchQuery({
         queryKey: ["activeChatId"],
         queryFn: async () => {
-            return id;
+            return String(id);
         },
         staleTime: Infinity,
     });

@@ -57,25 +57,31 @@ export async function DELETE(req, { params }) {
     }
 }
 
+// Function to fetch a chat by ID for the current user
+export async function getChatById(chatId) {
+    if (!chatId) {
+        throw new Error("Chat ID is required");
+    }
+
+    const currentUser = await getCurrentUser(false);
+
+    const chat = await Chat.findOne({
+        _id: chatId,
+        userId: currentUser._id,
+    });
+
+    if (!chat) {
+        throw new Error("Chat not found");
+    }
+
+    return chat;
+}
+
 // Handle GET request to retrieve a chat for the current user
 export async function GET(req, { params }) {
     try {
         const { id } = params;
-        if (!id) {
-            throw new Error("Chat ID is required");
-        }
-
-        const currentUser = await getCurrentUser(false);
-
-        const chat = await Chat.findOne({
-            _id: id,
-            userId: currentUser._id,
-        });
-
-        if (!chat) {
-            throw new Error("Chat not found");
-        }
-
+        const chat = await getChatById(id);
         return NextResponse.json(chat);
     } catch (error) {
         return handleError(error);

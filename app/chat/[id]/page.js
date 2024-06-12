@@ -3,21 +3,14 @@ import {
     HydrationBoundary,
     QueryClient,
 } from "@tanstack/react-query";
-import axios from "axios";
 import Chat from "../../../src/components/chat/Chat";
-import { serverUrl } from "../../../src/utils/constants";
-
-async function getChatById(chatId) {
-    const response = await axios.get(`/api/chats/${chatId}`);
-    return response.data;
-}
+import { setActiveChatId } from "../../api/chats/active/route";
+import { getChatById } from "../../api/chats/route";
 
 export default async function ChatPage({ params }) {
-    const id = params.id;
-    const url = `${serverUrl}/api/chats/active`;
+    const id = String(params.id);
 
-    // Set user's activeChatId to the provided id
-    await axios.put(url, { activeChatId: String(id) });
+    await setActiveChatId(id);
 
     const queryClient = new QueryClient();
 

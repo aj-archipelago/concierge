@@ -272,9 +272,14 @@ export default function Sidebar() {
                                                                 "group flex items-center justify-between rounded-md cursor-pointer",
                                                             )}
                                                             onClick={() => {
-                                                                setActiveChatId.mutate(
-                                                                    subItem.key,
-                                                                );
+                                                                if (
+                                                                    subItem.name !==
+                                                                    "..."
+                                                                ) {
+                                                                    setActiveChatId.mutate(
+                                                                        subItem.key,
+                                                                    );
+                                                                }
                                                                 router.push(
                                                                     subItem.href,
                                                                 );
