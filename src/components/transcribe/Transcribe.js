@@ -35,7 +35,6 @@ function Transcribe({
     const [selectedModelOption, setSelectedModelOption] = useState("Whisper"); // default is Whisper
     const { neuralspaceEnabled } = useContext(ServerContext);
 
-
     const {
         responseFormat,
         wordTimestamped,
