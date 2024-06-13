@@ -18,7 +18,7 @@ export default async function ChatPage({ params }) {
         queryKey: ["chat", id],
         queryFn: async () => {
             const response = await getChatById(id);
-            return response.toJSON();
+            return JSON.parse(JSON.stringify(response));
         },
         staleTime: Infinity,
     });

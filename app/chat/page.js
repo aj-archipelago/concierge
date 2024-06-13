@@ -10,7 +10,6 @@ export default async function ChatPage() {
     // Create a new chat
     const newChat = await createNewChat({});
     const id = await setActiveChatId(String(newChat._id));
-    console.log(newChat, id);
 
     const queryClient = new QueryClient();
 
@@ -18,7 +17,7 @@ export default async function ChatPage() {
     await queryClient.prefetchQuery({
         queryKey: ["chat", id],
         queryFn: async () => {
-            return newChat.toJSON();
+            return JSON.parse(JSON.stringify(newChat));
         },
         staleTime: Infinity,
     });
