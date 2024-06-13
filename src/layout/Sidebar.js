@@ -110,7 +110,7 @@ export default function Sidebar() {
                 setActiveChatId.mutate(topChat._id);
                 router.push(`/chat/${topChat._id}`);
             } else {
-                handleNewChat();
+                createDefaultNewChat();
             }
         }
     };
@@ -122,6 +122,10 @@ export default function Sidebar() {
             return;
         }
         // console.log("Creating new chat");
+        createDefaultNewChat();
+    };
+
+    const createDefaultNewChat = async () => {
         const newChat = await addChat.mutateAsync({ messages: [] });
         if (newChat && newChat._id) {
             const newChatId = newChat._id;
@@ -263,7 +267,11 @@ export default function Sidebar() {
                                                             className={classNames(
                                                                 pathname.includes(
                                                                     subItem.href,
-                                                                )
+                                                                ) ||
+                                                                    (pathname ===
+                                                                        "/chat" &&
+                                                                        subItem.key ===
+                                                                            activeChatId)
                                                                     ? //  ||
                                                                       //     subItem.key ===
                                                                       //         activeChatId.data

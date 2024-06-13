@@ -8,16 +8,14 @@ import { getChatById, setActiveChatId } from "../../api/chats/_lib";
 
 export default async function ChatPage({ params }) {
     const id = String(params.id);
-
+    const response = await getChatById(id);
     await setActiveChatId(id);
-
     const queryClient = new QueryClient();
 
     // Prefetch the chat data
     await queryClient.prefetchQuery({
         queryKey: ["chat", id],
         queryFn: async () => {
-            const response = await getChatById(id);
             return JSON.parse(JSON.stringify(response));
         },
         staleTime: Infinity,
