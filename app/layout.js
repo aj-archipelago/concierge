@@ -13,6 +13,7 @@ import {
 
 const font = Inter({ subsets: ["latin"] });
 const serverUrl = process.env.SERVER_URL || "http://localhost:3000";
+const neuralspaceEnabled = process.env.ENABLE_NEURALSPACE === "true";
 
 export default async function RootLayout({ children }) {
     const { getLogo } = config.global;
@@ -56,6 +57,7 @@ export default async function RootLayout({ children }) {
                             theme={theme}
                             language={language}
                             serverUrl={serverUrl}
+                            neuralspaceEnabled={neuralspaceEnabled}
                         >
                             {children}
                         </App>
