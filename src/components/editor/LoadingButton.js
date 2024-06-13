@@ -14,7 +14,7 @@ export default function LoadingButton({
     return (
         <button
             className={classNames(
-                "text-center",
+                "flex gap-2 items-center justify-center",
                 className,
                 loading ? "pe-[1.5rem]" : "",
             )}

@@ -259,5 +259,14 @@
     "Auto-detect video language": "الكشف التلقائي عن لغة الفيديو",
     "Output format": "تنسيق الناتج",
     "Show AI commands": "عرض أوامر الذكاء الاصطناعي",
-    "Show editor": "عرض المحرر"
+    "Show editor": "عرض المحرر",
+    "Currently stored memory": "الذاكرة المخزنة حاليًا",
+    "Send feedback": "إرسال ملاحظات",
+    "Message": "الرسالة",
+    "Add screenshot": "إضافة لقطة شاشة",
+    "Send us a message": "أرسل لنا رسالة",
+    "Taking screenshot...": "جاري التقاط لقطة شاشة...",
+    "Remove": "إزالة",
+    "Retake screenshot": "إعادة التقاط لقطة الشاشة",
+    "Sending message...": "جاري إرسال الرسالة..."
 }
