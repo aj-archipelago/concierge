@@ -46,7 +46,8 @@ const chatSchema = new mongoose.Schema(
             default: "Chat",
         },
         userId: {
-            type: String,
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "User",  // Reference to the User model
             required: true,
         },
     },
@@ -54,6 +55,9 @@ const chatSchema = new mongoose.Schema(
         timestamps: true,
     },
 );
+
+// Add an index on userId
+chatSchema.index({ userId: 1 });
 
 // Create the Chat model from the schema
 const Chat = mongoose.models.Chat || mongoose.model("Chat", chatSchema);
