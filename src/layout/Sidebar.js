@@ -10,7 +10,7 @@ import {
 } from "@heroicons/react/24/outline";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useContext } from "react";
+import React, { useContext, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { MdOutlineWorkspaces } from "react-icons/md";
 import classNames from "../../app/utils/class-names";
@@ -24,6 +24,8 @@ import {
     useSetActiveChatId,
 } from "../../app/queries/chats";
 import { useQueryClient } from "@tanstack/react-query";
+import { HelpCircle } from "lucide-react";
+import SendFeedbackModal from "../components/help/SendFeedbackModal";
 
 const navigation = [
     {
@@ -79,7 +81,7 @@ const navigation = [
     },
 ];
 
-export default function Sidebar() {
+export default React.forwardRef(function Sidebar(_, ref) {
     const pathname = usePathname();
     const router = useRouter();
     const { getLogo, getSidebarLogo } = config.global;
@@ -183,7 +185,7 @@ export default function Sidebar() {
             </div>
             <nav className="flex flex-1 flex-col">
                 <ul className="flex flex-1 flex-col gap-y-7">
-                    <li>
+                    <li className="grow ">
                         <ul className="-mx-2 space-y-1">
                             {updatedNavigation.map((item) => {
                                 if (
@@ -327,8 +329,37 @@ export default function Sidebar() {
                             })}
                         </ul>
                     </li>
+                    <li>
+                        <div className="py-3 bg-gray-50 -mx-5 px-5 text-gray-700">
+                            <SendFeedbackButton ref={ref} />
+                        </div>
+                    </li>
                 </ul>
             </nav>
         </div>
     );
-}
+});
+
+const SendFeedbackButton = React.forwardRef(
+    function SendFeedbackButton(_, ref) {
+        const [show, setShow] = useState(false);
+        const { t } = useTranslation();
+
+        return (
+            <>
+                <SendFeedbackModal
+                    ref={ref}
+                    show={show}
+                    onHide={() => setShow(false)}
+                />
+                <button
+                    className="flex gap-2 items-center text-sm"
+                    onClick={() => setShow(true)}
+                >
+                    <HelpCircle className="h-6 w-6 shrink-0 text-gray-400" />
+                    {t("Send feedback")}
+                </button>
+            </>
+        );
+    },
+);

@@ -25,7 +25,7 @@ if (typeof document !== "undefined") {
 
 export const AuthContext = React.createContext({});
 
-const App = ({ children, language, theme, serverUrl }) => {
+const App = ({ children, language, theme, serverUrl, neuralspaceEnabled }) => {
     if (i18next.language !== language) {
         i18next.changeLanguage(language);
     }
@@ -38,7 +38,7 @@ const App = ({ children, language, theme, serverUrl }) => {
 
     return (
         <ApolloNextAppProvider makeClient={() => getClient(serverUrl)}>
-            <ServerContext.Provider value={{ serverUrl }}>
+            <ServerContext.Provider value={{ serverUrl, neuralspaceEnabled }}>
                 <StoreProvider>
                     <ThemeProvider savedTheme={theme}>
                         <LanguageProvider savedLanguage={language}>
