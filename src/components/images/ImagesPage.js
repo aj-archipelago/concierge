@@ -54,7 +54,7 @@ function ImagesPage() {
                     const newImages = [...images];
                     newImages.unshift({
                         cortexRequestId: requestId,
-                        prompt: generationPrompt,
+                        prompt: prompt,
                     });
                     return newImages;
                 });
