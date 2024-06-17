@@ -17,7 +17,7 @@ function CopyButton({ item, className = "absolute top-1 end-1 " }) {
 
     return (
         <button
-            className={classNames(className, "text-gray-300")}
+            className={classNames(className, "text-gray-500")}
             onClick={() => {
                 if (typeof navigator !== "undefined") {
                     navigator?.clipboard.writeText(item);
@@ -29,7 +29,7 @@ function CopyButton({ item, className = "absolute top-1 end-1 " }) {
                 {copied && (
                     <div
                         className={
-                            "text-xs whitespace-nowrap absolute top-0 end-0 bg-gray-800/90 dark:bg-gray-100/90 text-white p-1 rounded"
+                            "text-xs whitespace-nowrap absolute top-0 end-0 bg-gray-800/90 dark:text-gray-700 text-white px-2 py-1.5 rounded"
                         }
                     >
                         {t("Copied to clipboard")}

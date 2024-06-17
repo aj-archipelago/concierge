@@ -22,6 +22,12 @@ function ChatMessages({
     const dispatch = useDispatch();
     const { t } = useTranslation();
 
+    messages = messages.map((m) => {
+        return Object.assign({}, m, {
+            text: m.payload,
+        });
+    });
+
     messages = messages.map((message, index) => {
         // post process the message and create a new
         // message object with the updated payload.

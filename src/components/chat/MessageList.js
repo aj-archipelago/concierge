@@ -9,6 +9,7 @@ import { convertMessageToMarkdown } from "./ChatMessage";
 import ScrollToBottom from "./ScrollToBottom";
 import Loader from "../../../app/components/loader";
 import { isAudioUrl, isVideoUrl } from "./MyFilePond";
+import CopyButton from "../CopyButton";
 
 const getLoadState = (message) => {
     const hasImage =
@@ -101,8 +102,13 @@ function MessageList({ messages, bot, loading }) {
             return (
                 <div
                     key={message.id}
-                    className="flex bg-sky-50 rounded-md ps-1 pt-1"
+                    className="flex bg-sky-50 ps-1 pt-1 relative [&_button]:hidden [&_button]:hover:block"
                 >
+                    <CopyButton
+                        item={message.text}
+                        className="absolute top-3 end-3 opacity-60 hover:opacity-100"
+                    />
+
                     <div className={classNames(basis)}>{avatar}</div>
                     <div
                         className={classNames(
@@ -110,7 +116,7 @@ function MessageList({ messages, bot, loading }) {
                         )}
                     >
                         <div className="font-semibold">{t(botName)}</div>
-                        <div className="chat-message-bot">
+                        <div className="chat-message-bot relative">
                             {message.payload}
                         </div>
                     </div>
@@ -128,7 +134,14 @@ function MessageList({ messages, bot, loading }) {
                 />
             );
             return (
-                <div key={message.id} className="flex ps-1 pt-1">
+                <div
+                    key={message.id}
+                    className="flex ps-1 pt-1 relative [&_button]:hidden [&_button]:hover:block"
+                >
+                    <CopyButton
+                        item={message.text}
+                        className="absolute top-3 end-3 opacity-60 hover:opacity-100"
+                    />
                     <div className={classNames(basis, "py-0")}>{avatar}</div>
                     <div
                         className={classNames(
