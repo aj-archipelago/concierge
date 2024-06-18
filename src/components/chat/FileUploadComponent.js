@@ -13,6 +13,7 @@ import {
 import config from "../../../config";
 import { AuthContext, ServerContext } from "../../App";
 import { useAddDocument } from "../../../app/queries/uploadedDocs";
+import { useGetActiveChatId } from "../../../app/queries/chats";
 
 function FileUploadComponent({ text }) {
     const [url, setUrl] = useState(null);
@@ -27,6 +28,8 @@ function FileUploadComponent({ text }) {
     const [data, setData] = useState(null);
     const { serverUrl } = useContext(ServerContext);
     const addDocument = useAddDocument();
+    const activeChatId = useGetActiveChatId()?.data;
+    console.log("activeChatId", activeChatId);
 
     const setLoadingState = (isLoading) => {
         setIsLoading(isLoading);
@@ -49,6 +52,7 @@ function FileUploadComponent({ text }) {
                             privateData: true,
                             contextId,
                             docId,
+                            chatId: activeChatId,
                         },
                         fetchPolicy: "network-only",
                     })
@@ -56,7 +60,11 @@ function FileUploadComponent({ text }) {
                         // completed successfully
                         setLoadingState(false);
                         setData(true);
-                        addDocument.mutateAsync({ docId, filename });
+                        addDocument.mutateAsync({
+                            docId,
+                            filename,
+                            chatId: activeChatId,
+                        });
                         dispatch(addSource("mydata"));
                         setUrl(null);
                     })

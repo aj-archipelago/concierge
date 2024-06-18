@@ -19,6 +19,7 @@ import { IoCloseCircle } from "react-icons/io5";
 import { isDocumentUrl, isMediaUrl } from "./MyFilePond";
 import { AuthContext } from "../../App";
 import { useAddDocument } from "../../../app/queries/uploadedDocs";
+import { useGetActiveChatId } from "../../../app/queries/chats";
 
 const DynamicFilepond = dynamic(() => import("./MyFilePond"), {
     ssr: false,
@@ -39,6 +40,7 @@ function MessageInput({ onSend, loading, enableRag, placeholder }) {
     const handleInputChange = (event) => {
         setInputValue(event.target.value);
     };
+    const activeChatId = useGetActiveChatId()?.data;
 
     const prepareMessage = (inputText) => {
         return [
@@ -98,12 +100,17 @@ function MessageInput({ onSend, loading, enableRag, placeholder }) {
                             privateData: true,
                             contextId,
                             docId,
+                            chatId: activeChatId,
                         },
                         fetchPolicy: "network-only",
                     })
                     .then(() => {
                         // completed successfully
-                        addDocument.mutateAsync({ docId, filename });
+                        addDocument.mutateAsync({
+                            docId,
+                            filename,
+                            chatId: activeChatId,
+                        });
                         dispatch(addSource("mydata"));
                         dispatch(clearFileLoading());
                     })

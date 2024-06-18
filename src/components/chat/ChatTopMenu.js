@@ -18,6 +18,7 @@ import {
     useDeleteAllDocuments,
     useDeleteDocument,
 } from "../../../app/queries/uploadedDocs";
+import { useGetActiveChatId } from "../../../app/queries/chats";
 
 function getFileIcon(filename) {
     const extension = filename?.split(".").pop().toLowerCase();
@@ -40,7 +41,10 @@ const DELETE_ALL_UPLOADS_STR = "__ALL__";
 function ChatTopMenu({ displayState = "full" }) {
     const { t } = useTranslation();
     const { user } = useContext(AuthContext);
-    const docs = user?.uploadedDocs;
+    const activeChatId = useGetActiveChatId()?.data;
+    const docs = user?.uploadedDocs?.filter(
+        ({ chatId }) => chatId === activeChatId,
+    );
     const deleteDocument = useDeleteDocument();
     const deleteAllDocuments = useDeleteAllDocuments();
     const contextId = user?.contextId;

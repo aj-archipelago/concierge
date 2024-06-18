@@ -20,6 +20,7 @@ function ChatContent({ displayState = "full", container = "chatpage" }) {
     const { user } = useContext(AuthContext);
     const [loading, setLoading] = useState(false);
     const chat = useGetActiveChat()?.data;
+    const chatId = String(chat?._id);
     // const messages = useMemo(
     //     () => chat?.messages || [],
     //     [chat?.messages],
@@ -34,7 +35,7 @@ function ChatContent({ displayState = "full", container = "chatpage" }) {
         setLoading(false);
         if (message) {
             addMessage.mutate({
-                chatId: String(chat?._id),
+                chatId,
                 message: {
                     payload: message,
                     tool: tool,
@@ -60,7 +61,7 @@ function ChatContent({ displayState = "full", container = "chatpage" }) {
                     .then(async (result) => {
                         const title = result.data?.headline?.result[0];
                         await updateChatHook.mutateAsync({
-                            chatId: String(chat?._id),
+                            chatId,
                             title,
                         });
                     })
@@ -89,7 +90,7 @@ function ChatContent({ displayState = "full", container = "chatpage" }) {
                 onSend={(text) => {
                     const display = text;
                     addMessage.mutate({
-                        chatId: String(chat?._id),
+                        chatId,
                         message: {
                             payload: display,
                             sender: "user",
@@ -128,6 +129,7 @@ function ChatContent({ displayState = "full", container = "chatpage" }) {
                         contextId: contextId,
                         aiName: "Labeeb",
                         aiMemorySelfModify: aiMemorySelfModify,
+                        chatId,
                     };
 
                     selectedSources &&

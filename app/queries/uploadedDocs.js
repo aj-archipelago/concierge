@@ -1,4 +1,3 @@
-//import
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import axios from "axios";
 
@@ -6,20 +5,24 @@ import axios from "axios";
 export function useAddDocument() {
     const queryClient = useQueryClient();
     const mutation = useMutation({
-        mutationFn: async ({ docId, filename }) => {
+        mutationFn: async ({ docId, filename, chatId }) => {
             const response = await axios.post(`/api/uploadedDocs`, {
                 docId,
                 filename,
+                chatId,
             });
             return response.data;
         },
-        onMutate: async ({ docId, filename }) => {
+        onMutate: async ({ docId, filename, chatId }) => {
             await queryClient.cancelQueries({ queryKey: ["currentUser"] });
 
             queryClient.setQueryData(["currentUser"], (old) => {
                 return {
                     ...old,
-                    uploadedDocs: [{ docId, filename }, ...old.uploadedDocs],
+                    uploadedDocs: [
+                        { docId, filename, chatId },
+                        ...old.uploadedDocs,
+                    ],
                 };
             });
         },
