@@ -1,8 +1,11 @@
 import mongoose from "mongoose";
 
 const validatePayload = (value) => {
-    return typeof value === 'string' || 
-           (Array.isArray(value) && value.every(item => typeof item === 'string'));
+    return (
+        typeof value === "string" ||
+        (Array.isArray(value) &&
+            value.every((item) => typeof item === "string"))
+    );
 };
 
 // Define the individual message schema
@@ -11,7 +14,10 @@ const messageSchema = new mongoose.Schema(
         payload: {
             type: mongoose.Schema.Types.Mixed,
             required: true,
-            validate: [validatePayload, 'Payload should be a string or an array of strings']
+            validate: [
+                validatePayload,
+                "Payload should be a string or an array of strings",
+            ],
         },
         sender: {
             type: String,
