@@ -6,8 +6,9 @@ import {
     PencilSquareIcon,
     PhotoIcon,
     TrashIcon,
-    PlusIcon, // Importing PlusIcon for new chat
+    PlusIcon,
 } from "@heroicons/react/24/outline";
+import { FaEdit } from "react-icons/fa"; // Import edit icon
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import React, { useContext, useState } from "react";
@@ -22,6 +23,7 @@ import {
     useGetActiveChatId,
     useGetActiveChats,
     useSetActiveChatId,
+    useUpdateChat,
 } from "../../app/queries/chats";
 import { useQueryClient } from "@tanstack/react-query";
 import { HelpCircle } from "lucide-react";
@@ -32,7 +34,7 @@ const navigation = [
         name: "Chat",
         icon: ChatBubbleLeftIcon,
         href: "/chat",
-        children: [], // To be dynamically filled
+        children: [],
     },
     {
         name: "Translate",
@@ -81,7 +83,7 @@ export default React.forwardRef(function Sidebar(_, ref) {
     const { getLogo, getSidebarLogo } = config.global;
     const { language } = useContext(LanguageContext);
     const { t } = useTranslation();
-    const { data: chatsData = [] } = useGetActiveChats(); // Ensure chats default to an empty array
+    const { data: chatsData = [] } = useGetActiveChats();
     const chats = chatsData || [];
     const deleteChat = useDeleteChat();
     const setActiveChatId = useSetActiveChatId();
@@ -89,6 +91,10 @@ export default React.forwardRef(function Sidebar(_, ref) {
     const activeChatId = getActiveChatId?.data || getActiveChatId;
     const addChat = useAddChat();
     const queryClient = useQueryClient();
+    const updateChat = useUpdateChat();
+
+    const [editingId, setEditingId] = useState(null);
+    const [editedName, setEditedName] = useState("");
 
     const handleDeleteChat = (chatId) => {
         if (!window.confirm("Are you sure you want to delete this chat?")) {
@@ -101,7 +107,6 @@ export default React.forwardRef(function Sidebar(_, ref) {
         if (chatId === currentActiveChatId) {
             const topChat = chats.filter((chat) => chat._id !== chatId)[0];
             if (topChat) {
-                console.log("Setting top chat as active chat", topChat._id);
                 setActiveChatId.mutate(topChat._id);
                 router.push(`/chat/${topChat._id}`);
             } else {
@@ -111,15 +116,16 @@ export default React.forwardRef(function Sidebar(_, ref) {
     };
 
     const handleNewChat = async () => {
-        if (chats.length > 0 && chats[0].messages.length === 0) {
-            console.log("Active chat is empty, not creating new chat");
-            router.push(`/chat/${chats[0]._id}`);
-            return;
-        }
+        // console.log("Creating new chat");
+        // if (chats.length > 0 && chats[0].messages.length === 0) {
+        //     router.push(`/chat/${chats[0]._id}`);
+        //     return;
+        // }
         createDefaultNewChat();
     };
 
     const createDefaultNewChat = async () => {
+        console.log("Creating default new chat");
         const newChatIndex = chats.findIndex(
             (chat) => chat.messages.length === 0,
         );
@@ -136,6 +142,15 @@ export default React.forwardRef(function Sidebar(_, ref) {
             queryClient.invalidateQueries("chats");
             queryClient.invalidateQueries("activeChats");
         }
+    };
+
+    const handleSaveEdit = (item) => {
+        updateChat.mutate({
+            chatId: item.key,
+            title: editedName,
+            titleSetByUser: true,
+        });
+        setEditingId(null);
     };
 
     const updatedNavigation = navigation.map((item) => {
@@ -172,12 +187,12 @@ export default React.forwardRef(function Sidebar(_, ref) {
             </div>
             <nav className="flex flex-1 flex-col">
                 <ul className="flex flex-1 flex-col gap-y-7">
-                    <li className="grow ">
+                    <li className="grow">
                         <ul className="-mx-2 space-y-1">
                             {updatedNavigation.map((item) => (
                                 <li
                                     key={item.name}
-                                    className="group flex flex-col cursor-pointer"
+                                    className="rounded-md cursor-pointer"
                                 >
                                     <div
                                         className={classNames(
@@ -188,7 +203,6 @@ export default React.forwardRef(function Sidebar(_, ref) {
                                                 ? "bg-gray-100"
                                                 : "hover:bg-gray-100",
                                             "rounded-md p-2 text-sm leading-6 font-semibold text-gray-700",
-                                            "cursor-pointer",
                                         )}
                                         onClick={() => {
                                             if (item.href) {
@@ -207,61 +221,142 @@ export default React.forwardRef(function Sidebar(_, ref) {
                                             <PlusIcon
                                                 className="h-6 w-6 ml-auto p-1 rounded-full bg-blue-100 text-blue-600 hover:bg-blue-200 hover:text-blue-800 cursor-pointer"
                                                 onClick={(e) => {
-                                                    e.stopPropagation(); // Prevent click event from bubbling up
+                                                    e.stopPropagation();
                                                     handleNewChat();
                                                 }}
                                             />
                                         )}
                                     </div>
                                     {item.children?.length > 0 && (
-                                        <ul className="mt-1 px-2">
-                                            {item.children.map((subItem, i) => (
-                                                <li
-                                                    key={
-                                                        subItem.key ||
-                                                        JSON.stringify(subItem)
-                                                    }
-                                                    className={classNames(
-                                                        pathname ===
-                                                            subItem.href
-                                                            ? "bg-gray-100"
-                                                            : "hover:bg-gray-100",
-                                                        "group flex items-center justify-between rounded-md cursor-pointer",
-                                                    )}
-                                                    onClick={() => {
-                                                        if (!subItem.href)
-                                                            return;
-                                                        setActiveChatId.mutate(
-                                                            subItem.key,
-                                                        );
-                                                        router.push(
-                                                            subItem.href,
-                                                        );
-                                                    }}
-                                                >
-                                                    <div
-                                                        className={`block py-2 pe-2 ${
-                                                            item.name === "Chat"
-                                                                ? "text-xs pl-4"
-                                                                : "text-sm pl-9"
-                                                        } leading-6 text-gray-700 w-full select-none`}
+                                        <ul className="mt-1 px-1">
+                                            {item.children.map(
+                                                (subItem, index) => (
+                                                    <li
+                                                        key={
+                                                            subItem.key ||
+                                                            JSON.stringify(
+                                                                subItem,
+                                                            )
+                                                        }
+                                                        className={classNames(
+                                                            "group flex items-center justify-between rounded-md cursor-pointer hover:bg-gray-100 my-0.5",
+                                                            (index === 0 &&
+                                                                item.name ===
+                                                                    "Chat" &&
+                                                                pathname.startsWith(
+                                                                    "/chat/",
+                                                                )) ||
+                                                                pathname ===
+                                                                    subItem?.href
+                                                                ? "bg-gray-100"
+                                                                : "",
+                                                        )}
                                                     >
-                                                        {t(subItem.name)}
-                                                    </div>
-                                                    {item.name === "Chat" && (
-                                                        <TrashIcon
-                                                            className="h-4 w-4 mr-2 text-gray-400 hover:text-red-600 cursor-pointer"
-                                                            aria-hidden="true"
-                                                            onClick={(e) => {
-                                                                e.stopPropagation();
-                                                                handleDeleteChat(
-                                                                    subItem.key,
-                                                                );
+                                                        <div
+                                                            className={`relative block py-2.5 pe-1 ${item.name === "Chat" ? "text-xs pl-4" : "text-sm pl-9"} leading-6 text-gray-700 w-full select-none`}
+                                                            onClick={() => {
+                                                                // make its hover effect gone
+                                                                document.activeElement.blur();
+
+                                                                if (
+                                                                    subItem.href
+                                                                ) {
+                                                                    setActiveChatId.mutate(
+                                                                        subItem.key,
+                                                                    );
+                                                                    router.push(
+                                                                        subItem.href,
+                                                                    );
+                                                                }
                                                             }}
-                                                        />
-                                                    )}
-                                                </li>
-                                            ))}
+                                                        >
+                                                            {item.name ===
+                                                                "Chat" &&
+                                                            editingId &&
+                                                            editingId ===
+                                                                subItem.key ? (
+                                                                <input
+                                                                    autoFocus
+                                                                    type="text"
+                                                                    className="border-0 ring-1 w-full text-xs bg-gray-50 p-0 font-medium"
+                                                                    value={
+                                                                        editedName
+                                                                    }
+                                                                    onChange={(
+                                                                        e,
+                                                                    ) => {
+                                                                        setEditedName(
+                                                                            e
+                                                                                .target
+                                                                                .value,
+                                                                        );
+                                                                    }}
+                                                                    onKeyDown={(
+                                                                        e,
+                                                                    ) => {
+                                                                        if (
+                                                                            e.key ===
+                                                                            "Enter"
+                                                                        ) {
+                                                                            handleSaveEdit(
+                                                                                subItem,
+                                                                            );
+                                                                        }
+                                                                        if (
+                                                                            e.key ===
+                                                                            "Escape"
+                                                                        ) {
+                                                                            setEditingId(
+                                                                                null,
+                                                                            );
+                                                                        }
+                                                                    }}
+                                                                />
+                                                            ) : (
+                                                                <>
+                                                                    {item.name ===
+                                                                        "Chat" && (
+                                                                        <FaEdit
+                                                                            className="absolute left-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 cursor-pointer invisible group-hover:visible"
+                                                                            onClick={(
+                                                                                e,
+                                                                            ) => {
+                                                                                e.stopPropagation();
+                                                                                setEditingId(
+                                                                                    subItem.key,
+                                                                                );
+                                                                                setEditedName(
+                                                                                    subItem.name,
+                                                                                );
+                                                                            }}
+                                                                        />
+                                                                    )}
+                                                                    <span className="pl-2">
+                                                                        {t(
+                                                                            subItem.name,
+                                                                        )}
+                                                                    </span>
+                                                                </>
+                                                            )}
+                                                        </div>
+                                                        {item.name ===
+                                                            "Chat" && (
+                                                            <TrashIcon
+                                                                className="h-4 w-4 mr-1 text-gray-400 group-hover:visible invisible hover:text-red-600 cursor-pointer"
+                                                                aria-hidden="true"
+                                                                onClick={(
+                                                                    e,
+                                                                ) => {
+                                                                    e.stopPropagation();
+                                                                    handleDeleteChat(
+                                                                        subItem.key,
+                                                                    );
+                                                                }}
+                                                            />
+                                                        )}
+                                                    </li>
+                                                ),
+                                            )}
                                         </ul>
                                     )}
                                 </li>

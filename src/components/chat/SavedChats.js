@@ -103,6 +103,7 @@ function SavedChats({ displayState }) {
                             onClick={async () => {
                                 try {
                                     const chatId = chat._id;
+                                    if (!chatId) return;
                                     await setActiveChatId.mutateAsync(chatId);
                                     router.push(`/chat/${chatId}`);
                                 } catch (error) {
