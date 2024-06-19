@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
 import { handleError } from "../../utils/auth";
-import { getActiveChatId, setActiveChatId } from "../_lib";
+import { getUserChatInfo, setActiveChatId } from "../_lib";
 
-// Handle GET request to retrieve the active chat ID for the current user
+// Handle GET request to retrieve user chat information (both active chat IDs and the most recent active chat ID)
 export async function GET(req) {
     try {
-        const activeChatId = await getActiveChatId();
-        return NextResponse.json({ activeChatId });
+        const userChatInfo = await getUserChatInfo();
+        return NextResponse.json(userChatInfo);
     } catch (error) {
         return handleError(error);
     }

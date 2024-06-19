@@ -20,7 +20,7 @@ import {
     useAddChat,
     useDeleteChat,
     useGetActiveChatId,
-    useGetChats,
+    useGetActiveChats,
     useSetActiveChatId,
 } from "../../app/queries/chats";
 import { useQueryClient } from "@tanstack/react-query";
@@ -32,13 +32,7 @@ const navigation = [
         name: "Chat",
         icon: ChatBubbleLeftIcon,
         href: "/chat",
-        children: [
-            {
-                name: "...",
-                href: "/chat/history",
-                customClass: "pl-12", // Add Tailwind CSS class here
-            },
-        ], // To be dynamically filled
+        children: [], // To be dynamically filled
     },
     {
         name: "Translate",
@@ -87,7 +81,7 @@ export default React.forwardRef(function Sidebar(_, ref) {
     const { getLogo, getSidebarLogo } = config.global;
     const { language } = useContext(LanguageContext);
     const { t } = useTranslation();
-    const { data: chatsData = [] } = useGetChats(); // Ensure chats default to an empty array
+    const { data: chatsData = [] } = useGetActiveChats(); // Ensure chats default to an empty array
     const chats = chatsData || [];
     const deleteChat = useDeleteChat();
     const setActiveChatId = useSetActiveChatId();
@@ -97,15 +91,14 @@ export default React.forwardRef(function Sidebar(_, ref) {
     const queryClient = useQueryClient();
 
     const handleDeleteChat = (chatId) => {
-        console.log(`Deleting chat: ${chatId}`);
-        // Get the current active chat ID
+        if (!window.confirm("Are you sure you want to delete this chat?")) {
+            return;
+        }
+
         const currentActiveChatId = activeChatId;
         deleteChat.mutate({ chatId });
 
-        // Only navigate if the deleted chat was the active chat
         if (chatId === currentActiveChatId) {
-            //setActiveChatId.mutate(null);
-            //set top chat as active chat if not create new chat
             const topChat = chats.filter((chat) => chat._id !== chatId)[0];
             if (topChat) {
                 console.log("Setting top chat as active chat", topChat._id);
@@ -123,49 +116,43 @@ export default React.forwardRef(function Sidebar(_, ref) {
             router.push(`/chat/${chats[0]._id}`);
             return;
         }
-        // console.log("Creating new chat");
         createDefaultNewChat();
     };
 
     const createDefaultNewChat = async () => {
+        const newChatIndex = chats.findIndex(
+            (chat) => chat.messages.length === 0,
+        );
+        if (newChatIndex > -1) {
+            setActiveChatId.mutate(chats[newChatIndex]._id);
+            router.push(`/chat/${chats[newChatIndex]._id}`);
+            return;
+        }
         const newChat = await addChat.mutateAsync({ messages: [] });
         if (newChat && newChat._id) {
             const newChatId = newChat._id;
-            // console.log("Setting active chat ID to:", newChatId);
             setActiveChatId.mutate(newChatId);
             router.push(`/chat/${newChatId}`);
-            //invalidate chats
             queryClient.invalidateQueries("chats");
+            queryClient.invalidateQueries("activeChats");
         }
     };
 
     const updatedNavigation = navigation.map((item) => {
         if (item.name === "Chat" && Array.isArray(chats)) {
-            const items = chats.slice(0, 4);
-            //active chat should always be included
-            const activeChat = chats.find((chat) => chat._id === activeChatId);
-            const itemsHasActiveChat = items.some(
-                (chat) => chat._id === activeChatId,
-            );
-            if (!itemsHasActiveChat && activeChat) {
-                items.pop();
-                items.push(activeChat);
-            }
+            const items = chats.slice(0, 3);
 
             return {
                 ...item,
-                children: [
-                    ...items.map((chat) => ({
-                        name: (chat?.title && chat.title !== "New Chat"
-                            ? chat.title
-                            : (chat.messages && chat.messages[0]?.payload) ||
-                              "New Chat"
-                        ).slice(0, 21),
-                        href: `/chat/${chat._id}`,
-                        key: chat._id, // Unique key for each child
-                    })),
-                    ...(item.children || []), // Existing children
-                ],
+                children: items.map((chat) => ({
+                    name: (chat?.title && chat.title !== "New Chat"
+                        ? chat.title
+                        : (chat?.messages && chat?.messages[0]?.payload) ||
+                          "New Chat"
+                    ).slice(0, 21),
+                    href: chat._id ? `/chat/${chat._id}` : ``,
+                    key: chat._id,
+                })),
             };
         }
         return item;
@@ -187,146 +174,98 @@ export default React.forwardRef(function Sidebar(_, ref) {
                 <ul className="flex flex-1 flex-col gap-y-7">
                     <li className="grow ">
                         <ul className="-mx-2 space-y-1">
-                            {updatedNavigation.map((item) => {
-                                if (
-                                    !item.children ||
-                                    item.children.length === 0
-                                ) {
-                                    return (
-                                        <li key={item.name}>
-                                            <Link
-                                                href={item.href || "#"}
-                                                className={classNames(
-                                                    pathname.includes(item.href)
-                                                        ? "bg-gray-100"
-                                                        : "hover:bg-gray-100",
-                                                    "group flex gap-x-3 rounded-md p-2 text-sm leading-6 font-semibold text-gray-700",
-                                                )}
-                                            >
-                                                <item.icon
-                                                    className="h-6 w-6 shrink-0 text-gray-400"
-                                                    aria-hidden="true"
-                                                />
-                                                {t(item.name)}
-                                            </Link>
-                                        </li>
-                                    );
-                                } else {
-                                    return (
-                                        <li
-                                            key={item.name}
-                                            className="cursor-pointer"
-                                        >
-                                            <div className="flex items-center justify-between">
-                                                <button
+                            {updatedNavigation.map((item) => (
+                                <li
+                                    key={item.name}
+                                    className="group flex flex-col cursor-pointer"
+                                >
+                                    <div
+                                        className={classNames(
+                                            "flex items-center justify-between",
+                                            item.href &&
+                                                pathname.includes(item.href) &&
+                                                pathname === item.href
+                                                ? "bg-gray-100"
+                                                : "hover:bg-gray-100",
+                                            "rounded-md p-2 text-sm leading-6 font-semibold text-gray-700",
+                                            "cursor-pointer",
+                                        )}
+                                        onClick={() => {
+                                            if (item.href) {
+                                                router.push(item.href);
+                                            }
+                                        }}
+                                    >
+                                        <div className="flex items-center grow gap-x-3">
+                                            <item.icon
+                                                className="h-6 w-6 shrink-0 text-gray-400"
+                                                aria-hidden="true"
+                                            />
+                                            {t(item.name)}
+                                        </div>
+                                        {item.name === "Chat" && (
+                                            <PlusIcon
+                                                className="h-6 w-6 ml-auto p-1 rounded-full bg-blue-100 text-blue-600 hover:bg-blue-200 hover:text-blue-800 cursor-pointer"
+                                                onClick={(e) => {
+                                                    e.stopPropagation(); // Prevent click event from bubbling up
+                                                    handleNewChat();
+                                                }}
+                                            />
+                                        )}
+                                    </div>
+                                    {item.children?.length > 0 && (
+                                        <ul className="mt-1 px-2">
+                                            {item.children.map((subItem, i) => (
+                                                <li
+                                                    key={
+                                                        subItem.key ||
+                                                        JSON.stringify(subItem)
+                                                    }
                                                     className={classNames(
-                                                        pathname.includes(
-                                                            item.href,
-                                                        )
+                                                        pathname ===
+                                                            subItem.href
                                                             ? "bg-gray-100"
                                                             : "hover:bg-gray-100",
-                                                        "flex items-center w-full text-start rounded-md p-2 gap-x-3 text-sm leading-6 font-semibold text-gray-700",
+                                                        "group flex items-center justify-between rounded-md cursor-pointer",
                                                     )}
-                                                    onClick={(e) => {
-                                                        if (
-                                                            item.name === "Chat"
-                                                        ) {
-                                                            e.preventDefault();
-                                                            e.stopPropagation();
-                                                        } else {
-                                                            router.push(
-                                                                item.href,
-                                                            );
-                                                        }
+                                                    onClick={() => {
+                                                        if (!subItem.href)
+                                                            return;
+                                                        setActiveChatId.mutate(
+                                                            subItem.key,
+                                                        );
+                                                        router.push(
+                                                            subItem.href,
+                                                        );
                                                     }}
                                                 >
-                                                    <item.icon
-                                                        className="h-6 w-6 shrink-0 text-gray-400"
-                                                        aria-hidden="true"
-                                                    />
-                                                    {t(item.name)}
-
+                                                    <div
+                                                        className={`block py-2 pe-2 ${
+                                                            item.name === "Chat"
+                                                                ? "text-xs pl-4"
+                                                                : "text-sm pl-9"
+                                                        } leading-6 text-gray-700 w-full select-none`}
+                                                    >
+                                                        {t(subItem.name)}
+                                                    </div>
                                                     {item.name === "Chat" && (
-                                                        <PlusIcon
-                                                            className="h-6 w-6 ml-auto p-1 rounded-full bg-blue-100 text-blue-600 hover:bg-blue-200 hover:text-blue-800 cursor-pointer"
-                                                            onClick={
-                                                                handleNewChat
-                                                            }
-                                                        />
-                                                    )}
-                                                </button>
-                                            </div>
-                                            <ul className="mt-1 px-2">
-                                                {item.children?.map(
-                                                    (subItem) => (
-                                                        <li
-                                                            key={
-                                                                subItem.key ||
-                                                                JSON.stringify(
-                                                                    subItem,
-                                                                )
-                                                            }
-                                                            className={classNames(
-                                                                pathname.includes(
-                                                                    subItem.href,
-                                                                ) ||
-                                                                    (pathname ===
-                                                                        "/chat" &&
-                                                                        subItem.key ===
-                                                                            activeChatId)
-                                                                    ? //  ||
-                                                                      //     subItem.key ===
-                                                                      //         activeChatId.data
-                                                                      "bg-gray-100"
-                                                                    : "hover:bg-gray-100",
-                                                                "group flex items-center justify-between rounded-md cursor-pointer",
-                                                            )}
-                                                            onClick={() => {
-                                                                if (
-                                                                    subItem.name !==
-                                                                    "..."
-                                                                ) {
-                                                                    setActiveChatId.mutate(
-                                                                        subItem.key,
-                                                                    );
-                                                                }
-                                                                router.push(
-                                                                    subItem.href,
+                                                        <TrashIcon
+                                                            className="h-4 w-4 mr-2 text-gray-400 hover:text-red-600 cursor-pointer"
+                                                            aria-hidden="true"
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                handleDeleteChat(
+                                                                    subItem.key,
                                                                 );
                                                             }}
-                                                        >
-                                                            <div
-                                                                className={`block py-2 pe-2 ${item.name === "Chat" ? "text-xs pl-4" : "text-sm pl-9"} leading-6 text-gray-700 w-full select-none`}
-                                                            >
-                                                                {t(
-                                                                    subItem.name,
-                                                                )}
-                                                            </div>
-                                                            {item.name ===
-                                                                "Chat" &&
-                                                                subItem.name !==
-                                                                    "..." && (
-                                                                    <TrashIcon
-                                                                        className="h-4 w-4 mr-2 text-gray-400 hover:text-red-600 cursor-pointer"
-                                                                        aria-hidden="true"
-                                                                        onClick={(
-                                                                            e,
-                                                                        ) => {
-                                                                            e.stopPropagation();
-                                                                            handleDeleteChat(
-                                                                                subItem.key,
-                                                                            );
-                                                                        }}
-                                                                    />
-                                                                )}
-                                                        </li>
-                                                    ),
-                                                )}
-                                            </ul>
-                                        </li>
-                                    );
-                                }
-                            })}
+                                                        />
+                                                    )}
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    )}
+                                </li>
+                            ))}
                         </ul>
                     </li>
                     <li>

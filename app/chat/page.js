@@ -1,41 +1,10 @@
-import {
-    dehydrate,
-    HydrationBoundary,
-    QueryClient,
-} from "@tanstack/react-query";
-import Chat from "../../src/components/chat/Chat";
-import { createNewChat, setActiveChatId } from "../api/chats/_lib";
+"use client";
+import SavedChats from "../../src/components/chat/SavedChats";
 
-export default async function ChatPage() {
-    // Create a new chat
-    const newChat = await createNewChat({});
-    const id = await setActiveChatId(String(newChat._id));
-
-    const queryClient = new QueryClient();
-
-    // Prefetch the chat data
-    await queryClient.prefetchQuery({
-        queryKey: ["chat", id],
-        queryFn: async () => {
-            return JSON.parse(JSON.stringify(newChat));
-        },
-        staleTime: Infinity,
-    });
-
-    //Prefetch the active chat id with the provided id
-    await queryClient.prefetchQuery({
-        queryKey: ["activeChatId"],
-        queryFn: async () => {
-            return String(id);
-        },
-        staleTime: Infinity,
-    });
-
+export default function ChatHistoryPage() {
     return (
-        <HydrationBoundary state={dehydrate(queryClient)}>
-            <div className="flex flex-col h-full">
-                <Chat />
-            </div>
-        </HydrationBoundary>
+        <div>
+            <SavedChats />
+        </div>
     );
 }

@@ -2,6 +2,7 @@ import { useTranslation } from "react-i18next";
 import {
     useAddChat,
     useDeleteChat,
+    useGetActiveChats,
     useGetChats,
     useSetActiveChatId,
 } from "../../../app/queries/chats";
@@ -9,6 +10,7 @@ import { TrashIcon, PlusIcon } from "@heroicons/react/24/outline";
 import { useRouter } from "next/navigation";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
+import React from "react";
 
 dayjs.extend(relativeTime);
 
@@ -29,9 +31,17 @@ function SavedChats({ displayState }) {
     const setActiveChatId = useSetActiveChatId();
     const router = useRouter();
     const addChat = useAddChat();
+    // const activeChats = useGetActiveChats()?.data;
 
     const handleDelete = async (chatId, e) => {
         e.stopPropagation(); // Prevents setting chat as active when deleting
+
+        // Asking for user confirmation
+        const userConfirmed = window.confirm(
+            "Are you sure you want to delete this chat?",
+        );
+        if (!userConfirmed) return;
+
         try {
             console.log("Deleting chat", chatId);
             if (!chatId) return;
@@ -90,35 +100,45 @@ function SavedChats({ displayState }) {
                     chat && (
                         <div
                             key={chat._id}
-                            onClick={() => {
-                                setActiveChatId.mutate(chat._id);
-                                router.push(`/chat/${chat._id}`);
+                            onClick={async () => {
+                                try {
+                                    const chatId = chat._id;
+                                    await setActiveChatId.mutateAsync(chatId);
+                                    router.push(`/chat/${chatId}`);
+                                } catch (error) {
+                                    console.error(
+                                        "Failed to set active chat ID:",
+                                        error,
+                                    );
+                                }
                             }}
                             className="p-4 border rounded-lg shadow-lg hover:bg-gray-100 cursor-pointer relative"
                         >
                             <div className="flex justify-between items-center mb-2">
-                                <h3 className="font-bold text-xl">
+                                <h3 className="font-semibold text-xl">
                                     {t(chat.title) || t("Chat")}
                                 </h3>
 
                                 <TrashIcon
                                     onClick={(e) => handleDelete(chat._id, e)}
-                                    className="h-6 w-6 text-red-500 hover:text-red-700"
+                                    className="h-4 w-4 text-red-500 hover:text-red-700"
                                 />
                             </div>
 
                             <div className="flex justify-between items-center pb-2">
                                 <ul>
-                                    {chat.messages.slice(-3).map((m, index) => (
-                                        <li
-                                            key={index}
-                                            className="text-xs text-gray-500"
-                                        >
-                                            {m.payload.length > 35
-                                                ? `${m.payload.slice(0, 35)}...`
-                                                : m.payload}
-                                        </li>
-                                    ))}
+                                    {chat?.messages
+                                        ?.slice(-3)
+                                        .map((m, index) => (
+                                            <li
+                                                key={index}
+                                                className="text-xs text-gray-500"
+                                            >
+                                                {m.payload.length > 35
+                                                    ? `${m.payload.slice(0, 35)}...`
+                                                    : m.payload}
+                                            </li>
+                                        ))}
                                 </ul>
                             </div>
                             {/* Display relative time */}
@@ -136,19 +156,39 @@ function SavedChats({ displayState }) {
     return (
         <div className={`${isDocked ? "text-xs" : ""}`}>
             <div className="flex justify-between items-center mb-4">
-                <h1 className="text-2xl font-bold">
+                <h1 className="text-2xl font-semibold">
                     {t("Saved Chats")} ({savedChatCount})
                 </h1>
-                <button
-                    onClick={handleCreateNewChat}
-                    className="p-2 text-blue-600 bg-blue-100 rounded hover:bg-blue-200 hover:text-blue-800 flex items-center"
-                >
+                <button onClick={handleCreateNewChat} className="lb-primary">
                     <PlusIcon className="h-6 w-6" />
-                    <span className="font-bold ml-2">
+                    <span className="font-semibold ml-2">
                         {t("Create New Chat")}
                     </span>
                 </button>
             </div>
+
+            {/* <div className="text-sm">
+                <span className="mr-2 italic">Most recent chats:</span>
+                {activeChats?.length > 0 && ( // Display active chats
+                   <ul className="inline space-x-3">
+                     {activeChats.map((chat, index) => (
+                       <span key={chat._id}>
+                         <li className="inline">
+                           <button onClick={() => router.push(`/chat/${chat._id}`)} 
+                           className="py-1  hover:underline"
+                            >{chat.title}</button>
+
+                            <TrashIcon
+                                onClick={(e) => handleDelete(chat._id, e)}
+                                className="inline cursor-pointer h-3.5 w-3.5 mx-2 mb-0.5 text-red-500 hover:text-red-700"
+                                />
+                         </li>
+                         {index < activeChats.length - 1 && <span className="inline">/</span>}
+                       </span>
+                     ))}
+                   </ul>
+                )}
+            </div> */}
             <div className="chats">
                 {Object.entries(categorizedChats).map(
                     ([category, chats]) =>

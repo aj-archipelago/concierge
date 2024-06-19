@@ -4,10 +4,20 @@ import {
     QueryClient,
 } from "@tanstack/react-query";
 import Chat from "../../../src/components/chat/Chat";
-import { getChatById, setActiveChatId } from "../../api/chats/_lib";
+import {
+    getActiveChatId,
+    getChatById,
+    setActiveChatId,
+} from "../../api/chats/_lib";
 
 export default async function ChatPage({ params }) {
-    const id = String(params.id);
+    let id = String(params.id);
+    //also check id if valid mongo object id
+    if (!id || id === "undefined" || id === "null") {
+        console.warn("Chat ID is required");
+        id = await getActiveChatId();
+        // route page to active chat
+    }
     const response = await getChatById(id);
     await setActiveChatId(id);
     const queryClient = new QueryClient();

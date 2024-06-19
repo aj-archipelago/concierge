@@ -43,10 +43,10 @@ const userSchema = new mongoose.Schema(
             required: false,
             default: [],
         },
-        activeChatId: {
-            type: mongoose.Schema.Types.ObjectId,
+        activeChatIds: {
+            type: [mongoose.Schema.Types.ObjectId],
             ref: "Chat",
-            required: false, // Set to true if you want this to be mandatory
+            required: false,
         },
     },
     {
