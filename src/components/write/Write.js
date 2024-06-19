@@ -2,13 +2,18 @@
 
 import * as amplitude from "@amplitude/analytics-browser";
 import { useApolloClient } from "@apollo/client";
-import React, { useCallback, useContext, useMemo, useState } from "react";
+import React, {
+    useCallback,
+    useContext,
+    useEffect,
+    useMemo,
+    useState,
+} from "react";
 import { useTranslation } from "react-i18next";
 import "react-quill/dist/quill.snow.css";
-import { useDispatch, useSelector } from "react-redux";
+import { useDispatch } from "react-redux";
 import classNames from "../../../app/utils/class-names";
 import { AuthContext } from "../../App";
-import { setWriteInputText } from "../../stores/writeSlice";
 import { indexMainPaneText } from "../../utils/indexMainPaneText";
 import AIModal from "../AIModal";
 import actions from "../editor/AIEditorActions";
@@ -18,13 +23,14 @@ import Sidebar from "./Sidebar";
 import Toolbar from "./Toolbar";
 
 function Write() {
-    const inputText = useSelector((state) => state.write?.inputText);
-    const { user } = useContext(AuthContext);
+    const { user, userState, debouncedUpdateUserState } =
+        useContext(AuthContext);
     const contextId = user?.contextId;
     const [selection, setSelection] = useState(null);
     const dispatch = useDispatch();
     const [headline, setHeadline] = useState("");
     const [subhead, setSubhead] = useState("");
+    const [inputText, setInputText] = useState("");
     const client = useApolloClient();
     const [open, setOpen] = useState(false);
 
@@ -33,6 +39,21 @@ function Write() {
     const [action, setAction] = useState(null);
     const [args, setArgs] = useState(null);
     const { t } = useTranslation();
+
+    useEffect(() => {
+        const stateHeadline = userState?.write?.headline;
+        const stateSubhead = userState?.write?.subhead;
+        const stateText = userState?.write?.text;
+        if (stateHeadline) {
+            setHeadline(stateHeadline);
+        }
+        if (stateSubhead) {
+            setSubhead(stateSubhead);
+        }
+        if (stateText) {
+            setInputText(stateText);
+        }
+    }, [userState]);
 
     // If the action is a selection, then we want to pass the selected text
     // to the AI modal. Otherwise, we want to pass the entire text.
@@ -55,7 +76,14 @@ function Write() {
                 }
             };
 
-            dispatch(setWriteInputText(getUpdatedText(t)));
+            setInputText(getUpdatedText(t));
+            debouncedUpdateUserState("write", {
+                write: {
+                    headline: headline,
+                    subhead: subhead,
+                    text: getUpdatedText(t),
+                },
+            });
             indexMainPaneText(getUpdatedText(t), contextId, dispatch, client);
         },
         [dispatch, action, inputText, selection, contextId, client],
@@ -70,7 +98,14 @@ function Write() {
 
     const handleEditorChange = React.useCallback(
         (text) => {
-            dispatch(setWriteInputText(text));
+            setInputText(text);
+            debouncedUpdateUserState("write", {
+                write: {
+                    headline,
+                    subhead,
+                    text,
+                },
+            });
             indexMainPaneText(text, contextId, dispatch, client);
         },
         [dispatch, contextId, client],
@@ -92,6 +127,14 @@ function Write() {
                             onChange={(h) => {
                                 setHeadline(h.headline);
                                 setSubhead(h.subhead);
+
+                                debouncedUpdateUserState("write", {
+                                    write: {
+                                        headline: h.headline,
+                                        subhead: h.subhead,
+                                        text: inputText,
+                                    },
+                                });
                             }}
                             articleText={inputText}
                         />
@@ -109,6 +152,13 @@ function Write() {
                                     case "clear-headline":
                                         setHeadline("");
                                         setSubhead("");
+                                        debouncedUpdateUserState("write", {
+                                            write: {
+                                                headline: "",
+                                                subhead: "",
+                                                text: inputText,
+                                            },
+                                        });
                                         break;
                                     default:
                                         break;

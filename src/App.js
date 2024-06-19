@@ -1,6 +1,6 @@
 "use client";
 import { ApolloNextAppProvider } from "@apollo/experimental-nextjs-app-support";
-import React, { useContext } from "react";
+import React, { useContext, useRef } from "react";
 import { getClient } from "./graphql";
 import "./i18n";
 
@@ -13,7 +13,11 @@ import { ThemeProvider } from "./contexts/ThemeProvider";
 import Layout from "./layout/Layout";
 import "./App.scss";
 import "./tailwind.css";
-import { useCurrentUser } from "../app/queries/users";
+import {
+    useCurrentUser,
+    useUpdateUserState,
+    useUserState,
+} from "../app/queries/users";
 
 const { NEXT_PUBLIC_AMPLITUDE_API_KEY } = process.env;
 
@@ -31,10 +35,35 @@ const App = ({ children, language, theme, serverUrl, neuralspaceEnabled }) => {
     }
 
     const { data: currentUser } = useCurrentUser();
+    const { data: userState } = useUserState();
+    const updateUserState = useUpdateUserState();
+    const pendingUpdates = useRef([]);
 
     if (!currentUser) {
         return null;
     }
+
+    const debouncedUpdateUserState = (debouncingKey, value) => {
+        const pendingUpdate = pendingUpdates.current.find(
+            (update) => update.debouncingKey === debouncingKey,
+        );
+
+        if (pendingUpdate) {
+            clearTimeout(pendingUpdate.timeout);
+            pendingUpdates.current = pendingUpdates.current.filter(
+                (update) => update.debouncingKey !== debouncingKey,
+            );
+        }
+
+        const timeout = setTimeout(() => {
+            updateUserState.mutate(value);
+        }, 500);
+
+        pendingUpdates.current.push({
+            debouncingKey,
+            timeout,
+        });
+    };
 
     return (
         <ApolloNextAppProvider makeClient={() => getClient(serverUrl)}>
@@ -44,7 +73,11 @@ const App = ({ children, language, theme, serverUrl, neuralspaceEnabled }) => {
                         <LanguageProvider savedLanguage={language}>
                             <React.StrictMode>
                                 <AuthContext.Provider
-                                    value={{ user: currentUser }}
+                                    value={{
+                                        user: currentUser,
+                                        userState,
+                                        debouncedUpdateUserState,
+                                    }}
                                 >
                                     <Layout>
                                         <Body>{children}</Body>
