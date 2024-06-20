@@ -157,6 +157,7 @@ const RAG_START = gql`
         $semanticConfiguration: String
         $aiName: String
         $aiMemorySelfModify: Boolean
+        $title: String
     ) {
         rag_start(
             chatHistory: $chatHistory
@@ -168,6 +169,7 @@ const RAG_START = gql`
             semanticConfiguration: $semanticConfiguration
             aiName: $aiName
             aiMemorySelfModify: $aiMemorySelfModify
+            title: $title
         ) {
             result
             contextId

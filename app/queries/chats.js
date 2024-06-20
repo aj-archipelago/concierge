@@ -46,7 +46,7 @@ export function useGetActiveChats() {
 
 function temporaryNewChat({ messages, title }) {
     return {
-        _id: null, //Date.now().toString(), // Temporary ID
+        _id: null, // Temporary ID
         messages: messages || [],
         title: title || "New Chat",
     };
@@ -63,37 +63,31 @@ export function useAddChat() {
             });
             return response.data;
         },
-        // onMutate: async ({ messages, title }) => {
-        //     await queryClient.cancelQueries({ queryKey: ["chats"] });
-        //     await queryClient.cancelQueries({ queryKey: ["userChatInfo"] });
-        //     await queryClient.cancelQueries({ queryKey: ["activeChats"] });
+        onMutate: async ({ messages, title }) => {
+            const previousChats = queryClient.getQueryData(["chats"]) || [];
+            const newChat = temporaryNewChat({ messages, title });
+            queryClient.setQueryData(["chats"], [newChat, ...previousChats]);
 
-        //     const previousChats = queryClient.getQueryData(["chats"]) || [];
-        //     const newChat = temporaryNewChat({ messages, title });
+            // Return a context object with the snapshotted previous state
+            return { previousChats };
+        },
+        onSuccess: (newChat) => {
+            queryClient.setQueryData(["chat", newChat._id], newChat);
+            queryClient.setQueryData(["chats"], (oldChats) => [
+                newChat,
+                ...oldChats.filter((chat) => chat._id !== newChat._id),
+            ]);
 
-        //     // unstable_batchedUpdates(() => {
-        //     //     queryClient.setQueryData(["chats"], old => [newChat, ...(old || [])]);
-        //     //     queryClient.setQueryData(["activeChats"], old => [newChat, ...(old || [])]);
-        //     //     // queryClient.setQueryData(["userChatInfo"], old => ({
-        //     //     //     ...old,
-        //     //     //     activeChatId: newChat._id,
-        //     //     //     activeChatIds: [newChat._id, ...(old?.activeChatIds || [])],
-        //     //     // }));
-        //     // });
-
-        //     return { previousChats };
-        // },
+            unstable_batchedUpdates(() => {
+                queryClient.invalidateQueries(["userChatInfo"]);
+                queryClient.invalidateQueries(["activeChats"]);
+            });
+        },
+        // Ensure to reset to the previous state in case of an error
         onError: (err, variables, context) => {
             if (context?.previousChats) {
                 queryClient.setQueryData(["chats"], context.previousChats);
             }
-        },
-        onSuccess: () => {
-            unstable_batchedUpdates(() => {
-                queryClient.invalidateQueries(["chats"]);
-                queryClient.invalidateQueries(["userChatInfo"]);
-                queryClient.invalidateQueries(["activeChats"]);
-            });
         },
     });
 }
@@ -182,14 +176,20 @@ export function useSetActiveChatId() {
         },
         onMutate: async (activeChatId) => {
             const previousData = queryClient.getQueryData(["userChatInfo"]);
+            let recentChatIds;
+
+            if (previousData?.recentChatIds.includes(activeChatId)) {
+                recentChatIds = previousData.recentChatIds;
+            } else {
+                recentChatIds = [
+                    activeChatId,
+                    ...(previousData?.recentChatIds || []),
+                ].slice(0, 3); // Ensure max length of 3
+            }
+
             const expectedData = {
                 activeChatId,
-                activeChatIds: [
-                    activeChatId,
-                    ...(previousData?.activeChatIds.filter(
-                        (id) => String(id) !== String(activeChatId),
-                    ) || []),
-                ],
+                recentChatIds,
             };
             const possibleChat =
                 queryClient.getQueryData(["chat", activeChatId]) ||
@@ -200,14 +200,18 @@ export function useSetActiveChatId() {
             await queryClient.cancelQueries(["chats"]);
 
             queryClient.setQueryData(["userChatInfo"], expectedData);
-            queryClient.setQueryData(["activeChats"], (oldChats) => [
-                possibleChat,
-                ...(oldChats.filter((chat) => chat._id !== activeChatId) || []),
-            ]);
-            queryClient.setQueryData(["chats"], (oldChats) => [
-                possibleChat,
-                ...(oldChats.filter((chat) => chat._id !== activeChatId) || []),
-            ]);
+            // Do not change order in activeChats
+            queryClient.setQueryData(["activeChats"], (oldChats) =>
+                oldChats.map((chat) =>
+                    chat._id === activeChatId ? possibleChat : chat,
+                ),
+            );
+            // Do not change order in chats
+            queryClient.setQueryData(["chats"], (oldChats) =>
+                oldChats.map((chat) =>
+                    chat._id === activeChatId ? possibleChat : chat,
+                ),
+            );
 
             return { previousData };
         },
@@ -283,6 +287,7 @@ export function useAddMessage() {
         },
     });
 }
+
 // Hook to update a chat by ID
 export function useUpdateChat() {
     const queryClient = useQueryClient();

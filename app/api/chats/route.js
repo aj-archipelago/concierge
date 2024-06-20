@@ -27,7 +27,7 @@ export async function PUT(req) {
     try {
         const data = await req.json();
         const updatedChat = await updateChat(data);
-        return Response.json(updatedChat);
+        return NextResponse.json(updatedChat);
     } catch (error) {
         return handleError(error);
     }

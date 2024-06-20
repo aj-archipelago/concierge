@@ -43,6 +43,7 @@ function Chat() {
                             if (window.confirm(t("Are you sure?"))) {
                                 updateActiveChat.mutateAsync({
                                     messages: [],
+                                    title: "",
                                 });
                             }
                         }}

@@ -125,7 +125,6 @@ export default React.forwardRef(function Sidebar(_, ref) {
     };
 
     const createDefaultNewChat = async () => {
-        console.log("Creating default new chat");
         const newChatIndex = chats.findIndex(
             (chat) => chat.messages.length === 0,
         );
@@ -240,14 +239,14 @@ export default React.forwardRef(function Sidebar(_, ref) {
                                                         }
                                                         className={classNames(
                                                             "group flex items-center justify-between rounded-md cursor-pointer hover:bg-gray-100 my-0.5",
-                                                            (index === 0 &&
-                                                                item.name ===
-                                                                    "Chat" &&
-                                                                pathname.startsWith(
-                                                                    "/chat/",
-                                                                )) ||
-                                                                pathname ===
-                                                                    subItem?.href
+                                                            // (index === 0 &&
+                                                            //     item.name ===
+                                                            //         "Chat" &&
+                                                            //     pathname.startsWith(
+                                                            //         "/chat/",
+                                                            //     )) ||
+                                                            pathname ===
+                                                                subItem?.href
                                                                 ? "bg-gray-100"
                                                                 : "",
                                                         )}
@@ -331,7 +330,7 @@ export default React.forwardRef(function Sidebar(_, ref) {
                                                                             }}
                                                                         />
                                                                     )}
-                                                                    <span className="pl-2">
+                                                                    <span className="pl-3">
                                                                         {t(
                                                                             subItem.name,
                                                                         )}

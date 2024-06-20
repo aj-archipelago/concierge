@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import Chat from "../../models/chat";
 import { getCurrentUser, handleError } from "../../utils/auth";
-import { deleteChatIdFromActiveList, getChatById } from "../_lib";
+import { deleteChatIdFromRecentList, getChatById } from "../_lib";
 
 // Handle POST request to add a message to an existing chat for the current user
 export async function POST(req, { params }) {
@@ -52,7 +52,7 @@ export async function DELETE(req, { params }) {
             throw new Error("Chat not found");
         }
 
-        await deleteChatIdFromActiveList(id);
+        await deleteChatIdFromRecentList(id);
 
         return NextResponse.json(chat);
     } catch (error) {
