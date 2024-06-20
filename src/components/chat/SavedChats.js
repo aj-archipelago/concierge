@@ -53,12 +53,28 @@ function SavedChats({ displayState }) {
     };
 
     const handleCreateNewChat = async () => {
-        console.log("Creating new chat");
-        const newChat = await addChat.mutateAsync({ messages: [] });
-        console.log("New chat created:", newChat);
-        const newChatId = newChat._id;
-        setActiveChatId.mutate(newChatId);
-        router.push(`/chat/${newChatId}`);
+        // Find any chat with no messages
+        const newChatIndex = savedChats.findIndex(
+            (chat) => chat.messages.length === 0,
+        );
+        if (newChatIndex > -1) {
+            // If found, set as active chat and navigate to it
+            setActiveChatId.mutate(savedChats[newChatIndex]._id);
+            router.push(`/chat/${savedChats[newChatIndex]._id}`);
+            return;
+        }
+
+        // If not found, create a new chat
+        try {
+            const newChat = await addChat.mutateAsync({ messages: [] });
+            if (newChat && newChat._id) {
+                const newChatId = newChat._id;
+                setActiveChatId.mutate(newChatId);
+                router.push(`/chat/${newChatId}`);
+            }
+        } catch (error) {
+            console.error("Failed to create new chat", error);
+        }
     };
 
     const handleSaveEdit = async (chat) => {
@@ -139,7 +155,7 @@ function SavedChats({ displayState }) {
                                 >
                                     ✎
                                 </button>
-                                {editingId === chat._id ? (
+                                {chat._id && editingId === chat._id ? (
                                     <input
                                         autoFocus
                                         type="text"

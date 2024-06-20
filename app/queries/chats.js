@@ -66,17 +66,37 @@ export function useAddChat() {
         onMutate: async ({ messages, title }) => {
             const previousChats = queryClient.getQueryData(["chats"]) || [];
             const newChat = temporaryNewChat({ messages, title });
-            queryClient.setQueryData(["chats"], [newChat, ...previousChats]);
+
+            // Check if there's already a temporary chat entry with no ID
+            const existingTempChatIndex = previousChats.findIndex(
+                (chat) => !chat._id,
+            );
+
+            let updatedChats;
+            if (existingTempChatIndex !== -1) {
+                // Replace the existing temporary chat with the new one
+                updatedChats = [...previousChats];
+                updatedChats[existingTempChatIndex] = newChat;
+            } else {
+                // Add the new temporary chat if no existing temporary chat found
+                updatedChats = [newChat, ...previousChats];
+            }
+
+            queryClient.setQueryData(["chats"], updatedChats);
 
             // Return a context object with the snapshotted previous state
             return { previousChats };
         },
         onSuccess: (newChat) => {
             queryClient.setQueryData(["chat", newChat._id], newChat);
-            queryClient.setQueryData(["chats"], (oldChats) => [
-                newChat,
-                ...oldChats.filter((chat) => chat._id !== newChat._id),
-            ]);
+
+            // Update the "chats" query while ensuring no duplicates
+            queryClient.setQueryData(["chats"], (oldChats) => {
+                const filteredChats = oldChats.filter(
+                    (chat) => chat._id !== newChat._id && chat._id !== null,
+                );
+                return [newChat, ...filteredChats];
+            });
 
             unstable_batchedUpdates(() => {
                 queryClient.invalidateQueries(["userChatInfo"]);
@@ -184,8 +204,16 @@ export function useSetActiveChatId() {
                 recentChatIds = [
                     activeChatId,
                     ...(previousData?.recentChatIds || []),
-                ].slice(0, 3); // Ensure max length of 3
+                ].slice(0, 30); // Ensure max length of 30
             }
+
+            // Keep the top 3 chats in place
+            const top3 = previousData?.recentChatIds.slice(0, 3) || [];
+            const remainingChats = recentChatIds.filter(
+                (id) => !top3.includes(id),
+            );
+
+            recentChatIds = [...top3, ...remainingChats.slice(0, 27)];
 
             const expectedData = {
                 activeChatId,

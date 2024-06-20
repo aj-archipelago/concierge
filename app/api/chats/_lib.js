@@ -121,12 +121,18 @@ export async function setActiveChatId(activeChatId) {
     // Add the chat ID to the beginning of the list if it doesn't already exist
     if (!recentChatIds.includes(activeChatId)) {
         recentChatIds.unshift(activeChatId);
+    } else if (recentChatIds.indexOf(activeChatId) >= 3) {
+        // Remove the chat ID from the list if it exists beyond the top 3
+        recentChatIds = recentChatIds.filter((id) => id !== activeChatId);
+        recentChatIds.unshift(activeChatId);
     }
 
-    // Ensure we only keep the last N recent chat IDs
-    const MAX_RECENT_CHATS = 3;
+    // Ensure we only keep the last 30 recent chat IDs beyond the top 3
+    const MAX_RECENT_CHATS = 30;
     if (recentChatIds.length > MAX_RECENT_CHATS) {
-        recentChatIds = recentChatIds.slice(0, MAX_RECENT_CHATS);
+        const top3 = recentChatIds.slice(0, 3);
+        const rest = recentChatIds.slice(3, MAX_RECENT_CHATS);
+        recentChatIds = [...top3, ...rest];
     }
 
     const updatedUser = await User.findByIdAndUpdate(
