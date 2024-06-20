@@ -37,7 +37,7 @@ function Chat() {
                         {t("Save active chat")}
                     </button> */}
                     <button
-                        className="lb-danger lb-sm"
+                        className="lb-outline-secondary lb-sm"
                         size="sm"
                         onClick={() => {
                             if (window.confirm(t("Are you sure?"))) {
