@@ -44,32 +44,6 @@ function ChatContent({ displayState = "full", container = "chatpage" }) {
                     sender: "labeeb",
                 },
             });
-
-            if (false)
-                if (!chat?.title || chat?.title === "New Chat") {
-                    const text =
-                        messages.map(({ payload }) => payload).join(" ") +
-                        message;
-                    client
-                        .query({
-                            query: QUERIES.HEADLINE,
-                            variables: {
-                                text,
-                                targetLength: 30,
-                                count: 1,
-                            },
-                        })
-                        .then(async (result) => {
-                            const title = result.data?.headline?.result[0];
-                            await updateChatHook.mutateAsync({
-                                chatId: String(chat?._id),
-                                title,
-                            });
-                        })
-                        .catch((error) => {
-                            // console.error("Error fetching chat title:", error);
-                        });
-                }
         }
     };
 
@@ -168,8 +142,9 @@ function ChatContent({ displayState = "full", container = "chatpage" }) {
                                         aiMemorySelfModify,
                                     });
 
-                                    // Update chat title if tool title is different
+                                    // Update chat title if tool title is different or if not set by user
                                     if (
+                                        !chat?.titleSetByUser &&
                                         toolObj?.title &&
                                         chat?.title !== toolObj.title
                                     ) {

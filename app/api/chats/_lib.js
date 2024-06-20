@@ -52,9 +52,6 @@ export async function createNewChat(data) {
           ? messages
           : [messages];
 
-    // Check for an existing default chat with 0 messages and remove it
-    await Chat.deleteOne({ userId, messages: { $exists: true, $size: 0 } });
-
     // Create a new chat
     const newChat = new Chat({
         userId,
@@ -154,7 +151,17 @@ export async function setActiveChatId(activeChatId) {
 export async function getUserChatInfo() {
     const currentUser = await getCurrentUser(false);
     const recentChatIds = currentUser.recentChatIds;
-    const activeChatId = currentUser.activeChatId;
+    let activeChatId = currentUser.activeChatId;
+
+    if (!activeChatId) {
+        // Create a new empty chat if no active chat ID exists
+        const emptyChat = await createNewChat({
+            messages: [],
+            title: "New Chat",
+        });
+        activeChatId = emptyChat._id;
+        await setActiveChatId(activeChatId);
+    }
 
     return {
         recentChatIds,
@@ -163,10 +170,16 @@ export async function getUserChatInfo() {
 }
 
 export async function getActiveChatId() {
-    const { activeChatId } = await getUserChatInfo();
+    let { activeChatId } = await getUserChatInfo();
 
     if (!activeChatId) {
-        throw new Error("No active chat ID found");
+        // Create a new empty chat if no active chat ID exists
+        const emptyChat = await createNewChat({
+            messages: [],
+            title: "New Chat",
+        });
+        activeChatId = emptyChat._id;
+        await setActiveChatId(activeChatId);
     }
 
     return activeChatId;
@@ -193,8 +206,28 @@ export async function deleteChatIdFromRecentList(chatId) {
 
     if (!updatedUser) throw new Error("User not found");
 
+    // Ensure activeChatId is always valid
+    let newActiveChatId = currentUser.activeChatId;
+    if (String(newActiveChatId) === String(chatId)) {
+        if (recentChatIds.length > 0) {
+            newActiveChatId = recentChatIds[0];
+        } else {
+            const emptyChat = await createNewChat({
+                messages: [],
+                title: "New Chat",
+            });
+            newActiveChatId = emptyChat._id;
+        }
+
+        await User.findByIdAndUpdate(
+            currentUser._id,
+            { $set: { activeChatId: newActiveChatId } },
+            { new: true, useFindAndModify: false },
+        );
+    }
+
     return {
-        recentChatIds,
-        activeChatId: updatedUser.activeChatId,
+        recentChatIds: updatedUser.recentChatIds,
+        activeChatId: newActiveChatId,
     };
 }

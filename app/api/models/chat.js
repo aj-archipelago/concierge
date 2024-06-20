@@ -57,6 +57,10 @@ const chatSchema = new mongoose.Schema(
             type: String,
             default: "Chat",
         },
+        titleSetByUser: {
+            type: Boolean,
+            default: false,
+        },
         userId: {
             type: mongoose.Schema.Types.ObjectId,
             ref: "User", // Reference to the User model
