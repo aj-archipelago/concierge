@@ -44,7 +44,6 @@ function SavedChats({ displayState }) {
         if (!userConfirmed) return;
 
         try {
-            console.log("Deleting chat", chatId);
             if (!chatId) return;
             await deleteChat.mutateAsync({ chatId });
         } catch (error) {
