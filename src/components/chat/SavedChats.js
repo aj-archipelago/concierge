@@ -175,7 +175,7 @@ function SavedChats({ displayState }) {
                                     <input
                                         autoFocus
                                         type="text"
-                                        className="border-0 ring-1 w-full text-xl bg-gray-50 p-1"
+                                        className="border-0 ring-1 w-full text-lg bg-gray-50 p-1"
                                         value={editedName}
                                         onChange={(e) =>
                                             setEditedName(e.target.value)
@@ -196,7 +196,7 @@ function SavedChats({ displayState }) {
                                 )}
                                 <TrashIcon
                                     onClick={(e) => handleDelete(chat._id, e)}
-                                    className="h-4 w-4 text-red-500 hover:text-red-700"
+                                    className="h-4 w-4 text-red-500 hover:text-red-700 flex-shrink-0"
                                 />
                             </div>
                             <div className="flex justify-between items-center pb-2">
