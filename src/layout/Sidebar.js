@@ -296,7 +296,14 @@ export default React.forwardRef(function Sidebar(_, ref) {
                                                                     />
                                                                 )}
                                                                 <span
-                                                                    className={`${document.documentElement.dir === "rtl" ? "pr-3" : "pl-3"}`}
+                                                                    className={`${
+                                                                        document
+                                                                            .documentElement
+                                                                            .dir ===
+                                                                        "rtl"
+                                                                            ? "pr-3"
+                                                                            : "pl-3"
+                                                                    }`}
                                                                 >
                                                                     {t(
                                                                         subItem.name,
