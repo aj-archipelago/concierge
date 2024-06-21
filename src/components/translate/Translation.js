@@ -10,6 +10,7 @@ import { QUERIES } from "../../graphql";
 import { stripHTML } from "../../utils/html.utils";
 import CopyButton from "../CopyButton";
 import LoadingButton from "../editor/LoadingButton";
+import { AuthContext } from "../../App";
 
 const LANGUAGE_NAMES = {
     en: "English",
@@ -38,7 +39,6 @@ function Translation({
     setTranslationInputText,
     setTranslationLanguage,
     setTranslationStrategy,
-    setWriteInputText,
     showEditLink = false,
 }) {
     const { t } = useTranslation();
@@ -47,6 +47,7 @@ function Translation({
     const apolloClient = useApolloClient();
     const { language } = useContext(LanguageContext);
     const [activeTab, setActiveTab] = useState("input");
+    const { debouncedUpdateUserState } = useContext(AuthContext);
 
     const executeTranslation = (strategy, inputText, to) => {
         let query;
@@ -188,7 +189,7 @@ function Translation({
                         )}
                     >
                         <textarea
-                            className="lb-input w-full h-full p-2 border border-gray-300 rounded-md resize-none text-xs"
+                            className="lb-input w-full h-full p-2 border border-gray-300 rounded-md resize-none"
                             dir="auto"
                             disabled={loading}
                             rows={10}
@@ -224,7 +225,7 @@ function Translation({
                             )}
                             <textarea
                                 readOnly
-                                className="w-full h-full lb-input p-2 border border-gray-300 rounded-md resize-none text-xs bg-gray-100"
+                                className="w-full h-full lb-input p-2 border border-gray-300 rounded-md resize-none bg-gray-100"
                                 dir="auto"
                                 placeholder="Translation will appear here..."
                                 rows={10}
@@ -236,7 +237,11 @@ function Translation({
                             <button
                                 className="flex gap-2 items-center absolute bottom-1 p-2 px-14 bg-gray-200 border border-gray-300 border-l-0 border-b-0 rounded-bl rounded-br hover:bg-gray-300 active:bg-gray-400"
                                 onClick={() => {
-                                    setWriteInputText(translatedText);
+                                    debouncedUpdateUserState("write", {
+                                        write: {
+                                            text: translatedText,
+                                        },
+                                    });
                                     router.push("/write");
                                 }}
                             >
