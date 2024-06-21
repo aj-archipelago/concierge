@@ -303,7 +303,7 @@ export default React.forwardRef(function Sidebar(_, ref) {
                                                                         "rtl"
                                                                             ? "pr-3"
                                                                             : "pl-3"
-                                                                    }`}
+                                                                    } truncate whitespace-nowrap overflow-hidden`}
                                                                 >
                                                                     {t(
                                                                         subItem.name,
