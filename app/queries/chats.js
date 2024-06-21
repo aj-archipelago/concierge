@@ -48,7 +48,7 @@ function temporaryNewChat({ messages, title }) {
     return {
         _id: null, // Temporary ID
         messages: messages || [],
-        title: title || "New Chat",
+        title: title || "",
     };
 }
 

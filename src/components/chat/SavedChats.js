@@ -39,7 +39,7 @@ function SavedChats({ displayState }) {
         e.stopPropagation();
 
         const userConfirmed = window.confirm(
-            "Are you sure you want to delete this chat?",
+            t("Are you sure you want to delete this chat?"),
         );
         if (!userConfirmed) return;
 

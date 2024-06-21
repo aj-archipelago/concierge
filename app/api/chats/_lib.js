@@ -4,7 +4,7 @@ import { getCurrentUser } from "../utils/auth";
 import mongoose from "mongoose";
 
 const getSimpleTitle = (message) => {
-    return (message?.payload || "").substring(0, 14) || "New Chat";
+    return (message?.payload || "").substring(0, 14);
 };
 
 export async function getRecentChatsOfCurrentUser() {
@@ -157,7 +157,7 @@ export async function getUserChatInfo() {
         // Create a new empty chat if no active chat ID exists
         const emptyChat = await createNewChat({
             messages: [],
-            title: "New Chat",
+            title: "",
         });
         activeChatId = emptyChat._id;
         await setActiveChatId(activeChatId);
@@ -176,7 +176,7 @@ export async function getActiveChatId() {
         // Create a new empty chat if no active chat ID exists
         const emptyChat = await createNewChat({
             messages: [],
-            title: "New Chat",
+            title: "",
         });
         activeChatId = emptyChat._id;
         await setActiveChatId(activeChatId);
@@ -214,7 +214,7 @@ export async function deleteChatIdFromRecentList(chatId) {
         } else {
             const emptyChat = await createNewChat({
                 messages: [],
-                title: "New Chat",
+                title: "",
             });
             newActiveChatId = emptyChat._id;
         }
