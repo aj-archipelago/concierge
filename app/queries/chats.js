@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { unstable_batchedUpdates } from "react-dom";
 import axios from "axios";
+import { isValidObjectId } from "../../src/utils/helper.js";
 
 // Hook to get all chats
 export function useGetChats() {
@@ -188,13 +189,18 @@ export function useSetActiveChatId() {
 
     return useMutation({
         mutationFn: async (activeChatId) => {
-            if (!activeChatId) throw new Error("activeChatId is required");
+            if (!activeChatId || !isValidObjectId(activeChatId)) {
+                throw new Error(
+                    "activeChatId is required and must be a valid Mongo ID",
+                );
+            }
             const response = await axios.put(`/api/chats/active`, {
                 activeChatId,
             });
             return response.data.activeChatId;
         },
         onMutate: async (activeChatId) => {
+            if (!isValidObjectId(activeChatId)) return;
             const previousData = queryClient.getQueryData(["userChatInfo"]);
             let recentChatIds;
 

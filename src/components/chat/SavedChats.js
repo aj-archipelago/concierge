@@ -11,6 +11,7 @@ import { useRouter } from "next/navigation";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
 import React, { useState } from "react";
+import { isValidObjectId } from "../../utils/helper";
 
 dayjs.extend(relativeTime);
 
@@ -46,30 +47,42 @@ function SavedChats({ displayState }) {
         try {
             if (!chatId) return;
             await deleteChat.mutateAsync({ chatId });
+
+            // Create a new chat if this was the last one
+            if (savedChats.length === 1) {
+                await chatCreate(false);
+            }
         } catch (error) {
             console.error("Failed to delete chat", error);
         }
     };
 
-    const handleCreateNewChat = async () => {
+    const handleCreateNewChat = async (navigate = true) => {
         // Find any chat with no messages
         const newChatIndex = savedChats.findIndex(
             (chat) => chat.messages.length === 0,
         );
         if (newChatIndex > -1) {
             // If found, set as active chat and navigate to it
-            setActiveChatId.mutate(savedChats[newChatIndex]._id);
-            router.push(`/chat/${savedChats[newChatIndex]._id}`);
+            const chatId = savedChats[newChatIndex]._id;
+            if (chatId && isValidObjectId(chatId)) {
+                setActiveChatId.mutate(chatId);
+                navigate && router.push(`/chat/${chatId}`);
+            }
             return;
         }
 
         // If not found, create a new chat
+        chatCreate(navigate);
+    };
+
+    const chatCreate = async (navigate = true) => {
         try {
             const newChat = await addChat.mutateAsync({ messages: [] });
-            if (newChat && newChat._id) {
+            if (newChat && newChat._id && isValidObjectId(newChat._id)) {
                 const newChatId = newChat._id;
                 setActiveChatId.mutate(newChatId);
-                router.push(`/chat/${newChatId}`);
+                navigate && router.push(`/chat/${newChatId}`);
             }
         } catch (error) {
             console.error("Failed to create new chat", error);
@@ -125,19 +138,23 @@ function SavedChats({ displayState }) {
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 pt-2">
             {chats.map(
                 (chat) =>
-                    chat && (
+                    chat &&
+                    chat._id &&
+                    isValidObjectId(chat._id) && (
                         <div
                             key={chat._id}
                             onClick={async () => {
                                 try {
                                     const chatId = chat._id;
-                                    if (!chatId) return;
+                                    if (!chatId || !isValidObjectId(chatId))
+                                        return;
                                     await setActiveChatId.mutateAsync(chatId);
                                     router.push(`/chat/${chatId}`);
                                 } catch (error) {
                                     console.error(
                                         "Failed to set active chat ID:",
                                         error,
+                                        chat,
                                     );
                                 }
                             }}
