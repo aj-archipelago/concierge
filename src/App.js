@@ -1,6 +1,6 @@
 "use client";
 import { ApolloNextAppProvider } from "@apollo/experimental-nextjs-app-support";
-import React, { useContext } from "react";
+import React, { useContext, useEffect } from "react";
 import { getClient } from "./graphql";
 import "./i18n";
 
@@ -26,11 +26,13 @@ if (typeof document !== "undefined") {
 export const AuthContext = React.createContext({});
 
 const App = ({ children, language, theme, serverUrl, neuralspaceEnabled }) => {
-    if (i18next.language !== language) {
-        i18next.changeLanguage(language);
-    }
-
     const { data: currentUser } = useCurrentUser();
+
+    useEffect(() => {
+        if (i18next.language !== language) {
+            i18next.changeLanguage(language);
+        }
+    }, [language]);
 
     if (!currentUser) {
         return null;
