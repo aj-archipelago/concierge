@@ -209,7 +209,7 @@ export default React.forwardRef(function Sidebar(_, ref) {
                                                     )}
                                                 >
                                                     <div
-                                                        className={`relative block py-2.5 pe-1 ${item.name === "Chat" ? "text-xs pl-4 pr-4" : "text-sm pl-9 pr-4"} leading-6 text-gray-700 w-full select-none`}
+                                                        className={`relative block py-2.5 pe-1 ${item.name === "Chat" ? "text-xs pl-4 pr-4" : "text-sm pl-9 pr-4"} leading-6 text-gray-700 w-full select-none flex items-center justify-between`}
                                                         dir={
                                                             document
                                                                 .documentElement
@@ -225,7 +225,6 @@ export default React.forwardRef(function Sidebar(_, ref) {
                                                         }}
                                                     >
                                                         {item.name === "Chat" &&
-                                                        editingId &&
                                                         editingId ===
                                                             subItem.key ? (
                                                             <input
@@ -311,19 +310,22 @@ export default React.forwardRef(function Sidebar(_, ref) {
                                                                 </span>
                                                             </>
                                                         )}
+                                                        {item.name ===
+                                                            "Chat" && (
+                                                            <TrashIcon
+                                                                className={`h-4 w-4 flex-shrink-0 text-gray-400 group-hover:visible invisible hover:text-red-600 cursor-pointer ${document.documentElement.dir === "rtl" ? "-ml-2.5" : "-mr-2.5"}`}
+                                                                aria-hidden="true"
+                                                                onClick={(
+                                                                    e,
+                                                                ) => {
+                                                                    e.stopPropagation();
+                                                                    handleDeleteChat(
+                                                                        subItem.key,
+                                                                    );
+                                                                }}
+                                                            />
+                                                        )}
                                                     </div>
-                                                    {item.name === "Chat" && (
-                                                        <TrashIcon
-                                                            className="h-4 w-4 mr-1 text-gray-400 group-hover:visible invisible hover:text-red-600 cursor-pointer"
-                                                            aria-hidden="true"
-                                                            onClick={(e) => {
-                                                                e.stopPropagation();
-                                                                handleDeleteChat(
-                                                                    subItem.key,
-                                                                );
-                                                            }}
-                                                        />
-                                                    )}
                                                 </li>
                                             ))}
                                         </ul>
