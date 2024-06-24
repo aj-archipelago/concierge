@@ -4,15 +4,17 @@ import {
     useDeleteChat,
     useGetChats,
     useSetActiveChatId,
+    useUpdateChat,
 } from "../../../app/queries/chats";
 import { TrashIcon, PlusIcon } from "@heroicons/react/24/outline";
 import { useRouter } from "next/navigation";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
+import React, { useState } from "react";
+import { isValidObjectId } from "../../utils/helper";
 
 dayjs.extend(relativeTime);
 
-// Constants
 const CATEGORIES = {
     today: "Today",
     yesterday: "Yesterday",
@@ -29,28 +31,78 @@ function SavedChats({ displayState }) {
     const setActiveChatId = useSetActiveChatId();
     const router = useRouter();
     const addChat = useAddChat();
+    const updateChat = useUpdateChat();
+
+    const [editingId, setEditingId] = useState(null);
+    const [editedName, setEditedName] = useState("");
 
     const handleDelete = async (chatId, e) => {
-        e.stopPropagation(); // Prevents setting chat as active when deleting
+        e.stopPropagation();
+
+        const userConfirmed = window.confirm(
+            t("Are you sure you want to delete this chat?"),
+        );
+        if (!userConfirmed) return;
+
         try {
-            console.log("Deleting chat", chatId);
             if (!chatId) return;
             await deleteChat.mutateAsync({ chatId });
+
+            // Create a new chat if this was the last one
+            if (savedChats.length === 1) {
+                await chatCreate(false);
+            }
         } catch (error) {
             console.error("Failed to delete chat", error);
         }
     };
 
-    const handleCreateNewChat = async () => {
-        console.log("Creating new chat");
-        const newChat = await addChat.mutateAsync({ messages: [] });
-        console.log("New chat created:", newChat);
-        const newChatId = newChat._id;
-        setActiveChatId.mutate(newChatId);
-        router.push(`/chat/${newChatId}`);
+    const handleCreateNewChat = async (navigate = true) => {
+        // Find any chat with no messages
+        const newChatIndex = savedChats.findIndex(
+            (chat) => chat.messages.length === 0,
+        );
+        if (newChatIndex > -1) {
+            // If found, set as active chat and navigate to it
+            const chatId = savedChats[newChatIndex]._id;
+            if (chatId && isValidObjectId(chatId)) {
+                setActiveChatId.mutate(chatId);
+                navigate && router.push(`/chat/${chatId}`);
+            }
+            return;
+        }
+
+        // If not found, create a new chat
+        chatCreate(navigate);
     };
 
-    // Categorize chats
+    const chatCreate = async (navigate = true) => {
+        try {
+            const newChat = await addChat.mutateAsync({ messages: [] });
+            if (newChat && newChat._id && isValidObjectId(newChat._id)) {
+                const newChatId = newChat._id;
+                setActiveChatId.mutate(newChatId);
+                navigate && router.push(`/chat/${newChatId}`);
+            }
+        } catch (error) {
+            console.error("Failed to create new chat", error);
+        }
+    };
+
+    const handleSaveEdit = async (chat) => {
+        try {
+            if (!chat._id || !editedName) return;
+            await updateChat.mutateAsync({
+                chatId: chat._id,
+                title: editedName,
+                titleSetByUser: true,
+            });
+            setEditingId(null);
+        } catch (error) {
+            console.error("Failed to update chat title", error);
+        }
+    };
+
     const categorizeChats = (chats) => {
         const categories = {
             today: [],
@@ -79,7 +131,6 @@ function SavedChats({ displayState }) {
         return categories;
     };
 
-    // Categorize saved chats
     const categorizedChats = categorizeChats(savedChats || []);
     const savedChatCount = savedChats?.length || 0;
 
@@ -87,41 +138,83 @@ function SavedChats({ displayState }) {
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 pt-2">
             {chats.map(
                 (chat) =>
-                    chat && (
+                    chat &&
+                    chat._id &&
+                    isValidObjectId(chat._id) && (
                         <div
                             key={chat._id}
-                            onClick={() => {
-                                setActiveChatId.mutate(chat._id);
-                                router.push(`/chat/${chat._id}`);
+                            onClick={async () => {
+                                try {
+                                    const chatId = chat._id;
+                                    if (!chatId || !isValidObjectId(chatId))
+                                        return;
+                                    await setActiveChatId.mutateAsync(chatId);
+                                    router.push(`/chat/${chatId}`);
+                                } catch (error) {
+                                    console.error(
+                                        "Failed to set active chat ID:",
+                                        error,
+                                        chat,
+                                    );
+                                }
                             }}
                             className="p-4 border rounded-lg shadow-lg hover:bg-gray-100 cursor-pointer relative"
                         >
                             <div className="flex justify-between items-center mb-2">
-                                <h3 className="font-bold text-xl">
-                                    {t(chat.title) || t("Chat")}
-                                </h3>
-
+                                <button
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        setEditingId(chat._id);
+                                        setEditedName(chat.title);
+                                    }}
+                                    className="text-gray-500 hover:text-gray-700 mr-2"
+                                >
+                                    ✎
+                                </button>
+                                {chat._id && editingId === chat._id ? (
+                                    <input
+                                        autoFocus
+                                        type="text"
+                                        className="border-0 ring-1 w-full text-lg bg-gray-50 p-1"
+                                        value={editedName}
+                                        onChange={(e) =>
+                                            setEditedName(e.target.value)
+                                        }
+                                        onKeyDown={(e) => {
+                                            if (e.key === "Enter") {
+                                                handleSaveEdit(chat);
+                                            }
+                                            if (e.key === "Escape") {
+                                                setEditingId(null);
+                                            }
+                                        }}
+                                    />
+                                ) : (
+                                    <h3 className="font-semibold text-xl relative">
+                                        {t(chat.title) || t("Chat")}
+                                    </h3>
+                                )}
                                 <TrashIcon
                                     onClick={(e) => handleDelete(chat._id, e)}
-                                    className="h-6 w-6 text-red-500 hover:text-red-700"
+                                    className="h-4 w-4 text-red-500 hover:text-red-700 flex-shrink-0"
                                 />
                             </div>
-
                             <div className="flex justify-between items-center pb-2">
                                 <ul>
-                                    {chat.messages.slice(-3).map((m, index) => (
-                                        <li
-                                            key={index}
-                                            className="text-xs text-gray-500"
-                                        >
-                                            {m.payload.length > 35
-                                                ? `${m.payload.slice(0, 35)}...`
-                                                : m.payload}
-                                        </li>
-                                    ))}
+                                    {chat?.messages
+                                        ?.slice(-3)
+                                        .map((m, index) => (
+                                            <li
+                                                key={index}
+                                                className="text-xs text-gray-500"
+                                            >
+                                                {m.payload.length > 35
+                                                    ? `${m.payload.slice(0, 35)}...`
+                                                    : m.payload}
+                                            </li>
+                                        ))}
                                 </ul>
                             </div>
-                            {/* Display relative time */}
                             <span className="text-xs absolute right-2 bottom-2 text-gray-500 text-right">
                                 {dayjs(chat.createdAt).fromNow()}
                             </span>
@@ -136,19 +229,17 @@ function SavedChats({ displayState }) {
     return (
         <div className={`${isDocked ? "text-xs" : ""}`}>
             <div className="flex justify-between items-center mb-4">
-                <h1 className="text-2xl font-bold">
+                <h1 className="text-2xl font-semibold">
                     {t("Saved Chats")} ({savedChatCount})
                 </h1>
-                <button
-                    onClick={handleCreateNewChat}
-                    className="p-2 text-blue-600 bg-blue-100 rounded hover:bg-blue-200 hover:text-blue-800 flex items-center"
-                >
+                <button onClick={handleCreateNewChat} className="lb-primary">
                     <PlusIcon className="h-6 w-6" />
-                    <span className="font-bold ml-2">
+                    <span className="font-semibold ml-2">
                         {t("Create New Chat")}
                     </span>
                 </button>
             </div>
+
             <div className="chats">
                 {Object.entries(categorizedChats).map(
                     ([category, chats]) =>

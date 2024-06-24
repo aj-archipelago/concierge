@@ -1,11 +1,23 @@
 import mongoose from "mongoose";
 
+const validatePayload = (value) => {
+    return (
+        typeof value === "string" ||
+        (Array.isArray(value) &&
+            value.every((item) => typeof item === "string"))
+    );
+};
+
 // Define the individual message schema
 const messageSchema = new mongoose.Schema(
     {
         payload: {
-            type: String,
+            type: mongoose.Schema.Types.Mixed,
             required: true,
+            validate: [
+                validatePayload,
+                "Payload should be a string or an array of strings",
+            ],
         },
         sender: {
             type: String,
@@ -44,6 +56,10 @@ const chatSchema = new mongoose.Schema(
         title: {
             type: String,
             default: "Chat",
+        },
+        titleSetByUser: {
+            type: Boolean,
+            default: false,
         },
         userId: {
             type: mongoose.Schema.Types.ObjectId,

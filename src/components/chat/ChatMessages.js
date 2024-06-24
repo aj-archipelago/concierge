@@ -24,21 +24,27 @@ function ChatMessages({
     const addChat = useAddChat();
     const originalMessages = messages;
 
-    messages = Array.isArray(messages)
-        ? messages.map((message, index) => {
-              if (message.sender === "labeeb") {
-                  return {
-                      ...message,
-                      payload: (
-                          <React.Fragment key={`outer-${message?.id}`}>
-                              {convertMessageToMarkdown(message)}
-                          </React.Fragment>
-                      ),
-                  };
-              }
-              return message;
-          })
-        : [];
+    messages = messages.map((m) => {
+        return Object.assign({}, m, {
+            text: m.payload,
+        });
+    });
+
+    messages = messages.map((message, index) => {
+        // post process the message and create a new
+        // message object with the updated payload.
+        if (message.sender === "labeeb") {
+            return Object.assign({}, message, {
+                payload: (
+                    <React.Fragment key={`outer-${message?.id}`}>
+                        {convertMessageToMarkdown(message)}
+                    </React.Fragment>
+                ),
+            });
+        } else {
+            return message;
+        }
+    });
 
     return (
         <div className="h-full flex flex-col gap-3">
