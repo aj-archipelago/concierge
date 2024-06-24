@@ -41,7 +41,7 @@ const DELETE_ALL_UPLOADS_STR = "__ALL__";
 function ChatTopMenu({ displayState = "full" }) {
     const { t } = useTranslation();
     const { user } = useContext(AuthContext);
-    const activeChatId = useGetActiveChatId()?.data;
+    const activeChatId = useGetActiveChatId();
     const docs = user?.uploadedDocs?.filter(
         ({ chatId }) => chatId === activeChatId,
     );

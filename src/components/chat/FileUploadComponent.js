@@ -28,7 +28,7 @@ function FileUploadComponent({ text }) {
     const [data, setData] = useState(null);
     const { serverUrl } = useContext(ServerContext);
     const addDocument = useAddDocument();
-    const activeChatId = useGetActiveChatId()?.data;
+    const activeChatId = useGetActiveChatId();
     console.log("activeChatId", activeChatId);
 
     const setLoadingState = (isLoading) => {
@@ -43,6 +43,8 @@ function FileUploadComponent({ text }) {
 
             try {
                 const docId = uuidv4();
+
+                console.log("Cognitive insert", activeChatId);
 
                 client
                     .query({

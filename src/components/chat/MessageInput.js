@@ -40,7 +40,7 @@ function MessageInput({ onSend, loading, enableRag, placeholder }) {
     const handleInputChange = (event) => {
         setInputValue(event.target.value);
     };
-    const activeChatId = useGetActiveChatId()?.data;
+    const activeChatId = useGetActiveChatId();
 
     const prepareMessage = (inputText) => {
         return [
@@ -91,6 +91,8 @@ function MessageInput({ onSend, loading, enableRag, placeholder }) {
                     .join("_");
 
                 dispatch(setFileLoading());
+
+                console.log("Cognitive insert2", activeChatId);
 
                 client
                     .query({
