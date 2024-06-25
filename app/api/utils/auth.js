@@ -3,6 +3,7 @@ import config from "../../../config";
 import User from "../models/user";
 import mongoose from "mongoose";
 import { v4 as uuidv4 } from "uuid";
+import dayjs from "dayjs";
 
 export const getCurrentUser = async (convertToJsonObj = true) => {
     const auth = config.auth;
@@ -49,6 +50,16 @@ export const getCurrentUser = async (convertToJsonObj = true) => {
             `User ${user.userId} has no contextId, creating the contextId`,
         );
         user.contextId = uuidv4();
+        try {
+            user = await user.save();
+        } catch (err) {
+            console.log("Error saving user: ", err);
+        }
+    }
+
+    // more than 30 mins
+    if (!user.lastActiveAt || dayjs().diff(user.lastActiveAt, "minute") > 30) {
+        user.lastActiveAt = new Date();
         try {
             user = await user.save();
         } catch (err) {
