@@ -39,6 +39,7 @@ const navigation = [
     {
         name: "Code",
         icon: CodeBracketIcon,
+        href: "/code",
         children: [
             { name: "Knuth", href: "/code/knuth" },
             { name: "JIRA", href: "/code/jira" },
@@ -207,22 +208,25 @@ export default React.forwardRef(function Sidebar(_, ref) {
                                                             ? "bg-gray-100"
                                                             : "",
                                                     )}
+                                                    onClick={() => {
+                                                        if (subItem.href) {
+                                                            router.push(
+                                                                subItem.href,
+                                                            );
+                                                        }
+                                                    }}
                                                 >
                                                     <div
-                                                        className={`relative block py-2.5 pe-1 ${item.name === "Chat" ? "text-xs pl-4 pr-4" : "text-sm pl-9 pr-4"} leading-6 text-gray-700 w-full select-none flex items-center justify-between`}
+                                                        className={`relative block py-2.5 pe-1 ${
+                                                            item.name === "Chat"
+                                                                ? "text-xs pl-4 pr-4"
+                                                                : "text-sm pl-9 pr-4"
+                                                        } leading-6 text-gray-700 w-full select-none flex items-center justify-between`}
                                                         dir={
                                                             document
                                                                 .documentElement
                                                                 .dir
                                                         }
-                                                        onClick={() => {
-                                                            document.activeElement.blur();
-                                                            if (subItem.href) {
-                                                                setPendingChatId(
-                                                                    subItem.key,
-                                                                );
-                                                            }
-                                                        }}
                                                     >
                                                         {item.name === "Chat" &&
                                                         editingId ===
@@ -313,7 +317,14 @@ export default React.forwardRef(function Sidebar(_, ref) {
                                                         {item.name ===
                                                             "Chat" && (
                                                             <TrashIcon
-                                                                className={`h-4 w-4 flex-shrink-0 text-gray-400 group-hover:visible invisible hover:text-red-600 cursor-pointer ${document.documentElement.dir === "rtl" ? "-ml-2.5" : "-mr-2.5"}`}
+                                                                className={`h-4 w-4 flex-shrink-0 text-gray-400 group-hover:visible invisible hover:text-red-600 cursor-pointer ${
+                                                                    document
+                                                                        .documentElement
+                                                                        .dir ===
+                                                                    "rtl"
+                                                                        ? "-ml-2.5"
+                                                                        : "-mr-2.5"
+                                                                }`}
                                                                 aria-hidden="true"
                                                                 onClick={(
                                                                     e,
