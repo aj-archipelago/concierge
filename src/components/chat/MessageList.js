@@ -102,11 +102,11 @@ function MessageList({ messages, bot, loading }) {
             return (
                 <div
                     key={message.id}
-                    className="flex bg-sky-50 ps-1 pt-1 relative [&_button]:hidden [&_button]:hover:block"
+                    className="flex bg-sky-50 ps-1 pt-1 relative [&_.copy-button]:hidden [&_.copy-button]:hover:block"
                 >
                     <CopyButton
                         item={message.text}
-                        className="absolute top-3 end-3 opacity-60 hover:opacity-100"
+                        className="absolute top-3 end-3 copy-button opacity-60 hover:opacity-100"
                     />
 
                     <div className={classNames(basis)}>{avatar}</div>
