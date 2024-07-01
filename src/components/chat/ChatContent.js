@@ -20,10 +20,6 @@ function ChatContent({ displayState = "full", container = "chatpage" }) {
     const { user } = useContext(AuthContext);
     const [loading, setLoading] = useState(false);
     const chat = useGetActiveChat()?.data;
-    // const messages = useMemo(
-    //     () => chat?.messages || [],
-    //     [chat?.messages],
-    // );
     const messages = chat?.messages || [];
     const selectedSources = useSelector((state) => state.doc.selectedSources);
     const updateAiMemoryMutation = useUpdateAiMemory();
