@@ -213,6 +213,14 @@ export default React.forwardRef(function Sidebar(_, ref) {
                                                             router.push(
                                                                 subItem.href,
                                                             );
+                                                            if (
+                                                                item.name ===
+                                                                "Chat"
+                                                            ) {
+                                                                setActiveChatId.mutate(
+                                                                    subItem.key,
+                                                                );
+                                                            }
                                                         }
                                                     }}
                                                 >
