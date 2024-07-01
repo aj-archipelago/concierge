@@ -126,11 +126,11 @@ export default React.forwardRef(function Sidebar(_, ref) {
             return {
                 ...item,
                 children: items.map((chat) => ({
-                    name: (chat?.title && chat.title !== "New Chat"
-                        ? chat.title
-                        : (chat?.messages && chat?.messages[0]?.payload) ||
-                          t("New Chat")
-                    ),
+                    name:
+                        chat?.title && chat.title !== "New Chat"
+                            ? chat.title
+                            : (chat?.messages && chat?.messages[0]?.payload) ||
+                              t("New Chat"),
                     href: chat._id ? `/chat/${chat._id}` : ``,
                     key: chat._id,
                 })),
