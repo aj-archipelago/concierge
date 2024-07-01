@@ -286,5 +286,9 @@
     "Taking screenshot...": "جاري التقاط لقطة شاشة...",
     "Remove": "إزالة",
     "Retake screenshot": "إعادة التقاط لقطة الشاشة",
-    "Sending message...": "جاري إرسال الرسالة..."
+    "Sending message...": "جاري إرسال الرسالة...",
+    "Create New Chat": "إنشاء دردشة جديدة",
+    "New Chat": "دردشة جديدة",
+    "Clear this chat": "مسح هذه الدردشة",
+    "Are you sure you want to delete this chat?": "هل أنت متأكد أنك تريد حذف هذه الدردشة؟"
 }

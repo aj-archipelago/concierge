@@ -183,9 +183,13 @@ function MessageList({ messages, bot, loading }) {
                     </div>
                 )}
                 {messages.map((message, index) => {
+                    const newMessage = { ...message };
+                    if (!newMessage.id) {
+                        newMessage.id = newMessage._id || index;
+                    }
                     let display;
-                    if (Array.isArray(message.payload)) {
-                        const arr = message.payload.map((t) => {
+                    if (Array.isArray(newMessage.payload)) {
+                        const arr = newMessage.payload.map((t) => {
                             try {
                                 const obj = JSON.parse(t);
                                 if (obj.type === "text") {
@@ -201,7 +205,7 @@ function MessageList({ messages, bot, loading }) {
                                             <video
                                                 onLoad={() => {
                                                     handleMessageLoad(
-                                                        message.id,
+                                                        newMessage.id,
                                                     );
                                                 }}
                                                 key={index}
@@ -216,7 +220,7 @@ function MessageList({ messages, bot, loading }) {
                                             <audio
                                                 onLoad={() => {
                                                     handleMessageLoad(
-                                                        message.id,
+                                                        newMessage.id,
                                                     );
                                                 }}
                                                 key={index}
@@ -246,7 +250,7 @@ function MessageList({ messages, bot, loading }) {
                                                 }}
                                                 onLoad={() => {
                                                     handleMessageLoad(
-                                                        message.id,
+                                                        newMessage.id,
                                                     );
                                                 }}
                                             >
@@ -267,7 +271,7 @@ function MessageList({ messages, bot, loading }) {
                                             <img
                                                 onLoad={() => {
                                                     handleMessageLoad(
-                                                        message.id,
+                                                        newMessage.id,
                                                     );
                                                 }}
                                                 src={src}
@@ -285,16 +289,16 @@ function MessageList({ messages, bot, loading }) {
                         });
                         display = <>{arr}</>;
                     } else {
-                        display = message.payload;
+                        display = newMessage.payload;
                     }
 
                     // process the message and create a new
                     // message object with the updated payload.
-                    message = Object.assign({}, message, {
+                    const processedMessage = Object.assign({}, newMessage, {
                         payload: (
-                            <React.Fragment key={`inner-${message.id}`}>
-                                {message.sender === "labeeb" ? (
-                                    convertMessageToMarkdown(message)
+                            <React.Fragment key={`inner-${newMessage.id}`}>
+                                {newMessage.sender === "labeeb" ? (
+                                    convertMessageToMarkdown(newMessage)
                                 ) : (
                                     <div key={`um-${index}`}>{display}</div>
                                 )}
@@ -302,7 +306,11 @@ function MessageList({ messages, bot, loading }) {
                         ),
                     });
 
-                    return <div key={message.id}>{renderMessage(message)}</div>;
+                    return (
+                        <div key={processedMessage.id}>
+                            {renderMessage(processedMessage)}
+                        </div>
+                    );
                 })}
                 {loading &&
                     renderMessage({

@@ -53,6 +53,23 @@ export const chatSlice = createSlice({
                 }
             }
         },
+        setMessages: (state, action) => {
+            state.messages = action.payload;
+
+            if (typeof localStorage !== "undefined") {
+                try {
+                    localStorage.setItem(
+                        "messages",
+                        JSON.stringify(state.messages),
+                    );
+                } catch (error) {
+                    console.error(
+                        "Error storing messages in localStorage:",
+                        error,
+                    );
+                }
+            }
+        },
         clearChat: (state) => {
             state.messages = [];
             state.lastContext = "";
@@ -123,9 +140,10 @@ export const chatSlice = createSlice({
 
 // Action creators are generated for each case reducer function
 export const {
-    addMessage,
-    clearChat,
-    firstRunMessage,
+    // addMessage,
+    // setMessages,
+    // clearChat,
+    // firstRunMessage,
     setChatBoxPosition,
     includeAJArticles,
 } = chatSlice.actions;

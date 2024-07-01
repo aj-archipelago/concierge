@@ -1,40 +1,45 @@
-import { useDispatch, useSelector } from "react-redux";
+import { useSelector } from "react-redux";
 import { useApolloClient } from "@apollo/client";
 import { QUERIES } from "../../graphql";
-import { addMessage } from "../../stores/chatSlice";
 import { useState, useContext } from "react";
 import { useUpdateAiMemory } from "../../../app/queries/options";
 import { AuthContext } from "../../App.js";
 import ChatMessages from "./ChatMessages";
 import { toast } from "react-toastify";
 import { useTranslation } from "react-i18next";
-
+import {
+    useGetActiveChat,
+    useAddMessage,
+    useUpdateChat,
+} from "../../../app/queries/chats";
 const contextMessageCount = 50;
 
 function ChatContent({ displayState = "full", container = "chatpage" }) {
     const { t } = useTranslation();
     const client = useApolloClient();
-    const [loading, setLoading] = useState(false);
-    const messages = useSelector((state) => state.chat.messages);
-    const selectedSources = useSelector((state) => state.doc.selectedSources);
     const { user } = useContext(AuthContext);
+    const [loading, setLoading] = useState(false);
+    const chat = useGetActiveChat()?.data;
+    const messages = chat?.messages || [];
+    const selectedSources = useSelector((state) => state.doc.selectedSources);
     const updateAiMemoryMutation = useUpdateAiMemory();
-
-    const dispatch = useDispatch();
+    const addMessage = useAddMessage();
+    const updateChatHook = useUpdateChat();
 
     const updateChat = (message, tool) => {
         setLoading(false);
         if (message) {
-            dispatch(
-                addMessage({
+            addMessage.mutate({
+                chatId: String(chat?._id),
+                message: {
                     payload: message,
                     tool: tool,
                     sentTime: "just now",
                     direction: "incoming",
                     position: "single",
                     sender: "labeeb",
-                }),
-            );
+                },
+            });
         }
     };
 
@@ -55,16 +60,18 @@ function ChatContent({ displayState = "full", container = "chatpage" }) {
                 loading={loading}
                 onSend={(text) => {
                     const display = text;
-
-                    dispatch(
-                        addMessage({
+                    addMessage.mutate({
+                        chatId: String(chat?._id),
+                        message: {
                             payload: display,
                             sender: "user",
                             sentTime: "just now",
                             direction: "outgoing",
                             position: "single",
-                        }),
-                    );
+                        },
+                    });
+
+                    setLoading(true);
 
                     let conversation = messages
                         .slice(-contextMessageCount)
@@ -84,8 +91,6 @@ function ChatContent({ displayState = "full", container = "chatpage" }) {
                                 : { role: "user", content: m.payload },
                         );
 
-                    setLoading(true);
-
                     conversation.push({ role: "user", content: text });
 
                     const { userId, contextId, aiMemorySelfModify } = user;
@@ -95,6 +100,7 @@ function ChatContent({ displayState = "full", container = "chatpage" }) {
                         contextId: contextId,
                         aiName: "Labeeb",
                         aiMemorySelfModify: aiMemorySelfModify,
+                        title: chat?.title,
                     };
 
                     selectedSources &&
@@ -131,6 +137,18 @@ function ChatContent({ displayState = "full", container = "chatpage" }) {
                                         aiMemory,
                                         aiMemorySelfModify,
                                     });
+
+                                    // Update chat title if tool title is different or if not set by user
+                                    if (
+                                        !chat?.titleSetByUser &&
+                                        toolObj?.title &&
+                                        chat?.title !== toolObj.title
+                                    ) {
+                                        updateChatHook.mutate({
+                                            chatId: String(chat?._id),
+                                            title: toolObj.title,
+                                        });
+                                    }
                                 }
                             } catch (e) {
                                 handleError(e);

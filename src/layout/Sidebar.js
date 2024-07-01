@@ -1,5 +1,3 @@
-"use client";
-
 import {
     ChatBubbleLeftIcon,
     CodeBracketIcon,
@@ -7,61 +5,44 @@ import {
     MicrophoneIcon,
     PencilSquareIcon,
     PhotoIcon,
+    TrashIcon,
+    PlusIcon,
 } from "@heroicons/react/24/outline";
+import { FaEdit } from "react-icons/fa";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import React, { useContext, useState } from "react";
+import React, { useContext, useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { MdOutlineWorkspaces } from "react-icons/md";
 import classNames from "../../app/utils/class-names";
 import config from "../../config";
 import { LanguageContext } from "../contexts/LanguageProvider";
+import {
+    useAddChat,
+    useDeleteChat,
+    useGetActiveChatId,
+    useGetActiveChats,
+    useSetActiveChatId,
+    useUpdateChat,
+} from "../../app/queries/chats";
+import { useQueryClient } from "@tanstack/react-query";
 import { HelpCircle } from "lucide-react";
 import SendFeedbackModal from "../components/help/SendFeedbackModal";
 
 const navigation = [
-    {
-        name: "Chat",
-        icon: ChatBubbleLeftIcon,
-        href: "/chat",
-    },
-    {
-        name: "Translate",
-        icon: GlobeAltIcon,
-        href: "/translate",
-    },
-    {
-        name: "Transcribe",
-        icon: MicrophoneIcon,
-        href: "/transcribe",
-    },
-    {
-        name: "Write",
-        icon: PencilSquareIcon,
-        href: "/write",
-    },
-    {
-        name: "Workspaces",
-        icon: MdOutlineWorkspaces,
-        href: "/workspaces",
-    },
-    {
-        name: "Images",
-        icon: PhotoIcon,
-        href: "/images",
-    },
+    { name: "Chat", icon: ChatBubbleLeftIcon, href: "/chat", children: [] },
+    { name: "Translate", icon: GlobeAltIcon, href: "/translate" },
+    { name: "Transcribe", icon: MicrophoneIcon, href: "/transcribe" },
+    { name: "Write", icon: PencilSquareIcon, href: "/write" },
+    { name: "Workspaces", icon: MdOutlineWorkspaces, href: "/workspaces" },
+    { name: "Images", icon: PhotoIcon, href: "/images" },
     {
         name: "Code",
         icon: CodeBracketIcon,
+        href: "/code",
         children: [
-            {
-                name: "Knuth",
-                href: "/code/knuth",
-            },
-            {
-                name: "JIRA",
-                href: "/code/jira",
-            },
+            { name: "Knuth", href: "/code/knuth" },
+            { name: "JIRA", href: "/code/jira" },
         ],
     },
 ];
@@ -72,6 +53,91 @@ export default React.forwardRef(function Sidebar(_, ref) {
     const { getLogo, getSidebarLogo } = config.global;
     const { language } = useContext(LanguageContext);
     const { t } = useTranslation();
+    const { data: chatsData = [] } = useGetActiveChats();
+    const chats = chatsData || [];
+    const deleteChat = useDeleteChat();
+    const setActiveChatId = useSetActiveChatId();
+    const getActiveChatId = useGetActiveChatId();
+    const activeChatId = getActiveChatId?.data || getActiveChatId;
+    const addChat = useAddChat();
+    const queryClient = useQueryClient();
+    const updateChat = useUpdateChat();
+
+    const [editingId, setEditingId] = useState(null);
+    const [editedName, setEditedName] = useState("");
+    const [pendingChatId, setPendingChatId] = useState(null);
+
+    useEffect(() => {
+        if (pendingChatId) {
+            setActiveChatId.mutate(pendingChatId);
+            router.push(`/chat/${pendingChatId}`);
+            setPendingChatId(null);
+        }
+    }, [pendingChatId, setActiveChatId, router]);
+
+    const handleDeleteChat = (chatId) => {
+        if (!window.confirm(t("Are you sure you want to delete this chat?"))) {
+            return;
+        }
+        const currentActiveChatId = activeChatId;
+        deleteChat.mutate({ chatId });
+        if (chatId === currentActiveChatId) {
+            const topChat = chats.filter((chat) => chat._id !== chatId)[0];
+            if (topChat) {
+                setPendingChatId(topChat._id);
+            } else {
+                createDefaultNewChat();
+            }
+        }
+    };
+
+    const handleNewChat = async () => {
+        createDefaultNewChat();
+    };
+
+    const createDefaultNewChat = async () => {
+        const newChatIndex = chats.findIndex(
+            (chat) => chat.messages.length === 0,
+        );
+        if (newChatIndex > -1) {
+            setPendingChatId(chats[newChatIndex]._id);
+            return;
+        }
+        const newChat = await addChat.mutateAsync({ messages: [] });
+        if (newChat && newChat._id) {
+            setPendingChatId(newChat._id);
+            queryClient.invalidateQueries("chats");
+            queryClient.invalidateQueries("activeChats");
+        }
+    };
+
+    const handleSaveEdit = (item) => {
+        updateChat.mutate({
+            chatId: item.key,
+            title: editedName,
+            titleSetByUser: true,
+        });
+        setEditingId(null);
+    };
+
+    const updatedNavigation = navigation.map((item) => {
+        if (item.name === "Chat" && Array.isArray(chats)) {
+            const items = chats.slice(0, 3);
+            return {
+                ...item,
+                children: items.map((chat) => ({
+                    name:
+                        chat?.title && chat.title !== "New Chat"
+                            ? chat.title
+                            : (chat?.messages && chat?.messages[0]?.payload) ||
+                              t("New Chat"),
+                    href: chat._id ? `/chat/${chat._id}` : ``,
+                    key: chat._id,
+                })),
+            };
+        }
+        return item;
+    });
 
     return (
         <div className="flex grow flex-col gap-y-5 overflow-y-auto border-r border-gray-200 bg-white px-5">
@@ -87,91 +153,207 @@ export default React.forwardRef(function Sidebar(_, ref) {
             </div>
             <nav className="flex flex-1 flex-col">
                 <ul className="flex flex-1 flex-col gap-y-7">
-                    <li className="grow ">
+                    <li className="grow">
                         <ul className="-mx-2 space-y-1">
-                            {navigation.map((item) => {
-                                return (
-                                    <li key={item.name}>
-                                        {!item.children ? (
-                                            <Link
-                                                href={item.href || "#"}
-                                                className={classNames(
-                                                    pathname.includes(item.href)
-                                                        ? "bg-gray-100"
-                                                        : "hover:bg-gray-100",
-                                                    "group flex gap-x-3 rounded-md p-2 text-sm leading-6 font-semibold text-gray-700",
-                                                )}
-                                            >
-                                                <item.icon
-                                                    className="h-6 w-6 shrink-0 text-gray-400"
-                                                    aria-hidden="true"
-                                                />
-                                                {t(item.name)}
-                                            </Link>
-                                        ) : (
-                                            <div>
-                                                <button
+                            {updatedNavigation.map((item) => (
+                                <li
+                                    key={item.name}
+                                    className="rounded-md cursor-pointer"
+                                >
+                                    <div
+                                        className={classNames(
+                                            "flex items-center justify-between",
+                                            item.href &&
+                                                pathname.includes(item.href) &&
+                                                pathname === item.href
+                                                ? "bg-gray-100"
+                                                : "hover:bg-gray-100",
+                                            "rounded-md p-2 text-sm leading-6 font-semibold text-gray-700",
+                                        )}
+                                        onClick={() => {
+                                            if (item.href) {
+                                                router.push(item.href);
+                                            }
+                                        }}
+                                    >
+                                        <div className="flex items-center grow gap-x-3">
+                                            <item.icon
+                                                className="h-6 w-6 shrink-0 text-gray-400"
+                                                aria-hidden="true"
+                                            />
+                                            {t(item.name)}
+                                        </div>
+                                        {item.name === "Chat" && (
+                                            <PlusIcon
+                                                className="h-6 w-6 ml-auto p-1 rounded-full bg-blue-100 text-blue-600 hover:bg-blue-200 hover:text-blue-800 cursor-pointer"
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    handleNewChat();
+                                                }}
+                                            />
+                                        )}
+                                    </div>
+                                    {item.children?.length > 0 && (
+                                        <ul className="mt-1 px-1">
+                                            {item.children.map((subItem) => (
+                                                <li
+                                                    key={
+                                                        subItem.key ||
+                                                        JSON.stringify(subItem)
+                                                    }
                                                     className={classNames(
-                                                        pathname.includes(
-                                                            item.href,
-                                                        )
+                                                        "group flex items-center justify-between rounded-md cursor-pointer hover:bg-gray-100 my-0.5",
+                                                        pathname ===
+                                                            subItem?.href
                                                             ? "bg-gray-100"
-                                                            : "hover:bg-gray-100",
-                                                        "flex items-center w-full text-start rounded-md p-2 gap-x-3 text-sm leading-6 font-semibold text-gray-700",
+                                                            : "",
                                                     )}
                                                     onClick={() => {
-                                                        if (
-                                                            item.children
-                                                                ?.length > 0
-                                                        ) {
+                                                        if (subItem.href) {
                                                             router.push(
-                                                                item.children[0]
-                                                                    .href,
+                                                                subItem.href,
                                                             );
+                                                            if (
+                                                                item.name ===
+                                                                "Chat"
+                                                            ) {
+                                                                setActiveChatId.mutate(
+                                                                    subItem.key,
+                                                                );
+                                                            }
                                                         }
                                                     }}
                                                 >
-                                                    <item.icon
-                                                        className="h-6 w-6 shrink-0 text-gray-400"
-                                                        aria-hidden="true"
-                                                    />
-                                                    {t(item.name)}
-                                                </button>
-                                                <ul className="mt-1 px-2">
-                                                    {item.children?.map(
-                                                        (subItem) => (
-                                                            <li
-                                                                key={
-                                                                    subItem.name
+                                                    <div
+                                                        className={`relative block py-2.5 pe-1 ${
+                                                            item.name === "Chat"
+                                                                ? "text-xs pl-4 pr-4"
+                                                                : "text-sm pl-9 pr-4"
+                                                        } leading-6 text-gray-700 w-full select-none flex items-center justify-between`}
+                                                        dir={
+                                                            document
+                                                                .documentElement
+                                                                .dir
+                                                        }
+                                                    >
+                                                        {item.name === "Chat" &&
+                                                        editingId ===
+                                                            subItem.key ? (
+                                                            <input
+                                                                autoFocus
+                                                                type="text"
+                                                                className="border-0 ring-1 w-full text-xs bg-gray-50 p-0 font-medium"
+                                                                value={
+                                                                    editedName
                                                                 }
-                                                            >
-                                                                {/* 44px */}
-                                                                <Link
-                                                                    href={
-                                                                        subItem.href
-                                                                    }
-                                                                    className={classNames(
-                                                                        pathname.includes(
-                                                                            subItem.href,
-                                                                        )
-                                                                            ? "bg-gray-100"
-                                                                            : "hover:bg-gray-100",
-                                                                        "block rounded-md py-2 pe-2 pl-9 text-sm leading-6 text-gray-700",
-                                                                    )}
+                                                                onChange={(e) =>
+                                                                    setEditedName(
+                                                                        e.target
+                                                                            .value,
+                                                                    )
+                                                                }
+                                                                onKeyDown={(
+                                                                    e,
+                                                                ) => {
+                                                                    if (
+                                                                        e.key ===
+                                                                        "Enter"
+                                                                    )
+                                                                        handleSaveEdit(
+                                                                            subItem,
+                                                                        );
+                                                                    if (
+                                                                        e.key ===
+                                                                        "Escape"
+                                                                    )
+                                                                        setEditingId(
+                                                                            null,
+                                                                        );
+                                                                }}
+                                                            />
+                                                        ) : (
+                                                            <>
+                                                                {item.name ===
+                                                                    "Chat" && (
+                                                                    <FaEdit
+                                                                        className="absolute top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 cursor-pointer invisible group-hover:visible"
+                                                                        style={{
+                                                                            left:
+                                                                                document
+                                                                                    .documentElement
+                                                                                    .dir ===
+                                                                                "rtl"
+                                                                                    ? "unset"
+                                                                                    : "0.5rem",
+                                                                            right:
+                                                                                document
+                                                                                    .documentElement
+                                                                                    .dir ===
+                                                                                "rtl"
+                                                                                    ? "0.5rem"
+                                                                                    : "unset",
+                                                                        }}
+                                                                        onClick={(
+                                                                            e,
+                                                                        ) => {
+                                                                            e.stopPropagation();
+                                                                            setEditingId(
+                                                                                subItem.key,
+                                                                            );
+                                                                            setEditedName(
+                                                                                subItem.name,
+                                                                            );
+                                                                        }}
+                                                                    />
+                                                                )}
+                                                                <span
+                                                                    className={`${
+                                                                        document
+                                                                            .documentElement
+                                                                            .dir ===
+                                                                        "rtl"
+                                                                            ? "pr-3"
+                                                                            : "pl-3"
+                                                                    } truncate whitespace-nowrap overflow-hidden max-w-[150px]`}
+                                                                    title={t(
+                                                                        subItem.name,
+                                                                    )} // Add this line for tooltip
                                                                 >
                                                                     {t(
                                                                         subItem.name,
                                                                     )}
-                                                                </Link>
-                                                            </li>
-                                                        ),
-                                                    )}
-                                                </ul>
-                                            </div>
-                                        )}
-                                    </li>
-                                );
-                            })}
+                                                                </span>
+                                                            </>
+                                                        )}
+                                                        {item.name ===
+                                                            "Chat" && (
+                                                            <TrashIcon
+                                                                className={`h-4 w-4 flex-shrink-0 text-gray-400 group-hover:visible invisible hover:text-red-600 cursor-pointer ${
+                                                                    document
+                                                                        .documentElement
+                                                                        .dir ===
+                                                                    "rtl"
+                                                                        ? "-ml-2.5"
+                                                                        : "-mr-2.5"
+                                                                }`}
+                                                                aria-hidden="true"
+                                                                onClick={(
+                                                                    e,
+                                                                ) => {
+                                                                    e.stopPropagation();
+                                                                    handleDeleteChat(
+                                                                        subItem.key,
+                                                                    );
+                                                                }}
+                                                            />
+                                                        )}
+                                                    </div>
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    )}
+                                </li>
+                            ))}
                         </ul>
                     </li>
                     <li>
@@ -190,6 +372,8 @@ const SendFeedbackButton = React.forwardRef(
         const [show, setShow] = useState(false);
         const { t } = useTranslation();
 
+        const handleClick = () => setShow(true);
+
         return (
             <>
                 <SendFeedbackModal
@@ -199,7 +383,7 @@ const SendFeedbackButton = React.forwardRef(
                 />
                 <button
                     className="flex gap-2 items-center text-sm"
-                    onClick={() => setShow(true)}
+                    onClick={handleClick}
                 >
                     <HelpCircle className="h-6 w-6 shrink-0 text-gray-400" />
                     {t("Send feedback")}

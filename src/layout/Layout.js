@@ -151,7 +151,7 @@ export default function Layout({ children }) {
                             <div className="hidden sm:block">
                                 <button
                                     className="lb-primary"
-                                    disabled={pathname === "/chat"}
+                                    disabled={/^\/chat(\/|$)/.test(pathname)}
                                     onClick={() => {
                                         dispatch(
                                             setChatBoxPosition({

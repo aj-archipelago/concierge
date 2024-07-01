@@ -157,6 +157,7 @@ const RAG_START = gql`
         $semanticConfiguration: String
         $aiName: String
         $aiMemorySelfModify: Boolean
+        $title: String
     ) {
         rag_start(
             chatHistory: $chatHistory
@@ -168,6 +169,7 @@ const RAG_START = gql`
             semanticConfiguration: $semanticConfiguration
             aiName: $aiName
             aiMemorySelfModify: $aiMemorySelfModify
+            title: $title
         ) {
             result
             contextId
@@ -264,8 +266,18 @@ const HASHTAGS = gql`
 `;
 
 const HEADLINE = gql`
-    query Headline($text: String!, $seoOptimized: Boolean) {
-        headline(text: $text, seoOptimized: $seoOptimized) {
+    query Headline(
+        $text: String!
+        $seoOptimized: Boolean
+        $count: Int
+        $targetLength: Int
+    ) {
+        headline(
+            text: $text
+            seoOptimized: $seoOptimized
+            count: $count
+            targetLength: $targetLength
+        ) {
             result
             debug
         }
