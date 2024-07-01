@@ -130,7 +130,7 @@ export default React.forwardRef(function Sidebar(_, ref) {
                         ? chat.title
                         : (chat?.messages && chat?.messages[0]?.payload) ||
                           t("New Chat")
-                    ).slice(0, 21),
+                    ),
                     href: chat._id ? `/chat/${chat._id}` : ``,
                     key: chat._id,
                 })),
@@ -314,7 +314,10 @@ export default React.forwardRef(function Sidebar(_, ref) {
                                                                         "rtl"
                                                                             ? "pr-3"
                                                                             : "pl-3"
-                                                                    } truncate whitespace-nowrap overflow-hidden`}
+                                                                    } truncate whitespace-nowrap overflow-hidden max-w-[150px]`}
+                                                                    title={t(
+                                                                        subItem.name,
+                                                                    )} // Add this line for tooltip
                                                                 >
                                                                     {t(
                                                                         subItem.name,
