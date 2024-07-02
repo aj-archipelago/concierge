@@ -92,21 +92,19 @@ export async function getChatById(chatId) {
 
     const currentUser = await getCurrentUser(false);
 
-    const chat = await Chat.findOne({
-        _id: chatId,
-    });
+    const chat = await Chat.findOne({ _id: chatId });
 
     if (!chat) {
         throw new Error("Chat not found");
     }
 
-    // If requesting another user's chat, return a read-only version
-    if (String(chat.userId) !== String(currentUser._id)) {
-        const { _id, title, messages } = chat;
-        return { _id, title, messages, readOnly: true };
+    if (String(chat.userId) !== String(currentUser._id) && !chat.isPublic) {
+        throw new Error("Unauthorized access");
     }
 
-    return chat;
+    const isReadOnly = String(chat.userId) !== String(currentUser._id);
+    const { _id, title, messages, isPublic } = chat;
+    return { _id, title, messages, isPublic, readOnly: isReadOnly };
 }
 
 export async function setActiveChatId(activeChatId) {
