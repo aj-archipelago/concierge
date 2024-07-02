@@ -11,9 +11,14 @@ export function useGetChats() {
         queryKey: ["chats"],
         queryFn: async () => {
             const response = await axios.get(`/api/chats`);
-            const chats = response.data;
+            let chats = response.data;
 
-            // Update individual chat queries
+            if (chats.length === 0) {
+                await new Promise((resolve) => setTimeout(resolve, 500));
+                const refetchResponse = await axios.get(`/api/chats`);
+                chats = refetchResponse.data;
+            }
+
             chats.forEach((chat) => {
                 queryClient.setQueryData(["chat", chat._id], chat);
             });
@@ -21,6 +26,7 @@ export function useGetChats() {
             return chats;
         },
         staleTime: 1000 * 60 * 5,
+        refetchInterval: (data) => (data && data.length === 0 ? 1000 : false),
     });
 }
 
@@ -152,11 +158,19 @@ export function useDeleteChat() {
 
 // Hook to get user chat info (all chat IDs and the most recent active chat ID)
 export function useGetUserChatInfo() {
+    const queryClient = useQueryClient();
+
     return useQuery({
         queryKey: ["userChatInfo"],
         queryFn: async () => {
             const response = await axios.get(`/api/chats/active`);
-            return response.data;
+            const data = response.data;
+
+            if (!data.activeChatId) {
+                queryClient.invalidateQueries(["userChatInfo"]);
+            }
+
+            return data;
         },
         staleTime: 1000 * 60 * 5,
     });
