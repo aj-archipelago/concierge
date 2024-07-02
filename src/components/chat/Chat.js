@@ -25,6 +25,8 @@ function Chat() {
         } else {
             if (window.confirm(t("Make this chat public?"))) {
                 await updateActiveChat.mutateAsync({ isPublic: true });
+                document.body.focus(); // Refocus the document
+                await new Promise((resolve) => setTimeout(resolve, 1000));
                 await navigator.clipboard.writeText(shareUrl);
                 alert(t("Chat made public. Share URL copied to clipboard!"));
             }
