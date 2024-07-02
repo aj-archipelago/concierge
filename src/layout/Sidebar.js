@@ -11,7 +11,7 @@ import {
 import { FaEdit } from "react-icons/fa";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import React, { useContext, useState, useEffect } from "react";
+import React, { useContext, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { MdOutlineWorkspaces } from "react-icons/md";
 import classNames from "../../app/utils/class-names";
@@ -65,15 +65,6 @@ export default React.forwardRef(function Sidebar(_, ref) {
 
     const [editingId, setEditingId] = useState(null);
     const [editedName, setEditedName] = useState("");
-    const [pendingChatId, setPendingChatId] = useState(null);
-
-    useEffect(() => {
-        if (pendingChatId) {
-            setActiveChatId.mutate(pendingChatId);
-            router.push(`/chat/${pendingChatId}`);
-            setPendingChatId(null);
-        }
-    }, [pendingChatId, setActiveChatId, router]);
 
     const handleDeleteChat = (chatId) => {
         if (!window.confirm(t("Are you sure you want to delete this chat?"))) {
@@ -84,7 +75,8 @@ export default React.forwardRef(function Sidebar(_, ref) {
         if (chatId === currentActiveChatId) {
             const topChat = chats.filter((chat) => chat._id !== chatId)[0];
             if (topChat) {
-                setPendingChatId(topChat._id);
+                setActiveChatId.mutateAsync(topChat._id);
+                router.push(`/chat/${topChat._id}`);
             } else {
                 createDefaultNewChat();
             }
@@ -92,20 +84,22 @@ export default React.forwardRef(function Sidebar(_, ref) {
     };
 
     const handleNewChat = async () => {
-        createDefaultNewChat();
-    };
-
-    const createDefaultNewChat = async () => {
         const newChatIndex = chats.findIndex(
             (chat) => chat.messages.length === 0,
         );
         if (newChatIndex > -1) {
-            setPendingChatId(chats[newChatIndex]._id);
-            return;
+            await setActiveChatId.mutateAsync(chats[newChatIndex]._id);
+            router.push(`/chat/${chats[newChatIndex]._id}`);
+        } else {
+            await createDefaultNewChat();
         }
+    };
+
+    const createDefaultNewChat = async () => {
         const newChat = await addChat.mutateAsync({ messages: [] });
         if (newChat && newChat._id) {
-            setPendingChatId(newChat._id);
+            await setActiveChatId.mutateAsync(newChat._id);
+            router.push(`/chat/${newChat._id}`);
             queryClient.invalidateQueries("chats");
             queryClient.invalidateQueries("activeChats");
         }

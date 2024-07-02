@@ -191,7 +191,7 @@ function SavedChats({ displayState }) {
                                     />
                                 ) : (
                                     <h3 className="font-semibold text-xl relative">
-                                        {t(chat.title) || t("Chat")}
+                                        {t(chat.title) || t("New Chat")}
                                     </h3>
                                 )}
                                 <TrashIcon
