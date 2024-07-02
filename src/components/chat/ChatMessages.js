@@ -6,7 +6,7 @@ import { AiOutlineReload, AiOutlineSave } from "react-icons/ai";
 import config from "../../../config";
 import { convertMessageToMarkdown } from "./ChatMessage";
 import dynamic from "next/dynamic";
-import { useAddChat } from "../../../app/queries/chats";
+import { useAddChat, useGetActiveChat } from "../../../app/queries/chats";
 import { useApolloClient } from "@apollo/client";
 import { handleSaveChat } from "./SaveChat";
 
@@ -23,6 +23,8 @@ function ChatMessages({
     const client = useApolloClient();
     const addChat = useAddChat();
     const originalMessages = messages;
+    const chat = useGetActiveChat()?.data;
+    const { readOnly } = chat || {};
 
     messages = messages.map((m) => {
         return Object.assign({}, m, {
@@ -86,18 +88,22 @@ function ChatMessages({
                 </div>
             </div>
             <div>
-                <MessageInput
-                    loading={loading}
-                    enableRag={true}
-                    placeholder={
-                        container === "chatbox"
-                            ? t(`Send message`)
-                            : t(`Send a message to ${config?.chat?.botName}`)
-                    }
-                    container={container}
-                    displayState={displayState}
-                    onSend={(message) => onSend(message)}
-                />
+                {!readOnly && (
+                    <MessageInput
+                        loading={loading}
+                        enableRag={true}
+                        placeholder={
+                            container === "chatbox"
+                                ? t(`Send message`)
+                                : t(
+                                      `Send a message to ${config?.chat?.botName}`,
+                                  )
+                        }
+                        container={container}
+                        displayState={displayState}
+                        onSend={(message) => onSend(message)}
+                    />
+                )}
             </div>
         </div>
     );
