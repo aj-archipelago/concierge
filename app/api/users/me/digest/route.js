@@ -76,10 +76,10 @@ export async function PATCH(req, { params }) {
         owner: user._id,
     });
 
-    let newBlocks = blocks;
+    let newBlocks = digest.blocks;
 
     for (const block of blocks) {
-        const existingBlock = digest.blocks.find(
+        const existingBlock = newBlocks.find(
             (b) => b._id?.toString() === block._id?.toString(),
         );
 
