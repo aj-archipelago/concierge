@@ -35,8 +35,17 @@ export async function getChatsOfCurrentUser() {
     const user = await getCurrentUser(false);
     const userId = user._id;
 
-    // Fetch chats using the userId reference and sort by updatedAt in descending order
-    const chats = await Chat.find({ userId }).sort({ updatedAt: -1 });
+    let chats = await Chat.find({ userId }).sort({ updatedAt: -1 });
+
+    // If no chats exist, create a default empty chat
+    if (chats.length === 0) {
+        const defaultChat = await createNewChat({
+            messages: [],
+            title: "",
+        });
+        chats = [defaultChat];
+    }
+
     return chats;
 }
 
@@ -51,18 +60,13 @@ export async function createNewChat(data) {
           ? [messages]
           : [];
 
-    const chat = await Chat.findOneAndUpdate(
-        { userId, messages: { $size: 0 } },
-        {
-            $setOnInsert: {
-                userId,
-                messages: normalizedMessages,
-                title: title || getSimpleTitle(normalizedMessages[0] || ""),
-            },
-        },
-        { upsert: true, new: true },
-    );
+    const chat = new Chat({
+        userId,
+        messages: normalizedMessages,
+        title: title || getSimpleTitle(normalizedMessages[0] || ""),
+    });
 
+    await chat.save();
     await setActiveChatId(chat._id);
     return chat;
 }
@@ -127,8 +131,8 @@ export async function setActiveChatId(activeChatId) {
     }
     // If it's already in the top 3, do nothing to preserve order
 
-    // Ensure we only keep the last 30 recent chat IDs
-    const MAX_RECENT_CHATS = 30;
+    // Ensure we only keep the last n recent chat IDs
+    const MAX_RECENT_CHATS = 1_000;
     recentChatIds = recentChatIds.slice(0, MAX_RECENT_CHATS);
 
     const updatedUser = await User.findByIdAndUpdate(
@@ -222,40 +226,41 @@ export async function deleteChatIdFromRecentList(chatId) {
     const currentUser = await getCurrentUser(false);
     let recentChatIds = currentUser.recentChatIds || [];
 
+    // Remove the deleted chatId
     recentChatIds = recentChatIds.filter((id) => String(id) !== String(chatId));
+
+    // Verify existing chats
+    const existingChats = await Chat.find(
+        { _id: { $in: recentChatIds }, userId: currentUser._id },
+        "_id",
+    );
+    const existingChatIds = existingChats.map((chat) => chat._id.toString());
+
+    // Update recentChatIds with only existing chat IDs
+    recentChatIds = recentChatIds.filter((id) => existingChatIds.includes(id));
 
     const updatedUser = await User.findByIdAndUpdate(
         currentUser._id,
-        {
-            $set: { recentChatIds },
-        },
-        { new: true, useFindAndModify: false }, // Make sure to return the updated document
+        { $set: { recentChatIds } },
+        { new: true, useFindAndModify: false },
     );
 
     if (!updatedUser) throw new Error("User not found");
 
-    // Ensure activeChatId is always valid
     let newActiveChatId = currentUser.activeChatId;
     if (String(newActiveChatId) === String(chatId)) {
-        if (recentChatIds.length > 0) {
-            newActiveChatId = recentChatIds[0];
-        } else {
-            const emptyChat = await createNewChat({
-                messages: [],
-                title: "",
-            });
+        newActiveChatId = recentChatIds[0] || null;
+        if (!newActiveChatId) {
+            const emptyChat = await createNewChat({ messages: [], title: "" });
             newActiveChatId = emptyChat._id;
+            recentChatIds.push(newActiveChatId);
         }
-
         await User.findByIdAndUpdate(
             currentUser._id,
-            { $set: { activeChatId: newActiveChatId } },
+            { $set: { activeChatId: newActiveChatId, recentChatIds } },
             { new: true, useFindAndModify: false },
         );
     }
 
-    return {
-        recentChatIds: updatedUser.recentChatIds,
-        activeChatId: newActiveChatId,
-    };
+    return { recentChatIds, activeChatId: newActiveChatId };
 }
