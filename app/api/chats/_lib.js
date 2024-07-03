@@ -224,51 +224,53 @@ export async function getRecentChatIds() {
 
 export async function deleteChatIdFromRecentList(chatId) {
     const currentUser = await getCurrentUser(false);
-    let recentChatIds = currentUser.recentChatIds || [];
-    recentChatIds = recentChatIds.filter((id) => String(id) !== String(chatId));
+    const userId = currentUser._id;
 
+    // Get current user data
+    const user = await User.findById(userId);
+    let recentChatIds = user.recentChatIds.filter(
+        (id) => id.toString() !== chatId.toString(),
+    );
+    let activeChatId = user.activeChatId;
+
+    // Validate existing chats while preserving order
     const existingChats = await Chat.find(
-        { _id: { $in: recentChatIds }, userId: currentUser._id },
+        { _id: { $in: recentChatIds }, userId },
         "_id",
     );
-    const existingChatIds = existingChats.map((chat) => chat._id.toString());
-    recentChatIds = recentChatIds.filter((id) => existingChatIds.includes(id));
+    const existingChatIds = new Set(
+        existingChats.map((chat) => chat._id.toString()),
+    );
+    recentChatIds = recentChatIds.filter((id) =>
+        existingChatIds.has(id.toString()),
+    );
 
-    let newActiveChatId = currentUser.activeChatId;
-    const activeChatExists = await Chat.exists({
-        _id: newActiveChatId,
-        userId: currentUser._id,
-    });
-
+    // Check if activeChatId is valid
+    const activeChatExists = await Chat.exists({ _id: activeChatId, userId });
     if (!activeChatExists) {
         if (recentChatIds.length > 0) {
-            newActiveChatId = recentChatIds[0];
+            activeChatId = recentChatIds[0];
         } else {
-            const userChat = await Chat.findOne({ userId: currentUser._id });
+            const userChat = await Chat.findOne({ userId });
             if (userChat) {
-                newActiveChatId = userChat._id;
-                recentChatIds.push(newActiveChatId);
+                activeChatId = userChat._id;
+                recentChatIds.push(activeChatId.toString());
             } else {
                 const emptyChat = await createNewChat({
                     messages: [],
                     title: "",
                 });
-                newActiveChatId = emptyChat._id;
-                recentChatIds.push(newActiveChatId);
+                activeChatId = emptyChat._id;
+                recentChatIds.push(activeChatId.toString());
             }
         }
     }
 
-    const updatedUser = await User.findByIdAndUpdate(
-        currentUser._id,
-        { $set: { recentChatIds, activeChatId: newActiveChatId } },
-        { new: true, useFindAndModify: false },
+    // Update user with validated data
+    await User.updateOne(
+        { _id: userId },
+        { $set: { recentChatIds, activeChatId } },
     );
 
-    if (!updatedUser) throw new Error("User not found");
-
-    return {
-        recentChatIds: updatedUser.recentChatIds,
-        activeChatId: updatedUser.activeChatId,
-    };
+    return { recentChatIds, activeChatId: activeChatId.toString() };
 }
