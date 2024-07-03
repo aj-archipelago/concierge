@@ -244,9 +244,18 @@ export async function deleteChatIdFromRecentList(chatId) {
         if (recentChatIds.length > 0) {
             newActiveChatId = recentChatIds[0];
         } else {
-            const emptyChat = await createNewChat({ messages: [], title: "" });
-            newActiveChatId = emptyChat._id;
-            recentChatIds.push(newActiveChatId);
+            const userChat = await Chat.findOne({ userId: currentUser._id });
+            if (userChat) {
+                newActiveChatId = userChat._id;
+                recentChatIds.push(newActiveChatId);
+            } else {
+                const emptyChat = await createNewChat({
+                    messages: [],
+                    title: "",
+                });
+                newActiveChatId = emptyChat._id;
+                recentChatIds.push(newActiveChatId);
+            }
         }
     }
 
