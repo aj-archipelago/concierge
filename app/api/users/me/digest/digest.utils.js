@@ -10,34 +10,36 @@ export const generateDigestBlockContent = async (block, user) => {
     };
 
     const client = getClient(serverUrl);
-    const result = await client.query({
-        query: QUERIES.RAG_START,
-        variables,
-    });
-
     let searchRequired = false;
     let tool = null;
+    let content;
 
     try {
+        const result = await client.query({
+            query: QUERIES.RAG_START,
+            variables,
+        });
+
         tool = result.data.rag_start.tool;
         if (tool) {
             const toolObj = JSON.parse(result.data.rag_start.tool);
             searchRequired = toolObj?.search;
         }
+
+        if (searchRequired) {
+            const result = await client.query({
+                query: QUERIES.RAG_GENERATOR_RESULTS,
+                variables,
+            });
+
+            const { result: message, tool } = result.data.rag_generator_results;
+            content = JSON.stringify({ payload: message, tool });
+        }
     } catch (e) {
         console.error(e);
-    }
-
-    let content;
-
-    if (searchRequired) {
-        const result = await client.query({
-            query: QUERIES.RAG_GENERATOR_RESULTS,
-            variables,
+        content = JSON.stringify({
+            payload: "Error while generating content: " + e.message,
         });
-
-        const { result: message, tool } = result.data.rag_generator_results;
-        content = JSON.stringify({ payload: message, tool });
     }
 
     return content;
