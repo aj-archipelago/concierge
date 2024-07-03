@@ -28,6 +28,7 @@ export function useGetActiveChats() {
     return useQuery({
         queryKey: ["activeChats"],
         queryFn: async () => {
+            console.log("Fetching active chats");
             const response = await axios.get(`/api/chats/active/detail`);
             const activeChats = response.data;
             activeChats.forEach((chat) => {
@@ -36,6 +37,9 @@ export function useGetActiveChats() {
             return activeChats;
         },
         staleTime: 1000 * 60 * 5,
+        refetchInterval: (data) => {
+            return !data?.state?.data || !data.state.data.length ? 1000 : false;
+        },
     });
 }
 
