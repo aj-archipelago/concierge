@@ -28,7 +28,6 @@ export function useGetActiveChats() {
     return useQuery({
         queryKey: ["activeChats"],
         queryFn: async () => {
-            console.log("Fetching active chats");
             const response = await axios.get(`/api/chats/active/detail`);
             const activeChats = response.data;
             activeChats.forEach((chat) => {
