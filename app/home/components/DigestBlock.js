@@ -1,8 +1,5 @@
 "use client";
 
-import TimeAgo from "javascript-time-ago";
-import ar from "javascript-time-ago/locale/ar.json";
-import en from "javascript-time-ago/locale/en.json";
 import { RefreshCw } from "lucide-react";
 import ReactTimeAgo from "react-time-ago";
 import { convertMessageToMarkdown } from "../../../src/components/chat/ChatMessage";
@@ -10,14 +7,13 @@ import { useRegenerateDigestBlock } from "../../queries/digest";
 import classNames from "../../utils/class-names";
 import { useTranslation } from "react-i18next";
 import Loader from "../../components/loader";
-
-if (typeof document !== "undefined") {
-    TimeAgo.addDefaultLocale(document.documentElement.lang === "ar" ? ar : en);
-}
+import { useContext } from "react";
+import { LanguageContext } from "../../../src/contexts/LanguageProvider";
 
 export default function DigestBlock({ block }) {
     const regenerateDigestBlock = useRegenerateDigestBlock();
     const { t } = useTranslation();
+    const { language } = useContext(LanguageContext);
 
     if (!block) {
         return null;
@@ -56,7 +52,10 @@ export default function DigestBlock({ block }) {
                                 ) : (
                                     <>
                                         {t("Updated")}{" "}
-                                        <ReactTimeAgo date={block.updatedAt} />
+                                        <ReactTimeAgo
+                                            date={block.updatedAt}
+                                            locale={language}
+                                        />
                                     </>
                                 )}
                             </div>

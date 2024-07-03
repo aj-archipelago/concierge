@@ -4,6 +4,7 @@ import React, { useContext, useRef, useEffect } from "react";
 import { getClient } from "./graphql";
 import "./i18n";
 
+import dayjs from "dayjs";
 import * as amplitude from "@amplitude/analytics-browser";
 import i18next from "i18next";
 import classNames from "../app/utils/class-names";
@@ -39,6 +40,7 @@ const App = ({ children, language, theme, serverUrl, neuralspaceEnabled }) => {
         if (i18next.language !== language) {
             i18next.changeLanguage(language);
         }
+        dayjs.locale(language);
     }, [language]);
 
     if (!currentUser) {
