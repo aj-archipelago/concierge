@@ -225,42 +225,41 @@ export async function getRecentChatIds() {
 export async function deleteChatIdFromRecentList(chatId) {
     const currentUser = await getCurrentUser(false);
     let recentChatIds = currentUser.recentChatIds || [];
-
-    // Remove the deleted chatId
     recentChatIds = recentChatIds.filter((id) => String(id) !== String(chatId));
 
-    // Verify existing chats
     const existingChats = await Chat.find(
         { _id: { $in: recentChatIds }, userId: currentUser._id },
         "_id",
     );
     const existingChatIds = existingChats.map((chat) => chat._id.toString());
-
-    // Update recentChatIds with only existing chat IDs
     recentChatIds = recentChatIds.filter((id) => existingChatIds.includes(id));
+
+    let newActiveChatId = currentUser.activeChatId;
+    const activeChatExists = await Chat.exists({
+        _id: newActiveChatId,
+        userId: currentUser._id,
+    });
+
+    if (!activeChatExists) {
+        if (recentChatIds.length > 0) {
+            newActiveChatId = recentChatIds[0];
+        } else {
+            const emptyChat = await createNewChat({ messages: [], title: "" });
+            newActiveChatId = emptyChat._id;
+            recentChatIds.push(newActiveChatId);
+        }
+    }
 
     const updatedUser = await User.findByIdAndUpdate(
         currentUser._id,
-        { $set: { recentChatIds } },
+        { $set: { recentChatIds, activeChatId: newActiveChatId } },
         { new: true, useFindAndModify: false },
     );
 
     if (!updatedUser) throw new Error("User not found");
 
-    let newActiveChatId = currentUser.activeChatId;
-    if (String(newActiveChatId) === String(chatId)) {
-        newActiveChatId = recentChatIds[0] || null;
-        if (!newActiveChatId) {
-            const emptyChat = await createNewChat({ messages: [], title: "" });
-            newActiveChatId = emptyChat._id;
-            recentChatIds.push(newActiveChatId);
-        }
-        await User.findByIdAndUpdate(
-            currentUser._id,
-            { $set: { activeChatId: newActiveChatId, recentChatIds } },
-            { new: true, useFindAndModify: false },
-        );
-    }
-
-    return { recentChatIds, activeChatId: newActiveChatId };
+    return {
+        recentChatIds: updatedUser.recentChatIds,
+        activeChatId: updatedUser.activeChatId,
+    };
 }
