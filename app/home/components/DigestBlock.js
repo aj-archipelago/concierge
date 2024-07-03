@@ -25,8 +25,8 @@ export default function DigestBlock({ block }) {
 
     return (
         <div key={block._id} className="bg-gray-50 p-4 rounded-md border">
-            <div className="flex justify-between gap-2">
-                <h4 className="mb-4 font-semibold">{block.title}</h4>
+            <div className="flex justify-between gap-2 items-center mb-4">
+                <h4 className="font-semibold">{block.title}</h4>
                 {block.updatedAt && (
                     <div>
                         <div className="text-xs flex items-center gap-2 rounded-full px-3 py-2 border bg-gray-50">

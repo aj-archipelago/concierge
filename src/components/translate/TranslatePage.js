@@ -1,9 +1,8 @@
 "use client";
 
-import { useDispatch } from "react-redux";
-import Translation from "./Translation";
 import { useContext, useEffect, useState } from "react";
 import { AuthContext } from "../../App";
+import Translation from "./Translation";
 
 function TranslatePage() {
     const { userState, debouncedUpdateUserState } = useContext(AuthContext);

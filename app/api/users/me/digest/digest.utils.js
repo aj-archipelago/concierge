@@ -15,22 +15,17 @@ export const generateDigestBlockContent = async (block, user) => {
         variables,
     });
 
-    let resultMessage = "";
     let searchRequired = false;
     let tool = null;
 
     try {
-        const resultObj = JSON.parse(result.data.rag_start.result);
-        resultMessage = resultObj?.response;
-
         tool = result.data.rag_start.tool;
         if (tool) {
             const toolObj = JSON.parse(result.data.rag_start.tool);
             searchRequired = toolObj?.search;
         }
     } catch (e) {
-        handleError(e);
-        resultMessage = e.message;
+        console.error(e);
     }
 
     let content;

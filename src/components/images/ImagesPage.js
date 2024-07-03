@@ -62,7 +62,7 @@ function ImagesPage() {
 
             return data;
         },
-        [apolloClient, generationPrompt, images],
+        [apolloClient, images],
     );
 
     images.sort((a, b) => {
