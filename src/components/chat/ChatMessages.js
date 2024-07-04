@@ -6,7 +6,7 @@ import { AiOutlineReload, AiOutlineSave } from "react-icons/ai";
 import config from "../../../config";
 import { convertMessageToMarkdown } from "./ChatMessage";
 import dynamic from "next/dynamic";
-import { useAddChat, useGetActiveChat } from "../../../app/queries/chats";
+import { useAddChat } from "../../../app/queries/chats";
 import { useApolloClient } from "@apollo/client";
 import { handleSaveChat } from "./SaveChat";
 
@@ -18,13 +18,13 @@ function ChatMessages({
     loading,
     container,
     displayState,
+    viewingReadOnlyChat,
+    publicChatOwner,
 }) {
     const { t } = useTranslation();
     const client = useApolloClient();
     const addChat = useAddChat();
     const originalMessages = messages;
-    const chat = useGetActiveChat()?.data;
-    const { readOnly } = chat || {};
 
     messages = messages.map((m) => {
         return Object.assign({}, m, {
@@ -53,7 +53,10 @@ function ChatMessages({
             <div className="grow overflow-auto flex flex-col chat-content">
                 <div className="hidden justify-between items-center px-3 pb-2 text-xs [.docked_&]:flex">
                     {/* <SavedChats displayState={displayState} /> */}
-                    <ChatTopMenuDynamic displayState={displayState} />
+                    <ChatTopMenuDynamic
+                        displayState={displayState}
+                        publicChatOwner={publicChatOwner}
+                    />
                     {false && messages.length > 0 && (
                         <div className="flex gap-2">
                             <button
@@ -88,22 +91,19 @@ function ChatMessages({
                 </div>
             </div>
             <div>
-                {!readOnly && (
-                    <MessageInput
-                        loading={loading}
-                        enableRag={true}
-                        placeholder={
-                            container === "chatbox"
-                                ? t(`Send message`)
-                                : t(
-                                      `Send a message to ${config?.chat?.botName}`,
-                                  )
-                        }
-                        container={container}
-                        displayState={displayState}
-                        onSend={(message) => onSend(message)}
-                    />
-                )}
+                <MessageInput
+                    viewingReadOnlyChat={viewingReadOnlyChat}
+                    loading={loading}
+                    enableRag={true}
+                    placeholder={
+                        container === "chatbox"
+                            ? t(`Send message`)
+                            : t(`Send a message to ${config?.chat?.botName}`)
+                    }
+                    container={container}
+                    displayState={displayState}
+                    onSend={(message) => onSend(message)}
+                />
             </div>
         </div>
     );

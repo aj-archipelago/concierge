@@ -97,19 +97,31 @@ export async function getChatById(chatId) {
 
     const currentUser = await getCurrentUser(false);
 
-    const chat = await Chat.findOne({ _id: chatId });
+    const chat = await Chat.findOne({ _id: chatId }).populate(
+        "userId",
+        "name username",
+    );
 
     if (!chat) {
         return null;
     }
 
-    if (String(chat.userId) !== String(currentUser._id) && !chat.isPublic) {
+    if (String(chat.userId._id) !== String(currentUser._id) && !chat.isPublic) {
         throw new Error("Unauthorized access");
     }
 
-    const isReadOnly = String(chat.userId) !== String(currentUser._id);
+    const isReadOnly = String(chat.userId._id) !== String(currentUser._id);
     const { _id, title, messages, isPublic } = chat;
-    return { _id, title, messages, isPublic, readOnly: isReadOnly };
+    const result = { _id, title, messages, isPublic, readOnly: isReadOnly };
+
+    if (isReadOnly) {
+        result.owner = {
+            name: chat.userId.name,
+            username: chat.userId.username,
+        };
+    }
+
+    return result;
 }
 
 export async function setActiveChatId(activeChatId) {

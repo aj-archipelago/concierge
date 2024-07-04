@@ -8,13 +8,16 @@ import {
     useGetActiveChat,
 } from "../../../app/queries/chats";
 
-const ChatTopMenuDynamic = dynamic(() => import("./ChatTopMenu"));
+const ChatTopMenuDynamic = dynamic(() => import("./ChatTopMenu"), {
+    loading: () => <div style={{ width: "80px", height: "20px" }}></div>,
+});
 
-function Chat() {
+function Chat({ viewingChat = null }) {
     const { t } = useTranslation();
     const updateActiveChat = useUpdateActiveChat();
     const { data: chat } = useGetActiveChat();
-    const { readOnly } = chat || {};
+    const { readOnly } = viewingChat || {};
+    const publicChatOwner = viewingChat?.owner;
 
     const handleShareOrCopy = async () => {
         const shareUrl = `${window.location.origin}/chat/${chat._id}`;
@@ -37,33 +40,41 @@ function Chat() {
         <div className="flex flex-col gap-3 h-full">
             <div className="flex justify-between">
                 <ChatTopMenuDynamic />
-                {!readOnly && (
-                    <div className="flex gap-2">
-                        <button
-                            className={`lb-sm lb-outline ${chat?.isPublic ? "" : "lb-primary"}`}
-                            onClick={handleShareOrCopy}
-                        >
-                            {chat?.isPublic ? t("Copy Share URL") : t("Share")}
-                        </button>
-                        <button
-                            className="lb-outline-secondary lb-sm"
-                            size="sm"
-                            onClick={() => {
-                                if (window.confirm(t("Are you sure?"))) {
-                                    updateActiveChat.mutateAsync({
-                                        messages: [],
-                                        title: "",
-                                    });
-                                }
-                            }}
-                        >
-                            {t("Clear this chat")}
-                        </button>
+                {publicChatOwner && (
+                    <div className="text-sm font-medium text-gray-600 bg-gray-100 px-3 py-1 rounded shadow-sm">
+                        {t("This chat is shared by")}{" "}
+                        <span className="font-bold text-blue-600">
+                            {publicChatOwner.name || publicChatOwner.username}
+                        </span>
                     </div>
                 )}
+                <div className="flex gap-2">
+                    <button
+                        disabled={readOnly}
+                        className={`lb-sm lb-outline ${chat?.isPublic ? "" : "lb-primary"}`}
+                        onClick={handleShareOrCopy}
+                    >
+                        {chat?.isPublic ? t("Copy Share URL") : t("Share")}
+                    </button>
+                    <button
+                        disabled={readOnly}
+                        className="lb-outline-secondary lb-sm"
+                        size="sm"
+                        onClick={() => {
+                            if (window.confirm(t("Are you sure?"))) {
+                                updateActiveChat.mutateAsync({
+                                    messages: [],
+                                    title: "",
+                                });
+                            }
+                        }}
+                    >
+                        {t("Clear this chat")}
+                    </button>
+                </div>
             </div>
             <div className="grow overflow-auto">
-                <ChatContent />
+                <ChatContent viewingChat={viewingChat} />
             </div>
         </div>
     );

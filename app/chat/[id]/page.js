@@ -18,24 +18,31 @@ export default async function ChatPage({ params }) {
         id = await getActiveChatId();
         // route page to active chat
     }
-    const response = await getChatById(id);
-    await setActiveChatId(id);
+    const chat = await getChatById(id);
+    const { readOnly } = chat;
+
     const queryClient = new QueryClient();
+
+    let viewingChat = JSON.parse(JSON.stringify(chat));
+    if (!readOnly) {
+        viewingChat = null;
+        await setActiveChatId(id);
+
+        //Prefetch the active chat id with the provided id
+        await queryClient.prefetchQuery({
+            queryKey: ["activeChatId"],
+            queryFn: async () => {
+                return id;
+            },
+            staleTime: Infinity,
+        });
+    }
 
     // Prefetch the chat data
     await queryClient.prefetchQuery({
         queryKey: ["chat", id],
         queryFn: async () => {
-            return JSON.parse(JSON.stringify(response));
-        },
-        staleTime: Infinity,
-    });
-
-    //Prefetch the active chat id with the provided id
-    await queryClient.prefetchQuery({
-        queryKey: ["activeChatId"],
-        queryFn: async () => {
-            return id;
+            return JSON.parse(JSON.stringify(chat));
         },
         staleTime: Infinity,
     });
@@ -43,7 +50,7 @@ export default async function ChatPage({ params }) {
     return (
         <HydrationBoundary state={dehydrate(queryClient)}>
             <div className="flex flex-col h-full">
-                <Chat />
+                <Chat viewingChat={viewingChat} />
             </div>
         </HydrationBoundary>
     );
