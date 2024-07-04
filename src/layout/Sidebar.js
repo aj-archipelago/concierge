@@ -11,7 +11,7 @@ import {
 import { FaEdit } from "react-icons/fa";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import React, { useContext, useState, useEffect } from "react";
+import React, { useContext, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { MdOutlineWorkspaces } from "react-icons/md";
 import classNames from "../../app/utils/class-names";
@@ -57,57 +57,37 @@ export default React.forwardRef(function Sidebar(_, ref) {
     const chats = chatsData || [];
     const deleteChat = useDeleteChat();
     const setActiveChatId = useSetActiveChatId();
-    const getActiveChatId = useGetActiveChatId();
-    const activeChatId = getActiveChatId?.data || getActiveChatId;
     const addChat = useAddChat();
-    const queryClient = useQueryClient();
     const updateChat = useUpdateChat();
 
     const [editingId, setEditingId] = useState(null);
     const [editedName, setEditedName] = useState("");
-    const [pendingChatId, setPendingChatId] = useState(null);
-
-    useEffect(() => {
-        if (pendingChatId) {
-            setActiveChatId.mutate(pendingChatId);
-            router.push(`/chat/${pendingChatId}`);
-            setPendingChatId(null);
-        }
-    }, [pendingChatId, setActiveChatId, router]);
-
-    const handleDeleteChat = (chatId) => {
-        if (!window.confirm(t("Are you sure you want to delete this chat?"))) {
-            return;
-        }
-        const currentActiveChatId = activeChatId;
-        deleteChat.mutate({ chatId });
-        if (chatId === currentActiveChatId) {
-            const topChat = chats.filter((chat) => chat._id !== chatId)[0];
-            if (topChat) {
-                setPendingChatId(topChat._id);
-            } else {
-                createDefaultNewChat();
-            }
-        }
-    };
 
     const handleNewChat = async () => {
-        createDefaultNewChat();
+        try {
+            const { _id } = await addChat.mutateAsync({ messages: [] });
+            router.push(`/chat/${String(_id)}`);
+        } catch (error) {
+            console.error("Error adding chat:", error);
+        }
     };
 
-    const createDefaultNewChat = async () => {
-        const newChatIndex = chats.findIndex(
-            (chat) => chat.messages.length === 0,
+    const handleDeleteChat = async (chatId) => {
+        const userConfirmed = window.confirm(
+            t("Are you sure you want to delete this chat?"),
         );
-        if (newChatIndex > -1) {
-            setPendingChatId(chats[newChatIndex]._id);
-            return;
-        }
-        const newChat = await addChat.mutateAsync({ messages: [] });
-        if (newChat && newChat._id) {
-            setPendingChatId(newChat._id);
-            queryClient.invalidateQueries("chats");
-            queryClient.invalidateQueries("activeChats");
+        if (!userConfirmed) return;
+
+        try {
+            const { activeChatId, recentChatIds } =
+                await deleteChat.mutateAsync({ chatId });
+            if (activeChatId) {
+                router.push(`/chat/${activeChatId}`);
+            } else if (recentChatIds?.[0]) {
+                router.push(`/chat/${recentChatIds?.[0]}`);
+            }
+        } catch (error) {
+            console.error("Error deleting chat:", error);
         }
     };
 
@@ -181,7 +161,9 @@ export default React.forwardRef(function Sidebar(_, ref) {
                                                 className="h-6 w-6 shrink-0 text-gray-400"
                                                 aria-hidden="true"
                                             />
-                                            {t(item.name)}
+                                            <span className="select-none">
+                                                {t(item.name)}
+                                            </span>
                                         </div>
                                         {item.name === "Chat" && (
                                             <PlusIcon
@@ -195,161 +177,171 @@ export default React.forwardRef(function Sidebar(_, ref) {
                                     </div>
                                     {item.children?.length > 0 && (
                                         <ul className="mt-1 px-1">
-                                            {item.children.map((subItem) => (
-                                                <li
-                                                    key={
-                                                        subItem.key ||
-                                                        JSON.stringify(subItem)
-                                                    }
-                                                    className={classNames(
-                                                        "group flex items-center justify-between rounded-md cursor-pointer hover:bg-gray-100 my-0.5",
-                                                        pathname ===
-                                                            subItem?.href
-                                                            ? "bg-gray-100"
-                                                            : "",
-                                                    )}
-                                                    onClick={() => {
-                                                        if (subItem.href) {
-                                                            router.push(
-                                                                subItem.href,
-                                                            );
-                                                            if (
+                                            {item.children.map(
+                                                (subItem, index) => (
+                                                    <li
+                                                        key={
+                                                            subItem.key ||
+                                                            `${item.name}-${index}`
+                                                        }
+                                                        className={classNames(
+                                                            "group flex items-center justify-between rounded-md cursor-pointer hover:bg-gray-100 my-0.5",
+                                                            pathname ===
+                                                                subItem?.href
+                                                                ? "bg-gray-100"
+                                                                : "",
+                                                        )}
+                                                        onClick={() => {
+                                                            if (subItem.href) {
+                                                                router.push(
+                                                                    subItem.href,
+                                                                );
+                                                                if (
+                                                                    item.name ===
+                                                                    "Chat"
+                                                                ) {
+                                                                    setActiveChatId.mutate(
+                                                                        subItem.key,
+                                                                    );
+                                                                }
+                                                            }
+                                                        }}
+                                                    >
+                                                        <div
+                                                            className={`relative block py-2.5 pe-1 ${
                                                                 item.name ===
                                                                 "Chat"
-                                                            ) {
-                                                                setActiveChatId.mutate(
-                                                                    subItem.key,
-                                                                );
+                                                                    ? "text-xs pl-4 pr-4"
+                                                                    : "text-sm pl-9 pr-4"
+                                                            } leading-6 text-gray-700 w-full select-none flex items-center justify-between`}
+                                                            dir={
+                                                                document
+                                                                    .documentElement
+                                                                    .dir
                                                             }
-                                                        }
-                                                    }}
-                                                >
-                                                    <div
-                                                        className={`relative block py-2.5 pe-1 ${
-                                                            item.name === "Chat"
-                                                                ? "text-xs pl-4 pr-4"
-                                                                : "text-sm pl-9 pr-4"
-                                                        } leading-6 text-gray-700 w-full select-none flex items-center justify-between`}
-                                                        dir={
-                                                            document
-                                                                .documentElement
-                                                                .dir
-                                                        }
-                                                    >
-                                                        {item.name === "Chat" &&
-                                                        editingId ===
-                                                            subItem.key ? (
-                                                            <input
-                                                                autoFocus
-                                                                type="text"
-                                                                className="border-0 ring-1 w-full text-xs bg-gray-50 p-0 font-medium"
-                                                                value={
-                                                                    editedName
-                                                                }
-                                                                onChange={(e) =>
-                                                                    setEditedName(
-                                                                        e.target
-                                                                            .value,
-                                                                    )
-                                                                }
-                                                                onKeyDown={(
-                                                                    e,
-                                                                ) => {
-                                                                    if (
-                                                                        e.key ===
-                                                                        "Enter"
-                                                                    )
-                                                                        handleSaveEdit(
-                                                                            subItem,
-                                                                        );
-                                                                    if (
-                                                                        e.key ===
-                                                                        "Escape"
-                                                                    )
-                                                                        setEditingId(
-                                                                            null,
-                                                                        );
-                                                                }}
-                                                            />
-                                                        ) : (
-                                                            <>
-                                                                {item.name ===
-                                                                    "Chat" && (
-                                                                    <FaEdit
-                                                                        className="absolute top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 cursor-pointer invisible group-hover:visible"
-                                                                        style={{
-                                                                            left:
-                                                                                document
-                                                                                    .documentElement
-                                                                                    .dir ===
-                                                                                "rtl"
-                                                                                    ? "unset"
-                                                                                    : "0.5rem",
-                                                                            right:
-                                                                                document
-                                                                                    .documentElement
-                                                                                    .dir ===
-                                                                                "rtl"
-                                                                                    ? "0.5rem"
-                                                                                    : "unset",
-                                                                        }}
-                                                                        onClick={(
-                                                                            e,
-                                                                        ) => {
-                                                                            e.stopPropagation();
+                                                        >
+                                                            {item.name ===
+                                                                "Chat" &&
+                                                            editingId &&
+                                                            editingId ===
+                                                                subItem.key ? (
+                                                                <input
+                                                                    autoFocus
+                                                                    type="text"
+                                                                    className="border-0 ring-1 w-full text-xs bg-gray-50 p-0 font-medium"
+                                                                    value={
+                                                                        editedName
+                                                                    }
+                                                                    onChange={(
+                                                                        e,
+                                                                    ) =>
+                                                                        setEditedName(
+                                                                            e
+                                                                                .target
+                                                                                .value,
+                                                                        )
+                                                                    }
+                                                                    onKeyDown={(
+                                                                        e,
+                                                                    ) => {
+                                                                        if (
+                                                                            e.key ===
+                                                                            "Enter"
+                                                                        )
+                                                                            handleSaveEdit(
+                                                                                subItem,
+                                                                            );
+                                                                        if (
+                                                                            e.key ===
+                                                                            "Escape"
+                                                                        )
                                                                             setEditingId(
-                                                                                subItem.key,
+                                                                                null,
                                                                             );
-                                                                            setEditedName(
-                                                                                subItem.name,
-                                                                            );
-                                                                        }}
-                                                                    />
-                                                                )}
-                                                                <span
-                                                                    className={`${
+                                                                    }}
+                                                                />
+                                                            ) : (
+                                                                <>
+                                                                    {item.name ===
+                                                                        "Chat" && (
+                                                                        <FaEdit
+                                                                            className="absolute top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 cursor-pointer invisible group-hover:visible"
+                                                                            style={{
+                                                                                left:
+                                                                                    document
+                                                                                        .documentElement
+                                                                                        .dir ===
+                                                                                    "rtl"
+                                                                                        ? "unset"
+                                                                                        : "0.5rem",
+                                                                                right:
+                                                                                    document
+                                                                                        .documentElement
+                                                                                        .dir ===
+                                                                                    "rtl"
+                                                                                        ? "0.5rem"
+                                                                                        : "unset",
+                                                                            }}
+                                                                            onClick={(
+                                                                                e,
+                                                                            ) => {
+                                                                                e.stopPropagation();
+                                                                                setEditingId(
+                                                                                    subItem.key,
+                                                                                );
+                                                                                setEditedName(
+                                                                                    subItem.name,
+                                                                                );
+                                                                            }}
+                                                                        />
+                                                                    )}
+                                                                    <span
+                                                                        className={`${
+                                                                            document
+                                                                                .documentElement
+                                                                                .dir ===
+                                                                            "rtl"
+                                                                                ? "pr-3"
+                                                                                : "pl-3"
+                                                                        } truncate whitespace-nowrap overflow-hidden max-w-[150px]`}
+                                                                        title={t(
+                                                                            subItem.name ||
+                                                                                "",
+                                                                        )} // Add this line for tooltip
+                                                                    >
+                                                                        {t(
+                                                                            subItem.name ||
+                                                                                "",
+                                                                        )}
+                                                                    </span>
+                                                                </>
+                                                            )}
+                                                            {item.name ===
+                                                                "Chat" && (
+                                                                <TrashIcon
+                                                                    className={`h-4 w-4 flex-shrink-0 text-gray-400 group-hover:visible invisible hover:text-red-600 cursor-pointer ${
                                                                         document
                                                                             .documentElement
                                                                             .dir ===
                                                                         "rtl"
-                                                                            ? "pr-3"
-                                                                            : "pl-3"
-                                                                    } truncate whitespace-nowrap overflow-hidden max-w-[150px]`}
-                                                                    title={t(
-                                                                        subItem.name,
-                                                                    )} // Add this line for tooltip
-                                                                >
-                                                                    {t(
-                                                                        subItem.name,
-                                                                    )}
-                                                                </span>
-                                                            </>
-                                                        )}
-                                                        {item.name ===
-                                                            "Chat" && (
-                                                            <TrashIcon
-                                                                className={`h-4 w-4 flex-shrink-0 text-gray-400 group-hover:visible invisible hover:text-red-600 cursor-pointer ${
-                                                                    document
-                                                                        .documentElement
-                                                                        .dir ===
-                                                                    "rtl"
-                                                                        ? "-ml-2.5"
-                                                                        : "-mr-2.5"
-                                                                }`}
-                                                                aria-hidden="true"
-                                                                onClick={(
-                                                                    e,
-                                                                ) => {
-                                                                    e.stopPropagation();
-                                                                    handleDeleteChat(
-                                                                        subItem.key,
-                                                                    );
-                                                                }}
-                                                            />
-                                                        )}
-                                                    </div>
-                                                </li>
-                                            ))}
+                                                                            ? "-ml-2.5"
+                                                                            : "-mr-2.5"
+                                                                    }`}
+                                                                    aria-hidden="true"
+                                                                    onClick={(
+                                                                        e,
+                                                                    ) => {
+                                                                        e.stopPropagation();
+                                                                        handleDeleteChat(
+                                                                            subItem.key,
+                                                                        );
+                                                                    }}
+                                                                />
+                                                            )}
+                                                        </div>
+                                                    </li>
+                                                ),
+                                            )}
                                         </ul>
                                     )}
                                 </li>

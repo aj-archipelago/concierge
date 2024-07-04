@@ -52,9 +52,9 @@ export async function DELETE(req, { params }) {
             throw new Error("Chat not found");
         }
 
-        await deleteChatIdFromRecentList(id);
+        const response = await deleteChatIdFromRecentList(id);
 
-        return NextResponse.json(chat);
+        return NextResponse.json({ ...response, deletedChat: chat });
     } catch (error) {
         return handleError(error);
     }
