@@ -86,7 +86,17 @@ function Write() {
             });
             indexMainPaneText(getUpdatedText(t), contextId, dispatch, client);
         },
-        [dispatch, action, inputText, selection, contextId, client],
+        [
+            dispatch,
+            action,
+            inputText,
+            selection,
+            contextId,
+            client,
+            debouncedUpdateUserState,
+            headline,
+            subhead,
+        ],
     );
 
     const handleEditorSelect = React.useCallback(
@@ -108,7 +118,14 @@ function Write() {
             });
             indexMainPaneText(text, contextId, dispatch, client);
         },
-        [dispatch, contextId, client],
+        [
+            dispatch,
+            contextId,
+            client,
+            debouncedUpdateUserState,
+            headline,
+            subhead,
+        ],
     );
 
     const editorPane = useMemo(() => {
@@ -215,6 +232,7 @@ function Write() {
         modalInputText,
         onCommitCallback,
         open,
+        debouncedUpdateUserState,
     ]);
 
     return (
