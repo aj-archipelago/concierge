@@ -1,5 +1,4 @@
 import { QUERIES, getClient } from "../../../../../src/graphql";
-import { serverUrl } from "../../../../layout";
 
 export const generateDigestBlockContent = async (block, user) => {
     const { prompt } = block;
@@ -9,7 +8,7 @@ export const generateDigestBlockContent = async (block, user) => {
         contextId: user?.contextId,
     };
 
-    const client = getClient(serverUrl);
+    const client = getClient();
     let searchRequired = false;
     let tool = null;
     let content;
