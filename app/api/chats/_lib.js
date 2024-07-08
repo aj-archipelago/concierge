@@ -2,6 +2,7 @@ import User from "../models/user";
 import Chat from "../models/chat";
 import { getCurrentUser } from "../utils/auth";
 import mongoose from "mongoose";
+import { Types } from "mongoose";
 
 const getSimpleTitle = (message) => {
     return (message?.payload || "").substring(0, 14);
@@ -91,8 +92,9 @@ export async function updateChat(data) {
 }
 
 export async function getChatById(chatId) {
-    if (!chatId) {
-        throw new Error("Chat ID is required");
+    if (!chatId || !Types.ObjectId.isValid(chatId)) {
+        console.error("Invalid chatId: ", chatId);
+        return null;
     }
 
     const currentUser = await getCurrentUser(false);
