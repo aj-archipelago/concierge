@@ -77,7 +77,7 @@ function Write() {
             };
 
             setInputText(getUpdatedText(t));
-            debouncedUpdateUserState("write", {
+            debouncedUpdateUserState({
                 write: {
                     headline: headline,
                     subhead: subhead,
@@ -109,7 +109,7 @@ function Write() {
     const handleEditorChange = React.useCallback(
         (text) => {
             setInputText(text);
-            debouncedUpdateUserState("write", {
+            debouncedUpdateUserState({
                 write: {
                     headline,
                     subhead,
@@ -145,7 +145,7 @@ function Write() {
                                 setHeadline(h.headline);
                                 setSubhead(h.subhead);
 
-                                debouncedUpdateUserState("write", {
+                                debouncedUpdateUserState({
                                     write: {
                                         headline: h.headline,
                                         subhead: h.subhead,
@@ -169,7 +169,7 @@ function Write() {
                                     case "clear-headline":
                                         setHeadline("");
                                         setSubhead("");
-                                        debouncedUpdateUserState("write", {
+                                        debouncedUpdateUserState({
                                             write: {
                                                 headline: "",
                                                 subhead: "",

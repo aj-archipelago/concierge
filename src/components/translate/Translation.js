@@ -257,7 +257,7 @@ function Translation({
                             <button
                                 className="flex gap-2 items-center absolute bottom-1 p-2 px-14 bg-gray-200 border border-gray-300 border-l-0 border-b-0 rounded-bl rounded-br hover:bg-gray-300 active:bg-gray-400"
                                 onClick={() => {
-                                    debouncedUpdateUserState("write", {
+                                    debouncedUpdateUserState({
                                         write: {
                                             text: translatedText,
                                         },

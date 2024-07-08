@@ -93,7 +93,7 @@ function Transcribe({
         setAsyncComplete(true);
         setCurrentOperation("");
         setSelectedModelOption(event.target.value);
-        debouncedUpdateUserState("transcribe", {
+        debouncedUpdateUserState({
             transcribe: {
                 url,
                 outputFormat: responseFormat,
@@ -369,7 +369,7 @@ function Transcribe({
                             size="sm"
                             onChange={(e) => {
                                 setUrl(e.target.value);
-                                debouncedUpdateUserState("transcribe", {
+                                debouncedUpdateUserState({
                                     transcribe: {
                                         url: e.target.value,
                                         outputFormat: responseFormat,
@@ -437,7 +437,7 @@ function Transcribe({
                                             wordTimestamped: false,
                                             textFormatted: false,
                                         });
-                                        debouncedUpdateUserState("transcribe", {
+                                        debouncedUpdateUserState({
                                             transcribe: {
                                                 url,
                                                 outputFormat: "",
@@ -472,7 +472,7 @@ function Transcribe({
                                             wordTimestamped: false,
                                             textFormatted: true,
                                         });
-                                        debouncedUpdateUserState("transcribe", {
+                                        debouncedUpdateUserState({
                                             transcribe: {
                                                 url,
                                                 outputFormat: "",
@@ -503,7 +503,7 @@ function Transcribe({
                                             wordTimestamped: false,
                                             textFormatted: false,
                                         });
-                                        debouncedUpdateUserState("transcribe", {
+                                        debouncedUpdateUserState({
                                             transcribe: {
                                                 url,
                                                 outputFormat: "srt",
@@ -534,7 +534,7 @@ function Transcribe({
                                             wordTimestamped: false,
                                             textFormatted: false,
                                         });
-                                        debouncedUpdateUserState("transcribe", {
+                                        debouncedUpdateUserState({
                                             transcribe: {
                                                 url,
                                                 outputFormat: "vtt",
@@ -573,7 +573,7 @@ function Transcribe({
                                             wordTimestamped: false,
                                             textFormatted: false,
                                         });
-                                        debouncedUpdateUserState("transcribe", {
+                                        debouncedUpdateUserState({
                                             transcribe: {
                                                 url,
                                                 outputFormat: responseFormat,
@@ -604,7 +604,7 @@ function Transcribe({
                                             wordTimestamped: true,
                                             textFormatted: false,
                                         });
-                                        debouncedUpdateUserState("transcribe", {
+                                        debouncedUpdateUserState({
                                             transcribe: {
                                                 url,
                                                 outputFormat: responseFormat,
@@ -637,7 +637,7 @@ function Transcribe({
                                             maxLineWidth: 35,
                                             maxLineCount: 1,
                                         });
-                                        debouncedUpdateUserState("transcribe", {
+                                        debouncedUpdateUserState({
                                             transcribe: {
                                                 url,
                                                 outputFormat: responseFormat,
@@ -685,7 +685,7 @@ function Transcribe({
                                 disabled={isLoading}
                                 onChange={(event) => {
                                     setLanguage(event.target.value);
-                                    debouncedUpdateUserState("transcribe", {
+                                    debouncedUpdateUserState({
                                         transcribe: {
                                             url,
                                             outputFormat: responseFormat,
