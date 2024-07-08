@@ -53,6 +53,10 @@ const userSchema = new mongoose.Schema(
             ref: "Chat",
             required: false,
         },
+        lastActiveAt: {
+            type: Date,
+            required: false,
+        },
     },
     {
         timestamps: true,

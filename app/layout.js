@@ -12,7 +12,7 @@ import {
 } from "@tanstack/react-query";
 
 const font = Inter({ subsets: ["latin"] });
-const serverUrl = process.env.SERVER_URL || "http://localhost:3000";
+export const serverUrl = process.env.SERVER_URL || "http://localhost:3000";
 const neuralspaceEnabled = process.env.ENABLE_NEURALSPACE === "true";
 
 export default async function RootLayout({ children }) {

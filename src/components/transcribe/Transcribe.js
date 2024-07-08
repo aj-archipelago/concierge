@@ -85,7 +85,7 @@ function Transcribe({
         if (userState?.transcribe?.model) {
             setSelectedModelOption(userState.transcribe.model);
         }
-    }, [userState]);
+    }, [userState, setTranscriptionOption]);
 
     // Create a function to handle option change
     const handleOptionChange = (event) => {

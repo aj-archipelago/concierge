@@ -5,18 +5,17 @@ import {
     MicrophoneIcon,
     PencilSquareIcon,
     PhotoIcon,
-    TrashIcon,
     PlusIcon,
+    TrashIcon,
 } from "@heroicons/react/24/outline";
-import { FaEdit } from "react-icons/fa";
+import { useQueryClient } from "@tanstack/react-query";
+import { HelpCircle, NewspaperIcon } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import React, { useContext, useState, useEffect } from "react";
+import React, { useContext, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { FaEdit } from "react-icons/fa";
 import { MdOutlineWorkspaces } from "react-icons/md";
-import classNames from "../../app/utils/class-names";
-import config from "../../config";
-import { LanguageContext } from "../contexts/LanguageProvider";
 import {
     useAddChat,
     useDeleteChat,
@@ -25,11 +24,17 @@ import {
     useSetActiveChatId,
     useUpdateChat,
 } from "../../app/queries/chats";
-import { useQueryClient } from "@tanstack/react-query";
-import { HelpCircle } from "lucide-react";
+import classNames from "../../app/utils/class-names";
+import config from "../../config";
 import SendFeedbackModal from "../components/help/SendFeedbackModal";
+import { LanguageContext } from "../contexts/LanguageProvider";
 
 const navigation = [
+    {
+        name: "Home",
+        icon: NewspaperIcon,
+        href: "/home",
+    },
     { name: "Chat", icon: ChatBubbleLeftIcon, href: "/chat", children: [] },
     { name: "Translate", icon: GlobeAltIcon, href: "/translate" },
     { name: "Transcribe", icon: MicrophoneIcon, href: "/transcribe" },
