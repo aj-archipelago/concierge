@@ -269,17 +269,19 @@ function Transcribe({
             try {
                 setLoadingTranslate(true);
                 const { data } = await apolloClient.query({
-                    query: QUERIES.TRANSLATE_GPT4,
+                    query: QUERIES.TRANSLATE_SUBTITLE,
                     variables: { text, to: language, async },
                     fetchPolicy: "network-only",
                 });
-                if (data?.translate_gpt4?.result) {
-                    const dataResult = data.translate_gpt4.result;
+                const result =
+                    data?.translate_subtitle?.result ||
+                    data?.translate_gpt4?.result;
+                if (result) {
                     if (async) {
-                        setRequestId(dataResult);
+                        setRequestId(result);
                         setAsyncComplete(false);
                     } else {
-                        setFinalData(dataResult);
+                        setFinalData(result);
                     }
                 }
             } catch (e) {
