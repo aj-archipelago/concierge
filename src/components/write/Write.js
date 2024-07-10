@@ -77,7 +77,7 @@ function Write() {
             };
 
             setInputText(getUpdatedText(t));
-            debouncedUpdateUserState("write", {
+            debouncedUpdateUserState({
                 write: {
                     headline: headline,
                     subhead: subhead,
@@ -86,7 +86,17 @@ function Write() {
             });
             indexMainPaneText(getUpdatedText(t), contextId, dispatch, client);
         },
-        [dispatch, action, inputText, selection, contextId, client],
+        [
+            dispatch,
+            action,
+            inputText,
+            selection,
+            contextId,
+            client,
+            debouncedUpdateUserState,
+            headline,
+            subhead,
+        ],
     );
 
     const handleEditorSelect = React.useCallback(
@@ -99,7 +109,7 @@ function Write() {
     const handleEditorChange = React.useCallback(
         (text) => {
             setInputText(text);
-            debouncedUpdateUserState("write", {
+            debouncedUpdateUserState({
                 write: {
                     headline,
                     subhead,
@@ -108,7 +118,14 @@ function Write() {
             });
             indexMainPaneText(text, contextId, dispatch, client);
         },
-        [dispatch, contextId, client],
+        [
+            dispatch,
+            contextId,
+            client,
+            debouncedUpdateUserState,
+            headline,
+            subhead,
+        ],
     );
 
     const editorPane = useMemo(() => {
@@ -128,7 +145,7 @@ function Write() {
                                 setHeadline(h.headline);
                                 setSubhead(h.subhead);
 
-                                debouncedUpdateUserState("write", {
+                                debouncedUpdateUserState({
                                     write: {
                                         headline: h.headline,
                                         subhead: h.subhead,
@@ -152,7 +169,7 @@ function Write() {
                                     case "clear-headline":
                                         setHeadline("");
                                         setSubhead("");
-                                        debouncedUpdateUserState("write", {
+                                        debouncedUpdateUserState({
                                             write: {
                                                 headline: "",
                                                 subhead: "",
@@ -215,6 +232,7 @@ function Write() {
         modalInputText,
         onCommitCallback,
         open,
+        debouncedUpdateUserState,
     ]);
 
     return (

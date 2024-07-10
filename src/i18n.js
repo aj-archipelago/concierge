@@ -3,6 +3,8 @@ import { initReactI18next } from "react-i18next";
 import detector from "i18next-browser-languagedetector";
 import translationAR from "./locales/ar.json";
 import translationEN from "./locales/en.json";
+import "dayjs/locale/ar";
+import "dayjs/locale/en";
 
 i18n.use(detector)
     .use(initReactI18next) // passes i18n down to react-i18next
