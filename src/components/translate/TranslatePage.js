@@ -35,7 +35,7 @@ function TranslatePage() {
             translatedText={translatedText}
             setTranslatedText={(t) => {
                 setTranslatedText(t);
-                debouncedUpdateUserState("translate", {
+                debouncedUpdateUserState({
                     translate: {
                         inputText,
                         translationStrategy,
@@ -46,7 +46,7 @@ function TranslatePage() {
             }}
             setTranslationInputText={(t) => {
                 setInputText(t);
-                debouncedUpdateUserState("translate", {
+                debouncedUpdateUserState({
                     translate: {
                         inputText: t,
                         translationStrategy,
@@ -57,7 +57,7 @@ function TranslatePage() {
             }}
             setTranslationLanguage={(t) => {
                 setTranslationLanguage(t);
-                debouncedUpdateUserState("translate", {
+                debouncedUpdateUserState({
                     translate: {
                         inputText,
                         translationStrategy,
@@ -68,7 +68,7 @@ function TranslatePage() {
             }}
             setTranslationStrategy={(t) => {
                 setTranslationStrategy(t);
-                debouncedUpdateUserState("translate", {
+                debouncedUpdateUserState({
                     translate: {
                         inputText,
                         translationStrategy: t,

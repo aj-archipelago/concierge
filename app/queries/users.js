@@ -67,8 +67,8 @@ export function useUpdateUserState() {
 
             return { previousUserState };
         },
-        onSettled: () => {
-            queryClient.invalidateQueries({ queryKey: ["userState"] });
+        onSuccess: (data) => {
+            queryClient.setQueryData(["userState"], data);
         },
     });
 
