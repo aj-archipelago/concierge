@@ -836,7 +836,8 @@ function Transcribe({
             {transcriptionOptions}
 
             {(!currentOperation || currentOperation === "DirectTranslation") &&
-                !url && !fileUploading && (
+                !url &&
+                !fileUploading && (
                     <div className="mt-2 border-t border-gray-200 pt-4">
                         <div className="mb-2 flex justify-between items-center w-full">
                             <div className="font-semibold">
@@ -887,7 +888,7 @@ function Transcribe({
                             onChange={(e) => setInputText(e.target.value)}
                             placeholder={t("Enter SRT text to translate")}
                         />
-                    </div>,
+                    </div>
                 )}
 
             <div>
