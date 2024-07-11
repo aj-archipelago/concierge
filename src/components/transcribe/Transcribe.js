@@ -1,7 +1,7 @@
 "use client";
 
 import { useApolloClient } from "@apollo/client";
-import { useCallback, useContext, useEffect, useState } from "react";
+import { useCallback, useContext, useEffect, useState, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { FaVideo } from "react-icons/fa";
 import config from "../../../config";
@@ -32,7 +32,7 @@ function Transcribe({
     const [loading, setLoading] = useState(false);
     const [loadingParagraph, setLoadingParagraph] = useState(false);
     const [loadingTranslate, setLoadingTranslate] = useState(false);
-    const [selectedModelOption, setSelectedModelOption] = useState("Whisper"); // default is Whisper
+    const [selectedModelOption, setSelectedModelOption] = useState("Whisper");
     const { neuralspaceEnabled } = useContext(ServerContext);
 
     const {
@@ -57,33 +57,30 @@ function Transcribe({
     const { serverUrl } = useContext(ServerContext);
     const { userState, debouncedUpdateUserState } = useContext(AuthContext);
 
+    const prevUserStateRef = useRef();
+
     useEffect(() => {
-        if (userState?.transcribe?.language) {
-            setTranscriptionTranslationLanguage(userState.transcribe.language);
-        }
-
-        if (userState?.transcribe?.url) {
-            setUrl(userState.transcribe.url);
-        }
-
-        if (userState?.transcribe) {
-            setTranscriptionOption({
-                responseFormat: userState.transcribe.outputFormat,
-                wordTimestamped:
-                    userState.transcribe.transcriptionType === "word",
-                textFormatted:
-                    userState.transcribe.transcriptionType === "formatted",
-                maxLineWidth: userState.transcribe.maxLineWidth,
-                maxLineCount: userState.transcribe.maxLineCount,
-            });
-        }
-
-        if (userState?.transcribe?.language) {
-            setLanguage(userState.transcribe.language);
-        }
-
-        if (userState?.transcribe?.model) {
-            setSelectedModelOption(userState.transcribe.model);
+        if (userState?.transcribe !== prevUserStateRef.current?.transcribe) {
+            if (userState?.transcribe?.language) {
+                setTranscriptionTranslationLanguage(userState.transcribe.language);
+                setLanguage(userState.transcribe.language);
+            }
+            if (userState?.transcribe?.url) {
+                setUrl(userState.transcribe.url);
+            }
+            if (userState?.transcribe) {
+                setTranscriptionOption({
+                    responseFormat: userState.transcribe.outputFormat,
+                    wordTimestamped: userState.transcribe.transcriptionType === "word",
+                    textFormatted: userState.transcribe.transcriptionType === "formatted",
+                    maxLineWidth: userState.transcribe.maxLineWidth,
+                    maxLineCount: userState.transcribe.maxLineCount,
+                });
+            }
+            if (userState?.transcribe?.model) {
+                setSelectedModelOption(userState.transcribe.model);
+            }
+            prevUserStateRef.current = userState;
         }
     }, [userState, setTranscriptionOption]);
 
