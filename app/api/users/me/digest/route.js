@@ -36,6 +36,7 @@ export async function GET(req, { params }) {
         );
     }
 
+    let promises = [];
     for (const block of digest.blocks) {
         const lastUpdated = block.updatedAt;
 
@@ -44,12 +45,16 @@ export async function GET(req, { params }) {
             !block.content ||
             dayjs().diff(dayjs(lastUpdated)) > UPDATE_INTERVAL
         ) {
-            const content = await generateDigestBlockContent(block, user);
-
-            block.content = content;
-            block.updatedAt = new Date();
+            promises.push(
+                generateDigestBlockContent(block, user).then((content) => {
+                    block.content = content;
+                    block.updatedAt = new Date();
+                }),
+            );
         }
     }
+
+    await Promise.all(promises);
 
     digest = await Digest.findOneAndUpdate(
         {

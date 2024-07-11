@@ -61,7 +61,7 @@ export default function Jira() {
                         value={text}
                         onChange={(e) => {
                             setText(e.target.value);
-                            debouncedUpdateUserState("jira", {
+                            debouncedUpdateUserState({
                                 jira: { input: e.target.value },
                             });
                         }}
