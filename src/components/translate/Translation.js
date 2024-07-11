@@ -167,9 +167,9 @@ function Translation({
                             <option value="traditional">
                                 {t("Fastest (Azure)")}
                             </option>
-                            <option value="subtitle">
+                            {/* <option value="subtitle">
                                 {t("Subtitle Translation (SRT)")}
-                            </option>
+                            </option> */}
                         </select>
                         <LoadingButton
                             disabled={!inputText || inputText.length === 0}
