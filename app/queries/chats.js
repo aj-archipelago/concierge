@@ -99,11 +99,9 @@ export function useAddChat() {
                 ...oldInfo,
                 activeChatId: newChat._id,
             }));
-            queryClient.invalidateQueries([
-                "userChatInfo",
-                "activeChats",
-                "chats",
-            ]);
+            queryClient.invalidateQueries({ queryKey: ["userChatInfo"] });
+            queryClient.invalidateQueries({ queryKey: ["activeChats"] });
+            queryClient.invalidateQueries({ queryKey: ["chats"] });
         },
         onError: (err, variables, context) => {
             if (context?.previousChats) {
@@ -136,11 +134,9 @@ export function useDeleteChat() {
         },
         onMutate: async ({ chatId }) => {
             if (!isValidObjectId(chatId)) return;
-            await queryClient.cancelQueries([
-                "chats",
-                "activeChats",
-                "userChatInfo",
-            ]);
+            await queryClient.cancelQueries({ queryKey: ["userChatInfo"] });
+            await queryClient.cancelQueries({ queryKey: ["activeChats"] });
+            await queryClient.cancelQueries({ queryKey: ["chats"] });
             const previousChats = queryClient.getQueryData(["chats"]) || [];
             const previousActiveChats =
                 queryClient.getQueryData(["activeChats"]) || [];
@@ -194,11 +190,9 @@ export function useDeleteChat() {
             }
         },
         onSuccess: () => {
-            queryClient.invalidateQueries([
-                "chats",
-                "userChatInfo",
-                "activeChats",
-            ]);
+            queryClient.invalidateQueries({ queryKey: ["userChatInfo"] });
+            queryClient.invalidateQueries({ queryKey: ["activeChats"] });
+            queryClient.invalidateQueries({ queryKey: ["chats"] });
         },
     });
 }
@@ -274,11 +268,9 @@ export function useSetActiveChatId() {
                 queryClient.getQueryData(["chat", activeChatId]) ||
                 temporaryNewChat({});
 
-            await queryClient.cancelQueries([
-                "userChatInfo",
-                "activeChats",
-                "chats",
-            ]);
+            await queryClient.cancelQueries({ queryKey: ["userChatInfo"] });
+            await queryClient.cancelQueries({ queryKey: ["activeChats"] });
+            await queryClient.cancelQueries({ queryKey: ["chats"] });
             queryClient.setQueryData(["userChatInfo"], expectedData);
             queryClient.setQueryData(["activeChats"], (oldChats = []) =>
                 oldChats.map((chat) =>
@@ -301,11 +293,9 @@ export function useSetActiveChatId() {
             }
         },
         onSuccess: () => {
-            queryClient.invalidateQueries([
-                "userChatInfo",
-                "activeChats",
-                "chats",
-            ]);
+            queryClient.invalidateQueries({ queryKey: ["userChatInfo"] });
+            queryClient.invalidateQueries({ queryKey: ["activeChats"] });
+            queryClient.invalidateQueries({ queryKey: ["chats"] });
         },
     });
 }
@@ -358,7 +348,7 @@ export function useAddMessage() {
         },
         onSuccess: (updatedChat) => {
             const chatId = String(updatedChat?._id);
-            queryClient.invalidateQueries(["chat", chatId]);
+            queryClient.invalidateQueries({ queryKey: ["chat", chatId] });
             queryClient.setQueryData(["chat", chatId], updatedChat);
         },
     });
@@ -379,7 +369,7 @@ export function useUpdateChat() {
             return response.data;
         },
         onMutate: async ({ chatId, ...updateData }) => {
-            await queryClient.cancelQueries(["chat", chatId]);
+            await queryClient.cancelQueries({ queryKey: ["chat", chatId] });
             const previousChat = queryClient.getQueryData(["chat", chatId]);
             const expectedChatData = { ...previousChat, ...updateData };
             queryClient.setQueryData(["chat", chatId], expectedChatData);
@@ -397,7 +387,9 @@ export function useUpdateChat() {
             queryClient.setQueryData(["chat", chatId], updatedChat);
         },
         onSettled: (data, error, variables) => {
-            queryClient.invalidateQueries(["chat", variables.chatId]);
+            queryClient.invalidateQueries({
+                queryKey: ["chat", variables.chatId],
+            });
         },
     });
 }
