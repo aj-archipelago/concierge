@@ -18,24 +18,45 @@ export default async function ChatPage({ params }) {
         id = await getActiveChatId();
         // route page to active chat
     }
-    const response = await getChatById(id);
-    await setActiveChatId(id);
+    const chat = await getChatById(id);
+    if (!chat) {
+        return (
+            <div className="flex items-center justify-center">
+                <div className="text-center p-8 bg-white rounded-lg shadow-md">
+                    <h1 className="text-2xl font-bold text-red-600 mb-2">
+                        Chat not found!
+                    </h1>
+                    <p className="text-gray-600">
+                        The requested chat does not exist or has been deleted.
+                    </p>
+                </div>
+            </div>
+        );
+    }
+    const { readOnly } = chat;
+
     const queryClient = new QueryClient();
+
+    let viewingChat = JSON.parse(JSON.stringify(chat));
+    if (!readOnly) {
+        viewingChat = null;
+        await setActiveChatId(id);
+
+        //Prefetch the active chat id with the provided id
+        await queryClient.prefetchQuery({
+            queryKey: ["activeChatId"],
+            queryFn: async () => {
+                return id;
+            },
+            staleTime: Infinity,
+        });
+    }
 
     // Prefetch the chat data
     await queryClient.prefetchQuery({
         queryKey: ["chat", id],
         queryFn: async () => {
-            return JSON.parse(JSON.stringify(response));
-        },
-        staleTime: Infinity,
-    });
-
-    //Prefetch the active chat id with the provided id
-    await queryClient.prefetchQuery({
-        queryKey: ["activeChatId"],
-        queryFn: async () => {
-            return id;
+            return JSON.parse(JSON.stringify(chat));
         },
         staleTime: Infinity,
     });
@@ -43,7 +64,7 @@ export default async function ChatPage({ params }) {
     return (
         <HydrationBoundary state={dehydrate(queryClient)}>
             <div className="flex flex-col h-full">
-                <Chat />
+                <Chat viewingChat={viewingChat} />
             </div>
         </HydrationBoundary>
     );
