@@ -190,6 +190,7 @@ const RAG_GENERATOR_RESULTS = gql`
         $indexName: String
         $semanticConfiguration: String
         $aiName: String
+        $useMemory: Boolean
         $chatId: String
     ) {
         rag_generator_results(
@@ -201,6 +202,7 @@ const RAG_GENERATOR_RESULTS = gql`
             indexName: $indexName
             semanticConfiguration: $semanticConfiguration
             aiName: $aiName
+            useMemory: $useMemory
             chatId: $chatId
         ) {
             result
@@ -422,6 +424,14 @@ const TRANSCRIBE_NEURALSPACE = gql`
             responseFormat: $responseFormat
             async: $async
         ) {
+            result
+        }
+    }
+`;
+
+const TRANSLATE_SUBTITLE = gql`
+    query TranslateSubtitle($text: String, $to: String, $async: Boolean) {
+        translate_subtitle(text: $text, to: $to, async: $async) {
             result
         }
     }
@@ -669,6 +679,7 @@ const QUERIES = {
     TRANSLATE_GPT4,
     TRANSLATE_GPT4_TURBO,
     TRANSLATE_GPT4_OMNI,
+    TRANSLATE_SUBTITLE,
     HIGHLIGHTS,
     REMOVE_CONTENT,
     HEADLINE_CUSTOM,
@@ -718,6 +729,7 @@ export {
     TRANSLATE_TURBO,
     TRANSLATE_GPT4,
     TRANSLATE_GPT4_TURBO,
+    TRANSLATE_SUBTITLE,
     HIGHLIGHTS,
     REMOVE_CONTENT,
     JIRA_STORY,

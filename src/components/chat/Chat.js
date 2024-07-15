@@ -3,40 +3,61 @@
 import { useTranslation } from "react-i18next";
 import ChatContent from "./ChatContent";
 import dynamic from "next/dynamic";
-import { useUpdateActiveChat } from "../../../app/queries/chats";
-// import { useGetActiveChat } from "../../../app/queries/chats"; // Assuming your hooks are in this path
-// import SavedChats from "./SavedChats";
-// import { AiOutlineSave } from "react-icons/ai";
-// import { handleSaveChat } from "./SaveChat";
-// import { useApolloClient } from "@apollo/client";
+import {
+    useUpdateActiveChat,
+    useGetActiveChat,
+} from "../../../app/queries/chats";
 
-const ChatTopMenuDynamic = dynamic(() => import("./ChatTopMenu"));
+const ChatTopMenuDynamic = dynamic(() => import("./ChatTopMenu"), {
+    loading: () => <div style={{ width: "80px", height: "20px" }}></div>,
+});
 
-function Chat() {
+function Chat({ viewingChat = null }) {
     const { t } = useTranslation();
-    // const addChat = useAddChat();
-    // const client = useApolloClient();
-    // const chat = useGetActiveChat();
-    // const messages = chat?.data?.messages || [];
     const updateActiveChat = useUpdateActiveChat();
+    const { data: chat } = useGetActiveChat();
+    const { readOnly } = viewingChat || {};
+    const publicChatOwner = viewingChat?.owner;
+
+    const handleShareOrCopy = async () => {
+        const shareUrl = `${window.location.origin}/chat/${chat._id}`;
+
+        if (chat?.isPublic) {
+            await navigator.clipboard.writeText(shareUrl);
+            alert(t("Share URL copied to clipboard!"));
+        } else {
+            if (window.confirm(t("Make this chat public?"))) {
+                await updateActiveChat.mutateAsync({ isPublic: true });
+                document.body.focus(); // Refocus the document
+                await new Promise((resolve) => setTimeout(resolve, 1000));
+                await navigator.clipboard.writeText(shareUrl);
+                alert(t("Chat made public. Share URL copied to clipboard!"));
+            }
+        }
+    };
 
     return (
         <div className="flex flex-col gap-3 h-full">
-            {/* <h3>{chat?.data?._id}</h3> */}
             <div className="flex justify-between">
-                {/* <SavedChats /> */}
                 <ChatTopMenuDynamic />
+                {publicChatOwner && (
+                    <div className="text-sm font-medium text-gray-600 bg-gray-100 px-3 py-1 rounded shadow-sm">
+                        {t("This chat is shared by")}{" "}
+                        <span className="font-bold text-blue-600">
+                            {publicChatOwner.name || publicChatOwner.username}
+                        </span>
+                    </div>
+                )}
                 <div className="flex gap-2">
-                    {/* <button
-                        className="lb-primary lb-sm flex gap-1 items-center"
-                        onClick={() =>
-                            handleSaveChat(messages, client, addChat)
-                        }
-                    >
-                        <AiOutlineSave />
-                        {t("Save active chat")}
-                    </button> */}
                     <button
+                        disabled={readOnly}
+                        className={`lb-sm lb-outline ${chat?.isPublic ? "" : "lb-primary"}`}
+                        onClick={handleShareOrCopy}
+                    >
+                        {chat?.isPublic ? t("Copy Share URL") : t("Share")}
+                    </button>
+                    <button
+                        disabled={readOnly}
                         className="lb-outline-secondary lb-sm"
                         size="sm"
                         onClick={() => {
@@ -53,7 +74,7 @@ function Chat() {
                 </div>
             </div>
             <div className="grow overflow-auto">
-                <ChatContent />
+                <ChatContent viewingChat={viewingChat} />
             </div>
         </div>
     );

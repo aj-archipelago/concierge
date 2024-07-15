@@ -18,6 +18,8 @@ function ChatMessages({
     loading,
     container,
     displayState,
+    viewingReadOnlyChat,
+    publicChatOwner,
 }) {
     const { t } = useTranslation();
     const client = useApolloClient();
@@ -51,7 +53,10 @@ function ChatMessages({
             <div className="grow overflow-auto flex flex-col chat-content">
                 <div className="hidden justify-between items-center px-3 pb-2 text-xs [.docked_&]:flex">
                     {/* <SavedChats displayState={displayState} /> */}
-                    <ChatTopMenuDynamic displayState={displayState} />
+                    <ChatTopMenuDynamic
+                        displayState={displayState}
+                        publicChatOwner={publicChatOwner}
+                    />
                     {false && messages.length > 0 && (
                         <div className="flex gap-2">
                             <button
@@ -87,6 +92,7 @@ function ChatMessages({
             </div>
             <div>
                 <MessageInput
+                    viewingReadOnlyChat={viewingReadOnlyChat}
                     loading={loading}
                     enableRag={true}
                     placeholder={

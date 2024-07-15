@@ -26,7 +26,13 @@ const DynamicFilepond = dynamic(() => import("./MyFilePond"), {
 });
 
 // Displays the list of messages and a message input box.
-function MessageInput({ onSend, loading, enableRag, placeholder }) {
+function MessageInput({
+    onSend,
+    loading,
+    enableRag,
+    placeholder,
+    viewingReadOnlyChat,
+}) {
     const [inputValue, setInputValue] = useState("");
     const [urlsData, setUrlsData] = useState([]);
     const [files, setFiles] = useState([]);
@@ -204,7 +210,8 @@ function MessageInput({ onSend, loading, enableRag, placeholder }) {
                                 disabled={
                                     loading ||
                                     inputValue === "" ||
-                                    isUploadingMedia
+                                    isUploadingMedia ||
+                                    viewingReadOnlyChat
                                 }
                                 className={classNames(
                                     "text-base rtl:rotate-180 text-emerald-600 hover:text-emerald-600 disabled:text-gray-300 active:text-gray-800 dark:bg-zinc-100",

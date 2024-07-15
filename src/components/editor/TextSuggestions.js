@@ -12,13 +12,6 @@ import Diff from "./Diff";
 import LoadingButton from "./LoadingButton";
 import StyleGuideDiff from "./StyleGuideDiff";
 import * as amplitude from "@amplitude/analytics-browser";
-import TimeAgo from "javascript-time-ago";
-import en from "javascript-time-ago/locale/en.json";
-import ar from "javascript-time-ago/locale/ar.json";
-
-if (typeof document !== "undefined") {
-    TimeAgo.addDefaultLocale(document.documentElement.lang === "ar" ? ar : en);
-}
 
 const DebugInfo = ({ prompt, temperature }) => {
     const [showDebug, setShowDebug] = useState(false);

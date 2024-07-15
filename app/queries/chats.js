@@ -1,9 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { unstable_batchedUpdates } from "react-dom";
 import axios from "axios";
 import { isValidObjectId } from "../../src/utils/helper.js";
 
-// Hook to get all chats
 export function useGetChats() {
     const queryClient = useQueryClient();
 
@@ -12,19 +10,18 @@ export function useGetChats() {
         queryFn: async () => {
             const response = await axios.get(`/api/chats`);
             const chats = response.data;
-
-            // Update individual chat queries
             chats.forEach((chat) => {
                 queryClient.setQueryData(["chat", chat._id], chat);
             });
-
             return chats;
         },
         staleTime: 1000 * 60 * 5,
+        refetchInterval: (data) => {
+            return !data?.state?.data || !data.state.data.length ? 1000 : false;
+        },
     });
 }
 
-// Hook to get active chats
 export function useGetActiveChats() {
     const queryClient = useQueryClient();
 
@@ -33,21 +30,21 @@ export function useGetActiveChats() {
         queryFn: async () => {
             const response = await axios.get(`/api/chats/active/detail`);
             const activeChats = response.data;
-
-            // Update individual chat queries
             activeChats.forEach((chat) => {
                 queryClient.setQueryData(["chat", chat._id], chat);
             });
-
             return activeChats;
         },
         staleTime: 1000 * 60 * 5,
+        refetchInterval: (data) => {
+            return !data?.state?.data || !data.state.data.length ? 1000 : false;
+        },
     });
 }
 
 function temporaryNewChat({ messages, title }) {
     return {
-        _id: null, // Temporary ID
+        _id: null,
         messages: messages || [],
         title: title || "",
     };
@@ -66,48 +63,61 @@ export function useAddChat() {
         },
         onMutate: async ({ messages, title }) => {
             const previousChats = queryClient.getQueryData(["chats"]) || [];
+            const previousActiveChats =
+                queryClient.getQueryData(["activeChats"]) || [];
+            const previousUserChatInfo =
+                queryClient.getQueryData(["userChatInfo"]) || {};
             const newChat = temporaryNewChat({ messages, title });
 
-            // Check if there's already a temporary chat entry with no ID
-            const existingTempChatIndex = previousChats.findIndex(
-                (chat) => !chat._id,
+            queryClient.setQueryData(["chats"], [newChat, ...previousChats]);
+            queryClient.setQueryData(
+                ["activeChats"],
+                [newChat, ...previousActiveChats],
             );
+            queryClient.setQueryData(["userChatInfo"], {
+                ...previousUserChatInfo,
+                activeChatId: newChat._id,
+            });
 
-            let updatedChats;
-            if (existingTempChatIndex !== -1) {
-                // Replace the existing temporary chat with the new one
-                updatedChats = [...previousChats];
-                updatedChats[existingTempChatIndex] = newChat;
-            } else {
-                // Add the new temporary chat if no existing temporary chat found
-                updatedChats = [newChat, ...previousChats];
-            }
-
-            queryClient.setQueryData(["chats"], updatedChats);
-
-            // Return a context object with the snapshotted previous state
-            return { previousChats };
+            return { previousChats, previousActiveChats, previousUserChatInfo };
         },
         onSuccess: (newChat) => {
             queryClient.setQueryData(["chat", newChat._id], newChat);
-
-            // Update the "chats" query while ensuring no duplicates
-            queryClient.setQueryData(["chats"], (oldChats) => {
-                const filteredChats = oldChats.filter(
-                    (chat) => chat._id !== newChat._id && chat._id !== null,
-                );
-                return [newChat, ...filteredChats];
-            });
-
-            unstable_batchedUpdates(() => {
-                queryClient.invalidateQueries(["userChatInfo"]);
-                queryClient.invalidateQueries(["activeChats"]);
-            });
+            queryClient.setQueryData(["chats"], (oldChats = []) => [
+                newChat,
+                ...oldChats.filter(
+                    (chat) => chat._id !== null && chat._id !== newChat._id,
+                ),
+            ]);
+            queryClient.setQueryData(["activeChats"], (oldChats = []) => [
+                newChat,
+                ...oldChats.filter(
+                    (chat) => chat._id !== null && chat._id !== newChat._id,
+                ),
+            ]);
+            queryClient.setQueryData(["userChatInfo"], (oldInfo) => ({
+                ...oldInfo,
+                activeChatId: newChat._id,
+            }));
+            queryClient.invalidateQueries({ queryKey: ["userChatInfo"] });
+            queryClient.invalidateQueries({ queryKey: ["activeChats"] });
+            queryClient.invalidateQueries({ queryKey: ["chats"] });
         },
-        // Ensure to reset to the previous state in case of an error
         onError: (err, variables, context) => {
             if (context?.previousChats) {
                 queryClient.setQueryData(["chats"], context.previousChats);
+            }
+            if (context?.previousActiveChats) {
+                queryClient.setQueryData(
+                    ["activeChats"],
+                    context.previousActiveChats,
+                );
+            }
+            if (context?.previousUserChatInfo) {
+                queryClient.setQueryData(
+                    ["userChatInfo"],
+                    context.previousUserChatInfo,
+                );
             }
         },
     });
@@ -118,45 +128,84 @@ export function useDeleteChat() {
 
     return useMutation({
         mutationFn: async ({ chatId }) => {
+            if (!chatId || !isValidObjectId(chatId)) return;
             const response = await axios.delete(`/api/chats/${String(chatId)}`);
             return response.data;
         },
         onMutate: async ({ chatId }) => {
-            await queryClient.cancelQueries(["chats"]);
-            await queryClient.cancelQueries(["activeChats"]);
-
+            if (!isValidObjectId(chatId)) return;
+            await queryClient.cancelQueries({ queryKey: ["userChatInfo"] });
+            await queryClient.cancelQueries({ queryKey: ["activeChats"] });
+            await queryClient.cancelQueries({ queryKey: ["chats"] });
             const previousChats = queryClient.getQueryData(["chats"]) || [];
-            queryClient.setQueryData(["chats"], (oldChats) =>
-                oldChats.filter((chat) => chat._id !== chatId),
+            const previousActiveChats =
+                queryClient.getQueryData(["activeChats"]) || [];
+            const previousUserChatInfo =
+                queryClient.getQueryData(["userChatInfo"]) || {};
+
+            const updatedChats = previousChats.filter(
+                (chat) => chat._id !== chatId,
             );
-            queryClient.setQueryData(["activeChats"], (oldChats) =>
-                oldChats.filter((chat) => chat._id !== chatId),
+            const updatedActiveChats = previousActiveChats.filter(
+                (chat) => chat._id !== chatId,
             );
 
-            return { previousChats };
+            if (updatedChats.length === 0)
+                updatedChats.push(temporaryNewChat({}));
+            if (updatedActiveChats.length === 0)
+                updatedActiveChats.push(temporaryNewChat({}));
+
+            const updatedUserChatInfo = {
+                ...previousUserChatInfo,
+                recentChatIds:
+                    previousUserChatInfo.recentChatIds?.filter(
+                        (id) => id !== chatId,
+                    ) || [],
+            };
+            if (updatedUserChatInfo.activeChatId === chatId) {
+                updatedUserChatInfo.activeChatId = updatedChats[0]._id;
+            }
+
+            queryClient.setQueryData(["chats"], updatedChats);
+            queryClient.setQueryData(["activeChats"], updatedActiveChats);
+            queryClient.setQueryData(["userChatInfo"], updatedUserChatInfo);
+
+            return { previousChats, previousActiveChats, previousUserChatInfo };
         },
         onError: (err, variables, context) => {
             if (context?.previousChats) {
                 queryClient.setQueryData(["chats"], context.previousChats);
             }
+            if (context?.previousActiveChats) {
+                queryClient.setQueryData(
+                    ["activeChats"],
+                    context.previousActiveChats,
+                );
+            }
+            if (context?.previousUserChatInfo) {
+                queryClient.setQueryData(
+                    ["userChatInfo"],
+                    context.previousUserChatInfo,
+                );
+            }
         },
         onSuccess: () => {
-            unstable_batchedUpdates(() => {
-                queryClient.invalidateQueries(["chats"]);
-                queryClient.invalidateQueries(["userChatInfo"]);
-                queryClient.invalidateQueries(["activeChats"]);
-            });
+            queryClient.invalidateQueries({ queryKey: ["userChatInfo"] });
+            queryClient.invalidateQueries({ queryKey: ["activeChats"] });
+            queryClient.invalidateQueries({ queryKey: ["chats"] });
         },
     });
 }
 
-// Hook to get user chat info (all chat IDs and the most recent active chat ID)
 export function useGetUserChatInfo() {
     return useQuery({
         queryKey: ["userChatInfo"],
         queryFn: async () => {
             const response = await axios.get(`/api/chats/active`);
             return response.data;
+        },
+        refetchInterval: (data) => {
+            return !data?.state?.data?.activeChatId ? 1000 : false;
         },
         staleTime: 1000 * 60 * 5,
     });
@@ -202,51 +251,37 @@ export function useSetActiveChatId() {
         onMutate: async (activeChatId) => {
             if (!isValidObjectId(activeChatId)) return;
             const previousData = queryClient.getQueryData(["userChatInfo"]);
-            let recentChatIds;
+            let recentChatIds = previousData?.recentChatIds || [];
 
-            if (previousData?.recentChatIds.includes(activeChatId)) {
-                recentChatIds = previousData.recentChatIds;
+            const index = recentChatIds.indexOf(activeChatId);
+            if (index > -1) {
+                if (index >= 3) {
+                    recentChatIds.splice(index, 1);
+                    recentChatIds.unshift(activeChatId);
+                }
             } else {
-                recentChatIds = [
-                    activeChatId,
-                    ...(previousData?.recentChatIds || []),
-                ].slice(0, 30); // Ensure max length of 30
+                recentChatIds.unshift(activeChatId);
             }
 
-            // Keep the top 3 chats in place
-            const top3 = previousData?.recentChatIds.slice(0, 3) || [];
-            const remainingChats = recentChatIds.filter(
-                (id) => !top3.includes(id),
-            );
-
-            recentChatIds = [...top3, ...remainingChats.slice(0, 27)];
-
-            const expectedData = {
-                activeChatId,
-                recentChatIds,
-            };
+            const expectedData = { activeChatId, recentChatIds };
             const possibleChat =
                 queryClient.getQueryData(["chat", activeChatId]) ||
                 temporaryNewChat({});
 
-            await queryClient.cancelQueries(["userChatInfo"]);
-            await queryClient.cancelQueries(["activeChats"]);
-            await queryClient.cancelQueries(["chats"]);
-
+            await queryClient.cancelQueries({ queryKey: ["userChatInfo"] });
+            await queryClient.cancelQueries({ queryKey: ["activeChats"] });
+            await queryClient.cancelQueries({ queryKey: ["chats"] });
             queryClient.setQueryData(["userChatInfo"], expectedData);
-            // Do not change order in activeChats
-            queryClient.setQueryData(["activeChats"], (oldChats) =>
+            queryClient.setQueryData(["activeChats"], (oldChats = []) =>
                 oldChats.map((chat) =>
                     chat._id === activeChatId ? possibleChat : chat,
                 ),
             );
-            // Do not change order in chats
-            queryClient.setQueryData(["chats"], (oldChats) =>
+            queryClient.setQueryData(["chats"], (oldChats = []) =>
                 oldChats.map((chat) =>
                     chat._id === activeChatId ? possibleChat : chat,
                 ),
             );
-
             return { previousData };
         },
         onError: (err, variables, context) => {
@@ -258,9 +293,9 @@ export function useSetActiveChatId() {
             }
         },
         onSuccess: () => {
-            queryClient.invalidateQueries(["userChatInfo"]);
-            queryClient.invalidateQueries(["activeChats"]);
-            queryClient.invalidateQueries(["chats"]);
+            queryClient.invalidateQueries({ queryKey: ["userChatInfo"] });
+            queryClient.invalidateQueries({ queryKey: ["activeChats"] });
+            queryClient.invalidateQueries({ queryKey: ["chats"] });
         },
     });
 }
@@ -272,20 +307,19 @@ export function useAddMessage() {
     return useMutation({
         mutationFn: async ({ message, chatId }) => {
             let chatData;
-
             if (!chatId) {
                 const newChat = await addChatMutation.mutateAsync({
                     messages: [message],
                 });
                 chatId = String(newChat?._id);
                 chatData = newChat;
-                queryClient.setQueryData(["chats"], (old) => [
+                queryClient.setQueryData(["chats"], (old = []) => [
                     newChat,
-                    ...(old || []),
+                    ...old,
                 ]);
-                queryClient.setQueryData(["activeChats"], (old) => [
+                queryClient.setQueryData(["activeChats"], (old = []) => [
                     newChat,
-                    ...(old || []),
+                    ...old,
                 ]);
             } else {
                 const chatResponse = await axios.post(
@@ -295,12 +329,10 @@ export function useAddMessage() {
                 chatData = chatResponse.data;
                 queryClient.setQueryData(["chat", String(chatId)], chatData);
             }
-
             return chatData;
         },
         onMutate: ({ message, chatId }) => {
             if (!chatId || !message) return;
-
             const existingChat = queryClient.getQueryData([
                 "chat",
                 String(chatId),
@@ -316,19 +348,17 @@ export function useAddMessage() {
         },
         onSuccess: (updatedChat) => {
             const chatId = String(updatedChat?._id);
-            queryClient.invalidateQueries(["chat", chatId]);
+            queryClient.invalidateQueries({ queryKey: ["chat", chatId] });
             queryClient.setQueryData(["chat", chatId], updatedChat);
         },
     });
 }
 
-// Hook to update a chat by ID
 export function useUpdateChat() {
     const queryClient = useQueryClient();
 
     return useMutation({
-        mutationFn: async (variables) => {
-            const { chatId, ...updateData } = variables;
+        mutationFn: async ({ chatId, ...updateData }) => {
             if (!chatId || !updateData) {
                 throw new Error("chatId and updateData are required");
             }
@@ -338,17 +368,11 @@ export function useUpdateChat() {
             );
             return response.data;
         },
-        onMutate: async (variables) => {
-            const { chatId, ...updateData } = variables;
-            await queryClient.cancelQueries(["chat", chatId]);
-
+        onMutate: async ({ chatId, ...updateData }) => {
+            await queryClient.cancelQueries({ queryKey: ["chat", chatId] });
             const previousChat = queryClient.getQueryData(["chat", chatId]);
-            const expectedChatData = {
-                ...previousChat,
-                ...updateData,
-            };
+            const expectedChatData = { ...previousChat, ...updateData };
             queryClient.setQueryData(["chat", chatId], expectedChatData);
-
             return { previousChat, expectedChatData };
         },
         onError: (err, variables, context) => {
@@ -363,12 +387,13 @@ export function useUpdateChat() {
             queryClient.setQueryData(["chat", chatId], updatedChat);
         },
         onSettled: (data, error, variables) => {
-            queryClient.invalidateQueries(["chat", variables.chatId]);
+            queryClient.invalidateQueries({
+                queryKey: ["chat", variables.chatId],
+            });
         },
     });
 }
 
-// Hook to update the active chat by its latest details
 export function useUpdateActiveChat() {
     const queryClient = useQueryClient();
     const updateChatMutation = useUpdateChat();

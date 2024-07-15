@@ -36,6 +36,15 @@ function SavedChats({ displayState }) {
     const [editingId, setEditingId] = useState(null);
     const [editedName, setEditedName] = useState("");
 
+    const handleCreateNewChat = async () => {
+        try {
+            const { _id } = await addChat.mutateAsync({ messages: [] });
+            router.push(`/chat/${String(_id)}`);
+        } catch (error) {
+            console.error("Error adding chat:", error);
+        }
+    };
+
     const handleDelete = async (chatId, e) => {
         e.stopPropagation();
 
@@ -47,45 +56,8 @@ function SavedChats({ displayState }) {
         try {
             if (!chatId) return;
             await deleteChat.mutateAsync({ chatId });
-
-            // Create a new chat if this was the last one
-            if (savedChats.length === 1) {
-                await chatCreate(false);
-            }
         } catch (error) {
             console.error("Failed to delete chat", error);
-        }
-    };
-
-    const handleCreateNewChat = async (navigate = true) => {
-        // Find any chat with no messages
-        const newChatIndex = savedChats.findIndex(
-            (chat) => chat.messages.length === 0,
-        );
-        if (newChatIndex > -1) {
-            // If found, set as active chat and navigate to it
-            const chatId = savedChats[newChatIndex]._id;
-            if (chatId && isValidObjectId(chatId)) {
-                setActiveChatId.mutate(chatId);
-                navigate && router.push(`/chat/${chatId}`);
-            }
-            return;
-        }
-
-        // If not found, create a new chat
-        chatCreate(navigate);
-    };
-
-    const chatCreate = async (navigate = true) => {
-        try {
-            const newChat = await addChat.mutateAsync({ messages: [] });
-            if (newChat && newChat._id && isValidObjectId(newChat._id)) {
-                const newChatId = newChat._id;
-                setActiveChatId.mutate(newChatId);
-                navigate && router.push(`/chat/${newChatId}`);
-            }
-        } catch (error) {
-            console.error("Failed to create new chat", error);
         }
     };
 
@@ -158,7 +130,7 @@ function SavedChats({ displayState }) {
                                     );
                                 }
                             }}
-                            className="p-4 border rounded-lg shadow-lg hover:bg-gray-100 cursor-pointer relative"
+                            className="p-4 border rounded-lg shadow-lg hover:bg-gray-100 cursor-pointer relative min-h-[135px]"
                         >
                             <div className="flex justify-between items-center mb-2">
                                 <button
@@ -190,8 +162,8 @@ function SavedChats({ displayState }) {
                                         }}
                                     />
                                 ) : (
-                                    <h3 className="font-semibold text-xl relative">
-                                        {t(chat.title) || t("Chat")}
+                                    <h3 className="font-semibold text-md relative">
+                                        {t(chat.title) || t("New Chat")}
                                     </h3>
                                 )}
                                 <TrashIcon
@@ -229,11 +201,11 @@ function SavedChats({ displayState }) {
     return (
         <div className={`${isDocked ? "text-xs" : ""}`}>
             <div className="flex justify-between items-center mb-4">
-                <h1 className="text-2xl font-semibold">
+                <h1 className="text-lg font-semibold">
                     {t("Saved Chats")} ({savedChatCount})
                 </h1>
                 <button onClick={handleCreateNewChat} className="lb-primary">
-                    <PlusIcon className="h-6 w-6" />
+                    <PlusIcon className="h-4 w-4" />
                     <span className="font-semibold ml-2">
                         {t("Create New Chat")}
                     </span>
@@ -245,7 +217,7 @@ function SavedChats({ displayState }) {
                     ([category, chats]) =>
                         chats.length > 0 && (
                             <div key={category}>
-                                <h2 className="text-lg font-semibold mt-4 mb-2 border-b pb-1">
+                                <h2 className="text-md font-semibold mt-4 mb-2 border-b pb-1">
                                     {t(
                                         getCategoryTitle(
                                             category,
