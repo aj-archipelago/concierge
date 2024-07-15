@@ -415,6 +415,14 @@ const TRANSCRIBE_NEURALSPACE = gql`
     }
 `;
 
+const TRANSLATE_SUBTITLE = gql`
+    query TranslateSubtitle($text: String, $to: String, $async: Boolean) {
+        translate_subtitle(text: $text, to: $to, async: $async) {
+            result
+        }
+    }
+`;
+
 const TRANSLATE = gql`
     query Translate($text: String!, $to: String!) {
         translate(text: $text, to: $to) {
@@ -657,6 +665,7 @@ const QUERIES = {
     TRANSLATE_GPT4,
     TRANSLATE_GPT4_TURBO,
     TRANSLATE_GPT4_OMNI,
+    TRANSLATE_SUBTITLE,
     HIGHLIGHTS,
     REMOVE_CONTENT,
     HEADLINE_CUSTOM,
@@ -706,6 +715,7 @@ export {
     TRANSLATE_TURBO,
     TRANSLATE_GPT4,
     TRANSLATE_GPT4_TURBO,
+    TRANSLATE_SUBTITLE,
     HIGHLIGHTS,
     REMOVE_CONTENT,
     JIRA_STORY,

@@ -83,6 +83,11 @@ function Translation({
                 query = QUERIES.TRANSLATE_AZURE;
                 resultKey = "translate_azure";
                 break;
+            case "subtitle":
+                query = QUERIES.TRANSLATE_SUBTITLE;
+                resultKey = "translate_subtitle";
+                to = LANGUAGE_NAMES[to];
+                break;
             default:
                 query = QUERIES.TRANSLATE_GPT4_OMNI;
                 resultKey = "translate_gpt4_omni";
@@ -162,6 +167,9 @@ function Translation({
                             <option value="traditional">
                                 {t("Fastest (Azure)")}
                             </option>
+                            {/* <option value="subtitle">
+                                {t("Subtitle Translation (SRT)")}
+                            </option> */}
                         </select>
                         <LoadingButton
                             disabled={!inputText || inputText.length === 0}
