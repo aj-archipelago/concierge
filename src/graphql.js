@@ -190,6 +190,7 @@ const RAG_GENERATOR_RESULTS = gql`
         $indexName: String
         $semanticConfiguration: String
         $aiName: String
+        $useMemory: Boolean
     ) {
         rag_generator_results(
             chatHistory: $chatHistory
@@ -200,6 +201,7 @@ const RAG_GENERATOR_RESULTS = gql`
             indexName: $indexName
             semanticConfiguration: $semanticConfiguration
             aiName: $aiName
+            useMemory: $useMemory
         ) {
             result
             contextId

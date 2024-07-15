@@ -6,6 +6,7 @@ export const generateDigestBlockContent = async (block, user) => {
     const variables = {
         chatHistory: { role: "user", content: prompt },
         contextId: user?.contextId,
+        useMemory: true,
     };
 
     const client = getClient();
