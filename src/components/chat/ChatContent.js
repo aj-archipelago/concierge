@@ -25,7 +25,7 @@ function ChatContent({
     const [loading, setLoading] = useState(false);
     const activeChat = useGetActiveChat()?.data;
     const viewingReadOnlyChat =
-    displayState === "full" && viewingChat && viewingChat.readOnly;
+        displayState === "full" && viewingChat && viewingChat.readOnly;
     const chat = viewingReadOnlyChat ? viewingChat : activeChat;
     const chatId = String(chat?._id);
     const messages = chat?.messages || [];
