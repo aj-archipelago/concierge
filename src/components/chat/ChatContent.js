@@ -14,17 +14,25 @@ import {
 } from "../../../app/queries/chats";
 const contextMessageCount = 50;
 
-function ChatContent({ displayState = "full", container = "chatpage" }) {
+function ChatContent({
+    displayState = "full",
+    container = "chatpage",
+    viewingChat = null,
+}) {
     const { t } = useTranslation();
     const client = useApolloClient();
     const { user } = useContext(AuthContext);
     const [loading, setLoading] = useState(false);
-    const chat = useGetActiveChat()?.data;
+    const activeChat = useGetActiveChat()?.data;
+    const viewingReadOnlyChat =
+        displayState === "full" && viewingChat && viewingChat.readOnly;
+    const chat = viewingReadOnlyChat ? viewingChat : activeChat;
     const messages = chat?.messages || [];
     const selectedSources = useSelector((state) => state.doc.selectedSources);
     const updateAiMemoryMutation = useUpdateAiMemory();
     const addMessage = useAddMessage();
     const updateChatHook = useUpdateChat();
+    const publicChatOwner = viewingChat?.owner;
 
     const updateChat = (message, tool) => {
         setLoading(false);
@@ -57,6 +65,8 @@ function ChatContent({ displayState = "full", container = "chatpage" }) {
     return (
         <>
             <ChatMessages
+                viewingReadOnlyChat={viewingReadOnlyChat}
+                publicChatOwner={publicChatOwner}
                 loading={loading}
                 onSend={(text) => {
                     const display = text;

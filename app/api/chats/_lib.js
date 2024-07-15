@@ -2,6 +2,7 @@ import User from "../models/user";
 import Chat from "../models/chat";
 import { getCurrentUser } from "../utils/auth";
 import mongoose from "mongoose";
+import { Types } from "mongoose";
 
 const getSimpleTitle = (message) => {
     return (message?.payload || "").substring(0, 14);
@@ -91,22 +92,38 @@ export async function updateChat(data) {
 }
 
 export async function getChatById(chatId) {
-    if (!chatId) {
-        throw new Error("Chat ID is required");
+    if (!chatId || !Types.ObjectId.isValid(chatId)) {
+        console.error("Invalid chatId: ", chatId);
+        return null;
     }
 
     const currentUser = await getCurrentUser(false);
 
-    const chat = await Chat.findOne({
-        _id: chatId,
-        userId: currentUser._id,
-    });
+    const chat = await Chat.findOne({ _id: chatId }).populate(
+        "userId",
+        "name username",
+    );
 
     if (!chat) {
         return null;
     }
 
-    return chat;
+    if (String(chat.userId._id) !== String(currentUser._id) && !chat.isPublic) {
+        throw new Error("Unauthorized access");
+    }
+
+    const isReadOnly = String(chat.userId._id) !== String(currentUser._id);
+    const { _id, title, messages, isPublic } = chat;
+    const result = { _id, title, messages, isPublic, readOnly: isReadOnly };
+
+    if (isReadOnly) {
+        result.owner = {
+            name: chat.userId.name,
+            username: chat.userId.username,
+        };
+    }
+
+    return result;
 }
 
 export async function setActiveChatId(activeChatId) {
