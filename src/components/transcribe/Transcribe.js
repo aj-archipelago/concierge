@@ -291,7 +291,7 @@ function Transcribe({
                 console.error(e);
             } finally {
                 setLoadingTranslate(false);
-                setCurrentOperation("Translating");
+                setCurrentOperation(t("Translating"));
             }
         },
         // eslint-disable-next-line react-hooks/exhaustive-deps
