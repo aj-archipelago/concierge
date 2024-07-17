@@ -318,6 +318,7 @@ function Transcribe({
                     <ProgressUpdate
                         requestId={requestId}
                         setFinalData={setFinalData}
+                        initialText={t(currentOperation) + "..."}
                     />
                 )}
             </div>
@@ -829,6 +830,7 @@ function Transcribe({
     const [inputText, setInputText] = useState("");
     const handleDirectTranslate = () => {
         if (!inputText || loading) return;
+        setFinalData(inputText);
         setCurrentOperation(t("DirectTranslation"));
         fetchTranslate(inputText, transcriptionTranslationLanguage);
     };
@@ -914,7 +916,7 @@ function Transcribe({
                     <div className="transcription-taxonomy-container flex flex-col gap-2 overflow-y-auto h-[calc(100vh-250px)]">
                         <div className="flex items-center justify-between">
                             <h4 className="font-semibold text-lg">
-                                {t("Transcription results:")}
+                                {t("Transcription")}:
                             </h4>
                             <div className="download-link cursor-pointer font-bold underline text-right mr-2">
                                 {responseFormat && (
