@@ -134,7 +134,6 @@ function Translation({
                             onChange={(e) => {
                                 const language = e.target.value;
                                 setTranslationLanguage(language);
-                                setTranslatedText("");
                             }}
                         >
                             {Object.entries(LANGUAGE_NAMES).map(
@@ -155,7 +154,6 @@ function Translation({
                             onChange={(e) => {
                                 const strategy = e.target.value;
                                 setTranslationStrategy(strategy);
-                                setTranslatedText("");
                             }}
                         >
                             <option value="GPT-4-OMNI">
