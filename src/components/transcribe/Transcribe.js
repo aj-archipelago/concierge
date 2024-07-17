@@ -291,7 +291,7 @@ function Transcribe({
                 console.error(e);
             } finally {
                 setLoadingTranslate(false);
-                setCurrentOperation(t("Translate"));
+                setCurrentOperation("Translating");
             }
         },
         // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -746,7 +746,9 @@ function Transcribe({
     );
 
     const currentlyTranslating =
-        !asyncComplete && currentOperation === "Translating";
+        !asyncComplete &&
+        (currentOperation === "Translating" ||
+            currentOperation === "DirectTranslation");
     if (currentlyTranslating) {
         transcriptionOptions = (
             <div className="h-12">
