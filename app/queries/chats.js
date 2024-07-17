@@ -385,11 +385,9 @@ export function useUpdateChat() {
         },
         onSuccess: (updatedChat, { chatId }) => {
             queryClient.setQueryData(["chat", chatId], updatedChat);
-        },
-        onSettled: (data, error, variables) => {
-            queryClient.invalidateQueries({
-                queryKey: ["chat", variables.chatId],
-            });
+            queryClient.invalidateQueries({ queryKey: ["chat", chatId] });
+            queryClient.invalidateQueries({ queryKey: ["chats"] });
+            queryClient.invalidateQueries({ queryKey: ["activeChats"] });
         },
     });
 }
