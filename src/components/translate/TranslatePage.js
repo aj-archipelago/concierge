@@ -1,28 +1,31 @@
 "use client";
 
-import { useDispatch, useSelector } from "react-redux";
-import {
-    setTranslationInputText,
-    setTranslatedText,
-    setTranslationLanguage,
-    setTranslationStrategy,
-} from "../../stores/translateSlice";
-import { setWriteInputText } from "../../stores/writeSlice";
+import { useContext, useEffect, useState } from "react";
+import { AuthContext } from "../../App";
 import Translation from "./Translation";
 
 function TranslatePage() {
-    const inputText = useSelector((state) => state.translate?.inputText);
-    const translationStrategy = useSelector(
-        (state) => state.translate?.translationStrategy,
-    );
-    const translationLanguage = useSelector(
-        (state) => state.translate?.translationLanguage,
-    );
-    const translatedText = useSelector(
-        (state) => state.translate?.translatedText,
-    );
+    const { userState, debouncedUpdateUserState } = useContext(AuthContext);
 
-    const dispatch = useDispatch();
+    const [inputText, setInputText] = useState("");
+    const [translatedText, setTranslatedText] = useState(null);
+    const [translationLanguage, setTranslationLanguage] = useState("en");
+    const [translationStrategy, setTranslationStrategy] = useState("translate");
+
+    useEffect(() => {
+        if (userState?.translate?.inputText) {
+            setInputText(userState.translate.inputText);
+        }
+        if (userState?.translate?.translationStrategy) {
+            setTranslationStrategy(userState.translate.translationStrategy);
+        }
+        if (userState?.translate?.translationLanguage) {
+            setTranslationLanguage(userState.translate.translationLanguage);
+        }
+        if (userState?.translate?.translatedText) {
+            setTranslatedText(userState.translate.translatedText);
+        }
+    }, [userState]);
 
     return (
         <Translation
@@ -30,13 +33,50 @@ function TranslatePage() {
             translationStrategy={translationStrategy}
             translationLanguage={translationLanguage}
             translatedText={translatedText}
-            setTranslatedText={(t) => dispatch(setTranslatedText(t))}
-            setTranslationInputText={(t) =>
-                dispatch(setTranslationInputText(t))
-            }
-            setTranslationLanguage={(t) => dispatch(setTranslationLanguage(t))}
-            setTranslationStrategy={(t) => dispatch(setTranslationStrategy(t))}
-            setWriteInputText={(t) => dispatch(setWriteInputText(t))}
+            setTranslatedText={(t) => {
+                setTranslatedText(t);
+                debouncedUpdateUserState({
+                    translate: {
+                        inputText,
+                        translationStrategy,
+                        translationLanguage,
+                        translatedText: t,
+                    },
+                });
+            }}
+            setTranslationInputText={(t) => {
+                setInputText(t);
+                debouncedUpdateUserState({
+                    translate: {
+                        inputText: t,
+                        translationStrategy,
+                        translationLanguage,
+                        translatedText,
+                    },
+                });
+            }}
+            setTranslationLanguage={(t) => {
+                setTranslationLanguage(t);
+                debouncedUpdateUserState({
+                    translate: {
+                        inputText,
+                        translationStrategy,
+                        translationLanguage: t,
+                        translatedText,
+                    },
+                });
+            }}
+            setTranslationStrategy={(t) => {
+                setTranslationStrategy(t);
+                debouncedUpdateUserState({
+                    translate: {
+                        inputText,
+                        translationStrategy: t,
+                        translationLanguage,
+                        translatedText,
+                    },
+                });
+            }}
             showEditLink={true}
         />
     );

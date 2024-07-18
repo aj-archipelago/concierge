@@ -19,13 +19,20 @@ import { IoCloseCircle } from "react-icons/io5";
 import { isDocumentUrl, isMediaUrl } from "./MyFilePond";
 import { AuthContext } from "../../App";
 import { useAddDocument } from "../../../app/queries/uploadedDocs";
+import { useGetActiveChatId } from "../../../app/queries/chats";
 
 const DynamicFilepond = dynamic(() => import("./MyFilePond"), {
     ssr: false,
 });
 
 // Displays the list of messages and a message input box.
-function MessageInput({ onSend, loading, enableRag, placeholder }) {
+function MessageInput({
+    onSend,
+    loading,
+    enableRag,
+    placeholder,
+    viewingReadOnlyChat,
+}) {
     const [inputValue, setInputValue] = useState("");
     const [urlsData, setUrlsData] = useState([]);
     const [files, setFiles] = useState([]);
@@ -39,6 +46,7 @@ function MessageInput({ onSend, loading, enableRag, placeholder }) {
     const handleInputChange = (event) => {
         setInputValue(event.target.value);
     };
+    const activeChatId = useGetActiveChatId();
 
     const prepareMessage = (inputText) => {
         return [
@@ -90,6 +98,8 @@ function MessageInput({ onSend, loading, enableRag, placeholder }) {
 
                 dispatch(setFileLoading());
 
+                console.log("Cognitive insert2", activeChatId);
+
                 client
                     .query({
                         query: COGNITIVE_INSERT,
@@ -98,12 +108,17 @@ function MessageInput({ onSend, loading, enableRag, placeholder }) {
                             privateData: true,
                             contextId,
                             docId,
+                            chatId: activeChatId,
                         },
                         fetchPolicy: "network-only",
                     })
                     .then(() => {
                         // completed successfully
-                        addDocument.mutateAsync({ docId, filename });
+                        addDocument.mutateAsync({
+                            docId,
+                            filename,
+                            chatId: activeChatId,
+                        });
                         dispatch(addSource("mydata"));
                         dispatch(clearFileLoading());
                     })
@@ -195,7 +210,8 @@ function MessageInput({ onSend, loading, enableRag, placeholder }) {
                                 disabled={
                                     loading ||
                                     inputValue === "" ||
-                                    isUploadingMedia
+                                    isUploadingMedia ||
+                                    viewingReadOnlyChat
                                 }
                                 className={classNames(
                                     "text-base rtl:rotate-180 text-emerald-600 hover:text-emerald-600 disabled:text-gray-300 active:text-gray-800 dark:bg-zinc-100",

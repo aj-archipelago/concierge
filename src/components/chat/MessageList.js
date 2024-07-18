@@ -9,6 +9,7 @@ import { convertMessageToMarkdown } from "./ChatMessage";
 import ScrollToBottom from "./ScrollToBottom";
 import Loader from "../../../app/components/loader";
 import { isAudioUrl, isVideoUrl } from "./MyFilePond";
+import CopyButton from "../CopyButton";
 
 const getLoadState = (message) => {
     const hasImage =
@@ -101,8 +102,13 @@ function MessageList({ messages, bot, loading }) {
             return (
                 <div
                     key={message.id}
-                    className="flex bg-sky-50 rounded-md ps-1 pt-1"
+                    className="flex bg-sky-50 ps-1 pt-1 relative [&_.copy-button]:hidden [&_.copy-button]:hover:block"
                 >
+                    <CopyButton
+                        item={message.text}
+                        className="absolute top-3 end-3 copy-button opacity-60 hover:opacity-100"
+                    />
+
                     <div className={classNames(basis)}>{avatar}</div>
                     <div
                         className={classNames(
@@ -110,7 +116,7 @@ function MessageList({ messages, bot, loading }) {
                         )}
                     >
                         <div className="font-semibold">{t(botName)}</div>
-                        <div className="chat-message-bot">
+                        <div className="chat-message-bot relative">
                             {message.payload}
                         </div>
                     </div>
@@ -128,7 +134,14 @@ function MessageList({ messages, bot, loading }) {
                 />
             );
             return (
-                <div key={message.id} className="flex ps-1 pt-1">
+                <div
+                    key={message.id}
+                    className="flex ps-1 pt-1 relative [&_button]:hidden [&_button]:hover:block"
+                >
+                    <CopyButton
+                        item={message.text}
+                        className="absolute top-3 end-3 opacity-60 hover:opacity-100"
+                    />
                     <div className={classNames(basis, "py-0")}>{avatar}</div>
                     <div
                         className={classNames(
@@ -170,9 +183,13 @@ function MessageList({ messages, bot, loading }) {
                     </div>
                 )}
                 {messages.map((message, index) => {
+                    const newMessage = { ...message };
+                    if (!newMessage.id) {
+                        newMessage.id = newMessage._id || index;
+                    }
                     let display;
-                    if (Array.isArray(message.payload)) {
-                        const arr = message.payload.map((t) => {
+                    if (Array.isArray(newMessage.payload)) {
+                        const arr = newMessage.payload.map((t) => {
                             try {
                                 const obj = JSON.parse(t);
                                 if (obj.type === "text") {
@@ -188,7 +205,7 @@ function MessageList({ messages, bot, loading }) {
                                             <video
                                                 onLoad={() => {
                                                     handleMessageLoad(
-                                                        message.id,
+                                                        newMessage.id,
                                                     );
                                                 }}
                                                 key={index}
@@ -203,7 +220,7 @@ function MessageList({ messages, bot, loading }) {
                                             <audio
                                                 onLoad={() => {
                                                     handleMessageLoad(
-                                                        message.id,
+                                                        newMessage.id,
                                                     );
                                                 }}
                                                 key={index}
@@ -233,7 +250,7 @@ function MessageList({ messages, bot, loading }) {
                                                 }}
                                                 onLoad={() => {
                                                     handleMessageLoad(
-                                                        message.id,
+                                                        newMessage.id,
                                                     );
                                                 }}
                                             >
@@ -254,7 +271,7 @@ function MessageList({ messages, bot, loading }) {
                                             <img
                                                 onLoad={() => {
                                                     handleMessageLoad(
-                                                        message.id,
+                                                        newMessage.id,
                                                     );
                                                 }}
                                                 src={src}
@@ -272,16 +289,16 @@ function MessageList({ messages, bot, loading }) {
                         });
                         display = <>{arr}</>;
                     } else {
-                        display = message.payload;
+                        display = newMessage.payload;
                     }
 
                     // process the message and create a new
                     // message object with the updated payload.
-                    message = Object.assign({}, message, {
+                    const processedMessage = Object.assign({}, newMessage, {
                         payload: (
-                            <React.Fragment key={`inner-${message.id}`}>
-                                {message.sender === "labeeb" ? (
-                                    convertMessageToMarkdown(message)
+                            <React.Fragment key={`inner-${newMessage.id}`}>
+                                {newMessage.sender === "labeeb" ? (
+                                    convertMessageToMarkdown(newMessage)
                                 ) : (
                                     <div key={`um-${index}`}>{display}</div>
                                 )}
@@ -289,7 +306,11 @@ function MessageList({ messages, bot, loading }) {
                         ),
                     });
 
-                    return <div key={message.id}>{renderMessage(message)}</div>;
+                    return (
+                        <div key={processedMessage.id}>
+                            {renderMessage(processedMessage)}
+                        </div>
+                    );
                 })}
                 {loading &&
                     renderMessage({

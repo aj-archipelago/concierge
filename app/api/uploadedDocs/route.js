@@ -15,7 +15,7 @@ export async function GET(req) {
 
 export async function POST(req) {
     try {
-        const { filename, docId } = await req.json();
+        const { filename, docId, chatId } = await req.json();
 
         // Decode the filename to show the original filename
         const decodedFilename = decodeURIComponent(
@@ -29,17 +29,20 @@ export async function POST(req) {
             {
                 $push: {
                     uploadedDocs: {
-                        $each: [{ filename: decodedFilename, docId }],
+                        $each: [{ filename: decodedFilename, docId, chatId }],
                         $position: 0,
                     },
                 },
             },
-            { new: true, useFindAndModify: false },
+            { new: true, useFindAndModify: false, upsert: true },
         );
 
         if (!user) throw new Error("User not found");
 
-        return Response.json({ status: "success" });
+        return Response.json({
+            status: "success",
+            uploadedDocs: user.uploadedDocs,
+        });
     } catch (error) {
         return handleError(error);
     }

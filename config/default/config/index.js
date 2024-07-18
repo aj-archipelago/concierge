@@ -40,8 +40,8 @@ export default {
                 cortexPathwayName: "run_claude3_haiku",
             },
             {
-                name: "Claude 3 Sonnet",
-                cortexPathwayName: "run_claude3_sonnet",
+                name: "Claude 3.5 Sonnet",
+                cortexPathwayName: "run_claude35_sonnet",
             },
             {
                 name: "Claude 3 Opus",

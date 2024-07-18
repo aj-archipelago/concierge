@@ -5,6 +5,7 @@ import { useContext, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { FaChevronLeft, FaChevronRight } from "react-icons/fa";
 import classNames from "../../../app/utils/class-names";
+import { AuthContext } from "../../App";
 import { LanguageContext } from "../../contexts/LanguageProvider";
 import { QUERIES } from "../../graphql";
 import { stripHTML } from "../../utils/html.utils";
@@ -38,15 +39,30 @@ function Translation({
     setTranslationInputText,
     setTranslationLanguage,
     setTranslationStrategy,
-    setWriteInputText,
     showEditLink = false,
 }) {
     const { t } = useTranslation();
     const [loading, setLoading] = useState(false);
     const router = useRouter();
     const apolloClient = useApolloClient();
-    const { language } = useContext(LanguageContext);
+    const { language, direction } = useContext(LanguageContext);
     const [activeTab, setActiveTab] = useState("input");
+    const { debouncedUpdateUserState } = useContext(AuthContext);
+
+    const tabs = [
+        {
+            value: "input",
+            label: t("Input"),
+        },
+        {
+            value: "output",
+            label: t("Output"),
+        },
+    ];
+
+    if (direction === "rtl") {
+        tabs.reverse();
+    }
 
     const executeTranslation = (strategy, inputText, to) => {
         let query;
@@ -66,6 +82,11 @@ function Translation({
             case "traditional":
                 query = QUERIES.TRANSLATE_AZURE;
                 resultKey = "translate_azure";
+                break;
+            case "subtitle":
+                query = QUERIES.TRANSLATE_SUBTITLE;
+                resultKey = "translate_subtitle";
+                to = LANGUAGE_NAMES[to];
                 break;
             default:
                 query = QUERIES.TRANSLATE_GPT4_OMNI;
@@ -113,7 +134,6 @@ function Translation({
                             onChange={(e) => {
                                 const language = e.target.value;
                                 setTranslationLanguage(language);
-                                setTranslatedText("");
                             }}
                         >
                             {Object.entries(LANGUAGE_NAMES).map(
@@ -134,7 +154,6 @@ function Translation({
                             onChange={(e) => {
                                 const strategy = e.target.value;
                                 setTranslationStrategy(strategy);
-                                setTranslatedText("");
                             }}
                         >
                             <option value="GPT-4-OMNI">
@@ -146,6 +165,9 @@ function Translation({
                             <option value="traditional">
                                 {t("Fastest (Azure)")}
                             </option>
+                            {/* <option value="subtitle">
+                                {t("Subtitle Translation (SRT)")}
+                            </option> */}
                         </select>
                         <LoadingButton
                             disabled={!inputText || inputText.length === 0}
@@ -173,12 +195,15 @@ function Translation({
                 onValueChange={(value) => setActiveTab(value)}
             >
                 <TabsList className="w-full block sm:hidden">
-                    <TabsTrigger value="input" className="w-1/2">
-                        Input
-                    </TabsTrigger>
-                    <TabsTrigger value="output" className="w-1/2">
-                        Output
-                    </TabsTrigger>
+                    {tabs.map((tab) => (
+                        <TabsTrigger
+                            key={tab.value}
+                            value={tab.value}
+                            className="w-1/2"
+                        >
+                            {tab.label}
+                        </TabsTrigger>
+                    ))}
                 </TabsList>
                 <div className="flex-1 flex gap-2 grow">
                     <div
@@ -188,11 +213,11 @@ function Translation({
                         )}
                     >
                         <textarea
-                            className="lb-input w-full h-full p-2 border border-gray-300 rounded-md resize-none text-xs"
+                            className="lb-input w-full h-full p-2 border border-gray-300 rounded-md resize-none"
                             dir="auto"
                             disabled={loading}
                             rows={10}
-                            placeholder="Enter text to translate..."
+                            placeholder={t("Enter text to translate...")}
                             value={inputText}
                             onChange={(e) =>
                                 setTranslationInputText(e.target.value)
@@ -224,9 +249,11 @@ function Translation({
                             )}
                             <textarea
                                 readOnly
-                                className="w-full h-full lb-input p-2 border border-gray-300 rounded-md resize-none text-xs bg-gray-100"
+                                className="w-full h-full lb-input p-2 border border-gray-300 rounded-md resize-none bg-gray-100"
                                 dir="auto"
-                                placeholder="Translation will appear here..."
+                                placeholder={t(
+                                    "Translation will appear here...",
+                                )}
                                 rows={10}
                                 value={translatedText}
                             />
@@ -236,7 +263,11 @@ function Translation({
                             <button
                                 className="flex gap-2 items-center absolute bottom-1 p-2 px-14 bg-gray-200 border border-gray-300 border-l-0 border-b-0 rounded-bl rounded-br hover:bg-gray-300 active:bg-gray-400"
                                 onClick={() => {
-                                    setWriteInputText(translatedText);
+                                    debouncedUpdateUserState({
+                                        write: {
+                                            text: translatedText,
+                                        },
+                                    });
                                     router.push("/write");
                                 }}
                             >

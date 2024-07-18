@@ -1,26 +1,36 @@
-import { clearChat } from "../../stores/chatSlice";
-import { useDispatch } from "react-redux";
 import MessageInput from "./MessageInput";
 import MessageList from "./MessageList";
 import { useTranslation } from "react-i18next";
 import React from "react";
-import { AiOutlineReload } from "react-icons/ai";
+import { AiOutlineReload, AiOutlineSave } from "react-icons/ai";
 import config from "../../../config";
 import { convertMessageToMarkdown } from "./ChatMessage";
 import dynamic from "next/dynamic";
+import { useAddChat } from "../../../app/queries/chats";
+import { useApolloClient } from "@apollo/client";
+import { handleSaveChat } from "./SaveChat";
 
 const ChatTopMenuDynamic = dynamic(() => import("./ChatTopMenu"));
 
-// Displays the list of messages and a message input box.
 function ChatMessages({
     messages = [],
     onSend,
     loading,
     container,
     displayState,
+    viewingReadOnlyChat,
+    publicChatOwner,
 }) {
-    const dispatch = useDispatch();
     const { t } = useTranslation();
+    const client = useApolloClient();
+    const addChat = useAddChat();
+    const originalMessages = messages;
+
+    messages = messages.map((m) => {
+        return Object.assign({}, m, {
+            text: m.payload,
+        });
+    });
 
     messages = messages.map((message, index) => {
         // post process the message and create a new
@@ -42,19 +52,38 @@ function ChatMessages({
         <div className="h-full flex flex-col gap-3">
             <div className="grow overflow-auto flex flex-col chat-content">
                 <div className="hidden justify-between items-center px-3 pb-2 text-xs [.docked_&]:flex">
-                    <ChatTopMenuDynamic displayState={displayState} />
-                    {messages.length > 0 && (
-                        <button
-                            className="flex gap-1 items-center hover:underline hover:text-sky-500 active:text-sky-700"
-                            onClick={() => {
-                                if (window.confirm(t("Are you sure?"))) {
-                                    dispatch(clearChat());
+                    {/* <SavedChats displayState={displayState} /> */}
+                    <ChatTopMenuDynamic
+                        displayState={displayState}
+                        publicChatOwner={publicChatOwner}
+                    />
+                    {false && messages.length > 0 && (
+                        <div className="flex gap-2">
+                            <button
+                                className="flex gap-1 items-center hover:underline hover:text-sky-500 active:text-sky-700"
+                                onClick={() => {
+                                    if (window.confirm(t("Are you sure?"))) {
+                                        console.log("Reset chat");
+                                    }
+                                }}
+                            >
+                                <AiOutlineReload />
+                                {t("Reset chat")}
+                            </button>
+                            <button
+                                className="flex gap-1 items-center hover:underline hover:text-sky-500 active:text-sky-700"
+                                onClick={() =>
+                                    handleSaveChat(
+                                        originalMessages,
+                                        client,
+                                        addChat,
+                                    )
                                 }
-                            }}
-                        >
-                            <AiOutlineReload />
-                            {t("Reset chat")}
-                        </button>
+                            >
+                                <AiOutlineSave />
+                                {t("Save chat")}
+                            </button>
+                        </div>
                     )}
                 </div>
                 <div className="grow overflow-auto chat-message-list">
@@ -63,6 +92,7 @@ function ChatMessages({
             </div>
             <div>
                 <MessageInput
+                    viewingReadOnlyChat={viewingReadOnlyChat}
                     loading={loading}
                     enableRag={true}
                     placeholder={

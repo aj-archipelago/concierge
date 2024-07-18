@@ -1,7 +1,7 @@
 "use client";
 import { Dialog, Transition } from "@headlessui/react";
 import { Bars3Icon, XMarkIcon } from "@heroicons/react/24/outline";
-import { Fragment, useContext, useEffect, useState } from "react";
+import { Fragment, useContext, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { IoIosChatbubbles } from "react-icons/io";
 import { useDispatch, useSelector } from "react-redux";
@@ -30,6 +30,7 @@ export default function Layout({ children }) {
     const pathname = usePathname();
     const { theme } = useContext(ThemeContext);
     const { direction } = useContext(LanguageContext);
+    const contentRef = useRef(null);
 
     const handleShowOptions = () => setShowOptions(true);
     const handleCloseOptions = () => setShowOptions(false);
@@ -116,7 +117,7 @@ export default function Layout({ children }) {
                                         </div>
                                     </Transition.Child>
                                     {/* Sidebar component, swap this element with another sidebar if you like */}
-                                    <Sidebar />
+                                    <Sidebar ref={contentRef} />
                                 </Dialog.Panel>
                             </Transition.Child>
                         </div>
@@ -126,7 +127,7 @@ export default function Layout({ children }) {
                 {/* Static sidebar for desktop */}
                 <div className="hidden lg:fixed lg:inset-y-0 lg:z-50 lg:flex lg:w-56 lg:flex-col">
                     {/* Sidebar component, swap this element with another sidebar if you like */}
-                    <Sidebar />
+                    <Sidebar ref={contentRef} />
                 </div>
 
                 <div className="lg:ps-56 overflow-hidden">
@@ -150,7 +151,7 @@ export default function Layout({ children }) {
                             <div className="hidden sm:block">
                                 <button
                                     className="lb-primary"
-                                    disabled={pathname === "/chat"}
+                                    disabled={/^\/chat(\/|$)/.test(pathname)}
                                     onClick={() => {
                                         dispatch(
                                             setChatBoxPosition({
@@ -173,7 +174,10 @@ export default function Layout({ children }) {
                     </div>
 
                     <div className="relative flex-col">
-                        <main className="p-2 bg-slate-50 flex gap-2">
+                        <main
+                            className="p-2 bg-slate-50 flex gap-2"
+                            ref={contentRef}
+                        >
                             <div
                                 className={`${"grow"} bg-white dark:border-gray-200 rounded-md border p-3 lg:p-4 overflow-auto`}
                                 style={{ height: "calc(100vh - 120px)" }}

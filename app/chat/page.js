@@ -1,5 +1,10 @@
-import Chat from "../../src/components/chat/Chat";
+"use client";
+import SavedChats from "../../src/components/chat/SavedChats";
 
-export default function write() {
-    return <Chat></Chat>;
+export default function ChatHistoryPage() {
+    return (
+        <div>
+            <SavedChats />
+        </div>
+    );
 }

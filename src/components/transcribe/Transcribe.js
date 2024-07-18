@@ -1,11 +1,11 @@
 "use client";
 
 import { useApolloClient } from "@apollo/client";
-import { useCallback, useContext, useEffect, useState } from "react";
+import { useCallback, useContext, useEffect, useState, useRef } from "react";
 import { useTranslation } from "react-i18next";
-import { FaVideo } from "react-icons/fa";
+import { FaLanguage, FaVideo } from "react-icons/fa";
 import config from "../../../config";
-import { ServerContext } from "../../App";
+import { AuthContext, ServerContext } from "../../App";
 import { QUERIES } from "../../graphql";
 import CopyButton from "../CopyButton";
 import LoadingButton from "../editor/LoadingButton";
@@ -32,6 +32,8 @@ function Transcribe({
     const [loading, setLoading] = useState(false);
     const [loadingParagraph, setLoadingParagraph] = useState(false);
     const [loadingTranslate, setLoadingTranslate] = useState(false);
+    const [selectedModelOption, setSelectedModelOption] = useState("Whisper");
+    const { neuralspaceEnabled } = useContext(ServerContext);
 
     const {
         responseFormat,
@@ -53,6 +55,61 @@ function Transcribe({
     const [fileUploadError, setFileUploadError] = useState(null);
     const [currentOperation, setCurrentOperation] = useState("");
     const { serverUrl } = useContext(ServerContext);
+    const { userState, debouncedUpdateUserState } = useContext(AuthContext);
+
+    const prevUserStateRef = useRef();
+
+    useEffect(() => {
+        if (userState?.transcribe !== prevUserStateRef.current?.transcribe) {
+            if (userState?.transcribe?.language) {
+                setTranscriptionTranslationLanguage(
+                    userState.transcribe.language,
+                );
+                setLanguage(userState.transcribe.language);
+            }
+            if (userState?.transcribe?.url) {
+                setUrl(userState.transcribe.url);
+            }
+            if (userState?.transcribe) {
+                setTranscriptionOption({
+                    responseFormat: userState.transcribe.outputFormat,
+                    wordTimestamped:
+                        userState.transcribe.transcriptionType === "word",
+                    textFormatted:
+                        userState.transcribe.transcriptionType === "formatted",
+                    maxLineWidth: userState.transcribe.maxLineWidth,
+                    maxLineCount: userState.transcribe.maxLineCount,
+                });
+            }
+            if (userState?.transcribe?.model) {
+                setSelectedModelOption(userState.transcribe.model);
+            }
+            prevUserStateRef.current = userState;
+        }
+    }, [userState, setTranscriptionOption]);
+
+    // Create a function to handle option change
+    const handleOptionChange = (event) => {
+        setRequestId(null);
+        setAsyncComplete(true);
+        setCurrentOperation("");
+        setSelectedModelOption(event.target.value);
+        debouncedUpdateUserState({
+            transcribe: {
+                url,
+                outputFormat: responseFormat,
+                transcriptionType: wordTimestamped
+                    ? "word"
+                    : textFormatted
+                      ? "formatted"
+                      : "",
+                language,
+                maxLineWidth,
+                maxLineCount,
+                model: event.target.value,
+            },
+        });
+    };
 
     // Function to handle file upload and post it to the API
     const handleFileUpload = async (event) => {
@@ -121,11 +178,16 @@ function Transcribe({
 
     const handleSubmit = useCallback(async () => {
         if (!url || isLoading) return;
-        setCurrentOperation("Transcribing");
+        setCurrentOperation(t("Transcribing"));
         try {
             setLoading(true);
+
+            const _query =
+                selectedModelOption === "NeuralSpace"
+                    ? QUERIES.TRANSCRIBE_NEURALSPACE
+                    : QUERIES.TRANSCRIBE;
             const { data } = await apolloClient.query({
-                query: QUERIES.TRANSCRIBE,
+                query: _query,
                 variables: {
                     file: url,
                     language,
@@ -140,8 +202,11 @@ function Transcribe({
                 fetchPolicy: "network-only",
             });
 
-            if (data?.transcribe?.result) {
-                const dataResult = data.transcribe.result;
+            const dataResult =
+                data?.transcribe?.result ||
+                data?.transcribe_neuralspace?.result;
+
+            if (dataResult) {
                 if (async) {
                     setDataText("");
                     setRequestId(dataResult);
@@ -205,17 +270,20 @@ function Transcribe({
             try {
                 setLoadingTranslate(true);
                 const { data } = await apolloClient.query({
-                    query: QUERIES.TRANSLATE_GPT4,
+                    query: QUERIES.TRANSLATE_SUBTITLE,
                     variables: { text, to: language, async },
                     fetchPolicy: "network-only",
                 });
-                if (data?.translate_gpt4?.result) {
-                    const dataResult = data.translate_gpt4.result;
+                const result =
+                    data?.translate_subtitle?.result ||
+                    data?.translate_gpt4?.result;
+
+                if (result) {
                     if (async) {
-                        setRequestId(dataResult);
+                        setRequestId(result);
                         setAsyncComplete(false);
                     } else {
-                        setFinalData(dataResult);
+                        setFinalData(result);
                     }
                 }
             } catch (e) {
@@ -223,6 +291,7 @@ function Transcribe({
                 console.error(e);
             } finally {
                 setLoadingTranslate(false);
+                setCurrentOperation(t("Translating"));
             }
         },
         // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -234,7 +303,7 @@ function Transcribe({
         setRequestId(null);
         if (finalData.trim() && currentOperation === "Transcribing") {
             if (textFormatted) {
-                setCurrentOperation("Formatting");
+                setCurrentOperation(t("Formatting"));
                 fetchParagraph(finalData);
                 return;
             }
@@ -249,6 +318,7 @@ function Transcribe({
                     <ProgressUpdate
                         requestId={requestId}
                         setFinalData={setFinalData}
+                        initialText={t(currentOperation) + "..."}
                     />
                 )}
             </div>
@@ -303,7 +373,24 @@ function Transcribe({
                             className="lb-input"
                             type="text"
                             size="sm"
-                            onChange={(e) => setUrl(e.target.value)}
+                            onChange={(e) => {
+                                setUrl(e.target.value);
+                                debouncedUpdateUserState({
+                                    transcribe: {
+                                        url: e.target.value,
+                                        outputFormat: responseFormat,
+                                        transcriptionType: wordTimestamped
+                                            ? "word"
+                                            : textFormatted
+                                              ? "formatted"
+                                              : "",
+                                        language,
+                                        maxLineWidth,
+                                        maxLineCount,
+                                        model: selectedModelOption,
+                                    },
+                                });
+                            }}
                             onKeyPress={(e) => {
                                 if (e.key === "Enter") {
                                     handleSubmit();
@@ -316,6 +403,23 @@ function Transcribe({
                     <h4 className="options-header mb-1">
                         {t("Transcribe audio to:")}
                     </h4>
+                    {neuralspaceEnabled && (
+                        <span className="flex items-center pb-2">
+                            <label className="text-sm px-1">
+                                {t("Using model")}
+                            </label>
+                            <select
+                                className="lb-select ml-2 w-auto flex-shrink-0"
+                                disabled={isLoading}
+                                value={selectedModelOption}
+                                onChange={handleOptionChange}
+                            >
+                                <option value="Whisper">Whisper</option>
+                                <option value="NeuralSpace">NeuralSpace</option>
+                            </select>
+                        </span>
+                    )}
+
                     <div className="options-section flex flex-col sm:flex-row justify-between gap-4 sm:gap-14 mb-5 p-2.5 border border-gray-300 rounded-md bg-neutral-100 w-full">
                         <div className="radio-columns flex flex-col">
                             <h5 className="font-semibold">
@@ -333,13 +437,24 @@ function Transcribe({
                                         !wordTimestamped &&
                                         !textFormatted
                                     }
-                                    onChange={() =>
+                                    onChange={() => {
                                         setTranscriptionOption({
                                             responseFormat: "",
                                             wordTimestamped: false,
                                             textFormatted: false,
-                                        })
-                                    }
+                                        });
+                                        debouncedUpdateUserState({
+                                            transcribe: {
+                                                url,
+                                                outputFormat: "",
+                                                transcriptionType: "",
+                                                language,
+                                                maxLineWidth,
+                                                maxLineCount,
+                                                model: selectedModelOption,
+                                            },
+                                        });
+                                    }}
                                 />
                                 <span className="ml-2 text-base">
                                     {t("Plain Text")}
@@ -357,13 +472,24 @@ function Transcribe({
                                         !wordTimestamped &&
                                         textFormatted
                                     }
-                                    onChange={() =>
+                                    onChange={() => {
                                         setTranscriptionOption({
                                             responseFormat: "",
                                             wordTimestamped: false,
                                             textFormatted: true,
-                                        })
-                                    }
+                                        });
+                                        debouncedUpdateUserState({
+                                            transcribe: {
+                                                url,
+                                                outputFormat: "",
+                                                transcriptionType: "formatted",
+                                                language,
+                                                maxLineWidth,
+                                                maxLineCount,
+                                                model: selectedModelOption,
+                                            },
+                                        });
+                                    }}
                                 />
                                 <span className="ml-2 text-base">
                                     {t("Formatted Text")}
@@ -377,13 +503,24 @@ function Transcribe({
                                     name="transcriptionOptions"
                                     id="srtPhraseLevel"
                                     checked={responseFormat === "srt"}
-                                    onChange={() =>
+                                    onChange={() => {
                                         setTranscriptionOption({
                                             responseFormat: "srt",
                                             wordTimestamped: false,
                                             textFormatted: false,
-                                        })
-                                    }
+                                        });
+                                        debouncedUpdateUserState({
+                                            transcribe: {
+                                                url,
+                                                outputFormat: "srt",
+                                                transcriptionType: "",
+                                                language,
+                                                maxLineWidth,
+                                                maxLineCount,
+                                                model: selectedModelOption,
+                                            },
+                                        });
+                                    }}
                                 />
                                 <span className="ml-2 text-base">
                                     {t("SRT Format")}
@@ -397,13 +534,24 @@ function Transcribe({
                                     name="transcriptionOptions"
                                     id="vttPhraseLevel"
                                     checked={responseFormat === "vtt"}
-                                    onChange={() =>
+                                    onChange={() => {
                                         setTranscriptionOption({
                                             responseFormat: "vtt",
                                             wordTimestamped: false,
                                             textFormatted: false,
-                                        })
-                                    }
+                                        });
+                                        debouncedUpdateUserState({
+                                            transcribe: {
+                                                url,
+                                                outputFormat: "vtt",
+                                                transcriptionType: "",
+                                                language,
+                                                maxLineWidth,
+                                                maxLineCount,
+                                                model: selectedModelOption,
+                                            },
+                                        });
+                                    }}
                                 />
                                 <span className="ml-2 text-base">
                                     {t("VTT Format")}
@@ -425,13 +573,24 @@ function Transcribe({
                                     name="transcriptionOptions2"
                                     id="phraseLevel"
                                     checked={!wordTimestamped && !maxLineWidth}
-                                    onChange={() =>
+                                    onChange={() => {
                                         setTranscriptionOption({
                                             responseFormat,
                                             wordTimestamped: false,
                                             textFormatted: false,
-                                        })
-                                    }
+                                        });
+                                        debouncedUpdateUserState({
+                                            transcribe: {
+                                                url,
+                                                outputFormat: responseFormat,
+                                                transcriptionType: "",
+                                                language,
+                                                maxLineWidth,
+                                                maxLineCount,
+                                                model: selectedModelOption,
+                                            },
+                                        });
+                                    }}
                                 />
                                 <span className="ml-2 text-base">
                                     {t("Phrase level")}
@@ -445,13 +604,24 @@ function Transcribe({
                                     name="transcriptionOptions2"
                                     id="wordLevel"
                                     checked={wordTimestamped && !maxLineWidth}
-                                    onChange={() =>
+                                    onChange={() => {
                                         setTranscriptionOption({
                                             responseFormat,
                                             wordTimestamped: true,
                                             textFormatted: false,
-                                        })
-                                    }
+                                        });
+                                        debouncedUpdateUserState({
+                                            transcribe: {
+                                                url,
+                                                outputFormat: responseFormat,
+                                                transcriptionType: "word",
+                                                language,
+                                                maxLineWidth,
+                                                maxLineCount,
+                                                model: selectedModelOption,
+                                            },
+                                        });
+                                    }}
                                 />
                                 <span className="ml-2 text-base">
                                     {t("Word level")}
@@ -465,15 +635,26 @@ function Transcribe({
                                     name="transcriptionOptions2"
                                     id="horizontal"
                                     checked={maxLineWidth === 35}
-                                    onChange={() =>
+                                    onChange={() => {
                                         setTranscriptionOption({
                                             responseFormat,
                                             wordTimestamped: true,
                                             textFormatted: false,
                                             maxLineWidth: 35,
                                             maxLineCount: 1,
-                                        })
-                                    }
+                                        });
+                                        debouncedUpdateUserState({
+                                            transcribe: {
+                                                url,
+                                                outputFormat: responseFormat,
+                                                transcriptionType: "word",
+                                                language,
+                                                maxLineWidth: 35,
+                                                maxLineCount: 1,
+                                                model: selectedModelOption,
+                                            },
+                                        });
+                                    }}
                                 />
                                 <span className="ml-2 text-base">
                                     {t("Horizontal")}
@@ -508,10 +689,23 @@ function Transcribe({
                             <select
                                 className="lb-select text-sm"
                                 disabled={isLoading}
-                                onChange={(event) =>
-                                    setLanguage(event.target.value)
-                                }
-                                defaultValue={language}
+                                onChange={(event) => {
+                                    setLanguage(event.target.value);
+                                    debouncedUpdateUserState({
+                                        transcribe: {
+                                            url,
+                                            outputFormat: responseFormat,
+                                            transcriptionType: wordTimestamped
+                                                ? "word"
+                                                : textFormatted
+                                                  ? "formatted"
+                                                  : "",
+                                            model: selectedModelOption,
+                                            language: event.target.value,
+                                        },
+                                    });
+                                }}
+                                value={language}
                             >
                                 <option value="">
                                     {t("Auto-detect video language")}
@@ -545,7 +739,7 @@ function Transcribe({
                     text={t(currentOperation)}
                     onClick={() => handleSubmit()}
                 >
-                    <FaVideo /> {t("Transcribe")}
+                    <FaVideo className="text-lg" /> {t("Transcribe")}
                 </LoadingButton>
                 {isLoading && <ProgressBar />}
             </div>
@@ -553,7 +747,9 @@ function Transcribe({
     );
 
     const currentlyTranslating =
-        !asyncComplete && currentOperation === "Translating";
+        !asyncComplete &&
+        (currentOperation === "Translating" ||
+            currentOperation === "DirectTranslation");
     if (currentlyTranslating) {
         transcriptionOptions = (
             <div className="h-12">
@@ -578,6 +774,7 @@ function Transcribe({
                             setRequestId(null);
                             setDataText("");
                             setUrl("");
+                            setCurrentOperation("");
                         }}
                     >
                         {t("Start over")}
@@ -592,7 +789,7 @@ function Transcribe({
                                     event.target.value,
                                 )
                             }
-                            defaultValue={transcriptionTranslationLanguage}
+                            value={transcriptionTranslationLanguage}
                         >
                             <option>{t("Arabic")}</option>
                             <option>{t("English (UK)")}</option>
@@ -615,14 +812,14 @@ function Transcribe({
                         <button
                             className="lb-primary"
                             onClick={() => {
-                                setCurrentOperation("Translating");
+                                setCurrentOperation(t("Translating"));
                                 fetchTranslate(
                                     dataText,
                                     transcriptionTranslationLanguage,
                                 );
                             }}
                         >
-                            {t("Translate")}
+                            <FaLanguage /> {t("Translate")}
                         </button>
                     </div>
                 </div>
@@ -630,9 +827,74 @@ function Transcribe({
         );
     }
 
+    const [inputText, setInputText] = useState("");
+    const handleDirectTranslate = () => {
+        if (!inputText || loading) return;
+        setFinalData(inputText);
+        setCurrentOperation(t("DirectTranslation"));
+        fetchTranslate(inputText, transcriptionTranslationLanguage);
+    };
+
     return (
         <div>
             {transcriptionOptions}
+
+            {(!currentOperation || currentOperation === "DirectTranslation") &&
+                !url &&
+                !fileUploading && (
+                    <div className="mt-2 border-t border-gray-200 pt-4">
+                        <div className="mb-2 flex justify-between items-center w-full">
+                            <div className="font-semibold">
+                                {t("Direct SRT Translation")}
+                            </div>
+                            <div className="flex gap-2 items-center">
+                                <select
+                                    className="lb-select"
+                                    disabled={loading}
+                                    onChange={(event) =>
+                                        setTranscriptionTranslationLanguage(
+                                            event.target.value,
+                                        )
+                                    }
+                                    value={transcriptionTranslationLanguage}
+                                >
+                                    <option>{t("Arabic")}</option>
+                                    <option>{t("English (UK)")}</option>
+                                    <option>{t("English (US)")}</option>
+                                    <option>{t("French")}</option>
+                                    <option>{t("Spanish")}</option>
+                                    <option>{t("German")}</option>
+                                    <option>{t("Italian")}</option>
+                                    <option>{t("Portuguese")}</option>
+                                    <option>{t("Chinese")}</option>
+                                    <option>{t("Japanese")}</option>
+                                    <option>{t("Korean")}</option>
+                                    <option>{t("Bosnian")}</option>
+                                    <option>{t("Croatian")}</option>
+                                    <option>{t("Serbian")}</option>
+                                    <option>{t("Russian")}</option>
+                                    <option>{t("Turkish")}</option>
+                                </select>
+                                <LoadingButton
+                                    className="lb-primary"
+                                    disabled={!inputText}
+                                    loading={loading}
+                                    onClick={handleDirectTranslate}
+                                >
+                                    <FaLanguage /> {t("Translate")}
+                                </LoadingButton>
+                            </div>
+                        </div>
+                        <textarea
+                            className="lb-input w-full mb-2"
+                            rows="4"
+                            value={inputText}
+                            onChange={(e) => setInputText(e.target.value)}
+                            placeholder={t("Enter SRT text to translate")}
+                        />
+                    </div>
+                )}
+
             <div>
                 {(error ||
                     errorParagraph ||
@@ -654,7 +916,7 @@ function Transcribe({
                     <div className="transcription-taxonomy-container flex flex-col gap-2 overflow-y-auto h-[calc(100vh-250px)]">
                         <div className="flex items-center justify-between">
                             <h4 className="font-semibold text-lg">
-                                {t("Transcription results:")}
+                                {t("Transcription")}:
                             </h4>
                             <div className="download-link cursor-pointer font-bold underline text-right mr-2">
                                 {responseFormat && (

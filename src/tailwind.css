@@ -56,7 +56,7 @@
     }
 
     .lb-input {
-        @apply border rounded-md border-gray-300 px-2.5 py-1.5 text-sm w-full text-gray-700 shadow-sm focus:ring-1 focus:ring-sky-600 focus:outline-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-300 bg-white dark:bg-gray-50 placeholder-neutral-400 focus:border-sky-600;
+        @apply border rounded-md border-gray-300 px-2.5 py-1.5 text-sm w-full text-gray-700 shadow-sm focus:ring-1 focus:ring-sky-600 focus:outline-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-300 bg-white dark:bg-neutral-100 placeholder-neutral-400 focus:border-sky-600;
     }
 
     .lb-radio {

@@ -54,7 +54,7 @@ function ImagesPage() {
                     const newImages = [...images];
                     newImages.unshift({
                         cortexRequestId: requestId,
-                        prompt: generationPrompt,
+                        prompt: prompt,
                     });
                     return newImages;
                 });
@@ -62,7 +62,7 @@ function ImagesPage() {
 
             return data;
         },
-        [apolloClient, generationPrompt, images],
+        [apolloClient, images],
     );
 
     images.sort((a, b) => {

@@ -1,18 +1,7 @@
-import TimeAgo from "javascript-time-ago";
-import ar from "javascript-time-ago/locale/ar.json";
-import en from "javascript-time-ago/locale/en.json";
 import { useTranslation } from "react-i18next";
 import ReactTimeAgo from "react-time-ago";
 import CopyButton from "../../../src/components/CopyButton";
 import { convertMessageToMarkdown } from "../../../src/components/chat/ChatMessage";
-
-if (typeof document !== "undefined") {
-    TimeAgo.addLocale(ar);
-    TimeAgo.addLocale(en);
-    TimeAgo.setDefaultLocale(
-        document.documentElement.lang === "ar" ? ar.locale : en.locale,
-    );
-}
 
 export default function WorkspaceOutputs({ outputs = [], onDelete }) {
     return (
