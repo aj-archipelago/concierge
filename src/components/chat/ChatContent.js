@@ -27,6 +27,7 @@ function ChatContent({
     const viewingReadOnlyChat =
         displayState === "full" && viewingChat && viewingChat.readOnly;
     const chat = viewingReadOnlyChat ? viewingChat : activeChat;
+    const chatId = String(chat?._id);
     const messages = chat?.messages || [];
     const selectedSources = useSelector((state) => state.doc.selectedSources);
     const updateAiMemoryMutation = useUpdateAiMemory();
@@ -38,7 +39,7 @@ function ChatContent({
         setLoading(false);
         if (message) {
             addMessage.mutate({
-                chatId: String(chat?._id),
+                chatId,
                 message: {
                     payload: message,
                     tool: tool,
@@ -71,7 +72,7 @@ function ChatContent({
                 onSend={(text) => {
                     const display = text;
                     addMessage.mutate({
-                        chatId: String(chat?._id),
+                        chatId,
                         message: {
                             payload: display,
                             sender: "user",
@@ -111,6 +112,7 @@ function ChatContent({
                         aiName: "Labeeb",
                         aiMemorySelfModify: aiMemorySelfModify,
                         title: chat?.title,
+                        chatId,
                     };
 
                     selectedSources &&

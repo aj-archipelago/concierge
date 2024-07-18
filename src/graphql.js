@@ -191,6 +191,7 @@ const RAG_GENERATOR_RESULTS = gql`
         $semanticConfiguration: String
         $aiName: String
         $useMemory: Boolean
+        $chatId: String
     ) {
         rag_generator_results(
             chatHistory: $chatHistory
@@ -202,6 +203,7 @@ const RAG_GENERATOR_RESULTS = gql`
             semanticConfiguration: $semanticConfiguration
             aiName: $aiName
             useMemory: $useMemory
+            chatId: $chatId
         ) {
             result
             contextId
@@ -218,6 +220,7 @@ const COGNITIVE_INSERT = gql`
         $file: String
         $contextId: String
         $docId: String
+        $chatId: String
         $privateData: Boolean
         $async: Boolean
     ) {
@@ -226,6 +229,7 @@ const COGNITIVE_INSERT = gql`
             file: $file
             contextId: $contextId
             docId: $docId
+            chatId: $chatId
             privateData: $privateData
             async: $async
         ) {
@@ -235,8 +239,18 @@ const COGNITIVE_INSERT = gql`
 `;
 
 const COGNITIVE_DELETE = gql`
-    query CognitiveDelete($text: String, $contextId: String, $docId: String) {
-        cognitive_delete(text: $text, contextId: $contextId, docId: $docId) {
+    query CognitiveDelete(
+        $text: String
+        $contextId: String
+        $docId: String
+        $chatId: String
+    ) {
+        cognitive_delete(
+            text: $text
+            contextId: $contextId
+            docId: $docId
+            chatId: $chatId
+        ) {
             result
         }
     }
