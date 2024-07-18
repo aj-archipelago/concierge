@@ -171,14 +171,14 @@ function SavedChats({ displayState }) {
                                     className="h-4 w-4 text-red-500 hover:text-red-700 flex-shrink-0"
                                 />
                             </div>
-                            <div className="flex justify-between items-center pb-2">
+                            <div className="flex justify-between items-center pb-2 overflow-hidden">
                                 <ul>
                                     {chat?.messages
                                         ?.slice(-3)
                                         .map((m, index) => (
                                             <li
                                                 key={index}
-                                                className="text-xs text-gray-500"
+                                                className="text-xs text-gray-500 break-words"
                                             >
                                                 {m.payload.length > 35
                                                     ? `${m.payload.slice(0, 35)}...`
