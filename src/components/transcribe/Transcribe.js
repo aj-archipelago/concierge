@@ -107,6 +107,9 @@ function Transcribe({
                 maxLineWidth,
                 maxLineCount,
                 model: event.target.value,
+                responseFormat,
+                wordTimestamped,
+                textFormatted,
             },
         });
     };
@@ -388,6 +391,9 @@ function Transcribe({
                                         maxLineWidth,
                                         maxLineCount,
                                         model: selectedModelOption,
+                                        responseFormat,
+                                        wordTimestamped,
+                                        textFormatted,
                                     },
                                 });
                             }}
@@ -452,6 +458,9 @@ function Transcribe({
                                                 maxLineWidth,
                                                 maxLineCount,
                                                 model: selectedModelOption,
+                                                responseFormat,
+                                                wordTimestamped,
+                                                textFormatted,
                                             },
                                         });
                                     }}
@@ -487,6 +496,10 @@ function Transcribe({
                                                 maxLineWidth,
                                                 maxLineCount,
                                                 model: selectedModelOption,
+
+                                                responseFormat,
+                                                wordTimestamped,
+                                                textFormatted,
                                             },
                                         });
                                     }}
@@ -518,6 +531,10 @@ function Transcribe({
                                                 maxLineWidth,
                                                 maxLineCount,
                                                 model: selectedModelOption,
+
+                                                responseFormat,
+                                                wordTimestamped,
+                                                textFormatted,
                                             },
                                         });
                                     }}
@@ -549,6 +566,10 @@ function Transcribe({
                                                 maxLineWidth,
                                                 maxLineCount,
                                                 model: selectedModelOption,
+
+                                                responseFormat,
+                                                wordTimestamped,
+                                                textFormatted,
                                             },
                                         });
                                     }}
@@ -578,6 +599,8 @@ function Transcribe({
                                             responseFormat,
                                             wordTimestamped: false,
                                             textFormatted: false,
+                                            maxLineWidth: undefined,
+                                            maxLineCount: undefined,
                                         });
                                         debouncedUpdateUserState({
                                             transcribe: {
@@ -585,9 +608,12 @@ function Transcribe({
                                                 outputFormat: responseFormat,
                                                 transcriptionType: "",
                                                 language,
-                                                maxLineWidth,
-                                                maxLineCount,
+                                                maxLineWidth: undefined,
+                                                maxLineCount: undefined,
                                                 model: selectedModelOption,
+                                                responseFormat,
+                                                wordTimestamped: false,
+                                                textFormatted: false,
                                             },
                                         });
                                     }}
@@ -609,6 +635,8 @@ function Transcribe({
                                             responseFormat,
                                             wordTimestamped: true,
                                             textFormatted: false,
+                                            maxLineWidth: undefined,
+                                            maxLineCount: undefined,
                                         });
                                         debouncedUpdateUserState({
                                             transcribe: {
@@ -616,9 +644,12 @@ function Transcribe({
                                                 outputFormat: responseFormat,
                                                 transcriptionType: "word",
                                                 language,
-                                                maxLineWidth,
-                                                maxLineCount,
+                                                maxLineWidth: undefined,
+                                                maxLineCount: undefined,
                                                 model: selectedModelOption,
+                                                responseFormat,
+                                                wordTimestamped: true,
+                                                textFormatted: false,
                                             },
                                         });
                                     }}
@@ -652,6 +683,9 @@ function Transcribe({
                                                 maxLineWidth: 35,
                                                 maxLineCount: 1,
                                                 model: selectedModelOption,
+                                                responseFormat,
+                                                wordTimestamped,
+                                                textFormatted,
                                             },
                                         });
                                     }}
@@ -702,6 +736,9 @@ function Transcribe({
                                                   : "",
                                             model: selectedModelOption,
                                             language: event.target.value,
+                                            responseFormat,
+                                            wordTimestamped,
+                                            textFormatted,
                                         },
                                     });
                                 }}
