@@ -53,9 +53,6 @@ const userStateSchema = new mongoose.Schema(
             model: {
                 type: String,
             },
-            responseFormat: {
-                type: String,
-            },
             wordTimestamped: {
                 type: Boolean,
             },
