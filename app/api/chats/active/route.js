@@ -19,7 +19,7 @@ export async function PUT(req) {
         const updatedActiveChatId = await setActiveChatId(
             data?.activeChatId || data,
         );
-        return NextResponse.json({ activeChatId: updatedActiveChatId });
+        return NextResponse.json(updatedActiveChatId);
     } catch (error) {
         return handleError(error);
     }
