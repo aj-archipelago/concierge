@@ -96,7 +96,7 @@ export default function AIModal({
                                 leaveFrom="opacity-100 scale-100"
                                 leaveTo="opacity-0 scale-95"
                             >
-                                <Dialog.Panel className="w-full max-w-6xl max-h-[calc(100vh-100px)] overflow-auto transform rounded-md bg-white p-6 text-start align-middle shadow-xl transition-all flex flex-col gap-3">
+                                <Dialog.Panel className="w-full max-w-6xl max-h-[calc(100vh-100px)] overflow-auto transform rounded-md bg-white p-6 text-start align-middle shadow-xl dark:bg-gray-100 border dark:border-300 transition-all flex flex-col gap-3">
                                     <Dialog.Title
                                         as="h3"
                                         className="text-lg font-medium leading-6 text-gray-900"
