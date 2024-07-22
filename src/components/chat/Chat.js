@@ -42,7 +42,7 @@ function Chat({ viewingChat = null }) {
                 <ChatTopMenuDynamic />
                 {publicChatOwner && (
                     <div className="text-sm font-medium text-gray-600 bg-gray-100 px-3 py-1 rounded shadow-sm">
-                        {t("This chat is shared by")}{" "}
+                        {t("Shared by")}{" "}
                         <span className="font-bold text-blue-600">
                             {publicChatOwner.name || publicChatOwner.username}
                         </span>
