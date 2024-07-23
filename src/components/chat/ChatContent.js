@@ -2,7 +2,6 @@ import { useSelector } from "react-redux";
 import { useApolloClient } from "@apollo/client";
 import { QUERIES } from "../../graphql";
 import { useState, useContext } from "react";
-import { useUpdateAiMemory } from "../../../app/queries/options";
 import { AuthContext } from "../../App.js";
 import ChatMessages from "./ChatMessages";
 import { toast } from "react-toastify";
@@ -30,7 +29,6 @@ function ChatContent({
     const chatId = String(chat?._id);
     const messages = chat?.messages || [];
     const selectedSources = useSelector((state) => state.doc.selectedSources);
-    const updateAiMemoryMutation = useUpdateAiMemory();
     const addMessage = useAddMessage();
     const updateChatHook = useUpdateChat();
     const publicChatOwner = viewingChat?.owner;
@@ -104,7 +102,7 @@ function ChatContent({
 
                     conversation.push({ role: "user", content: text });
 
-                    const { userId, contextId, aiMemorySelfModify } = user;
+                    const { contextId, aiMemorySelfModify } = user;
 
                     const variables = {
                         chatHistory: conversation,
@@ -126,7 +124,6 @@ function ChatContent({
                         .then((result) => {
                             let resultMessage = "";
                             let searchRequired = false;
-                            let aiMemory = "";
                             let tool = null;
 
                             try {
@@ -141,14 +138,6 @@ function ChatContent({
                                         result.data.rag_start.tool,
                                     );
                                     searchRequired = toolObj?.search;
-                                    aiMemory = toolObj?.aiMemory;
-
-                                    updateAiMemoryMutation.mutateAsync({
-                                        userId,
-                                        contextId,
-                                        aiMemory,
-                                        aiMemorySelfModify,
-                                    });
 
                                     // Update chat title if tool title is different or if not set by user
                                     if (

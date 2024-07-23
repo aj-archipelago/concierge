@@ -1,5 +1,5 @@
 import { Modal } from "@/components/ui/modal";
-import { useApolloClient } from "@apollo/client";
+import { useApolloClient, useQuery } from "@apollo/client";
 import { useContext, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useUpdateAiMemory } from "../../app/queries/options";
@@ -9,18 +9,47 @@ import { AuthContext } from "../App";
 const UserOptions = ({ show, handleClose }) => {
     const { t } = useTranslation();
     const { user } = useContext(AuthContext);
-    const [aiMemory, setAiMemory] = useState(user.aiMemory || "");
+    const [aiMemory, setAiMemory] = useState("");
     const [aiMemorySelfModify, setAiMemorySelfModify] = useState(
-        user.aiMemorySelfModify || false,
+        user.aiMemorySelfModify || false
     );
 
     const updateAiMemoryMutation = useUpdateAiMemory();
     const apolloClient = useApolloClient();
 
+    // Modified query to fetch aiMemory
+    const { data: memoryData, loading: memoryLoading, refetch: refetchMemory } = useQuery(QUERIES.RAG_READ_MEMORY, {
+        variables: { contextId: user.contextId },
+        skip: !user.contextId,
+        fetchPolicy: 'network-only', // This ensures we always fetch from the network
+    });
+
+    // Effect to refetch memory when modal is shown
     useEffect(() => {
-        setAiMemory(user.aiMemory || "");
+        if (show && user.contextId) {
+            refetchMemory();
+        }
+    }, [show, user.contextId, refetchMemory]);
+
+    useEffect(() => {
+        if (memoryData && memoryData.rag_read_memory.result) {
+            try {
+                const parsedMemory = JSON.parse(memoryData.rag_read_memory.result);
+                setAiMemory(parsedMemory);
+            } catch (error) {
+                // If it's not valid JSON, set it as is
+                setAiMemory(memoryData.rag_read_memory.result);
+            }
+        }
+    }, [memoryData]);
+
+    useEffect(() => {
         setAiMemorySelfModify(user.aiMemorySelfModify || false);
     }, [user]);
+
+    const handleClearMemory = () => {
+        setAiMemory("");
+    };
 
     const handleSave = async () => {
         if (!user || !user.userId) {
@@ -83,7 +112,7 @@ const UserOptions = ({ show, handleClose }) => {
                         }
                         style={{ margin: "0.5rem 0" }}
                     />
-                    <label for="aiMemorySelfModify">
+                    <label htmlFor="aiMemorySelfModify">
                         {t("Allow the AI to modify its own memory")}
                     </label>
                 </div>
@@ -91,12 +120,29 @@ const UserOptions = ({ show, handleClose }) => {
                     <h4 className="font-semibold mb-2">
                         {t("Currently stored memory")}
                     </h4>
-                    <textarea
-                        value={aiMemory}
-                        onChange={(e) => setAiMemory(e.target.value)}
-                        className="lb-input font-mono"
-                        rows={10}
-                    />
+                    {memoryLoading ? (
+                        <p>{t("Loading memory...")}</p>
+                    ) : (
+                        <>
+                            <div className="flex justify-between items-center mb-2">
+                                <button
+                                    className="lb-outline-danger"
+                                    onClick={handleClearMemory}
+                                >
+                                    {t("Clear Memory")}
+                                </button>
+                                <span className="text-sm text-gray-500">
+                                    {t("Memory size: {{size}} characters", { size: aiMemory.length })}
+                                </span>
+                            </div>
+                            <textarea
+                                value={aiMemory}
+                                onChange={(e) => setAiMemory(e.target.value)}
+                                className="lb-input font-mono w-full"
+                                rows={10}
+                            />
+                        </>
+                    )}
                 </div>
             </div>
             <div className="justify-end flex gap-2 mt-4">
