@@ -313,5 +313,10 @@
     "Slower, Reliable (GPT-4)": "بطيئة، موثوقة (GPT-4)",
     "Enter text to translate...": "أدخل النص للترجمة...",
     "Translation will appear here...": "سيظهر النص المترجم هنا...",
-    "Subtitle Translation (SRT)": "ترجمة العنوان (SRT)"
+    "Subtitle Translation (SRT)": "ترجمة العنوان (SRT)",
+    "Generate Headlines": "إنشاء عناوين",
+    "Headlines": "العناوين",
+    "Max length": "الحد الأقصى للطول",
+    "Headline creator": "منشئ العناوين",
+    "Use selected headline and subhead": "استخدام العنوان والعنوان الفرعي المحدد"
 }
