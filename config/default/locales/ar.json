@@ -285,5 +285,10 @@
     "Are you sure you want to delete this chat?": "هل أنت متأكد أنك تريد حذف هذه الدردشة؟",
     "Subtitle Translation (SRT)": "ترجمة العنوان (SRT)",
     "This chat is shared by": "هذه الدردشة مشتركة بواسطة",
-    "Shared by": "مشترك بواسطة"
+    "Shared by": "مشترك بواسطة",
+    "Generate Headlines": "إنشاء عناوين",
+    "Headlines": "العناوين",
+    "Max length": "الحد الأقصى للطول",
+    "Headline creator": "منشئ العناوين",
+    "Use selected headline and subhead": "استخدام العنوان والعنوان الفرعي المحدد"
 }

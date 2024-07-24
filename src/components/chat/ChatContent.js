@@ -11,6 +11,8 @@ import {
     useAddMessage,
     useUpdateChat,
 } from "../../../app/queries/chats";
+import { useQueryClient } from "@tanstack/react-query";
+
 const contextMessageCount = 50;
 
 function ChatContent({
@@ -21,7 +23,6 @@ function ChatContent({
     const { t } = useTranslation();
     const client = useApolloClient();
     const { user } = useContext(AuthContext);
-    const [loading, setLoading] = useState(false);
     const activeChat = useGetActiveChat()?.data;
     const viewingReadOnlyChat =
         displayState === "full" && viewingChat && viewingChat.readOnly;
@@ -33,8 +34,16 @@ function ChatContent({
     const updateChatHook = useUpdateChat();
     const publicChatOwner = viewingChat?.owner;
 
+    const queryClient = useQueryClient();
+
+    const updateChatLoadingState = (id, isLoading) => {
+        queryClient.setQueryData(["chatLoadingState", id], isLoading);
+    };
+
+    const chatLoadingState =
+        queryClient.getQueryData(["chatLoadingState", chatId]) || false;
+
     const updateChat = (message, tool) => {
-        setLoading(false);
         if (message) {
             addMessage.mutate({
                 chatId,
@@ -48,6 +57,7 @@ function ChatContent({
                 },
             });
         }
+        updateChatLoadingState(chatId, false);
     };
 
     const handleError = (error) => {
@@ -58,7 +68,7 @@ function ChatContent({
             ),
             null,
         );
-        setLoading(false);
+        updateChatLoadingState(chatId, false);
     };
 
     return (
@@ -66,7 +76,7 @@ function ChatContent({
             <ChatMessages
                 viewingReadOnlyChat={viewingReadOnlyChat}
                 publicChatOwner={publicChatOwner}
-                loading={loading}
+                loading={chatLoadingState}
                 onSend={(text) => {
                     const display = text;
                     addMessage.mutate({
@@ -80,7 +90,7 @@ function ChatContent({
                         },
                     });
 
-                    setLoading(true);
+                    updateChatLoadingState(chatId, true);
 
                     let conversation = messages
                         .slice(-contextMessageCount)
@@ -157,7 +167,7 @@ function ChatContent({
                             }
                             updateChat(resultMessage, tool);
                             if (searchRequired) {
-                                setLoading(true);
+                                updateChatLoadingState(chatId, true);
                                 client
                                     .query({
                                         query: QUERIES.RAG_GENERATOR_RESULTS,
