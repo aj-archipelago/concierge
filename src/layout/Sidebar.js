@@ -97,7 +97,7 @@ export default React.forwardRef(function Sidebar(_, ref) {
     };
 
     const handleSaveEdit = (item) => {
-        updateChat.mutate({
+        updateChat.mutateAsync({
             chatId: item.key,
             title: editedName,
             titleSetByUser: true,
@@ -205,7 +205,7 @@ export default React.forwardRef(function Sidebar(_, ref) {
                                                                     item.name ===
                                                                     "Chat"
                                                                 ) {
-                                                                    setActiveChatId.mutate(
+                                                                    setActiveChatId.mutateAsync(
                                                                         subItem.key,
                                                                     );
                                                                 }

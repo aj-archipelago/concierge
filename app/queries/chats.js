@@ -24,14 +24,18 @@ export function useGetChats() {
 
 export function useGetActiveChats() {
     const queryClient = useQueryClient();
-
     return useQuery({
         queryKey: ["activeChats"],
         queryFn: async () => {
             const response = await axios.get(`/api/chats/active/detail`);
             const activeChats = response.data;
             activeChats.forEach((chat) => {
-                queryClient.setQueryData(["chat", chat._id], chat);
+                const existingChat =
+                    queryClient.getQueryData(["chat", chat._id]) || {};
+                queryClient.setQueryData(["chat", chat._id], {
+                    ...existingChat,
+                    ...chat,
+                });
             });
             return activeChats;
         },
@@ -233,7 +237,16 @@ export function useGetActiveChat() {
     return useGetChatById(activeChatId);
 }
 
-export function useSetActiveChatId() {
+function shouldUpdateActiveChatId(previousData, activeChatId) {
+    if (!previousData) return true;
+    const recentChatIds = previousData.recentChatIds || [];
+    return (
+        activeChatId !== previousData.activeChatId ||
+        recentChatIds.indexOf(activeChatId) >= 3
+    );
+}
+
+export function useSetActiveChatIdApply() {
     const queryClient = useQueryClient();
 
     return useMutation({
@@ -243,10 +256,10 @@ export function useSetActiveChatId() {
                     "activeChatId is required and must be a valid Mongo ID",
                 );
             }
-            const response = await axios.put(`/api/chats/active`, {
+            const { data } = await axios.put(`/api/chats/active`, {
                 activeChatId,
             });
-            return response.data.activeChatId;
+            return data;
         },
         onMutate: async (activeChatId) => {
             if (!isValidObjectId(activeChatId)) return;
@@ -254,12 +267,10 @@ export function useSetActiveChatId() {
             let recentChatIds = previousData?.recentChatIds || [];
 
             const index = recentChatIds.indexOf(activeChatId);
-            if (index > -1) {
-                if (index >= 3) {
+            if (index === -1 || index >= 3) {
+                if (index !== -1) {
                     recentChatIds.splice(index, 1);
-                    recentChatIds.unshift(activeChatId);
                 }
-            } else {
                 recentChatIds.unshift(activeChatId);
             }
 
@@ -296,6 +307,21 @@ export function useSetActiveChatId() {
             queryClient.invalidateQueries({ queryKey: ["userChatInfo"] });
             queryClient.invalidateQueries({ queryKey: ["activeChats"] });
             queryClient.invalidateQueries({ queryKey: ["chats"] });
+        },
+    });
+}
+
+export function useSetActiveChatId() {
+    const queryClient = useQueryClient();
+    const setActiveChatIdApply = useSetActiveChatIdApply();
+
+    return useMutation({
+        mutationFn: async (activeChatId) => {
+            const previousData = queryClient.getQueryData(["userChatInfo"]);
+            if (shouldUpdateActiveChatId(previousData, activeChatId)) {
+                return setActiveChatIdApply.mutateAsync(activeChatId);
+            }
+            return previousData;
         },
     });
 }
@@ -347,9 +373,18 @@ export function useAddMessage() {
             );
         },
         onSuccess: (updatedChat) => {
-            const chatId = String(updatedChat?._id);
-            queryClient.invalidateQueries({ queryKey: ["chat", chatId] });
-            queryClient.setQueryData(["chat", chatId], updatedChat);
+            queryClient.setQueryData(
+                ["chat", String(updatedChat?._id)],
+                updatedChat,
+            );
+        },
+        onError: (err, variables, context) => {
+            if (context?.previousChat) {
+                queryClient.setQueryData(
+                    ["chat", String(context.previousChat._id)],
+                    context.previousChat,
+                );
+            }
         },
     });
 }
@@ -373,6 +408,19 @@ export function useUpdateChat() {
             const previousChat = queryClient.getQueryData(["chat", chatId]);
             const expectedChatData = { ...previousChat, ...updateData };
             queryClient.setQueryData(["chat", chatId], expectedChatData);
+
+            queryClient.setQueryData(["activeChats"], (oldChats = []) =>
+                oldChats.map((chat) =>
+                    chat._id === chatId ? expectedChatData : chat,
+                ),
+            );
+
+            queryClient.setQueryData(["chats"], (oldChats = []) =>
+                oldChats.map((chat) =>
+                    chat._id === chatId ? expectedChatData : chat,
+                ),
+            );
+
             return { previousChat, expectedChatData };
         },
         onError: (err, variables, context) => {
@@ -382,12 +430,15 @@ export function useUpdateChat() {
                     context.previousChat,
                 );
             }
+
+            queryClient.invalidateQueries({
+                queryKey: ["chat", variables.chatId],
+            });
+            queryClient.invalidateQueries({ queryKey: ["chats"] });
+            queryClient.invalidateQueries({ queryKey: ["activeChats"] });
         },
         onSuccess: (updatedChat, { chatId }) => {
             queryClient.setQueryData(["chat", chatId], updatedChat);
-            queryClient.invalidateQueries({ queryKey: ["chat", chatId] });
-            queryClient.invalidateQueries({ queryKey: ["chats"] });
-            queryClient.invalidateQueries({ queryKey: ["activeChats"] });
         },
     });
 }
