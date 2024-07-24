@@ -53,6 +53,12 @@ const userStateSchema = new mongoose.Schema(
             model: {
                 type: String,
             },
+            wordTimestamped: {
+                type: Boolean,
+            },
+            textFormatted: {
+                type: Boolean,
+            },
         },
         jira: {
             input: {

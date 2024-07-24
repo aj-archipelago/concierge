@@ -253,6 +253,9 @@
     "AI Memory": "ذاكرة الذكاء الاصطناعي",
     "You can customize your interactions with the AI assistant by giving it things to remember. You can enter plain text or something more structured like JSON or XML. If you allow it, the AI will periodically modify its own memory to improve its ability to assist you, but it will likely rewrite the memory into a JSON object.": "يمكنك تخصيص تفاعلاتك مع مساعد الذكاء الاصطناعي عن طريق إعطائه أشياء ليتذكرها. يمكنك إدخال نص عادي أو شيء أكثر تنظيمًا مثل JSON أو XML. إذا سمحت له ، سيعدل الذكاء الاصطناعي ذاكرته بانتظام لتحسين قدرته على مساعدتك ، ولكن من المحتمل أن يعيد كتابة الذاكرة إلى كائن JSON.",
     "Allow the AI to modify its own memory": "السماح للذكاء الاصطناعي بتعديل ذاكرته الخاصة",
+    "Loading memory...": "جاري تحميل الذاكرة...",
+    "Clear Memory": "مسح الذاكرة",
+    "Memory size: {{size}} characters": "حجم الذاكرة: {{size}} أحرف",
     "Save changes": "حفظ التغييرات",
     "Add Youtube / Remote Media Url": "إضافة عنوان URL لمقطع فيديو من يوتيوب أو وسائط عن بعد",
     "Drag & Drop your files or": "اسحب وأسقط ملفاتك أو",
@@ -281,5 +284,11 @@
     "Clear this chat": "مسح هذه الدردشة",
     "Are you sure you want to delete this chat?": "هل أنت متأكد أنك تريد حذف هذه الدردشة؟",
     "Subtitle Translation (SRT)": "ترجمة العنوان (SRT)",
-    "This chat is shared by": "هذه الدردشة مشتركة بواسطة"
+    "This chat is shared by": "هذه الدردشة مشتركة بواسطة",
+    "Shared by": "مشترك بواسطة",
+    "Generate Headlines": "إنشاء عناوين",
+    "Headlines": "العناوين",
+    "Max length": "الحد الأقصى للطول",
+    "Headline creator": "منشئ العناوين",
+    "Use selected headline and subhead": "استخدام العنوان والعنوان الفرعي المحدد"
 }

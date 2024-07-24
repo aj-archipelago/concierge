@@ -5,6 +5,7 @@ import { QUERIES } from "../../../graphql";
 import LoadingButton from "../LoadingButton";
 import GeneratedHeadlines from "./GeneratedHeadlines";
 import StoryAngles from "./StoryAngles";
+import { useTranslation } from "react-i18next";
 
 function HeadlineModal({ text, onSelect, args }) {
     const query = "HEADLINE_CUSTOM";
@@ -14,6 +15,7 @@ function HeadlineModal({ text, onSelect, args }) {
     const [availableKeywords, setAvailableKeywords] = useState([]);
     const [parameters, setParameters] = useState({});
     const client = useApolloClient();
+    const { t } = useTranslation();
 
     const targetLength = 65;
 
@@ -150,7 +152,7 @@ function HeadlineModal({ text, onSelect, args }) {
                     </div>
                     <div className="flex-1">
                         <LoadingButton
-                            className="btn-primary mb-2.5"
+                            className="lb-primary mb-2.5"
                             onClick={() => {
                                 if (
                                     parameters.idea !== workingIdea ||
@@ -169,15 +171,18 @@ function HeadlineModal({ text, onSelect, args }) {
                             loading={loading}
                             text="Generating"
                         >
-                            Generate Headlines
+                            {t("Generate Headlines")}
                         </LoadingButton>
-                        <h6 className="font-bold mb-0">Headlines</h6>
+                        <h6 className="font-bold mb-0">{t("Headlines")}</h6>
                         <p className="text-gray-600 text-sm">
-                            <small>Max length: {targetLength} characters</small>
+                            <small>
+                                {t("Max length")}: {targetLength}{" "}
+                                {t("characters")}
+                            </small>
                         </p>
                         {error && (
                             <p className="text-red-500">
-                                Error: {error.message}
+                                {t("Error")}: {error.message}
                             </p>
                         )}
                         {!error && (

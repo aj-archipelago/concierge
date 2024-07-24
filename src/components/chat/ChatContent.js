@@ -2,7 +2,6 @@ import { useSelector } from "react-redux";
 import { useApolloClient } from "@apollo/client";
 import { QUERIES } from "../../graphql";
 import { useState, useContext } from "react";
-import { useUpdateAiMemory } from "../../../app/queries/options";
 import { AuthContext } from "../../App.js";
 import ChatMessages from "./ChatMessages";
 import { toast } from "react-toastify";
@@ -12,6 +11,8 @@ import {
     useAddMessage,
     useUpdateChat,
 } from "../../../app/queries/chats";
+import { useQueryClient } from "@tanstack/react-query";
+
 const contextMessageCount = 50;
 
 function ChatContent({
@@ -22,7 +23,6 @@ function ChatContent({
     const { t } = useTranslation();
     const client = useApolloClient();
     const { user } = useContext(AuthContext);
-    const [loading, setLoading] = useState(false);
     const activeChat = useGetActiveChat()?.data;
     const viewingReadOnlyChat =
         displayState === "full" && viewingChat && viewingChat.readOnly;
@@ -30,13 +30,20 @@ function ChatContent({
     const chatId = String(chat?._id);
     const messages = chat?.messages || [];
     const selectedSources = useSelector((state) => state.doc.selectedSources);
-    const updateAiMemoryMutation = useUpdateAiMemory();
     const addMessage = useAddMessage();
     const updateChatHook = useUpdateChat();
     const publicChatOwner = viewingChat?.owner;
 
+    const queryClient = useQueryClient();
+
+    const updateChatLoadingState = (id, isLoading) => {
+        queryClient.setQueryData(["chatLoadingState", id], isLoading);
+    };
+
+    const chatLoadingState =
+        queryClient.getQueryData(["chatLoadingState", chatId]) || false;
+
     const updateChat = (message, tool) => {
-        setLoading(false);
         if (message) {
             addMessage.mutate({
                 chatId,
@@ -50,6 +57,7 @@ function ChatContent({
                 },
             });
         }
+        updateChatLoadingState(chatId, false);
     };
 
     const handleError = (error) => {
@@ -60,7 +68,7 @@ function ChatContent({
             ),
             null,
         );
-        setLoading(false);
+        updateChatLoadingState(chatId, false);
     };
 
     return (
@@ -68,7 +76,7 @@ function ChatContent({
             <ChatMessages
                 viewingReadOnlyChat={viewingReadOnlyChat}
                 publicChatOwner={publicChatOwner}
-                loading={loading}
+                loading={chatLoadingState}
                 onSend={(text) => {
                     const display = text;
                     addMessage.mutate({
@@ -82,7 +90,7 @@ function ChatContent({
                         },
                     });
 
-                    setLoading(true);
+                    updateChatLoadingState(chatId, true);
 
                     let conversation = messages
                         .slice(-contextMessageCount)
@@ -104,7 +112,7 @@ function ChatContent({
 
                     conversation.push({ role: "user", content: text });
 
-                    const { userId, contextId, aiMemorySelfModify } = user;
+                    const { contextId, aiMemorySelfModify } = user;
 
                     const variables = {
                         chatHistory: conversation,
@@ -126,7 +134,6 @@ function ChatContent({
                         .then((result) => {
                             let resultMessage = "";
                             let searchRequired = false;
-                            let aiMemory = "";
                             let tool = null;
 
                             try {
@@ -141,14 +148,6 @@ function ChatContent({
                                         result.data.rag_start.tool,
                                     );
                                     searchRequired = toolObj?.search;
-                                    aiMemory = toolObj?.aiMemory;
-
-                                    updateAiMemoryMutation.mutateAsync({
-                                        userId,
-                                        contextId,
-                                        aiMemory,
-                                        aiMemorySelfModify,
-                                    });
 
                                     // Update chat title if tool title is different or if not set by user
                                     if (
@@ -168,7 +167,7 @@ function ChatContent({
                             }
                             updateChat(resultMessage, tool);
                             if (searchRequired) {
-                                setLoading(true);
+                                updateChatLoadingState(chatId, true);
                                 client
                                     .query({
                                         query: QUERIES.RAG_GENERATOR_RESULTS,

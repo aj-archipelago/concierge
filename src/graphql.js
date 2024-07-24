@@ -138,6 +138,14 @@ const VISION = gql`
     }
 `;
 
+const RAG_READ_MEMORY = gql`
+    query RagReadMemory($contextId: String!) {
+        rag_read_memory(contextId: $contextId) {
+            result
+        }
+    }
+`;
+
 const RAG_SAVE_MEMORY = gql`
     query RagSaveMemory($aiMemory: String!, $contextId: String!) {
         rag_save_memory(aiMemory: $aiMemory, contextId: $contextId) {
@@ -647,6 +655,7 @@ const QUERIES = {
     COGNITIVE_DELETE,
     COGNITIVE_INSERT,
     IMAGE,
+    RAG_READ_MEMORY,
     RAG_SAVE_MEMORY,
     RAG_START,
     RAG_GENERATOR_RESULTS,
@@ -703,6 +712,7 @@ export {
     COGNITIVE_INSERT,
     COGNITIVE_DELETE,
     EXPAND_STORY,
+    RAG_READ_MEMORY,
     RAG_SAVE_MEMORY,
     RAG_START,
     RAG_GENERATOR_RESULTS,
