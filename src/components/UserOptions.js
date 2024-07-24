@@ -11,17 +11,21 @@ const UserOptions = ({ show, handleClose }) => {
     const { user } = useContext(AuthContext);
     const [aiMemory, setAiMemory] = useState("");
     const [aiMemorySelfModify, setAiMemorySelfModify] = useState(
-        user.aiMemorySelfModify || false
+        user.aiMemorySelfModify || false,
     );
 
     const updateAiMemoryMutation = useUpdateAiMemory();
     const apolloClient = useApolloClient();
 
     // Modified query to fetch aiMemory
-    const { data: memoryData, loading: memoryLoading, refetch: refetchMemory } = useQuery(QUERIES.RAG_READ_MEMORY, {
+    const {
+        data: memoryData,
+        loading: memoryLoading,
+        refetch: refetchMemory,
+    } = useQuery(QUERIES.RAG_READ_MEMORY, {
         variables: { contextId: user.contextId },
         skip: !user.contextId,
-        fetchPolicy: 'network-only', // This ensures we always fetch from the network
+        fetchPolicy: "network-only", // This ensures we always fetch from the network
     });
 
     // Effect to refetch memory when modal is shown
@@ -34,7 +38,9 @@ const UserOptions = ({ show, handleClose }) => {
     useEffect(() => {
         if (memoryData && memoryData.rag_read_memory.result) {
             try {
-                const parsedMemory = JSON.parse(memoryData.rag_read_memory.result);
+                const parsedMemory = JSON.parse(
+                    memoryData.rag_read_memory.result,
+                );
                 setAiMemory(parsedMemory);
             } catch (error) {
                 // If it's not valid JSON, set it as is
@@ -132,7 +138,9 @@ const UserOptions = ({ show, handleClose }) => {
                                     {t("Clear Memory")}
                                 </button>
                                 <span className="text-sm text-gray-500">
-                                    {t("Memory size: {{size}} characters", { size: aiMemory.length })}
+                                    {t("Memory size: {{size}} characters", {
+                                        size: aiMemory.length,
+                                    })}
                                 </span>
                             </div>
                             <textarea
