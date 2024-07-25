@@ -1,12 +1,9 @@
 import { getCurrentUser } from "../../../utils/auth";
-import { generateDigestBlockContent } from "./digest.utils";
 
-import dayjs from "dayjs";
 import { NextResponse } from "next/server";
 import Digest from "../../../models/digest";
-
-// daily
-const UPDATE_INTERVAL = 24 * 60 * 60 * 1000;
+import { enqueueBuildDigest } from "./utils";
+import { DigestGenerationStatus } from "../../../models/digest.mjs";
 
 export async function GET(req, { params }) {
     const user = await getCurrentUser();
@@ -26,6 +23,9 @@ export async function GET(req, { params }) {
                     {
                         prompt: `Good morning! What's going on in the world today? If you know my profession, give me updates specific to my profession and preferences. Otherwise, give me general updates.`,
                         title: "Daily digest",
+                        state: {
+                            status: DigestGenerationStatus.PENDING,
+                        },
                     },
                 ],
             },
@@ -34,27 +34,9 @@ export async function GET(req, { params }) {
                 new: true,
             },
         );
+
+        await enqueueBuildDigest(user._id);
     }
-
-    let promises = [];
-    for (const block of digest.blocks) {
-        const lastUpdated = block.updatedAt;
-
-        if (
-            !lastUpdated ||
-            !block.content ||
-            dayjs().diff(dayjs(lastUpdated)) > UPDATE_INTERVAL
-        ) {
-            promises.push(
-                generateDigestBlockContent(block, user).then((content) => {
-                    block.content = content;
-                    block.updatedAt = new Date();
-                }),
-            );
-        }
-    }
-
-    await Promise.all(promises);
 
     digest = await Digest.findOneAndUpdate(
         {
@@ -94,6 +76,9 @@ export async function PATCH(req, { params }) {
                 block.updatedAt = null;
             }
         } else {
+            block.state = {
+                status: DigestGenerationStatus.PENDING,
+            };
             newBlocks.push(block);
         }
     }
@@ -111,6 +96,8 @@ export async function PATCH(req, { params }) {
             new: true,
         },
     );
+
+    await enqueueBuildDigest(user._id);
 
     return NextResponse.json(digest);
 }

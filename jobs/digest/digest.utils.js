@@ -1,6 +1,6 @@
-import { QUERIES, getClient } from "../../../../../src/graphql";
-
-export const generateDigestBlockContent = async (block, user) => {
+const generateDigestBlockContent = async (block, user) => {
+    let graphql = await import("../graphql.mjs");
+    const { QUERIES, getClient } = graphql;
     const { prompt } = block;
 
     const variables = {
@@ -9,7 +9,7 @@ export const generateDigestBlockContent = async (block, user) => {
         useMemory: true,
     };
 
-    const client = getClient();
+    const client = await getClient();
     let searchRequired = false;
     let tool = null;
     let content;
@@ -29,6 +29,7 @@ export const generateDigestBlockContent = async (block, user) => {
         if (searchRequired) {
             const result = await client.query({
                 query: QUERIES.RAG_GENERATOR_RESULTS,
+
                 variables,
             });
 
@@ -36,11 +37,15 @@ export const generateDigestBlockContent = async (block, user) => {
             content = JSON.stringify({ payload: message, tool });
         }
     } catch (e) {
-        console.error(e);
+        console.log(e);
         content = JSON.stringify({
             payload: "Error while generating content: " + e.message,
         });
     }
 
     return content;
+};
+
+module.exports = {
+    generateDigestBlockContent,
 };

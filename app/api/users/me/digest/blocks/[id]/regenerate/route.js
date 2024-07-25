@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
-import Digest from "../../../../../../models/digest";
+import Digest, {
+    DigestGenerationStatus,
+} from "../../../../../../models/digest.mjs";
 import { getCurrentUser } from "../../../../../../utils/auth";
-import { generateDigestBlockContent } from "../../../digest.utils";
+import { enqueueBuildDigest } from "../../../utils";
 
 export async function POST(req, { params }) {
     const user = await getCurrentUser();
@@ -27,8 +29,6 @@ export async function POST(req, { params }) {
         );
     }
 
-    const content = await generateDigestBlockContent(block, user);
-
     digest = await Digest.updateOne(
         {
             owner: user._id,
@@ -36,14 +36,15 @@ export async function POST(req, { params }) {
         },
         {
             $set: {
-                "blocks.$.content": content,
-                "blocks.$.updatedAt": new Date(),
+                "blocks.$.state.status": DigestGenerationStatus.PENDING,
             },
         },
         {
             new: true,
         },
     );
+
+    await enqueueBuildDigest(user._id);
 
     return NextResponse.json(digest);
 }

@@ -1,0 +1,22 @@
+FROM node:18-alpine AS base
+
+RUN apk add --no-cache libc6-compat
+
+RUN apk add --update python3 make g++\
+   && rm -rf /var/cache/apk/*
+
+RUN apk add py3-setuptools
+
+RUN mkdir -p /home/node/app/node_modules && chown -R node:node /home/node/app
+
+WORKDIR /home/node/app
+
+ADD package.json /tmp/package.json
+RUN cd /tmp && npm install --legacy-peer-deps
+RUN cp -a /tmp/node_modules /home/node/app/
+
+USER node
+
+COPY --chown=node:node . .
+
+CMD [ "npm", "run", "worker" ]
