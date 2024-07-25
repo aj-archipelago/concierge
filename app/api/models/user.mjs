@@ -1,5 +1,5 @@
 import mongoose from "mongoose";
-import uploadedDocsSchema from "./uploaded-docs";
+import uploadedDocsSchema from "./uploaded-docs.mjs";
 
 // Define the User schema
 const userSchema = new mongoose.Schema(
