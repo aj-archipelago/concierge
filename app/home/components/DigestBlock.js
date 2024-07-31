@@ -19,6 +19,9 @@ export default function DigestBlock({ block }) {
         return null;
     }
 
+    const isRebuilding =
+        regenerateDigestBlock.isPending || block?.state?.status === "pending";
+
     return (
         <div key={block._id} className="bg-gray-50 p-4 rounded-md border">
             <div className="flex justify-between gap-2 items-center mb-4">
@@ -37,9 +40,7 @@ export default function DigestBlock({ block }) {
                                     <RefreshCw
                                         className={classNames(
                                             "text-gray-600 hover:text-gray-800",
-                                            regenerateDigestBlock.isPending
-                                                ? "animate-spin"
-                                                : "",
+                                            isRebuilding ? "animate-spin" : "",
                                             "inline-block",
                                         )}
                                         size={14}
@@ -47,7 +48,7 @@ export default function DigestBlock({ block }) {
                                 </button>
                             )}
                             <div className="flex items-center justify-center gap-1">
-                                {regenerateDigestBlock.isPending ? (
+                                {isRebuilding ? (
                                     t("Rebuilding...")
                                 ) : (
                                     <>
@@ -65,18 +66,36 @@ export default function DigestBlock({ block }) {
             </div>
             <div className="text-sm">
                 <div className="max-h-64 overflow-auto">
-                    {!block.updatedAt && (
-                        <div className="text-gray-500 flex items-center gap-4 m-2 ">
-                            <Loader />
-                            {t("Building")}.{" "}
-                            {t("This may take a minute or two.")}
-                        </div>
-                    )}
-                    {block.content
-                        ? convertMessageToMarkdown(JSON.parse(block.content))
-                        : null}
+                    <BlockContent block={block} />
                 </div>
             </div>
         </div>
     );
+}
+
+function BlockContent({ block }) {
+    const { t } = useTranslation();
+
+    if (block.state?.status === "pending" && !block.content) {
+        return (
+            <div className="text-gray-500 flex items-center gap-4 m-2 ">
+                <Loader />
+                {t("Building")}. {t("This may take a minute or two.")}
+            </div>
+        );
+    }
+
+    if (block.state?.status === "failure") {
+        return (
+            <div className="text-red-500">
+                {t("Error building digest block:")} {block.state.error}
+            </div>
+        );
+    }
+
+    if (!block.content) {
+        return "(No content)";
+    }
+
+    return convertMessageToMarkdown(JSON.parse(block.content));
 }
