@@ -16,8 +16,8 @@ export async function POST(req, { params }) {
 
         const chat = await Chat.findOne({ _id: id, userId: currentUser._id });
         if (chat) {
-          chat.messages = [...chat.messages, message];
-          await chat.save();
+            chat.messages = [...chat.messages, message];
+            await chat.save();
         }
 
         if (!chat) {
