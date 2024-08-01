@@ -30,11 +30,11 @@ import SendFeedbackModal from "../components/help/SendFeedbackModal";
 import { LanguageContext } from "../contexts/LanguageProvider";
 
 const navigation = [
-    // {
-    //     name: "Home",
-    //     icon: NewspaperIcon,
-    //     href: "/home",
-    // },
+    {
+        name: "Home",
+        icon: NewspaperIcon,
+        href: "/home",
+    },
     { name: "Chat", icon: ChatBubbleLeftIcon, href: "/chat", children: [] },
     { name: "Translate", icon: GlobeAltIcon, href: "/translate" },
     { name: "Transcribe", icon: MicrophoneIcon, href: "/transcribe" },

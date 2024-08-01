@@ -15,11 +15,16 @@ async function buildDigestForUser(user, logger) {
         await import("../app/api/models/digest.mjs")
     ).DigestGenerationStatus;
 
-    logger.log("building digest", owner);
     let digest = await Digest.findOne({
         owner,
     });
 
+    if (!digest) {
+        logger.log("user does not have digest", owner);
+        return;
+    }
+
+    logger.log("building digest", owner);
     const promises = digest.blocks.map(async (block) => {
         const lastUpdated = block.updatedAt;
 
