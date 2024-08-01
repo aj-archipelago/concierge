@@ -14,14 +14,11 @@ export async function POST(req, { params }) {
         const currentUser = await getCurrentUser(false);
         const { message } = await req.json();
 
-        const chat = await Chat.findOneAndUpdate(
-            {
-                _id: id,
-                userId: currentUser._id,
-            },
-            { $push: { messages: message } },
-            { new: true },
-        );
+        const chat = await Chat.findOne({ _id: id, userId: currentUser._id });
+        if (chat) {
+          chat.messages = [...chat.messages, message];
+          await chat.save();
+        }
 
         if (!chat) {
             throw new Error("Chat not found");
