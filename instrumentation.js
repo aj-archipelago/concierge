@@ -2,7 +2,7 @@ import mongoose from "mongoose";
 import LLM from "./app/api/models/llm";
 import config from "./config/index";
 
-const { MONGO_URI, ENCRYPTION_KEY } = process.env;
+const { MONGO_URI, MONGO_ENCRYPTION_KEY } = process.env;
 
 export async function register() {
     if (!mongoose?.connect) return;
@@ -14,7 +14,7 @@ export async function register() {
     const keyVaultNamespace = "encryption.__keyVault";
     const kmsProviders = {
         local: {
-            key: Buffer.from(ENCRYPTION_KEY, "base64"),
+            key: Buffer.from(MONGO_ENCRYPTION_KEY, "base64"),
         },
     };
 
