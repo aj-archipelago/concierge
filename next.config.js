@@ -81,7 +81,7 @@ module.exports = {
     basePath: basePath || "",
     webpack: (config, { isServer, dev }) => {
         if (isServer) {
-            config.externals.push('mongodb-client-encryption', 'mongodb');
+            config.externals.push("mongodb-client-encryption", "mongodb");
         }
         return config;
     },

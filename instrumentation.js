@@ -14,7 +14,7 @@ export async function register() {
     const keyVaultNamespace = "encryption.__keyVault";
     const kmsProviders = {
         local: {
-            key: Buffer.from(ENCRYPTION_KEY, "base64")
+            key: Buffer.from(ENCRYPTION_KEY, "base64"),
         },
     };
 
@@ -22,7 +22,7 @@ export async function register() {
         keyVaultNamespace,
         kmsProviders,
     };
-    
+
     if (process.env.MONGOCRYPT_PATH) {
         autoEncryptionOptions.extraOptions = {
             cryptSharedLibPath: process.env.MONGOCRYPT_PATH,
@@ -51,7 +51,7 @@ export async function register() {
     }
 
     // Extract database name from MONGO_URI
-    const dbName = new URL(MONGO_URI).pathname.split('/')[1];
+    const dbName = new URL(MONGO_URI).pathname.split("/")[1];
 
     const schemaMap = {
         [`${dbName}.users`]: {
@@ -60,13 +60,13 @@ export async function register() {
                 aiMemory: {
                     encrypt: {
                         bsonType: "string",
-                        algorithm: "AEAD_AES_256_CBC_HMAC_SHA_512-Random"
-                    }
-                }
+                        algorithm: "AEAD_AES_256_CBC_HMAC_SHA_512-Random",
+                    },
+                },
             },
             encryptMetadata: {
-                keyId: [_key]
-            }
+                keyId: [_key],
+            },
         },
         [`${dbName}.chats`]: {
             bsonType: "object",
@@ -74,19 +74,20 @@ export async function register() {
                 title: {
                     encrypt: {
                         bsonType: "string",
-                        algorithm: "AEAD_AES_256_CBC_HMAC_SHA_512-Deterministic"
-                    }
+                        algorithm:
+                            "AEAD_AES_256_CBC_HMAC_SHA_512-Deterministic",
+                    },
                 },
                 messages: {
                     encrypt: {
                         bsonType: "array",
-                        algorithm: "AEAD_AES_256_CBC_HMAC_SHA_512-Random"
-                    }
-                }
+                        algorithm: "AEAD_AES_256_CBC_HMAC_SHA_512-Random",
+                    },
+                },
             },
             encryptMetadata: {
-                keyId: [_key]
-            }
+                keyId: [_key],
+            },
         },
         [`${dbName}.digests`]: {
             bsonType: "object",
@@ -94,13 +95,13 @@ export async function register() {
                 blocks: {
                     encrypt: {
                         bsonType: "array",
-                        algorithm: "AEAD_AES_256_CBC_HMAC_SHA_512-Random"
-                    }
-                }
+                        algorithm: "AEAD_AES_256_CBC_HMAC_SHA_512-Random",
+                    },
+                },
             },
             encryptMetadata: {
-                keyId: [_key]
-            }
+                keyId: [_key],
+            },
         },
         [`${dbName}.prompts`]: {
             bsonType: "object",
@@ -108,19 +109,20 @@ export async function register() {
                 title: {
                     encrypt: {
                         bsonType: "string",
-                        algorithm: "AEAD_AES_256_CBC_HMAC_SHA_512-Deterministic"
-                    }
+                        algorithm:
+                            "AEAD_AES_256_CBC_HMAC_SHA_512-Deterministic",
+                    },
                 },
                 text: {
                     encrypt: {
                         bsonType: "string",
-                        algorithm: "AEAD_AES_256_CBC_HMAC_SHA_512-Random"
-                    }
-                }
+                        algorithm: "AEAD_AES_256_CBC_HMAC_SHA_512-Random",
+                    },
+                },
             },
             encryptMetadata: {
-                keyId: [_key]
-            }
+                keyId: [_key],
+            },
         },
         [`${dbName}.runs`]: {
             bsonType: "object",
@@ -128,13 +130,13 @@ export async function register() {
                 output: {
                     encrypt: {
                         bsonType: "string",
-                        algorithm: "AEAD_AES_256_CBC_HMAC_SHA_512-Random"
-                    }
-                }
+                        algorithm: "AEAD_AES_256_CBC_HMAC_SHA_512-Random",
+                    },
+                },
             },
             encryptMetadata: {
-                keyId: [_key]
-            }
+                keyId: [_key],
+            },
         },
         [`${dbName}.userstates`]: {
             bsonType: "object",
@@ -142,31 +144,31 @@ export async function register() {
                 jira: {
                     encrypt: {
                         bsonType: "string",
-                        algorithm: "AEAD_AES_256_CBC_HMAC_SHA_512-Random"
-                    }
+                        algorithm: "AEAD_AES_256_CBC_HMAC_SHA_512-Random",
+                    },
                 },
                 translate: {
                     encrypt: {
                         bsonType: "string",
-                        algorithm: "AEAD_AES_256_CBC_HMAC_SHA_512-Random"
-                    }
+                        algorithm: "AEAD_AES_256_CBC_HMAC_SHA_512-Random",
+                    },
                 },
                 transcribe: {
                     encrypt: {
                         bsonType: "string",
-                        algorithm: "AEAD_AES_256_CBC_HMAC_SHA_512-Random"
-                    }
+                        algorithm: "AEAD_AES_256_CBC_HMAC_SHA_512-Random",
+                    },
                 },
                 write: {
                     encrypt: {
                         bsonType: "string",
-                        algorithm: "AEAD_AES_256_CBC_HMAC_SHA_512-Random"
-                    }
-                }
+                        algorithm: "AEAD_AES_256_CBC_HMAC_SHA_512-Random",
+                    },
+                },
             },
             encryptMetadata: {
-                keyId: [_key]
-            }
+                keyId: [_key],
+            },
         },
         [`${dbName}.workspaces`]: {
             bsonType: "object",
@@ -174,25 +176,27 @@ export async function register() {
                 name: {
                     encrypt: {
                         bsonType: "string",
-                        algorithm: "AEAD_AES_256_CBC_HMAC_SHA_512-Deterministic"
-                    }
+                        algorithm:
+                            "AEAD_AES_256_CBC_HMAC_SHA_512-Deterministic",
+                    },
                 },
                 slug: {
                     encrypt: {
                         bsonType: "string",
-                        algorithm: "AEAD_AES_256_CBC_HMAC_SHA_512-Deterministic"
-                    }
+                        algorithm:
+                            "AEAD_AES_256_CBC_HMAC_SHA_512-Deterministic",
+                    },
                 },
                 systemPrompt: {
                     encrypt: {
                         bsonType: "string",
-                        algorithm: "AEAD_AES_256_CBC_HMAC_SHA_512-Random"
-                    }
-                }
+                        algorithm: "AEAD_AES_256_CBC_HMAC_SHA_512-Random",
+                    },
+                },
             },
             encryptMetadata: {
-                keyId: [_key]
-            }
+                keyId: [_key],
+            },
         },
         [`${dbName}.workspacestates`]: {
             bsonType: "object",
@@ -200,21 +204,21 @@ export async function register() {
                 inputText: {
                     encrypt: {
                         bsonType: "string",
-                        algorithm: "AEAD_AES_256_CBC_HMAC_SHA_512-Random"
-                    }
-                }
+                        algorithm: "AEAD_AES_256_CBC_HMAC_SHA_512-Random",
+                    },
+                },
             },
             encryptMetadata: {
-                keyId: [_key]
-            }
-        }
+                keyId: [_key],
+            },
+        },
     };
 
     await mongoose.connect(MONGO_URI, {
         autoEncryption: {
             keyVaultNamespace,
             kmsProviders,
-            schemaMap
+            schemaMap,
         },
     });
 
