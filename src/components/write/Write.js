@@ -237,7 +237,7 @@ function Write() {
 
     return (
         <>
-            <div className="block md:hidden flex justify-end">
+            <div className="md:hidden flex justify-end">
                 <button className="" onClick={() => setOpen(!open)}>
                     <span className="text-sm text-sky-500">
                         {open ? t("Show editor") : t("Show AI commands")}

@@ -34,16 +34,18 @@ export const getCurrentUser = async (convertToJsonObj = true) => {
         console.log("User not found in DB: ", id);
         const name = username;
         const contextId = uuidv4();
-        const aiMemory = "";
         const aiMemorySelfModify = true;
+        const aiName = "Labeeb";
+        const aiStyle = "OpenAI";
 
         user = await User.create({
             userId: id,
             username,
             name,
             contextId,
-            aiMemory,
             aiMemorySelfModify,
+            aiName,
+            aiStyle,
         });
     } else if (!user.contextId) {
         console.log(
