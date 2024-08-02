@@ -3,6 +3,7 @@ import {
     CodeBracketIcon,
     GlobeAltIcon,
     MicrophoneIcon,
+    NewspaperIcon,
     PencilSquareIcon,
     PhotoIcon,
     PlusIcon,
