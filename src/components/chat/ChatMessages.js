@@ -1,7 +1,7 @@
 import MessageInput from "./MessageInput";
 import MessageList from "./MessageList";
 import { useTranslation } from "react-i18next";
-import React from "react";
+import React, { useContext } from "react";
 import { AiOutlineReload, AiOutlineSave } from "react-icons/ai";
 import config from "../../../config";
 import { convertMessageToMarkdown } from "./ChatMessage";
@@ -9,6 +9,7 @@ import dynamic from "next/dynamic";
 import { useAddChat } from "../../../app/queries/chats";
 import { useApolloClient } from "@apollo/client";
 import { handleSaveChat } from "./SaveChat";
+import { AuthContext } from "../../App.js";
 
 const ChatTopMenuDynamic = dynamic(() => import("./ChatTopMenu"));
 
@@ -21,6 +22,8 @@ function ChatMessages({
     viewingReadOnlyChat,
     publicChatOwner,
 }) {
+    const { user } = useContext(AuthContext);
+    const { aiName } = user;
     const { t } = useTranslation();
     const client = useApolloClient();
     const addChat = useAddChat();
@@ -98,7 +101,7 @@ function ChatMessages({
                     placeholder={
                         container === "chatbox"
                             ? t(`Send message`)
-                            : t(`Send a message to ${config?.chat?.botName}`)
+                            : `${t('Send a message to')} ${t(aiName || config?.chat?.botName)}`
                     }
                     container={container}
                     displayState={displayState}

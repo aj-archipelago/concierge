@@ -321,5 +321,19 @@
     "Headlines": "العناوين",
     "Max length": "الحد الأقصى للطول",
     "Headline creator": "منشئ العناوين",
-    "Use selected headline and subhead": "استخدام العنوان والعنوان الفرعي المحدد"
+    "Use selected headline and subhead": "استخدام العنوان والعنوان الفرعي المحدد",
+    "OpenAI": "OpenAI",
+    "Anthropic": "Anthropic",
+    "AI Style": "أسلوب الذكاء الاصطناعي",
+    "Enter AI Name": "أدخل اسم الذكاء الاصطناعي",
+    "AI Name": "اسم الذكاء الاصطناعي",
+    "Chat with": "الدردشة مع",
+    "Send a message to": "إرسال رسالة إلى",
+    "Share": "مشاركة",
+    "Shared by:": "مشترك بواسطة:",
+    "Copy Share URL": "نسخ عنوان URL للمشاركة",
+    "Share URL copied to clipboard!": "تم نسخ عنوان URL للمشاركة إلى الحافظة!",
+    "Make this chat public?": "هل تريد جعل هذه الدردشة عامة؟",
+    "Chat made public. Share URL copied to clipboard!": "تم جعل الدردشة عامة. تم نسخ عنوان URL للمشاركة إلى الحافظة!"
+
 }
