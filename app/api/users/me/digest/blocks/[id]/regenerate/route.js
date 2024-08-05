@@ -29,14 +29,15 @@ export async function POST(req, { params }) {
         );
     }
 
+    block.state.status = DigestGenerationStatus.PENDING;
+
     digest = await Digest.updateOne(
         {
             owner: user._id,
-            "blocks._id": id,
         },
         {
             $set: {
-                "blocks.$.state.status": DigestGenerationStatus.PENDING,
+                blocks: digest.blocks,
             },
         },
         {
