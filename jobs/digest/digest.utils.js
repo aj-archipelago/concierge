@@ -4,7 +4,7 @@ const generateDigestBlockContent = async (block, user) => {
     const { prompt } = block;
 
     const variables = {
-        chatHistory: { role: "user", content: prompt },
+        chatHistory: [{ role: "user", content: [prompt] }],
         contextId: user?.contextId,
         useMemory: true,
     };
@@ -35,6 +35,10 @@ const generateDigestBlockContent = async (block, user) => {
 
             const { result: message, tool } = result.data.rag_generator_results;
             content = JSON.stringify({ payload: message, tool });
+        } else {
+            console.log(
+                "Received searchRequired false, returning empty content.",
+            );
         }
     } catch (e) {
         console.log(e);
