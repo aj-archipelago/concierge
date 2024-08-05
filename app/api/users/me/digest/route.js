@@ -65,6 +65,14 @@ export async function PATCH(req, { params }) {
 
     let newBlocks = digest.blocks;
 
+    const idsNotInRequest = newBlocks
+        .map((b) => b._id?.toString())
+        .filter((id) => !blocks.find((b) => b._id?.toString() === id));
+
+    newBlocks = newBlocks.filter(
+        (b) => !idsNotInRequest.includes(b._id?.toString()),
+    );
+
     for (const block of blocks) {
         const existingBlock = newBlocks.find(
             (b) => b._id?.toString() === block._id?.toString(),
