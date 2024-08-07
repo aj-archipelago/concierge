@@ -44,7 +44,11 @@ async function buildDigestForUser(user, logger) {
             );
 
             try {
-                const content = await generateDigestBlockContent(block, user);
+                const content = await generateDigestBlockContent(
+                    block,
+                    user,
+                    logger,
+                );
                 logger.log("generated content", owner, block._id);
                 block.content = content;
                 block.updatedAt = new Date();

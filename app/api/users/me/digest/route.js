@@ -73,17 +73,16 @@ export async function PATCH(req, { params }) {
         if (existingBlock && existingBlock.prompt !== block.prompt) {
             existingBlock.content = null;
             existingBlock.updatedAt = null;
+            block.state = {
+                status: DigestGenerationStatus.PENDING,
+            };
         }
 
         const newBlock = {
             ...existingBlock?.toJSON(),
             ...block,
-            state: {
-                status: DigestGenerationStatus.PENDING,
-            },
         };
 
-        console.log(newBlock);
         return newBlock;
     });
 

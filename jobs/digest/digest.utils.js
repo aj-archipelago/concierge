@@ -1,4 +1,4 @@
-const generateDigestBlockContent = async (block, user) => {
+const generateDigestBlockContent = async (block, user, logger) => {
     let graphql = await import("../graphql.mjs");
     const { QUERIES, getClient } = graphql;
     const { prompt } = block;
@@ -36,12 +36,18 @@ const generateDigestBlockContent = async (block, user) => {
             const { result: message, tool } = result.data.rag_generator_results;
             content = JSON.stringify({ payload: message, tool });
         } else {
-            console.log(
-                "Received searchRequired false, returning empty content.",
+            logger.log(
+                "received searchRequired false, returning empty content.",
+                user?._id,
+                block?._id,
             );
         }
     } catch (e) {
-        console.log(e);
+        logger.log(
+            `Error while generating content: ${e.message}`,
+            user?._id,
+            block?._id,
+        );
         content = JSON.stringify({
             payload: "Error while generating content: " + e.message,
         });
