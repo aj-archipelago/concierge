@@ -79,10 +79,9 @@ module.exports = {
     },
     output: "standalone",
     basePath: basePath || "",
-    webpack: (config, { isServer, dev }) => {
-        if (isServer) {
-            config.externals.push("mongodb-client-encryption", "mongodb");
-        }
+    webpack: (config) => {
+        // Exclude mongodb and mongodb-client-encryption from the bundle to avoid errors, will be required and imported at runtime
+        config.externals.push("mongodb-client-encryption", "mongodb");
         return config;
     },
 };

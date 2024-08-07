@@ -1,5 +1,9 @@
 import mongoose from "mongoose";
-const { MONGO_URI, MONGO_ENCRYPTION_KEY } = process.env;
+// MONGO_URI: the MongoDB connection string
+// MONGO_ENCRYPTION_KEY: the base64-encoded encryption key, if provided uses encryption
+// MONGO_DATAKEY_UUID: the UUID of the data key, if given in advance uses the provided key,
+// otherwise chooses the first key in the key vault if available, if not creates a new key
+const { MONGO_URI, MONGO_ENCRYPTION_KEY, MONGO_DATAKEY_UUID } = process.env;
 
 export async function connectToDatabase() {
     if (!MONGO_ENCRYPTION_KEY) {
@@ -10,7 +14,12 @@ export async function connectToDatabase() {
         return;
     }
 
-    const { ClientEncryption } = await import("mongodb");
+    let autoEncryptionOptions = {};
+    let _key;
+
+    // Import the required modules for encryption
+    const { ClientEncryption, UUID } = await import("mongodb");
+    // Must import this module as well to avoid a runtime error
     await import("mongodb-client-encryption");
 
     const keyVaultNamespace = "encryption.__keyVault";
@@ -19,8 +28,7 @@ export async function connectToDatabase() {
             key: Buffer.from(MONGO_ENCRYPTION_KEY, "base64"),
         },
     };
-
-    const autoEncryptionOptions = {
+    autoEncryptionOptions = {
         keyVaultNamespace,
         kmsProviders,
     };
@@ -29,27 +37,47 @@ export async function connectToDatabase() {
         autoEncryptionOptions.extraOptions = {
             cryptSharedLibPath: process.env.MONGOCRYPT_PATH,
         };
-    }
-    const conn = await mongoose
-        .createConnection(MONGO_URI, {
-            autoEncryption: autoEncryptionOptions,
-        })
-        .asPromise();
-
-    const encryption = new ClientEncryption(conn.client, {
-        keyVaultNamespace,
-        kmsProviders,
-    });
-
-    let _key;
-    const existingKeys = await encryption.getKeys().toArray();
-
-    if (existingKeys && existingKeys.length > 0) {
-        console.log("Using existing key");
-        _key = existingKeys[0]._id;
     } else {
-        console.log("Creating new key");
-        _key = await encryption.createDataKey("local");
+        console.warn(
+            "No mongocrypt path provided, make sure it's in your PATH or set MONGOCRYPT_PATH or use mongocryptd",
+        );
+    }
+
+    if (MONGO_DATAKEY_UUID) {
+        console.log("Using provided key");
+        _key = new UUID(MONGO_DATAKEY_UUID);
+    } else {
+        let conn;
+        try {
+            conn = await mongoose
+                .createConnection(MONGO_URI, {
+                    autoEncryption: autoEncryptionOptions,
+                })
+                .asPromise();
+        } catch (e) {
+            console.error(
+                "Error connecting to MongoDB with encryption: ",
+                e.message,
+            );
+            process.exit(1);
+        }
+
+        const encryption = new ClientEncryption(conn.client, {
+            keyVaultNamespace,
+            kmsProviders,
+        });
+
+        const existingKeys = await encryption.getKeys().toArray();
+
+        if (existingKeys && existingKeys.length > 0) {
+            console.log("Using existing key");
+            _key = existingKeys[0]._id;
+        } else {
+            console.log("Creating new key");
+            _key = await encryption.createDataKey("local");
+        }
+
+        await conn.close();
     }
 
     // Extract database name from MONGO_URI
@@ -216,12 +244,11 @@ export async function connectToDatabase() {
         },
     };
 
+    autoEncryptionOptions.schemaMap = schemaMap;
+
+    console.log("Connecting to MongoDB with encryption");
     await mongoose.connect(MONGO_URI, {
-        autoEncryption: {
-            keyVaultNamespace,
-            kmsProviders,
-            schemaMap,
-        },
+        autoEncryption: autoEncryptionOptions,
     });
 }
 
