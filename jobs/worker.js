@@ -49,14 +49,25 @@ const SINGLE_BUILD_JOB = "build-digest";
 const worker = new Worker(
     queueName,
     async (job) => {
-        const logger = new Logger(job);
+        const connectToDatabase = (await import("../src/db.mjs"))
+            .connectToDatabase;
+        const closeDatabaseConnection = (await import("../src/db.mjs"))
+            .closeDatabaseConnection;
 
-        if (job.name === DAILY_BUILD_JOB) {
-            logger.log("building digests for all users");
-            await buildDigestsForAllUsers(logger);
-        } else if (job.name === SINGLE_BUILD_JOB) {
-            logger.log(`building digest for user`, job.data.userId);
-            await buildDigestForSingleUser(job.data.userId, logger);
+        try {
+            await connectToDatabase();
+
+            const logger = new Logger(job);
+
+            if (job.name === DAILY_BUILD_JOB) {
+                logger.log("building digests for all users");
+                await buildDigestsForAllUsers(logger);
+            } else if (job.name === SINGLE_BUILD_JOB) {
+                logger.log(`building digest for user`, job.data.userId);
+                await buildDigestForSingleUser(job.data.userId, logger);
+            }
+        } finally {
+            await closeDatabaseConnection();
         }
     },
     {
@@ -82,4 +93,18 @@ worker.on("error", (err) => {
 
 console.log("starting worker");
 
+(async () => {
+    const connectToDatabase = (await import("../src/db.mjs")).connectToDatabase;
+    const closeDatabaseConnection = (await import("../src/db.mjs"))
+        .closeDatabaseConnection;
+
+    console.log(
+        "Connecting to database",
+        connectToDatabase,
+        closeDatabaseConnection,
+    );
+    await connectToDatabase();
+    console.log("Connected to database");
+    await buildDigestsForAllUsers(new Logger());
+})();
 worker.run();

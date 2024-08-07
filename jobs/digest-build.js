@@ -96,43 +96,29 @@ async function buildDigestForUser(user, logger) {
 async function buildDigestsForAllUsers(logger) {
     const User = (await import("../app/api/models/user.mjs")).default;
 
-    try {
-        await mongoose.connect(MONGO_URI);
-        logger.log("", "connected to MongoDB");
-
-        // using an async iterator (for "await" syntax) creates a cursor
-        // and returns only one document at a time
-        for await (const user of User.find({
-            lastActiveAt: {
-                $gte: new Date(
-                    Date.now() - ACTIVE_USER_PERIOD_DAYS * 24 * 60 * 60 * 1000,
-                ),
-            },
-        })) {
-            await buildDigestForUser(user, logger);
-        }
-    } finally {
-        mongoose.connection.close();
+    // using an async iterator (for "await" syntax) creates a cursor
+    // and returns only one document at a time
+    for await (const user of User.find({
+        lastActiveAt: {
+            $gte: new Date(
+                Date.now() - ACTIVE_USER_PERIOD_DAYS * 24 * 60 * 60 * 1000,
+            ),
+        },
+    })) {
+        await buildDigestForUser(user, logger);
     }
 }
 
 async function buildDigestForSingleUser(userId, logger) {
     const User = (await import("../app/api/models/user.mjs")).default;
 
-    try {
-        await mongoose.connect(MONGO_URI);
-        logger.log("connected to MongoDB", userId);
-
-        const user = await User.findById(userId);
-        if (!user) {
-            logger.log("user not found", userId);
-            return;
-        }
-
-        await buildDigestForUser(user, logger);
-    } finally {
-        mongoose.connection.close();
+    const user = await User.findById(userId);
+    if (!user) {
+        logger.log("user not found", userId);
+        return;
     }
+
+    await buildDigestForUser(user, logger);
 }
 
 module.exports = {
