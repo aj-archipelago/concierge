@@ -65,26 +65,45 @@ async function buildDigestForUser(user, logger) {
         }
 
         if (changed) {
-            logger.log("updating block in database", owner, block._id);
-            digest = await Digest.findOneAndUpdate(
-                {
+            const existingBlocks = (
+                await Digest.findOne({
                     owner,
-                },
-                {
-                    $set: {
-                        "blocks.$[block]": block,
+                })
+            ).blocks;
+
+            const newBlocks = existingBlocks.map((b) => {
+                if (b._id.toString() === block._id.toString()) {
+                    return block;
+                }
+                return b;
+            });
+
+            logger.log("updating block in database", owner, block._id);
+            try {
+                digest = await Digest.findOneAndUpdate(
+                    {
+                        owner,
                     },
-                },
-                {
-                    arrayFilters: [
-                        {
-                            "block._id": block._id,
+                    {
+                        $set: {
+                            blocks: newBlocks,
                         },
-                    ],
-                    upsert: true,
-                    new: true,
-                },
-            );
+                    },
+                    {
+                        upsert: true,
+                        new: true,
+                    },
+                );
+
+                logger.log("updated block in database", owner, block._id);
+            } catch (e) {
+                logger.log(
+                    "error updating block in database",
+                    owner,
+                    block._id,
+                    e,
+                );
+            }
         }
     });
 

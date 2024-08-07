@@ -11,7 +11,6 @@ export function useCurrentUserDigest() {
         staleTime: Infinity,
         refetchInterval: (query) => {
             const data = query?.state?.data;
-            console.log("refertch data", data);
 
             const isAnyBlockPending = data?.blocks?.some(
                 (block) => block.state?.status === "pending",
