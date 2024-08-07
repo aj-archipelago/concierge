@@ -63,33 +63,29 @@ export async function PATCH(req, { params }) {
         owner: user._id,
     });
 
-    let newBlocks = digest.blocks;
+    const existingBlocks = digest.blocks;
 
-    const idsNotInRequest = newBlocks
-        .map((b) => b._id?.toString())
-        .filter((id) => !blocks.find((b) => b._id?.toString() === id));
-
-    newBlocks = newBlocks.filter(
-        (b) => !idsNotInRequest.includes(b._id?.toString()),
-    );
-
-    for (const block of blocks) {
-        const existingBlock = newBlocks.find(
+    const newBlocks = blocks.map((block) => {
+        const existingBlock = existingBlocks.find(
             (b) => b._id?.toString() === block._id?.toString(),
         );
 
-        if (existingBlock) {
-            if (existingBlock.prompt !== block.prompt) {
-                block.content = null;
-                block.updatedAt = null;
-            }
-        } else {
-            block.state = {
-                status: DigestGenerationStatus.PENDING,
-            };
-            newBlocks.push(block);
+        if (existingBlock && existingBlock.prompt !== block.prompt) {
+            existingBlock.content = null;
+            existingBlock.updatedAt = null;
         }
-    }
+
+        const newBlock = {
+            ...existingBlock?.toJSON(),
+            ...block,
+            state: {
+                status: DigestGenerationStatus.PENDING,
+            },
+        };
+
+        console.log(newBlock);
+        return newBlock;
+    });
 
     digest = await Digest.findOneAndUpdate(
         {
