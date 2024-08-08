@@ -10,7 +10,7 @@ import Loader from "../../components/loader";
 import { useContext } from "react";
 import { LanguageContext } from "../../../src/contexts/LanguageProvider";
 
-export default function DigestBlock({ block }) {
+export default function DigestBlock({ block, contentClassName }) {
     const regenerateDigestBlock = useRegenerateDigestBlock();
     const { t } = useTranslation();
     const { language } = useContext(LanguageContext);
@@ -65,7 +65,7 @@ export default function DigestBlock({ block }) {
                 )}
             </div>
             <div className="text-sm">
-                <div className="max-h-64 overflow-auto">
+                <div className={contentClassName}>
                     <BlockContent block={block} />
                 </div>
             </div>
