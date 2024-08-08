@@ -76,7 +76,15 @@ export default function DigestBlockList() {
                 )}
             >
                 {digest.blocks.map((block) => (
-                    <DigestBlock key={block._id} block={block} />
+                    <DigestBlock
+                        key={block._id}
+                        block={block}
+                        contentClassName={
+                            digest.blocks.length > 2
+                                ? "max-h-64 overflow-auto"
+                                : "max-h-[calc(100vh-350px)] overflow-auto"
+                        }
+                    />
                 ))}
             </div>
         </>
