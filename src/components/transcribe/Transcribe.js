@@ -9,7 +9,7 @@ import { AuthContext, ServerContext } from "../../App";
 import { QUERIES } from "../../graphql";
 import CopyButton from "../CopyButton";
 import LoadingButton from "../editor/LoadingButton";
-import { ProgressUpdate } from "../editor/TextSuggestions";
+import ProgressUpdate from "../editor/ProgressUpdate";
 import TaxonomySelector from "./TaxonomySelector";
 
 function Transcribe({
@@ -369,7 +369,7 @@ function Transcribe({
                         <input
                             disabled={isLoading}
                             placeholder={t(
-                                "Paste URL e.g. https://youtube.com/shorts/raw35iohE0o",
+                                "Paste URL e.g. https://mywebsite.com/video.mp4",
                             )}
                             value={url}
                             className="lb-input"
@@ -401,6 +401,7 @@ function Transcribe({
                                 }
                             }}
                         />
+                        <span className="text-xs text-neutral-500">{t("Note that streaming services like YouTube and Instagram may not support direct downloads from URL.")}</span>
                     </div>
                 </li>
                 <li className="mb-4">
@@ -739,6 +740,7 @@ function Transcribe({
                                 <option value="fr">{t("French")}</option>
                                 <option value="es">{t("Spanish")}</option>
                                 <option value="de">{t("German")}</option>
+                                <option value="he">{t("Hebrew")}</option>
                                 <option value="it">{t("Italian")}</option>
                                 <option value="pt">{t("Portuguese")}</option>
                                 <option value="zh">{t("Chinese")}</option>
@@ -821,6 +823,7 @@ function Transcribe({
                             <option>{t("French")}</option>
                             <option>{t("Spanish")}</option>
                             <option>{t("German")}</option>
+                            <option>{t("Hebrew")}</option>
                             <option>{t("Italian")}</option>
                             <option>{t("Portuguese")}</option>
                             <option>{t("Chinese")}</option>

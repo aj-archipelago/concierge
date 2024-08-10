@@ -21,6 +21,7 @@ const LANGUAGE_NAMES = {
     hr: "Croatian",
     zh: "Chinese",
     de: "German",
+    he: "Hebrew",
     it: "Italian",
     ja: "Japanese",
     ko: "Korean",

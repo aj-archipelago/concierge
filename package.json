@@ -1,6 +1,6 @@
 {
     "name": "labeeb",
-    "version": "2.2.03",
+    "version": "2.3.01",
     "private": true,
     "dependencies": {
         "@amplitude/analytics-browser": "^2.3.2",
@@ -36,6 +36,7 @@
         "filepond-plugin-file-validate-type": "^1.2.9",
         "filepond-plugin-image-exif-orientation": "^1.0.11",
         "filepond-plugin-image-preview": "^4.6.12",
+        "framer-motion": "^11.3.21",
         "graphql": "^16.6.0",
         "graphql-ws": "^5.11.2",
         "highlight.js": "^11.7.0",

@@ -1,19 +1,19 @@
-import MessageInput from "./MessageInput";
-import MessageList from "./MessageList";
+import React, { useContext, useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
-import React, { useContext } from "react";
 import { AiOutlineReload, AiOutlineSave } from "react-icons/ai";
-import config from "../../../config";
-import { convertMessageToMarkdown } from "./ChatMessage";
 import dynamic from "next/dynamic";
-import { useAddChat } from "../../../app/queries/chats";
 import { useApolloClient } from "@apollo/client";
+import { useAddChat } from "../../../app/queries/chats";
 import { handleSaveChat } from "./SaveChat";
 import { AuthContext } from "../../App.js";
+import MessageInput from "./MessageInput";
+import MessageList from "./MessageList";
+import config from "../../../config";
+import { convertMessageToMarkdown } from "./ChatMessage";
 
 const ChatTopMenuDynamic = dynamic(() => import("./ChatTopMenu"));
 
-function ChatMessages({
+const ChatMessages = React.memo(function ChatMessages({
     messages = [],
     onSend,
     loading,
@@ -27,40 +27,51 @@ function ChatMessages({
     const { t } = useTranslation();
     const client = useApolloClient();
     const addChat = useAddChat();
-    const originalMessages = messages;
 
-    messages = messages.map((m) => {
-        return Object.assign({}, m, {
-            text: m.payload,
+    const processedMessages = useMemo(() => {
+        return messages.map((m, index) => {
+            const baseMessage = {
+                ...m,
+                text: m.payload,
+            };
+
+            if (m.sender === "labeeb") {
+                return {
+                    ...baseMessage,
+                    payload: (
+                        <React.Fragment key={`outer-${m?.id || index}`}>
+                            {convertMessageToMarkdown(m)}
+                        </React.Fragment>
+                    ),
+                };
+            }
+            return baseMessage;
         });
-    });
+    }, [messages]);
 
-    messages = messages.map((message, index) => {
-        // post process the message and create a new
-        // message object with the updated payload.
-        if (message.sender === "labeeb") {
-            return Object.assign({}, message, {
-                payload: (
-                    <React.Fragment key={`outer-${message?.id}`}>
-                        {convertMessageToMarkdown(message)}
-                    </React.Fragment>
-                ),
-            });
-        } else {
-            return message;
-        }
-    });
+    const handleSaveChatCallback = useCallback(() => {
+        handleSaveChat(messages, client, addChat);
+    }, [messages, client, addChat]);
+
+    const handleSendCallback = useCallback((message) => {
+        onSend(message);
+    }, [onSend]);
+
+    const inputPlaceholder = useMemo(() => {
+        return container === "chatbox"
+            ? t(`Send message`)
+            : `${t('Send a message to')} ${t(aiName || config?.chat?.botName)}`;
+    }, [container, t, aiName]);
 
     return (
         <div className="h-full flex flex-col gap-3">
             <div className="grow overflow-auto flex flex-col chat-content">
                 <div className="hidden justify-between items-center px-3 pb-2 text-xs [.docked_&]:flex">
-                    {/* <SavedChats displayState={displayState} /> */}
                     <ChatTopMenuDynamic
                         displayState={displayState}
                         publicChatOwner={publicChatOwner}
                     />
-                    {false && messages.length > 0 && (
+                    {false && processedMessages.length > 0 && (
                         <div className="flex gap-2">
                             <button
                                 className="flex gap-1 items-center hover:underline hover:text-sky-500 active:text-sky-700"
@@ -75,13 +86,7 @@ function ChatMessages({
                             </button>
                             <button
                                 className="flex gap-1 items-center hover:underline hover:text-sky-500 active:text-sky-700"
-                                onClick={() =>
-                                    handleSaveChat(
-                                        originalMessages,
-                                        client,
-                                        addChat,
-                                    )
-                                }
+                                onClick={handleSaveChatCallback}
                             >
                                 <AiOutlineSave />
                                 {t("Save chat")}
@@ -90,7 +95,7 @@ function ChatMessages({
                     )}
                 </div>
                 <div className="grow overflow-auto chat-message-list">
-                    <MessageList messages={messages} loading={loading} />
+                    <MessageList messages={processedMessages} loading={loading} />
                 </div>
             </div>
             <div>
@@ -98,18 +103,14 @@ function ChatMessages({
                     viewingReadOnlyChat={viewingReadOnlyChat}
                     loading={loading}
                     enableRag={true}
-                    placeholder={
-                        container === "chatbox"
-                            ? t(`Send message`)
-                            : `${t('Send a message to')} ${t(aiName || config?.chat?.botName)}`
-                    }
+                    placeholder={inputPlaceholder}
                     container={container}
                     displayState={displayState}
-                    onSend={(message) => onSend(message)}
+                    onSend={handleSendCallback}
                 />
             </div>
         </div>
     );
-}
+});
 
 export default ChatMessages;

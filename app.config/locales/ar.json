@@ -19,6 +19,7 @@
     "French": "الفرنسية",
     "Russian": "الروسية",
     "German": "الألمانية",
+    "Hebrew": "العبرية",
     "Serbian": "الصربية",
     "Turkish": "التركية",
     "Japanese": "اليابانية",
@@ -120,7 +121,6 @@
     "File upload failed": "فشل تحميل الملف",
     "Formatting": "التنسيق",
     "Choose file to transcribe:": "اختر ملف للتفريغ:",
-    "Paste URL e.g. https://youtube.com/shorts/raw35iohE0o": "الصق عنوان URL على سبيل المثال https://youtube.com/shorts/raw35iohE0o",
     "Transcribe audio to:": "تفريغ الصوت إلى:",
     "Plain Text": "نص عادي",
     "Formatted Text": "نص مُنسق",
@@ -334,6 +334,17 @@
     "Copy Share URL": "نسخ عنوان URL للمشاركة",
     "Share URL copied to clipboard!": "تم نسخ عنوان URL للمشاركة إلى الحافظة!",
     "Make this chat public?": "هل تريد جعل هذه الدردشة عامة؟",
-    "Chat made public. Share URL copied to clipboard!": "تم جعل الدردشة عامة. تم نسخ عنوان URL للمشاركة إلى الحافظة!"
-
+    "Chat made public. Share URL copied to clipboard!": "تم جعل الدردشة عامة. تم نسخ عنوان URL للمشاركة إلى الحافظة!",
+    "An error was received from the API server:": "تم استلام خطأ من خادم API:",
+    "Suggestion": "اقتراح",
+    "Revision": "مراجعة",
+    "Remove content": "إزالة المحتوى",
+    "Use Updated Version": "استخدم النسخة المحدثة",
+    "Use Transcribed Text": "استخدم النص المنسوخ",
+    "Use Translated Text": "استخدم النص المترجم",
+    "Changes": "التغييرات",
+    "Changed Text": "النص المغير",
+    "Go": "انطلق",
+    "Note that streaming services like YouTube and Instagram may not support direct downloads from URL.": "يرجى ملاحظة أن خدمات البث مثل YouTube و Instagram قد لا تدعم التنزيل المباشر من عنوان URL.",
+    "Paste URL e.g. https://mywebsite.com/video.mp4": "الصق الرابط على سبيل المثال https://mywebsite.com/video.mp4"
 }
