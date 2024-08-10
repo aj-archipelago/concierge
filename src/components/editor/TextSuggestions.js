@@ -159,7 +159,7 @@ export function getTextSuggestionsComponent({
                     onSelect,
                     setFinalData,
                     finalData,
-                    t
+                    t,
                 );
 
                 if (loadingButtonVisible) {
@@ -202,7 +202,7 @@ export function getTextSuggestionsComponent({
                     loadingButtonVisible,
                     redo,
                     t,
-                    direction
+                    direction,
                 )}
             </div>
         );
@@ -221,7 +221,7 @@ function renderOutput(
     setFinalData,
     finalData,
     t,
-    direction
+    direction,
 ) {
     switch (outputType) {
         case "compare":
@@ -292,7 +292,7 @@ function renderContent(
     loadingButtonVisible,
     redo,
     t,
-    direction
+    direction,
 ) {
     if (outputType === "diff" || outputType === "diff-styleguide") {
         return <div className="h-full">{output}</div>;
@@ -303,17 +303,19 @@ function renderContent(
     return (
         <div className="flex flex-col h-full overflow-hidden">
             <div className="flex-grow flex flex-col md:flex-row min-h-0 space-y-4 md:space-y-0 md:space-x-4 rtl:space-x-reverse overflow-hidden">
-                { showInput && (
-                <div className={`flex-1 md:w-1/2 flex flex-col overflow-hidden ${isRTL ? 'md:ml-4' : 'md:mr-4'}`}>
-                    <div className="flex-grow overflow-hidden">
-                        <CustomSuggestionInput
-                            value={inputText}
-                            onChange={(t) => setInputText(t)}
-                            inputType="readonly"
-                            direction={direction}
-                        />
+                {showInput && (
+                    <div
+                        className={`flex-1 md:w-1/2 flex flex-col overflow-hidden ${isRTL ? "md:ml-4" : "md:mr-4"}`}
+                    >
+                        <div className="flex-grow overflow-hidden">
+                            <CustomSuggestionInput
+                                value={inputText}
+                                onChange={(t) => setInputText(t)}
+                                inputType="readonly"
+                                direction={direction}
+                            />
+                        </div>
                     </div>
-                </div>
                 )}
                 <div className="flex-1 md:w-1/2 flex flex-col overflow-hidden">
                     {outputType === "compare" ? (
@@ -322,7 +324,11 @@ function renderContent(
                         </div>
                     ) : (
                         <>
-                            <h5 className={`mb-2 font-bold ${isRTL ? 'text-right' : 'text-left'}`}>{outputTitle}</h5>
+                            <h5
+                                className={`mb-2 font-bold ${isRTL ? "text-right" : "text-left"}`}
+                            >
+                                {outputTitle}
+                            </h5>
                             <div className="flex-grow overflow-hidden">
                                 {output}
                             </div>

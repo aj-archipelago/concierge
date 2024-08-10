@@ -182,34 +182,37 @@ const getFinalText = (groupedTokens) => {
 };
 
 function isSubstantiveChange(oldText, newText) {
-    const normalize = (str) => str
-      .replace(/[""]/g, '"')
-      .replace(/[\u0022\u201C\u201D]/g, '"')
-      .replace(/[''`´]/g, "'")
-      .replace(/[\u2018\u2019]/g, "'")
-      .replace(/[‹›«»]/g, '"')
-      .replace(/[‚„]/g, ',')
-      .replace(/…/g, '...')
-      .replace(/[—–]/g, '-')
-      .replace(/ /g, ' ')
-      .replace(/&nbsp;/g, ' ')
-      .replace(/&amp;/g, '&')
-      .replace(/&lt;/g, '<')
-      .replace(/&gt;/g, '>')
-      .replace(/&quot;/g, '"')
-      .replace(/&apos;/g, "'")
-      .replace(/&ldquo;/g, '"')
-      .replace(/&rdquo;/g, '"')
-      .replace(/&lsquo;/g, "'")
-      .replace(/&rsquo;/g, "'")
-      .replace(/&laquo;/g, '"')
-      .replace(/&raquo;/g, '"');
-  
-    return normalize(oldText) !== normalize(newText);
-  }
+    const normalize = (str) =>
+        str
+            .replace(/[""]/g, '"')
+            .replace(/[\u0022\u201C\u201D]/g, '"')
+            .replace(/[''`´]/g, "'")
+            .replace(/[\u2018\u2019]/g, "'")
+            .replace(/[‹›«»]/g, '"')
+            .replace(/[‚„]/g, ",")
+            .replace(/…/g, "...")
+            .replace(/[—–]/g, "-")
+            .replace(/ /g, " ")
+            .replace(/&nbsp;/g, " ")
+            .replace(/&amp;/g, "&")
+            .replace(/&lt;/g, "<")
+            .replace(/&gt;/g, ">")
+            .replace(/&quot;/g, '"')
+            .replace(/&apos;/g, "'")
+            .replace(/&ldquo;/g, '"')
+            .replace(/&rdquo;/g, '"')
+            .replace(/&lsquo;/g, "'")
+            .replace(/&rsquo;/g, "'")
+            .replace(/&laquo;/g, '"')
+            .replace(/&raquo;/g, '"');
 
-  const Diff = ({ string1 = "", string2 = "", setSelectedText }) => {
-    const [diffGroups] = useState(() => diff.diffWordsWithSpace(string1, string2));
+    return normalize(oldText) !== normalize(newText);
+}
+
+const Diff = ({ string1 = "", string2 = "", setSelectedText }) => {
+    const [diffGroups] = useState(() =>
+        diff.diffWordsWithSpace(string1, string2),
+    );
     const [activeChangeId, setActiveChangeId] = useState("change-0");
     const [groupedTokens, setGroupedTokens] = useState([]);
 
@@ -257,20 +260,29 @@ function isSubstantiveChange(oldText, newText) {
                 }
 
                 // Check if the change is substantive
-                if (lastGroupedToken.removed.length > 0 && lastGroupedToken.added.length > 0) {
-                    const oldText = lastGroupedToken.removed.join('');
-                    const newText = lastGroupedToken.added.join('');
+                if (
+                    lastGroupedToken.removed.length > 0 &&
+                    lastGroupedToken.added.length > 0
+                ) {
+                    const oldText = lastGroupedToken.removed.join("");
+                    const newText = lastGroupedToken.added.join("");
                     if (!isSubstantiveChange(oldText, newText)) {
                         // If it's not substantive, remove this change group
                         groupedTokens.pop();
                         // If the previous token was text, we need to merge this non-substantive change with it
-                        if (groupedTokens.length > 0 && groupedTokens[groupedTokens.length - 1].type === "text") {
-                            groupedTokens[groupedTokens.length - 1].tokens.push({ value: oldText });
+                        if (
+                            groupedTokens.length > 0 &&
+                            groupedTokens[groupedTokens.length - 1].type ===
+                                "text"
+                        ) {
+                            groupedTokens[groupedTokens.length - 1].tokens.push(
+                                { value: oldText },
+                            );
                         } else {
                             // Otherwise, add it as a new text token
                             groupedTokens.push({
                                 type: "text",
-                                tokens: [{ value: oldText }]
+                                tokens: [{ value: oldText }],
                             });
                         }
                     }
@@ -320,7 +332,9 @@ function isSubstantiveChange(oldText, newText) {
                         key={changeId}
                         changeId={changeId}
                         token={group}
-                        onTokenChange={(accepted) => handleTokenChange(i, accepted)}
+                        onTokenChange={(accepted) =>
+                            handleTokenChange(i, accepted)
+                        }
                     />
                 ),
             });
@@ -365,11 +379,17 @@ function isSubstantiveChange(oldText, newText) {
                             key={`change-item-${i}`}
                             className="change-item"
                             onMouseEnter={() => {
-                                const changeElement = document.getElementById(c.changeId);
-                                const divElement = document.getElementById("ai-change-preview");
+                                const changeElement = document.getElementById(
+                                    c.changeId,
+                                );
+                                const divElement =
+                                    document.getElementById(
+                                        "ai-change-preview",
+                                    );
 
                                 if (divElement) {
-                                    divElement.scrollTop = changeElement.offsetTop - 200;
+                                    divElement.scrollTop =
+                                        changeElement.offsetTop - 200;
                                 }
 
                                 setActiveChangeId(c.changeId);
@@ -387,7 +407,6 @@ function isSubstantiveChange(oldText, newText) {
         </div>
     );
 };
-
 
 Diff.propTypes = {
     string1: PropTypes.string,

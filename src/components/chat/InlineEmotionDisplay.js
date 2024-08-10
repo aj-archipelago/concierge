@@ -145,10 +145,10 @@ const generateColor = (emotion) => {
 
 const getContrastColor = (hslColor) => {
     const [, , l] = hslColor.match(/\d+/g).map(Number);
-    
+
     // Calculate relative luminance
-    const luminance = (l / 100);
-    
+    const luminance = l / 100;
+
     // Use a threshold that favors white text more often
     return luminance > 0.45 ? "hsl(0, 0%, 0%)" : "hsl(0, 0%, 100%)";
 };

@@ -401,7 +401,11 @@ function Transcribe({
                                 }
                             }}
                         />
-                        <span className="text-xs text-neutral-500">{t("Note that streaming services like YouTube and Instagram may not support direct downloads from URL.")}</span>
+                        <span className="text-xs text-neutral-500">
+                            {t(
+                                "Note that streaming services like YouTube and Instagram may not support direct downloads from URL.",
+                            )}
+                        </span>
                     </div>
                 </li>
                 <li className="mb-4">

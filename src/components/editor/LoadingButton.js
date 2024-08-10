@@ -1,4 +1,4 @@
-import React from 'react';
+import React from "react";
 import Loader from "../../../app/components/loader";
 import classNames from "../../../app/utils/class-names";
 
@@ -18,7 +18,7 @@ const LoadingButton = ({
         "transition-colors duration-200", // Added smooth transition for hover effects
         "rounded-md", // Added rounded corners
         className,
-        { "opacity-75 cursor-not-allowed": disabled || loading } // Added disabled state styling
+        { "opacity-75 cursor-not-allowed": disabled || loading }, // Added disabled state styling
     );
 
     const renderContent = () => {

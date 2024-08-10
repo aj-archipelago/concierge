@@ -94,15 +94,21 @@ function ChatContent({
                     direction: "outgoing",
                     position: "single",
                 };
-    
-                queryClient.setQueryData(["chat", String(chat?._id)], (oldChat) => ({
-                    ...oldChat,
-                    messages: [...(oldChat?.messages || []), optimisticUserMessage],
-                }));
-    
+
+                queryClient.setQueryData(
+                    ["chat", String(chat?._id)],
+                    (oldChat) => ({
+                        ...oldChat,
+                        messages: [
+                            ...(oldChat?.messages || []),
+                            optimisticUserMessage,
+                        ],
+                    }),
+                );
+
                 // Update loading state
                 updateChatLoadingState(chatId, true);
-    
+
                 // Prepare conversation history
                 const conversation = memoizedMessages
                     .slice(-contextMessageCount)
@@ -121,11 +127,11 @@ function ChatContent({
                             ? { role: "assistant", content: m.payload }
                             : { role: "user", content: m.payload },
                     );
-    
+
                 conversation.push({ role: "user", content: text });
-    
+
                 const { contextId, aiMemorySelfModify, aiName, aiStyle } = user;
-    
+
                 const variables = {
                     chatHistory: conversation,
                     contextId,
@@ -135,31 +141,31 @@ function ChatContent({
                     title: chat?.title,
                     chatId,
                 };
-    
+
                 if (selectedSources && selectedSources.length > 0) {
                     variables.dataSources = selectedSources;
                 }
-    
+
                 // Perform RAG start query
                 const result = await client.query({
                     query: QUERIES.RAG_START,
                     variables,
                 });
-    
+
                 let resultMessage = "";
                 let searchRequired = false;
                 let tool = null;
                 let newTitle = null;
-    
+
                 try {
                     const resultObj = JSON.parse(result.data.rag_start.result);
                     resultMessage = resultObj?.response;
-    
+
                     tool = result.data.rag_start.tool;
                     if (tool) {
                         const toolObj = JSON.parse(tool);
                         searchRequired = toolObj?.search;
-    
+
                         if (
                             !chat?.titleSetByUser &&
                             toolObj?.title &&
@@ -171,7 +177,7 @@ function ChatContent({
                 } catch (e) {
                     console.error("Error parsing result:", e);
                 }
-    
+
                 // Optimistic update for AI's response
                 const optimisticAIMessage = {
                     payload: resultMessage,
@@ -181,50 +187,68 @@ function ChatContent({
                     position: "single",
                     sender: "labeeb",
                 };
-    
+
                 // Update the chat title in the cache if there's a new title
                 if (newTitle) {
-                    queryClient.setQueryData(["chatTitle", String(chat?._id)], newTitle);
+                    queryClient.setQueryData(
+                        ["chatTitle", String(chat?._id)],
+                        newTitle,
+                    );
                 }
-    
+
                 // Batch updates in a single operation
                 await queryClient.cancelQueries(["chat", String(chat?._id)]);
-                queryClient.setQueryData(["chat", String(chat?._id)], (oldChat) => {
-                    const updatedChat = {
-                        ...oldChat,
-                        messages: [...(oldChat?.messages || []), optimisticUserMessage, optimisticAIMessage],
-                    };
-                    if (newTitle) {
-                        updatedChat.title = newTitle;
-                    }
-                    return updatedChat;
-                });
-    
+                queryClient.setQueryData(
+                    ["chat", String(chat?._id)],
+                    (oldChat) => {
+                        const updatedChat = {
+                            ...oldChat,
+                            messages: [
+                                ...(oldChat?.messages || []),
+                                optimisticUserMessage,
+                                optimisticAIMessage,
+                            ],
+                        };
+                        if (newTitle) {
+                            updatedChat.title = newTitle;
+                        }
+                        return updatedChat;
+                    },
+                );
+
                 // Confirm updates with the server
                 await updateChatHook.mutateAsync({
                     chatId: String(chat?._id),
-                    messages: [...(chat?.messages || []), optimisticUserMessage, optimisticAIMessage],
+                    messages: [
+                        ...(chat?.messages || []),
+                        optimisticUserMessage,
+                        optimisticAIMessage,
+                    ],
                     ...(newTitle && { title: newTitle }),
                 });
-    
+
                 if (searchRequired) {
                     updateChatLoadingState(chatId, true);
                     const searchResult = await client.query({
                         query: QUERIES.RAG_GENERATOR_RESULTS,
                         variables,
                     });
-                    const { result: searchMessage, tool: searchTool } = searchResult.data.rag_generator_results;
-                    
+                    const { result: searchMessage, tool: searchTool } =
+                        searchResult.data.rag_generator_results;
+
                     await updateChatHook.mutateAsync({
                         chatId: String(chat?._id),
-                        messages: [...(chat?.messages || []), {
-                            payload: searchMessage,
-                            tool: searchTool,
-                            sentTime: "just now",
-                            direction: "incoming",
-                            position: "single",
-                            sender: "labeeb",
-                        }],
+                        messages: [
+                            ...(chat?.messages || []),
+                            {
+                                payload: searchMessage,
+                                tool: searchTool,
+                                sentTime: "just now",
+                                direction: "incoming",
+                                position: "single",
+                                sender: "labeeb",
+                            },
+                        ],
                     });
                 }
             } catch (error) {
@@ -243,10 +267,9 @@ function ChatContent({
             selectedSources,
             handleError,
             updateChatLoadingState,
-            chatId
-        ]
+            chatId,
+        ],
     );
-    
 
     return (
         <ChatMessages

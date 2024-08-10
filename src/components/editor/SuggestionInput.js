@@ -1,6 +1,11 @@
 import { useTranslation } from "react-i18next";
 
-const SuggestionInput = ({ value, onChange, inputTitle = "Input", direction }) => {
+const SuggestionInput = ({
+    value,
+    onChange,
+    inputTitle = "Input",
+    direction,
+}) => {
     const { t } = useTranslation();
 
     return (

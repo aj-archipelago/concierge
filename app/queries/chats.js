@@ -427,7 +427,6 @@ export function useUpdateChat() {
     });
 }
 
-
 export function useUpdateActiveChat() {
     const queryClient = useQueryClient();
     const updateChatMutation = useUpdateChat();

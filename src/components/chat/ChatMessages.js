@@ -53,14 +53,17 @@ const ChatMessages = React.memo(function ChatMessages({
         handleSaveChat(messages, client, addChat);
     }, [messages, client, addChat]);
 
-    const handleSendCallback = useCallback((message) => {
-        onSend(message);
-    }, [onSend]);
+    const handleSendCallback = useCallback(
+        (message) => {
+            onSend(message);
+        },
+        [onSend],
+    );
 
     const inputPlaceholder = useMemo(() => {
         return container === "chatbox"
             ? t(`Send message`)
-            : `${t('Send a message to')} ${t(aiName || config?.chat?.botName)}`;
+            : `${t("Send a message to")} ${t(aiName || config?.chat?.botName)}`;
     }, [container, t, aiName]);
 
     return (
@@ -95,7 +98,10 @@ const ChatMessages = React.memo(function ChatMessages({
                     )}
                 </div>
                 <div className="grow overflow-auto chat-message-list">
-                    <MessageList messages={processedMessages} loading={loading} />
+                    <MessageList
+                        messages={processedMessages}
+                        loading={loading}
+                    />
                 </div>
             </div>
             <div>
