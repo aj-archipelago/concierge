@@ -93,7 +93,7 @@ export function getTextSuggestionsComponent({
                     name: stringcase.sentencecase(query),
                 });
             }
-        }, [data, error, query, async]);
+        }, [data, error, async]);
 
         useEffect(() => {
             return () => {
