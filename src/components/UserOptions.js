@@ -2,7 +2,7 @@ import { Modal } from "@/components/ui/modal";
 import { useApolloClient, useQuery } from "@apollo/client";
 import { useContext, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useUpdateAIOptions } from "../../app/queries/options";
+import { useUpdateAiOptions } from "../../app/queries/options";
 import { QUERIES } from "../../src/graphql";
 import { AuthContext } from "../App";
 
@@ -16,7 +16,7 @@ const UserOptions = ({ show, handleClose }) => {
     const [aiName, setAiName] = useState(user.aiName || "Labeeb");
     const [aiStyle, setAiStyle] = useState(user.aiStyle || "OpenAI");
 
-    const updateAIOptionsMutation = useUpdateAIOptions();
+    const updateAiOptionsMutation = useUpdateAiOptions();
     const apolloClient = useApolloClient();
 
     // Modified query to fetch aiMemory
@@ -65,7 +65,7 @@ const UserOptions = ({ show, handleClose }) => {
             return;
         }
 
-        await updateAIOptionsMutation.mutateAsync({
+        await updateAiOptionsMutation.mutateAsync({
             userId: user.userId,
             contextId: user.contextId,
             aiMemorySelfModify,

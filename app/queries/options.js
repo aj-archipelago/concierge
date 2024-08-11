@@ -1,7 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import axios from "axios";
 
-export function useUpdateAIOptions(
+export function useUpdateAiOptions(
     userId,
     contextId,
     aiMemorySelfModify,
