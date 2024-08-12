@@ -12,9 +12,10 @@ import DiffComponent from "./DiffComponent";
 import SuggestionOutput from "./SuggestionOutput";
 import SuggestionInput from "./SuggestionInput";
 import LoadingButton from "./LoadingButton";
-import { asyncQueries } from "./utils";
 import { useTranslation } from "react-i18next";
 import { LanguageContext } from "../../contexts/LanguageProvider";
+
+const asyncQueries = ["GRAMMAR", "STYLE_GUIDE", "TRANSLATE"];
 
 export function getTextSuggestionsComponent({
     query,
