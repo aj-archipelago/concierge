@@ -116,8 +116,8 @@ const DOC_EXTENSIONS = [
 ];
 
 function isDocumentUrl(url) {
-    const urlExt = url.split(".").pop();
-    return DOC_EXTENSIONS.includes("." + urlExt);
+    const urlExt = getExtension(url);
+    return DOC_EXTENSIONS.includes(urlExt);
 }
 
 const IMAGE_EXTENSIONS = [
@@ -145,10 +145,19 @@ const VIDEO_EXTENSIONS = [
 
 const AUDIO_EXTENSIONS = [".wav", ".mp3", ".aiff", ".aac", ".ogg", ".flac"];
 
-function isImageUrl(url) {
-    const urlExt = "." + url.split(".").pop();
-    const mimeType = mime.contentType(urlExt);
+function getExtension(url) {
+    try {
+        const parsedUrl = new URL(url);
+        const pathname = parsedUrl.pathname;
+        return "." + pathname.split(".").pop().toLowerCase();
+    } catch (error) {
+        return "." + url.split(".").pop().split(/[?#]/)[0].toLowerCase();
+    }
+}
 
+function isImageUrl(url) {
+    const urlExt = getExtension(url);
+    const mimeType = mime.contentType(urlExt);
     return (
         IMAGE_EXTENSIONS.includes(urlExt) &&
         (mimeType.startsWith("image/") || mimeType === "application/pdf")
@@ -156,13 +165,13 @@ function isImageUrl(url) {
 }
 
 function isVideoUrl(url) {
-    const urlExt = "." + url.split(".").pop();
+    const urlExt = getExtension(url);
     const mimeType = mime.contentType(urlExt);
     return VIDEO_EXTENSIONS.includes(urlExt) && mimeType.startsWith("video/");
 }
 
 function isAudioUrl(url) {
-    const urlExt = "." + url.split(".").pop();
+    const urlExt = getExtension(url);
     const mimeType = mime.contentType(urlExt);
     return AUDIO_EXTENSIONS.includes(urlExt) && mimeType.startsWith("audio/");
 }

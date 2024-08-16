@@ -92,13 +92,14 @@ function MessageInput({
                 const filename = url
                     .split("/")
                     .pop()
+                    .split("?")[0]
                     .split("_")
                     .slice(1)
                     .join("_");
 
                 dispatch(setFileLoading());
 
-                console.log("Cognitive insert2", activeChatId);
+                console.log("Cognitive insert", activeChatId);
 
                 client
                     .query({
