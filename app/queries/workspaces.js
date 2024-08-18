@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import axios from "axios";
+import axios from "../utils/axios-client";
 
 export function useWorkspace(id) {
     const query = useQuery({
