@@ -85,7 +85,7 @@ export default function AIModal({
                         <div className="fixed inset-0 bg-black/25" />
                     </Transition.Child>
 
-                    <div className="fixed inset-0 overflow-hidden">
+                    <div className="fixed inset-0 overflow-y-auto">
                         <div className="flex min-h-full items-center justify-center p-4 text-center">
                             <Transition.Child
                                 as={Fragment}
@@ -113,7 +113,7 @@ export default function AIModal({
                                             </div>
                                         </div>
                                     </Dialog.Title>
-                                    <div className="grow h-[calc(100vh-200px)] overflow-hidden">
+                                    <div className="grow h-[calc(100vh-200px)] overflow-auto">
                                         {modalBody}
                                     </div>
                                     <div className="justify-end flex gap-2 mt-4">
