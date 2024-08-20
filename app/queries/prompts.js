@@ -4,7 +4,7 @@ import {
     useQueryClient,
     useMutation,
 } from "@tanstack/react-query";
-import axios from "axios";
+import axios from "../utils/axios-client";
 
 export function usePromptsByIds(ids) {
     const queries = useQueries({

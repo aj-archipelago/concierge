@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import axios from "axios";
+import axios from "../utils/axios-client";
 import { isValidObjectId } from "../../src/utils/helper.js";
 
 export function useGetChats() {
