@@ -1,5 +1,5 @@
 import i18next from "i18next";
-import React, { useEffect } from "react";
+import React, { useEffect, useContext } from "react";
 import { useTranslation } from "react-i18next";
 import { AiFillFilePdf, AiOutlineRobot } from "react-icons/ai";
 import { FaUserCircle } from "react-icons/fa";
@@ -10,6 +10,7 @@ import ScrollToBottom from "./ScrollToBottom";
 import Loader from "../../../app/components/loader";
 import { isAudioUrl, isVideoUrl } from "./MyFilePond";
 import CopyButton from "../CopyButton";
+import { AuthContext } from "../../App.js";
 
 const getLoadState = (message) => {
     const hasImage =
@@ -32,6 +33,8 @@ const getLoadState = (message) => {
 
 // Displays the list of messages and a message input box.
 function MessageList({ messages, bot, loading }) {
+    const { user } = useContext(AuthContext);
+    const { aiName } = user;
     const { language } = i18next;
     const { getLogo } = config.global;
     const { t } = useTranslation();
@@ -69,7 +72,9 @@ function MessageList({ messages, bot, loading }) {
         "min-w-[3rem] basis-12 [.docked_&]:basis-10 [.docked_&]:min-w-[2.5rem]";
     let buttonWidthClass = "w-12 [.docked_&]:w-10";
     const botName =
-        bot === "code" ? config?.code?.botName : config?.chat?.botName;
+        bot === "code"
+            ? config?.code?.botName
+            : aiName || config?.chat?.botName;
 
     const renderMessage = (message) => {
         let avatar = (

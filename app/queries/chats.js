@@ -394,8 +394,8 @@ export function useUpdateChat() {
 
     return useMutation({
         mutationFn: async ({ chatId, ...updateData }) => {
-            if (!chatId || !updateData) {
-                throw new Error("chatId and updateData are required");
+            if (!chatId) {
+                throw new Error("chatId is required");
             }
             const response = await axios.put(
                 `/api/chats/${String(chatId)}`,
@@ -409,19 +409,7 @@ export function useUpdateChat() {
             const expectedChatData = { ...previousChat, ...updateData };
             queryClient.setQueryData(["chat", chatId], expectedChatData);
 
-            queryClient.setQueryData(["activeChats"], (oldChats = []) =>
-                oldChats.map((chat) =>
-                    chat._id === chatId ? expectedChatData : chat,
-                ),
-            );
-
-            queryClient.setQueryData(["chats"], (oldChats = []) =>
-                oldChats.map((chat) =>
-                    chat._id === chatId ? expectedChatData : chat,
-                ),
-            );
-
-            return { previousChat, expectedChatData };
+            return { previousChat };
         },
         onError: (err, variables, context) => {
             if (context?.previousChat) {
@@ -430,15 +418,11 @@ export function useUpdateChat() {
                     context.previousChat,
                 );
             }
-
-            queryClient.invalidateQueries({
-                queryKey: ["chat", variables.chatId],
-            });
-            queryClient.invalidateQueries({ queryKey: ["chats"] });
-            queryClient.invalidateQueries({ queryKey: ["activeChats"] });
         },
         onSuccess: (updatedChat, { chatId }) => {
             queryClient.setQueryData(["chat", chatId], updatedChat);
+            queryClient.invalidateQueries({ queryKey: ["chats"] });
+            queryClient.invalidateQueries({ queryKey: ["activeChats"] });
         },
     });
 }

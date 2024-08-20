@@ -134,17 +134,15 @@ const SummaryOptions = ({
                 }
             />
             <LoadingButton
-                text={t("Generating")}
                 loading={loading}
                 disabled={loading}
-                variant="secondary"
-                className="text-xs lb-primary"
+                className="w-8 h-6 text-xs lb-primary"
                 onClick={() => {
                     handleClearSummary();
                     onCommit();
                 }}
             >
-                {t("Generate")}
+                {t("Go")}
             </LoadingButton>
         </div>
     );

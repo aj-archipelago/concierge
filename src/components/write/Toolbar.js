@@ -1,4 +1,4 @@
-import { useRef, useContext } from "react";
+import { useRef, useContext, useState, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { LanguageContext } from "../../contexts/LanguageProvider";
 import {
@@ -19,6 +19,35 @@ function Toolbar({
     const targetRef = useRef(null);
     const { t } = useTranslation();
     const { language } = useContext(LanguageContext);
+    const [openTooltip, setOpenTooltip] = useState(null);
+    const tooltipTimerRef = useRef(null);
+
+    const handleAction = useCallback(
+        (key) => {
+            setOpenTooltip(null);
+            if (tooltipTimerRef.current) {
+                clearTimeout(tooltipTimerRef.current);
+            }
+            onAction(key);
+        },
+        [onAction],
+    );
+
+    const handleMouseEnter = useCallback((key) => {
+        if (tooltipTimerRef.current) {
+            clearTimeout(tooltipTimerRef.current);
+        }
+        tooltipTimerRef.current = setTimeout(() => {
+            setOpenTooltip(key);
+        }, 200); // 200ms delay before showing tooltip
+    }, []);
+
+    const handleMouseLeave = useCallback(() => {
+        if (tooltipTimerRef.current) {
+            clearTimeout(tooltipTimerRef.current);
+        }
+        setOpenTooltip(null);
+    }, []);
 
     return (
         <div className="relative px-2.5" ref={ref}>
@@ -51,13 +80,19 @@ function Toolbar({
                         return (
                             <div key={`toolbar-button-${key}`}>
                                 <TooltipProvider>
-                                    <Tooltip>
+                                    <Tooltip open={openTooltip === key}>
                                         <TooltipTrigger asChild>
                                             <button
                                                 ref={targetRef}
                                                 className={`mb-2.5 text-sm text-start text-sky-600 rounded-md ${!buttonEnabled ? "opacity-50 cursor-not-allowed" : ""}`}
                                                 disabled={!buttonEnabled}
-                                                onClick={() => onAction(key)}
+                                                onClick={() =>
+                                                    handleAction(key)
+                                                }
+                                                onMouseEnter={() =>
+                                                    handleMouseEnter(key)
+                                                }
+                                                onMouseLeave={handleMouseLeave}
                                             >
                                                 <Icon />
                                             </button>

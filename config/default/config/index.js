@@ -5,6 +5,7 @@ import { getTosContent } from "./global/tos";
 // The entire Labeeb application can be configured here
 const basePath = process.env.NEXT_PUBLIC_BASE_PATH || "";
 
+// eslint-disable-next-line import/no-anonymous-default-export
 export default {
     global: {
         siteTitle: "Concierge",

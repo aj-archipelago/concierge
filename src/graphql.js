@@ -165,6 +165,7 @@ const RAG_START = gql`
         $semanticConfiguration: String
         $aiName: String
         $aiMemorySelfModify: Boolean
+        $aiStyle: String
         $title: String
     ) {
         rag_start(
@@ -177,6 +178,7 @@ const RAG_START = gql`
             semanticConfiguration: $semanticConfiguration
             aiName: $aiName
             aiMemorySelfModify: $aiMemorySelfModify
+            aiStyle: $aiStyle
             title: $title
         ) {
             result
