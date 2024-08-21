@@ -13,7 +13,9 @@ export function useCurrentUserDigest() {
             const data = query?.state?.data;
 
             const isAnyBlockPending = data?.blocks?.some(
-                (block) => block.state?.status === "pending",
+                (block) =>
+                    block.state?.status === "pending" ||
+                    block.state?.status === "in_progress",
             );
 
             return isAnyBlockPending ? 5000 : false;

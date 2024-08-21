@@ -9,6 +9,7 @@ import { useTranslation } from "react-i18next";
 import Loader from "../../components/loader";
 import { useContext } from "react";
 import { LanguageContext } from "../../../src/contexts/LanguageProvider";
+import { Progress } from "../../../@/components/ui/progress";
 
 export default function DigestBlock({ block, contentClassName }) {
     const regenerateDigestBlock = useRegenerateDigestBlock();
@@ -20,7 +21,9 @@ export default function DigestBlock({ block, contentClassName }) {
     }
 
     const isRebuilding =
-        regenerateDigestBlock.isPending || block?.state?.status === "pending";
+        regenerateDigestBlock.isPending ||
+        block?.state?.status === "pending" ||
+        block?.state?.status === "in_progress";
 
     return (
         <div key={block._id} className="bg-gray-50 p-4 rounded-md border">
@@ -29,7 +32,7 @@ export default function DigestBlock({ block, contentClassName }) {
                 {block.updatedAt && (
                     <div>
                         <div className="text-xs flex items-center gap-2 rounded-full px-3 py-2 border bg-gray-50">
-                            {block.updatedAt && (
+                            {block.updatedAt && !block.state?.progress && (
                                 <button
                                     onClick={() => {
                                         regenerateDigestBlock.mutate({
@@ -49,7 +52,14 @@ export default function DigestBlock({ block, contentClassName }) {
                             )}
                             <div className="flex items-center justify-center gap-1">
                                 {isRebuilding ? (
-                                    t("Rebuilding...")
+                                    block.state.progress ? (
+                                        <Progress
+                                            value={block.state.progress}
+                                            className="w-24"
+                                        />
+                                    ) : (
+                                        t("Rebuilding...")
+                                    )
                                 ) : (
                                     <>
                                         {t("Updated")}{" "}
@@ -76,7 +86,11 @@ export default function DigestBlock({ block, contentClassName }) {
 function BlockContent({ block }) {
     const { t } = useTranslation();
 
-    if (block.state?.status === "pending" && !block.content) {
+    if (
+        (block.state?.status === "pending" ||
+            block.state?.status === "in_progress") &&
+        !block.content
+    ) {
         return (
             <div className="text-gray-500 flex items-center gap-4 m-2 ">
                 <Loader />

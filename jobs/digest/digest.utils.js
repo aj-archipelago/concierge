@@ -1,4 +1,12 @@
-const generateDigestBlockContent = async (block, user, logger) => {
+const APPROXIMATE_DURATION_SECONDS = 60;
+const PROGRESS_UPDATE_INTERVAL = 3000;
+
+const generateDigestBlockContent = async (
+    block,
+    user,
+    logger,
+    onProgressUpdate,
+) => {
     let graphql = await import("../graphql.mjs");
     const { QUERIES, getClient } = graphql;
     const { prompt } = block;
@@ -13,6 +21,15 @@ const generateDigestBlockContent = async (block, user, logger) => {
     let searchRequired = false;
     let tool = null;
     let content;
+    let progress = { progress: 0.05 };
+    const interval = setInterval(() => {
+        const increment =
+            PROGRESS_UPDATE_INTERVAL / (APPROXIMATE_DURATION_SECONDS * 1000);
+        progress.progress = Math.min(progress.progress + increment, 0.95);
+        const progressUpdate = Math.floor(progress.progress * 100);
+        onProgressUpdate(progressUpdate);
+        logger.log(`progress ${progressUpdate}`, user?._id, block?._id);
+    }, PROGRESS_UPDATE_INTERVAL);
 
     try {
         const result = await client.query({
@@ -51,6 +68,9 @@ const generateDigestBlockContent = async (block, user, logger) => {
         content = JSON.stringify({
             payload: "Error while generating content: " + e.message,
         });
+    } finally {
+        clearInterval(interval);
+        onProgressUpdate(1);
     }
 
     return content;

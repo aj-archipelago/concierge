@@ -33,7 +33,7 @@ const digestSchema = new mongoose.Schema(
                     required: false,
                 },
                 state: {
-                    pendingRequestId: {
+                    jobId: {
                         type: String,
                         required: false,
                     },

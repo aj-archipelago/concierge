@@ -61,10 +61,10 @@ const worker = new Worker(
 
             if (job.name === DAILY_BUILD_JOB) {
                 logger.log("building digests for all users");
-                await buildDigestsForAllUsers(logger);
+                await buildDigestsForAllUsers(logger, job);
             } else if (job.name === SINGLE_BUILD_JOB) {
                 logger.log(`building digest for user`, job.data.userId);
-                await buildDigestForSingleUser(job.data.userId, logger);
+                await buildDigestForSingleUser(job.data.userId, logger, job);
             }
         } finally {
             await closeDatabaseConnection();
@@ -105,6 +105,5 @@ console.log("starting worker");
     );
     await connectToDatabase();
     console.log("Connected to database");
-    await buildDigestsForAllUsers(new Logger());
 })();
 worker.run();

@@ -2,7 +2,7 @@ import { getCurrentUser } from "../../../utils/auth";
 
 import { NextResponse } from "next/server";
 import Digest from "../../../models/digest";
-import { enqueueBuildDigest } from "./utils";
+import { enqueueBuildDigest, getJob } from "./utils";
 import { DigestGenerationStatus } from "../../../models/digest.mjs";
 
 export async function GET(req, { params }) {
@@ -51,6 +51,18 @@ export async function GET(req, { params }) {
             new: true,
         },
     );
+
+    digest = digest.toJSON();
+
+    for (const block of digest.blocks) {
+        if (block.state.status === DigestGenerationStatus.IN_PROGRESS) {
+            const jobId = block.state.jobId;
+
+            // get progress update status from job
+            const job = await getJob(jobId);
+            block.state.progress = job?.progress;
+        }
+    }
 
     return NextResponse.json(digest);
 }

@@ -8,7 +8,7 @@ const {
     ACTIVE_USER_PERIOD_DAYS = 7,
 } = process.env;
 
-async function buildDigestForUser(user, logger) {
+async function buildDigestForUser(user, logger, job) {
     const owner = user._id;
     const Digest = (await import("../app/api/models/digest.mjs")).default;
     const DigestGenerationStatus = (
@@ -25,18 +25,56 @@ async function buildDigestForUser(user, logger) {
     }
 
     logger.log("building digest", owner);
+    // update states of blocks that need to be rebuilt
+    const existingBlocks = (
+        await Digest.findOne({
+            owner,
+        })
+    ).blocks;
+
+    const newBlocks = existingBlocks.map((b) => {
+        const shouldBeRebuilt =
+            !b.updatedAt ||
+            !b.content ||
+            dayjs().diff(dayjs(b.updatedAt), "days") >
+                DIGEST_REBUILD_INTERVAL_DAYS ||
+            b.state.status === DigestGenerationStatus.PENDING ||
+            b.state.status === DigestGenerationStatus.IN_PROGRESS;
+
+        if (shouldBeRebuilt) {
+            b.state.status = DigestGenerationStatus.IN_PROGRESS;
+            b.state.jobId = job?.id;
+        }
+
+        return b;
+    });
+
+    try {
+        digest = await Digest.findOneAndUpdate(
+            {
+                owner,
+            },
+            {
+                $set: {
+                    blocks: newBlocks,
+                },
+            },
+            {
+                upsert: true,
+                new: true,
+            },
+        );
+    } catch (e) {
+        logger.log(`error updating block state ${e.message}`, owner);
+    }
+
     const promises = digest.blocks.map(async (block) => {
         const lastUpdated = block.updatedAt;
 
         const daysSinceLastUpdate = dayjs().diff(dayjs(lastUpdated), "days");
         let changed = false;
 
-        if (
-            !lastUpdated ||
-            !block.content ||
-            daysSinceLastUpdate > DIGEST_REBUILD_INTERVAL_DAYS ||
-            block.state.status === DigestGenerationStatus.PENDING
-        ) {
+        if (block.state.status === DigestGenerationStatus.IN_PROGRESS) {
             logger.log(
                 `regenerating content. Status: ${block.state.status}. Last updated: ${lastUpdated}. Has Content: ${!!block.content}. Interval: ${daysSinceLastUpdate} days.`,
                 owner,
@@ -48,12 +86,18 @@ async function buildDigestForUser(user, logger) {
                     block,
                     user,
                     logger,
+                    (progress) => {
+                        if (job) {
+                            job.updateProgress(progress);
+                        }
+                    },
                 );
                 logger.log("generated content", owner, block._id);
                 block.content = content;
                 block.updatedAt = new Date();
                 block.state.status = DigestGenerationStatus.SUCCESS;
                 block.state.error = null;
+                block.state.jobId = null;
                 changed = true;
             } catch (e) {
                 logger.log(
@@ -132,7 +176,7 @@ async function buildDigestsForAllUsers(logger) {
     }
 }
 
-async function buildDigestForSingleUser(userId, logger) {
+async function buildDigestForSingleUser(userId, logger, job) {
     const User = (await import("../app/api/models/user.mjs")).default;
 
     const user = await User.findById(userId);
@@ -141,7 +185,7 @@ async function buildDigestForSingleUser(userId, logger) {
         return;
     }
 
-    await buildDigestForUser(user, logger);
+    await buildDigestForUser(user, logger, job);
 }
 
 module.exports = {

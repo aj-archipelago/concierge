@@ -15,6 +15,10 @@ const digestBuild = new Queue(queueName, {
     connection,
 });
 
+export async function getJob(jobId) {
+    return await digestBuild.getJob(jobId);
+}
+
 export async function enqueueBuildDigest(userId) {
     await digestBuild.add(
         "build-digest",
