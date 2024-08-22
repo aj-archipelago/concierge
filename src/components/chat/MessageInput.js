@@ -89,13 +89,7 @@ function MessageInput({
 
             try {
                 const docId = uuidv4();
-                const filename = url
-                    .split("/")
-                    .pop()
-                    .split("?")[0]
-                    .split("_")
-                    .slice(1)
-                    .join("_");
+                const filename = getFilename(url);
 
                 dispatch(setFileLoading());
 
@@ -226,6 +220,33 @@ function MessageInput({
             </div>
         </div>
     );
+}
+
+// Extracts the filename from a URL
+function getFilename(url) {
+    try {
+        // Create a URL object to handle parsing
+        const urlObject = new URL(url);
+
+        // Get the pathname and remove leading/trailing slashes
+        const path = urlObject.pathname.replace(/^\/|\/$/g, "");
+
+        // Get the last part of the path (filename)
+        const fullFilename = path.split("/").pop() || "";
+
+        // Decode the filename to handle URL encoding
+        const decodedFilename = decodeURIComponent(fullFilename);
+
+        // Split by underscore and remove the first part if it exists
+        const parts = decodedFilename.split("_");
+        const relevantParts = parts.length > 1 ? parts.slice(1) : parts;
+
+        // Join the parts back together
+        return relevantParts.join("_");
+    } catch (error) {
+        console.error("Error parsing URL:", error);
+        return "";
+    }
 }
 
 export default MessageInput;
