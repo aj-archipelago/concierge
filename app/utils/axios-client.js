@@ -9,7 +9,7 @@ axiosClient.interceptors.response.use(
         // Any status code that lie within the range of 2xx cause this function to trigger
 
         // check if response content type is html
-        if (!response.headers["content-type"]?.includes("text/html")) {
+        if (response.headers["content-type"]?.includes("text/html")) {
             triggerReauth();
         }
 
