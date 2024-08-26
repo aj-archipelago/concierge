@@ -76,6 +76,30 @@ const generateDigestBlockContent = async (
     return content;
 };
 
+const generateDigestGreeting = async (user, text, logger) => {
+    console.log("Generating greeting for user", user?._id);
+    let graphql = await import("../graphql.mjs");
+    const { QUERIES, getClient } = graphql;
+
+    const client = await getClient();
+    const variables = {
+        text,
+    };
+
+    try {
+        const result = await client.query({
+            query: QUERIES.GREETING,
+            variables,
+        });
+
+        return result.data.greeting.result;
+    } catch (e) {
+        logger.log(`Error while generating greeting: ${e.message}`, user?._id);
+        return null;
+    }
+};
+
 module.exports = {
     generateDigestBlockContent,
+    generateDigestGreeting,
 };

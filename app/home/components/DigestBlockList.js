@@ -18,6 +18,9 @@ import {
 import { useCurrentUser } from "../../queries/users";
 import classNames from "../../utils/class-names";
 import DigestBlock from "./DigestBlock";
+import { useQuery } from "@apollo/client";
+import { QUERIES } from "../../../src/graphql";
+import ReactMarkdown from "react-markdown";
 
 export default function DigestBlockList() {
     const { data: digest } = useCurrentUserDigest();
@@ -54,8 +57,13 @@ export default function DigestBlockList() {
                 </h1>
                 <div>{dayjs().format("dddd, MMMM D, YYYY")}</div>
             </div>
-            <div className="flex justify-between mb-2">
-                <p>{t("Here's what's happening in your world today.")}</p>
+
+            <div className="flex justify-between mb-2 gap-8">
+                {digest?.greeting && (
+                    <div className="[&>ul]:list-disc [&>ul]:ps-6">
+                        <ReactMarkdown>{digest?.greeting}</ReactMarkdown>
+                    </div>
+                )}
                 <DropdownMenu>
                     <DropdownMenuTrigger>
                         <SettingsIcon className="h-4 w-4 text-gray-500" />
@@ -69,7 +77,7 @@ export default function DigestBlockList() {
             </div>
             <div
                 className={classNames(
-                    "grid  gap-4",
+                    "grid gap-4",
                     digest.blocks.length > 1
                         ? "sm:grid-cols-2"
                         : "sm:grid-cols-1",

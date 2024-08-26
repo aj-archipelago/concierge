@@ -326,6 +326,14 @@ const GRAMMAR = gql`
     }
 `;
 
+const GREETING = gql`
+    query Greeting($text: String!, $async: Boolean) {
+        greeting(text: $text, async: $async) {
+            result
+        }
+    }
+`;
+
 const STYLE_GUIDE = gql`
     query StyleGuide($text: String!, $async: Boolean) {
         styleguide(text: $text, async: $async) {
@@ -668,6 +676,7 @@ const QUERIES = {
     SUMMARY,
     HASHTAGS,
     HEADLINE,
+    GREETING,
     GRAMMAR,
     SPELLING,
     PARAPHRASE,

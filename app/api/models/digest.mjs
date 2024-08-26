@@ -14,6 +14,10 @@ const digestSchema = new mongoose.Schema(
             type: mongoose.Schema.Types.ObjectId,
             ref: "User",
         },
+        greeting: {
+            type: String,
+            required: false,
+        },
         blocks: [
             {
                 title: {

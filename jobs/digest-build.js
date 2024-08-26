@@ -1,6 +1,9 @@
 const mongoose = require("mongoose");
 const dayjs = require("dayjs");
-const { generateDigestBlockContent } = require("./digest/digest.utils.js");
+const {
+    generateDigestBlockContent,
+    generateDigestGreeting,
+} = require("./digest/digest.utils.js");
 
 const {
     MONGO_URI = "mongodb://127.0.0.1:27017/labeeb",
@@ -42,6 +45,7 @@ async function buildDigestForUser(user, logger, job) {
             b.state.status === DigestGenerationStatus.IN_PROGRESS;
 
         if (shouldBeRebuilt) {
+            shouldGreetingBeRebuilt = true;
             b.state.status = DigestGenerationStatus.IN_PROGRESS;
             b.state.jobId = job?.id;
         }
@@ -68,7 +72,7 @@ async function buildDigestForUser(user, logger, job) {
         logger.log(`error updating block state ${e.message}`, owner);
     }
 
-    const promises = digest.blocks.map(async (block) => {
+    const promises = digest.blocks.map(async (block, i) => {
         const lastUpdated = block.updatedAt;
 
         const daysSinceLastUpdate = dayjs().diff(dayjs(lastUpdated), "days");
@@ -113,6 +117,30 @@ async function buildDigestForUser(user, logger, job) {
         }
 
         if (changed) {
+            // if the first block is changed, update the greeting
+            if (i === 0) {
+                const greeting = await generateDigestGreeting(
+                    user,
+                    block.content,
+                    logger,
+                );
+
+                await Digest.findOneAndUpdate(
+                    {
+                        owner,
+                    },
+                    {
+                        $set: {
+                            greeting,
+                        },
+                    },
+                    {
+                        upsert: true,
+                        new: true,
+                    },
+                );
+            }
+
             const existingBlocks = (
                 await Digest.findOne({
                     owner,
