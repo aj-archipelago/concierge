@@ -1,27 +1,22 @@
 import mongoose from "mongoose";
 import LLM from "./app/api/models/llm";
 import config from "./config/index";
+import { connectToDatabase } from "./src/db.mjs";
 
-const { MONGO_URI } = process.env;
+export async function register() {
+    if (!mongoose?.connect) return;
+    if (process.env.NEXT_RUNTIME !== "nodejs") return;
 
-export function register() {
-    mongoose
-        .connect(MONGO_URI)
-        .then(() => {
-            console.log("Connected to MongoDB");
+    await connectToDatabase();
 
-            console.log("Seeding data");
-            seed();
-        })
-        .catch((err) => {
-            console.error("Error connecting to MongoDB", err);
-        });
+    console.log("Connected to MongoDB");
+    console.log("Seeding data");
+    await seed();
 
     config.global.initialize();
 }
 
 async function seed() {
-    // seed data
     for (const llm of config.data.llms) {
         await LLM.findOneAndUpdate({ name: llm.name }, llm, { upsert: true });
     }

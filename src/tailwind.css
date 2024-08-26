@@ -3,6 +3,9 @@
 @tailwind utilities;
 
 @layer base {
+    html {
+        @apply text-gray-700;
+    }
     p {
         @apply mb-3;
     }
@@ -49,11 +52,15 @@
     }
 
     .lb-sm {
-        @apply rounded px-2.5 py-1.5 text-xs font-medium shadow-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2;
+        @apply rounded-md px-2.5 py-1.5 text-xs font-medium shadow-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2;
     }
 
     .lb-input {
-        @apply rounded-md border-gray-300 px-2.5 py-1.5 text-sm w-full text-gray-700 shadow-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-300 bg-white dark:bg-gray-50;
+        @apply border rounded-md border-gray-300 px-2.5 py-1.5 text-sm w-full text-gray-700 shadow-sm focus:ring-1 focus:ring-sky-600 focus:outline-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-300 bg-white dark:bg-neutral-100 placeholder-neutral-400 focus:border-sky-600;
+    }
+
+    .lb-radio {
+        @apply text-sky-600 focus:ring-1 focus:ring-sky-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-600;
     }
 
     .white-button {
@@ -65,6 +72,6 @@
     }
 
     .lb-select {
-        @apply text-sm block w-full border rounded-md py-1 text-gray-900 shadow-sm placeholder:text-gray-400 focus:outline-2 focus:outline-gray-300 sm:leading-6 bg-white dark:bg-zinc-100;
+        @apply text-sm block w-full border rounded-md py-1 text-gray-900 shadow-sm placeholder:text-gray-400 focus:outline-2 focus:outline-gray-300 sm:leading-6 bg-white dark:bg-zinc-100 focus:ring-1 focus:ring-sky-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2;
     }
 }

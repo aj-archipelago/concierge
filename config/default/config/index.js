@@ -5,6 +5,7 @@ import { getTosContent } from "./global/tos";
 // The entire Labeeb application can be configured here
 const basePath = process.env.NEXT_PUBLIC_BASE_PATH || "";
 
+// eslint-disable-next-line import/no-anonymous-default-export
 export default {
     global: {
         siteTitle: "Concierge",
@@ -24,6 +25,10 @@ export default {
                 isDefault: true,
             },
             {
+                name: "GPT 4o",
+                cortexPathwayName: "run_gpt4_o",
+            },
+            {
                 name: "GPT 4.0",
                 cortexPathwayName: "run_gpt4",
             },
@@ -36,8 +41,8 @@ export default {
                 cortexPathwayName: "run_claude3_haiku",
             },
             {
-                name: "Claude 3 Sonnet",
-                cortexPathwayName: "run_claude3_sonnet",
+                name: "Claude 3.5 Sonnet",
+                cortexPathwayName: "run_claude35_sonnet",
             },
             {
                 name: "Claude 3 Opus",

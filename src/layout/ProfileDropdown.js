@@ -5,7 +5,11 @@ import { LanguageContext } from "../contexts/LanguageProvider";
 import { useTranslation } from "react-i18next";
 import React from "react";
 
-export default function ProfileDropdown({ user, handleShowOptions }) {
+export default function ProfileDropdown({
+    user,
+    handleShowOptions,
+    setShowTos,
+}) {
     const { initials, name } = user;
     const { direction } = useContext(LanguageContext);
     const { t } = useTranslation();
@@ -32,7 +36,7 @@ export default function ProfileDropdown({ user, handleShowOptions }) {
                 <Menu.Items
                     className={classNames(
                         direction === "ltr" ? "right-0" : "left-0",
-                        "absolute z-10 mt-2 w-56 origin-top-right rounded-md bg-white shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none",
+                        "absolute z-10 mt-2 w-56 origin-top-right rounded-md bg-white dark:bg-gray-50 dark:border-gray-300 border shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none",
                     )}
                 >
                     <div className="py-1">
@@ -68,6 +72,32 @@ export default function ProfileDropdown({ user, handleShowOptions }) {
                                         }}
                                     >
                                         {t("Options")}
+                                    </a>
+                                </div>
+                            )}
+                        </Menu.Item>
+                    </div>
+                    <div className="py-1">
+                        <Menu.Item>
+                            {({ active }) => (
+                                <div
+                                    className={classNames(
+                                        active
+                                            ? "bg-gray-100 text-gray-900"
+                                            : "text-gray-700",
+                                    )}
+                                >
+                                    <a
+                                        className={classNames(
+                                            "block w-full px-4 py-2 text-start text-sm",
+                                        )}
+                                        href="."
+                                        onClick={(e) => {
+                                            e.preventDefault();
+                                            setShowTos(true);
+                                        }}
+                                    >
+                                        {t("Terms of Service")}
                                     </a>
                                 </div>
                             )}

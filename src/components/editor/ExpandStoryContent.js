@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { ListGroup } from "react-bootstrap";
 import { useTranslation } from "react-i18next";
 import CopyButton from "../CopyButton";
 import { getTextSuggestionsComponent } from "./TextSuggestions";
@@ -12,40 +11,39 @@ export default getTextSuggestionsComponent({
         const { t } = useTranslation();
 
         return (
-            <ListGroup style={{ marginBottom: 20 }}>
-                {value.map((question) => {
-                    return (
-                        <ListGroup.Item>
-                            <div className="absolute end-5 top-0">
-                                <CopyButton
-                                    item={`${question}\n${answers[question] || ""}`}
-                                />
-                            </div>
-                            <h6>{question}</h6>
-                            {/* eslint-disable-next-line jsx-a11y/anchor-is-valid */}
-                            <p>
-                                {!answers[question] && (
-                                    <>
+            <div className="h-full w-full overflow-y-auto border rounded-md">
+                <ul className="p-2 mb-5">
+                    {value.map((question, index) => {
+                        return (
+                            <li key={index} className="relative mb-4 last:mb-0">
+                                <div className="absolute right-2 top-0">
+                                    <CopyButton
+                                        item={`${question}\n${answers[question] || ""}`}
+                                    />
+                                </div>
+                                <h6 className="font-bold mb-2">{question}</h6>
+                                <p>
+                                    {!answers[question] && (
                                         <a
                                             className="text-sky-500 hover:text-sky-300 active:text-sky-700 hover:underline text-xs"
                                             rel="noreferrer"
                                             target="_blank"
-                                            href={`https://www.bing.com/search?q=${question}`}
+                                            href={`https://www.bing.com/search?q=${encodeURIComponent(question)}`}
                                         >
                                             {t("Ask Bing")}
                                         </a>
-                                    </>
+                                    )}
+                                </p>
+                                {answers[question] && (
+                                    <div>
+                                        <p>{answers[question]}</p>
+                                    </div>
                                 )}
-                            </p>
-                            {answers[question] && (
-                                <div>
-                                    <p>{answers[question]}</p>
-                                </div>
-                            )}
-                        </ListGroup.Item>
-                    );
-                })}
-            </ListGroup>
+                            </li>
+                        );
+                    })}
+                </ul>
+            </div>
         );
     },
 });

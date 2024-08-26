@@ -1,13 +1,12 @@
 "use client";
 
 import i18next from "i18next";
-import { useState } from "react";
-import { Modal } from "react-bootstrap";
+import { useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import config from "../../config";
+import { Modal } from "@/components/ui/modal";
 
-const Tos = () => {
-    const [showTos, setShowTos] = useState(true);
+const Tos = ({ showTos, setShowTos }) => {
     const { getLogo, getTosContent } = config.global;
     const { language } = i18next;
     const { t } = useTranslation();
@@ -19,6 +18,11 @@ const Tos = () => {
         const rightNow = new Date(Date.now());
         localStorage.setItem("cortexWebShowTos", rightNow.toString());
     };
+
+    useEffect(() => {
+        const shouldShowTos = checkShowTos();
+        setShowTos(shouldShowTos);
+    }, [setShowTos]);
 
     const checkShowTos = () => {
         const acceptDateString =
@@ -42,23 +46,24 @@ const Tos = () => {
     };
 
     return (
-        <Modal dialogClassName="tos" show={showTos && checkShowTos()}>
-            <Modal.Header>
-                <Modal.Title>{t("Terms of Service")}</Modal.Title>
-            </Modal.Header>
-            <Modal.Body>
+        <Modal
+            dialogClassName="tos"
+            show={showTos}
+            title={t("Terms of Service")}
+        >
+            <div overflow="auto">
                 <div className="alert-content">
                     <div className="alert-logo">
                         <img src={logo} height="40px" alt="alert logo" />
                     </div>
                     <div className="alert-text">{tosContent}</div>
                 </div>
-            </Modal.Body>
-            <Modal.Footer>
-                <button className="lb-primary" onClick={handleTosClose}>
-                    {t("I Accept")}
-                </button>
-            </Modal.Footer>
+                <div className="flex justify-end mt-4">
+                    <button className="lb-primary" onClick={handleTosClose}>
+                        {t("I Accept")}
+                    </button>
+                </div>
+            </div>
         </Modal>
     );
 };

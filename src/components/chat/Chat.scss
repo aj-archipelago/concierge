@@ -21,7 +21,6 @@ $popover-border-color: #cccccc;
     .popover-header {
         background-color: darken($popover-bg-color, 10%);
         color: $popover-color;
-        padding: 0.5rem $spacer;
     }
     .popover-link {
         a {
@@ -81,12 +80,6 @@ html[dir="rtl"] {
         }
     }
 
-    .message-input-send {
-        svg {
-            transform: scale(-1, 1);
-        }
-    }
-
     .chatbox-floating-closed {
         left: 0;
     }
@@ -127,8 +120,6 @@ html[dir="ltr"] {
 
     .chatbox-floating-title {
         font-size: 0.8rem;
-        border-start-start-radius: $border-radius;
-        border-start-end-radius: $border-radius;
         padding: 15px;
 
         &-text {
@@ -163,10 +154,8 @@ html[dir="ltr"] {
         font-size: 0.6rem;
 
         button {
-            border: 1px solid $border-color;
+            border: 1px solid;
             border-inline-end: none;
-            border-start-start-radius: $border-radius;
-            border-end-start-radius: $border-radius;
             background: 0;
             padding: 10px;
             color: #666;
@@ -181,8 +170,8 @@ html[dir="ltr"] {
     }
 
     &-opened {
-        border-top: 1px solid $border-color;
-        border-inline-start: 1px solid $border-color;
+        border-top: 1px solid;
+        border-inline-start: 1px solid;
         position: fixed;
         bottom: 0;
     }
@@ -240,7 +229,7 @@ html[dir="ltr"] {
         }
 
         // .message-list-container {
-        //   border-inline-start: 1px solid $border-color;
+        //   border-inline-start: 1px solid;
         // }
     }
 
@@ -402,21 +391,6 @@ html[dir="ltr"] {
     overflow-y: auto;
 }
 
-.typing-indicator {
-    display: inline-block;
-    position: relative;
-    font-size: 0.7rem;
-    color: $gray-500;
-    margin-top: 10px;
-    padding: 5px 20px;
-    width: 100%;
-}
-
-.typing-indicator::after {
-    content: "";
-    animation: typing 1s infinite;
-}
-
 @keyframes typing {
     0% {
         content: "";
@@ -470,46 +444,13 @@ html[dir="ltr"] {
     }
 }
 
-.message-input-textarea {
-    resize: none;
-    background-color: #eee;
-    padding: 20px;
-    padding-inline-end: 0;
-    border-end-start-radius: $border-radius;
-    border: 0;
-    width: 100%;
-    font-size: 15px;
-
-    &:focus,
-    &:focus-visible {
-        outline: none;
-        border: 0;
-        box-shadow: none;
-    }
-}
-
 .message-input-icon {
-    border-end-start-radius: $border-radius;
     padding: 15px 20px 0 20px;
     background-color: #eee;
 
     img {
         height: 36px;
     }
-}
-
-.message-input-send,
-.message-input-icon,
-.message-input-textarea,
-.message-input-textarea:focus-visible {
-}
-
-.message-input-send {
-    padding: 20px 20px;
-    width: 60px;
-    background-color: #eee;
-    border-radius: 0;
-    border-end-end-radius: $border-radius;
 }
 
 .chat-message-container-labeeb {

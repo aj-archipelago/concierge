@@ -38,8 +38,8 @@ export default function WorkspaceActions({ idOrSlug, user }) {
     return (
         <div>
             <div className="flex gap-4 justify-between mb-4">
-                <div className="flex gap-3">
-                    <div>
+                <div className="flex gap-4 grow overflow-auto">
+                    <div className="hidden sm:block">
                         <button
                             className="lb-outline-secondary"
                             onClick={() => router.push("/workspaces")}
@@ -51,10 +51,17 @@ export default function WorkspaceActions({ idOrSlug, user }) {
                             )}
                         </button>
                     </div>
-                    <Name workspace={workspace} user={user} />
+                    <div className="overflow-hidden hidden sm:block">
+                        <Name workspace={workspace} user={user} />
+                    </div>
+                    <div className="block sm:hidden">
+                        <h4 className="font-medium">{workspace?.name}</h4>
+                    </div>
                 </div>
 
-                <Actions workspace={workspace} user={user} />
+                <div className="hidden sm:block">
+                    <Actions workspace={workspace} user={user} />
+                </div>
             </div>
         </div>
     );
@@ -144,7 +151,7 @@ function Name({ workspace, user }) {
                         <input
                             autoFocus
                             type="text"
-                            className="border-0 ring-1 w-full bg-gray-50 p-0 font-medium text-xl "
+                            className="border-0 ring-1 w-full text-sm sm:text-base bg-gray-50 p-0 font-medium text-xl "
                             value={name}
                             onChange={(e) => {
                                 setName(e.target.value);
@@ -159,14 +166,14 @@ function Name({ workspace, user }) {
                             }}
                         />
                     </div>
-                    <div className="text-sm flex items-center" dir="ltr">
-                        <div className=" flex gap-2 items-center text-gray-500">
+                    <div className=" flex items-center" dir="ltr">
+                        <div className=" flex gap-2 text-xs sm:text-sm items-center text-gray-500">
                             <FaLink />
                             {serverContext?.serverUrl}/workspaces/
                         </div>
                         <input
                             type="text"
-                            className="border-0 ring-1 bg-gray-50 p-0 text-sm "
+                            className="border-0 ring-1 text-xs sm:text-sm bg-gray-50 p-0 text-sm "
                             value={slug}
                             onChange={(e) => {
                                 setSlug(e.target.value);
@@ -223,7 +230,7 @@ function Name({ workspace, user }) {
                     >
                         {name}
                     </h1>
-                    <div className="text-sm flex gap-2 items-center text-gray-400 relative">
+                    <div className="text-xs sm:text-sm flex gap-2 items-center text-gray-400 relative">
                         <button
                             onClick={(e) => {
                                 e.stopPropagation();

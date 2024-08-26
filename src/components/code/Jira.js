@@ -2,10 +2,11 @@
 
 import { useQuery } from "@apollo/client";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useContext, useEffect, useState } from "react";
 import { QUERIES } from "../../graphql";
 import LoadingButton from "../editor/LoadingButton";
 import { useTranslation } from "react-i18next";
+import { AuthContext } from "../../App";
 
 export default function Jira() {
     const [prompt, setPrompt] = useState("");
@@ -13,6 +14,7 @@ export default function Jira() {
     const [storyCount, setStoryCount] = useState("one");
     const router = useRouter();
     const { t } = useTranslation();
+    const { userState, debouncedUpdateUserState } = useContext(AuthContext);
 
     const variables = {
         text: prompt,
@@ -27,10 +29,10 @@ export default function Jira() {
     });
 
     useEffect(() => {
-        if (typeof sessionStorage !== "undefined") {
-            setText(sessionStorage.getItem("jira_story_text") || "");
+        if (userState?.jira?.input) {
+            setText(userState.jira.input);
         }
-    }, []);
+    }, [userState]);
 
     useEffect(() => {
         if (data?.jira_story?.result) {
@@ -59,10 +61,9 @@ export default function Jira() {
                         value={text}
                         onChange={(e) => {
                             setText(e.target.value);
-                            sessionStorage.setItem(
-                                "jira_story_text",
-                                e.target.value,
-                            );
+                            debouncedUpdateUserState({
+                                jira: { input: e.target.value },
+                            });
                         }}
                     />
                     <div className="flex gap-2 items-center">
@@ -96,7 +97,7 @@ export default function Jira() {
                             </select>
                         </div>
                     </div>
-                    {/* <div className="rounded bg-gray-50 p-3 text-sm">
+                    {/* <div className="rounded-md bg-gray-50 p-3 text-sm">
                             {ticketTypes[storyType]}
                         </div> */}
                     <div className="mb-6">

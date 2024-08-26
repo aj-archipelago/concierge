@@ -1,7 +1,8 @@
 import { useLazyQuery } from "@apollo/client";
 import { Popover, Transition } from "@headlessui/react";
+import clsx from "clsx";
+import { Loader2Icon } from "lucide-react";
 import { Fragment, useContext } from "react";
-import { Form, ListGroup, Spinner } from "react-bootstrap";
 import { useTranslation } from "react-i18next";
 import { AiOutlineClose } from "react-icons/ai";
 import {
@@ -13,16 +14,15 @@ import {
 import { FiSettings } from "react-icons/fi";
 import { IoIosTrash } from "react-icons/io";
 import { useDispatch, useSelector } from "react-redux";
-import config from "../../../config";
-import { COGNITIVE_DELETE } from "../../graphql";
 import {
-    addSource,
-    removeDoc,
-    removeDocs,
-    removeSource,
-} from "../../stores/docSlice";
-import FileUploadComponent from "./FileUploadComponent";
+    useDeleteAllDocuments,
+    useDeleteDocument,
+} from "../../../app/queries/uploadedDocs";
+import config from "../../../config";
 import { AuthContext } from "../../App";
+import { COGNITIVE_DELETE } from "../../graphql";
+import { addSource, removeSource } from "../../stores/docSlice";
+import FileUploadComponent from "./FileUploadComponent";
 
 export const dataSources = [
     {
@@ -52,11 +52,15 @@ function getFileIcon(filename) {
 export default function DocOptions() {
     const dispatch = useDispatch();
     const { t } = useTranslation();
-    const docs = useSelector((state) => state.doc.docs);
     const selectedSources =
         useSelector((state) => state.doc.selectedSources) || [];
     const { user } = useContext(AuthContext);
+    const docs = user?.uploadedDocs;
     const contextId = user?.contextId;
+
+    const deleteDocument = useDeleteDocument();
+    const deleteAllDocuments = useDeleteAllDocuments();
+
     // check if selectedSources include mydata
     const mydataSelected = useSelector(
         (state) => state.doc.selectedSources,
@@ -90,7 +94,7 @@ export default function DocOptions() {
 
     const handleDelete = (id) => {
         cognitiveDelete({ variables: { contextId, docId: id } });
-        dispatch(removeDoc(id));
+        deleteDocument.mutateAsync({ docId: id });
     };
     return (
         <Popover className="relative">
@@ -113,7 +117,7 @@ export default function DocOptions() {
                         leaveTo="opacity-0 translate-y-1"
                     >
                         <Popover.Panel className="absolute left-0 z-10 -translate-y-full transform lg:max-w-3xl">
-                            <div className="overflow-hidden rounded shadow-lg ring-1 ring-black/5 w-64 text-sm">
+                            <div className="overflow-hidden rounded-md shadow-lg ring-1 ring-black/5 w-64 text-sm">
                                 <div className="relative grid gap-4 bg-white p-4 overflow-auto">
                                     <button
                                         onClick={() => close()}
@@ -136,15 +140,21 @@ export default function DocOptions() {
                                                     }
                                                     key={source.key}
                                                 >
-                                                    <Form.Check
+                                                    <input
                                                         type="checkbox"
                                                         className="flex gap-2 items-center"
                                                         checked={selectedSources.includes(
                                                             source.key,
                                                         )}
                                                         readOnly
-                                                        label={t(source.name)}
+                                                        id={source.key}
                                                     />
+                                                    <label
+                                                        className="cursor-pointer"
+                                                        htmlFor={source.key}
+                                                    >
+                                                        {t(source.name)}
+                                                    </label>
                                                 </div>
                                             ))}
                                         </div>
@@ -171,9 +181,7 @@ export default function DocOptions() {
                                                                     contextId,
                                                                 },
                                                             });
-                                                            dispatch(
-                                                                removeDocs(),
-                                                            );
+                                                            deleteAllDocuments.mutateAsync();
                                                         }}
                                                     >
                                                         {t(
@@ -197,23 +205,24 @@ export default function DocOptions() {
                                                 </div>
                                             </div>
                                             {docs?.length > 0 && (
-                                                <ListGroup
+                                                <ul
                                                     style={{
                                                         display: "block",
                                                         overflow: "auto",
                                                         maxHeight: "200px",
                                                         overflowY: "auto",
                                                     }}
+                                                    className="border rounded-md p-2"
                                                 >
                                                     {docs.map(
                                                         ({
                                                             docId: id,
                                                             filename,
                                                         }) => (
-                                                            <ListGroup.Item
+                                                            <li
                                                                 as="div"
                                                                 key={id}
-                                                                className="d-flex justify-content-between align-items-center"
+                                                                className="flex justify-between items-center"
                                                                 style={{
                                                                     marginRight:
                                                                         "5px",
@@ -276,10 +285,10 @@ export default function DocOptions() {
                                                                 >
                                                                     <IoIosTrash />
                                                                 </button>
-                                                            </ListGroup.Item>
+                                                            </li>
                                                         ),
                                                     )}
-                                                </ListGroup>
+                                                </ul>
                                             )}
                                             <div
                                                 style={{
@@ -298,20 +307,20 @@ export default function DocOptions() {
                                                     </div>
                                                 ) : (
                                                     <>
-                                                        <Spinner
+                                                        <Loader2Icon
+                                                            className={clsx(
+                                                                "animate-spin",
+                                                                !loadingCD &&
+                                                                    !mainPaneIndexerLoading &&
+                                                                    !fileUploaderLoading
+                                                                    ? "hidden"
+                                                                    : "",
+                                                            )}
                                                             style={{
                                                                 position:
                                                                     "relative",
                                                                 top: "-2px",
                                                             }}
-                                                            animation="border"
-                                                            size="sm"
-                                                            role="status"
-                                                            hidden={
-                                                                !loadingCD &&
-                                                                !mainPaneIndexerLoading &&
-                                                                !fileUploaderLoading
-                                                            }
                                                         />
                                                         {(mainPaneIndexerLoading ||
                                                             fileUploaderLoading) && (

@@ -1,6 +1,5 @@
 import "highlight.js/styles/github.css";
 import { useContext, useState } from "react";
-import { Form } from "react-bootstrap";
 import { RiSendPlane2Fill } from "react-icons/ri";
 import TextareaAutosize from "react-textarea-autosize";
 import classNames from "../../../app/utils/class-names";
@@ -9,7 +8,7 @@ import { v4 as uuidv4 } from "uuid";
 import { useApolloClient } from "@apollo/client";
 import { COGNITIVE_INSERT } from "../../graphql";
 import { useDispatch } from "react-redux";
-import { addDoc, addSource } from "../../stores/docSlice";
+import { addSource } from "../../stores/docSlice";
 import {
     setFileLoading,
     clearFileLoading,
@@ -19,13 +18,21 @@ import { FaFileCirclePlus } from "react-icons/fa6";
 import { IoCloseCircle } from "react-icons/io5";
 import { isDocumentUrl, isMediaUrl } from "./MyFilePond";
 import { AuthContext } from "../../App";
+import { useAddDocument } from "../../../app/queries/uploadedDocs";
+import { useGetActiveChatId } from "../../../app/queries/chats";
 
 const DynamicFilepond = dynamic(() => import("./MyFilePond"), {
     ssr: false,
 });
 
 // Displays the list of messages and a message input box.
-function MessageInput({ onSend, loading, enableRag, placeholder }) {
+function MessageInput({
+    onSend,
+    loading,
+    enableRag,
+    placeholder,
+    viewingReadOnlyChat,
+}) {
     const [inputValue, setInputValue] = useState("");
     const [urlsData, setUrlsData] = useState([]);
     const [files, setFiles] = useState([]);
@@ -35,10 +42,11 @@ function MessageInput({ onSend, loading, enableRag, placeholder }) {
     const contextId = user?.contextId;
     const dispatch = useDispatch();
     const [isUploadingMedia, setIsUploadingMedia] = useState(false);
-
+    const addDocument = useAddDocument();
     const handleInputChange = (event) => {
         setInputValue(event.target.value);
     };
+    const activeChatId = useGetActiveChatId();
 
     const prepareMessage = (inputText) => {
         return [
@@ -84,11 +92,14 @@ function MessageInput({ onSend, loading, enableRag, placeholder }) {
                 const filename = url
                     .split("/")
                     .pop()
+                    .split("?")[0]
                     .split("_")
                     .slice(1)
                     .join("_");
 
                 dispatch(setFileLoading());
+
+                console.log("Cognitive insert", activeChatId);
 
                 client
                     .query({
@@ -98,12 +109,17 @@ function MessageInput({ onSend, loading, enableRag, placeholder }) {
                             privateData: true,
                             contextId,
                             docId,
+                            chatId: activeChatId,
                         },
                         fetchPolicy: "network-only",
                     })
                     .then(() => {
                         // completed successfully
-                        dispatch(addDoc({ docId, filename }));
+                        addDocument.mutateAsync({
+                            docId,
+                            filename,
+                            chatId: activeChatId,
+                        });
                         dispatch(addSource("mydata"));
                         dispatch(clearFileLoading());
                     })
@@ -121,8 +137,9 @@ function MessageInput({ onSend, loading, enableRag, placeholder }) {
         if (isDocumentUrl(url)) {
             fetchData(url);
         } else {
+            //media urls, 'll be sent with active message
             if (isMediaUrl(url)) {
-                setUrlsData([...urlsData, urlData]); //rest of it: images
+                setUrlsData((prevUrlsData) => [...prevUrlsData, urlData]);
             }
         }
     };
@@ -137,13 +154,13 @@ function MessageInput({ onSend, loading, enableRag, placeholder }) {
                     setIsUploadingMedia={setIsUploadingMedia}
                 />
             )}
-            <div className="rounded border dark:border-zinc-200">
-                <Form
+            <div className="rounded-md border dark:border-zinc-200">
+                <form
                     onSubmit={handleFormSubmit}
-                    className="flex items-center rounded dark:bg-zinc-100"
+                    className="flex items-center rounded-md dark:bg-zinc-100"
                 >
                     {enableRag && (
-                        <div className="rounded-s pt-3.5 ps-4 pe-3 dark:bg-zinc-100 self-stretch flex">
+                        <div className="rounded-s pt-4 [.docked_&]:pt-3.5 ps-4 pe-3 dark:bg-zinc-100 self-stretch flex">
                             {!showFileUpload ? (
                                 <FaFileCirclePlus
                                     onClick={() =>
@@ -179,9 +196,11 @@ function MessageInput({ onSend, loading, enableRag, placeholder }) {
                                 placeholder={placeholder || "Send a message"}
                                 value={inputValue}
                                 onChange={handleInputChange}
-                                autoComplete="off"
-                                autoCapitalize="off"
-                                autoCorrect="off"
+                                autoComplete="on"
+                                autoCapitalize="sentences"
+                                autoCorrect="on"
+                                spellCheck="true"
+                                inputMode="text"
                             />
                         </div>
                     </div>
@@ -192,7 +211,8 @@ function MessageInput({ onSend, loading, enableRag, placeholder }) {
                                 disabled={
                                     loading ||
                                     inputValue === "" ||
-                                    isUploadingMedia
+                                    isUploadingMedia ||
+                                    viewingReadOnlyChat
                                 }
                                 className={classNames(
                                     "text-base rtl:rotate-180 text-emerald-600 hover:text-emerald-600 disabled:text-gray-300 active:text-gray-800 dark:bg-zinc-100",
@@ -202,7 +222,7 @@ function MessageInput({ onSend, loading, enableRag, placeholder }) {
                             </button>
                         </div>
                     </div>
-                </Form>
+                </form>
             </div>
         </div>
     );

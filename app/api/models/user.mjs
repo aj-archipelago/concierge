@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import uploadedDocsSchema from "./uploaded-docs.mjs";
 
 // Define the User schema
 const userSchema = new mongoose.Schema(
@@ -7,19 +8,19 @@ const userSchema = new mongoose.Schema(
             type: String,
             required: true,
             unique: true,
-            trim: true, // Trims whitespace from the userId
+            trim: true,
         },
         username: {
             type: String,
             required: true,
             unique: true,
-            trim: true, // Trims whitespace from the username
-            minlength: 3, // Minimum length of the username
+            trim: true,
+            minlength: 3,
         },
         name: {
             type: String,
             required: true,
-            trim: true, // Trims whitespace from the name
+            trim: true,
         },
         aiMemorySelfModify: {
             type: Boolean,
@@ -31,11 +32,34 @@ const userSchema = new mongoose.Schema(
             required: true,
             trim: true,
         },
-        aiMemory: {
+        aiName: {
             type: String,
             required: false,
-            trim: true,
-            default: "{}",
+            default: "Labeeb",
+        },
+        aiStyle: {
+            type: String,
+            required: true,
+            default: "OpenAI",
+        },
+        uploadedDocs: {
+            type: [uploadedDocsSchema],
+            required: false,
+            default: [],
+        },
+        recentChatIds: {
+            type: [mongoose.Schema.Types.ObjectId],
+            ref: "Chat",
+            required: false,
+        },
+        activeChatId: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "Chat",
+            required: false,
+        },
+        lastActiveAt: {
+            type: Date,
+            required: false,
         },
     },
     {

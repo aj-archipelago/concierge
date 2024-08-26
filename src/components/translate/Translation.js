@@ -1,9 +1,11 @@
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useApolloClient } from "@apollo/client";
 import { useRouter } from "next/navigation";
 import { useContext, useState } from "react";
-import { Form } from "react-bootstrap";
 import { useTranslation } from "react-i18next";
 import { FaChevronLeft, FaChevronRight } from "react-icons/fa";
+import classNames from "../../../app/utils/class-names";
+import { AuthContext } from "../../App";
 import { LanguageContext } from "../../contexts/LanguageProvider";
 import { QUERIES } from "../../graphql";
 import { stripHTML } from "../../utils/html.utils";
@@ -19,6 +21,7 @@ const LANGUAGE_NAMES = {
     hr: "Croatian",
     zh: "Chinese",
     de: "German",
+    he: "Hebrew",
     it: "Italian",
     ja: "Japanese",
     ko: "Korean",
@@ -37,14 +40,30 @@ function Translation({
     setTranslationInputText,
     setTranslationLanguage,
     setTranslationStrategy,
-    setWriteInputText,
     showEditLink = false,
 }) {
     const { t } = useTranslation();
     const [loading, setLoading] = useState(false);
     const router = useRouter();
     const apolloClient = useApolloClient();
-    const { language } = useContext(LanguageContext);
+    const { language, direction } = useContext(LanguageContext);
+    const [activeTab, setActiveTab] = useState("input");
+    const { debouncedUpdateUserState } = useContext(AuthContext);
+
+    const tabs = [
+        {
+            value: "input",
+            label: t("Input"),
+        },
+        {
+            value: "output",
+            label: t("Output"),
+        },
+    ];
+
+    if (direction === "rtl") {
+        tabs.reverse();
+    }
 
     const executeTranslation = (strategy, inputText, to) => {
         let query;
@@ -56,18 +75,23 @@ function Translation({
                 resultKey = "translate_gpt4";
                 to = LANGUAGE_NAMES[to];
                 break;
-            case "GPT-3.5-TURBO":
-                query = QUERIES.TRANSLATE_TURBO;
-                resultKey = "translate_turbo";
+            case "GPT-4-OMNI":
+                query = QUERIES.TRANSLATE_GPT4_OMNI;
+                resultKey = "translate_gpt4_omni";
                 to = LANGUAGE_NAMES[to];
                 break;
             case "traditional":
                 query = QUERIES.TRANSLATE_AZURE;
                 resultKey = "translate_azure";
                 break;
+            case "subtitle":
+                query = QUERIES.TRANSLATE_SUBTITLE;
+                resultKey = "translate_subtitle";
+                to = LANGUAGE_NAMES[to];
+                break;
             default:
-                query = QUERIES.TRANSLATE_GPT4;
-                resultKey = "translate_gpt4";
+                query = QUERIES.TRANSLATE_GPT4_OMNI;
+                resultKey = "translate_gpt4_omni";
                 to = LANGUAGE_NAMES[to];
                 break;
         }
@@ -83,6 +107,7 @@ function Translation({
             .then((e) => {
                 setLoading(false);
                 setTranslatedText(e.data[resultKey].result.trim());
+                setActiveTab("output");
             })
             .catch((e) => {
                 setLoading(false);
@@ -94,72 +119,61 @@ function Translation({
     };
 
     return (
-        <div className="flex flex-col h-full gap-2">
-            <Form.Group>
-                <div className="flex gap-2 items-center">
-                    <div className="basis-1/2 flex gap-2 items-center">
-                        {/* <div style={{ display: 'flex', fontSize: '0.9em', alignItems: 'center', justifyContent: 'space-between', marginBottom: 5 }}> */}
-                        <span style={{ fontSize: "0.9em" }}>
+        <div className="flex flex-col h-full gap-4">
+            <div className="flex flex-col gap-2">
+                <div className="flex flex-col sm:flex-row gap-2 items-center">
+                    <div className="flex-1 flex gap-2 items-center justify-between w-full">
+                        <span className="text-sm whitespace-nowrap">
                             {t("Translate to")}
                         </span>
                         &nbsp;&nbsp;
-                        {/* </div> */}
-                        <Form.Select
-                            size="sm"
+                        <select
+                            className="lb-select"
                             id="translateLanguageSelect"
                             name="language"
-                            style={{ flex: 1 }}
                             value={translationLanguage}
                             onChange={(e) => {
                                 const language = e.target.value;
                                 setTranslationLanguage(language);
-                                setTranslatedText("");
                             }}
                         >
-                            <option value="en">{t("English")}</option>
-                            <option value="ar">{t("Arabic")}</option>
-                            <option value="bs">{t("Bosnian")}</option>
-                            <option value="zh">{t("Chinese")}</option>
-                            <option value="hr">{t("Croatian")}</option>
-                            <option value="fr">{t("French")}</option>
-                            <option value="de">{t("German")}</option>
-                            <option value="it">{t("Italian")}</option>
-                            <option value="ja">{t("Japanese")}</option>
-                            <option value="ko">{t("Korean")}</option>
-                            <option value="pt">{t("Portuguese")}</option>
-                            <option value="ru">{t("Russian")}</option>
-                            <option value="sr">{t("Serbian")}</option>
-                            <option value="es">{t("Spanish")}</option>
-                            <option value="tr">{t("Turkish")}</option>
-                        </Form.Select>
+                            {Object.entries(LANGUAGE_NAMES).map(
+                                ([code, name]) => (
+                                    <option key={code} value={code}>
+                                        {t(name)}
+                                    </option>
+                                ),
+                            )}
+                        </select>
                     </div>
-                    <div className="flex gap-2 basis-1/2 items-center">
-                        <Form.Select
-                            size="sm"
+                    <div className="flex-1 flex gap-2 items-center justify-between w-full">
+                        <select
+                            className="lb-select"
                             name="strategy"
                             id="translateStrategySelect"
-                            style={{ flex: 1 }}
                             value={translationStrategy}
                             onChange={(e) => {
                                 const strategy = e.target.value;
                                 setTranslationStrategy(strategy);
-                                setTranslatedText("");
                             }}
                         >
-                            <option value="GPT-4">
-                                {t("Best Quality (GPT-4)")}
+                            <option value="GPT-4-OMNI">
+                                {t("Fast, High Quality (GPT-4-OMNI)")}
                             </option>
-                            <option value="GPT-3.5-TURBO">
-                                {t("Faster (GPT-3.5-TURBO)")}
+                            <option value="GPT-4">
+                                {t("Slower, Reliable (GPT-4)")}
                             </option>
                             <option value="traditional">
                                 {t("Fastest (Azure)")}
                             </option>
-                        </Form.Select>
+                            {/* <option value="subtitle">
+                                {t("Subtitle Translation (SRT)")}
+                            </option> */}
+                        </select>
                         <LoadingButton
                             disabled={!inputText || inputText.length === 0}
                             loading={loading}
-                            className="lb-sm lb-primary"
+                            className="lb-primary"
                             text={t("Translating")}
                             onClick={() => {
                                 setLoading(true);
@@ -174,80 +188,103 @@ function Translation({
                         </LoadingButton>
                     </div>
                 </div>
-            </Form.Group>
-            <div className="grow">
-                <div className="flex gap-2 h-full">
-                    <div style={{ flex: 1 }}>
-                        <Form.Group
-                            style={{ marginBottom: 10, height: "100%" }}
+            </div>
+
+            <Tabs
+                className="w-full flex flex-col gap-2 grow"
+                value={activeTab}
+                onValueChange={(value) => setActiveTab(value)}
+            >
+                <TabsList className="w-full block sm:hidden">
+                    {tabs.map((tab) => (
+                        <TabsTrigger
+                            key={tab.value}
+                            value={tab.value}
+                            className="w-1/2"
                         >
-                            <Form.Control
-                                as="textarea"
-                                style={{
-                                    resize: "none",
-                                    direction: "auto",
-                                    fontSize: "0.75em",
-                                    height: "100%",
-                                }}
-                                dir="auto"
-                                rows={10}
-                                value={inputText}
-                                onChange={(e) =>
-                                    setTranslationInputText(e.target.value)
-                                }
-                            />
-                        </Form.Group>
+                            {tab.label}
+                        </TabsTrigger>
+                    ))}
+                </TabsList>
+                <div className="flex-1 flex gap-2 grow">
+                    <div
+                        className={classNames(
+                            "flex-1",
+                            activeTab === "input" ? "block" : "hidden sm:block",
+                        )}
+                    >
+                        <textarea
+                            className="lb-input w-full h-full p-2 border border-gray-300 rounded-md resize-none"
+                            dir="auto"
+                            disabled={loading}
+                            rows={10}
+                            placeholder={t("Enter text to translate...")}
+                            value={inputText}
+                            onChange={(e) =>
+                                setTranslationInputText(e.target.value)
+                            }
+                        />
                     </div>
-                    <div style={{ flex: 1, position: "relative" }}>
-                        <Form.Group
-                            dir={translationLanguage === "ar" ? "rtl" : "ltr"}
-                            style={{
-                                marginBottom: 10,
-                                position: "relative",
-                                height: "100%",
-                            }}
+                    <div
+                        className={classNames(
+                            activeTab === "output"
+                                ? "block"
+                                : "hidden sm:block",
+                            "flex-1 relative",
+                        )}
+                    >
+                        <div
+                            className={`h-full relative rounded-md ${translationLanguage === "ar" ? "rtl" : "ltr"}`}
                         >
                             {translatedText && (
-                                <CopyButton
-                                    item={translatedText}
-                                    style={{
-                                        position: "absolute",
-                                        right: 2,
-                                        top: 5,
-                                    }}
-                                    variant="opaque"
-                                />
+                                <div
+                                    className={classNames(
+                                        "absolute top-1 flex gap-1 items-center",
+                                        translationLanguage === "ar"
+                                            ? "start-7"
+                                            : "end-1",
+                                    )}
+                                >
+                                    <CopyButton item={translatedText} />
+                                </div>
                             )}
-                            <Form.Control
-                                readOnly={true}
-                                as="textarea"
-                                className="translated-text"
+                            <textarea
+                                readOnly
+                                className="w-full h-full lb-input p-2 border border-gray-300 rounded-md resize-none bg-gray-100"
                                 dir="auto"
+                                placeholder={t(
+                                    "Translation will appear here...",
+                                )}
                                 rows={10}
                                 value={translatedText}
                             />
-                            {showEditLink && translatedText && (
-                                <button
-                                    className="start-editing-button flex gap-3 items-center"
-                                    onClick={(e) => {
-                                        setWriteInputText(translatedText);
-                                        router.push("/write");
-                                    }}
-                                >
-                                    {t("Start editing")}{" "}
-                                    <span>
-                                        {language === "ar" ? (
-                                            <FaChevronLeft />
-                                        ) : (
-                                            <FaChevronRight />
-                                        )}
-                                    </span>
-                                </button>
-                            )}
-                        </Form.Group>
+                        </div>
+
+                        {showEditLink && translatedText && (
+                            <button
+                                className="flex gap-2 items-center absolute bottom-1 p-2 px-14 bg-gray-200 border border-gray-300 border-l-0 border-b-0 rounded-bl rounded-br hover:bg-gray-300 active:bg-gray-400"
+                                onClick={() => {
+                                    debouncedUpdateUserState({
+                                        write: {
+                                            text: translatedText,
+                                        },
+                                    });
+                                    router.push("/write");
+                                }}
+                            >
+                                {t("Start editing")}
+                                <span>
+                                    {language === "ar" ? (
+                                        <FaChevronLeft />
+                                    ) : (
+                                        <FaChevronRight />
+                                    )}
+                                </span>
+                            </button>
+                        )}
                     </div>
                 </div>
-            </div>
+            </Tabs>
         </div>
     );
 }

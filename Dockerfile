@@ -1,15 +1,12 @@
-FROM node:18-alpine AS base
+FROM ubuntu:20.04 AS base
 
-# Install dependencies only when needed
+RUN apt-get update && apt-get install -y curl
+RUN curl -fsSL https://deb.nodesource.com/setup_18.x | bash -
+RUN apt-get install -y nodejs
+
 FROM base AS deps
-# Check https://github.com/nodejs/docker-node/tree/b4117f9333da4138b03a546ec926ef50a31506c3#nodealpine to understand why libc6-compat might be needed.
-RUN apk add --no-cache libc6-compat
 WORKDIR /app
 
-RUN apk add --update python3 make g++\
-   && rm -rf /var/cache/apk/*
-
-# Install dependencies based on the preferred package manager
 COPY package.json yarn.lock* package-lock.json* pnpm-lock.yaml* ./
 RUN \
   if [ -f yarn.lock ]; then yarn --frozen-lockfile; \
@@ -17,34 +14,16 @@ RUN \
   elif [ -f pnpm-lock.yaml ]; then yarn global add pnpm && pnpm i --frozen-lockfile; \
   else echo "Lockfile not found." && exit 1; \
   fi
-RUN  cat /root/.npm/_logs/* 
 
-# COPY sshd_config /etc/ssh/
-# COPY entrypoint.sh ./
-
-# # Add SSH and expose the SSH port
-# RUN apk add openssh \
-#     && echo "root:Docker!" | chpasswd \
-#     && chmod +x ./entrypoint.sh \
-#     && cd /etc/ssh/ \
-#     && ssh-keygen -A
-
-# EXPOSE 8000 2222
-
-# ENTRYPOINT [ "./entrypoint.sh" ]
-
-# Rebuild the source code only when needed
 FROM base AS builder
 WORKDIR /app
+RUN apt-get update && apt-get install -y python3 make g++ \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
+
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-
-# Next.js collects completely anonymous telemetry data about general usage.
-# Learn more here: https://nextjs.org/telemetry
-# Uncomment the following line in case you want to disable telemetry during the build.
 ENV NEXT_TELEMETRY_DISABLED 1
 
-# read args and set env variables
 ARG CORTEX_GRAPHQL_API_URL
 ENV CORTEX_GRAPHQL_API_URL=$CORTEX_GRAPHQL_API_URL
 ARG CORTEX_MEDIA_API_URL
@@ -58,36 +37,32 @@ ENV NEXT_PUBLIC_BASE_PATH=$NEXT_PUBLIC_BASE_PATH
 
 RUN npm run build --legacy-peer-deps
 
-# Production image, copy all the files and run next
 FROM base AS runner
 WORKDIR /app
-
 ENV NODE_ENV production
-# Uncomment the following line in case you want to disable telemetry during runtime.
-# ENV NEXT_TELEMETRY_DISABLED 1
 
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
 
 COPY --from=builder /app/public ./public
-
-# Set the correct permission for prerender cache
-RUN mkdir .next
-RUN chown nextjs:nodejs .next
-
-# Automatically leverage output traces to reduce image size
-# https://nextjs.org/docs/advanced-features/output-file-tracing
+RUN mkdir .next && chown nextjs:nodejs .next
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 
+RUN apt-get update && apt-get install -y curl libssl1.1 \
+    && curl -O https://downloads.mongodb.com/linux/mongo_crypt_shared_v1-linux-x86_64-enterprise-ubuntu2004-7.0.12.tgz \
+    && mkdir -p /app/mongo_crypt_lib \
+    && tar -xvf mongo_crypt_shared_v1-linux-x86_64-enterprise-ubuntu2004-7.0.12.tgz -C /app/mongo_crypt_lib --strip-components=1 \
+    && rm mongo_crypt_shared_v1-linux-x86_64-enterprise-ubuntu2004-7.0.12.tgz \
+    && chown -R nextjs:nodejs /app/mongo_crypt_lib \
+    && chmod 755 /app/mongo_crypt_lib/mongo_crypt_v1.so \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+ENV MONGOCRYPT_PATH=/app/mongo_crypt_lib/mongo_crypt_v1.so
+
 USER nextjs
-
 EXPOSE 3000
-
 ENV PORT 3000
-# set hostname to localhost
 ENV HOSTNAME "0.0.0.0"
 
-# server.js is created by next build from the standalone output
-# https://nextjs.org/docs/pages/api-reference/next-config-js/output
 CMD ["node", "server.js"]

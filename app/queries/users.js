@@ -1,6 +1,5 @@
-import { useMutation } from "@apollo/client";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import axios from "axios";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import axios from "../utils/axios-client";
 
 export function useCurrentUser() {
     const query = useQuery({
@@ -26,6 +25,50 @@ export function useUpdateCurrentUser() {
         },
         onSettled: () => {
             queryClient.invalidateQueries({ queryKey: ["currentUser"] });
+        },
+    });
+
+    return mutation;
+}
+
+export function useUserState() {
+    const query = useQuery({
+        queryKey: ["userState"],
+        queryFn: async () => {
+            const { data } = await axios.get(`/api/users/me/state`);
+            return data;
+        },
+        staleTime: Infinity,
+    });
+
+    return query;
+}
+
+export function useUpdateUserState() {
+    const queryClient = useQueryClient();
+
+    const mutation = useMutation({
+        mutationFn: async (data) => {
+            const response = await axios.put(`/api/users/me/state`, data);
+            return response.data;
+        },
+        onMutate: async ({ data }) => {
+            await queryClient.cancelQueries({ queryKey: ["userState"] });
+            const previousUserState = await queryClient.getQueryData([
+                "userState",
+            ]);
+
+            queryClient.setQueryData(["userState"], (old) => {
+                return {
+                    ...old,
+                    ...data,
+                };
+            });
+
+            return { previousUserState };
+        },
+        onSuccess: (data) => {
+            queryClient.setQueryData(["userState"], data);
         },
     });
 

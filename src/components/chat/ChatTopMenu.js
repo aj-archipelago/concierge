@@ -1,4 +1,4 @@
-import { useDispatch, useSelector } from "react-redux";
+import { useSelector } from "react-redux";
 import { useTranslation } from "react-i18next";
 import { MdOutlineSdStorage } from "react-icons/md";
 import { Popover } from "@headlessui/react";
@@ -11,10 +11,14 @@ import {
 } from "react-icons/bs";
 import { COGNITIVE_DELETE } from "../../graphql";
 import { useLazyQuery } from "@apollo/client";
-import { removeDoc, removeDocs } from "../../stores/docSlice";
 import { useContext, useState } from "react";
 import Loader from "../../../app/components/loader";
 import { AuthContext } from "../../App";
+import {
+    useDeleteAllDocuments,
+    useDeleteDocument,
+} from "../../../app/queries/uploadedDocs";
+import { useGetActiveChatId } from "../../../app/queries/chats";
 
 function getFileIcon(filename) {
     const extension = filename?.split(".").pop().toLowerCase();
@@ -35,10 +39,14 @@ function getFileIcon(filename) {
 const DELETE_ALL_UPLOADS_STR = "__ALL__";
 
 function ChatTopMenu({ displayState = "full" }) {
-    const dispatch = useDispatch();
-    const docs = useSelector((state) => state.doc.docs);
     const { t } = useTranslation();
     const { user } = useContext(AuthContext);
+    const activeChatId = useGetActiveChatId();
+    const docs = user?.uploadedDocs?.filter(
+        ({ chatId }) => chatId === activeChatId,
+    );
+    const deleteDocument = useDeleteDocument();
+    const deleteAllDocuments = useDeleteAllDocuments();
     const contextId = user?.contextId;
     const [currentlyDeletingDocId, setCurrentlyDeletingDocId] = useState(null);
     const mainPaneIndexerLoading = useSelector(
@@ -61,7 +69,7 @@ function ChatTopMenu({ displayState = "full" }) {
         setCurrentlyDeletingDocId(id);
         cognitiveDelete({ variables: { contextId, docId: id } }).then(() => {
             setCurrentlyDeletingDocId(null);
-            dispatch(removeDoc(id));
+            deleteDocument.mutate({ docId: id });
         });
     };
 
@@ -69,12 +77,12 @@ function ChatTopMenu({ displayState = "full" }) {
         setCurrentlyDeletingDocId(DELETE_ALL_UPLOADS_STR);
         cognitiveDelete({ variables: { contextId } }).then(() => {
             setCurrentlyDeletingDocId(null);
-            dispatch(removeDocs());
+            deleteAllDocuments.mutate();
         });
     };
 
     return (
-        <div className="flex justify-center rounded shadow-lg items-center px-0 text-xs [.docked_&]:flex">
+        <div className="flex justify-center rounded-md items-center px-0 text-xs [.docked_&]:flex">
             {!docs || docs?.length === 0 ? (
                 <>
                     <span className="text-gray-400">
@@ -97,7 +105,7 @@ function ChatTopMenu({ displayState = "full" }) {
                         )}
                     </Popover.Button>
 
-                    <Popover.Panel className="absolute z-10 bg-slate-950 p-4 rounded">
+                    <Popover.Panel className="absolute shadow-lg z-10 bg-slate-950 p-4 rounded">
                         <div>
                             {docs?.map(({ docId: id, filename }) => {
                                 const isCurrentlyGettingDeleted =
@@ -108,7 +116,7 @@ function ChatTopMenu({ displayState = "full" }) {
                                 return (
                                     <div
                                         key={id}
-                                        className={`flex border justify-between items-center mx-1 my-2 py-1 px-1 rounded cursor-default ${isCurrentlyGettingDeleted ? "bg-red-400" : "bg-gray-100"}`}
+                                        className={`flex border justify-between items-center mx-1 my-2 py-1 px-1 rounded-md cursor-default ${isCurrentlyGettingDeleted ? "bg-red-400" : "bg-gray-100"}`}
                                     >
                                         <div className="flex gap-1 items-center">
                                             {getFileIcon(filename)}

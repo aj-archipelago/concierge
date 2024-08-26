@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Accordion, Button, Form, ListGroup } from "react-bootstrap";
+import { Accordion } from "@/components/ui/accordion";
+import { createContext, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { AiOutlineClose } from "react-icons/ai";
 import { BiNews } from "react-icons/bi";
@@ -10,8 +10,8 @@ import CopyButton from "../CopyButton";
 import LoadingButton from "../editor/LoadingButton";
 import Timeline from "./Timeline";
 import SidebarItem from "./sidebar/SidebarItem";
-import Topics from "./sidebar/Topics";
 import Tags from "./sidebar/Tags";
+import Topics from "./sidebar/Topics";
 
 function Highlights({ inputText, onAction }) {
     const [highlights, setHighlights] = useState([]);
@@ -23,16 +23,17 @@ function Highlights({ inputText, onAction }) {
             name="Highlights"
             output={highlights}
             renderOutput={() => (
-                <ListGroup className="mb-2">
+                <div className="mb-2">
                     {highlights.map((item, i) => (
-                        <ListGroup.Item key={`keyword-${i}`}>
-                            <div style={{ display: "flex" }}>
-                                <div style={{ flex: 1 }}>{item}</div>
+                        <div
+                            key={`keyword-${i}`}
+                            className="p-2 border-b last:border-none"
+                        >
+                            <div className="flex justify-between">
+                                <div className="flex-1">{item}</div>
                                 <div>
-                                    <Button
-                                        variant="link"
-                                        className="p-0"
-                                        style={{ color: "#999" }}
+                                    <button
+                                        className="p-0 text-gray-500 hover:text-gray-700"
                                         onClick={() => {
                                             onAction("remove_content", {
                                                 content: item,
@@ -40,12 +41,12 @@ function Highlights({ inputText, onAction }) {
                                         }}
                                     >
                                         <AiOutlineClose />
-                                    </Button>
+                                    </button>
                                 </div>
                             </div>
-                        </ListGroup.Item>
+                        </div>
                     ))}
-                </ListGroup>
+                </div>
             )}
             query={{
                 query: QUERIES.HIGHLIGHTS,
@@ -121,44 +122,27 @@ const SummaryOptions = ({
     const { t } = useTranslation();
 
     return (
-        <div
-            style={{
-                display: "flex",
-                gap: 10,
-                alignItems: "center",
-                fontSize: "12px",
-            }}
-            className="mb-3"
-        >
+        <div className="flex items-center gap-2.5 text-xs mb-3">
             <div>{t("Length")}</div>
-            <Form.Control
-                style={{
-                    flexBasis: "20%",
-                    height: "25px",
-                    fontSize: "12px",
-                    padding: "5px",
-                    minWidth: "50px",
-                }}
+            <input
+                className="flex-shrink-0 w-20 h-6 text-xs p-1 min-w-[50px] lb-input rounded"
                 key="summary-length"
-                size="sm"
                 type="number"
                 value={value.targetLength}
                 onChange={(e) =>
                     onChange({ targetLength: parseInt(e.target.value) })
                 }
-            ></Form.Control>
+            />
             <LoadingButton
-                text={t("Generating")}
                 loading={loading}
                 disabled={loading}
-                variant="secondary"
-                style={{ fontSize: "10px", padding: "2px 5px" }}
+                className="w-8 h-6 text-xs lb-primary"
                 onClick={() => {
                     handleClearSummary();
                     onCommit();
                 }}
             >
-                {t("Generate")}
+                {t("Go")}
             </LoadingButton>
         </div>
     );
@@ -182,11 +166,7 @@ function Summary({ inputText }) {
             )}
             renderOutput={() => (
                 <div>
-                    <pre
-                        style={{ fontFamily: "sans-serif", fontSize: "0.9rem" }}
-                    >
-                        {summary}
-                    </pre>
+                    <pre className="font-sans text-sm">{summary}</pre>
                 </div>
             )}
             query={{
@@ -208,14 +188,17 @@ function SearchKeywords({ inputText }) {
             name="Search keywords"
             output={keywords}
             renderOutput={() => (
-                <ListGroup className="mb-2">
+                <div className="mb-2">
                     {keywords.map((item, i) => (
-                        <ListGroup.Item key={`keyword-${i}`}>
+                        <div
+                            key={`keyword-${i}`}
+                            className="p-2 border-b last:border-none"
+                        >
                             <CopyButton item={item} />
                             {item}
-                        </ListGroup.Item>
+                        </div>
                     ))}
-                </ListGroup>
+                </div>
             )}
             query={{
                 query: QUERIES.KEYWORDS,
@@ -236,18 +219,21 @@ function Entities({ inputText }) {
             name="Entities"
             output={entities}
             renderOutput={() => (
-                <ListGroup className="mb-2">
+                <div className="mb-2">
                     {entities.map((entity, i) => (
-                        <ListGroup.Item key={`entity-${i}`}>
+                        <div
+                            key={`entity-${i}`}
+                            className="p-2 border-b last:border-none"
+                        >
                             <CopyButton
                                 item={`${entity.name}: ${entity.definition}`}
                             />
                             <strong>{entity.name}</strong>
-                            <br></br>
+                            <br />
                             {entity.definition}
-                        </ListGroup.Item>
+                        </div>
                     ))}
-                </ListGroup>
+                </div>
             )}
             query={{
                 query: QUERIES.ENTITIES,
@@ -259,17 +245,27 @@ function Entities({ inputText }) {
 }
 
 function Sidebar({ onAction, inputText }) {
+    const [value, setValue] = useState([]);
+
     return (
-        <Accordion variant="sm" alwaysOpen>
-            <Summary inputText={inputText} />
-            <Highlights inputText={inputText} onAction={onAction} />
-            <SearchKeywords inputText={inputText} />
-            <Topics inputText={inputText} />
-            <Tags inputText={inputText} />
-            <Entities inputText={inputText} />
-            <TimelineBox inputText={inputText} />
-        </Accordion>
+        <SidebarContext.Provider value={{ openItems: value }}>
+            <Accordion
+                type="multiple"
+                className="border rounded-md"
+                value={value}
+                onValueChange={setValue}
+            >
+                <Summary inputText={inputText} />
+                <Highlights inputText={inputText} onAction={onAction} />
+                <SearchKeywords inputText={inputText} />
+                <Topics inputText={inputText} />
+                <Tags inputText={inputText} />
+                <Entities inputText={inputText} />
+                <TimelineBox inputText={inputText} />
+            </Accordion>
+        </SidebarContext.Provider>
     );
 }
 
+export const SidebarContext = createContext();
 export default Sidebar;

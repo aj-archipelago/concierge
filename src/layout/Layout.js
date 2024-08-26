@@ -1,7 +1,7 @@
 "use client";
 import { Dialog, Transition } from "@headlessui/react";
 import { Bars3Icon, XMarkIcon } from "@heroicons/react/24/outline";
-import { Fragment, useContext, useState } from "react";
+import { Fragment, useContext, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { IoIosChatbubbles } from "react-icons/io";
 import { useDispatch, useSelector } from "react-redux";
@@ -11,23 +11,35 @@ import Footer from "./Footer";
 import ProfileDropdown from "./ProfileDropdown";
 import UserOptions from "../components/UserOptions";
 import Sidebar from "./Sidebar";
-import config from "../../config";
 import { usePathname } from "next/navigation";
 import ChatBox from "../components/chat/ChatBox";
+import Tos from "../components/Tos";
+import { ToastContainer, Flip } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
+import { ThemeContext } from "../contexts/ThemeProvider";
+import { LanguageContext } from "../contexts/LanguageProvider";
 
 export default function Layout({ children }) {
     const [showOptions, setShowOptions] = useState(false);
     const [sidebarOpen, setSidebarOpen] = useState(false);
+    const [showTos, setShowTos] = useState(false);
     const statePosition = useSelector((state) => state.chat?.chatBox?.position);
     const dispatch = useDispatch();
     const { t } = useTranslation();
     const { user } = useContext(AuthContext);
     const pathname = usePathname();
+    const { theme } = useContext(ThemeContext);
+    const { direction } = useContext(LanguageContext);
+    const contentRef = useRef(null);
 
     const handleShowOptions = () => setShowOptions(true);
     const handleCloseOptions = () => setShowOptions(false);
 
     const showChatbox = statePosition !== "closed" && pathname !== "/chat";
+
+    useEffect(() => {
+        setSidebarOpen(false);
+    }, [pathname]);
 
     return (
         <>
@@ -54,13 +66,29 @@ export default function Layout({ children }) {
                             <Transition.Child
                                 as={Fragment}
                                 enter="transition ease-in-out duration-300 transform"
-                                enterFrom="-translate-x-full"
-                                enterTo="translate-x-0"
+                                enterFrom={
+                                    direction === "ltr"
+                                        ? "-translate-x-full"
+                                        : "translate-x-full"
+                                }
+                                enterTo={
+                                    direction === "ltr"
+                                        ? "translate-x-0"
+                                        : "-translate-x-0"
+                                }
                                 leave="transition ease-in-out duration-300 transform"
-                                leaveFrom="translate-x-0"
-                                leaveTo="-translate-x-full"
+                                leaveFrom={
+                                    direction === "ltr"
+                                        ? "translate-x-0"
+                                        : "-translate-x-0"
+                                }
+                                leaveTo={
+                                    direction === "ltr"
+                                        ? "-translate-x-full"
+                                        : "translate-x-full"
+                                }
                             >
-                                <Dialog.Panel className="relative mr-16 flex w-full max-w-xs flex-1">
+                                <Dialog.Panel className="relative me-16 flex w-full max-w-xs flex-1">
                                     <Transition.Child
                                         as={Fragment}
                                         enter="ease-in-out duration-300"
@@ -70,7 +98,7 @@ export default function Layout({ children }) {
                                         leaveFrom="opacity-100"
                                         leaveTo="opacity-0"
                                     >
-                                        <div className="absolute left-full top-0 flex w-16 justify-center pt-5">
+                                        <div className="absolute start-full top-0 flex w-16 justify-center pt-5">
                                             <button
                                                 type="button"
                                                 className="-m-2.5 p-2.5"
@@ -82,14 +110,14 @@ export default function Layout({ children }) {
                                                     Close sidebar
                                                 </span>
                                                 <XMarkIcon
-                                                    className="h-6 w-6 text-white"
+                                                    className="h-6 w-6 text-white dark:text-gray-900"
                                                     aria-hidden="true"
                                                 />
                                             </button>
                                         </div>
                                     </Transition.Child>
                                     {/* Sidebar component, swap this element with another sidebar if you like */}
-                                    <Sidebar />
+                                    <Sidebar ref={contentRef} />
                                 </Dialog.Panel>
                             </Transition.Child>
                         </div>
@@ -99,7 +127,7 @@ export default function Layout({ children }) {
                 {/* Static sidebar for desktop */}
                 <div className="hidden lg:fixed lg:inset-y-0 lg:z-50 lg:flex lg:w-56 lg:flex-col">
                     {/* Sidebar component, swap this element with another sidebar if you like */}
-                    <Sidebar />
+                    <Sidebar ref={contentRef} />
                 </div>
 
                 <div className="lg:ps-56 overflow-hidden">
@@ -120,10 +148,10 @@ export default function Layout({ children }) {
                         />
 
                         <div className="flex flex-1 items-center gap-x-2 justify-end lg:gap-x-4">
-                            <div>
+                            <div className="hidden sm:block">
                                 <button
-                                    className="lb-sm lb-primary"
-                                    disabled={pathname === "/chat"}
+                                    className="lb-primary"
+                                    disabled={/^\/chat(\/|$)/.test(pathname)}
                                     onClick={() => {
                                         dispatch(
                                             setChatBoxPosition({
@@ -139,16 +167,20 @@ export default function Layout({ children }) {
                                 <ProfileDropdown
                                     user={user}
                                     handleShowOptions={handleShowOptions}
+                                    setShowTos={setShowTos}
                                 />
                             </div>
                         </div>
                     </div>
 
                     <div className="relative flex-col">
-                        <main className="p-2 bg-slate-50 flex gap-2">
+                        <main
+                            className="p-2 bg-slate-50 flex gap-2"
+                            ref={contentRef}
+                        >
                             <div
-                                className={`${"grow"} bg-white dark:border-gray-200 rounded border p-3 lg:p-4 overflow-auto`}
-                                style={{ height: "calc(100vh - 118px)" }}
+                                className={`${"grow"} bg-white dark:border-gray-200 rounded-md border p-3 lg:p-4 overflow-auto`}
+                                style={{ height: "calc(100vh - 120px)" }}
                             >
                                 {showOptions && (
                                     <UserOptions
@@ -156,13 +188,34 @@ export default function Layout({ children }) {
                                         handleClose={handleCloseOptions}
                                     />
                                 )}
+                                <Tos
+                                    showTos={showTos}
+                                    setShowTos={setShowTos}
+                                />
                                 {children}
                             </div>
                             {showChatbox && (
-                                <div className="basis-[302px] h-[calc(100vh-118px)]">
+                                <div className="hidden sm:block basis-[302px] h-[calc(100vh-120px)]">
                                     <ChatBox />
                                 </div>
                             )}
+                            <ToastContainer
+                                position={
+                                    direction === "rtl"
+                                        ? "top-left"
+                                        : "top-right"
+                                }
+                                autoClose={10000}
+                                hideProgressBar={false}
+                                newestOnTop={false}
+                                closeOnClick
+                                rtl={direction === "rtl"}
+                                pauseOnFocusLoss
+                                draggable
+                                pauseOnHover
+                                theme={theme === "dark" ? "dark" : "light"}
+                                transition={Flip}
+                            />
                         </main>
                         <Footer />
                     </div>

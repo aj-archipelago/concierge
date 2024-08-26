@@ -163,7 +163,7 @@ function SystemPrompt({ editing, setEditing }) {
         <div className="p-1 flex gap-2 items-center">
             <h4 className="font-medium mb-1">{t("Context")}</h4>
 
-            <div className="overflow-auto text-start bg-gray-50 p-2 rounded border w-full">
+            <div className="overflow-auto text-start bg-gray-50 p-2 rounded-md border w-full">
                 <div className="flex gap-2 items-center justify-between w-full">
                     <div className="min-w-0 flex-1">
                         <div

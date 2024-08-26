@@ -5,7 +5,12 @@ const basePath = process.env.NEXT_PUBLIC_BASE_PATH;
 const redirects = [
     {
         source: "/",
-        destination: "/write",
+        destination: "/chat",
+        permanent: true,
+    },
+    {
+        source: "/code",
+        destination: "/code/knuth",
         permanent: true,
     },
 ];
@@ -74,4 +79,9 @@ module.exports = {
     },
     output: "standalone",
     basePath: basePath || "",
+    webpack: (config) => {
+        // Exclude mongodb and mongodb-client-encryption from the bundle to avoid errors, will be required and imported at runtime
+        config.externals.push("mongodb-client-encryption", "mongodb");
+        return config;
+    },
 };

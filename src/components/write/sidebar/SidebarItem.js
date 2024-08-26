@@ -1,10 +1,16 @@
+import {
+    AccordionContent,
+    AccordionItem,
+    AccordionTrigger,
+} from "@/components/ui/accordion";
 import * as amplitude from "@amplitude/analytics-browser";
 import { useApolloClient } from "@apollo/client";
-import { useCallback, useEffect, useState } from "react";
-import { Accordion, Spinner } from "react-bootstrap";
+import { useCallback, useContext, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { FiRefreshCcw } from "react-icons/fi";
 import stringcase from "stringcase";
+import { SidebarContext } from "../Sidebar";
+import { Loader2Icon } from "lucide-react";
 
 const INPUT_THRESHOLD = 1;
 
@@ -25,7 +31,9 @@ export default function SidebarItem({
     const client = useApolloClient();
     const [inputParameters, setInputParameters] = useState(defaultParameters);
     const [loadingComplete, setLoadingComplete] = useState(false);
-    const [isOpen, setIsOpen] = useState(false);
+    const { openItems } = useContext(SidebarContext);
+
+    const isOpen = openItems.includes(key);
 
     const haveEnoughText = inputText && inputText.length > INPUT_THRESHOLD;
 
@@ -87,8 +95,8 @@ export default function SidebarItem({
     }
 
     return (
-        <Accordion.Item eventKey={key}>
-            <Accordion.Header>
+        <AccordionItem value={key}>
+            <AccordionTrigger className="">
                 <div className="flex justify-between items-center w-full me-3">
                     <div
                         className="flex gap-1 items-center"
@@ -112,11 +120,9 @@ export default function SidebarItem({
                             disabled={loading}
                         >
                             {loading ? (
-                                <Spinner
-                                    as="span"
-                                    animation="border"
-                                    size="sm"
-                                    variant="secondary"
+                                <Loader2Icon
+                                    size={15}
+                                    className="animate-spin"
                                 />
                             ) : (
                                 <FiRefreshCcw className="text-gray-500" />
@@ -124,22 +130,8 @@ export default function SidebarItem({
                         </div>
                     )}
                 </div>
-            </Accordion.Header>
-            <Accordion.Body
-                onEnter={() => {
-                    //console.log("test", output.length, haveEnoughText);
-
-                    if (!output.length && haveEnoughText) {
-                        request();
-                    }
-                }}
-                onEntered={() => {
-                    setIsOpen(true);
-                }}
-                onExit={() => {
-                    setIsOpen(false);
-                }}
-            >
+            </AccordionTrigger>
+            <AccordionContent>
                 {Options && (
                     <Options
                         value={inputParameters}
@@ -156,7 +148,7 @@ export default function SidebarItem({
                 {loadingComplete && output.length > 0 && (
                     <>{renderOutput(output)}</>
                 )}
-            </Accordion.Body>
-        </Accordion.Item>
+            </AccordionContent>
+        </AccordionItem>
     );
 }

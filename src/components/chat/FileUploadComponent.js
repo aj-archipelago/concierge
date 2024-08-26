@@ -1,11 +1,10 @@
-import { Form } from "react-bootstrap";
 import { useState, useEffect, useContext } from "react";
 import { useTranslation } from "react-i18next";
 import { v4 as uuidv4 } from "uuid";
 import { COGNITIVE_INSERT } from "../../graphql";
 import { useApolloClient } from "@apollo/client";
 import { useDispatch } from "react-redux";
-import { addDoc, addSource } from "../../stores/docSlice";
+import { addSource } from "../../stores/docSlice";
 import {
     setFileLoading,
     clearFileLoading,
@@ -13,6 +12,8 @@ import {
 } from "../../stores/fileUploadSlice";
 import config from "../../../config";
 import { AuthContext, ServerContext } from "../../App";
+import { useAddDocument } from "../../../app/queries/uploadedDocs";
+import { useGetActiveChatId } from "../../../app/queries/chats";
 
 function FileUploadComponent({ text }) {
     const [url, setUrl] = useState(null);
@@ -26,6 +27,9 @@ function FileUploadComponent({ text }) {
     // eslint-disable-next-line
     const [data, setData] = useState(null);
     const { serverUrl } = useContext(ServerContext);
+    const addDocument = useAddDocument();
+    const activeChatId = useGetActiveChatId();
+    console.log("activeChatId", activeChatId);
 
     const setLoadingState = (isLoading) => {
         setIsLoading(isLoading);
@@ -40,6 +44,8 @@ function FileUploadComponent({ text }) {
             try {
                 const docId = uuidv4();
 
+                console.log("Cognitive insert", activeChatId);
+
                 client
                     .query({
                         query: COGNITIVE_INSERT,
@@ -48,6 +54,7 @@ function FileUploadComponent({ text }) {
                             privateData: true,
                             contextId,
                             docId,
+                            chatId: activeChatId,
                         },
                         fetchPolicy: "network-only",
                     })
@@ -55,7 +62,11 @@ function FileUploadComponent({ text }) {
                         // completed successfully
                         setLoadingState(false);
                         setData(true);
-                        dispatch(addDoc({ docId, filename }));
+                        addDocument.mutateAsync({
+                            docId,
+                            filename,
+                            chatId: activeChatId,
+                        });
                         dispatch(addSource("mydata"));
                         setUrl(null);
                     })
@@ -154,37 +165,33 @@ function FileUploadComponent({ text }) {
         <div className="file-upload-component" style={{ width: "100%" }}>
             {text}
             <div style={{ paddingTop: 10 }}>
-                <Form.Group controlId="fileChooser">
-                    <input
-                        disabled={isLoading}
-                        size="sm"
-                        type="file"
-                        accept=".pdf,.docx,.xlsx,.txt"
-                        className="rounded mb-2 bg-white border w-full"
-                        onChange={handleFileUpload}
-                    />
-                    <div style={{ padding: "2px 5px" }}>
-                        {t("Or enter URL:")}
-                    </div>
-                    <input
-                        disabled={isLoading}
-                        className="lb-input text-xs"
-                        placeholder={t(
-                            "Paste URL e.g. http://example.com/2942.PDF",
-                        )}
-                        value={url || ""}
-                        type="url"
-                        onChange={(e) => handleUrlChange(e.target.value)}
-                        onKeyDown={(e) => {
-                            if (e.key === "Enter") {
-                                handleUrlEnter(e.target.value);
-                            }
-                        }}
-                        autoComplete="off"
-                        autoCapitalize="off"
-                        autoCorrect="off"
-                    />
-                </Form.Group>
+                <input
+                    disabled={isLoading}
+                    size="sm"
+                    type="file"
+                    accept=".pdf,.docx,.xlsx,.txt"
+                    className="rounded-md mb-2 bg-white border w-full"
+                    onChange={handleFileUpload}
+                />
+                <div style={{ padding: "2px 5px" }}>{t("Or enter URL:")}</div>
+                <input
+                    disabled={isLoading}
+                    className="lb-input text-xs"
+                    placeholder={t(
+                        "Paste URL e.g. http://example.com/2942.PDF",
+                    )}
+                    value={url || ""}
+                    type="url"
+                    onChange={(e) => handleUrlChange(e.target.value)}
+                    onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                            handleUrlEnter(e.target.value);
+                        }
+                    }}
+                    autoComplete="off"
+                    autoCapitalize="off"
+                    autoCorrect="off"
+                />
             </div>
         </div>
     );

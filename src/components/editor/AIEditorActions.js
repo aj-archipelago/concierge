@@ -1,4 +1,3 @@
-import { ListGroup } from "react-bootstrap";
 import { useTranslation } from "react-i18next";
 import { BiNews } from "react-icons/bi";
 import { BsArrowsExpand, BsBook } from "react-icons/bs";
@@ -12,10 +11,8 @@ import config from "../../../config";
 import CopyButton from "../CopyButton";
 import TranscribePage from "../transcribe/TranscribePage";
 import ExpandStoryContent from "./ExpandStoryContent";
-import {
-    getSuggestionInputComponent,
-    getTextSuggestionsComponent,
-} from "./TextSuggestions";
+import SuggestionInput from "./SuggestionInput";
+import { getTextSuggestionsComponent } from "./TextSuggestions";
 import TranslateModalContent from "./TranslateModalContent";
 import HeadlineModal from "./headline/HeadlineModal";
 
@@ -23,14 +20,14 @@ const ListRenderer = ({ value }) => {
     value.sort();
 
     return (
-        <ListGroup style={{ marginBottom: 20 }}>
-            {value.map((item) => (
-                <ListGroup.Item>
+        <ul style={{ marginBottom: 20 }} className="border rounded-md p-2">
+            {value.map((item, index) => (
+                <li key={index}>
                     <CopyButton item={item} />
                     {item}
-                </ListGroup.Item>
+                </li>
             ))}
-        </ListGroup>
+        </ul>
     );
 };
 
@@ -73,10 +70,8 @@ const actions = {
             query: "SUMMARIZE_TURBO",
             outputTitle: "Summary",
             redoText: "Write another summary",
-            busyMessage: "Writing summary...",
-            SuggestionInput: getSuggestionInputComponent({
-                inputType: "none",
-            }),
+            showLoadingMessage: true,
+            SuggestionInput: SuggestionInput,
             QueryParameters: ({ value, onChange }) => {
                 const { t } = useTranslation();
                 value.targetLength = value.targetLength || 500;
@@ -141,15 +136,15 @@ const actions = {
     paraphrase: {
         Icon: FaEdit,
         title: "Rewrite text",
-        dialogClassName: "modal-narrow",
+        dialogClassName: "modal-wide",
         type: "selection",
         SuggestionsComponent: getTextSuggestionsComponent({
             query: "PARAPHRASE",
-            outputTitle: "Revised Version",
+            outputTitle: " ",
+            outputType: "compare",
             redoText: "Rewrite this again",
-            SuggestionInput: getSuggestionInputComponent({
-                inputTitle: "Original Text",
-            }),
+            showInput: true,
+            SuggestionInput: SuggestionInput,
         }),
         commitLabel: "Use Updated Text",
     },
@@ -167,7 +162,7 @@ const actions = {
         Icon: FaVideo,
         title: "Import from media",
         dialogClassName: "modal-narrow",
-        commitLabel: "Use transcribed text",
+        commitLabel: "Use Transcribed Text",
         type: "always-available",
         SuggestionsComponent: TranscribePage,
         postApply: "clear-headline",
@@ -218,18 +213,18 @@ const actions = {
             query: "ENTITIES",
             OutputRenderer: ({ value }) => {
                 return (
-                    <ListGroup>
-                        {value.map((entity) => (
-                            <ListGroup.Item>
+                    <ul className="border rounded-md p-2">
+                        {value.map((entity, index) => (
+                            <li key={index}>
                                 <CopyButton
                                     item={`${entity.name}: ${entity.definition}`}
                                 />
                                 <strong>{entity.name}</strong>
-                                <br></br>
+                                <br />
                                 {entity.definition}
-                            </ListGroup.Item>
+                            </li>
                         ))}
-                    </ListGroup>
+                    </ul>
                 );
             },
             outputTitle: "Entities extracted from text",

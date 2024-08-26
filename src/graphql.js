@@ -1,4 +1,8 @@
-import { ApolloClient, InMemoryCache, gql } from "@apollo/client";
+import {
+    ApolloClient,
+    InMemoryCache,
+} from "@apollo/experimental-nextjs-app-support";
+import { gql } from "@apollo/client";
 import { GraphQLWsLink } from "@apollo/client/link/subscriptions";
 import { createClient } from "graphql-ws";
 import { split, HttpLink } from "@apollo/client";
@@ -134,6 +138,14 @@ const VISION = gql`
     }
 `;
 
+const RAG_READ_MEMORY = gql`
+    query RagReadMemory($contextId: String!) {
+        rag_read_memory(contextId: $contextId) {
+            result
+        }
+    }
+`;
+
 const RAG_SAVE_MEMORY = gql`
     query RagSaveMemory($aiMemory: String!, $contextId: String!) {
         rag_save_memory(aiMemory: $aiMemory, contextId: $contextId) {
@@ -153,6 +165,8 @@ const RAG_START = gql`
         $semanticConfiguration: String
         $aiName: String
         $aiMemorySelfModify: Boolean
+        $aiStyle: String
+        $title: String
     ) {
         rag_start(
             chatHistory: $chatHistory
@@ -164,10 +178,14 @@ const RAG_START = gql`
             semanticConfiguration: $semanticConfiguration
             aiName: $aiName
             aiMemorySelfModify: $aiMemorySelfModify
+            aiStyle: $aiStyle
+            title: $title
         ) {
             result
             contextId
             tool
+            warnings
+            errors
         }
     }
 `;
@@ -182,6 +200,8 @@ const RAG_GENERATOR_RESULTS = gql`
         $indexName: String
         $semanticConfiguration: String
         $aiName: String
+        $useMemory: Boolean
+        $chatId: String
     ) {
         rag_generator_results(
             chatHistory: $chatHistory
@@ -192,10 +212,14 @@ const RAG_GENERATOR_RESULTS = gql`
             indexName: $indexName
             semanticConfiguration: $semanticConfiguration
             aiName: $aiName
+            useMemory: $useMemory
+            chatId: $chatId
         ) {
             result
             contextId
             tool
+            warnings
+            errors
         }
     }
 `;
@@ -206,6 +230,7 @@ const COGNITIVE_INSERT = gql`
         $file: String
         $contextId: String
         $docId: String
+        $chatId: String
         $privateData: Boolean
         $async: Boolean
     ) {
@@ -214,6 +239,7 @@ const COGNITIVE_INSERT = gql`
             file: $file
             contextId: $contextId
             docId: $docId
+            chatId: $chatId
             privateData: $privateData
             async: $async
         ) {
@@ -223,8 +249,18 @@ const COGNITIVE_INSERT = gql`
 `;
 
 const COGNITIVE_DELETE = gql`
-    query CognitiveDelete($text: String, $contextId: String, $docId: String) {
-        cognitive_delete(text: $text, contextId: $contextId, docId: $docId) {
+    query CognitiveDelete(
+        $text: String
+        $contextId: String
+        $docId: String
+        $chatId: String
+    ) {
+        cognitive_delete(
+            text: $text
+            contextId: $contextId
+            docId: $docId
+            chatId: $chatId
+        ) {
             result
         }
     }
@@ -256,8 +292,18 @@ const HASHTAGS = gql`
 `;
 
 const HEADLINE = gql`
-    query Headline($text: String!, $seoOptimized: Boolean) {
-        headline(text: $text, seoOptimized: $seoOptimized) {
+    query Headline(
+        $text: String!
+        $seoOptimized: Boolean
+        $count: Int
+        $targetLength: Int
+    ) {
+        headline(
+            text: $text
+            seoOptimized: $seoOptimized
+            count: $count
+            targetLength: $targetLength
+        ) {
             result
             debug
         }
@@ -363,6 +409,44 @@ const TRANSCRIBE = gql`
     }
 `;
 
+const TRANSCRIBE_NEURALSPACE = gql`
+    query TranscribeNeuralSpace(
+        $file: String!
+        $text: String
+        $language: String
+        $wordTimestamped: Boolean
+        $maxLineCount: Int
+        $maxLineWidth: Int
+        $maxWordsPerLine: Int
+        $highlightWords: Boolean
+        $responseFormat: String
+        $async: Boolean
+    ) {
+        transcribe_neuralspace(
+            file: $file
+            text: $text
+            language: $language
+            wordTimestamped: $wordTimestamped
+            maxLineCount: $maxLineCount
+            maxLineWidth: $maxLineWidth
+            maxWordsPerLine: $maxWordsPerLine
+            highlightWords: $highlightWords
+            responseFormat: $responseFormat
+            async: $async
+        ) {
+            result
+        }
+    }
+`;
+
+const TRANSLATE_SUBTITLE = gql`
+    query TranslateSubtitle($text: String, $to: String, $async: Boolean) {
+        translate_subtitle(text: $text, to: $to, async: $async) {
+            result
+        }
+    }
+`;
+
 const TRANSLATE = gql`
     query Translate($text: String!, $to: String!) {
         translate(text: $text, to: $to) {
@@ -398,6 +482,14 @@ const TRANSLATE_GPT4 = gql`
 const TRANSLATE_GPT4_TURBO = gql`
     query TranslateGpt4Turbo($text: String!, $to: String!) {
         translate_gpt4_turbo(text: $text, to: $to) {
+            result
+        }
+    }
+`;
+
+const TRANSLATE_GPT4_OMNI = gql`
+    query TranslateGpt4Omni($text: String!, $to: String!) {
+        translate_gpt4_omni(text: $text, to: $to) {
             result
         }
     }
@@ -565,6 +657,7 @@ const QUERIES = {
     COGNITIVE_DELETE,
     COGNITIVE_INSERT,
     IMAGE,
+    RAG_READ_MEMORY,
     RAG_SAVE_MEMORY,
     RAG_START,
     RAG_GENERATOR_RESULTS,
@@ -588,6 +681,7 @@ const QUERIES = {
     STORY_ANGLES,
     SUMMARIZE_TURBO,
     TRANSCRIBE,
+    TRANSCRIBE_NEURALSPACE,
     TRANSLATE,
     TRANSLATE_AZURE,
     TRANSLATE_CONTEXT,
@@ -595,6 +689,8 @@ const QUERIES = {
     TRANSLATE_TURBO,
     TRANSLATE_GPT4,
     TRANSLATE_GPT4_TURBO,
+    TRANSLATE_GPT4_OMNI,
+    TRANSLATE_SUBTITLE,
     HIGHLIGHTS,
     REMOVE_CONTENT,
     HEADLINE_CUSTOM,
@@ -618,6 +714,7 @@ export {
     COGNITIVE_INSERT,
     COGNITIVE_DELETE,
     EXPAND_STORY,
+    RAG_READ_MEMORY,
     RAG_SAVE_MEMORY,
     RAG_START,
     RAG_GENERATOR_RESULTS,
@@ -644,6 +741,7 @@ export {
     TRANSLATE_TURBO,
     TRANSLATE_GPT4,
     TRANSLATE_GPT4_TURBO,
+    TRANSLATE_SUBTITLE,
     HIGHLIGHTS,
     REMOVE_CONTENT,
     JIRA_STORY,

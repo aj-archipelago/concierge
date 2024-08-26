@@ -3,20 +3,11 @@
 import React, { useEffect, useState } from "react";
 import * as diff from "diff";
 import PropTypes from "prop-types";
-import { Form } from "react-bootstrap";
+import { useTranslation } from "react-i18next";
 
 if (typeof window !== "undefined") {
     window.diff = diff;
 }
-
-const green = { color: "green" };
-const red = { color: "red" };
-const redBackground = { backgroundColor: "#fec4c0" };
-const greenBackground = { backgroundColor: "#b5efdb" };
-const bold = { fontWeight: "bold" };
-const faded = { opacity: 0.5 };
-const strikeThrough = { textDecoration: "line-through" };
-const highlight = { backgroundColor: "yellow" };
 
 const ChangeToken = ({ active, changeId, token }) => {
     let { added, removed, accepted } = token;
@@ -29,25 +20,18 @@ const ChangeToken = ({ active, changeId, token }) => {
             <span id={changeId}>
                 {removedValue && (
                     <mark
-                        style={{
-                            ...red,
-                            ...redBackground,
-                            ...strikeThrough,
-                            ...faded,
-                            ...(active && !addedValue ? highlight : {}),
-                        }}
+                        className={`text-red-500 bg-red-200 line-through opacity-50 ${
+                            active && !addedValue ? "bg-yellow-300" : ""
+                        }`}
                     >
                         {removedValue}
                     </mark>
                 )}
                 {addedValue && (
                     <span
-                        style={{
-                            ...green,
-                            ...greenBackground,
-                            ...bold,
-                            ...(active ? highlight : {}),
-                        }}
+                        className={`text-green-500 bg-green-200 font-bold ${
+                            active ? "bg-yellow-300" : ""
+                        }`}
                     >
                         {addedValue}
                     </span>
@@ -59,24 +43,18 @@ const ChangeToken = ({ active, changeId, token }) => {
             <span id={changeId}>
                 {removedValue && (
                     <span
-                        style={{
-                            ...red,
-                            ...bold,
-                            ...(active ? highlight : {}),
-                        }}
+                        className={`text-red-500 font-bold ${
+                            active ? "bg-yellow-300" : ""
+                        }`}
                     >
                         {removedValue}
                     </span>
                 )}
                 {addedValue && (
                     <span
-                        style={{
-                            ...green,
-                            greenBackground,
-                            ...strikeThrough,
-                            ...faded,
-                            ...(active && !removedValue ? highlight : {}),
-                        }}
+                        className={`text-green-500 bg-green-200 line-through opacity-50 ${
+                            active && !removedValue ? "bg-yellow-300" : ""
+                        }`}
                     >
                         {addedValue}
                     </span>
@@ -94,11 +72,10 @@ const Change = ({ token, onTokenChange }) => {
     }) => {
         return (
             <button
-                style={{ padding: 10 }}
                 id={changeId}
-                className={className}
+                className={`${className} p-2 w-full mb-3 flex gap-2`}
                 onClick={(e) => {
-                    onTokenChange(!accepted);
+                    onTokenChange(!token.accepted);
                 }}
             >
                 {children}
@@ -117,19 +94,23 @@ const Change = ({ token, onTokenChange }) => {
         if (accepted) {
             changeMarkup = (
                 <>
-                    <span style={{ ...red, ...strikeThrough }}>
+                    <span className="text-red-500 line-through">
                         {removedValue}
                     </span>{" "}
                     →&nbsp;
-                    <span style={{ ...green, ...bold }}>{addedValue}</span>
+                    <span className="text-green-500 font-bold">
+                        {addedValue}
+                    </span>
                 </>
             );
         } else {
             changeMarkup = (
                 <>
-                    <span style={{ ...red, ...bold }}>{removedValue}</span>{" "}
+                    <span className="text-red-500 font-bold">
+                        {removedValue}
+                    </span>{" "}
                     →&nbsp;
-                    <span style={{ ...green, ...strikeThrough }}>
+                    <span className="text-green-500 line-through">
                         {addedValue}
                     </span>
                 </>
@@ -140,13 +121,15 @@ const Change = ({ token, onTokenChange }) => {
             changeMarkup = (
                 <>
                     Add{" "}
-                    <span style={{ ...green, ...bold }}>"{addedValue}"</span>
+                    <span className="text-green-500 font-bold">
+                        "{addedValue}"
+                    </span>
                 </>
             );
         } else {
             changeMarkup = (
                 <>
-                    Add <span style={{ ...green }}>"{addedValue}"</span>
+                    Add <span className="text-green-500">"{addedValue}"</span>
                 </>
             );
         }
@@ -155,7 +138,7 @@ const Change = ({ token, onTokenChange }) => {
             changeMarkup = (
                 <>
                     Remove{" "}
-                    <span style={{ ...red, ...strikeThrough }}>
+                    <span className="text-red-500 line-through">
                         "{removedValue}"
                     </span>
                 </>
@@ -164,7 +147,7 @@ const Change = ({ token, onTokenChange }) => {
             changeMarkup = (
                 <>
                     Remove{" "}
-                    <span style={{ ...red, ...strikeThrough }}>
+                    <span className="text-red-500 line-through">
                         "{removedValue}"
                     </span>
                 </>
@@ -173,8 +156,8 @@ const Change = ({ token, onTokenChange }) => {
     }
 
     return (
-        <ClickableToken className="change-button w-100 mb-3 d-flex gap-2">
-            <Form.Check defaultChecked={accepted} tabIndex="-1" />
+        <ClickableToken className="change-button">
+            <input type="checkbox" defaultChecked={accepted} tabIndex="-1" />
             <div>{changeMarkup}</div>
         </ClickableToken>
     );
@@ -198,24 +181,40 @@ const getFinalText = (groupedTokens) => {
         .join(" ");
 };
 
-const Diff = ({ string1 = "", string2 = "", setSelectedText }) => {
-    // normalize quotes in string2
-    string2 = string2.replace(/“|”/g, '"');
-    // normalize single quotes in string2
-    string2 = string2.replace(/‘|’/g, "'");
-    // normalize html spaces in string2 and string1
-    string2 = string2.replace(/&nbsp;/g, " ");
-    string1 = string1.replace(/&nbsp;/g, " ");
+function isSubstantiveChange(oldText, newText) {
+    const normalize = (str) =>
+        str
+            .replace(/[""]/g, '"')
+            .replace(/[\u0022\u201C\u201D]/g, '"')
+            .replace(/[''`´]/g, "'")
+            .replace(/[\u2018\u2019]/g, "'")
+            .replace(/[‹›«»]/g, '"')
+            .replace(/[‚„]/g, ",")
+            .replace(/…/g, "...")
+            .replace(/[—–]/g, "-")
+            .replace(/ /g, " ")
+            .replace(/&nbsp;/g, " ")
+            .replace(/&amp;/g, "&")
+            .replace(/&lt;/g, "<")
+            .replace(/&gt;/g, ">")
+            .replace(/&quot;/g, '"')
+            .replace(/&apos;/g, "'")
+            .replace(/&ldquo;/g, '"')
+            .replace(/&rdquo;/g, '"')
+            .replace(/&lsquo;/g, "'")
+            .replace(/&rsquo;/g, "'")
+            .replace(/&laquo;/g, '"')
+            .replace(/&raquo;/g, '"');
 
-    const [diffGroups] = useState(diff.diffWords(string1, string2));
+    return normalize(oldText) !== normalize(newText);
+}
+
+const Diff = ({ string1 = "", string2 = "", setSelectedText }) => {
+    const [diffGroups] = useState(() =>
+        diff.diffWordsWithSpace(string1, string2),
+    );
     const [activeChangeId, setActiveChangeId] = useState("change-0");
     const [groupedTokens, setGroupedTokens] = useState([]);
-
-    useEffect(() => {
-        if (setSelectedText) {
-            setSelectedText(getFinalText(groupedTokens));
-        }
-    }, [groupedTokens, setSelectedText]);
 
     useEffect(() => {
         const groupedTokens = [];
@@ -242,14 +241,14 @@ const Diff = ({ string1 = "", string2 = "", setSelectedText }) => {
                     groupedTokens.length === 0 ||
                     lastGroupedToken.type !== "change"
                 ) {
-                    groupedTokens.push({
+                    const newChangeGroup = {
                         type: "change",
                         removed: [],
                         added: [],
                         accepted: true,
-                    });
-
-                    lastGroupedToken = groupedTokens[groupedTokens.length - 1];
+                    };
+                    groupedTokens.push(newChangeGroup);
+                    lastGroupedToken = newChangeGroup;
                 }
 
                 if (added) {
@@ -258,6 +257,35 @@ const Diff = ({ string1 = "", string2 = "", setSelectedText }) => {
 
                 if (removed) {
                     lastGroupedToken.removed.push(token.value);
+                }
+
+                // Check if the change is substantive
+                if (
+                    lastGroupedToken.removed.length > 0 &&
+                    lastGroupedToken.added.length > 0
+                ) {
+                    const oldText = lastGroupedToken.removed.join("");
+                    const newText = lastGroupedToken.added.join("");
+                    if (!isSubstantiveChange(oldText, newText)) {
+                        // If it's not substantive, remove this change group
+                        groupedTokens.pop();
+                        // If the previous token was text, we need to merge this non-substantive change with it
+                        if (
+                            groupedTokens.length > 0 &&
+                            groupedTokens[groupedTokens.length - 1].type ===
+                                "text"
+                        ) {
+                            groupedTokens[groupedTokens.length - 1].tokens.push(
+                                { value: oldText },
+                            );
+                        } else {
+                            // Otherwise, add it as a new text token
+                            groupedTokens.push({
+                                type: "text",
+                                tokens: [{ value: oldText }],
+                            });
+                        }
+                    }
                 }
             } else {
                 if (
@@ -279,32 +307,40 @@ const Diff = ({ string1 = "", string2 = "", setSelectedText }) => {
         setGroupedTokens(groupedTokens);
     }, [diffGroups]);
 
+    const handleTokenChange = (index, accepted) => {
+        const newGroupedTokens = [...groupedTokens];
+        newGroupedTokens[index].accepted = accepted;
+        setGroupedTokens(newGroupedTokens);
+    };
+
+    useEffect(() => {
+        if (setSelectedText) {
+            setSelectedText(getFinalText(groupedTokens));
+        }
+    }, [groupedTokens, setSelectedText]);
+
     const changes = [];
 
     const tokens = groupedTokens.map((group, i) => {
         if (group.type === "change") {
             const changeId = `change-${i}`;
 
-            const handleTokenChange = (accepted) => {
-                const newGroupedTokens = [...groupedTokens];
-                newGroupedTokens[i].accepted = accepted;
-
-                setGroupedTokens(newGroupedTokens);
-            };
-
             changes.push({
                 changeId,
                 change: (
                     <Change
+                        key={changeId}
                         changeId={changeId}
                         token={group}
-                        onTokenChange={handleTokenChange}
+                        onTokenChange={(accepted) =>
+                            handleTokenChange(i, accepted)
+                        }
                     />
                 ),
             });
 
             return (
-                <span className="change-group">
+                <span key={changeId} className="change-group">
                     <ChangeToken
                         active={activeChangeId === changeId}
                         changeId={changeId}
@@ -318,61 +354,55 @@ const Diff = ({ string1 = "", string2 = "", setSelectedText }) => {
 
             return paragraphs.map((line, i) => {
                 if (i === paragraphs.length - 1) {
-                    return <>{line}</>;
+                    return <React.Fragment key={i}>{line}</React.Fragment>;
                 } else {
                     return (
-                        <>
+                        <React.Fragment key={i}>
                             {line}
-                            <br></br>
-                            <br></br>
-                        </>
+                            <br />
+                            <br />
+                        </React.Fragment>
                     );
                 }
             });
         }
     });
 
+    const { t } = useTranslation();
     return (
-        <div className="ai-diff" style={{ gap: 10 }}>
-            <div className="change-container">
-                <div style={{ flexBasis: 300 }}>
-                    <h6>Changes</h6>
-                    <ul
-                        style={{
-                            paddingLeft: 0,
-                            height: "100%",
-                            overflowY: "auto",
-                        }}
-                    >
-                        {changes
-                            .filter((c) => c)
-                            .map((c, i) => (
-                                <li
-                                    className="change-item"
-                                    key={`change-item-${i}`}
-                                    onMouseEnter={(e) => {
-                                        const changeElement =
-                                            document.getElementById(c.changeId);
-                                        const divElement =
-                                            document.getElementById(
-                                                "ai-change-preview",
-                                            );
+        <div className="ai-diff flex flex-col md:flex-row gap-4 h-full overflow-hidden">
+            <div className="change-container flex-1 h-[300px] md:h-[600px] overflow-y-auto">
+                <h6 className="mb-4">{t("Changes")}</h6>
+                <ul className="list-none p-0">
+                    {changes.map((c, i) => (
+                        <li
+                            key={`change-item-${i}`}
+                            className="change-item"
+                            onMouseEnter={() => {
+                                const changeElement = document.getElementById(
+                                    c.changeId,
+                                );
+                                const divElement =
+                                    document.getElementById(
+                                        "ai-change-preview",
+                                    );
 
-                                        divElement.scrollTop =
-                                            changeElement.offsetTop - 200;
+                                if (divElement) {
+                                    divElement.scrollTop =
+                                        changeElement.offsetTop - 200;
+                                }
 
-                                        setActiveChangeId(c.changeId);
-                                    }}
-                                >
-                                    {c.change}
-                                </li>
-                            ))}
-                    </ul>
-                </div>
-                <div style={{ flex: 1 }}>
-                    <h6 style={{ marginBottom: 15 }}>Changed Text</h6>
-                    <div id="ai-change-preview">{tokens}</div>
-                </div>
+                                setActiveChangeId(c.changeId);
+                            }}
+                        >
+                            {c.change}
+                        </li>
+                    ))}
+                </ul>
+            </div>
+            <div className="flex-1 h-[300px] md:h-[600px] overflow-y-auto">
+                <h6 className="mb-4">{t("Changed Text")}</h6>
+                <div id="ai-change-preview">{tokens}</div>
             </div>
         </div>
     );
@@ -381,7 +411,7 @@ const Diff = ({ string1 = "", string2 = "", setSelectedText }) => {
 Diff.propTypes = {
     string1: PropTypes.string,
     string2: PropTypes.string,
-    mode: PropTypes.oneOf(["characters", "words"]),
+    setSelectedText: PropTypes.func,
 };
 
 export default Diff;
