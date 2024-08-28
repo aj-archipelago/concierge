@@ -102,7 +102,8 @@ const ChatMessages = React.memo(function ChatMessages({
                     <MessageList
                         messages={processedMessages}
                         loading={loading}
-                        chatId={chatId} />
+                        chatId={chatId}
+                    />
                 </div>
             </div>
             <div>

@@ -177,7 +177,10 @@ function ChatContent({
                         }
 
                         if (codeRequestId) {
-                            queryClient.setQueryData(["codeRequestId", chatId], codeRequestId);
+                            queryClient.setQueryData(
+                                ["codeRequestId", chatId],
+                                codeRequestId,
+                            );
                             updateChatLoadingState(chatId, true);
                         }
                     }

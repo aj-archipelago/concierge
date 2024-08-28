@@ -74,7 +74,6 @@ function MessageList({ messages, bot, loading, chatId }) {
         updateChatLoadingState(chatId, false);
     }
 
-
     const messageLoadStateRef = React.useRef(messageLoadState);
 
     useEffect(() => {
@@ -356,21 +355,21 @@ function MessageList({ messages, bot, loading, chatId }) {
                         ),
                     })}
 
-                    {codeRequestId && (
-                <div
-                className="w-full text-center rounded-lg dark:bg-gray-100 bg-gray-700 p-3 text-xs py-5"
-                style={{
-  animation: 'pulse 2s cubic-bezier(0.8, 0, 0.9, 1) infinite',
-}}
-                >
-                    <ProgressUpdate
-                        requestId={codeRequestId}
-                        setFinalData={setCodeRequestFinalData}
-                        initialText={"🤖 Agent coding in background..."}
-                    />
-                </div>
-            )}
-
+                {codeRequestId && (
+                    <div
+                        className="w-full text-center rounded-lg dark:bg-gray-100 bg-gray-700 p-3 text-xs py-5"
+                        style={{
+                            animation:
+                                "pulse 2s cubic-bezier(0.8, 0, 0.9, 1) infinite",
+                        }}
+                    >
+                        <ProgressUpdate
+                            requestId={codeRequestId}
+                            setFinalData={setCodeRequestFinalData}
+                            initialText={"🤖 Agent coding in background..."}
+                        />
+                    </div>
+                )}
             </ScrollToBottom>
         </>
     );

@@ -68,39 +68,41 @@ const ProgressUpdate = ({
                 rollingWindowAverageSize={3}
                 decreaseTime={false}
             />
-        <div className="relative flex justify-center items-center">
-            {completionTime && (
-                <div>
-                    Completing in <ReactTimeAgo date={completionTime} />
-                </div>
-            )}
-            {info && (
-                <div className="absolute right-0 flex items-center text-[10px] top-[-15px]">
-                    <input
-                        type="checkbox"
-                        id="showInfo"
-                        checked={showInfo}
-                        onChange={(e) => setShowInfo(e.target.checked)}
-                        className="mr-2 focus:ring-0 focus:ring-offset-0 focus:outline-none"
-                    />
-                    <label htmlFor="showInfo" className="text-xs">Show agent info</label>
-                </div>
-            )}
-        </div>
-        {showInfo && info && (
-            <div className="max-w-full m-1 text-[10px]">
-                <span
-                    className="overflow-hidden break-words whitespace-pre-wrap"
-                    style={{
-                        display: "-webkit-box",
-                        WebkitLineClamp: "5",
-                        WebkitBoxOrient: "vertical",
-                    }}
-                >
-                    {info.replace(/\s+/g, ' ')}
-                </span>
+            <div className="relative flex justify-center items-center">
+                {completionTime && (
+                    <div>
+                        Completing in <ReactTimeAgo date={completionTime} />
+                    </div>
+                )}
+                {info && (
+                    <div className="absolute right-0 flex items-center text-[10px] top-[-15px]">
+                        <input
+                            type="checkbox"
+                            id="showInfo"
+                            checked={showInfo}
+                            onChange={(e) => setShowInfo(e.target.checked)}
+                            className="mr-2 focus:ring-0 focus:ring-offset-0 focus:outline-none"
+                        />
+                        <label htmlFor="showInfo" className="text-xs">
+                            Show agent info
+                        </label>
+                    </div>
+                )}
             </div>
-        )}
+            {showInfo && info && (
+                <div className="max-w-full m-1 text-[10px]">
+                    <span
+                        className="overflow-hidden break-words whitespace-pre-wrap"
+                        style={{
+                            display: "-webkit-box",
+                            WebkitLineClamp: "5",
+                            WebkitBoxOrient: "vertical",
+                        }}
+                    >
+                        {info.replace(/\s+/g, " ")}
+                    </span>
+                </div>
+            )}
         </>
     );
 };
