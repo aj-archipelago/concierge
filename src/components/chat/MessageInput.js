@@ -16,7 +16,7 @@ import {
 } from "../../stores/fileUploadSlice";
 import { FaFileCirclePlus } from "react-icons/fa6";
 import { IoCloseCircle } from "react-icons/io5";
-import { isDocumentUrl, isMediaUrl } from "./MyFilePond";
+import { getFilename, isDocumentUrl, isMediaUrl } from "./MyFilePond";
 import { AuthContext } from "../../App";
 import { useAddDocument } from "../../../app/queries/uploadedDocs";
 import { useGetActiveChatId } from "../../../app/queries/chats";
@@ -220,33 +220,6 @@ function MessageInput({
             </div>
         </div>
     );
-}
-
-// Extracts the filename from a URL
-function getFilename(url) {
-    try {
-        // Create a URL object to handle parsing
-        const urlObject = new URL(url);
-
-        // Get the pathname and remove leading/trailing slashes
-        const path = urlObject.pathname.replace(/^\/|\/$/g, "");
-
-        // Get the last part of the path (filename)
-        const fullFilename = path.split("/").pop() || "";
-
-        // Decode the filename to handle URL encoding
-        const decodedFilename = decodeURIComponent(fullFilename);
-
-        // Split by underscore and remove the first part if it exists
-        const parts = decodedFilename.split("_");
-        const relevantParts = parts.length > 1 ? parts.slice(1) : parts;
-
-        // Join the parts back together
-        return relevantParts.join("_");
-    } catch (error) {
-        console.error("Error parsing URL:", error);
-        return "";
-    }
 }
 
 export default MessageInput;

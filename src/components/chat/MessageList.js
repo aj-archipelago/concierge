@@ -8,7 +8,12 @@ import config from "../../../config";
 import { convertMessageToMarkdown } from "./ChatMessage";
 import ScrollToBottom from "./ScrollToBottom";
 import Loader from "../../../app/components/loader";
-import { isAudioUrl, isVideoUrl } from "./MyFilePond";
+import {
+    getExtension,
+    getFilename,
+    isAudioUrl,
+    isVideoUrl,
+} from "./MyFilePond";
 import CopyButton from "../CopyButton";
 import { AuthContext } from "../../App.js";
 
@@ -236,37 +241,29 @@ function MessageList({ messages, bot, loading }) {
                                         );
                                     }
 
-                                    if (src.endsWith(".pdf")) {
-                                        // Display the PDF icon
-                                        const filenameWithPrefix = src
-                                            .split("/")
-                                            .pop();
-                                        const filename = filenameWithPrefix
-                                            .split("_")
-                                            .slice(1)
-                                            .join("_");
+                                    if (getExtension(src) === ".pdf") {
+                                        const filename = decodeURIComponent(
+                                            getFilename(src),
+                                        );
+
                                         return (
-                                            <div
+                                            <a
                                                 key={index}
-                                                style={{
-                                                    display: "flex",
-                                                    alignItems: "center",
-                                                    marginTop: "10px",
-                                                }}
+                                                className="bg-neutral-100 py-2 ps-2 pe-4 m-2 shadow-md rounded-lg border flex gap-2 items-center"
                                                 onLoad={() => {
                                                     handleMessageLoad(
                                                         newMessage.id,
                                                     );
                                                 }}
+                                                href={src}
+                                                target="_blank"
                                             >
                                                 <AiFillFilePdf
                                                     size={40}
-                                                    style={{
-                                                        marginRight: "8px",
-                                                    }}
+                                                    className="text-red-600 dark:text-red-400"
                                                 />
-                                                <i>{filename}</i>
-                                            </div>
+                                                {filename}
+                                            </a>
                                         );
                                     }
 

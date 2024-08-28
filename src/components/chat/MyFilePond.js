@@ -145,7 +145,34 @@ const VIDEO_EXTENSIONS = [
 
 const AUDIO_EXTENSIONS = [".wav", ".mp3", ".aiff", ".aac", ".ogg", ".flac"];
 
-function getExtension(url) {
+// Extracts the filename from a URL
+export function getFilename(url) {
+    try {
+        // Create a URL object to handle parsing
+        const urlObject = new URL(url);
+
+        // Get the pathname and remove leading/trailing slashes
+        const path = urlObject.pathname.replace(/^\/|\/$/g, "");
+
+        // Get the last part of the path (filename)
+        const fullFilename = path.split("/").pop() || "";
+
+        // Decode the filename to handle URL encoding
+        const decodedFilename = decodeURIComponent(fullFilename);
+
+        // Split by underscore and remove the first part if it exists
+        const parts = decodedFilename.split("_");
+        const relevantParts = parts.length > 1 ? parts.slice(1) : parts;
+
+        // Join the parts back together
+        return relevantParts.join("_");
+    } catch (error) {
+        console.error("Error parsing URL:", error);
+        return "";
+    }
+}
+
+export function getExtension(url) {
     try {
         const parsedUrl = new URL(url);
         const pathname = parsedUrl.pathname;
