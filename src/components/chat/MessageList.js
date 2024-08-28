@@ -11,6 +11,9 @@ import Loader from "../../../app/components/loader";
 import { isAudioUrl, isVideoUrl } from "./MyFilePond";
 import CopyButton from "../CopyButton";
 import { AuthContext } from "../../App.js";
+import { useQueryClient } from "@tanstack/react-query";
+import { useAddMessage } from "../../../app/queries/chats";
+import ProgressUpdate from "../editor/ProgressUpdate";
 
 const getLoadState = (message) => {
     const hasImage =
@@ -32,7 +35,7 @@ const getLoadState = (message) => {
 };
 
 // Displays the list of messages and a message input box.
-function MessageList({ messages, bot, loading }) {
+function MessageList({ messages, bot, loading, chatId }) {
     const { user } = useContext(AuthContext);
     const { aiName } = user;
     const { language } = i18next;
@@ -46,6 +49,31 @@ function MessageList({ messages, bot, loading }) {
             };
         }),
     );
+    const addMessage = useAddMessage();
+
+    const queryClient = useQueryClient();
+    const codeRequestId = queryClient.getQueryData(["codeRequestId", chatId]);
+
+    const updateChatLoadingState = (id, isLoading) => {
+        queryClient.setQueryData(["chatLoadingState", id], isLoading);
+    };
+
+    function setCodeRequestFinalData(data) {
+        queryClient.setQueryData(["codeRequestId", chatId], null);
+
+        addMessage.mutate({
+            chatId,
+            message: {
+                payload: `<span class="text-indigo-500">🤖 Coding Agent ➡️ </span> ${data}`,
+                sender: "labeeb",
+                sentTime: "just now",
+                direction: "incoming",
+                position: "single",
+            },
+        });
+        updateChatLoadingState(chatId, false);
+    }
+
 
     const messageLoadStateRef = React.useRef(messageLoadState);
 
@@ -327,6 +355,22 @@ function MessageList({ messages, bot, loading }) {
                             </div>
                         ),
                     })}
+
+                    {codeRequestId && (
+                <div
+                className="w-full text-center rounded-lg dark:bg-gray-100 bg-gray-700 p-3 text-xs py-5"
+                style={{
+  animation: 'pulse 2s cubic-bezier(0.8, 0, 0.9, 1) infinite',
+}}
+                >
+                    <ProgressUpdate
+                        requestId={codeRequestId}
+                        setFinalData={setCodeRequestFinalData}
+                        initialText={"🤖 Agent coding in background..."}
+                    />
+                </div>
+            )}
+
             </ScrollToBottom>
         </>
     );

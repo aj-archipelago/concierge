@@ -156,6 +156,7 @@ function ChatContent({
                 let searchRequired = false;
                 let tool = null;
                 let newTitle = null;
+                let codeRequestId = null;
 
                 try {
                     const resultObj = JSON.parse(result.data.rag_start.result);
@@ -165,6 +166,7 @@ function ChatContent({
                     if (tool) {
                         const toolObj = JSON.parse(tool);
                         searchRequired = toolObj?.search;
+                        codeRequestId = toolObj?.codeRequestId;
 
                         if (
                             !chat?.titleSetByUser &&
@@ -172,6 +174,11 @@ function ChatContent({
                             chat?.title !== toolObj.title
                         ) {
                             newTitle = toolObj.title;
+                        }
+
+                        if (codeRequestId) {
+                            queryClient.setQueryData(["codeRequestId", chatId], codeRequestId);
+                            updateChatLoadingState(chatId, true);
                         }
                     }
                 } catch (e) {
@@ -280,6 +287,7 @@ function ChatContent({
             messages={memoizedMessages}
             container={container}
             displayState={displayState}
+            chatId={chatId}
         />
     );
 }

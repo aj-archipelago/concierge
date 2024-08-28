@@ -21,6 +21,7 @@ const ChatMessages = React.memo(function ChatMessages({
     displayState,
     viewingReadOnlyChat,
     publicChatOwner,
+    chatId,
 }) {
     const { user } = useContext(AuthContext);
     const { aiName } = user;
@@ -101,7 +102,7 @@ const ChatMessages = React.memo(function ChatMessages({
                     <MessageList
                         messages={processedMessages}
                         loading={loading}
-                    />
+                        chatId={chatId} />
                 </div>
             </div>
             <div>
