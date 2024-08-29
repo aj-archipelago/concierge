@@ -190,6 +190,42 @@ const RAG_START = gql`
     }
 `;
 
+const RAG_GENERATOR_CODE = gql`
+    query RagGeneratorCode(
+        $chatHistory: [MultiMessage]!
+        $dataSources: [String]
+        $contextId: String
+        $text: String
+        $roleInformation: String
+        $indexName: String
+        $semanticConfiguration: String
+        $aiName: String
+        $useMemory: Boolean
+        $chatId: String
+        $codingResult: String
+    ) {
+        rag_generator_code(
+            chatHistory: $chatHistory
+            dataSources: $dataSources
+            contextId: $contextId
+            text: $text
+            roleInformation: $roleInformation
+            indexName: $indexName
+            semanticConfiguration: $semanticConfiguration
+            aiName: $aiName
+            useMemory: $useMemory
+            chatId: $chatId
+            codingResult: $codingResult
+        ) {
+            result
+            contextId
+            tool
+            warnings
+            errors
+        }
+    }
+`;
+
 const RAG_GENERATOR_RESULTS = gql`
     query RagFinish(
         $chatHistory: [MultiMessage]!
@@ -527,6 +563,7 @@ const REQUEST_PROGRESS = gql`
         requestProgress(requestIds: $requestIds) {
             data
             progress
+            info
         }
     }
 `;
@@ -669,6 +706,7 @@ const QUERIES = {
     RAG_SAVE_MEMORY,
     RAG_START,
     RAG_GENERATOR_RESULTS,
+    RAG_GENERATOR_CODE,
     EXPAND_STORY,
     FORMAT_PARAGRAPH_TURBO,
     SELECT_SERVICES,
@@ -727,6 +765,7 @@ export {
     RAG_SAVE_MEMORY,
     RAG_START,
     RAG_GENERATOR_RESULTS,
+    RAG_GENERATOR_CODE,
     SELECT_SERVICES,
     SUMMARY,
     HASHTAGS,
