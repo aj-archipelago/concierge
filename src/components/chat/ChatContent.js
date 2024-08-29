@@ -3,15 +3,10 @@ import { useSelector } from "react-redux";
 import { useApolloClient } from "@apollo/client";
 import { useTranslation } from "react-i18next";
 import { toast } from "react-toastify";
-import { useQueryClient } from "@tanstack/react-query";
 import { AuthContext } from "../../App.js";
 import ChatMessages from "./ChatMessages";
 import { QUERIES } from "../../graphql";
-import {
-    useGetActiveChat,
-    useAddMessage,
-    useUpdateChat,
-} from "../../../app/queries/chats";
+import { useGetActiveChat, useUpdateChat } from "../../../app/queries/chats";
 
 const contextMessageCount = 50;
 
@@ -24,7 +19,6 @@ function ChatContent({
     const client = useApolloClient();
     const { user } = useContext(AuthContext);
     const activeChat = useGetActiveChat()?.data;
-    const queryClient = useQueryClient();
 
     const viewingReadOnlyChat = useMemo(
         () => displayState === "full" && viewingChat && viewingChat.readOnly,
@@ -35,24 +29,15 @@ function ChatContent({
     const chatId = String(chat?._id);
     const memoizedMessages = useMemo(() => chat?.messages || [], [chat]);
     const selectedSources = useSelector((state) => state.doc.selectedSources);
-    const addMessage = useAddMessage();
     const updateChatHook = useUpdateChat();
     const publicChatOwner = viewingChat?.owner;
-
-    const updateChatLoadingState = useCallback(
-        (id, isLoading) => {
-            queryClient.setQueryData(["chatLoadingState", id], isLoading);
-        },
-        [queryClient],
-    );
-
-    const chatLoadingState =
-        queryClient.getQueryData(["chatLoadingState", chatId]) || false;
+    const isChatLoading = chat?.isChatLoading;
 
     const updateChat = useCallback(
-        (message, tool) => {
+        (message, tool, isChatLoading = false) => {
+            const messages = chat?.messages || [];
             if (message) {
-                addMessage.mutate({
+                messages.push({
                     chatId,
                     message: {
                         payload: message,
@@ -64,9 +49,14 @@ function ChatContent({
                     },
                 });
             }
-            updateChatLoadingState(chatId, false);
+
+            updateChatHook.mutateAsync({
+                chatId,
+                isChatLoading,
+                messages,
+            });
         },
-        [addMessage, chatId, updateChatLoadingState],
+        [chatId, updateChatHook, chat],
     );
 
     const handleError = useCallback(
@@ -78,9 +68,8 @@ function ChatContent({
                 ),
                 null,
             );
-            updateChatLoadingState(chatId, false);
         },
-        [t, updateChat, updateChatLoadingState, chatId],
+        [t, updateChat],
     );
 
     const handleSend = useCallback(
@@ -95,19 +84,14 @@ function ChatContent({
                     position: "single",
                 };
 
-                queryClient.setQueryData(
-                    ["chat", String(chat?._id)],
-                    (oldChat) => ({
-                        ...oldChat,
-                        messages: [
-                            ...(oldChat?.messages || []),
-                            optimisticUserMessage,
-                        ],
-                    }),
-                );
-
-                // Update loading state
-                updateChatLoadingState(chatId, true);
+                updateChatHook.mutateAsync({
+                    chatId: String(chat?._id),
+                    messages: [
+                        ...(chat?.messages || []),
+                        optimisticUserMessage,
+                    ],
+                    isChatLoading: true,
+                });
 
                 // Prepare conversation history
                 const conversation = memoizedMessages
@@ -175,14 +159,6 @@ function ChatContent({
                         ) {
                             newTitle = toolObj.title;
                         }
-
-                        if (codeRequestId) {
-                            queryClient.setQueryData(
-                                ["codeRequestId", chatId],
-                                codeRequestId,
-                            );
-                            updateChatLoadingState(chatId, true);
-                        }
                     }
                 } catch (e) {
                     console.error("Error parsing result:", e);
@@ -198,33 +174,7 @@ function ChatContent({
                     sender: "labeeb",
                 };
 
-                // Update the chat title in the cache if there's a new title
-                if (newTitle) {
-                    queryClient.setQueryData(
-                        ["chatTitle", String(chat?._id)],
-                        newTitle,
-                    );
-                }
-
-                // Batch updates in a single operation
-                await queryClient.cancelQueries(["chat", String(chat?._id)]);
-                queryClient.setQueryData(
-                    ["chat", String(chat?._id)],
-                    (oldChat) => {
-                        const updatedChat = {
-                            ...oldChat,
-                            messages: [
-                                ...(oldChat?.messages || []),
-                                optimisticUserMessage,
-                                optimisticAIMessage,
-                            ],
-                        };
-                        if (newTitle) {
-                            updatedChat.title = newTitle;
-                        }
-                        return updatedChat;
-                    },
-                );
+                const isChatLoading = !!(searchRequired || codeRequestId);
 
                 // Confirm updates with the server
                 await updateChatHook.mutateAsync({
@@ -235,10 +185,11 @@ function ChatContent({
                         optimisticAIMessage,
                     ],
                     ...(newTitle && { title: newTitle }),
+                    isChatLoading,
+                    codeRequestId,
                 });
 
                 if (searchRequired) {
-                    updateChatLoadingState(chatId, true);
                     const searchResult = await client.query({
                         query: QUERIES.RAG_GENERATOR_RESULTS,
                         variables,
@@ -259,24 +210,21 @@ function ChatContent({
                                 sender: "labeeb",
                             },
                         ],
+                        isChatLoading: false,
                     });
                 }
             } catch (error) {
                 handleError(error);
-            } finally {
-                updateChatLoadingState(chatId, false);
             }
         },
         [
             chat,
             updateChatHook,
-            queryClient,
             client,
             user,
             memoizedMessages,
             selectedSources,
             handleError,
-            updateChatLoadingState,
             chatId,
         ],
     );
@@ -285,7 +233,7 @@ function ChatContent({
         <ChatMessages
             viewingReadOnlyChat={viewingReadOnlyChat}
             publicChatOwner={publicChatOwner}
-            loading={chatLoadingState}
+            loading={isChatLoading}
             onSend={handleSend}
             messages={memoizedMessages}
             container={container}

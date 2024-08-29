@@ -180,7 +180,7 @@ function SavedChats({ displayState }) {
                                                 key={index}
                                                 className="text-xs text-gray-500 break-words"
                                             >
-                                                {m.payload.length > 35
+                                                {m?.payload?.length > 35
                                                     ? `${m.payload.slice(0, 35)}...`
                                                     : m.payload}
                                             </li>
