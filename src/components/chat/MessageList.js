@@ -16,8 +16,7 @@ import {
 } from "./MyFilePond";
 import CopyButton from "../CopyButton";
 import { AuthContext } from "../../App.js";
-import { useQueryClient } from "@tanstack/react-query";
-import { useAddMessage } from "../../../app/queries/chats";
+import { useGetActiveChat, useUpdateChat } from "../../../app/queries/chats";
 import ProgressUpdate from "../editor/ProgressUpdate";
 
 const getLoadState = (message) => {
@@ -54,29 +53,25 @@ function MessageList({ messages, bot, loading, chatId }) {
             };
         }),
     );
-    const addMessage = useAddMessage();
-
-    const queryClient = useQueryClient();
-    const codeRequestId = queryClient.getQueryData(["codeRequestId", chatId]);
-
-    const updateChatLoadingState = (id, isLoading) => {
-        queryClient.setQueryData(["chatLoadingState", id], isLoading);
-    };
+    const chat = useGetActiveChat()?.data;
+    const updateChat = useUpdateChat();
+    const codeRequestId = chat?.codeRequestId;
 
     function setCodeRequestFinalData(data) {
-        queryClient.setQueryData(["codeRequestId", chatId], null);
+        const message = {
+            payload: `<span class="text-indigo-500">🤖 Coding Agent ➡️ </span> ${data}`,
+            sender: "labeeb",
+            sentTime: "just now",
+            direction: "incoming",
+            position: "single",
+        };
 
-        addMessage.mutate({
+        updateChat.mutateAsync({
             chatId,
-            message: {
-                payload: `<span class="text-indigo-500">🤖 Coding Agent ➡️ </span> ${data}`,
-                sender: "labeeb",
-                sentTime: "just now",
-                direction: "incoming",
-                position: "single",
-            },
+            codeRequestId: null,
+            isChatLoading: false,
+            messages: [...chat.messages, message],
         });
-        updateChatLoadingState(chatId, false);
     }
 
     const messageLoadStateRef = React.useRef(messageLoadState);

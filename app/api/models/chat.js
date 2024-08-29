@@ -70,6 +70,14 @@ const chatSchema = new mongoose.Schema(
             type: Boolean,
             default: false,
         },
+        codeRequestId: {
+            type: String,
+            default: null,
+        },
+        isChatLoading: {
+            type: Boolean,
+            default: false,
+        },
     },
     {
         timestamps: true,

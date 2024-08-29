@@ -405,9 +405,29 @@ export function useUpdateChat() {
         },
         onMutate: async ({ chatId, ...updateData }) => {
             await queryClient.cancelQueries({ queryKey: ["chat", chatId] });
+            await queryClient.cancelQueries({ queryKey: ["chats"] });
+            await queryClient.cancelQueries({ queryKey: ["activeChats"] });
+
             const previousChat = queryClient.getQueryData(["chat", chatId]);
             const expectedChatData = { ...previousChat, ...updateData };
+
             queryClient.setQueryData(["chat", chatId], expectedChatData);
+
+            queryClient.setQueryData(
+                "chats",
+                (old) =>
+                    old?.map((chat) =>
+                        chat._id === chatId ? expectedChatData : chat,
+                    ) || [],
+            );
+
+            queryClient.setQueryData(
+                "activeChats",
+                (old) =>
+                    old?.map((chat) =>
+                        chat._id === chatId ? expectedChatData : chat,
+                    ) || [],
+            );
 
             return { previousChat };
         },
