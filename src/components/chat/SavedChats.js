@@ -202,7 +202,7 @@ function SavedChats({ displayState }) {
         <div className={`${isDocked ? "text-xs" : ""}`}>
             <div className="flex justify-between items-center mb-4">
                 <h1 className="text-lg font-semibold">
-                    {t("Saved Chats")} ({savedChatCount})
+                    {t("Chat history")} ({savedChatCount}) {t("chats")}
                 </h1>
                 <button onClick={handleCreateNewChat} className="lb-primary">
                     <PlusIcon className="h-4 w-4" />
