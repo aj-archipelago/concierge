@@ -341,27 +341,20 @@ function MessageList({ messages, bot, loading, chatId }) {
                         id: "loading",
                         sender: "labeeb",
                         payload: (
-                            <div className="mt-1 ms-1 mb-2">
-                                <Loader />
+                            <div className="flex gap-4">
+                                <div className="mt-2 ms-2 mb-2"><Loader /></div>
+                                {codeRequestId && (
+                                    <div className="border p-4 rounded-md bg-white animate-fade-in">
+                                        <ProgressUpdate
+                                            requestId={codeRequestId}
+                                            setFinalData={setCodeRequestFinalData}
+                                            initialText={"🤖 Agent coding in background..."}
+                                        />
+                                    </div>
+                                )}
                             </div>
                         ),
                     })}
-
-                {codeRequestId && (
-                    <div
-                        className="w-full text-center rounded-lg dark:bg-gray-100 bg-gray-700 p-3 text-xs py-5"
-                        style={{
-                            animation:
-                                "pulse 2s cubic-bezier(0.8, 0, 0.9, 1) infinite",
-                        }}
-                    >
-                        <ProgressUpdate
-                            requestId={codeRequestId}
-                            setFinalData={setCodeRequestFinalData}
-                            initialText={"🤖 Agent coding in background..."}
-                        />
-                    </div>
-                )}
             </ScrollToBottom>
         </>
     );
