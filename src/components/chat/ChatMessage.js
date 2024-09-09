@@ -150,7 +150,7 @@ function convertMessageToMarkdown(message) {
 
     return (
         <Markdown
-            className="chat-message"
+            className="chat-message min-h-[1.5rem]"
             key={`lm-${id}`}
             remarkPlugins={[
                 directive,
