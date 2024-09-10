@@ -1,12 +1,18 @@
-import { EditIcon, TrashIcon, XIcon } from 'lucide-react';
-import { useState } from 'react';
-import { useTranslation } from 'react-i18next';
-import { useUpdateChat } from '../../app/queries/chats';
-import classNames from '../../app/utils/class-names';
+import { EditIcon, TrashIcon, XIcon } from "lucide-react";
+import { useState } from "react";
+import { useTranslation } from "react-i18next";
+import { useUpdateChat } from "../../app/queries/chats";
+import classNames from "../../app/utils/class-names";
 
-const ChatNavigationItem = ({ subItem, pathname, router, setActiveChatId, handleDeleteChat }) => {
+const ChatNavigationItem = ({
+    subItem,
+    pathname,
+    router,
+    setActiveChatId,
+    handleDeleteChat,
+}) => {
     const [editingId, setEditingId] = useState(null);
-    const [editedName, setEditedName] = useState('');
+    const [editedName, setEditedName] = useState("");
     const { t } = useTranslation();
     const updateChat = useUpdateChat();
 
@@ -22,12 +28,12 @@ const ChatNavigationItem = ({ subItem, pathname, router, setActiveChatId, handle
     return (
         <li
             className={classNames(
-                'group flex items-center justify-between rounded-md cursor-pointer hover:bg-gray-100 my-0.5',
-                pathname === subItem?.href ? 'bg-gray-100' : '',
+                "group flex items-center justify-between rounded-md cursor-pointer hover:bg-gray-100 my-0.5",
+                pathname === subItem?.href ? "bg-gray-100" : "",
             )}
             onClick={() => {
                 if (subItem.href && editingId !== subItem.key) {
-                    console.log('subItem.href', subItem.href);
+                    console.log("subItem.href", subItem.href);
                     setEditingId(null);
                     router.push(subItem.href);
                     setActiveChatId.mutateAsync(subItem.key);
@@ -45,8 +51,16 @@ const ChatNavigationItem = ({ subItem, pathname, router, setActiveChatId, handle
                                 <XIcon
                                     className="h-3 w-3 text-gray-400 hover:text-gray-600 cursor-pointer invisible group-hover:visible"
                                     style={{
-                                        left: document.documentElement.dir === 'rtl' ? 'unset' : '0.5rem',
-                                        right: document.documentElement.dir === 'rtl' ? '0.5rem' : 'unset',
+                                        left:
+                                            document.documentElement.dir ===
+                                            "rtl"
+                                                ? "unset"
+                                                : "0.5rem",
+                                        right:
+                                            document.documentElement.dir ===
+                                            "rtl"
+                                                ? "0.5rem"
+                                                : "unset",
                                     }}
                                     onClick={(e) => {
                                         e.stopPropagation();
@@ -66,8 +80,9 @@ const ChatNavigationItem = ({ subItem, pathname, router, setActiveChatId, handle
                                 value={editedName}
                                 onChange={(e) => setEditedName(e.target.value)}
                                 onKeyDown={(e) => {
-                                    if (e.key === 'Enter') handleSaveEdit(subItem);
-                                    if (e.key === 'Escape') setEditingId(null);
+                                    if (e.key === "Enter")
+                                        handleSaveEdit(subItem);
+                                    if (e.key === "Escape") setEditingId(null);
                                 }}
                             />
                         </>
@@ -84,7 +99,7 @@ const ChatNavigationItem = ({ subItem, pathname, router, setActiveChatId, handle
                                 />
                             </div>
                             <div className="truncate">
-                                {t(subItem.name || '')}
+                                {t(subItem.name || "")}
                             </div>
                         </>
                     )}

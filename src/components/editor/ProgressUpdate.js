@@ -77,9 +77,11 @@ const ProgressUpdate = ({
                     </div>
                 )}
                 {info && (
-                    <div 
+                    <div
                         className={`max-w-full text-xs font-mono rounded-md bg-neutral-200 overflow-hidden transition-all duration-300 ease-in-out ${
-                            showInfo ? 'mb-1 max-h-[10em] overflow-auto opacity-100 p-2 ' : 'max-h-0 opacity-0'
+                            showInfo
+                                ? "mb-1 max-h-[10em] overflow-auto opacity-100 p-2 "
+                                : "max-h-0 opacity-0"
                         }`}
                     >
                         <pre
@@ -100,12 +102,13 @@ const ProgressUpdate = ({
                             className="text-xs text-sky-500 hover:text-sky-700"
                             onClick={() => setShowInfo(!showInfo)}
                         >
-                            {showInfo ? "Hide agent info" : "Show agent info (click to expand)"}
+                            {showInfo
+                                ? "Hide agent info"
+                                : "Show agent info (click to expand)"}
                         </button>
                     </div>
                 )}
             </div>
-
         </>
     );
 };

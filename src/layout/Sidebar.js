@@ -20,13 +20,13 @@ import {
     useAddChat,
     useDeleteChat,
     useGetActiveChats,
-    useSetActiveChatId
+    useSetActiveChatId,
 } from "../../app/queries/chats";
 import classNames from "../../app/utils/class-names";
 import config from "../../config";
 import SendFeedbackModal from "../components/help/SendFeedbackModal";
 import { LanguageContext } from "../contexts/LanguageProvider";
-import ChatNavigationItem from './ChatNavigationItem';
+import ChatNavigationItem from "./ChatNavigationItem";
 
 const navigation = [
     {
@@ -170,15 +170,22 @@ export default React.forwardRef(function Sidebar(_, ref) {
                                     {item.children?.length > 0 && (
                                         <ul className="mt-1 px-1">
                                             {item.children.map(
-                                                (subItem, index) => (
+                                                (subItem, index) =>
                                                     item.name === "Chat" ? (
                                                         <ChatNavigationItem
-                                                            key={subItem.key || `${item.name}-${index}`}
+                                                            key={
+                                                                subItem.key ||
+                                                                `${item.name}-${index}`
+                                                            }
                                                             subItem={subItem}
                                                             pathname={pathname}
                                                             router={router}
-                                                            setActiveChatId={setActiveChatId}
-                                                            handleDeleteChat={handleDeleteChat}
+                                                            setActiveChatId={
+                                                                setActiveChatId
+                                                            }
+                                                            handleDeleteChat={
+                                                                handleDeleteChat
+                                                            }
                                                         />
                                                     ) : (
                                                         <li
@@ -194,7 +201,9 @@ export default React.forwardRef(function Sidebar(_, ref) {
                                                                     : "",
                                                             )}
                                                             onClick={() => {
-                                                                if (subItem.href) {
+                                                                if (
+                                                                    subItem.href
+                                                                ) {
                                                                     router.push(
                                                                         subItem.href,
                                                                     );
@@ -298,8 +307,7 @@ export default React.forwardRef(function Sidebar(_, ref) {
                                                                 )}
                                                             </div>
                                                         </li>
-                                                    )
-                                                )
+                                                    ),
                                             )}
                                         </ul>
                                     )}

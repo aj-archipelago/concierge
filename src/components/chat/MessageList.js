@@ -342,13 +342,19 @@ function MessageList({ messages, bot, loading, chatId }) {
                         sender: "labeeb",
                         payload: (
                             <div className="flex gap-4">
-                                <div className="mt-1 ms-1 mb-1 h-4"><Loader /></div>
+                                <div className="mt-1 ms-1 mb-1 h-4">
+                                    <Loader />
+                                </div>
                                 {codeRequestId && (
                                     <div className="border p-4 rounded-md bg-white animate-fade-in">
                                         <ProgressUpdate
                                             requestId={codeRequestId}
-                                            setFinalData={setCodeRequestFinalData}
-                                            initialText={"🤖 Agent coding in background..."}
+                                            setFinalData={
+                                                setCodeRequestFinalData
+                                            }
+                                            initialText={
+                                                "🤖 Agent coding in background..."
+                                            }
                                         />
                                     </div>
                                 )}
