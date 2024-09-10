@@ -8,7 +8,7 @@ export default function Loader({ size = "default" }) {
     }
 
     return (
-        <div className="relative inline-flex">
+        <div className="relative inline-flex animate-fade-in">
             <div
                 className={`${heightClass} ${widthClass} bg-sky-500 rounded-full`}
             ></div>
