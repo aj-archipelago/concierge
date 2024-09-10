@@ -15,7 +15,7 @@ const ProgressUpdate = ({
     });
 
     const [info, setInfo] = useState(null);
-    const [showInfo, setShowInfo] = useState(false);
+    const [showInfo, setShowInfo] = useState(true);
 
     const [progress, setProgress] = useState(10);
     const [completionTime, setCompletionTime] = useState(null);
