@@ -1,4 +1,22 @@
+"use client";
+
+import { useState, useEffect } from 'react';
+
 export default function Loader({ size = "default" }) {
+    const [showLoader, setShowLoader] = useState(false);
+
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            setShowLoader(true);
+        }, 500);
+
+        return () => clearTimeout(timer);
+    }, []);
+
+    if (!showLoader) {
+        return null;
+    }
+
     let heightClass = "h-4";
     let widthClass = "w-4";
 
