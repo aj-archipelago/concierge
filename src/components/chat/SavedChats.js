@@ -14,6 +14,7 @@ import React, { useState } from "react";
 import { isValidObjectId } from "../../utils/helper";
 import { BotIcon, EditIcon, TrashIcon, UserIcon, XIcon } from "lucide-react";
 import classNames from "../../../app/utils/class-names";
+import Loader from "../../../app/components/loader";
 
 dayjs.extend(relativeTime);
 
@@ -29,7 +30,7 @@ function SavedChats({ displayState }) {
     const { t } = useTranslation();
     const deleteChat = useDeleteChat();
     const isDocked = displayState === "docked";
-    const { data: savedChats } = useGetChats();
+    const { data: savedChats, isLoading: areChatsLoading } = useGetChats();
     const setActiveChatId = useSetActiveChatId();
     const router = useRouter();
     const addChat = useAddChat();
@@ -234,6 +235,10 @@ function SavedChats({ displayState }) {
     );
 
     const getCategoryTitle = (key, count) => `${CATEGORIES[key]} (${count})`;
+
+    if (areChatsLoading) {
+        return <Loader />
+    }
 
     return (
         <div className={`${isDocked ? "text-xs" : ""}`}>
