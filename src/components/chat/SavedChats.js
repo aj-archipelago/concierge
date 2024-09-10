@@ -1,4 +1,12 @@
+import { PlusIcon } from "@heroicons/react/24/outline";
+import dayjs from "dayjs";
+import relativeTime from "dayjs/plugin/relativeTime";
+import i18next from "i18next";
+import { EditIcon, TrashIcon, XIcon } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
+import Loader from "../../../app/components/loader";
 import {
     useAddChat,
     useDeleteChat,
@@ -6,15 +14,10 @@ import {
     useSetActiveChatId,
     useUpdateChat,
 } from "../../../app/queries/chats";
-import { PlusIcon } from "@heroicons/react/24/outline";
-import { useRouter } from "next/navigation";
-import dayjs from "dayjs";
-import relativeTime from "dayjs/plugin/relativeTime";
-import React, { useState } from "react";
-import { isValidObjectId } from "../../utils/helper";
-import { BotIcon, EditIcon, TrashIcon, UserIcon, XIcon } from "lucide-react";
 import classNames from "../../../app/utils/class-names";
-import Loader from "../../../app/components/loader";
+import config from "../../../config";
+import { isValidObjectId } from "../../utils/helper";
+import { FaUserCircle } from "react-icons/fa";
 
 dayjs.extend(relativeTime);
 
@@ -35,9 +38,10 @@ function SavedChats({ displayState }) {
     const router = useRouter();
     const addChat = useAddChat();
     const updateChat = useUpdateChat();
-
+    const { getLogo } = config.global;
     const [editingId, setEditingId] = useState(null);
     const [editedName, setEditedName] = useState("");
+    const { language } = i18next;
 
     const handleCreateNewChat = async () => {
         try {
@@ -118,7 +122,6 @@ function SavedChats({ displayState }) {
                     isValidObjectId(chat._id) && (
                         <div
                             key={chat._id}
-
                             className="flex flex-col group text-start p-4 border rounded-lg relative min-h-[135px] overflow-auto"
                         >
                             <div className="flex justify-between mb-2 w-full">
@@ -147,13 +150,24 @@ function SavedChats({ displayState }) {
                                     <h3
                                         onClick={async () => {
                                             if (editingId !== chat._id) {
-                                                console.log("chat._od", editingId, chat._id);
+                                                console.log(
+                                                    "chat._od",
+                                                    editingId,
+                                                    chat._id,
+                                                );
                                                 try {
                                                     const chatId = chat._id;
-                                                    if (!chatId || !isValidObjectId(chatId))
+                                                    if (
+                                                        !chatId ||
+                                                        !isValidObjectId(chatId)
+                                                    )
                                                         return;
-                                                    await setActiveChatId.mutateAsync(chatId);
-                                                    router.push(`/chat/${chatId}`);
+                                                    await setActiveChatId.mutateAsync(
+                                                        chatId,
+                                                    );
+                                                    router.push(
+                                                        `/chat/${chatId}`,
+                                                    );
                                                 } catch (error) {
                                                     console.error(
                                                         "Failed to set active chat ID:",
@@ -163,15 +177,19 @@ function SavedChats({ displayState }) {
                                                 }
                                             }
                                         }}
-                                        className="font-semibold text-md relative grow text-start hover:text-sky-500 cursor-pointer">
+                                        className="font-semibold text-md relative grow text-start hover:text-sky-500 cursor-pointer"
+                                    >
                                         {t(chat.title) || t("New Chat")}
                                     </h3>
                                 )}
-                                <div className={
-                                    classNames(
-                                        editingId === chat._id ? "flex" : "hidden group-hover:flex",
+                                <div
+                                    className={classNames(
+                                        editingId === chat._id
+                                            ? "flex"
+                                            : "hidden group-hover:flex",
                                         "items-center gap-1 -mt-5 -me-2",
-                                    )}>
+                                    )}
+                                >
                                     {editingId === chat._id ? (
                                         <button
                                             onClick={(e) => {
@@ -195,16 +213,17 @@ function SavedChats({ displayState }) {
                                         </button>
                                     )}
                                     <button
-                                        onClick={(e) => handleDelete(chat._id, e)}
+                                        onClick={(e) =>
+                                            handleDelete(chat._id, e)
+                                        }
                                         className={classNames(
                                             "text-gray-400 hover:text-red-500",
-                                            editingId === chat._id ? "hidden" : "block",
+                                            editingId === chat._id
+                                                ? "hidden"
+                                                : "block",
                                         )}
-
                                     >
-                                        <TrashIcon
-                                            className="h-3 w-3 flex-shrink-0"
-                                        />
+                                        <TrashIcon className="h-3 w-3 flex-shrink-0" />
                                     </button>
                                 </div>
                             </div>
@@ -215,12 +234,33 @@ function SavedChats({ displayState }) {
                                         .map((m, index) => (
                                             <li
                                                 key={index}
-                                                className="text-xs text-gray-500 flex gap-1 items-center overflow-auto"
+                                                className={classNames(
+                                                    "text-xs text-gray-500 flex gap-1 items-center overflow-auto",
+                                                )}
                                             >
-                                                <div className="basis-4 flex items-center gap-1">
-                                                    {m?.sender === "user" ? <UserIcon className="h-3 w-3 text-sky-500" /> : <BotIcon className="h-3 w-3 text-sky-500" />}:
+                                                <div className="basis-[1rem] flex items-center gap-1">
+                                                    {m?.sender === "user" ? (
+                                                        <FaUserCircle
+                                                            className={classNames(
+                                                                "w-4 h-4",
+                                                                "text-gray-300",
+                                                            )}
+                                                        />
+                                                    ) : (
+                                                        <img
+                                                            src={getLogo(
+                                                                language,
+                                                            )}
+                                                            alt="Logo"
+                                                            className={classNames(
+                                                                "w-4 h-4",
+                                                            )}
+                                                        />
+                                                    )}
                                                 </div>
-                                                <div className="grow truncate">{m?.payload}</div>
+                                                <div className="basis-[calc(100%-1rem)] truncate my-0.5">
+                                                    {m?.payload}
+                                                </div>
                                             </li>
                                         ))}
                                 </ul>
@@ -237,7 +277,7 @@ function SavedChats({ displayState }) {
     const getCategoryTitle = (key, count) => `${CATEGORIES[key]} (${count})`;
 
     if (areChatsLoading) {
-        return <Loader />
+        return <Loader />;
     }
 
     return (
@@ -254,7 +294,10 @@ function SavedChats({ displayState }) {
                         </div>
                     </div>
 
-                    <button onClick={handleCreateNewChat} className="lb-primary flex items-center gap-2 ">
+                    <button
+                        onClick={handleCreateNewChat}
+                        className="lb-primary flex items-center gap-2 "
+                    >
                         <PlusIcon className="h-4 w-4" />
                         {t("New Chat")}
                     </button>
