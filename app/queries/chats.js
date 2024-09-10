@@ -303,8 +303,8 @@ export function useSetActiveChatIdApply() {
                 );
             }
         },
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ["userChatInfo"] });
+        onSuccess: (data) => {
+            queryClient.setQueryData(["userChatInfo"], data);
             queryClient.invalidateQueries({ queryKey: ["activeChats"] });
             queryClient.invalidateQueries({ queryKey: ["chats"] });
         },
@@ -414,7 +414,7 @@ export function useUpdateChat() {
             queryClient.setQueryData(["chat", chatId], expectedChatData);
 
             queryClient.setQueryData(
-                "chats",
+                ["chats"],
                 (old) =>
                     old?.map((chat) =>
                         chat._id === chatId ? expectedChatData : chat,
@@ -422,7 +422,7 @@ export function useUpdateChat() {
             );
 
             queryClient.setQueryData(
-                "activeChats",
+                ["activeChats"],
                 (old) =>
                     old?.map((chat) =>
                         chat._id === chatId ? expectedChatData : chat,
