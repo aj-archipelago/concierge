@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { FaUserCircle } from "react-icons/fa";
+import { useInView } from "react-intersection-observer";
 import Loader from "../../../app/components/loader";
 import {
     DEFAULT_PAGE_SIZE,
@@ -19,8 +20,6 @@ import {
 import classNames from "../../../app/utils/class-names";
 import config from "../../../config";
 import { isValidObjectId } from "../../utils/helper";
-import { useInView } from "react-intersection-observer";
-import { useCallback } from "react";
 
 dayjs.extend(relativeTime);
 
@@ -247,6 +246,11 @@ function SavedChats({ displayState }) {
                             </div>
                             <div className="flex justify-between items-center pb-2 overflow-hidden text-start w-full">
                                 <ul className="w-full">
+                                    {!chat?.messages?.length && (
+                                        <li className="text-xs text-gray-500 flex gap-1 items-center overflow-auto">
+                                            {t("Empty chat")}
+                                        </li>
+                                    )}
                                     {chat?.messages
                                         ?.slice(-3)
                                         .map((m, index) => (
@@ -254,6 +258,9 @@ function SavedChats({ displayState }) {
                                                 key={index}
                                                 className={classNames(
                                                     "text-xs text-gray-500 flex gap-1 items-center overflow-auto",
+                                                    m?.sender === "user"
+                                                        ? "bg-white"
+                                                        : "bg-sky-50",
                                                 )}
                                             >
                                                 <div className="basis-[1rem] flex items-center gap-1">
@@ -276,14 +283,18 @@ function SavedChats({ displayState }) {
                                                         />
                                                     )}
                                                 </div>
-                                                <div className="basis-[calc(100%-1rem)] truncate my-0.5">
+                                                <div
+                                                    className={classNames(
+                                                        "basis-[calc(100%-1rem)] truncate py-0.5",
+                                                    )}
+                                                >
                                                     {m?.payload}
                                                 </div>
                                             </li>
                                         ))}
                                 </ul>
                             </div>
-                            <span className="text-xs absolute right-2 bottom-2 text-gray-400 text-right">
+                            <span className="text-[.7rem] absolute right-2 bottom-2 text-gray-400 text-right">
                                 {dayjs(chat.createdAt).fromNow()}
                             </span>
                         </div>
