@@ -50,8 +50,6 @@ function SavedChats({ displayState }) {
     const [editingId, setEditingId] = useState(null);
     const [editedName, setEditedName] = useState("");
     const { language } = i18next;
-    const [page, setPage] = useState(1);
-    const [hasMore, setHasMore] = useState(true);
 
     const categorizedChats = useMemo(() => {
         const categories = {
@@ -83,12 +81,6 @@ function SavedChats({ displayState }) {
         });
 
         return categories;
-    }, [data]);
-
-    useEffect(() => {
-        if (data?.pages[data.pages.length - 1]?.length < DEFAULT_PAGE_SIZE) {
-            setHasMore(false);
-        }
     }, [data]);
 
     const handleCreateNewChat = async () => {

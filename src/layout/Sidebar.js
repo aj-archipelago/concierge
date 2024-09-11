@@ -207,24 +207,11 @@ export default React.forwardRef(function Sidebar(_, ref) {
                                                                     router.push(
                                                                         subItem.href,
                                                                     );
-                                                                    if (
-                                                                        item.name ===
-                                                                        "Chat"
-                                                                    ) {
-                                                                        setActiveChatId.mutateAsync(
-                                                                            subItem.key,
-                                                                        );
-                                                                    }
                                                                 }
                                                             }}
                                                         >
                                                             <div
-                                                                className={`relative block py-2.5 pe-1 ${
-                                                                    item.name ===
-                                                                    "Chat"
-                                                                        ? "text-xs pl-4 pr-4"
-                                                                        : "text-sm pl-9 pr-4"
-                                                                } leading-6 text-gray-700 w-full select-none flex items-center justify-between`}
+                                                                className={`relative block py-2 pe-1 ${"text-xs ps-4 pe-4"} leading-6 text-gray-700 w-full select-none flex items-center justify-between`}
                                                                 dir={
                                                                     document
                                                                         .documentElement
@@ -270,8 +257,8 @@ export default React.forwardRef(function Sidebar(_, ref) {
                                                                             .documentElement
                                                                             .dir ===
                                                                         "rtl"
-                                                                            ? "pr-3"
-                                                                            : "pl-3"
+                                                                            ? "pe-3"
+                                                                            : "ps-3"
                                                                     } truncate whitespace-nowrap overflow-hidden max-w-[150px]`}
                                                                     title={t(
                                                                         subItem.name ||
