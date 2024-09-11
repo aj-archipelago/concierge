@@ -10,8 +10,6 @@ import { isValidObjectId } from "../../src/utils/helper.js";
 export const DEFAULT_PAGE_SIZE = 10;
 
 export function useGetChats() {
-    const queryClient = useQueryClient();
-
     return useInfiniteQuery({
         queryKey: ["chats"],
         queryFn: async ({ pageParam = 1 }) => {

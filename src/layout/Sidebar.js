@@ -218,39 +218,6 @@ export default React.forwardRef(function Sidebar(_, ref) {
                                                                         .dir
                                                                 }
                                                             >
-                                                                {item.name ===
-                                                                    "Chat" && (
-                                                                    <FaEdit
-                                                                        className="absolute top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 cursor-pointer invisible group-hover:visible"
-                                                                        style={{
-                                                                            left:
-                                                                                document
-                                                                                    .documentElement
-                                                                                    .dir ===
-                                                                                "rtl"
-                                                                                    ? "unset"
-                                                                                    : "0.5rem",
-                                                                            right:
-                                                                                document
-                                                                                    .documentElement
-                                                                                    .dir ===
-                                                                                "rtl"
-                                                                                    ? "0.5rem"
-                                                                                    : "unset",
-                                                                        }}
-                                                                        onClick={(
-                                                                            e,
-                                                                        ) => {
-                                                                            e.stopPropagation();
-                                                                            setEditingId(
-                                                                                subItem.key,
-                                                                            );
-                                                                            setEditedName(
-                                                                                subItem.name,
-                                                                            );
-                                                                        }}
-                                                                    />
-                                                                )}
                                                                 <span
                                                                     className={`${
                                                                         document
@@ -270,28 +237,6 @@ export default React.forwardRef(function Sidebar(_, ref) {
                                                                             "",
                                                                     )}
                                                                 </span>
-                                                                {item.name ===
-                                                                    "Chat" && (
-                                                                    <TrashIcon
-                                                                        className={`h-4 w-4 flex-shrink-0 text-gray-400 group-hover:visible invisible hover:text-red-600 cursor-pointer ${
-                                                                            document
-                                                                                .documentElement
-                                                                                .dir ===
-                                                                            "rtl"
-                                                                                ? "-ml-2.5"
-                                                                                : "-mr-2.5"
-                                                                        }`}
-                                                                        aria-hidden="true"
-                                                                        onClick={(
-                                                                            e,
-                                                                        ) => {
-                                                                            e.stopPropagation();
-                                                                            handleDeleteChat(
-                                                                                subItem.key,
-                                                                            );
-                                                                        }}
-                                                                    />
-                                                                )}
                                                             </div>
                                                         </li>
                                                     ),

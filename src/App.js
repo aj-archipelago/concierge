@@ -56,7 +56,7 @@ const App = ({ children, language, theme, serverUrl, neuralspaceEnabled }) => {
 
     useEffect(() => {
         updateUserState.mutate(debouncedUserState);
-    }, [debouncedUserState]);
+    }, [debouncedUserState, updateUserState]);
 
     if (!currentUser) {
         return null;

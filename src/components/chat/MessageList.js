@@ -279,6 +279,7 @@ function MessageList({ messages, bot, loading, chatId }) {
                                                 }}
                                                 href={src}
                                                 target="_blank"
+                                                rel="noopener noreferrer"
                                             >
                                                 <AiFillFilePdf
                                                     size={40}

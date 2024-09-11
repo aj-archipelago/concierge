@@ -10,7 +10,6 @@ import { FaUserCircle } from "react-icons/fa";
 import { useInView } from "react-intersection-observer";
 import Loader from "../../../app/components/loader";
 import {
-    DEFAULT_PAGE_SIZE,
     useAddChat,
     useDeleteChat,
     useGetChats,
