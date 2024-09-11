@@ -4,10 +4,12 @@ import relativeTime from "dayjs/plugin/relativeTime";
 import i18next from "i18next";
 import { EditIcon, TrashIcon, XIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { FaUserCircle } from "react-icons/fa";
 import Loader from "../../../app/components/loader";
 import {
+    DEFAULT_PAGE_SIZE,
     useAddChat,
     useDeleteChat,
     useGetChats,
@@ -17,7 +19,8 @@ import {
 import classNames from "../../../app/utils/class-names";
 import config from "../../../config";
 import { isValidObjectId } from "../../utils/helper";
-import { FaUserCircle } from "react-icons/fa";
+import { useInView } from "react-intersection-observer";
+import { useCallback } from "react";
 
 dayjs.extend(relativeTime);
 
@@ -33,7 +36,13 @@ function SavedChats({ displayState }) {
     const { t } = useTranslation();
     const deleteChat = useDeleteChat();
     const isDocked = displayState === "docked";
-    const { data: savedChats, isLoading: areChatsLoading } = useGetChats();
+    const {
+        data,
+        isLoading: areChatsLoading,
+        fetchNextPage,
+        isFetchingNextPage,
+        hasNextPage,
+    } = useGetChats();
     const setActiveChatId = useSetActiveChatId();
     const router = useRouter();
     const addChat = useAddChat();
@@ -42,6 +51,46 @@ function SavedChats({ displayState }) {
     const [editingId, setEditingId] = useState(null);
     const [editedName, setEditedName] = useState("");
     const { language } = i18next;
+    const [page, setPage] = useState(1);
+    const [hasMore, setHasMore] = useState(true);
+
+    const categorizedChats = useMemo(() => {
+        const categories = {
+            today: [],
+            yesterday: [],
+            thisWeek: [],
+            thisMonth: [],
+            older: [],
+        };
+
+        if (!data) return categories;
+
+        const now = dayjs();
+        data.pages.forEach((page) => {
+            page.forEach((chat) => {
+                const chatDate = dayjs(chat.createdAt);
+                if (chatDate.isSame(now, "day")) {
+                    categories.today.push(chat);
+                } else if (chatDate.isSame(now.subtract(1, "day"), "day")) {
+                    categories.yesterday.push(chat);
+                } else if (chatDate.isSame(now, "week")) {
+                    categories.thisWeek.push(chat);
+                } else if (chatDate.isSame(now, "month")) {
+                    categories.thisMonth.push(chat);
+                } else {
+                    categories.older.push(chat);
+                }
+            });
+        });
+
+        return categories;
+    }, [data]);
+
+    useEffect(() => {
+        if (data?.pages[data.pages.length - 1]?.length < DEFAULT_PAGE_SIZE) {
+            setHasMore(false);
+        }
+    }, [data]);
 
     const handleCreateNewChat = async () => {
         try {
@@ -81,37 +130,6 @@ function SavedChats({ displayState }) {
             console.error("Failed to update chat title", error);
         }
     };
-
-    const categorizeChats = (chats) => {
-        const categories = {
-            today: [],
-            yesterday: [],
-            thisWeek: [],
-            thisMonth: [],
-            older: [],
-        };
-
-        const now = dayjs();
-        chats.forEach((chat) => {
-            const chatDate = dayjs(chat.createdAt);
-            if (chatDate.isSame(now, "day")) {
-                categories.today.push(chat);
-            } else if (chatDate.isSame(now.subtract(1, "day"), "day")) {
-                categories.yesterday.push(chat);
-            } else if (chatDate.isAfter(now.subtract(7, "days"), "day")) {
-                categories.thisWeek.push(chat);
-            } else if (chatDate.isSame(now, "month")) {
-                categories.thisMonth.push(chat);
-            } else {
-                categories.older.push(chat);
-            }
-        });
-
-        return categories;
-    };
-
-    const categorizedChats = categorizeChats(savedChats || []);
-    const savedChatCount = savedChats?.length || 0;
 
     const renderChatElements = (chats) => (
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 pt-2">
@@ -276,12 +294,22 @@ function SavedChats({ displayState }) {
 
     const getCategoryTitle = (key, count) => `${CATEGORIES[key]} (${count})`;
 
+    const { ref, inView } = useInView({
+        threshold: 0,
+    });
+
+    useEffect(() => {
+        if (inView && hasNextPage && !isFetchingNextPage) {
+            fetchNextPage();
+        }
+    }, [inView, hasNextPage, isFetchingNextPage, fetchNextPage]);
+
     if (areChatsLoading) {
         return <Loader />;
     }
 
     return (
-        <div className={`${isDocked ? "text-xs" : ""}`}>
+        <div className={`${isDocked ? "text-xs" : ""} pb-4`}>
             <div className="mb-4">
                 <div className="flex justify-between items-center">
                     <div>
@@ -290,7 +318,7 @@ function SavedChats({ displayState }) {
                         </h1>
 
                         <div className="text-sm text-gray-500">
-                            {savedChatCount} {t("chats")}
+                            {data?.pages.flat().length || 0} {t("chats")}
                         </div>
                     </div>
 
@@ -321,6 +349,14 @@ function SavedChats({ displayState }) {
                         ),
                 )}
             </div>
+            {hasNextPage && (
+                <div
+                    ref={ref}
+                    className="h-10 flex items-center justify-center"
+                >
+                    {isFetchingNextPage && <Loader />}
+                </div>
+            )}
         </div>
     );
 }
