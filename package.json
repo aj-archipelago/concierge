@@ -45,6 +45,7 @@
         "i18next-browser-languagedetector": "^7.2.0",
         "javascript-time-ago": "^2.5.9",
         "lucide-react": "^0.344.0",
+        "marked": "^14.1.2",
         "mime-types": "^2.1.35",
         "monaco-editor": "^0.45.0",
         "mongodb": "^6.8.0",
