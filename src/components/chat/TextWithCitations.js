@@ -8,13 +8,18 @@ import { useRef, useState } from "react";
 function TextWithCitations({ index, citation }) {
     const [show, setShow] = useState(false);
     const target = useRef(null);
-    const { title, url, content } = citation;
+    const { title, url, content, path, wireid, source, slugline } = citation;
 
     var parser = new DOMParser();
     var dom = parser.parseFromString(content, "text/html");
     var strippedContent = dom.body.textContent || "";
 
     strippedContent = strippedContent.replace(/\[.*?\]/g, "");
+
+    const wireRef = [wireid, source, slugline, path]
+        .filter(Boolean)
+        .join(" ")
+        .trim();
 
     return (
         <Popover id="popover-contained">
@@ -48,6 +53,12 @@ function TextWithCitations({ index, citation }) {
                     )}
                 </div>
                 <pre className="text-sm font-sans">{strippedContent}</pre>
+                {wireRef && (
+                    <div className="text-sm italic">
+                        <hr className="my-1" />
+                        {wireRef}
+                    </div>
+                )}
             </PopoverContent>
         </Popover>
     );
