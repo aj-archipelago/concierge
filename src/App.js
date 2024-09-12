@@ -1,6 +1,6 @@
 "use client";
 import { ApolloNextAppProvider } from "@apollo/experimental-nextjs-app-support";
-import React, { useContext, useEffect, useState } from "react";
+import React, { useCallback, useContext, useEffect, useState } from "react";
 import { getClient } from "./graphql";
 import "./i18n";
 
@@ -55,19 +55,22 @@ const App = ({ children, language, theme, serverUrl, neuralspaceEnabled }) => {
     }, [language]);
 
     useEffect(() => {
-        updateUserState.mutate(debouncedUserState);
-    }, [debouncedUserState, updateUserState]);
+        if (
+            Object.keys(debouncedUserState).length > 0 &&
+            JSON.stringify(debouncedUserState) !==
+                JSON.stringify(serverUserState)
+        ) {
+            updateUserState.mutate(debouncedUserState);
+        }
+    }, [debouncedUserState, serverUserState, updateUserState]);
+
+    const debouncedUpdateUserState = useCallback((value) => {
+        setUserState((prevState) => ({ ...prevState, ...value }));
+    }, []);
 
     if (!currentUser) {
         return null;
     }
-
-    const debouncedUpdateUserState = (value) => {
-        setUserState({
-            ...userState,
-            ...value,
-        });
-    };
 
     return (
         <ApolloNextAppProvider makeClient={() => getClient(serverUrl)}>
