@@ -9,7 +9,6 @@ import classNames from "../../../app/utils/class-names";
 export default function JiraProjectSelect({ token, value, onChange }) {
     // read parameter code from querystring
     const [sites, setSites] = useState([]);
-    const [error, setError] = useState(null);
     const [projects, setProjects] = useState([]);
     const [loadingProjects, setLoadingProjects] = useState(true);
     const { t } = useTranslation();
@@ -153,12 +152,6 @@ export default function JiraProjectSelect({ token, value, onChange }) {
                         siteId={selectedSite?.id}
                     />
                 </div>
-
-                {error && (
-                    <div className="text-red-500 text-sm">
-                        <p>{error}</p>
-                    </div>
-                )}
             </div>
         );
     }

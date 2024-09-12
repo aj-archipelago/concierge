@@ -10,6 +10,7 @@ import dayjs from "dayjs";
 import { PlusIcon, SettingsIcon, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
+import ReactMarkdown from "react-markdown";
 import Loader from "../../components/loader";
 import {
     useCurrentUserDigest,
@@ -18,9 +19,6 @@ import {
 import { useCurrentUser } from "../../queries/users";
 import classNames from "../../utils/class-names";
 import DigestBlock from "./DigestBlock";
-import { useQuery } from "@apollo/client";
-import { QUERIES } from "../../../src/graphql";
-import ReactMarkdown from "react-markdown";
 
 export default function DigestBlockList() {
     const { data: digest } = useCurrentUserDigest();

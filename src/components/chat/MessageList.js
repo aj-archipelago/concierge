@@ -221,7 +221,7 @@ function MessageList({ messages, bot, loading, chatId }) {
                     }
                     let display;
                     if (Array.isArray(newMessage.payload)) {
-                        const arr = newMessage.payload.map((t) => {
+                        const arr = newMessage.payload.map((t, index2) => {
                             try {
                                 const obj = JSON.parse(t);
                                 if (obj.type === "text") {
@@ -240,7 +240,7 @@ function MessageList({ messages, bot, loading, chatId }) {
                                                         newMessage.id,
                                                     );
                                                 }}
-                                                key={index}
+                                                key={`video-${index}-${index2}`}
                                                 src={src}
                                                 className="max-h-[20%] max-w-[60%] [.docked_&]:max-w-[90%] rounded border bg-white p-1 my-2 dark:border-neutral-700 dark:bg-neutral-800 shadow-lg dark:shadow-black/30"
                                                 controls
@@ -255,7 +255,7 @@ function MessageList({ messages, bot, loading, chatId }) {
                                                         newMessage.id,
                                                     );
                                                 }}
-                                                key={index}
+                                                key={`audio-${index}-${index2}`}
                                                 src={src}
                                                 className="max-h-[20%] max-w-[100%] [.docked_&]:max-w-[80%] rounded-md border bg-white p-1 my-2 dark:border-neutral-700 dark:bg-neutral-800 shadow-lg dark:shadow-black/30"
                                                 controls
@@ -270,7 +270,7 @@ function MessageList({ messages, bot, loading, chatId }) {
 
                                         return (
                                             <a
-                                                key={index}
+                                                key={`pdf-${index}-${index2}`}
                                                 className="bg-neutral-100 py-2 ps-2 pe-4 m-2 shadow-md rounded-lg border flex gap-2 items-center"
                                                 onLoad={() => {
                                                     handleMessageLoad(
@@ -279,6 +279,7 @@ function MessageList({ messages, bot, loading, chatId }) {
                                                 }}
                                                 href={src}
                                                 target="_blank"
+                                                rel="noopener noreferrer"
                                             >
                                                 <AiFillFilePdf
                                                     size={40}
@@ -341,27 +342,26 @@ function MessageList({ messages, bot, loading, chatId }) {
                         id: "loading",
                         sender: "labeeb",
                         payload: (
-                            <div className="mt-1 ms-1 mb-2">
-                                <Loader />
+                            <div className="flex gap-4">
+                                <div className="mt-1 ms-1 mb-1 h-4">
+                                    <Loader />
+                                </div>
+                                {codeRequestId && (
+                                    <div className="border p-4 rounded-md bg-white animate-fade-in">
+                                        <ProgressUpdate
+                                            requestId={codeRequestId}
+                                            setFinalData={
+                                                setCodeRequestFinalData
+                                            }
+                                            initialText={
+                                                "🤖 Agent coding in background..."
+                                            }
+                                        />
+                                    </div>
+                                )}
                             </div>
                         ),
                     })}
-
-                {codeRequestId && (
-                    <div
-                        className="w-full text-center rounded-lg dark:bg-gray-100 bg-gray-700 p-3 text-xs py-5"
-                        style={{
-                            animation:
-                                "pulse 2s cubic-bezier(0.8, 0, 0.9, 1) infinite",
-                        }}
-                    >
-                        <ProgressUpdate
-                            requestId={codeRequestId}
-                            setFinalData={setCodeRequestFinalData}
-                            initialText={"🤖 Agent coding in background..."}
-                        />
-                    </div>
-                )}
             </ScrollToBottom>
         </>
     );

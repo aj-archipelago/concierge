@@ -87,6 +87,7 @@ const chatSchema = new mongoose.Schema(
 // Add indexes
 chatSchema.index({ userId: 1 });
 chatSchema.index({ updatedAt: -1 });
+chatSchema.index({ createdAt: -1 });
 chatSchema.index({ userId: 1, updatedAt: -1 });
 
 // Create the Chat model from the schema

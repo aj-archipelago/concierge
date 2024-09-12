@@ -15,7 +15,7 @@ const ProgressUpdate = ({
     });
 
     const [info, setInfo] = useState(null);
-    const [showInfo, setShowInfo] = useState(false);
+    const [showInfo, setShowInfo] = useState(true);
 
     const [progress, setProgress] = useState(10);
     const [completionTime, setCompletionTime] = useState(null);
@@ -61,48 +61,54 @@ const ProgressUpdate = ({
             <div className="mb-2">
                 <Progress value={progress} />
             </div>
-            <ProgressTimer
-                initialText={initialText}
-                percentage={progress}
-                calculateByAverage={true}
-                rollingWindowAverageSize={3}
-                decreaseTime={false}
-            />
-            <div className="relative flex justify-center items-center">
+            <div className="mb-1">
+                <ProgressTimer
+                    initialText={initialText}
+                    percentage={progress}
+                    calculateByAverage={true}
+                    rollingWindowAverageSize={3}
+                    decreaseTime={false}
+                />
+            </div>
+            <div className="flex flex-col">
                 {completionTime && (
                     <div>
                         Completing in <ReactTimeAgo date={completionTime} />
                     </div>
                 )}
                 {info && (
-                    <div className="absolute right-0 flex items-center text-[10px] top-[-15px]">
-                        <input
-                            type="checkbox"
-                            id="showInfo"
-                            checked={showInfo}
-                            onChange={(e) => setShowInfo(e.target.checked)}
-                            className="mr-2 focus:ring-0 focus:ring-offset-0 focus:outline-none"
-                        />
-                        <label htmlFor="showInfo" className="text-xs">
-                            Show agent info
-                        </label>
+                    <div
+                        className={`max-w-full text-xs font-mono rounded-md bg-neutral-200 overflow-hidden transition-all duration-300 ease-in-out ${
+                            showInfo
+                                ? "mb-1 max-h-[10em] overflow-auto opacity-100 p-2 "
+                                : "max-h-0 opacity-0"
+                        }`}
+                    >
+                        <pre
+                            className="overflow-auto break-words whitespace-pre-wrap"
+                            style={{
+                                display: "-webkit-box",
+                                WebkitLineClamp: "5",
+                                WebkitBoxOrient: "vertical",
+                            }}
+                        >
+                            {info.replace(/\s+/g, " ")}
+                        </pre>
+                    </div>
+                )}
+                {info && (
+                    <div className="w-64">
+                        <button
+                            className="text-xs text-sky-500 hover:text-sky-700"
+                            onClick={() => setShowInfo(!showInfo)}
+                        >
+                            {showInfo
+                                ? "Hide agent info"
+                                : "Show agent info (click to expand)"}
+                        </button>
                     </div>
                 )}
             </div>
-            {showInfo && info && (
-                <div className="max-w-full m-1 text-[10px]">
-                    <span
-                        className="overflow-hidden break-words whitespace-pre-wrap"
-                        style={{
-                            display: "-webkit-box",
-                            WebkitLineClamp: "5",
-                            WebkitBoxOrient: "vertical",
-                        }}
-                    >
-                        {info.replace(/\s+/g, " ")}
-                    </span>
-                </div>
-            )}
         </>
     );
 };

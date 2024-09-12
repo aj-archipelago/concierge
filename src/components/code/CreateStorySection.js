@@ -286,7 +286,7 @@ function IssueFields({
             .finally(() => {
                 setLoading(false);
             });
-    }, [issueTypeId, projectKey, siteId, token]);
+    }, [issueTypeId, projectKey, siteId, token, SPECIAL_FIELDS]);
 
     if (error) {
         return (
