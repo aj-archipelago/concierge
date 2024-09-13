@@ -186,7 +186,7 @@ function ChatContent({
                     ],
                     ...(newTitle && { title: newTitle }),
                     isChatLoading,
-                    codeRequestId,
+                    ...(codeRequestId && { codeRequestId }),
                 });
 
                 if (searchRequired) {
