@@ -11,6 +11,7 @@ import CopyButton from "../CopyButton";
 import LoadingButton from "../editor/LoadingButton";
 import ProgressUpdate from "../editor/ProgressUpdate";
 import TaxonomySelector from "./TaxonomySelector";
+import YoutubeSourcer from "./YoutubeSourcer";
 
 function Transcribe({
     dataText,
@@ -983,6 +984,10 @@ function Transcribe({
                         )}
                     </div>
                 )}
+            </div>
+
+            <div className="fixed bottom-8 right-4 z-50 max-w-sm max-h-[80vh] overflow-auto bg-white dark:bg-gray-800 shadow-lg rounded-lg">
+                <YoutubeSourcer url={url} setUrl={setUrl} />
             </div>
         </div>
     );
