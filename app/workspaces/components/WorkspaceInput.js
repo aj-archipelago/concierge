@@ -16,6 +16,7 @@ import {
 import PromptList from "./PromptList";
 import PromptSelectorModal from "./PromptSelectorModal";
 import { WorkspaceContext } from "./WorkspaceContent";
+import { Modal } from "../../../@/components/ui/modal";
 
 export default function WorkspaceInput({ onRun, onRunMany }) {
     const [text, setText] = useState("");
@@ -82,7 +83,18 @@ export default function WorkspaceInput({ onRun, onRunMany }) {
                         setEditing={setSystemPromptEditing}
                     />
 
-                    {!editing && !systemPromptEditing && (
+                    <>
+                        <Modal
+                            show={editing}
+                            onHide={() => setEditing(false)}
+                            title={t("Edit prompt")}
+                        >
+
+                            <PromptEditor
+                                selectedPrompt={selectedPrompt}
+                                onBack={() => setEditing(false)}
+                            />
+                        </Modal>
                         <PromptList
                             inputValid={!!text}
                             promptIds={promptIds}
@@ -105,13 +117,7 @@ export default function WorkspaceInput({ onRun, onRunMany }) {
                             }}
                             onEdit={handleEdit}
                         />
-                    )}
-                    {editing && (
-                        <PromptEditor
-                            selectedPrompt={selectedPrompt}
-                            onBack={() => setEditing(false)}
-                        />
-                    )}
+                    </>
                 </div>
             </>
             <PromptSelectorModal isOpen={isOpen} setIsOpen={setIsOpen} />
@@ -123,21 +129,6 @@ function SystemPrompt({ editing, setEditing }) {
     const { t } = useTranslation();
     const { workspace, isOwner } = useContext(WorkspaceContext);
     const value = workspace?.systemPrompt;
-
-    if (editing) {
-        return (
-            <div>
-                <h4 className="p-1 font-medium mb-1">{t("Context")}</h4>
-                <SystemPromptEditor
-                    value={value}
-                    onCancel={() => setEditing(false)}
-                    onSave={(p) => {
-                        setEditing(false);
-                    }}
-                />
-            </div>
-        );
-    }
 
     if (!value) {
         return (
@@ -161,6 +152,19 @@ function SystemPrompt({ editing, setEditing }) {
 
     return (
         <div className="p-1 flex gap-2 items-center">
+            <Modal
+                show={editing}
+                onHide={() => setEditing(false)}
+                title={t("Context")}
+            >
+                <SystemPromptEditor
+                    value={value}
+                    onCancel={() => setEditing(false)}
+                    onSave={(p) => {
+                        setEditing(false);
+                    }}
+                />
+            </Modal>
             <h4 className="font-medium mb-1">{t("Context")}</h4>
 
             <div className="overflow-auto text-start bg-gray-50 p-2 rounded-md border w-full">
