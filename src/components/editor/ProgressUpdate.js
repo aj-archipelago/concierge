@@ -85,7 +85,7 @@ const ProgressUpdate = ({
                         }`}
                     >
                         <pre
-                            className="overflow-auto break-words whitespace-pre-wrap"
+                            className="overflow-auto break-words break-all whitespace-pre-wrap"
                             style={{
                                 display: "-webkit-box",
                                 WebkitLineClamp: "5",
