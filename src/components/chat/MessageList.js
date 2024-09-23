@@ -148,7 +148,7 @@ function MessageList({ messages, bot, loading, chatId }) {
                         )}
                     >
                         <div className="font-semibold">{t(botName)}</div>
-                        <div className="chat-message-bot relative">
+                        <div className="chat-message-bot relative break-words break-all">
                             {message.payload}
                         </div>
                     </div>
