@@ -7,14 +7,12 @@ import {
     PencilSquareIcon,
     PhotoIcon,
     PlusIcon,
-    TrashIcon,
 } from "@heroicons/react/24/outline";
-import { HelpCircle } from "lucide-react";
+import { BrainCircuitIcon, HelpCircle } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import React, { useContext, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { FaEdit } from "react-icons/fa";
 import { MdOutlineWorkspaces } from "react-icons/md";
 import {
     useAddChat,
@@ -39,6 +37,7 @@ const navigation = [
     { name: "Transcribe", icon: MicrophoneIcon, href: "/transcribe" },
     { name: "Write", icon: PencilSquareIcon, href: "/write" },
     { name: "Workspaces", icon: MdOutlineWorkspaces, href: "/workspaces" },
+    { name: "Pathways", icon: BrainCircuitIcon, href: "/pathways" },
     { name: "Images", icon: PhotoIcon, href: "/images" },
     {
         name: "Code",
