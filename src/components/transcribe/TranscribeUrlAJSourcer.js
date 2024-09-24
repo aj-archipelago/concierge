@@ -1,33 +1,37 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { debounce } from "lodash";
 
-const isValidYoutubeUrl = (url) => {
-    const youtubeRegex =
-        /^(https?:\/\/)?(www\.)?(youtube\.com|youtu\.?be)\/.+$/;
-    return youtubeRegex.test(url);
-};
-
-const fetchYoutubeData = async (url) => {
+const fetchUrlAJSource = async (url) => {
     const response = await fetch(
-        `/api/youtube?youtubeInput=${encodeURIComponent(url)}`,
+        `/api/ajurlsource?url=${encodeURIComponent(url)}`,
     );
     if (!response.ok) throw new Error("Network response was not ok");
     return response.json();
 };
 
-const YoutubeSourcer = ({ url, setUrl }) => {
-    const isYoutubeUrl = isValidYoutubeUrl(url);
+const TranscribeUrlAJSourcer = ({ url, setUrl }) => {
+    const [debouncedUrl, setDebouncedUrl] = useState(url);
+
+    useEffect(() => {
+        const debouncedSetUrl = debounce((newUrl) => {
+            setDebouncedUrl(newUrl);
+        }, 500);
+
+        debouncedSetUrl(url);
+
+        return () => debouncedSetUrl.cancel();
+    }, [url]);
 
     const { data, error, isLoading } = useQuery({
-        queryKey: ["youtubeData", url],
-        queryFn: () => fetchYoutubeData(url),
-        enabled: !!url && isYoutubeUrl,
+        queryKey: ["ajurlsource", debouncedUrl],
+        queryFn: () => fetchUrlAJSource(debouncedUrl),
+        enabled: !!debouncedUrl,
     });
 
-    if (!isYoutubeUrl) return null;
     if (isLoading) return; //<p className="text-gray-300">Checking if video is in AJ sources...</p>;
     if (error) return <p>Error: {error.message || JSON.stringify(error)}</p>;
-    if (data)
+    if (data && !data.error)
         return (
             <div className="bg-gray-100 p-4 rounded-sm text-md">
                 <h3 className="font-bold">
@@ -85,4 +89,4 @@ const YoutubeSourcer = ({ url, setUrl }) => {
     return null;
 };
 
-export default YoutubeSourcer;
+export default TranscribeUrlAJSourcer;

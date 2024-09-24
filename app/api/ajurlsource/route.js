@@ -1,48 +1,64 @@
 import { NextResponse } from "next/server";
 
+const AJE = "665003303001";
+const AJA = "665001584001";
+
 export async function GET(req) {
     try {
         const url = new URL(req.url);
-        const youtubeInput =
+        const urlInput =
             url.searchParams.get("youtubeInput") ||
             url.searchParams.get("youtubeURL") ||
             url.searchParams.get("url");
 
-        if (!youtubeInput) {
+        if (!urlInput) {
             return NextResponse.json(
-                { error: "No YouTube URL provided" },
+                { error: "No URL provided" },
                 { status: 400 },
             );
         }
 
-        const oEmbedUrl = `https://www.youtube.com/oembed?url=${encodeURIComponent(youtubeInput)}&format=json`;
-        const response = await fetch(oEmbedUrl);
-        const data = await response.json();
-        const title = data.title;
+        let searchQuery = urlInput;
+        let accountId = AJE; // AJE, AJA, etc.
 
-        const channelId = data.author_url.split("@").pop();
-        let accountId;
+        //check if url is a valid youtube url
+        const youtubeRegex =
+            /^(https?\:\/\/)?(www\.)?(youtube\.com|youtu\.?be)\/.+$/;
+        if (youtubeRegex.test(urlInput)) {
+            const oEmbedUrl = `https://www.youtube.com/oembed?url=${encodeURIComponent(urlInput)}&format=json`;
+            const response = await fetch(oEmbedUrl);
+            const data = await response.json();
+            searchQuery = data.title;
 
-        if (channelId === "aljazeeraenglish") {
-            accountId = "665003303001"; // AJE
-        } else if (channelId === "aljazeera") {
-            accountId = "665001584001"; // AJA
+            const channelId = data.author_url.split("@").pop();
+
+            if (channelId === "aljazeeraenglish") {
+                accountId = AJE;
+            } else if (channelId === "aljazeera") {
+                accountId = AJA;
+            } else {
+                return NextResponse.json(
+                    { error: "Unsupported YouTube channel" },
+                    { status: 400 },
+                );
+            }
         } else {
-            return NextResponse.json(
-                { error: "Unsupported YouTube channel" },
-                { status: 400 },
-            );
+            //check if searchQuery has arabic characters
+            const arabicRegex = /[\u0600-\u06FF]/;
+            if (arabicRegex.test(searchQuery)) {
+                accountId = AJA;
+            }
         }
 
-        const axisUrl = `https://axis.aljazeera.net/brightcove/playback/media/v1.0/${accountId}/videos?format=json&q=${encodeURIComponent(title)}`;
+        const axisUrl = `https://axis.aljazeera.net/brightcove/playback/media/v1.0/${accountId}/videos?format=json&q=${encodeURIComponent(searchQuery)}`;
         const axisResponse = await fetch(axisUrl);
         const axisData = await axisResponse.json();
 
-        const SIMILARITY_THRESHOLD = 0.5;
+        const SIMILARITY_THRESHOLD = 0.1;
 
         const mostSimilarItem = findMostSimilarTitle(
             axisData.items,
-            data.title,
+            searchQuery,
         );
         if (
             mostSimilarItem &&
@@ -51,11 +67,16 @@ export async function GET(req) {
             const { item } = mostSimilarItem;
             const url = getBestRenditionForTranscription(item);
             const videoUrl = getBestQualityRendition(item);
-            return NextResponse.json({ title, name: item.name, url, videoUrl });
+            return NextResponse.json({
+                title: searchQuery,
+                name: item.name,
+                url,
+                videoUrl,
+            });
         } else {
             return NextResponse.json(
                 { error: "No matching video found" },
-                { status: 404 },
+                // { status: 404 },
             );
         }
     } catch (error) {
