@@ -176,14 +176,16 @@ function ChatContent({
 
                 const isChatLoading = !!(searchRequired || codeRequestId);
 
+                const optimisticMessages = [
+                    ...(chat?.messages || []),
+                    optimisticUserMessage,
+                    optimisticAIMessage,
+                ];
+
                 // Confirm updates with the server
                 await updateChatHook.mutateAsync({
                     chatId: String(chat?._id),
-                    messages: [
-                        ...(chat?.messages || []),
-                        optimisticUserMessage,
-                        optimisticAIMessage,
-                    ],
+                    messages: optimisticMessages,
                     ...(newTitle && { title: newTitle }),
                     isChatLoading,
                     ...(codeRequestId && { codeRequestId }),
@@ -200,7 +202,7 @@ function ChatContent({
                     await updateChatHook.mutateAsync({
                         chatId: String(chat?._id),
                         messages: [
-                            ...(chat?.messages || []),
+                            ...optimisticMessages,
                             {
                                 payload: searchMessage,
                                 tool: searchTool,
