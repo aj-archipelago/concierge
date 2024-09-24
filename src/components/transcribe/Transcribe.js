@@ -366,7 +366,7 @@ function Transcribe({
                                 onChange={handleFileUpload}
                             />
                         </div>
-                        {t("Or enter URL:")}
+                        {t("Or enter URL / title:")}
                         <input
                             disabled={isLoading}
                             placeholder={t(
