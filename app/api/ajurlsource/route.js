@@ -1,5 +1,9 @@
 import { NextResponse } from "next/server";
-import { AJE, AJA, getAxisUrl } from "../../../app.config/config/transcribe/UrlAJConstants";
+import {
+    AJE,
+    AJA,
+    getAxisUrl,
+} from "../../../app.config/config/transcribe/UrlAJConstants";
 
 export async function GET(req) {
     try {
