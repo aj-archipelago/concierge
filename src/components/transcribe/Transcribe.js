@@ -11,7 +11,7 @@ import CopyButton from "../CopyButton";
 import LoadingButton from "../editor/LoadingButton";
 import ProgressUpdate from "../editor/ProgressUpdate";
 import TaxonomySelector from "./TaxonomySelector";
-import TranscribeUrlAJSourcer from "./TranscribeUrlAJSourcer";
+import TranscribeUrlAJSourcer from "../../../app.config/config/transcribe/TranscribeUrlAJSourcer";
 
 function Transcribe({
     dataText,
