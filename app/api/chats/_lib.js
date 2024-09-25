@@ -118,8 +118,8 @@ export async function getChatById(chatId) {
     }
 
     const isReadOnly = String(chat.userId._id) !== String(currentUser._id);
-    const { _id, title, messages, isPublic } = chat;
-    const result = { _id, title, messages, isPublic, readOnly: isReadOnly };
+    const { _id, title, messages, isPublic, isChatLoading, codeRequestId,titleSetByUser } = chat;
+    const result = { _id, title, messages, isPublic, readOnly: isReadOnly, isChatLoading, codeRequestId, titleSetByUser };
 
     if (isReadOnly) {
         result.owner = {
