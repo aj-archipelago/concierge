@@ -1,7 +1,5 @@
 import { NextResponse } from "next/server";
-
-const AJE = "665003303001";
-const AJA = "665001584001";
+import { AJE, AJA, getAxisUrl } from "../../../app.config/config/transcribe/UrlAJConstants";
 
 export async function GET(req) {
     try {
@@ -50,7 +48,7 @@ export async function GET(req) {
             }
         }
 
-        const axisUrl = `https://axis.aljazeera.net/brightcove/playback/media/v1.0/${accountId}/videos?format=json&q=${encodeURIComponent(searchQuery)}`;
+        const axisUrl = getAxisUrl(accountId, searchQuery);
         const axisResponse = await fetch(axisUrl);
         const axisData = await axisResponse.json();
 
