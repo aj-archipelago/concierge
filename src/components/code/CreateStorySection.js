@@ -244,6 +244,8 @@ export default function CreateStorySection({ token, ticket }) {
     }
 }
 
+const SPECIAL_FIELDS = ["summary", "issuetype", "project", "reporter"];
+
 function IssueFields({
     value,
     onChange,
@@ -256,8 +258,6 @@ function IssueFields({
     const [error, setError] = useState(null);
     const [loading, setLoading] = useState(true);
     const { t } = useTranslation();
-
-    const SPECIAL_FIELDS = ["summary", "issuetype", "project", "reporter"];
 
     useEffect(() => {
         if (!issueTypeId) {
