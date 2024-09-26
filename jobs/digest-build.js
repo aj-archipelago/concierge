@@ -72,6 +72,8 @@ async function buildDigestForUser(user, logger, job) {
         logger.log(`error updating block state ${e.message}`, owner);
     }
 
+    let greeting = null; // Variable to store the greeting
+
     const promises = digest.blocks.map(async (block, i) => {
         const lastUpdated = block.updatedAt;
 
@@ -103,6 +105,15 @@ async function buildDigestForUser(user, logger, job) {
                 block.state.error = null;
                 block.state.jobId = null;
                 changed = true;
+
+                // Generate greeting if the first block is generated
+                if (i === 0) {
+                    greeting = await generateDigestGreeting(
+                        user,
+                        block.content,
+                        logger,
+                    );
+                }
             } catch (e) {
                 logger.log(
                     `error generating content: ${e.message}`,
@@ -116,74 +127,49 @@ async function buildDigestForUser(user, logger, job) {
             }
         }
 
-        if (changed) {
-            // if the first block is changed, update the greeting
-            if (i === 0) {
-                const greeting = await generateDigestGreeting(
-                    user,
-                    block.content,
-                    logger,
-                );
-
-                await Digest.findOneAndUpdate(
-                    {
-                        owner,
-                    },
-                    {
-                        $set: {
-                            greeting,
-                        },
-                    },
-                    {
-                        upsert: true,
-                        new: true,
-                    },
-                );
-            }
-
-            const existingBlocks = (
-                await Digest.findOne({
-                    owner,
-                })
-            ).blocks;
-
-            const newBlocks = existingBlocks.map((b) => {
-                if (b._id.toString() === block._id.toString()) {
-                    return block;
-                }
-                return b;
-            });
-
-            logger.log("updating block in database", owner, block._id);
-            try {
-                digest = await Digest.findOneAndUpdate(
-                    {
-                        owner,
-                    },
-                    {
-                        $set: {
-                            blocks: newBlocks,
-                        },
-                    },
-                    {
-                        upsert: true,
-                        new: true,
-                    },
-                );
-
-                logger.log("updated block in database", owner, block._id);
-            } catch (e) {
-                logger.log(
-                    "error updating block in database",
-                    owner,
-                    block._id,
-                    e,
-                );
-            }
-        }
+        return { block, changed, i };
     });
 
-    await Promise.all(promises);
+    const results = await Promise.all(promises);
+
+    let blocksChanged = false;
+
+    for (const { block, changed, i } of results) {
+        if (changed) {
+            digest.blocks[i] = block; // Update the block in the local digest object
+            blocksChanged = true;
+        }
+    }
+
+    if (blocksChanged) {
+        // Update the entire blocks array in one call
+        logger.log("updating blocks in database", owner);
+        try {
+            digest = await Digest.findOneAndUpdate(
+                { owner },
+                { $set: { blocks: digest.blocks } }, // Update the entire blocks array
+                { upsert: true, new: true },
+            );
+
+            logger.log("updated blocks in database", owner);
+        } catch (e) {
+            logger.log("error updating blocks in database", owner, e);
+        }
+    }
+
+    // Update the greeting in the database if it was generated
+    if (greeting) {
+        try {
+            await Digest.findOneAndUpdate(
+                { owner },
+                { $set: { greeting } },
+                { upsert: true, new: true },
+            );
+            logger.log("updated greeting in database", owner);
+        } catch (e) {
+            logger.log("error updating greeting in database", owner, e);
+        }
+    }
 
     return digest;
 }
