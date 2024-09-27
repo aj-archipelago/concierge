@@ -33,6 +33,10 @@ export default {
                 cortexPathwayName: "run_gpt4",
             },
             {
+                name: "GPT 4.0 Mini",
+                cortexPathwayName: "run_gpt4_o_mini",
+            },
+            {
                 name: "GPT 4.0 32k",
                 cortexPathwayName: "run_gpt4_32",
             },
