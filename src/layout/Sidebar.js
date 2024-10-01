@@ -37,7 +37,6 @@ const navigation = [
     { name: "Transcribe", icon: MicrophoneIcon, href: "/transcribe" },
     { name: "Write", icon: PencilSquareIcon, href: "/write" },
     { name: "Workspaces", icon: MdOutlineWorkspaces, href: "/workspaces" },
-    { name: "Pathways", icon: BrainCircuitIcon, href: "/pathways" },
     { name: "Images", icon: PhotoIcon, href: "/images" },
     {
         name: "Code",

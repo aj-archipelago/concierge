@@ -21,6 +21,7 @@ export default async function RootLayout({ children }) {
     const host = headers().get("x-forwarded-host");
     const protocol = headers().get("x-forwarded-proto");
     const serverUrl = `${protocol}://${host}`;
+    const graphQLUrl = process.env.CORTEX_GRAPHQL_API_URL || "http://localhost:4000/graphql";
 
     const cookieStore = cookies();
     const language = cookieStore.get("i18next")?.value || "en";
@@ -61,6 +62,7 @@ export default async function RootLayout({ children }) {
                             theme={theme}
                             language={language}
                             serverUrl={serverUrl}
+                            graphQLUrl={graphQLUrl}
                             neuralspaceEnabled={neuralspaceEnabled}
                         >
                             {children}

@@ -15,7 +15,6 @@ export async function POST(req, res) {
         model: body.model, // Added model field
     });
 
-
     return Response.json(pathway);
 }
 

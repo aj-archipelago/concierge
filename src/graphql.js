@@ -20,8 +20,6 @@ const getClient = (serverUrl) => {
         graphqlEndpoint = CORTEX_GRAPHQL_API_URL;
     }
 
-    console.log("graphqlEndpoint", graphqlEndpoint);
-
     const httpLink = new HttpLink({
         uri: graphqlEndpoint,
     });
@@ -751,15 +749,9 @@ const SUBSCRIPTIONS = {
     REQUEST_PROGRESS,
 };
 
-const ADD_PATHWAY = gql`
-    mutation AddPathway($name: String!, $pathway: PathwayInput!, $userId: String!, $secret: String!) {
-        addPathway(name: $name, pathway: $pathway, userId: $userId, secret: $secret)
-    }
-`;
-
-const UPDATE_PATHWAY = gql`
-    mutation UpdatePathway($name: String!, $pathway: PathwayInput!, $userId: String!, $secret: String!) {
-        updatePathway(name: $name, pathway: $pathway, userId: $userId, secret: $secret)
+const PUT_PATHWAY = gql`
+    mutation PutPathway($name: String!, $pathway: PathwayInput!, $userId: String!, $secret: String!) {
+        putPathway(name: $name, pathway: $pathway, userId: $userId, secret: $secret)
     }
 `;
 
@@ -771,8 +763,7 @@ const DELETE_PATHWAY = gql`
 
 const MUTATIONS = {
     CANCEL_REQUEST,
-    ADD_PATHWAY,
-    UPDATE_PATHWAY,
+    PUT_PATHWAY,
     DELETE_PATHWAY,
 };
 

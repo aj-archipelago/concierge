@@ -20,18 +20,6 @@ const pathwaySchema = new mongoose.Schema({
         type: String,
         required: true,
     },
-    prompt: {
-        type: String,
-        required: true,
-    },
-    inputParameters: {
-        type: Object,
-        required: false,
-    },
-    model: {
-        type: String,
-        required: false,
-    },
     secret: {
         type: String,
         required: true,

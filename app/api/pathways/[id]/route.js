@@ -36,19 +36,19 @@ export async function PUT(req, { params }) {
         new: true,
     });
 
-    newPathway.secret = "foo";
-    console.log("newPathway", newPathway);
+    if (!newPathway.secret) {
+        newPathway.secret = Math.random().toString(16).substring(2, 10);
+        await newPathway.save();
+    }
 
     // convert inputParameters to a hash instead of an array
     const inputParameters = newPathway.inputParameters.reduce((acc, param) => {
         acc[param.key] = param.value;
         return acc;
     }, {});
-    console.log("inputParameters", inputParameters);
-
 
     const response = await getClient().mutate({
-        mutation: MUTATIONS.UPDATE_PATHWAY,
+        mutation: MUTATIONS.PUT_PATHWAY,
         variables: {
             name: newPathway.name,
             pathway: {
@@ -61,9 +61,7 @@ export async function PUT(req, { params }) {
         },
     });
 
-    console.log("Response", response);
-
-    return Response.json(newPathway); 
+    return Response.json(newPathway);
 }
 
 export async function GET(req, { params }) {

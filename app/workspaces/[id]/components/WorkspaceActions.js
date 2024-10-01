@@ -25,6 +25,7 @@ import { LanguageContext } from "../../../../src/contexts/LanguageProvider";
 import {
     useCopyWorkspace,
     useDeleteWorkspace,
+    usePublishWorkspace,
     useWorkspace,
 } from "../../../queries/workspaces";
 
@@ -151,7 +152,7 @@ function Name({ workspace, user }) {
                         <input
                             autoFocus
                             type="text"
-                            className="border-0 ring-1 w-full text-sm sm:text-base bg-gray-50 p-0 font-medium text-xl "
+                            className="border-0 ring-1 w-full bg-gray-50 p-0 font-medium text-xl "
                             value={name}
                             onChange={(e) => {
                                 setName(e.target.value);
@@ -282,7 +283,10 @@ function Actions({ user, workspace }) {
     const router = useRouter();
     const isUserOwner = workspace?.owner === user._id;
     const deleteWorkspace = useDeleteWorkspace();
+    const publishWorkspace = usePublishWorkspace();
     const { t } = useTranslation();
+    console.log("workspace", workspace);
+    const serverContext = useContext(ServerContext);
 
     const handleDelete = async () => {
         if (
@@ -295,23 +299,47 @@ function Actions({ user, workspace }) {
         router.push("/workspaces");
     };
 
+    const handlePublish = async () => {
+        await publishWorkspace.mutateAsync({ id: workspace._id, publish: !workspace.published });
+    };
+
     if (isUserOwner) {
         return (
-            <div>
-                <DropdownMenu>
-                    <DropdownMenuTrigger>
-                        <div className="lb-outline-secondary">
-                            <FaEllipsisH />
+            <div className="flex gap-4 items-center">
+                <div className="text-sm">
+                    {publishWorkspace.isLoading && (
+                        <div>Publishing...</div>
+                    )}
+                    {publishWorkspace.error && (
+                        <div>Error publishing: {publishWorkspace.error.message}</div>
+                    )}
+                    {workspace.published && (
+                        <div className="text-sm text-gray-600 font-mono bg-gray-100 p-2 rounded-md overflow-x-auto">
+                            <span className="font-semibold">API:</span> <span className="break-all">{serverContext.graphQLUrl + "-user"}</span>
                         </div>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent>
-                        <DropdownMenuItem>
-                            <button className="p-1" onClick={handleDelete}>
-                                {t("Delete this workspace")}
-                            </button>
-                        </DropdownMenuItem>
-                    </DropdownMenuContent>
-                </DropdownMenu>
+                    )}
+                </div>
+                <div>
+                    <DropdownMenu>
+                        <DropdownMenuTrigger>
+                            <div className="lb-outline-secondary">
+                                <FaEllipsisH />
+                            </div>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent>
+                            <DropdownMenuItem>
+                                <button className="p-1" onClick={handlePublish}>
+                                    {workspace.published ? t("Unpublish from cortex") : t("Publish to cortex")}
+                                </button>
+                            </DropdownMenuItem>
+                            <DropdownMenuItem>
+                                <button className="p-1" onClick={handleDelete}>
+                                    {t("Delete this workspace")}
+                                </button>
+                            </DropdownMenuItem>
+                        </DropdownMenuContent>
+                    </DropdownMenu>
+                </div>
             </div>
         );
     } else {
