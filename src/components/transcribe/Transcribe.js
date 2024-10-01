@@ -11,8 +11,12 @@ import CopyButton from "../CopyButton";
 import LoadingButton from "../editor/LoadingButton";
 import ProgressUpdate from "../editor/ProgressUpdate";
 import TaxonomySelector from "./TaxonomySelector";
-import { lazy } from 'react';
-const TranscribeUrlSourcer = lazy(() => import('../../../app.config/config/transcribe/TranscribeUrlSourcer').catch(() => ({ default: () => null })));
+import { lazy } from "react";
+const TranscribeUrlSourcer = lazy(() =>
+    import("../../../app.config/config/transcribe/TranscribeUrlSourcer").catch(
+        () => ({ default: () => null }),
+    ),
+);
 
 function Transcribe({
     dataText,
@@ -988,7 +992,7 @@ function Transcribe({
             </div>
 
             <div className="fixed bottom-8 right-4 z-50 max-w-sm max-h-[80vh] overflow-auto bg-white dark:bg-gray-800 shadow-lg rounded-lg">
-                <TranscribeUrlSourcer url={url} setUrl={setUrl} /> 
+                <TranscribeUrlSourcer url={url} setUrl={setUrl} />
             </div>
         </div>
     );
