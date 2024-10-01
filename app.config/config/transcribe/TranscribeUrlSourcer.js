@@ -10,7 +10,7 @@ const fetchUrlAJSource = async (url) => {
     return response.json();
 };
 
-const TranscribeUrlAJSourcer = ({ url, setUrl }) => {
+const TranscribeUrlSourcer = ({ url, setUrl }) => {
     const [debouncedUrl, setDebouncedUrl] = useState(url);
 
     useEffect(() => {
@@ -89,4 +89,4 @@ const TranscribeUrlAJSourcer = ({ url, setUrl }) => {
     return null;
 };
 
-export default TranscribeUrlAJSourcer;
+export default TranscribeUrlSourcer;
