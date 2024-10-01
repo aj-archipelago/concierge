@@ -8,7 +8,7 @@ import {
     PhotoIcon,
     PlusIcon,
 } from "@heroicons/react/24/outline";
-import { BrainCircuitIcon, HelpCircle } from "lucide-react";
+import { HelpCircle } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import React, { useContext, useState } from "react";

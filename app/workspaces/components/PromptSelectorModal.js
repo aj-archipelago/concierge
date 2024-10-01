@@ -54,12 +54,6 @@ function SelectorDialog({ setIsOpen }) {
     const { t } = useTranslation();
     const [activeTab, setActiveTab] = useState("write_your_own");
 
-    useEffect(() => {
-        if (llms) {
-            setLLM(llms[0]?._id);
-        }
-    }, [llms]);
-
     return (
         <>
             <Tabs

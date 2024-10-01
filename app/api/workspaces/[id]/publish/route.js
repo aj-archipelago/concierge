@@ -1,8 +1,7 @@
-import Workspace from "../../../models/workspace";
 import Prompt from "../../../models/prompt";
+import Workspace from "../../../models/workspace";
+import { deletePathway, putPathway } from "../../../pathways/[id]/route";
 import { getCurrentUser } from "../../../utils/auth";
-import { putPathway, deletePathway } from "../../../pathways/[id]/route";
-import stringcase from "stringcase";
 
 async function publishWorkspace(workspace, user, pathwayName, model) {
     console.log(`Publishing workspace: ${workspace._id}`);
