@@ -18,15 +18,6 @@ const promptSchema = new mongoose.Schema({
         type: mongoose.Schema.Types.ObjectId,
         ref: "LLM",
     },
-    // published to cortex
-    published: {
-        type: Boolean,
-        default: false,
-    },
-    pathway: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "Pathway",
-    },
 });
 
 // create index on user

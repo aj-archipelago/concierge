@@ -23,10 +23,7 @@ export function useUpdatePathway() {
         },
         onMutate: async ({ id, data }) => {
             await queryClient.cancelQueries({ queryKey: ["pathway", id] });
-            const previousPathways = queryClient.getQueryData([
-                "pathway",
-                id,
-            ]);
+            const previousPathways = queryClient.getQueryData(["pathway", id]);
             queryClient.setQueryData(["pathway", id], (old) => {
                 return { ...old, ...data };
             });
@@ -93,4 +90,3 @@ export function useCreatePathway() {
 
     return mutation;
 }
-

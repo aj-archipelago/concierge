@@ -89,7 +89,6 @@ export default function WorkspaceInput({ onRun, onRunMany }) {
                             onHide={() => setEditing(false)}
                             title={t("Edit prompt")}
                         >
-
                             <PromptEditor
                                 selectedPrompt={selectedPrompt}
                                 onBack={() => setEditing(false)}
@@ -370,13 +369,23 @@ function PromptEditor({ selectedPrompt, onBack }) {
                             if (selectedPrompt && isOwner) {
                                 await updatePrompt.mutateAsync({
                                     id: selectedPrompt._id,
-                                    data: { title, text: prompt, llm, published },
+                                    data: {
+                                        title,
+                                        text: prompt,
+                                        llm,
+                                        published,
+                                    },
                                 });
                                 onBack();
                             } else {
                                 await createPrompt.mutateAsync({
                                     workspace,
-                                    prompt: { title, text: prompt, llm, published },
+                                    prompt: {
+                                        title,
+                                        text: prompt,
+                                        llm,
+                                        published,
+                                    },
                                 });
                                 onBack();
                             }

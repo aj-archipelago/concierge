@@ -19,15 +19,19 @@ import {
     FaLink,
 } from "react-icons/fa";
 import stringcase from "stringcase";
+import { Modal } from "../../../../@/components/ui/modal";
 import { ServerContext } from "../../../../src/App";
 import LoadingButton from "../../../../src/components/editor/LoadingButton";
 import { LanguageContext } from "../../../../src/contexts/LanguageProvider";
+import { usePathway } from "../../../queries/pathways";
 import {
     useCopyWorkspace,
     useDeleteWorkspace,
     usePublishWorkspace,
     useWorkspace,
 } from "../../../queries/workspaces";
+import LLMSelector from "../../components/LLMSelector";
+import Loader from "../../../components/loader";
 
 export default function WorkspaceActions({ idOrSlug, user }) {
     const router = useRouter();
@@ -283,9 +287,8 @@ function Actions({ user, workspace }) {
     const router = useRouter();
     const isUserOwner = workspace?.owner === user._id;
     const deleteWorkspace = useDeleteWorkspace();
-    const publishWorkspace = usePublishWorkspace();
     const { t } = useTranslation();
-    console.log("workspace", workspace);
+    const [publishModalOpen, setPublishModalOpen] = useState(false);
     const serverContext = useContext(ServerContext);
 
     const handleDelete = async () => {
@@ -299,26 +302,24 @@ function Actions({ user, workspace }) {
         router.push("/workspaces");
     };
 
-    const handlePublish = async () => {
-        await publishWorkspace.mutateAsync({ id: workspace._id, publish: !workspace.published });
-    };
-
     if (isUserOwner) {
         return (
             <div className="flex gap-4 items-center">
                 <div className="text-sm">
-                    {publishWorkspace.isLoading && (
-                        <div>Publishing...</div>
-                    )}
-                    {publishWorkspace.error && (
-                        <div>Error publishing: {publishWorkspace.error.message}</div>
-                    )}
                     {workspace.published && (
                         <div className="text-sm text-gray-600 font-mono bg-gray-100 p-2 rounded-md overflow-x-auto">
-                            <span className="font-semibold">API:</span> <span className="break-all">{serverContext.graphQLUrl + "-user"}</span>
+                            <span className="font-semibold">API:</span>{" "}
+                            <span className="break-all">
+                                {serverContext.graphQLUrl}
+                            </span>
                         </div>
                     )}
                 </div>
+                <PublishModal
+                    open={publishModalOpen}
+                    setOpen={setPublishModalOpen}
+                    workspace={workspace}
+                />
                 <div>
                     <DropdownMenu>
                         <DropdownMenuTrigger>
@@ -328,8 +329,13 @@ function Actions({ user, workspace }) {
                         </DropdownMenuTrigger>
                         <DropdownMenuContent>
                             <DropdownMenuItem>
-                                <button className="p-1" onClick={handlePublish}>
-                                    {workspace.published ? t("Unpublish from cortex") : t("Publish to cortex")}
+                                <button
+                                    className="p-1"
+                                    onClick={() => setPublishModalOpen(true)}
+                                >
+                                    {workspace.published
+                                        ? t("Unpublish workspace from Cortex")
+                                        : t("Publish workspace to Cortex")}
                                 </button>
                             </DropdownMenuItem>
                             <DropdownMenuItem>
@@ -345,6 +351,173 @@ function Actions({ user, workspace }) {
     } else {
         return <MembershipActions user={user} id={workspace?._id} />;
     }
+}
+
+function PublishModal({ open, setOpen, workspace }) {
+    return (
+        <Modal
+            show={open}
+            onHide={() => setOpen(false)}
+            title={"Publish workspace to Cortex"}
+        >
+            {workspace.published ? (
+                <PublishedWorkspace workspace={workspace} />
+            ) : (
+                <UnpublishedWorkspace workspace={workspace} />
+            )}
+        </Modal>
+    );
+}
+
+function PublishedWorkspace({ workspace }) {
+    const { data: pathway, isLoading } = usePathway(workspace.pathway);
+    const publishWorkspace = usePublishWorkspace();
+    const { t } = useTranslation();
+    const serverContext = useContext(ServerContext);
+
+    const handleUnpublish = async () => {
+        await publishWorkspace.mutate({ id: workspace._id, publish: false });
+    };
+
+    if (isLoading) {
+        return (
+            <div className="flex gap-3 items-center">
+                <Loader />
+                Loading pathway information...
+            </div>
+        );
+    }
+
+    return (
+        <div>
+            <div className="mb-4">
+                Published as pathway{" "}
+                <span className="font-mono bg-sky-50">{pathway?.name}</span> at{" "}
+                <a
+                    className="text-sky-500 hover:underline"
+                    href={serverContext.graphQLUrl}
+                    target="_blank"
+                >
+                    {serverContext.graphQLUrl}
+                </a>
+            </div>
+
+            {publishWorkspace.error && (
+                <div className="text-red-500 text-sm mt-2 mb-4 p-2 bg-red-100 border border-red-300 rounded">
+                    {publishWorkspace.error.response?.data?.error ||
+                        publishWorkspace.error.message}
+                </div>
+            )}
+
+            <LoadingButton
+                loading={publishWorkspace.isPending}
+                text="Removing"
+                className="lb-outline-danger"
+                onClick={handleUnpublish}
+            >
+                {t("Unpublish")}
+            </LoadingButton>
+        </div>
+    );
+}
+
+function UnpublishedWorkspace({ workspace }) {
+    const publishWorkspace = usePublishWorkspace();
+    const { t } = useTranslation();
+    const [llm, setLLM] = useState("");
+    const [pathwayName, setPathwayName] = useState(
+        stringcase.snakecase(workspace.name),
+    );
+    const [pathwayNameError, setPathwayNameError] = useState("");
+
+    const validatePathwayName = (name) => {
+        if (!/^[a-z][a-z0-9_]*$/.test(name)) {
+            setPathwayNameError(
+                "Pathway name must be snake_case, lowercase, and not start with a number",
+            );
+            return false;
+        }
+        setPathwayNameError("");
+        return true;
+    };
+
+    const handlePathwayNameChange = (e) => {
+        const newName = e.target.value;
+        setPathwayName(newName);
+        validatePathwayName(newName);
+    };
+
+    const handlePublish = async () => {
+        if (!validatePathwayName(pathwayName)) return;
+        await publishWorkspace.mutate({
+            id: workspace._id,
+            publish: !workspace.published,
+            pathwayName,
+            llm,
+        });
+    };
+
+    return (
+        <div className="pb-24">
+            <p>
+                This will create a pathway in cortex that contains prompts from
+                this workspace. You will then be able to call the Cortex GraphQL
+                endpoints to run those prompts.
+            </p>
+
+            <div className="w-64">
+                <label
+                    htmlFor="llm-selector"
+                    className="block text-sm font-medium text-gray-700 mb-1"
+                >
+                    Select LLM Model
+                </label>
+                <LLMSelector id="llm-selector" value={llm} onChange={setLLM} />
+            </div>
+
+            <div className="mb-4">
+                <label
+                    htmlFor="pathway-name"
+                    className="block text-sm font-medium text-gray-700 mb-1"
+                >
+                    Specify the name of the pathway in Cortex
+                    <div className="text-xs font-normal text-gray-500">
+                        (snake_case lowercase and should not start with a
+                        number)
+                    </div>
+                </label>
+                <input
+                    id="pathway-name"
+                    className={`lb-input w-64 ${pathwayNameError ? "border-red-500" : ""}`}
+                    placeholder="Enter pathway name"
+                    value={pathwayName}
+                    onChange={handlePathwayNameChange}
+                />
+                {pathwayNameError && (
+                    <p className="text-red-500 text-xs mt-1">
+                        {pathwayNameError}
+                    </p>
+                )}
+            </div>
+
+            {publishWorkspace.error && (
+                <div className="text-red-500 text-sm mt-2 mb-4 p-2 bg-red-100 border border-red-300 rounded">
+                    {publishWorkspace.error.response?.data?.error ||
+                        publishWorkspace.error.message}
+                </div>
+            )}
+
+            <LoadingButton
+                loading={publishWorkspace.isPending}
+                text="Publishing..."
+                className="lb-primary"
+                onClick={handlePublish}
+                disabled={!llm || !pathwayName || !!pathwayNameError}
+            >
+                {t("Publish")}
+            </LoadingButton>
+        </div>
+    );
 }
 
 function MembershipActions({ id }) {

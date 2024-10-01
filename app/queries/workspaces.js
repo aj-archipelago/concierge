@@ -60,7 +60,10 @@ export function usePublishWorkspace() {
 
     const mutation = useMutation({
         mutationFn: async ({ id, ...rest }) => {
-            const response = await axios.post(`/api/workspaces/${id}/publish`, rest);
+            const response = await axios.post(
+                `/api/workspaces/${id}/publish`,
+                rest,
+            );
             return response.data;
         },
         onSuccess: (data) => {

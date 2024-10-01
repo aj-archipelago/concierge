@@ -1,7 +1,11 @@
 "use client";
 import { useState, useEffect } from "react";
 import PropTypes from "prop-types";
-import { usePathway, useUpdatePathway, useDeletePathway } from "../../../queries/pathways"; // Import useDeletePathway
+import {
+    usePathway,
+    useUpdatePathway,
+    useDeletePathway,
+} from "../../../queries/pathways"; // Import useDeletePathway
 import { useRouter } from "next/navigation";
 
 function PathwayDetails({ id }) {
@@ -9,7 +13,6 @@ function PathwayDetails({ id }) {
     const updatePathway = useUpdatePathway(); // Use the useUpdatePathway hook
     const deletePathway = useDeletePathway(); // Use the useDeletePathway hook
     const router = useRouter();
-
 
     const [isEditing, setIsEditing] = useState(false);
     const [formData, setFormData] = useState({
@@ -24,7 +27,11 @@ function PathwayDetails({ id }) {
             setFormData({
                 name: pathway.name,
                 prompt: pathway.prompt,
-                inputParameters: JSON.stringify(pathway.inputParameters, null, 2),
+                inputParameters: JSON.stringify(
+                    pathway.inputParameters,
+                    null,
+                    2,
+                ),
                 model: pathway.model || "",
             });
         }
@@ -52,7 +59,9 @@ function PathwayDetails({ id }) {
 
     const handleInputParameterChange = (index, field, value) => {
         setFormData((prevData) => {
-            const inputParameters = JSON.parse(prevData.inputParameters || "[]");
+            const inputParameters = JSON.parse(
+                prevData.inputParameters || "[]",
+            );
             inputParameters[index][field] = value;
             return {
                 ...prevData,
@@ -63,7 +72,9 @@ function PathwayDetails({ id }) {
 
     const handleAddInputParameter = () => {
         setFormData((prevData) => {
-            const inputParameters = JSON.parse(prevData.inputParameters || "[]");
+            const inputParameters = JSON.parse(
+                prevData.inputParameters || "[]",
+            );
             inputParameters.push({ key: "", value: "" }); // Removed defaultValue
             return {
                 ...prevData,
@@ -74,7 +85,9 @@ function PathwayDetails({ id }) {
 
     const handleRemoveInputParameter = (index) => {
         setFormData((prevData) => {
-            const inputParameters = JSON.parse(prevData.inputParameters || "[]");
+            const inputParameters = JSON.parse(
+                prevData.inputParameters || "[]",
+            );
             inputParameters.splice(index, 1);
             return {
                 ...prevData,
@@ -99,9 +112,9 @@ function PathwayDetails({ id }) {
 
     const handleDeleteClick = async () => {
         if (window.confirm("Are you sure you want to delete this pathway?")) {
-            await deletePathway.mutateAsync({id});
+            await deletePathway.mutateAsync({ id });
             // Redirect to the pathways list page after deletion
-            router.push('/pathways');
+            router.push("/pathways");
         }
     };
 
@@ -109,7 +122,10 @@ function PathwayDetails({ id }) {
         <div className="flex flex-col h-full p-4">
             {!isEditing && (
                 <div className="flex justify-end mb-4 gap-2">
-                    <button onClick={handleEditClick} className="btn btn-primary lb-outline-secondary">
+                    <button
+                        onClick={handleEditClick}
+                        className="btn btn-primary lb-outline-secondary"
+                    >
                         Edit
                     </button>
                     <button onClick={handleDeleteClick} className="lb-danger">
@@ -122,19 +138,34 @@ function PathwayDetails({ id }) {
                     <h1 className="text-2xl font-bold mb-4">{formData.name}</h1>
                     <p className="mb-4">{formData.prompt}</p>
                     <div className="mb-4">
-                        <h2 className="text-xl font-semibold mb-2">Input Parameters</h2>
+                        <h2 className="text-xl font-semibold mb-2">
+                            Input Parameters
+                        </h2>
                         <table className="table-auto w-full rounded-lg border">
                             <thead className="bg-gray-200">
                                 <tr>
-                                    <th className="text-start px-4 py-2 border">Key</th>
-                                    <th className="text-start px-4 py-2 border">Value</th>
+                                    <th className="text-start px-4 py-2 border">
+                                        Key
+                                    </th>
+                                    <th className="text-start px-4 py-2 border">
+                                        Value
+                                    </th>
                                 </tr>
                             </thead>
                             <tbody>
-                                {JSON.parse(formData.inputParameters || "[]").map((param, index) => (
-                                    <tr key={index} className="odd:bg-white even:bg-gray-50">
-                                        <td className="border px-4 py-2">{param.key}</td>
-                                        <td className="border px-4 py-2">{param.value}</td>
+                                {JSON.parse(
+                                    formData.inputParameters || "[]",
+                                ).map((param, index) => (
+                                    <tr
+                                        key={index}
+                                        className="odd:bg-white even:bg-gray-50"
+                                    >
+                                        <td className="border px-4 py-2">
+                                            {param.key}
+                                        </td>
+                                        <td className="border px-4 py-2">
+                                            {param.value}
+                                        </td>
                                     </tr>
                                 ))}
                             </tbody>
@@ -151,7 +182,9 @@ function PathwayDetails({ id }) {
             {isEditing && (
                 <form onSubmit={handleFormSubmit} className="mt-4">
                     <div className="mb-4">
-                        <label className="block text-sm font-medium">Name</label>
+                        <label className="block text-sm font-medium">
+                            Name
+                        </label>
                         <input
                             type="text"
                             name="name"
@@ -161,7 +194,9 @@ function PathwayDetails({ id }) {
                         />
                     </div>
                     <div className="mb-4">
-                        <label className="block text-sm font-medium">Prompt</label>
+                        <label className="block text-sm font-medium">
+                            Prompt
+                        </label>
                         <textarea
                             name="prompt"
                             value={formData.prompt}
@@ -170,34 +205,62 @@ function PathwayDetails({ id }) {
                         />
                     </div>
                     <div className="mb-4">
-                        <label className="block text-sm font-medium">Input Parameters</label>
-                        {JSON.parse(formData.inputParameters || "[]").map((param, index) => (
-                            <div key={index} className="flex gap-2 mb-2">
-                                <input
-                                    type="text"
-                                    placeholder="Key"
-                                    value={param.key}
-                                    onChange={(e) => handleInputParameterChange(index, "key", e.target.value)}
-                                    className="input input-bordered w-full lb-input"
-                                />
-                                <input
-                                    type="text"
-                                    placeholder="Value"
-                                    value={param.value}
-                                    onChange={(e) => handleInputParameterChange(index, "value", e.target.value)}
-                                    className="input input-bordered w-full lb-input"
-                                />
-                                <button type="button" onClick={() => handleRemoveInputParameter(index)} className="btn btn-outline-secondary lb-outline-secondary">
-                                    Remove
-                                </button>
-                            </div>
-                        ))}
-                        <button type="button" onClick={handleAddInputParameter} className="btn btn-outline-secondary lb-outline-secondary">
+                        <label className="block text-sm font-medium">
+                            Input Parameters
+                        </label>
+                        {JSON.parse(formData.inputParameters || "[]").map(
+                            (param, index) => (
+                                <div key={index} className="flex gap-2 mb-2">
+                                    <input
+                                        type="text"
+                                        placeholder="Key"
+                                        value={param.key}
+                                        onChange={(e) =>
+                                            handleInputParameterChange(
+                                                index,
+                                                "key",
+                                                e.target.value,
+                                            )
+                                        }
+                                        className="input input-bordered w-full lb-input"
+                                    />
+                                    <input
+                                        type="text"
+                                        placeholder="Value"
+                                        value={param.value}
+                                        onChange={(e) =>
+                                            handleInputParameterChange(
+                                                index,
+                                                "value",
+                                                e.target.value,
+                                            )
+                                        }
+                                        className="input input-bordered w-full lb-input"
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={() =>
+                                            handleRemoveInputParameter(index)
+                                        }
+                                        className="btn btn-outline-secondary lb-outline-secondary"
+                                    >
+                                        Remove
+                                    </button>
+                                </div>
+                            ),
+                        )}
+                        <button
+                            type="button"
+                            onClick={handleAddInputParameter}
+                            className="btn btn-outline-secondary lb-outline-secondary"
+                        >
                             Add Parameter
                         </button>
                     </div>
                     <div className="mb-4">
-                        <label className="block text-sm font-medium">Model</label>
+                        <label className="block text-sm font-medium">
+                            Model
+                        </label>
                         <input
                             type="text"
                             name="model"
@@ -207,10 +270,17 @@ function PathwayDetails({ id }) {
                         />
                     </div>
                     <div className="flex gap-2">
-                        <button type="submit" className="btn btn-primary lb-primary">
+                        <button
+                            type="submit"
+                            className="btn btn-primary lb-primary"
+                        >
                             Save
                         </button>
-                        <button type="button" onClick={handleCancelClick} className="btn btn-outline-secondary lb-outline-secondary">
+                        <button
+                            type="button"
+                            onClick={handleCancelClick}
+                            className="btn btn-outline-secondary lb-outline-secondary"
+                        >
                             Cancel
                         </button>
                     </div>

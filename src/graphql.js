@@ -750,8 +750,22 @@ const SUBSCRIPTIONS = {
 };
 
 const PUT_PATHWAY = gql`
-    mutation PutPathway($name: String!, $pathway: PathwayInput!, $userId: String!, $secret: String!) {
-        putPathway(name: $name, pathway: $pathway, userId: $userId, secret: $secret)
+    mutation PutPathway(
+        $name: String!
+        $pathway: PathwayInput!
+        $userId: String!
+        $secret: String!
+        $displayName: String
+    ) {
+        putPathway(
+            name: $name
+            pathway: $pathway
+            userId: $userId
+            secret: $secret
+            displayName: $displayName
+        ) {
+            name
+        }
     }
 `;
 

@@ -40,10 +40,9 @@ export async function publishPrompt(prompt, user) {
 
     let pathwayName = stringcase.snakecase(prompt.title).toLowerCase();
     // Ensure the name is alphanumeric and doesn't start with a number
-    pathwayName = pathwayName.replace(/[^a-z0-9_]/g, '')
-                              .replace(/^[0-9]+/, '');
+    pathwayName = pathwayName.replace(/[^a-z0-9_]/g, "").replace(/^[0-9]+/, "");
     if (pathwayName.length === 0) {
-        pathwayName = 'untitled';
+        pathwayName = "untitled";
     }
 
     let pathway;
@@ -55,7 +54,7 @@ export async function publishPrompt(prompt, user) {
             pathway = new Pathway({
                 owner: user._id,
                 name: pathwayName,
-                secret: generateRandomString(16)
+                secret: generateRandomString(16),
             });
         } else {
             // Update existing pathway
@@ -69,7 +68,7 @@ export async function publishPrompt(prompt, user) {
         pathway = new Pathway({
             owner: user._id,
             name: pathwayName,
-            secret: generateRandomString(16)
+            secret: generateRandomString(16),
         });
     }
 
@@ -117,12 +116,17 @@ export async function PUT(req, { params }) {
 
     try {
         const prompt = await Prompt.findById(id);
-        
+
         if (!prompt.owner.equals(user._id)) {
-            return Response.json({ error: "You are not the owner of this prompt" }, { status: 403 });
+            return Response.json(
+                { error: "You are not the owner of this prompt" },
+                { status: 403 },
+            );
         }
 
-        const updatedPrompt = await Prompt.findByIdAndUpdate(id, attrs, { new: true });
+        const updatedPrompt = await Prompt.findByIdAndUpdate(id, attrs, {
+            new: true,
+        });
 
         if (attrs.published === false && prompt.published) {
             // Prompt is being unpublished

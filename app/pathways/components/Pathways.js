@@ -35,9 +35,7 @@ export default function Pathways() {
                 {pathways.map((pathway) => (
                     <PathwayTile
                         key={pathway._id}
-                        onClick={() =>
-                            router.push(`/pathways/${pathway._id}`)
-                        }
+                        onClick={() => router.push(`/pathways/${pathway._id}`)}
                     >
                         {pathway.name || "Pathway " + pathway._id}
                     </PathwayTile>

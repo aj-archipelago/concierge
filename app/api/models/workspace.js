@@ -32,6 +32,10 @@ const workspaceSchema = new mongoose.Schema(
             type: Boolean,
             default: false,
         },
+        pathway: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "Pathway",
+        },
     },
     {
         timestamps: true,

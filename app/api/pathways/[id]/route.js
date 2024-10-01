@@ -6,62 +6,97 @@ import { getPathway } from "./db";
 export async function DELETE(req, { params }) {
     const { id } = params;
     const user = await getCurrentUser();
-    const pathway = await Pathway.findById(id);
-
-    if (!pathway.owner?.equals(user._id)) {
-        return Response.json(
-            { error: "You are not the owner of this pathway" },
-            { status: 403 },
-        );
+    try {
+        return Response.json(await deletePathway(id, user), { status: 200 });
+    } catch (error) {
+        return Response.json({ error: error.message }, { status: 500 });
     }
-
-    await Pathway.findByIdAndDelete(id);
-    return Response.json({ success: true });
 }
 
 export async function PUT(req, { params }) {
     const { id } = params;
     const attrs = await req.json();
-    const pathway = await Pathway.findById(id);
     const user = await getCurrentUser();
+    try {
+        return Response.json(await putPathway(id, attrs, user), {
+            status: 200,
+        });
+    } catch (error) {
+        return Response.json({ error: error.message }, { status: 500 });
+    }
+}
+
+export async function deletePathway(id, user) {
+    if (!id) {
+        throw new Error("Pathway ID is required");
+    }
+
+    const pathway = await Pathway.findById(id);
 
     if (!pathway.owner?.equals(user._id)) {
-        return Response.json(
-            { error: "You are not the owner of this pathway" },
-            { status: 403 },
-        );
+        throw new Error("You are not the owner of this pathway");
     }
 
-    const newPathway = await Pathway.findByIdAndUpdate(id, attrs, {
-        new: true,
-    });
+    await Pathway.findByIdAndDelete(id);
 
-    if (!newPathway.secret) {
-        newPathway.secret = Math.random().toString(16).substring(2, 10);
-        await newPathway.save();
-    }
-
-    // convert inputParameters to a hash instead of an array
-    const inputParameters = newPathway.inputParameters.reduce((acc, param) => {
-        acc[param.key] = param.value;
-        return acc;
-    }, {});
-
-    const response = await getClient().mutate({
-        mutation: MUTATIONS.PUT_PATHWAY,
+    // Call the DELETE_PATHWAY mutation
+    await getClient().mutate({
+        mutation: MUTATIONS.DELETE_PATHWAY,
         variables: {
-            name: newPathway.name,
-            pathway: {
-                prompt: newPathway.prompt,
-                inputParameters,
-                model: newPathway.model,
-            },
-            userId: user._id,
-            secret: newPathway.secret,
+            name: pathway.name,
+            userId: user._id.toString(),
+            secret: pathway.secret,
         },
     });
 
-    return Response.json(newPathway);
+    return { success: true };
+}
+
+export async function putPathway(id, attrs, user) {
+    let pathway;
+
+    if (id) {
+        pathway = await Pathway.findById(id);
+        if (pathway && !pathway.owner?.equals(user._id)) {
+            throw new Error("You are not the owner of this pathway");
+        }
+    }
+
+    if (!pathway) {
+        // Create new pathway
+        pathway = new Pathway({
+            ...attrs,
+            owner: user._id,
+        });
+    } else {
+        // Update existing pathway
+        Object.assign(pathway, attrs);
+    }
+
+    if (!pathway.secret) {
+        pathway.secret = Math.random().toString(16).substring(2, 10);
+    }
+
+    const result = await getClient().mutate({
+        mutation: MUTATIONS.PUT_PATHWAY,
+        variables: {
+            name: pathway.name,
+            pathway: {
+                prompt: attrs.prompts,
+                inputParameters: {},
+                model: attrs.model,
+            },
+            userId: user._id,
+            secret: pathway.secret,
+        },
+    });
+
+    // Update the local pathway name with the one returned from the mutation
+    const finalPathwayName = result.data.putPathway.name;
+    pathway.name = finalPathwayName;
+    await pathway.save();
+
+    return pathway;
 }
 
 export async function GET(req, { params }) {
