@@ -11,6 +11,7 @@ import CopyButton from "../CopyButton";
 import LoadingButton from "../editor/LoadingButton";
 import ProgressUpdate from "../editor/ProgressUpdate";
 import TaxonomySelector from "./TaxonomySelector";
+import TranscribeUrlSourcer from "./TranscribeUrlSourcer";
 
 function Transcribe({
     dataText,
@@ -365,7 +366,7 @@ function Transcribe({
                                 onChange={handleFileUpload}
                             />
                         </div>
-                        {t("Or enter URL:")}
+                        {t("Or enter URL / title:")}
                         <input
                             disabled={isLoading}
                             placeholder={t(
@@ -984,6 +985,12 @@ function Transcribe({
                     </div>
                 )}
             </div>
+
+            {TranscribeUrlSourcer && (
+                <div className="fixed bottom-8 right-4 z-50 max-w-sm max-h-[80vh] overflow-auto bg-white dark:bg-gray-800 shadow-lg rounded-lg">
+                    <TranscribeUrlSourcer url={url} setUrl={setUrl} />
+                </div>
+            )}
         </div>
     );
 }
