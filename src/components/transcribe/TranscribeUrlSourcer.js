@@ -23,7 +23,7 @@ const TranscribeUrlSourcer = ({ url, setUrl }) => {
         enabled: !!debouncedUrl && !!fetchUrlSource,
     });
 
-    if(!fetchUrlSource) return;
+    if (!fetchUrlSource) return;
     if (isLoading) return;
     if (error) return <p>Error: {error.message || JSON.stringify(error)}</p>;
     if (data && !data.error)

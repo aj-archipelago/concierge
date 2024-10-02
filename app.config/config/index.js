@@ -4,7 +4,7 @@ import { FaFileImport } from "react-icons/fa";
 import { ImportSuggestions } from "./write/actions/ImportSuggestions";
 import { getTags, getTaxonomySets, getTopics } from "./data/taxonomySets";
 import { basePath } from "../../src/utils/constants";
-import { fetchUrlSource } from './transcribe/TranscribeUrlConstants';
+import { fetchUrlSource } from "./transcribe/TranscribeUrlConstants";
 
 // The entire Labeeb application can be configured here
 // Note that all assets and locales are copied to the public/app and src/locales directories respectively
@@ -60,7 +60,7 @@ export default {
         botName: "Knuth",
     },
     transcribe: {
-        fetchUrlSource
+        fetchUrlSource,
     },
     auth: {
         provider: "entra",
