@@ -33,21 +33,23 @@ export async function deletePathway(id, user) {
 
     const pathway = await Pathway.findById(id);
 
-    if (!pathway.owner?.equals(user._id)) {
-        throw new Error("You are not the owner of this pathway");
+    if (pathway) {
+        if (!pathway.owner?.equals(user._id)) {
+            throw new Error("You are not the owner of this pathway");
+        }
+
+        await Pathway.findByIdAndDelete(id);
+
+        // Call the DELETE_PATHWAY mutation
+        await getClient().mutate({
+            mutation: MUTATIONS.DELETE_PATHWAY,
+            variables: {
+                name: pathway.name,
+                userId: user.username || user._id.toString(),
+                secret: pathway.secret,
+            },
+        });
     }
-
-    await Pathway.findByIdAndDelete(id);
-
-    // Call the DELETE_PATHWAY mutation
-    await getClient().mutate({
-        mutation: MUTATIONS.DELETE_PATHWAY,
-        variables: {
-            name: pathway.name,
-            userId: user._id.toString(),
-            secret: pathway.secret,
-        },
-    });
 
     return { success: true };
 }
@@ -86,7 +88,7 @@ export async function putPathway(id, attrs, user) {
                 inputParameters: {},
                 model: attrs.model,
             },
-            userId: user._id,
+            userId: user.username || user._id.toString(),
             secret: pathway.secret,
         },
     });
