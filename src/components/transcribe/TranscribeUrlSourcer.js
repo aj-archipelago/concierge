@@ -18,7 +18,7 @@ const TranscribeUrlSourcer = ({ url, setUrl }) => {
     }, [url]);
 
     const { data, error, isLoading } = useQuery({
-        queryKey: ["ajurlsource", debouncedUrl],
+        queryKey: ["urlsource", debouncedUrl],
         queryFn: () => fetchUrlSource(debouncedUrl),
         enabled: !!debouncedUrl && !!fetchUrlSource,
     });

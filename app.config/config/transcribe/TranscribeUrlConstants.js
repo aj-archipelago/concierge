@@ -5,7 +5,7 @@ export const getAxisUrl = (accountId, searchQuery) =>
 
 export const fetchUrlSource = async (url) => {
     const response = await fetch(
-        `/api/ajurlsource?url=${encodeURIComponent(url)}`,
+        `/api/urlsource?url=${encodeURIComponent(url)}`,
     );
     if (!response.ok) throw new Error("Network response was not ok");
     return response.json();
