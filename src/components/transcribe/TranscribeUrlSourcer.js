@@ -1,17 +1,11 @@
 import React, { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { debounce } from "lodash";
-
-const fetchUrlAJSource = async (url) => {
-    const response = await fetch(
-        `/api/ajurlsource?url=${encodeURIComponent(url)}`,
-    );
-    if (!response.ok) throw new Error("Network response was not ok");
-    return response.json();
-};
+import config from "../../../config";
 
 const TranscribeUrlSourcer = ({ url, setUrl }) => {
     const [debouncedUrl, setDebouncedUrl] = useState(url);
+    const fetchUrlSource = config?.transcribe?.fetchUrlSource;
 
     useEffect(() => {
         const debouncedSetUrl = debounce((newUrl) => {
@@ -25,18 +19,19 @@ const TranscribeUrlSourcer = ({ url, setUrl }) => {
 
     const { data, error, isLoading } = useQuery({
         queryKey: ["ajurlsource", debouncedUrl],
-        queryFn: () => fetchUrlAJSource(debouncedUrl),
-        enabled: !!debouncedUrl,
+        queryFn: () => fetchUrlSource(debouncedUrl),
+        enabled: !!debouncedUrl && !!fetchUrlSource,
     });
 
-    if (isLoading) return; //<p className="text-gray-300">Checking if video is in AJ sources...</p>;
+    if(!fetchUrlSource) return;
+    if (isLoading) return;
     if (error) return <p>Error: {error.message || JSON.stringify(error)}</p>;
     if (data && !data.error)
         return (
             <div className="bg-gray-100 p-4 rounded-sm text-md">
-                <h3 className="font-bold">
-                    Suggested Transcription URL Found!
-                </h3>
+                <h6 className="font-bold">
+                    Suggested Transcription URL found!
+                </h6>
                 <p className="text-gray-700">{data.name}</p>
                 <video
                     className="w-full mb-4 rounded"

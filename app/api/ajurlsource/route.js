@@ -3,7 +3,7 @@ import {
     AJE,
     AJA,
     getAxisUrl,
-} from "../../../app.config/config/transcribe/UrlAJConstants";
+} from "../../../app.config/config/transcribe/TranscribeUrlConstants";
 
 export async function GET(req) {
     try {
