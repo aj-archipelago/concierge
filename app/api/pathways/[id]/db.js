@@ -1,7 +1,6 @@
 import { getClient, MUTATIONS } from "../../../../src/graphql";
 import Pathway from "../../models/pathway";
 import { getCurrentUser } from "../../utils/auth";
-import { getPathway } from "./db";
 import mongoose from "mongoose";
 
 export async function deletePathway(id, user) {
