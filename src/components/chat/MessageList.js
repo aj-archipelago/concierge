@@ -1,5 +1,5 @@
 import i18next from "i18next";
-import React, { useEffect, useContext } from "react";
+import React, { useEffect, useContext, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { AiFillFilePdf, AiOutlineRobot } from "react-icons/ai";
 import { FaUserCircle } from "react-icons/fa";
@@ -18,6 +18,7 @@ import CopyButton from "../CopyButton";
 import { AuthContext } from "../../App.js";
 import { useGetActiveChat, useUpdateChat } from "../../../app/queries/chats";
 import ProgressUpdate from "../editor/ProgressUpdate";
+import { useGetAutogenRun } from "../../../app/queries/autogen";
 
 const getLoadState = (message) => {
     const hasImage =
@@ -56,23 +57,34 @@ function MessageList({ messages, bot, loading, chatId }) {
     const chat = useGetActiveChat()?.data;
     const updateChat = useUpdateChat();
     const codeRequestId = chat?.codeRequestId;
+    const getAutogenRun = useGetAutogenRun(codeRequestId);
 
-    function setCodeRequestFinalData(data) {
-        const message = {
-            payload: `<span class="text-indigo-500">🤖 Coding Agent ➡️ </span> ${data}`,
-            sender: "labeeb",
-            sentTime: "just now",
-            direction: "incoming",
-            position: "single",
-        };
+    const setCodeRequestFinalData = useCallback(
+        (data) => {
+            const message = {
+                payload: `<span class="text-indigo-500">🤖 Coding Agent ➡️ </span> ${data}`,
+                sender: "labeeb",
+                sentTime: "just now",
+                direction: "incoming",
+                position: "single",
+            };
 
-        updateChat.mutateAsync({
-            chatId,
-            codeRequestId: null,
-            isChatLoading: false,
-            messages: [...chat.messages, message],
-        });
-    }
+            updateChat.mutateAsync({
+                chatId,
+                codeRequestId: null,
+                isChatLoading: false,
+                messages: [...chat.messages, message],
+            });
+        },
+        [chat?.messages, chatId, updateChat],
+    );
+
+    useEffect(() => {
+        const data = getAutogenRun?.data?.data?.data;
+        if (data) {
+            setCodeRequestFinalData(data);
+        }
+    }, [getAutogenRun?.data?.data, setCodeRequestFinalData]);
 
     const messageLoadStateRef = React.useRef(messageLoadState);
 
