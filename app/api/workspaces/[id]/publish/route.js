@@ -1,6 +1,6 @@
 import Prompt from "../../../models/prompt";
 import Workspace from "../../../models/workspace";
-import { deletePathway, putPathway } from "../../../pathways/[id]/route";
+import { deletePathway, putPathway } from "../../../pathways/[id]/db";
 import { getCurrentUser } from "../../../utils/auth";
 
 async function publishWorkspace(workspace, user, pathwayName, model) {
