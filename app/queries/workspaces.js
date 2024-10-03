@@ -67,7 +67,6 @@ export function usePublishWorkspace() {
             return response.data;
         },
         onSuccess: (data) => {
-            console.log("data", data);
             queryClient.setQueryData(["workspaces"], (old) => {
                 return old?.map((workspace) => {
                     if (workspace._id === data._id) {
