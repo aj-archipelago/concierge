@@ -38,8 +38,6 @@ export async function deletePathway(id, user) {
             throw new Error("You are not the owner of this pathway");
         }
 
-        await Pathway.findByIdAndDelete(id);
-
         // Call the DELETE_PATHWAY mutation
         await getClient().mutate({
             mutation: MUTATIONS.DELETE_PATHWAY,
@@ -49,6 +47,8 @@ export async function deletePathway(id, user) {
                 secret: pathway.secret,
             },
         });
+
+        await Pathway.findByIdAndDelete(id);
     }
 
     return { success: true };
@@ -79,6 +79,8 @@ export async function putPathway(id, attrs, user) {
         pathway.secret = Math.random().toString(16).substring(2, 10);
     }
 
+    await pathway.save();
+
     const result = await getClient().mutate({
         mutation: MUTATIONS.PUT_PATHWAY,
         variables: {
@@ -92,11 +94,6 @@ export async function putPathway(id, attrs, user) {
             secret: pathway.secret,
         },
     });
-
-    // Update the local pathway name with the one returned from the mutation
-    const finalPathwayName = result.data.putPathway.name;
-    pathway.name = finalPathwayName;
-    await pathway.save();
 
     return pathway;
 }
