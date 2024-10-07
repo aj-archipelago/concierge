@@ -1,5 +1,5 @@
 import { getClient, MUTATIONS } from "../../../../src/graphql";
-import Pathway from "../../models/pathway";
+import Pathway, { generateRandomString } from "../../models/pathway";
 import { getCurrentUser } from "../../utils/auth";
 import mongoose from "mongoose";
 
@@ -53,7 +53,7 @@ export async function putPathway(id, attrs, user) {
     }
 
     if (!pathway.secret) {
-        pathway.secret = Math.random().toString(16).substring(2, 10);
+        pathway.secret = generateRandomString();
     }
 
     await pathway.save();

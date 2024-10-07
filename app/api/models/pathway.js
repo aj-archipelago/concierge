@@ -1,16 +1,8 @@
 import mongoose from "mongoose";
 
 // Function to generate a random string
-export function generateRandomString(length = 32) {
-    const characters =
-        "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-    let result = "";
-    for (let i = 0; i < length; i++) {
-        result += characters.charAt(
-            Math.floor(Math.random() * characters.length),
-        );
-    }
-    return result;
+export function generateRandomString() {
+    return crypto.randomUUID();
 }
 
 // Define the pathway schema
@@ -26,7 +18,6 @@ const pathwaySchema = new mongoose.Schema({
     secret: {
         type: String,
         required: true,
-        default: generateRandomString,
     },
 });
 

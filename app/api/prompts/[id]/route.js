@@ -1,9 +1,5 @@
 import Prompt from "../../models/prompt";
-import Pathway, { generateRandomString } from "../../models/pathway";
-import { getClient, MUTATIONS } from "../../../../src/graphql";
 import { getCurrentUser } from "../../utils/auth";
-import LLM from "../../models/llm"; // Assuming LLM model is defined elsewhere
-import stringcase from "stringcase";
 
 export async function GET(req, { params }) {
     const { id } = params;
