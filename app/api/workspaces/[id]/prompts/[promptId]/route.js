@@ -1,6 +1,7 @@
 import Prompt from "../../../../models/prompt";
 import Workspace from "../../../../models/workspace";
 import { getCurrentUser } from "../../../../utils/auth";
+import { republishWorkspace } from "../../publish/utils";
 
 export async function DELETE(req, { params }) {
     const { id, promptId } = params;
@@ -23,6 +24,8 @@ export async function DELETE(req, { params }) {
             (p) => p?.toString() !== promptId,
         );
         await workspace.save();
+        await republishWorkspace(workspace);
+
         return Response.json({ success: true });
     } catch (e) {
         console.error("e", e);

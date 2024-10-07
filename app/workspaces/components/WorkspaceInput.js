@@ -325,18 +325,6 @@ function PromptEditor({ selectedPrompt, onBack }) {
                     ))}
                 </select>
             </div>
-            <div className="flex items-center mb-4">
-                <input
-                    type="checkbox"
-                    id="published"
-                    checked={published}
-                    onChange={(e) => setPublished(e.target.checked)}
-                    className="mr-2"
-                />
-                <label htmlFor="published" className="text-sm text-gray-500">
-                    {t("Published")}
-                </label>
-            </div>
             <div className="flex justify-between gap-2">
                 <LoadingButton
                     text={t("Deleting") + "..."}

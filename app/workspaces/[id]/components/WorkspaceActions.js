@@ -20,7 +20,7 @@ import {
 } from "react-icons/fa";
 import stringcase from "stringcase";
 import { Modal } from "../../../../@/components/ui/modal";
-import { ServerContext } from "../../../../src/App";
+import { AuthContext, ServerContext } from "../../../../src/App";
 import LoadingButton from "../../../../src/components/editor/LoadingButton";
 import { LanguageContext } from "../../../../src/contexts/LanguageProvider";
 import { usePathway } from "../../../queries/pathways";
@@ -328,16 +328,22 @@ function Actions({ user, workspace }) {
                             </div>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent>
-                            <DropdownMenuItem>
-                                <button
-                                    className="p-1"
-                                    onClick={() => setPublishModalOpen(true)}
-                                >
-                                    {workspace.published
-                                        ? t("Unpublish workspace from Cortex")
-                                        : t("Publish workspace to Cortex")}
-                                </button>
-                            </DropdownMenuItem>
+                            {workspace.owner === user._id && (
+                                <DropdownMenuItem>
+                                    <button
+                                        className="p-1"
+                                        onClick={() =>
+                                            setPublishModalOpen(true)
+                                        }
+                                    >
+                                        {workspace.published
+                                            ? t(
+                                                  "Unpublish workspace from Cortex",
+                                              )
+                                            : t("Publish workspace to Cortex")}
+                                    </button>
+                                </DropdownMenuItem>
+                            )}
                             <DropdownMenuItem>
                                 <button className="p-1" onClick={handleDelete}>
                                     {t("Delete this workspace")}
@@ -374,6 +380,7 @@ function PublishedWorkspace({ workspace }) {
     const publishWorkspace = usePublishWorkspace();
     const { t } = useTranslation();
     const serverContext = useContext(ServerContext);
+    const { user } = useContext(AuthContext);
 
     const handleUnpublish = async () => {
         await publishWorkspace.mutate({ id: workspace._id, publish: false });
@@ -400,6 +407,21 @@ function PublishedWorkspace({ workspace }) {
                 >
                     {serverContext.graphQLUrl}
                 </a>
+            </div>
+
+            <div className="mb-4 bg-gray-100 p-2 rounded-md text-sm">
+                <pre>
+                    query {"{\n"}
+                    {"  " + "user"} {"{\n"}
+                    {"    " + user.username} {"{\n"}
+                    {"      " + pathway.name}
+                    {"\n"}
+                    {"    }"}
+                    {"\n"}
+                    {"  }"}
+                    {"\n"}
+                    {"}"}
+                </pre>
             </div>
 
             {publishWorkspace.error && (
