@@ -756,6 +756,7 @@ const PUT_PATHWAY = gql`
         $userId: String!
         $secret: String!
         $displayName: String
+        $key: String!
     ) {
         putPathway(
             name: $name
@@ -763,6 +764,7 @@ const PUT_PATHWAY = gql`
             userId: $userId
             secret: $secret
             displayName: $displayName
+            key: $key
         ) {
             name
         }
@@ -770,8 +772,13 @@ const PUT_PATHWAY = gql`
 `;
 
 const DELETE_PATHWAY = gql`
-    mutation DeletePathway($name: String!, $userId: String!, $secret: String!) {
-        deletePathway(name: $name, userId: $userId, secret: $secret)
+    mutation DeletePathway(
+        $name: String!
+        $userId: String!
+        $secret: String!
+        $key: String!
+    ) {
+        deletePathway(name: $name, userId: $userId, secret: $secret, key: $key)
     }
 `;
 

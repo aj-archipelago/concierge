@@ -3,6 +3,8 @@ import Pathway, { generateRandomString } from "../../models/pathway";
 import { getCurrentUser } from "../../utils/auth";
 import mongoose from "mongoose";
 
+const { PATHWAY_PUBLISH_KEY } = process.env;
+
 export async function deletePathway(id, user) {
     if (!id) {
         throw new Error("Pathway ID is required");
@@ -22,6 +24,7 @@ export async function deletePathway(id, user) {
                 name: pathway.name,
                 userId: user.username || user._id.toString(),
                 secret: pathway.secret,
+                key: PATHWAY_PUBLISH_KEY,
             },
         });
 
@@ -69,6 +72,7 @@ export async function putPathway(id, attrs, user) {
             },
             userId: user.username || user._id.toString(),
             secret: pathway.secret,
+            key: PATHWAY_PUBLISH_KEY,
         },
     });
 
