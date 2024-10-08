@@ -33,7 +33,6 @@ const ChatNavigationItem = ({
             )}
             onClick={() => {
                 if (subItem.href && editingId !== subItem.key) {
-                    console.log("subItem.href", subItem.href);
                     setEditingId(null);
                     router.push(subItem.href);
                     setActiveChatId.mutateAsync(subItem.key);
