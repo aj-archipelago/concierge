@@ -411,16 +411,21 @@ function PublishedWorkspace({ workspace }) {
 
             <div className="mb-4 bg-gray-100 p-2 rounded-md text-sm">
                 <pre>
-                    query {"{\n"}
-                    {"  " + "user"} {"{\n"}
-                    {"    " + user.username} {"{\n"}
-                    {"      " + pathway.name}
-                    {"\n"}
-                    {"    }"}
-                    {"\n"}
-                    {"  }"}
-                    {"\n"}
-                    {"}"}
+                    {`
+QUERY;
+query User($pathwayName: String!, $text: String, $userId: String!) {
+  user(pathwayName: $pathwayName, text: $text, userId: $userId) {
+    result
+  }
+}
+
+VARIABLES:
+{
+  "text": "Hello, world",
+  "pathwayName": "${pathway.name}",
+  "userId": "${user.username}"
+}
+                    `}
                 </pre>
             </div>
 
