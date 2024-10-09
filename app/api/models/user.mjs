@@ -57,11 +57,6 @@ const userSchema = new mongoose.Schema(
             ref: "Chat",
             required: false,
         },
-        cortexPathwaySecret: {
-            type: String,
-            required: false,
-            default: "",
-        },
         lastActiveAt: {
             type: Date,
             required: false,
