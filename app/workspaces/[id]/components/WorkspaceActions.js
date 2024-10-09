@@ -32,6 +32,7 @@ import {
 } from "../../../queries/workspaces";
 import LLMSelector from "../../components/LLMSelector";
 import Loader from "../../../components/loader";
+import { useLLM } from "../../../queries/llms";
 
 export default function WorkspaceActions({ idOrSlug, user }) {
     const router = useRouter();
@@ -451,11 +452,12 @@ VARIABLES:
 function UnpublishedWorkspace({ workspace }) {
     const publishWorkspace = usePublishWorkspace();
     const { t } = useTranslation();
-    const [llm, setLLM] = useState("");
+    const [llmId, setLLMId] = useState("");
     const [pathwayName, setPathwayName] = useState(
         stringcase.snakecase(workspace.name),
     );
     const [pathwayNameError, setPathwayNameError] = useState("");
+    const { data: llm } = useLLM(llmId);
 
     const validatePathwayName = (name) => {
         if (!/^[a-z][a-z0-9_]*$/.test(name)) {
@@ -480,7 +482,7 @@ function UnpublishedWorkspace({ workspace }) {
             id: workspace._id,
             publish: !workspace.published,
             pathwayName,
-            llm,
+            model: llm?.cortexModelName,
         });
     };
 
@@ -494,12 +496,16 @@ function UnpublishedWorkspace({ workspace }) {
 
             <div className="w-64">
                 <label
-                    htmlFor="llm-selector"
+                    htmlFor="llmId-selector"
                     className="block text-sm font-medium text-gray-700 mb-1"
                 >
                     Select LLM Model
                 </label>
-                <LLMSelector id="llm-selector" value={llm} onChange={setLLM} />
+                <LLMSelector
+                    id="llmId-selector"
+                    value={llmId}
+                    onChange={setLLMId}
+                />
             </div>
 
             <div className="mb-4">
@@ -539,7 +545,7 @@ function UnpublishedWorkspace({ workspace }) {
                 text="Publishing..."
                 className="lb-primary"
                 onClick={handlePublish}
-                disabled={!llm || !pathwayName || !!pathwayNameError}
+                disabled={!llmId || !pathwayName || !!pathwayNameError}
             >
                 {t("Publish")}
             </LoadingButton>

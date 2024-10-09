@@ -22,31 +22,38 @@ export default {
             {
                 name: "GPT 3.5 Turbo",
                 cortexPathwayName: "run_gpt35turbo",
+                cortexModelName: "azure-turbo-chat",
                 isDefault: true,
             },
             {
                 name: "GPT 4o",
                 cortexPathwayName: "run_gpt4_o",
+                cortexModelName: "azure-gpt4-omni",
             },
             {
                 name: "GPT 4.0",
                 cortexPathwayName: "run_gpt4",
+                cortexModelName: "azure-gpt4",
             },
             {
                 name: "GPT 4.0 32k",
                 cortexPathwayName: "run_gpt4_32",
+                cortexModelName: "azure-gpt4-32",
             },
             {
                 name: "Claude 3 Haiku",
                 cortexPathwayName: "run_claude3_haiku",
+                cortexModelName: "claude-3-haiku-vertex",
             },
             {
                 name: "Claude 3.5 Sonnet",
                 cortexPathwayName: "run_claude35_sonnet",
+                cortexModelName: "claude-35-sonnet-vertex",
             },
             {
                 name: "Claude 3 Opus",
                 cortexPathwayName: "run_claude3_opus",
+                cortexModelName: "claude-3-opus-vertex",
             },
         ],
     },
