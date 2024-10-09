@@ -37,3 +37,41 @@ export async function DELETE(req, { params }) {
         );
     }
 }
+
+export async function PUT(req, { params }) {
+    const { id, promptId } = params;
+    const attrs = await req.json();
+    const user = await getCurrentUser();
+
+    try {
+        const workspace = await Workspace.findById(id);
+        if (!workspace.owner.equals(user._id)) {
+            return Response.json(
+                { error: "You are not the owner of this workspace" },
+                { status: 403 },
+            );
+        }
+
+        const prompt = await Prompt.findById(promptId);
+
+        if (!prompt.owner.equals(user._id)) {
+            return Response.json(
+                { error: "You are not the owner of this prompt" },
+                { status: 403 },
+            );
+        }
+
+        const updatedPrompt = await Prompt.findByIdAndUpdate(promptId, attrs, {
+            new: true,
+        });
+
+        if (workspace.published) {
+            await republishWorkspace(workspace);
+        }
+
+        return Response.json(updatedPrompt);
+    } catch (e) {
+        console.error(e);
+        return Response.json({ error: e.message }, { status: 500 });
+    }
+}

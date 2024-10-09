@@ -264,7 +264,6 @@ function SystemPromptEditor({ value, onCancel, onSave }) {
 function PromptEditor({ selectedPrompt, onBack }) {
     const [title, setTitle] = useState("");
     const [prompt, setPrompt] = useState("");
-    const [published, setPublished] = useState(false);
     const updatePrompt = useUpdatePrompt();
     const createPrompt = useCreatePrompt();
     const deletePrompt = useDeletePrompt();
@@ -277,7 +276,6 @@ function PromptEditor({ selectedPrompt, onBack }) {
         if (selectedPrompt) {
             setTitle(selectedPrompt.title);
             setPrompt(selectedPrompt.text);
-            setPublished(selectedPrompt.published || false);
             setLLM(
                 selectedPrompt?.llm &&
                     llms?.some((l) => l._id === selectedPrompt.llm)
@@ -287,7 +285,6 @@ function PromptEditor({ selectedPrompt, onBack }) {
         } else {
             setTitle("");
             setPrompt("");
-            setPublished(false);
             setLLM(llms?.find((l) => l.isDefault)?._id);
         }
     }, [selectedPrompt, llms]);
@@ -357,11 +354,11 @@ function PromptEditor({ selectedPrompt, onBack }) {
                             if (selectedPrompt && isOwner) {
                                 await updatePrompt.mutateAsync({
                                     id: selectedPrompt._id,
+                                    workspaceId: workspace._id,
                                     data: {
                                         title,
                                         text: prompt,
                                         llm,
-                                        published,
                                     },
                                 });
                                 onBack();
@@ -372,7 +369,6 @@ function PromptEditor({ selectedPrompt, onBack }) {
                                         title,
                                         text: prompt,
                                         llm,
-                                        published,
                                     },
                                 });
                                 onBack();

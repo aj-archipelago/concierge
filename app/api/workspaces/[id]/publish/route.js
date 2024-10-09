@@ -1,6 +1,10 @@
 import Workspace from "../../../models/workspace";
 import { getCurrentUser } from "../../../utils/auth";
-import { publishWorkspace, unpublishWorkspace } from "./utils";
+import {
+    publishWorkspace,
+    unpublishWorkspace,
+    republishWorkspace,
+} from "./utils";
 
 export async function POST(req, { params }) {
     const { id } = params;
@@ -20,16 +24,19 @@ export async function POST(req, { params }) {
             );
         }
 
-        workspace.published = publish;
-
         if (publish) {
-            const pathway = await publishWorkspace(
-                workspace,
-                user,
-                pathwayName,
-                model,
-            );
-            workspace.pathway = pathway._id;
+            if (workspace.published) {
+                await republishWorkspace(workspace);
+            } else {
+                const pathway = await publishWorkspace(
+                    workspace,
+                    user,
+                    pathwayName,
+                    model,
+                );
+                workspace.pathway = pathway._id;
+                workspace.published = publish;
+            }
         } else {
             await unpublishWorkspace(workspace, user);
         }
