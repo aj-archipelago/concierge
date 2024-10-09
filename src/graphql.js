@@ -674,6 +674,14 @@ const JIRA_STORY = gql`
     }
 `;
 
+const CODE_HUMAN_INPUT = gql`
+    query ($text: String, $codeRequestId: String) {
+        code_human_input(text: $text, codeRequestId: $codeRequestId) {
+            result
+        }
+    }
+`;
+
 const getWorkspacePromptQuery = (pathwayName) => {
     return gql`
         query ${pathwayName}(
@@ -699,6 +707,7 @@ const QUERIES = {
     CHAT_LABEEB,
     CHAT_EXTENSION,
     CHAT_CODE,
+    CODE_HUMAN_INPUT,
     COGNITIVE_DELETE,
     COGNITIVE_INSERT,
     IMAGE,
@@ -758,6 +767,7 @@ export {
     CHAT_PERSIST,
     CHAT_LABEEB,
     CHAT_CODE,
+    CODE_HUMAN_INPUT,
     COGNITIVE_INSERT,
     COGNITIVE_DELETE,
     EXPAND_STORY,

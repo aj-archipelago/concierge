@@ -368,6 +368,7 @@ function MessageList({ messages, bot, loading, chatId }) {
                                             initialText={
                                                 "🤖 Agent coding in background..."
                                             }
+                                            codeAgent={true}
                                         />
                                     </div>
                                 )}
