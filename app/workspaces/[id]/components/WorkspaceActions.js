@@ -412,9 +412,9 @@ function PublishedWorkspace({ workspace }) {
             <div className="mb-4 bg-gray-100 p-2 rounded-md text-sm">
                 <pre>
                     {`
-QUERY;
-query User($pathwayName: String!, $text: String, $userId: String!) {
-  user(pathwayName: $pathwayName, text: $text, userId: $userId) {
+QUERY:
+query ExecutePathway($pathwayName: String!, $text: String, $userId: String!) {
+  executePathway(pathwayName: $pathwayName, text: $text, userId: $userId) {
     result
   }
 }
