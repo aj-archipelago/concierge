@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { debounce } from "lodash";
 import config from "../../../config";
 
-const TranscribeUrlSourcer = ({ url, setUrl }) => {
+const TranscribeUrlSourcer = ({ url, setUrl, setUrlSourceLoading }) => {
     const [debouncedUrl, setDebouncedUrl] = useState(url);
     const fetchUrlSource = config?.transcribe?.fetchUrlSource;
 
@@ -19,12 +19,19 @@ const TranscribeUrlSourcer = ({ url, setUrl }) => {
 
     const { data, error, isLoading } = useQuery({
         queryKey: ["urlsource", debouncedUrl],
-        queryFn: () => fetchUrlSource(debouncedUrl),
+        queryFn: async () => {
+            setUrlSourceLoading(true);
+            try {
+                return await fetchUrlSource(debouncedUrl);
+            } finally {
+                setUrlSourceLoading(false);
+            }
+        },
         enabled: !!debouncedUrl && !!fetchUrlSource,
     });
 
-    if (!fetchUrlSource) return;
-    if (isLoading) return;
+    if (!fetchUrlSource) return null;
+    if (isLoading) return null;
     if (error) return <p>Error: {error.message || JSON.stringify(error)}</p>;
     if (data && !data.error)
         return (
