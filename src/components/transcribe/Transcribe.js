@@ -24,6 +24,7 @@ function Transcribe({
     onSelect,
 }) {
     const [url, setUrl] = useState("");
+    const [urlSourceLoading, setUrlSourceLoading] = useState(false);
     const [language, setLanguage] = useState("");
     const { t } = useTranslation();
     const apolloClient = useApolloClient();
@@ -367,41 +368,50 @@ function Transcribe({
                             />
                         </div>
                         {t("Or enter URL / title:")}
-                        <input
-                            disabled={isLoading}
-                            placeholder={t(
-                                "Paste URL e.g. https://mywebsite.com/video.mp4",
+
+                        <div className="relative">
+                            <input
+                                disabled={isLoading}
+                                placeholder={t(
+                                    "Paste URL e.g. https://mywebsite.com/video.mp4",
+                                )}
+                                value={url}
+                                className={`lb-input w-full ${urlSourceLoading ? "pr-10" : ""}`}
+                                type="text"
+                                size="sm"
+                                onChange={(e) => {
+                                    setUrl(e.target.value);
+                                    debouncedUpdateUserState({
+                                        transcribe: {
+                                            url: e.target.value,
+                                            outputFormat: responseFormat,
+                                            transcriptionType: wordTimestamped
+                                                ? "word"
+                                                : textFormatted
+                                                  ? "formatted"
+                                                  : "",
+                                            language,
+                                            maxLineWidth,
+                                            maxLineCount,
+                                            model: selectedModelOption,
+                                            wordTimestamped,
+                                            textFormatted,
+                                        },
+                                    });
+                                }}
+                                onKeyDown={(e) => {
+                                    if (e.key === "Enter") {
+                                        handleSubmit();
+                                    }
+                                }}
+                            />
+                            {urlSourceLoading && (
+                                <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                                    <div className="w-5 h-5 border-t-2 border-blue-500 border-solid rounded-full animate-spin"></div>
+                                </div>
                             )}
-                            value={url}
-                            className="lb-input"
-                            type="text"
-                            size="sm"
-                            onChange={(e) => {
-                                setUrl(e.target.value);
-                                debouncedUpdateUserState({
-                                    transcribe: {
-                                        url: e.target.value,
-                                        outputFormat: responseFormat,
-                                        transcriptionType: wordTimestamped
-                                            ? "word"
-                                            : textFormatted
-                                              ? "formatted"
-                                              : "",
-                                        language,
-                                        maxLineWidth,
-                                        maxLineCount,
-                                        model: selectedModelOption,
-                                        wordTimestamped,
-                                        textFormatted,
-                                    },
-                                });
-                            }}
-                            onKeyPress={(e) => {
-                                if (e.key === "Enter") {
-                                    handleSubmit();
-                                }
-                            }}
-                        />
+                        </div>
+
                         <span className="text-xs text-neutral-500">
                             {t(
                                 "Note that streaming services like YouTube and Instagram may not support direct downloads from URL.",
@@ -988,7 +998,11 @@ function Transcribe({
 
             {TranscribeUrlSourcer && (
                 <div className="fixed bottom-8 right-4 z-50 max-w-sm max-h-[80vh] overflow-auto bg-white dark:bg-gray-800 shadow-lg rounded-lg">
-                    <TranscribeUrlSourcer url={url} setUrl={setUrl} />
+                    <TranscribeUrlSourcer
+                        url={url}
+                        setUrl={setUrl}
+                        setUrlSourceLoading={setUrlSourceLoading}
+                    />
                 </div>
             )}
         </div>
