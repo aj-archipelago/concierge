@@ -34,9 +34,11 @@ export async function publishWorkspace(workspace, user, pathwayName, model) {
 export async function unpublishWorkspace(workspace, user) {
     if (workspace.pathway) {
         await deletePathway(workspace.pathway, user);
-        workspace.pathway = null;
-        await workspace.save();
     }
+
+    workspace.published = false;
+    workspace.pathway = null;
+    await workspace.save();
 }
 
 // republish an already published workspace to cortex

@@ -32,7 +32,8 @@ import {
 } from "../../../queries/workspaces";
 import LLMSelector from "../../components/LLMSelector";
 import Loader from "../../../components/loader";
-import { useLLM } from "../../../queries/llms";
+import { useLLM, useLLMs } from "../../../queries/llms";
+import { usePromptsByIds } from "../../../queries/prompts";
 
 export default function WorkspaceActions({ idOrSlug, user }) {
     const router = useRouter();
@@ -308,7 +309,10 @@ function Actions({ user, workspace }) {
             <div className="flex gap-4 items-center">
                 <div className="text-sm">
                     {workspace.published && (
-                        <div className="text-sm text-gray-600 font-mono bg-gray-100 p-2 rounded-md overflow-x-auto">
+                        <div
+                            className="text-sm text-gray-600 font-mono bg-gray-100 p-2 rounded-md overflow-x-auto cursor-pointer"
+                            onClick={() => setPublishModalOpen(true)}
+                        >
                             <span className="font-semibold">API:</span>{" "}
                             <span className="break-all">
                                 {serverContext.graphQLUrl}
@@ -423,7 +427,7 @@ query ExecutePathway($pathwayName: String!, $text: String, $userId: String!) {
 VARIABLES:
 {
   "text": "Hello, world",
-  "pathwayName": "${pathway.name}",
+  "pathwayName": "${pathway?.name}",
   "userId": "${user.username}"
 }
                     `}
@@ -452,32 +456,13 @@ VARIABLES:
 function UnpublishedWorkspace({ workspace }) {
     const publishWorkspace = usePublishWorkspace();
     const { t } = useTranslation();
-    const [llmId, setLLMId] = useState("");
-    const [pathwayName, setPathwayName] = useState(
-        stringcase.snakecase(workspace.name),
+    const { data: prompts, isLoading: promptsLoading } = usePromptsByIds(
+        workspace.prompts,
     );
-    const [pathwayNameError, setPathwayNameError] = useState("");
-    const { data: llm } = useLLM(llmId);
 
-    const validatePathwayName = (name) => {
-        if (!/^[a-z][a-z0-9_]*$/.test(name)) {
-            setPathwayNameError(
-                "Pathway name must be snake_case, lowercase, and not start with a number",
-            );
-            return false;
-        }
-        setPathwayNameError("");
-        return true;
-    };
-
-    const handlePathwayNameChange = (e) => {
-        const newName = e.target.value;
-        setPathwayName(newName);
-        validatePathwayName(newName);
-    };
+    const pathwayName = stringcase.snakecase(workspace.name);
 
     const handlePublish = async () => {
-        if (!validatePathwayName(pathwayName)) return;
         await publishWorkspace.mutate({
             id: workspace._id,
             publish: !workspace.published,
@@ -485,6 +470,33 @@ function UnpublishedWorkspace({ workspace }) {
             model: llm?.cortexModelName,
         });
     };
+
+    // ensure that all prompts use the same llm. if not, render a message
+    const llmIds = prompts.map((p) => p.llm);
+    const uniqueLLMIds = [...new Set(llmIds)];
+
+    const { data: llms, isLoading: llmLoading } = useLLMs();
+
+    if (llmLoading || promptsLoading) {
+        return <Loader />;
+    }
+
+    if (uniqueLLMIds.length > 1) {
+        const names = llms
+            .filter((l) => uniqueLLMIds.includes(l._id))
+            .map((l) => l.name);
+
+        return (
+            <div className="text-amber-600">
+                To publish this workspace to Cortex, all prompts must use the
+                same LLM. Please edit prompts as necessary and ensure that all
+                prompts are using the same model. Found {names.length} different
+                LLMs: [{names.join(", ")}].
+            </div>
+        );
+    }
+
+    const llm = llms.find((l) => l._id === uniqueLLMIds?.[0] || llms[0]);
 
     return (
         <div className="pb-24">
@@ -494,49 +506,27 @@ function UnpublishedWorkspace({ workspace }) {
                 endpoints to run those prompts.
             </p>
 
-            <div className="w-64">
-                <label
-                    htmlFor="llmId-selector"
-                    className="block text-sm font-medium text-gray-700 mb-1"
-                >
-                    Select LLM Model
-                </label>
-                <LLMSelector
-                    id="llmId-selector"
-                    value={llmId}
-                    onChange={setLLMId}
-                />
-            </div>
-
-            <div className="mb-4">
-                <label
-                    htmlFor="pathway-name"
-                    className="block text-sm font-medium text-gray-700 mb-1"
-                >
-                    Specify the name of the pathway in Cortex
-                    <div className="text-xs font-normal text-gray-500">
-                        (snake_case lowercase and should not start with a
-                        number)
-                    </div>
-                </label>
-                <input
-                    id="pathway-name"
-                    className={`lb-input w-64 ${pathwayNameError ? "border-red-500" : ""}`}
-                    placeholder="Enter pathway name"
-                    value={pathwayName}
-                    onChange={handlePathwayNameChange}
-                />
-                {pathwayNameError && (
-                    <p className="text-red-500 text-xs mt-1">
-                        {pathwayNameError}
-                    </p>
-                )}
+            <div className="w-64 mb-4">
+                <div>
+                    <span className="font-semibold">Model:</span> {llm.name}
+                </div>
+                <div>
+                    <span className="font-semibold">Pathway name:</span>{" "}
+                    {pathwayName}
+                </div>
             </div>
 
             {publishWorkspace.error && (
                 <div className="text-red-500 text-sm mt-2 mb-4 p-2 bg-red-100 border border-red-300 rounded">
-                    {publishWorkspace.error.response?.data?.error ||
-                        publishWorkspace.error.message}
+                    {publishWorkspace.error.response?.data?.error?.includes(
+                        "already exists",
+                    ) && (
+                        <div>
+                            A pathway with the name "{pathwayName}" already in
+                            your user's Cortex namespace. Please rename the
+                            workspace and try again.
+                        </div>
+                    )}
                 </div>
             )}
 
@@ -545,7 +535,7 @@ function UnpublishedWorkspace({ workspace }) {
                 text="Publishing..."
                 className="lb-primary"
                 onClick={handlePublish}
-                disabled={!llmId || !pathwayName || !!pathwayNameError}
+                disabled={!llm}
             >
                 {t("Publish")}
             </LoadingButton>

@@ -290,9 +290,10 @@ function PromptEditor({ selectedPrompt, onBack }) {
     }, [selectedPrompt, llms]);
     const isOwner = selectedPrompt?.owner?.toString() === user._id?.toString();
 
+    const isPublished = workspace?.published;
+
     return (
         <div className="p-1">
-            <h4 className="mt-1 font-medium mb-4">{t("Edit prompt")}</h4>
             <input
                 type="text"
                 value={title}
@@ -308,24 +309,38 @@ function PromptEditor({ selectedPrompt, onBack }) {
                 type="text"
                 placeholder={t("Enter a prompt here to run against the input")}
             />
-            <div className="flex gap-3 items-center mb-4">
-                <label className="text-sm text-gray-500">{t("Model")}</label>
-                <select
-                    className="lb-select"
-                    value={llm}
-                    onChange={(e) => setLLM(e.target.value)}
-                >
-                    {llms?.map((llm) => (
-                        <option key={llm._id} value={llm._id}>
-                            {llm.name}
-                        </option>
-                    ))}
-                </select>
+            <div className="flex gap-3 items-start mb-4">
+                <label className="text-sm text-gray-500 mt-2">
+                    {t("Model")}
+                </label>
+                <div>
+                    <select
+                        className="lb-select mb-1"
+                        value={llm}
+                        onChange={(e) => setLLM(e.target.value)}
+                        disabled={isPublished}
+                    >
+                        {llms?.map((llm) => (
+                            <option key={llm._id} value={llm._id}>
+                                {llm.name}
+                            </option>
+                        ))}
+                    </select>
+
+                    {isPublished && (
+                        <div className="text-xs text-gray-400 mb-4">
+                            {t(
+                                "The model cannot be modified because this workspace is published to Cortex.",
+                            )}
+                        </div>
+                    )}
+                </div>
             </div>
             <div className="flex justify-between gap-2">
                 <LoadingButton
                     text={t("Deleting") + "..."}
                     className="lb-outline-danger"
+                    disabled={updatePrompt.isPending}
                     onClick={async () => {
                         if (
                             window.confirm(
@@ -346,7 +361,7 @@ function PromptEditor({ selectedPrompt, onBack }) {
                 </LoadingButton>
                 <div className="flex gap-2">
                     <LoadingButton
-                        loading={updatePrompt.isLoading}
+                        loading={updatePrompt.isPending}
                         text={t("Saving") + "..."}
                         className="lb-primary flex justify-center gap-2 px-4"
                         disabled={!prompt || !title}
@@ -379,6 +394,7 @@ function PromptEditor({ selectedPrompt, onBack }) {
                     </LoadingButton>
                     <button
                         className="lb-outline-secondary flex gap-2 px-4"
+                        disabled={updatePrompt.isPending}
                         onClick={onBack}
                     >
                         {t("Cancel")}
