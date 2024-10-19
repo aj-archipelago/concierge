@@ -33,7 +33,14 @@ export const AuthContext = React.createContext({});
 
 const STATE_DEBOUNCE_TIME = 1000;
 
-const App = ({ children, language, theme, serverUrl, neuralspaceEnabled }) => {
+const App = ({
+    children,
+    language,
+    theme,
+    serverUrl,
+    graphQLUrl,
+    neuralspaceEnabled,
+}) => {
     const { data: currentUser } = useCurrentUser();
     const { data: serverUserState } = useUserState();
     const updateUserState = useUpdateUserState();
@@ -72,7 +79,9 @@ const App = ({ children, language, theme, serverUrl, neuralspaceEnabled }) => {
 
     return (
         <ApolloNextAppProvider makeClient={() => getClient(serverUrl)}>
-            <ServerContext.Provider value={{ serverUrl, neuralspaceEnabled }}>
+            <ServerContext.Provider
+                value={{ graphQLUrl, serverUrl, neuralspaceEnabled }}
+            >
                 <StoreProvider>
                     <ThemeProvider savedTheme={theme}>
                         <LanguageProvider savedLanguage={language}>

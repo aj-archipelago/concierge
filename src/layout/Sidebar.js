@@ -7,14 +7,12 @@ import {
     PencilSquareIcon,
     PhotoIcon,
     PlusIcon,
-    TrashIcon,
 } from "@heroicons/react/24/outline";
 import { HelpCircle } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import React, { useContext, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { FaEdit } from "react-icons/fa";
 import { MdOutlineWorkspaces } from "react-icons/md";
 import {
     useAddChat,

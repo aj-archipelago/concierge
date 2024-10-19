@@ -758,8 +758,43 @@ const SUBSCRIPTIONS = {
     REQUEST_PROGRESS,
 };
 
+const PUT_PATHWAY = gql`
+    mutation PutPathway(
+        $name: String!
+        $pathway: PathwayInput!
+        $userId: String!
+        $secret: String!
+        $displayName: String
+        $key: String!
+    ) {
+        putPathway(
+            name: $name
+            pathway: $pathway
+            userId: $userId
+            secret: $secret
+            displayName: $displayName
+            key: $key
+        ) {
+            name
+        }
+    }
+`;
+
+const DELETE_PATHWAY = gql`
+    mutation DeletePathway(
+        $name: String!
+        $userId: String!
+        $secret: String!
+        $key: String!
+    ) {
+        deletePathway(name: $name, userId: $userId, secret: $secret, key: $key)
+    }
+`;
+
 const MUTATIONS = {
     CANCEL_REQUEST,
+    PUT_PATHWAY,
+    DELETE_PATHWAY,
 };
 
 export {
