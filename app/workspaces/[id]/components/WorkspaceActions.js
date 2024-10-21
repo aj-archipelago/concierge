@@ -474,15 +474,15 @@ function UnpublishedWorkspace({ workspace }) {
         });
     };
 
-    // ensure that all prompts use the same llm. if not, render a message
-    const llmIds = prompts.map((p) => p.llm);
-    const uniqueLLMIds = [...new Set(llmIds)];
-
     const { data: llms, isLoading: llmLoading } = useLLMs();
 
     if (llmLoading || promptsLoading) {
         return <Loader />;
     }
+
+    // ensure that all prompts use the same llm. if not, render a message
+    const llmIds = prompts.map((p) => p.llm);
+    const uniqueLLMIds = [...new Set(llmIds)];
 
     if (uniqueLLMIds.length > 1) {
         const names = llms
