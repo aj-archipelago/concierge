@@ -538,8 +538,8 @@ function UnpublishedWorkspace({ workspace }) {
                     ) : (
                         <div>
                             {t("Error publishing workspace")}:{" "}
-                            {publishWorkspace.error.message ||
-                                publishWorkspace.error.response?.data?.error ||
+                            {publishWorkspace.error.response?.data?.error ||
+                                publishWorkspace.error.message ||
                                 JSON.stringify(publishWorkspace.error)}
                         </div>
                     )}
