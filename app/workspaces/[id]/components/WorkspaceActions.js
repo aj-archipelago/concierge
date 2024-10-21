@@ -39,6 +39,7 @@ export default function WorkspaceActions({ idOrSlug, user }) {
     const router = useRouter();
     const { data: workspace, isLoading } = useWorkspace(idOrSlug);
     const { direction } = useContext(LanguageContext);
+    const { t } = useTranslation();
 
     if (isLoading) return null;
 
@@ -365,11 +366,12 @@ function Actions({ user, workspace }) {
 }
 
 function PublishModal({ open, setOpen, workspace }) {
+    const { t } = useTranslation();
     return (
         <Modal
             show={open}
             onHide={() => setOpen(false)}
-            title={"Publish workspace to Cortex"}
+            title={t("Publish workspace to Cortex")}
         >
             {workspace.published ? (
                 <PublishedWorkspace workspace={workspace} />
@@ -395,7 +397,7 @@ function PublishedWorkspace({ workspace }) {
         return (
             <div className="flex gap-3 items-center">
                 <Loader />
-                Loading pathway information...
+                {t("Loading pathway information...")}
             </div>
         );
     }
@@ -403,8 +405,9 @@ function PublishedWorkspace({ workspace }) {
     return (
         <div>
             <div className="mb-4">
-                Published as pathway{" "}
-                <span className="font-mono bg-sky-50">{pathway?.name}</span> at{" "}
+                {t("Published as pathway")}{" "}
+                <span className="font-mono bg-sky-50">{t(pathway?.name)}</span>{" "}
+                {t("at")}{" "}
                 <a
                     className="text-sky-500 hover:underline"
                     href={serverContext.graphQLUrl}
@@ -488,10 +491,10 @@ function UnpublishedWorkspace({ workspace }) {
 
         return (
             <div className="text-amber-600">
-                To publish this workspace to Cortex, all prompts must use the
-                same LLM. Please edit prompts as necessary and ensure that all
-                prompts are using the same model. Found {names.length} different
-                LLMs: [{names.join(", ")}].
+                {t(
+                    "To publish this workspace to Cortex, all prompts must use the same LLM. Please edit prompts as necessary and ensure that all prompts are using the same model. Found {{count}} different LLMs: [{{names}}].",
+                    { count: names.length, names: names.join(", ") },
+                )}
             </div>
         );
     }
@@ -501,18 +504,22 @@ function UnpublishedWorkspace({ workspace }) {
     return (
         <div className="pb-24">
             <p>
-                This will create a pathway in cortex that contains prompts from
-                this workspace. You will then be able to call the Cortex GraphQL
-                endpoints to run those prompts.
+                {t(
+                    "This will create a pathway in cortex that contains prompts from this workspace. You will then be able to call the Cortex GraphQL endpoints to run those prompts.",
+                )}
             </p>
 
             <div className="space-y-2 mb-4">
                 <div className="bg-white border border-gray-200 rounded-md p-3 shadow-sm">
-                    <div className="text-sm text-gray-600 mb-1">{t("Model")}</div>
+                    <div className="text-sm text-gray-600 mb-1">
+                        {t("Model")}
+                    </div>
                     <div className="font-medium">{t(llm.name)}</div>
                 </div>
                 <div className="bg-white border border-gray-200 rounded-md p-3 shadow-sm">
-                    <div className="text-sm text-gray-600 mb-1">{t("Pathway name")}</div>
+                    <div className="text-sm text-gray-600 mb-1">
+                        {t("Pathway name")}
+                    </div>
                     <div className="font-medium">{pathwayName}</div>
                 </div>
             </div>
@@ -566,7 +573,7 @@ function MembershipActions({ id }) {
         <div>
             <LoadingButton
                 loading={copyWorkspace.isLoading}
-                text="Copying..."
+                text={t("Copying...")}
                 className="lb-primary"
                 onClick={handleCopyWorkspace}
             >

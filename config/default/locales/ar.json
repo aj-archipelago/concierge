@@ -333,5 +333,15 @@
     "Show all issue types": "عرض جميع أنواع المشكلات",
     "Show less": "عرض أقل",
     "Project": "المشروع",
-    "Chat history": "سجل الدردشة"
+    "Chat history": "سجل الدردشة",
+    "Unpublish workspace from Cortex": "إلغاء نشر مساحة العمل من Cortex",
+    "Publish workspace to Cortex": "نشر مساحة العمل إلى Cortex",
+    "Loading pathway information...": "جاري تحميل معلومات المسار...",
+    "Published as pathway": "تم النشر كمسار",
+    "at": "في",
+    "To publish this workspace to Cortex, all prompts must use the same LLM. Please edit prompts as necessary and ensure that all prompts are using the same model. Found {{count}} different LLMs: [{{names}}].": "لنشر مساحة العمل هذه في Cortex، يجب أن تستخدم جميع التلميحات نفس نموذج اللغة الآلي (LLM). يرجى تعديل التلميحات حسب الضرورة والتأكد من أن جميع التلميحات تستخدم نفس النموذج. تم العثور على {{count}} نماذج LLM مختلفة: [{{names}}].",
+    "This will create a pathway in cortex that contains prompts from this workspace. You will then be able to call the Cortex GraphQL endpoints to run those prompts.": "سيؤدي هذا إلى إنشاء مسار في Cortex يحتوي على تلميحات من مساحة العمل هذه. ستتمكن بعد ذلك من استدعاء نقاط نهاية Cortex GraphQL لتشغيل تلك التلميحات.",
+    "Pathway name": "اسم المسار",
+    "A pathway with the name \"{{pathwayName}}\" already exists in your user's Cortex namespace. Please rename the workspace and try again.": "يوجد بالفعل مسار باسم \"{{pathwayName}}\" في مساحة اسم Cortex الخاصة بالمستخدم. يرجى إعادة تسمية مساحة العمل والمحاولة مرة أخرى.",
+    "Copying...": "جاري النسخ..."
 }
