@@ -496,7 +496,7 @@ function UnpublishedWorkspace({ workspace }) {
         );
     }
 
-    const llm = llms.find((l) => l._id === uniqueLLMIds?.[0] || llms[0]);
+    const llm = llms.find((l) => l._id === (uniqueLLMIds?.[0] || llms[0]));
 
     return (
         <div className="pb-24">
