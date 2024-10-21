@@ -521,11 +521,19 @@ function UnpublishedWorkspace({ workspace }) {
                 <div className="text-red-500 text-sm mt-2 mb-4 p-2 bg-red-100 border border-red-300 rounded">
                     {publishWorkspace.error.response?.data?.error?.includes(
                         "already exists",
-                    ) && (
+                    ) ? (
                         <div>
-                            A pathway with the name "{pathwayName}" already in
-                            your user's Cortex namespace. Please rename the
-                            workspace and try again.
+                            {t(
+                                'A pathway with the name "{{pathwayName}}" already exists in your user\'s Cortex namespace. Please rename the workspace and try again.',
+                                { pathwayName },
+                            )}
+                        </div>
+                    ) : (
+                        <div>
+                            {t("Error publishing workspace")}:{" "}
+                            {publishWorkspace.error.message ||
+                                publishWorkspace.error.response?.data?.error ||
+                                JSON.stringify(publishWorkspace.error)}
                         </div>
                     )}
                 </div>
