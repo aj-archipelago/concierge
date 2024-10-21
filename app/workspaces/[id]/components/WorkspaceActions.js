@@ -506,13 +506,14 @@ function UnpublishedWorkspace({ workspace }) {
                 endpoints to run those prompts.
             </p>
 
-            <div className="w-64 mb-4">
-                <div>
-                    <span className="font-semibold">Model:</span> {llm.name}
+            <div className="space-y-2 mb-4">
+                <div className="bg-white border border-gray-200 rounded-md p-3 shadow-sm">
+                    <div className="text-sm text-gray-600 mb-1">{t("Model")}</div>
+                    <div className="font-medium">{t(llm.name)}</div>
                 </div>
-                <div>
-                    <span className="font-semibold">Pathway name:</span>{" "}
-                    {pathwayName}
+                <div className="bg-white border border-gray-200 rounded-md p-3 shadow-sm">
+                    <div className="text-sm text-gray-600 mb-1">{t("Pathway name")}</div>
+                    <div className="font-medium">{pathwayName}</div>
                 </div>
             </div>
 
