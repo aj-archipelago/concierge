@@ -5,7 +5,14 @@ import mongoose from "mongoose";
 
 const { PATHWAY_PUBLISH_KEY } = process.env;
 
+const ensurePathwayPublishKeyExists = () => {
+    if (!PATHWAY_PUBLISH_KEY) {
+        throw new Error("PATHWAY_PUBLISH_KEY environment variable is not set");
+    }
+};
+
 export async function deletePathway(id, user) {
+    ensurePathwayPublishKeyExists();
     if (!id) {
         throw new Error("Pathway ID is required");
     }
@@ -35,6 +42,8 @@ export async function deletePathway(id, user) {
 }
 
 export async function putPathway(id, attrs, user) {
+    ensurePathwayPublishKeyExists();
+
     let pathway;
 
     if (id) {
