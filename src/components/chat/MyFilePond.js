@@ -311,7 +311,10 @@ function MyFilePond({ addUrl, files, setFiles, setIsUploadingMedia }) {
                                     );
                                     if (response.data && response.data.url) {
                                         const { url } = response.data;
-                                        const filename = url.split("/").pop();
+                                        const filename = url
+                                            .split("/")
+                                            .pop()
+                                            .split("?")[0];
                                         const type = mime.lookup(filename);
                                         load(
                                             new Blob([url], {
