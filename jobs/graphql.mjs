@@ -127,6 +127,7 @@ const RAG_START = gql`
         $aiName: String
         $aiMemorySelfModify: Boolean
         $title: String
+        $aiStyle: String
     ) {
         rag_start(
             chatHistory: $chatHistory
@@ -139,6 +140,7 @@ const RAG_START = gql`
             aiName: $aiName
             aiMemorySelfModify: $aiMemorySelfModify
             title: $title
+            aiStyle: $aiStyle
         ) {
             result
             contextId
@@ -278,8 +280,18 @@ const FORMAT_PARAGRAPH_TURBO = gql`
 `;
 
 const GREETING = gql`
-    query Greeting($text: String!, $async: Boolean) {
-        greeting(text: $text, async: $async) {
+    query Greeting(
+        $text: String!
+        $async: Boolean
+        $contextId: String
+        $aiName: String
+    ) {
+        greeting(
+            text: $text
+            async: $async
+            contextId: $contextId
+            aiName: $aiName
+        ) {
             result
         }
     }

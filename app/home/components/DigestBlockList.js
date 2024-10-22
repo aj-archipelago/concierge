@@ -6,7 +6,6 @@ import {
     DropdownMenuItem,
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import dayjs from "dayjs";
 import { PlusIcon, SettingsIcon, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -49,13 +48,6 @@ export default function DigestBlockList() {
 
     return (
         <>
-            <div className="flex gap-4 justify-between mb-4">
-                <h1 className="text-2xl font-semibold">
-                    {t("Welcome,")} {user.username}!
-                </h1>
-                <div>{dayjs().format("dddd, MMMM D, YYYY")}</div>
-            </div>
-
             <div className="flex justify-between mb-2 gap-8">
                 {digest?.greeting && (
                     <div className="[&_ul]:mb-4 [&_ul]:list-disc [&_ul]:ps-6 [&_ol]:mb-4 [&_ol]:list-decimal [&_ol]:ps-6">

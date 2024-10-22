@@ -1,15 +1,11 @@
-const mongoose = require("mongoose");
 const dayjs = require("dayjs");
 const {
     generateDigestBlockContent,
     generateDigestGreeting,
 } = require("./digest/digest.utils.js");
 
-const {
-    MONGO_URI = "mongodb://127.0.0.1:27017/labeeb",
-    DIGEST_REBUILD_INTERVAL_DAYS = 1,
-    ACTIVE_USER_PERIOD_DAYS = 7,
-} = process.env;
+const { DIGEST_REBUILD_INTERVAL_DAYS = 1, ACTIVE_USER_PERIOD_DAYS = 7 } =
+    process.env;
 
 async function buildDigestForUser(user, logger, job) {
     const owner = user._id;
@@ -45,7 +41,6 @@ async function buildDigestForUser(user, logger, job) {
             b.state.status === DigestGenerationStatus.IN_PROGRESS;
 
         if (shouldBeRebuilt) {
-            shouldGreetingBeRebuilt = true;
             b.state.status = DigestGenerationStatus.IN_PROGRESS;
             b.state.jobId = job?.id;
         }
