@@ -38,7 +38,7 @@ const App = ({
     language,
     theme,
     serverUrl,
-    graphQLUrl,
+    graphQLPublicEndpoint,
     neuralspaceEnabled,
 }) => {
     const { data: currentUser } = useCurrentUser();
@@ -80,7 +80,7 @@ const App = ({
     return (
         <ApolloNextAppProvider makeClient={() => getClient(serverUrl)}>
             <ServerContext.Provider
-                value={{ graphQLUrl, serverUrl, neuralspaceEnabled }}
+                value={{ graphQLPublicEndpoint, serverUrl, neuralspaceEnabled }}
             >
                 <StoreProvider>
                     <ThemeProvider savedTheme={theme}>
