@@ -1,3 +1,4 @@
+import LLM from "../../../models/llm";
 import Prompt from "../../../models/prompt";
 import Workspace from "../../../models/workspace";
 import { getCurrentUser } from "../../../utils/auth";
@@ -8,10 +9,12 @@ export async function POST(req, { params }) {
     const user = await getCurrentUser();
 
     const promptParams = await req.json();
+    const defaultLLM = await LLM.findOne({ isDefault: true });
 
     const prompt = await Prompt.create({
         ...promptParams,
         owner: user._id,
+        llm: defaultLLM._id,
     });
 
     const workspace = await Workspace.findById(id);

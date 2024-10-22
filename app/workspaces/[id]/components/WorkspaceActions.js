@@ -480,8 +480,19 @@ function UnpublishedWorkspace({ workspace }) {
         return <Loader />;
     }
 
+    // Check if there are no prompts in the workspace
+    if (!prompts || prompts.length === 0) {
+        return (
+            <div className="text-amber-600">
+                {t(
+                    "This workspace cannot be published because it contains no prompts. Please add at least one prompt to the workspace before publishing.",
+                )}
+            </div>
+        );
+    }
+
     // ensure that all prompts use the same llm. if not, render a message
-    const llmIds = prompts.map((p) => p.llm);
+    const llmIds = prompts.map((p) => p.llm)?.filter(Boolean);
     const uniqueLLMIds = [...new Set(llmIds)];
 
     if (uniqueLLMIds.length > 1) {
@@ -499,7 +510,7 @@ function UnpublishedWorkspace({ workspace }) {
         );
     }
 
-    const llm = llms.find((l) => l._id === (uniqueLLMIds?.[0] || llms[0]));
+    const llm = llms.find((l) => l._id === (uniqueLLMIds?.[0] || llms[0]?._id));
 
     return (
         <div className="pb-24">
@@ -514,7 +525,7 @@ function UnpublishedWorkspace({ workspace }) {
                     <div className="text-sm text-gray-600 mb-1">
                         {t("Model")}
                     </div>
-                    <div className="font-medium">{t(llm.name)}</div>
+                    <div className="font-medium">{llm.name}</div>
                 </div>
                 <div className="bg-white border border-gray-200 rounded-md p-3 shadow-sm">
                     <div className="text-sm text-gray-600 mb-1">
