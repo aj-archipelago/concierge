@@ -407,14 +407,7 @@ function PublishedWorkspace({ workspace }) {
             <div className="mb-4">
                 {t("Published as pathway")}{" "}
                 <span className="font-mono bg-sky-50">{t(pathway?.name)}</span>{" "}
-                {t("at")}{" "}
-                <a
-                    className="text-sky-500 hover:underline"
-                    href={serverContext.graphQLUrl}
-                    target="_blank"
-                >
-                    {serverContext.graphQLUrl}
-                </a>
+                on Cortex
             </div>
 
             <div className="mb-4 bg-gray-100 p-2 rounded-md text-sm">
