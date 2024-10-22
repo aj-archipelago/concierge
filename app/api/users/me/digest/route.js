@@ -21,7 +21,7 @@ export async function GET(req, { params }) {
                 owner: user._id,
                 blocks: [
                     {
-                        prompt: `Good morning! What's going on in the world today? If you know my profession, give me updates specific to my profession and preferences. Otherwise, give me general updates.`,
+                        prompt: `What's going on in the world today? If you know my profession, give me updates specific to my profession and preferences. Otherwise, give me general updates.`,
                         title: "Daily digest",
                         state: {
                             status: DigestGenerationStatus.PENDING,

@@ -361,10 +361,9 @@ const GRAMMAR = gql`
         }
     }
 `;
-
 const GREETING = gql`
-    query Greeting($text: String!, $async: Boolean) {
-        greeting(text: $text, async: $async) {
+    query Greeting($text: String!, $async: Boolean, $contextId: String, $aiName: String) {
+        greeting(text: $text, async: $async, contextId: $contextId, aiName: $aiName) {
             result
         }
     }

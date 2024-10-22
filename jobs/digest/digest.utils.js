@@ -14,6 +14,8 @@ const generateDigestBlockContent = async (
     const variables = {
         chatHistory: [{ role: "user", content: [prompt] }],
         contextId: user?.contextId,
+        aiName: user?.aiName,
+        aiStyle: user?.aiStyle,
         useMemory: true,
     };
 
@@ -84,6 +86,8 @@ const generateDigestGreeting = async (user, text, logger) => {
     const client = await getClient();
     const variables = {
         text,
+        contextId: user?.contextId,
+        aiName: user?.aiName,
     };
 
     try {

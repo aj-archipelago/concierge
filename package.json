@@ -1,6 +1,6 @@
 {
     "name": "labeeb",
-    "version": "2.3.05",
+    "version": "2.3.06",
     "private": true,
     "dependencies": {
         "@amplitude/analytics-browser": "^2.3.2",
