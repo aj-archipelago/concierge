@@ -4,10 +4,8 @@ const {
     generateDigestGreeting,
 } = require("./digest/digest.utils.js");
 
-const {
-    DIGEST_REBUILD_INTERVAL_DAYS = 1,
-    ACTIVE_USER_PERIOD_DAYS = 7,
-} = process.env;
+const { DIGEST_REBUILD_INTERVAL_DAYS = 1, ACTIVE_USER_PERIOD_DAYS = 7 } =
+    process.env;
 
 async function buildDigestForUser(user, logger, job) {
     const owner = user._id;

@@ -280,8 +280,18 @@ const FORMAT_PARAGRAPH_TURBO = gql`
 `;
 
 const GREETING = gql`
-    query Greeting($text: String!, $async: Boolean, $contextId: String, $aiName: String) {
-        greeting(text: $text, async: $async, contextId: $contextId, aiName: $aiName) {
+    query Greeting(
+        $text: String!
+        $async: Boolean
+        $contextId: String
+        $aiName: String
+    ) {
+        greeting(
+            text: $text
+            async: $async
+            contextId: $contextId
+            aiName: $aiName
+        ) {
             result
         }
     }
