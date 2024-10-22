@@ -13,6 +13,7 @@ export default {
         getTosContent,
         getSidebarLogo,
         initialize: async () => {},
+        getPublicGraphQLEndpoint: (graphQLEndpoint) => graphQLEndpoint,
     },
     data: {
         getTaxonomySets,

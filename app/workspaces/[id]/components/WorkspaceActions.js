@@ -316,7 +316,7 @@ function Actions({ user, workspace }) {
                         >
                             <span className="font-semibold">API:</span>{" "}
                             <span className="break-all">
-                                {serverContext.graphQLUrl}
+                                {serverContext.graphQLPublicEndpoint}
                             </span>
                         </div>
                     )}
@@ -406,8 +406,13 @@ function PublishedWorkspace({ workspace }) {
         <div>
             <div className="mb-4">
                 {t("Published as pathway")}{" "}
-                <span className="font-mono bg-sky-50">{t(pathway?.name)}</span>{" "}
-                on Cortex
+                <span className="p-2 font-mono bg-sky-50">
+                    {t(pathway?.name)}
+                </span>{" "}
+                {t("at")}{" "}
+                <span className="p-2 font-mono bg-sky-50">
+                    {serverContext.graphQLPublicEndpoint}
+                </span>
             </div>
 
             <div className="mb-4 bg-gray-100 p-2 rounded-md text-sm">
