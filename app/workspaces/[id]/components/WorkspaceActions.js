@@ -39,6 +39,7 @@ export default function WorkspaceActions({ idOrSlug, user }) {
     const router = useRouter();
     const { data: workspace, isLoading } = useWorkspace(idOrSlug);
     const { direction } = useContext(LanguageContext);
+    const { t } = useTranslation();
 
     if (isLoading) return null;
 
@@ -365,11 +366,12 @@ function Actions({ user, workspace }) {
 }
 
 function PublishModal({ open, setOpen, workspace }) {
+    const { t } = useTranslation();
     return (
         <Modal
             show={open}
             onHide={() => setOpen(false)}
-            title={"Publish workspace to Cortex"}
+            title={t("Publish workspace to Cortex")}
         >
             {workspace.published ? (
                 <PublishedWorkspace workspace={workspace} />
@@ -395,7 +397,7 @@ function PublishedWorkspace({ workspace }) {
         return (
             <div className="flex gap-3 items-center">
                 <Loader />
-                Loading pathway information...
+                {t("Loading pathway information...")}
             </div>
         );
     }
@@ -403,8 +405,9 @@ function PublishedWorkspace({ workspace }) {
     return (
         <div>
             <div className="mb-4">
-                Published as pathway{" "}
-                <span className="font-mono bg-sky-50">{pathway?.name}</span> at{" "}
+                {t("Published as pathway")}{" "}
+                <span className="font-mono bg-sky-50">{t(pathway?.name)}</span>{" "}
+                {t("at")}{" "}
                 <a
                     className="text-sky-500 hover:underline"
                     href={serverContext.graphQLUrl}
@@ -471,15 +474,15 @@ function UnpublishedWorkspace({ workspace }) {
         });
     };
 
-    // ensure that all prompts use the same llm. if not, render a message
-    const llmIds = prompts.map((p) => p.llm);
-    const uniqueLLMIds = [...new Set(llmIds)];
-
     const { data: llms, isLoading: llmLoading } = useLLMs();
 
     if (llmLoading || promptsLoading) {
         return <Loader />;
     }
+
+    // ensure that all prompts use the same llm. if not, render a message
+    const llmIds = prompts.map((p) => p.llm);
+    const uniqueLLMIds = [...new Set(llmIds)];
 
     if (uniqueLLMIds.length > 1) {
         const names = llms
@@ -488,31 +491,36 @@ function UnpublishedWorkspace({ workspace }) {
 
         return (
             <div className="text-amber-600">
-                To publish this workspace to Cortex, all prompts must use the
-                same LLM. Please edit prompts as necessary and ensure that all
-                prompts are using the same model. Found {names.length} different
-                LLMs: [{names.join(", ")}].
+                {t(
+                    "To publish this workspace to Cortex, all prompts must use the same LLM. Please edit prompts as necessary and ensure that all prompts are using the same model. Found {{count}} different LLMs: [{{names}}].",
+                    { count: names.length, names: names.join(", ") },
+                )}
             </div>
         );
     }
 
-    const llm = llms.find((l) => l._id === uniqueLLMIds?.[0] || llms[0]);
+    const llm = llms.find((l) => l._id === (uniqueLLMIds?.[0] || llms[0]));
 
     return (
         <div className="pb-24">
             <p>
-                This will create a pathway in cortex that contains prompts from
-                this workspace. You will then be able to call the Cortex GraphQL
-                endpoints to run those prompts.
+                {t(
+                    "This will create a pathway in cortex that contains prompts from this workspace. You will then be able to call the Cortex GraphQL endpoints to run those prompts.",
+                )}
             </p>
 
-            <div className="w-64 mb-4">
-                <div>
-                    <span className="font-semibold">Model:</span> {llm.name}
+            <div className="space-y-2 mb-4">
+                <div className="bg-white border border-gray-200 rounded-md p-3 shadow-sm">
+                    <div className="text-sm text-gray-600 mb-1">
+                        {t("Model")}
+                    </div>
+                    <div className="font-medium">{t(llm.name)}</div>
                 </div>
-                <div>
-                    <span className="font-semibold">Pathway name:</span>{" "}
-                    {pathwayName}
+                <div className="bg-white border border-gray-200 rounded-md p-3 shadow-sm">
+                    <div className="text-sm text-gray-600 mb-1">
+                        {t("Pathway name")}
+                    </div>
+                    <div className="font-medium">{pathwayName}</div>
                 </div>
             </div>
 
@@ -520,11 +528,19 @@ function UnpublishedWorkspace({ workspace }) {
                 <div className="text-red-500 text-sm mt-2 mb-4 p-2 bg-red-100 border border-red-300 rounded">
                     {publishWorkspace.error.response?.data?.error?.includes(
                         "already exists",
-                    ) && (
+                    ) ? (
                         <div>
-                            A pathway with the name "{pathwayName}" already in
-                            your user's Cortex namespace. Please rename the
-                            workspace and try again.
+                            {t(
+                                'A pathway with the name "{{pathwayName}}" already exists in your user\'s Cortex namespace. Please rename the workspace and try again.',
+                                { pathwayName },
+                            )}
+                        </div>
+                    ) : (
+                        <div>
+                            {t("Error publishing workspace")}:{" "}
+                            {publishWorkspace.error.response?.data?.error ||
+                                publishWorkspace.error.message ||
+                                JSON.stringify(publishWorkspace.error)}
                         </div>
                     )}
                 </div>
@@ -557,7 +573,7 @@ function MembershipActions({ id }) {
         <div>
             <LoadingButton
                 loading={copyWorkspace.isLoading}
-                text="Copying..."
+                text={t("Copying...")}
                 className="lb-primary"
                 onClick={handleCopyWorkspace}
             >

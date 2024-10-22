@@ -129,7 +129,7 @@ function SystemPrompt({ editing, setEditing }) {
     const { workspace, isOwner } = useContext(WorkspaceContext);
     const value = workspace?.systemPrompt;
 
-    if (!value) {
+    if (!value && !editing) {
         return (
             <div className="p-1 flex gap-2">
                 <h4 className="font-medium mt-1 mb-1">{t("Context")}</h4>
