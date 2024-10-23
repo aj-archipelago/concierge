@@ -343,5 +343,6 @@
     "This will create a pathway in cortex that contains prompts from this workspace. You will then be able to call the Cortex GraphQL endpoints to run those prompts.": "سيؤدي هذا إلى إنشاء مسار في Cortex يحتوي على تلميحات من مساحة العمل هذه. ستتمكن بعد ذلك من استدعاء نقاط نهاية Cortex GraphQL لتشغيل تلك التلميحات.",
     "Pathway name": "اسم المسار",
     "A pathway with the name \"{{pathwayName}}\" already exists in your user's Cortex namespace. Please rename the workspace and try again.": "يوجد بالفعل مسار باسم \"{{pathwayName}}\" في مساحة اسم Cortex الخاصة بالمستخدم. يرجى إعادة تسمية مساحة العمل والمحاولة مرة أخرى.",
-    "Copying...": "جاري النسخ..."
+    "Copying...": "جاري النسخ...",
+    "Published": "منشور"
 }
