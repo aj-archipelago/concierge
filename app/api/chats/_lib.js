@@ -32,14 +32,19 @@ export async function getRecentChatsOfCurrentUser() {
     return recentChats;
 }
 
-export async function getChatsOfCurrentUser() {
+export async function getChatsOfCurrentUser(page = 1, limit = 20) {
     const user = await getCurrentUser(false);
     const userId = user._id;
 
-    let chats = await Chat.find({ userId }).sort({ updatedAt: -1 });
+    const skip = (page - 1) * limit;
 
-    // If no chats exist, create a default empty chat
-    if (chats.length === 0) {
+    let chats = await Chat.find({ userId })
+        .sort({ updatedAt: -1 })
+        .skip(skip)
+        .limit(limit);
+
+    // If no chats exist and it's the first page, create a default empty chat
+    if (chats.length === 0 && page === 1) {
         const defaultChat = await createNewChat({
             messages: [],
             title: "",
@@ -113,8 +118,25 @@ export async function getChatById(chatId) {
     }
 
     const isReadOnly = String(chat.userId._id) !== String(currentUser._id);
-    const { _id, title, messages, isPublic } = chat;
-    const result = { _id, title, messages, isPublic, readOnly: isReadOnly };
+    const {
+        _id,
+        title,
+        messages,
+        isPublic,
+        isChatLoading,
+        codeRequestId,
+        titleSetByUser,
+    } = chat;
+    const result = {
+        _id,
+        title,
+        messages,
+        isPublic,
+        readOnly: isReadOnly,
+        isChatLoading,
+        codeRequestId,
+        titleSetByUser,
+    };
 
     if (isReadOnly) {
         result.owner = {

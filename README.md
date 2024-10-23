@@ -8,7 +8,6 @@ Concierge is an open-source web application that provides AI applications to ent
 
 The following environment variables are required to configure Concierge to connect to Cortex and the Media Helper app:
 
--   `SERVER_URL`: this is the URL at which the NextJS app is running, e.g. `https://<site>.azurewebsites.net`. Defaults to `http://localhost:3000` in development. Do not include a trailing slash when specifying this URL.
 -   `CORTEX_GRAPHQL_API_URL`: the full GraphQL URL of the Cortex deployment, e.g. `https://<site>.azure-api.net/graphql?subscription-key=<key>`
 -   `CORTEX_MEDIA_API_URL`: the full URL of the Cortex media helper app, e.g. `https://<site>.azure-api.net/media-helper?subscription-key=<key>`
 

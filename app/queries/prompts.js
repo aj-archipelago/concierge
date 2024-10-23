@@ -4,7 +4,7 @@ import {
     useQueryClient,
     useMutation,
 } from "@tanstack/react-query";
-import axios from "axios";
+import axios from "../utils/axios-client";
 
 export function usePromptsByIds(ids) {
     const queries = useQueries({
@@ -42,8 +42,11 @@ export function useUpdatePrompt() {
     const queryClient = useQueryClient();
 
     return useMutation({
-        mutationFn: async ({ id, data }) => {
-            const response = await axios.put(`/api/prompts/${id}`, data);
+        mutationFn: async ({ id, workspaceId, data }) => {
+            const response = await axios.put(
+                `/api/workspaces/${workspaceId}/prompts/${id}`,
+                data,
+            );
             return response.data;
         },
         onMutate: async ({ id, data }) => {

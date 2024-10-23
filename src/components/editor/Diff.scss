@@ -1,9 +1,10 @@
 .ai-diff {
     .change-container {
-        display: flex;
         gap: 15px;
         font-size: 14px;
-        height: 100%;
+        flex-grow: 1;
+        min-height: 0;
+        overflow-y: auto;
     }
 
     .change-inline {

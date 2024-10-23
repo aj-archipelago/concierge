@@ -1,12 +1,9 @@
 import { getCurrentUser } from "../../../utils/auth";
-import { generateDigestBlockContent } from "./digest.utils";
 
-import dayjs from "dayjs";
 import { NextResponse } from "next/server";
 import Digest from "../../../models/digest";
-
-// daily
-const UPDATE_INTERVAL = 24 * 60 * 60 * 1000;
+import { enqueueBuildDigest, getJob } from "./utils";
+import { DigestGenerationStatus } from "../../../models/digest.mjs";
 
 export async function GET(req, { params }) {
     const user = await getCurrentUser();
@@ -24,8 +21,11 @@ export async function GET(req, { params }) {
                 owner: user._id,
                 blocks: [
                     {
-                        prompt: `Good morning! What's going on in the world today? If you know my profession, give me updates specific to my profession and preferences. Otherwise, give me general updates.`,
+                        prompt: `What's going on in the world today? If you know my profession, give me updates specific to my profession and preferences. Otherwise, give me general updates.`,
                         title: "Daily digest",
+                        state: {
+                            status: DigestGenerationStatus.PENDING,
+                        },
                     },
                 ],
             },
@@ -34,27 +34,9 @@ export async function GET(req, { params }) {
                 new: true,
             },
         );
+
+        await enqueueBuildDigest(user._id);
     }
-
-    let promises = [];
-    for (const block of digest.blocks) {
-        const lastUpdated = block.updatedAt;
-
-        if (
-            !lastUpdated ||
-            !block.content ||
-            dayjs().diff(dayjs(lastUpdated)) > UPDATE_INTERVAL
-        ) {
-            promises.push(
-                generateDigestBlockContent(block, user).then((content) => {
-                    block.content = content;
-                    block.updatedAt = new Date();
-                }),
-            );
-        }
-    }
-
-    await Promise.all(promises);
 
     digest = await Digest.findOneAndUpdate(
         {
@@ -70,6 +52,18 @@ export async function GET(req, { params }) {
         },
     );
 
+    digest = digest.toJSON();
+
+    for (const block of digest.blocks) {
+        if (block.state.status === DigestGenerationStatus.IN_PROGRESS) {
+            const jobId = block.state.jobId;
+
+            // get progress update status from job
+            const job = await getJob(jobId);
+            block.state.progress = job?.progress;
+        }
+    }
+
     return NextResponse.json(digest);
 }
 
@@ -81,22 +75,28 @@ export async function PATCH(req, { params }) {
         owner: user._id,
     });
 
-    let newBlocks = digest.blocks;
+    const existingBlocks = digest.blocks;
 
-    for (const block of blocks) {
-        const existingBlock = newBlocks.find(
+    const newBlocks = blocks.map((block) => {
+        const existingBlock = existingBlocks.find(
             (b) => b._id?.toString() === block._id?.toString(),
         );
 
-        if (existingBlock) {
-            if (existingBlock.prompt !== block.prompt) {
-                block.content = null;
-                block.updatedAt = null;
-            }
-        } else {
-            newBlocks.push(block);
+        if (existingBlock && existingBlock.prompt !== block.prompt) {
+            existingBlock.content = null;
+            existingBlock.updatedAt = null;
+            block.state = {
+                status: DigestGenerationStatus.PENDING,
+            };
         }
-    }
+
+        const newBlock = {
+            ...existingBlock?.toJSON(),
+            ...block,
+        };
+
+        return newBlock;
+    });
 
     digest = await Digest.findOneAndUpdate(
         {
@@ -111,6 +111,8 @@ export async function PATCH(req, { params }) {
             new: true,
         },
     );
+
+    await enqueueBuildDigest(user._id);
 
     return NextResponse.json(digest);
 }

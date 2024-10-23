@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import axios from "axios";
+import axios from "../utils/axios-client";
 
 // useAddDocument hook
 export function useAddDocument() {
@@ -27,7 +27,7 @@ export function useAddDocument() {
             });
         },
         onSuccess: () => {
-            queryClient.invalidateQueries(["currentUser"]);
+            queryClient.invalidateQueries({ queryKey: ["currentUser"] });
         },
     });
     return mutation;
@@ -54,7 +54,7 @@ export function useDeleteDocument() {
             });
         },
         onSuccess: () => {
-            queryClient.invalidateQueries(["currentUser"]);
+            queryClient.invalidateQueries({ queryKey: ["currentUser"] });
         },
     });
     return mutation;
@@ -79,7 +79,7 @@ export function useDeleteAllDocuments() {
             });
         },
         onSuccess: () => {
-            queryClient.invalidateQueries(["currentUser"]);
+            queryClient.invalidateQueries({ queryKey: ["currentUser"] });
         },
     });
     return mutation;

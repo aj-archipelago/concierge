@@ -165,6 +165,7 @@ const RAG_START = gql`
         $semanticConfiguration: String
         $aiName: String
         $aiMemorySelfModify: Boolean
+        $aiStyle: String
         $title: String
     ) {
         rag_start(
@@ -177,7 +178,44 @@ const RAG_START = gql`
             semanticConfiguration: $semanticConfiguration
             aiName: $aiName
             aiMemorySelfModify: $aiMemorySelfModify
+            aiStyle: $aiStyle
             title: $title
+        ) {
+            result
+            contextId
+            tool
+            warnings
+            errors
+        }
+    }
+`;
+
+const RAG_GENERATOR_CODE = gql`
+    query RagGeneratorCode(
+        $chatHistory: [MultiMessage]!
+        $dataSources: [String]
+        $contextId: String
+        $text: String
+        $roleInformation: String
+        $indexName: String
+        $semanticConfiguration: String
+        $aiName: String
+        $useMemory: Boolean
+        $chatId: String
+        $codingResult: String
+    ) {
+        rag_generator_code(
+            chatHistory: $chatHistory
+            dataSources: $dataSources
+            contextId: $contextId
+            text: $text
+            roleInformation: $roleInformation
+            indexName: $indexName
+            semanticConfiguration: $semanticConfiguration
+            aiName: $aiName
+            useMemory: $useMemory
+            chatId: $chatId
+            codingResult: $codingResult
         ) {
             result
             contextId
@@ -319,6 +357,23 @@ const FORMAT_PARAGRAPH_TURBO = gql`
 const GRAMMAR = gql`
     query Grammar($text: String!, $async: Boolean) {
         grammar(text: $text, async: $async) {
+            result
+        }
+    }
+`;
+const GREETING = gql`
+    query Greeting(
+        $text: String!
+        $async: Boolean
+        $contextId: String
+        $aiName: String
+    ) {
+        greeting(
+            text: $text
+            async: $async
+            contextId: $contextId
+            aiName: $aiName
+        ) {
             result
         }
     }
@@ -517,6 +572,7 @@ const REQUEST_PROGRESS = gql`
         requestProgress(requestIds: $requestIds) {
             data
             progress
+            info
         }
     }
 `;
@@ -627,6 +683,14 @@ const JIRA_STORY = gql`
     }
 `;
 
+const CODE_HUMAN_INPUT = gql`
+    query ($text: String, $codeRequestId: String) {
+        code_human_input(text: $text, codeRequestId: $codeRequestId) {
+            result
+        }
+    }
+`;
+
 const getWorkspacePromptQuery = (pathwayName) => {
     return gql`
         query ${pathwayName}(
@@ -652,6 +716,7 @@ const QUERIES = {
     CHAT_LABEEB,
     CHAT_EXTENSION,
     CHAT_CODE,
+    CODE_HUMAN_INPUT,
     COGNITIVE_DELETE,
     COGNITIVE_INSERT,
     IMAGE,
@@ -659,6 +724,7 @@ const QUERIES = {
     RAG_SAVE_MEMORY,
     RAG_START,
     RAG_GENERATOR_RESULTS,
+    RAG_GENERATOR_CODE,
     EXPAND_STORY,
     FORMAT_PARAGRAPH_TURBO,
     SELECT_SERVICES,
@@ -666,6 +732,7 @@ const QUERIES = {
     SUMMARY,
     HASHTAGS,
     HEADLINE,
+    GREETING,
     GRAMMAR,
     SPELLING,
     PARAPHRASE,
@@ -700,8 +767,43 @@ const SUBSCRIPTIONS = {
     REQUEST_PROGRESS,
 };
 
+const PUT_PATHWAY = gql`
+    mutation PutPathway(
+        $name: String!
+        $pathway: PathwayInput!
+        $userId: String!
+        $secret: String!
+        $displayName: String
+        $key: String!
+    ) {
+        putPathway(
+            name: $name
+            pathway: $pathway
+            userId: $userId
+            secret: $secret
+            displayName: $displayName
+            key: $key
+        ) {
+            name
+        }
+    }
+`;
+
+const DELETE_PATHWAY = gql`
+    mutation DeletePathway(
+        $name: String!
+        $userId: String!
+        $secret: String!
+        $key: String!
+    ) {
+        deletePathway(name: $name, userId: $userId, secret: $secret, key: $key)
+    }
+`;
+
 const MUTATIONS = {
     CANCEL_REQUEST,
+    PUT_PATHWAY,
+    DELETE_PATHWAY,
 };
 
 export {
@@ -709,6 +811,7 @@ export {
     CHAT_PERSIST,
     CHAT_LABEEB,
     CHAT_CODE,
+    CODE_HUMAN_INPUT,
     COGNITIVE_INSERT,
     COGNITIVE_DELETE,
     EXPAND_STORY,
@@ -716,6 +819,7 @@ export {
     RAG_SAVE_MEMORY,
     RAG_START,
     RAG_GENERATOR_RESULTS,
+    RAG_GENERATOR_CODE,
     SELECT_SERVICES,
     SUMMARY,
     HASHTAGS,

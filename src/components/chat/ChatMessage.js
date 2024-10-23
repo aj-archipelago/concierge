@@ -1,11 +1,9 @@
 "use client";
 
-import { t } from "i18next";
-import Link from "next/link";
 import CodeBlock from "../code/CodeBlock";
 import React from "react";
 import TextWithCitations from "./TextWithCitations";
-import FileUploadComponent from "./FileUploadComponent";
+import InlineEmotionDisplay from "./InlineEmotionDisplay";
 import Markdown from "react-markdown";
 import directive from "remark-directive";
 import remarkGfm from "remark-gfm";
@@ -27,11 +25,17 @@ function customMarkdownDirective() {
             tree,
             ["textDirective", "leafDirective", "containerDirective"],
             (node) => {
-                if (
-                    node.name === "cd_source" ||
-                    node.name === "cd_upload" ||
-                    node.name === "cd_servicelink"
-                ) {
+                if (node.name === "cd_inline_emotion") {
+                    const emotion = node.attributes.type || "neutral";
+                    node.data = {
+                        hName: node.name,
+                        hProperties: {
+                            emotion: emotion,
+                            ...node.attributes,
+                            ...node.data,
+                        },
+                    };
+                } else if (node.name === "cd_source") {
                     node.data = {
                         hName: node.name,
                         hProperties: node.attributes,
@@ -89,6 +93,13 @@ function convertMessageToMarkdown(message) {
         p({ node, ...rest }) {
             return <div className="mb-1" {...rest} />;
         },
+        cd_inline_emotion({ children, emotion }) {
+            return (
+                <InlineEmotionDisplay emotion={emotion}>
+                    {children}
+                </InlineEmotionDisplay>
+            );
+        },
         cd_source(props) {
             const { children } = props;
             if (children) {
@@ -105,25 +116,6 @@ function convertMessageToMarkdown(message) {
                 return null;
             }
             return null;
-        },
-        cd_upload(props) {
-            return <FileUploadComponent {...props} />;
-        },
-        cd_servicelink(props) {
-            const { children } = props;
-            //console.log("serviceLink children", children);
-            const serviceName = children;
-            const tServiceName = t(serviceName + " interface");
-            const tServiceAction = t("Click here for my");
-
-            return (
-                <div className="service-link">
-                    <Link href={`/${serviceName}`} {...props}>
-                        {tServiceAction}&nbsp;{tServiceName}
-                    </Link>
-                    .
-                </div>
-            );
         },
         cd_default({ name, ...rest }) {
             return <span>{name}</span>;
@@ -158,7 +150,7 @@ function convertMessageToMarkdown(message) {
 
     return (
         <Markdown
-            className="chat-message"
+            className="chat-message min-h-[1.5rem]"
             key={`lm-${id}`}
             remarkPlugins={[
                 directive,

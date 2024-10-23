@@ -10,6 +10,10 @@ const llmSchema = new mongoose.Schema({
         type: String,
         required: true,
     },
+    cortexModelName: {
+        type: String,
+        required: true,
+    },
     isDefault: {
         type: Boolean,
         default: false,

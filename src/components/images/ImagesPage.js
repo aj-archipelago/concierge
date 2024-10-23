@@ -7,7 +7,7 @@ import { FaDownload, FaTrash } from "react-icons/fa";
 import { Modal } from "../../../@/components/ui/modal";
 import { QUERIES } from "../../graphql";
 import LoadingButton from "../editor/LoadingButton";
-import { ProgressUpdate } from "../editor/TextSuggestions";
+import ProgressUpdate from "../editor/ProgressUpdate";
 
 function ImagesPage() {
     const [prompt, setPrompt] = useState("");

@@ -1,12 +1,16 @@
 import { NextResponse } from "next/server";
 import { handleError } from "../utils/auth";
 import { getChatsOfCurrentUser, createNewChat, updateChat } from "./_lib";
+import { DEFAULT_PAGE_SIZE } from "../../queries/chats";
 
 // Handle GET request to fetch saved messages of the current user
 export async function GET(req) {
     try {
-        const chats = await getChatsOfCurrentUser();
-        return NextResponse.json(chats); // Use NextResponse to return JSON
+        const { searchParams } = new URL(req.url);
+        const page = parseInt(searchParams.get("page")) || 1;
+        const limit = DEFAULT_PAGE_SIZE; // Number of chats per page
+        const chats = await getChatsOfCurrentUser(page, limit);
+        return NextResponse.json(chats);
     } catch (error) {
         return handleError(error);
     }

@@ -3,6 +3,8 @@ import Workspace from "../../models/workspace";
 import { getCurrentUser } from "../../utils/auth";
 import { getWorkspace } from "./db";
 import WorkspaceState from "../../models/workspace-state";
+import { republishWorkspace } from "./publish/utils";
+import { unpublishWorkspace } from "./publish/utils";
 
 export async function DELETE(req, { params }) {
     const { id } = params;
@@ -16,6 +18,7 @@ export async function DELETE(req, { params }) {
         );
     }
 
+    await unpublishWorkspace(workspace, user);
     await Workspace.findByIdAndDelete(id);
     await WorkspaceState.deleteMany({ workspace: id });
     return Response.json({ success: true });
@@ -51,6 +54,8 @@ export async function PUT(req, { params }) {
     const newWorkspace = await Workspace.findByIdAndUpdate(id, attrs, {
         new: true,
     });
+
+    await republishWorkspace(newWorkspace);
 
     return Response.json(newWorkspace);
 }

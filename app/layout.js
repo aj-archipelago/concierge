@@ -10,13 +10,20 @@ import {
     QueryClient,
     dehydrate,
 } from "@tanstack/react-query";
+import { headers } from "next/headers";
 
 const font = Inter({ subsets: ["latin"] });
-export const serverUrl = process.env.SERVER_URL || "http://localhost:3000";
 const neuralspaceEnabled = process.env.ENABLE_NEURALSPACE === "true";
 
 export default async function RootLayout({ children }) {
     const { getLogo } = config.global;
+
+    const host = headers().get("x-forwarded-host");
+    const protocol = headers().get("x-forwarded-proto");
+    const serverUrl = `${protocol}://${host}`;
+    const graphQLPublicEndpoint = config.global.getPublicGraphQLEndpoint(
+        process.env.CORTEX_GRAPHQL_API_URL || "http://localhost:4000/graphql",
+    );
 
     const cookieStore = cookies();
     const language = cookieStore.get("i18next")?.value || "en";
@@ -57,6 +64,7 @@ export default async function RootLayout({ children }) {
                             theme={theme}
                             language={language}
                             serverUrl={serverUrl}
+                            graphQLPublicEndpoint={graphQLPublicEndpoint}
                             neuralspaceEnabled={neuralspaceEnabled}
                         >
                             {children}

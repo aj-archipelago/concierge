@@ -11,10 +11,8 @@ import config from "../../../config";
 import CopyButton from "../CopyButton";
 import TranscribePage from "../transcribe/TranscribePage";
 import ExpandStoryContent from "./ExpandStoryContent";
-import {
-    getSuggestionInputComponent,
-    getTextSuggestionsComponent,
-} from "./TextSuggestions";
+import SuggestionInput from "./SuggestionInput";
+import { getTextSuggestionsComponent } from "./TextSuggestions";
 import TranslateModalContent from "./TranslateModalContent";
 import HeadlineModal from "./headline/HeadlineModal";
 
@@ -23,8 +21,8 @@ const ListRenderer = ({ value }) => {
 
     return (
         <ul style={{ marginBottom: 20 }} className="border rounded-md p-2">
-            {value.map((item) => (
-                <li>
+            {value.map((item, index) => (
+                <li key={index}>
                     <CopyButton item={item} />
                     {item}
                 </li>
@@ -72,10 +70,8 @@ const actions = {
             query: "SUMMARIZE_TURBO",
             outputTitle: "Summary",
             redoText: "Write another summary",
-            busyMessage: "Writing summary...",
-            SuggestionInput: getSuggestionInputComponent({
-                inputType: "none",
-            }),
+            showLoadingMessage: true,
+            SuggestionInput: SuggestionInput,
             QueryParameters: ({ value, onChange }) => {
                 const { t } = useTranslation();
                 value.targetLength = value.targetLength || 500;
@@ -140,15 +136,15 @@ const actions = {
     paraphrase: {
         Icon: FaEdit,
         title: "Rewrite text",
-        dialogClassName: "modal-narrow",
+        dialogClassName: "modal-wide",
         type: "selection",
         SuggestionsComponent: getTextSuggestionsComponent({
             query: "PARAPHRASE",
-            outputTitle: "Revised Version",
+            outputTitle: " ",
+            outputType: "compare",
             redoText: "Rewrite this again",
-            SuggestionInput: getSuggestionInputComponent({
-                inputTitle: "Original Text",
-            }),
+            showInput: true,
+            SuggestionInput: SuggestionInput,
         }),
         commitLabel: "Use Updated Text",
     },
@@ -166,7 +162,7 @@ const actions = {
         Icon: FaVideo,
         title: "Import from media",
         dialogClassName: "modal-narrow",
-        commitLabel: "Use transcribed text",
+        commitLabel: "Use Transcribed Text",
         type: "always-available",
         SuggestionsComponent: TranscribePage,
         postApply: "clear-headline",
@@ -218,13 +214,13 @@ const actions = {
             OutputRenderer: ({ value }) => {
                 return (
                     <ul className="border rounded-md p-2">
-                        {value.map((entity) => (
-                            <li>
+                        {value.map((entity, index) => (
+                            <li key={index}>
                                 <CopyButton
                                     item={`${entity.name}: ${entity.definition}`}
                                 />
                                 <strong>{entity.name}</strong>
-                                <br></br>
+                                <br />
                                 {entity.definition}
                             </li>
                         ))}

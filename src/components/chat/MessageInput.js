@@ -16,7 +16,7 @@ import {
 } from "../../stores/fileUploadSlice";
 import { FaFileCirclePlus } from "react-icons/fa6";
 import { IoCloseCircle } from "react-icons/io5";
-import { isDocumentUrl, isMediaUrl } from "./MyFilePond";
+import { getFilename, isDocumentUrl, isMediaUrl } from "./MyFilePond";
 import { AuthContext } from "../../App";
 import { useAddDocument } from "../../../app/queries/uploadedDocs";
 import { useGetActiveChatId } from "../../../app/queries/chats";
@@ -89,13 +89,7 @@ function MessageInput({
 
             try {
                 const docId = uuidv4();
-                const filename = url
-                    .split("/")
-                    .pop()
-                    .split("?")[0]
-                    .split("_")
-                    .slice(1)
-                    .join("_");
+                const filename = getFilename(url);
 
                 dispatch(setFileLoading());
 

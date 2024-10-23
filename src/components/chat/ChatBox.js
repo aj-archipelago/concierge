@@ -14,8 +14,12 @@ import { setChatBoxPosition } from "../../stores/chatSlice"; // Ensure you have 
 import ChatContent from "./ChatContent";
 import config from "../../../config";
 import { useRouter, usePathname } from "next/navigation";
+import { AuthContext } from "../../App.js";
 
 function ChatBox() {
+    const { user } = useContext(AuthContext);
+    const { aiName } = user;
+
     const statePosition = useSelector((state) => state.chat?.chatBox?.position);
     const lastOpenPosition = useSelector(
         (state) => state.chat?.chatBox?.lastOpenPosition,
@@ -170,7 +174,7 @@ function ChatBox() {
                         onClick={titleBarClick}
                     >
                         <div className="">
-                            {t(`Chat with ${config?.chat?.botName}`)}
+                            {`${t("Chat with")} ${t(aiName || config?.chat?.botName)}`}
                         </div>
                         <div className="flex gap-1 items-center">
                             <Actions />

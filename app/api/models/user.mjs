@@ -1,5 +1,5 @@
 import mongoose from "mongoose";
-import uploadedDocsSchema from "./uploaded-docs";
+import uploadedDocsSchema from "./uploaded-docs.mjs";
 
 // Define the User schema
 const userSchema = new mongoose.Schema(
@@ -32,11 +32,15 @@ const userSchema = new mongoose.Schema(
             required: true,
             trim: true,
         },
-        aiMemory: {
+        aiName: {
             type: String,
             required: false,
-            trim: true,
-            default: "{}",
+            default: "Labeeb",
+        },
+        aiStyle: {
+            type: String,
+            required: true,
+            default: "OpenAI",
         },
         uploadedDocs: {
             type: [uploadedDocsSchema],

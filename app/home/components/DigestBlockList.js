@@ -6,10 +6,10 @@ import {
     DropdownMenuItem,
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import dayjs from "dayjs";
 import { PlusIcon, SettingsIcon, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
+import ReactMarkdown from "react-markdown";
 import Loader from "../../components/loader";
 import {
     useCurrentUserDigest,
@@ -48,14 +48,12 @@ export default function DigestBlockList() {
 
     return (
         <>
-            <div className="flex gap-4 justify-between mb-4">
-                <h1 className="text-2xl font-semibold">
-                    {t("Welcome,")} {user.username}!
-                </h1>
-                <div>{dayjs().format("dddd, MMMM D, YYYY")}</div>
-            </div>
-            <div className="flex justify-between mb-2">
-                <p>{t("Here's what's happening in your world today.")}</p>
+            <div className="flex justify-between mb-2 gap-8">
+                {digest?.greeting && (
+                    <div className="[&_ul]:mb-4 [&_ul]:list-disc [&_ul]:ps-6 [&_ol]:mb-4 [&_ol]:list-decimal [&_ol]:ps-6">
+                        <ReactMarkdown>{digest?.greeting}</ReactMarkdown>
+                    </div>
+                )}
                 <DropdownMenu>
                     <DropdownMenuTrigger>
                         <SettingsIcon className="h-4 w-4 text-gray-500" />
@@ -69,14 +67,22 @@ export default function DigestBlockList() {
             </div>
             <div
                 className={classNames(
-                    "grid  gap-4",
+                    "grid gap-4",
                     digest.blocks.length > 1
                         ? "sm:grid-cols-2"
                         : "sm:grid-cols-1",
                 )}
             >
                 {digest.blocks.map((block) => (
-                    <DigestBlock key={block._id} block={block} />
+                    <DigestBlock
+                        key={block._id}
+                        block={block}
+                        contentClassName={
+                            digest.blocks.length > 2
+                                ? "max-h-64 overflow-auto"
+                                : "max-h-[calc(100vh-350px)] overflow-auto"
+                        }
+                    />
                 ))}
             </div>
         </>

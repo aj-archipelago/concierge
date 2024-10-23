@@ -70,6 +70,14 @@ const chatSchema = new mongoose.Schema(
             type: Boolean,
             default: false,
         },
+        codeRequestId: {
+            type: String,
+            default: null,
+        },
+        isChatLoading: {
+            type: Boolean,
+            default: false,
+        },
     },
     {
         timestamps: true,
@@ -79,6 +87,7 @@ const chatSchema = new mongoose.Schema(
 // Add indexes
 chatSchema.index({ userId: 1 });
 chatSchema.index({ updatedAt: -1 });
+chatSchema.index({ createdAt: -1 });
 chatSchema.index({ userId: 1, updatedAt: -1 });
 
 // Create the Chat model from the schema

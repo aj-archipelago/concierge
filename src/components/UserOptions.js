@@ -2,7 +2,7 @@ import { Modal } from "@/components/ui/modal";
 import { useApolloClient, useQuery } from "@apollo/client";
 import { useContext, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useUpdateAiMemory } from "../../app/queries/options";
+import { useUpdateAiOptions } from "../../app/queries/options";
 import { QUERIES } from "../../src/graphql";
 import { AuthContext } from "../App";
 
@@ -13,8 +13,10 @@ const UserOptions = ({ show, handleClose }) => {
     const [aiMemorySelfModify, setAiMemorySelfModify] = useState(
         user.aiMemorySelfModify || false,
     );
+    const [aiName, setAiName] = useState(user.aiName || "Labeeb");
+    const [aiStyle, setAiStyle] = useState(user.aiStyle || "OpenAI");
 
-    const updateAiMemoryMutation = useUpdateAiMemory();
+    const updateAiOptionsMutation = useUpdateAiOptions();
     const apolloClient = useApolloClient();
 
     // Modified query to fetch aiMemory
@@ -63,11 +65,12 @@ const UserOptions = ({ show, handleClose }) => {
             return;
         }
 
-        await updateAiMemoryMutation.mutateAsync({
+        await updateAiOptionsMutation.mutateAsync({
             userId: user.userId,
             contextId: user.contextId,
-            aiMemory,
             aiMemorySelfModify,
+            aiName,
+            aiStyle,
         });
 
         // update the Cortex copy
@@ -100,10 +103,29 @@ const UserOptions = ({ show, handleClose }) => {
             style={{ fontSize: "0.875rem" }}
         >
             <div>
+                <h4 className="font-semibold mb-2">{t("AI Name")}</h4>
+                <input
+                    type="text"
+                    value={aiName}
+                    onChange={(e) => setAiName(e.target.value)}
+                    className="lb-input w-full mb-4"
+                    placeholder={t("Enter AI Name")}
+                />
+
+                <h4 className="font-semibold mb-2">{t("AI Style")}</h4>
+                <select
+                    value={aiStyle}
+                    onChange={(e) => setAiStyle(e.target.value)}
+                    className="lb-input w-full mb-4"
+                >
+                    <option value="OpenAI">{t("OpenAI")}</option>
+                    <option value="Anthropic">{t("Anthropic")}</option>
+                </select>
+
                 <h4 className="font-semibold mb-2">{t("AI Memory")}</h4>
                 <p className="text-gray-600">
                     {t(
-                        "You can customize your interactions with the AI assistant by giving it things to remember. You can enter plain text or something more structured like JSON or XML. If you allow it, the AI will periodically modify its own memory to improve its ability to assist you, but it will likely rewrite the memory into a JSON object.",
+                        "You can customize your interactions with the AI assistant by giving it things to remember. You can enter plain text or something more structured like JSON or XML. If you allow it, the AI will periodically modify its own memory to improve its ability to assist you.",
                     )}
                 </p>
                 <div className="flex gap-2 items-center mb-4">

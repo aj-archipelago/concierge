@@ -1,0 +1,26 @@
+FROM ubuntu:20.04 AS base
+
+RUN apt-get update && apt-get install -y curl && \
+    curl -fsSL https://deb.nodesource.com/setup_18.x | bash - && \
+    apt-get install -y nodejs && \
+    apt-get install -y curl libssl1.1 && \
+    curl -O https://downloads.mongodb.com/linux/mongo_crypt_shared_v1-linux-x86_64-enterprise-ubuntu2004-7.0.12.tgz && \
+    mkdir -p /app/mongo_crypt_lib && \
+    tar -xvf mongo_crypt_shared_v1-linux-x86_64-enterprise-ubuntu2004-7.0.12.tgz -C /app/mongo_crypt_lib --strip-components=1 && \
+    rm mongo_crypt_shared_v1-linux-x86_64-enterprise-ubuntu2004-7.0.12.tgz && \
+    chmod 755 /app/mongo_crypt_lib/mongo_crypt_v1.so && \
+    apt-get clean && rm -rf /var/lib/apt/lists/* && \
+    useradd -m appuser
+
+ENV MONGOCRYPT_PATH=/app/mongo_crypt_lib/mongo_crypt_v1.so
+
+WORKDIR /home/appuser/app
+
+COPY package*.json ./
+RUN npm ci --legacy-peer-deps
+
+COPY --chown=appuser:appuser . .
+
+USER appuser
+
+CMD ["npm", "run", "worker"]

@@ -1,6 +1,6 @@
 {
     "name": "labeeb",
-    "version": "2.2.03",
+    "version": "2.3.06",
     "private": true,
     "dependencies": {
         "@amplitude/analytics-browser": "^2.3.2",
@@ -26,6 +26,7 @@
         "@testing-library/user-event": "^13.5.0",
         "@uidotdev/usehooks": "^2.4.1",
         "axios": "^1.3.5",
+        "bullmq": "^5.8.7",
         "cheerio": "^1.0.0-rc.12",
         "chrono-node": "^2.6.1",
         "class-variance-authority": "^0.7.0",
@@ -44,8 +45,11 @@
         "i18next-browser-languagedetector": "^7.2.0",
         "javascript-time-ago": "^2.5.9",
         "lucide-react": "^0.344.0",
+        "marked": "^14.1.2",
         "mime-types": "^2.1.35",
         "monaco-editor": "^0.45.0",
+        "mongodb": "^6.8.0",
+        "mongodb-client-encryption": "^6.0.1",
         "mongoose": "^8.2.0",
         "next": "^14.0.3",
         "nightwind": "^1.1.13",
@@ -56,6 +60,7 @@
         "react-filepond": "^7.1.2",
         "react-i18next": "^12.2.0",
         "react-icons": "^4.7.1",
+        "react-intersection-observer": "^9.13.1",
         "react-markdown": "^9.0.1",
         "react-monaco-editor": "^0.55.0",
         "react-progress-timer": "^1.0.3",
@@ -88,7 +93,8 @@
         "build": "next build",
         "start": "next start",
         "lint": "next lint && npx prettier --check .",
-        "format": "npx prettier --write ."
+        "format": "npx prettier --write .",
+        "worker": "node ./jobs/worker.js"
     },
     "eslintConfig": {
         "extends": [

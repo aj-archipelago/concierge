@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import axios from "axios";
+import axios from "../utils/axios-client";
 
 export function useWorkspace(id) {
     const query = useQuery({
@@ -53,6 +53,36 @@ export function useWorkspaces() {
     });
 
     return query;
+}
+
+export function usePublishWorkspace() {
+    const queryClient = useQueryClient();
+
+    const mutation = useMutation({
+        mutationFn: async ({ id, ...rest }) => {
+            const response = await axios.post(
+                `/api/workspaces/${id}/publish`,
+                rest,
+            );
+            return response.data;
+        },
+        onSuccess: (data) => {
+            queryClient.setQueryData(["workspaces"], (old) => {
+                return old?.map((workspace) => {
+                    if (workspace._id === data._id) {
+                        return data;
+                    }
+                    return workspace;
+                });
+            });
+
+            queryClient.setQueryData(["workspace", data._id], (old) => {
+                return data;
+            });
+        },
+    });
+
+    return mutation;
 }
 
 export function useDeleteWorkspace() {

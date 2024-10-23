@@ -9,8 +9,9 @@ import { AuthContext, ServerContext } from "../../App";
 import { QUERIES } from "../../graphql";
 import CopyButton from "../CopyButton";
 import LoadingButton from "../editor/LoadingButton";
-import { ProgressUpdate } from "../editor/TextSuggestions";
+import ProgressUpdate from "../editor/ProgressUpdate";
 import TaxonomySelector from "./TaxonomySelector";
+import TranscribeUrlSourcer from "./TranscribeUrlSourcer";
 
 function Transcribe({
     dataText,
@@ -23,6 +24,7 @@ function Transcribe({
     onSelect,
 }) {
     const [url, setUrl] = useState("");
+    const [urlSourceLoading, setUrlSourceLoading] = useState(false);
     const [language, setLanguage] = useState("");
     const { t } = useTranslation();
     const apolloClient = useApolloClient();
@@ -365,42 +367,56 @@ function Transcribe({
                                 onChange={handleFileUpload}
                             />
                         </div>
-                        {t("Or enter URL:")}
-                        <input
-                            disabled={isLoading}
-                            placeholder={t(
-                                "Paste URL e.g. https://youtube.com/shorts/raw35iohE0o",
+                        {t("Or enter URL / title:")}
+
+                        <div className="relative">
+                            <input
+                                disabled={isLoading}
+                                placeholder={t(
+                                    "Paste URL e.g. https://mywebsite.com/video.mp4",
+                                )}
+                                value={url}
+                                className={`lb-input w-full ${urlSourceLoading ? "pr-10" : ""}`}
+                                type="text"
+                                size="sm"
+                                onChange={(e) => {
+                                    setUrl(e.target.value);
+                                    debouncedUpdateUserState({
+                                        transcribe: {
+                                            url: e.target.value,
+                                            outputFormat: responseFormat,
+                                            transcriptionType: wordTimestamped
+                                                ? "word"
+                                                : textFormatted
+                                                  ? "formatted"
+                                                  : "",
+                                            language,
+                                            maxLineWidth,
+                                            maxLineCount,
+                                            model: selectedModelOption,
+                                            wordTimestamped,
+                                            textFormatted,
+                                        },
+                                    });
+                                }}
+                                onKeyDown={(e) => {
+                                    if (e.key === "Enter") {
+                                        handleSubmit();
+                                    }
+                                }}
+                            />
+                            {urlSourceLoading && (
+                                <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                                    <div className="w-5 h-5 border-t-2 border-blue-500 border-solid rounded-full animate-spin"></div>
+                                </div>
                             )}
-                            value={url}
-                            className="lb-input"
-                            type="text"
-                            size="sm"
-                            onChange={(e) => {
-                                setUrl(e.target.value);
-                                debouncedUpdateUserState({
-                                    transcribe: {
-                                        url: e.target.value,
-                                        outputFormat: responseFormat,
-                                        transcriptionType: wordTimestamped
-                                            ? "word"
-                                            : textFormatted
-                                              ? "formatted"
-                                              : "",
-                                        language,
-                                        maxLineWidth,
-                                        maxLineCount,
-                                        model: selectedModelOption,
-                                        wordTimestamped,
-                                        textFormatted,
-                                    },
-                                });
-                            }}
-                            onKeyPress={(e) => {
-                                if (e.key === "Enter") {
-                                    handleSubmit();
-                                }
-                            }}
-                        />
+                        </div>
+
+                        <span className="text-xs text-neutral-500">
+                            {t(
+                                "Note that streaming services like YouTube and Instagram may not support direct downloads from URL.",
+                            )}
+                        </span>
                     </div>
                 </li>
                 <li className="mb-4">
@@ -739,6 +755,7 @@ function Transcribe({
                                 <option value="fr">{t("French")}</option>
                                 <option value="es">{t("Spanish")}</option>
                                 <option value="de">{t("German")}</option>
+                                <option value="he">{t("Hebrew")}</option>
                                 <option value="it">{t("Italian")}</option>
                                 <option value="pt">{t("Portuguese")}</option>
                                 <option value="zh">{t("Chinese")}</option>
@@ -821,6 +838,7 @@ function Transcribe({
                             <option>{t("French")}</option>
                             <option>{t("Spanish")}</option>
                             <option>{t("German")}</option>
+                            <option>{t("Hebrew")}</option>
                             <option>{t("Italian")}</option>
                             <option>{t("Portuguese")}</option>
                             <option>{t("Chinese")}</option>
@@ -977,6 +995,16 @@ function Transcribe({
                     </div>
                 )}
             </div>
+
+            {TranscribeUrlSourcer && (
+                <div className="fixed bottom-8 right-4 z-50 max-w-sm max-h-[80vh] overflow-auto bg-white dark:bg-gray-800 shadow-lg rounded-lg">
+                    <TranscribeUrlSourcer
+                        url={url}
+                        setUrl={setUrl}
+                        setUrlSourceLoading={setUrlSourceLoading}
+                    />
+                </div>
+            )}
         </div>
     );
 }

@@ -1,11 +1,12 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import axios from "axios";
+import axios from "../utils/axios-client";
 
-export function useUpdateAiMemory(
+export function useUpdateAiOptions(
     userId,
     contextId,
-    aiMemory,
     aiMemorySelfModify,
+    aiName,
+    aiStyle,
 ) {
     const queryClient = useQueryClient();
 
@@ -13,23 +14,26 @@ export function useUpdateAiMemory(
         mutationFn: async ({
             userId,
             contextId,
-            aiMemory,
             aiMemorySelfModify,
+            aiName,
+            aiStyle,
         }) => {
             // persist it to user options in the database
             const response = await axios.post(`/api/options`, {
                 userId,
                 contextId,
-                aiMemory,
                 aiMemorySelfModify,
+                aiName,
+                aiStyle,
             });
             return response.data;
         },
         onMutate: async ({
             userId,
             contextId,
-            aiMemory,
             aiMemorySelfModify,
+            aiName,
+            aiStyle,
         }) => {
             await queryClient.cancelQueries({ queryKey: ["currentUser"] });
             const previousUser = await queryClient.getQueryData([
@@ -40,8 +44,9 @@ export function useUpdateAiMemory(
                 return {
                     ...old,
                     contextId,
-                    aiMemory,
                     aiMemorySelfModify,
+                    aiName,
+                    aiStyle,
                 };
             });
 

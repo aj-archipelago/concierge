@@ -1,120 +1,21 @@
 "use client";
 
-import { useQuery, useSubscription, useApolloClient } from "@apollo/client";
-import { useState, useEffect, useRef, useCallback } from "react";
-import { Button } from "@/components/ui/button";
-import { Progress } from "@/components/ui/progress";
-import stringcase from "stringcase";
-import ProgressTimer from "react-progress-timer";
-import ReactTimeAgo from "react-time-ago";
-import { MUTATIONS, QUERIES, SUBSCRIPTIONS } from "../../graphql";
-import Diff from "./Diff";
-import LoadingButton from "./LoadingButton";
-import StyleGuideDiff from "./StyleGuideDiff";
+import { useState, useEffect, useRef, useCallback, useContext } from "react";
+import { useQuery, useApolloClient } from "@apollo/client";
+import { MUTATIONS, QUERIES } from "../../graphql";
 import * as amplitude from "@amplitude/analytics-browser";
-
-const DebugInfo = ({ prompt, temperature }) => {
-    const [showDebug, setShowDebug] = useState(false);
-
-    if (localStorage.getItem("ai_debug") === "true") {
-        if (!showDebug) {
-            return (
-                <div className="text-right">
-                    <Button variant="link" onClick={() => setShowDebug(true)}>
-                        Show debug info
-                    </Button>
-                </div>
-            );
-        } else {
-            return (
-                <div>
-                    <div>
-                        <strong>Prompt:</strong>
-                        <pre className="whitespace-pre-wrap break-words font-mono p-2 bg-gray-200">
-                            {prompt}
-                        </pre>
-                    </div>
-                    <div>
-                        <strong>Temperature:</strong> {temperature || "-"}
-                    </div>
-                    <div className="text-right">
-                        <Button
-                            variant="link"
-                            onClick={() => setShowDebug(false)}
-                        >
-                            Hide debug info
-                        </Button>
-                    </div>
-                </div>
-            );
-        }
-    }
-};
+import stringcase from "stringcase";
+import DebugInfo from "./DebugInfo";
+import ProgressUpdate from "./ProgressUpdate";
+import ComparisonView from "./ComparisonView";
+import DiffComponent from "./DiffComponent";
+import SuggestionOutput from "./SuggestionOutput";
+import SuggestionInput from "./SuggestionInput";
+import LoadingButton from "./LoadingButton";
+import { useTranslation } from "react-i18next";
+import { LanguageContext } from "../../contexts/LanguageProvider";
 
 const asyncQueries = ["GRAMMAR", "STYLE_GUIDE", "TRANSLATE"];
-
-export const ProgressUpdate = ({
-    requestId,
-    setFinalData,
-    initialText = "Processing...",
-}) => {
-    const { data } = useSubscription(SUBSCRIPTIONS.REQUEST_PROGRESS, {
-        variables: { requestIds: [requestId] },
-    });
-
-    const [progress, setProgress] = useState(10);
-    const [completionTime, setCompletionTime] = useState(10);
-    const progressRef = useRef();
-    progressRef.current = progress;
-
-    useEffect(() => {
-        setProgress(10);
-        setCompletionTime(null);
-    }, [requestId]);
-
-    useEffect(() => {
-        const result = data?.requestProgress?.data;
-        const completionTime = data?.requestProgress?.completionTime;
-        const newProgress = Math.max(
-            (data?.requestProgress?.progress || 0) * 100,
-            progress,
-        );
-
-        if (result) {
-            setFinalData(JSON.parse(result));
-        }
-
-        setProgress(newProgress);
-        setCompletionTime(completionTime);
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [data]);
-
-    const result = data?.requestProgress?.data;
-
-    if (!result) {
-        return (
-            <>
-                <div className="mb-2">
-                    <Progress value={progress} />
-                </div>
-                <ProgressTimer
-                    initialText={initialText}
-                    percentage={progress}
-                    calculateByAverage={true}
-                    rollingWindowAverageSize={3}
-                    decreaseTime={false}
-                />
-                {completionTime && (
-                    <div>
-                        Completing in <ReactTimeAgo date={completionTime} />
-                    </div>
-                )}
-            </>
-        );
-    } else {
-        return null;
-    }
-};
 
 export function getTextSuggestionsComponent({
     query,
@@ -123,9 +24,10 @@ export function getTextSuggestionsComponent({
     getPrompt,
     defaultInputParameters = {},
     redoText,
+    showInput = false,
     showLoadingMessage = true,
     QueryParameters = () => null,
-    SuggestionInput = getSuggestionInputComponent({}),
+    SuggestionInput: CustomSuggestionInput = SuggestionInput,
     OutputRenderer,
 }) {
     const loadingButtonVisible = !!redoText;
@@ -140,6 +42,9 @@ export function getTextSuggestionsComponent({
         );
         const requestIdRef = useRef();
         const [debug, setDebug] = useState(null);
+        const { t } = useTranslation();
+        const { direction } = useContext(LanguageContext);
+
         requestIdRef.current = requestId;
 
         const onSelectCallback = useCallback(
@@ -149,11 +54,12 @@ export function getTextSuggestionsComponent({
             [onSelect],
         );
 
-        const variables = Object.assign({}, inputParameters, {
+        const variables = {
+            ...inputParameters,
             text: getPrompt ? getPrompt(inputText) : inputText,
             async,
             ...args,
-        });
+        };
 
         const { loading, error, data, refetch } = useQuery(QUERIES[query], {
             variables,
@@ -161,8 +67,7 @@ export function getTextSuggestionsComponent({
             fetchPolicy: "network-only",
         });
 
-        let redo = null;
-        let output;
+        const client = useApolloClient();
 
         useEffect(() => {
             if (data) {
@@ -189,13 +94,9 @@ export function getTextSuggestionsComponent({
                     name: stringcase.sentencecase(query),
                 });
             }
-            // eslint-disable-next-line react-hooks/exhaustive-deps
-        }, [data, error]);
-
-        const client = useApolloClient();
+        }, [data, error, async]);
 
         useEffect(() => {
-            // on unmount cancel request
             return () => {
                 if (!finalData && requestIdRef.current) {
                     client.mutate({
@@ -206,18 +107,20 @@ export function getTextSuggestionsComponent({
                     });
                 }
             };
-            // eslint-disable-next-line react-hooks/exhaustive-deps
-        }, []);
+        }, [client, finalData]);
 
         useEffect(() => {
             setInputText(text);
         }, [text]);
 
+        let output;
+        let redo = null;
+
         if (loading || (!finalData && !error)) {
             output = showLoadingMessage && (
                 <div>
                     <p>
-                        <span className="animate-spin">Loading</span>
+                        <span className="animate-spin">{t("Loading")}</span>
                     </p>
                     {requestId && (
                         <ProgressUpdate
@@ -227,90 +130,54 @@ export function getTextSuggestionsComponent({
                     )}
                 </div>
             );
-        } else {
-            if (error) {
+        } else if (error) {
+            output = (
+                <div>
+                    {t("An error was received from the API server:")}{" "}
+                    <pre className="font-mono">
+                        {JSON.stringify(error, null, 2)}
+                    </pre>
+                </div>
+            );
+        } else if (finalData) {
+            const response = finalData;
+            if (response.error) {
                 output = (
-                    <div>
-                        An error was received from the API server:{" "}
-                        <pre className="font-mono">
-                            {JSON.stringify(error, null, 2)}
-                        </pre>
-                    </div>
+                    <p>
+                        {t("An error was received from the API server:")}{" "}
+                        <pre className="font-mono">{response.error}</pre>
+                    </p>
                 );
             } else {
-                let outputText;
+                output = renderOutput(
+                    outputType,
+                    inputText,
+                    onSelectCallback,
+                    OutputRenderer,
+                    args,
+                    query,
+                    text,
+                    onSelect,
+                    setFinalData,
+                    finalData,
+                    t,
+                );
 
-                if (finalData) {
-                    const response = finalData;
-                    if (response.error) {
-                        output = (
-                            <p>
-                                An error was received from the API server:{" "}
-                                <pre className="font-mono">
-                                    {response.error}
-                                </pre>
-                            </p>
-                        );
-                    } else {
-                        outputText = response;
-
-                        if (outputType === "diff") {
-                            output = (
-                                <DiffComponent
-                                    inputText={inputText}
-                                    outputText={outputText}
-                                    setSelectedText={onSelectCallback}
-                                />
-                            );
-                        } else if (outputType === "diff-styleguide") {
-                            output = (
-                                <DiffComponent
-                                    inputText={inputText}
-                                    outputText={outputText}
-                                    setSelectedText={onSelectCallback}
-                                    type="style-guide"
-                                />
-                            );
-                        } else if (OutputRenderer) {
-                            output = (
-                                <OutputRenderer
-                                    queryArgs={args}
-                                    value={response}
-                                    query={query}
-                                    originalText={text}
-                                />
-                            );
-                        } else {
-                            if (outputType !== "list") {
-                                onSelect(outputText);
-                            }
-
-                            output = getSuggestionOutputComponent({
-                                outputType,
-                                value: outputText,
-                                onChange: (t) => onSelect(t),
-                            });
-                        }
-                    }
-
-                    if (loadingButtonVisible) {
-                        redo = (
-                            <LoadingButton
-                                loading={loading}
-                                onClick={() => {
-                                    refetch();
-                                }}
-                            >
-                                {redoText}
-                            </LoadingButton>
-                        );
-                    }
+                if (loadingButtonVisible) {
+                    redo = (
+                        <LoadingButton
+                            loading={loading}
+                            onClick={() => refetch()}
+                        >
+                            {t(redoText)}
+                        </LoadingButton>
+                    );
                 }
             }
         }
 
         return (
-            <div className="overflow-auto h-full">
+            <div className="overflow-hidden h-full w-full">
                 {debug && (
                     <DebugInfo
                         prompt={debug.prompt}
@@ -322,148 +189,167 @@ export function getTextSuggestionsComponent({
                     value={inputParameters}
                     onChange={(e) => setInputParameters(e)}
                 />
-                {outputType !== "diff" && (
-                    <SuggestionInput
-                        value={inputText}
-                        onChange={(t) => setInputText(t)}
-                    />
+                {renderContent(
+                    outputType,
+                    output,
+                    inputText,
+                    setInputText,
+                    CustomSuggestionInput,
+                    t(outputTitle),
+                    loading,
+                    refetch,
+                    t(redoText),
+                    showInput,
+                    loadingButtonVisible,
+                    redo,
+                    t,
+                    direction,
                 )}
-                {outputType !== "diff" && <h5>{outputTitle}</h5>}
-                <div className="h-full">{output}</div>
-                {redo}
             </div>
         );
     };
 }
 
-function DiffComponent({
+function renderOutput(
+    outputType,
     inputText,
-    outputText,
-    setSelectedText,
-    type = "default",
-}) {
-    const setSelectedTextCallback = useCallback(
-        (text) => {
-            setSelectedText(text);
-        },
-        [setSelectedText],
-    );
-
-    // replace opening and closing quotes with neutral quotes in inputText
-    // so that they are not counted as different from the quotes in outputText
-    inputText = inputText.replace(/“|”/g, '"');
-
-    // do the same for single opening and closing quotes
-    inputText = inputText.replace(/‘|’/g, "'");
-
-    if (type === "style-guide") {
-        return (
-            <>
-                <StyleGuideDiff
-                    styleGuideResult={outputText}
-                    setSelectedText={setSelectedTextCallback}
-                />
-            </>
-        );
-    } else {
-        return (
-            <>
-                <Diff
-                    string1={inputText}
-                    string2={outputText}
-                    setSelectedText={setSelectedTextCallback}
-                />
-            </>
-        );
-    }
-}
-
-function getSuggestionOutputComponent({ outputType, value, onChange }) {
-    let output;
-
-    if (outputType === "readonly") {
-        output = <p>{value}</p>;
-    } else if (outputType === "editable") {
-        output = (
-            <textarea
-                dir="auto"
-                rows={10}
-                className="form-textarea"
-                value={value}
-                onChange={(e) => onChange(e.target.value)}
-            />
-        );
-    } else if (outputType === "list") {
-        output = (
-            <div
-                onChange={(e) => onChange(e.target.labels[0].innerText)}
-                className="bg-white mb-3"
-            >
-                {value.slice(0, Math.min(5, value.length)).map((label, i) => (
-                    <div key={`output-list-${i}`} className="mb-3">
-                        <label>
-                            <input
-                                type="radio"
-                                name={`output-list-radio`}
-                                id={`output-list-${i}`}
-                                className="mr-2"
-                            />
-                            {label.replace(/^"+|[".]+$/g, "")}
-                        </label>
-                    </div>
-                ))}
-            </div>
-        );
-    } else {
-        output = null;
-    }
-    return output;
-}
-
-export function getSuggestionInputComponent({
-    inputTitle = "Input",
-    inputType = "readonly",
-    editCommitText = "Get results",
-}) {
-    return ({ value, onChange, visible }) => {
-        const [tempText, setTempText] = useState(value);
-
-        let input;
-
-        if (inputType === "editable") {
-            input = (
-                <>
-                    <div className="mb-2">
-                        <textarea
-                            dir="auto"
-                            rows={10}
-                            className="form-textarea"
-                            value={tempText}
-                            onChange={(e) => setTempText(e.target.value)}
-                        />
-                    </div>
-                    <Button
-                        className="mb-5"
-                        disabled={tempText === value}
-                        onClick={() => onChange(tempText)}
-                    >
-                        {editCommitText}
-                    </Button>
-                </>
-            );
-        } else if (visible) {
-            input = <p>{value}</p>;
-        }
-
-        if (input) {
+    onSelectCallback,
+    OutputRenderer,
+    args,
+    query,
+    text,
+    onSelect,
+    setFinalData,
+    finalData,
+    t,
+    direction,
+) {
+    switch (outputType) {
+        case "compare":
+            onSelect(finalData);
             return (
-                <>
-                    <h5>{inputTitle}</h5>
-                    <div>{input}</div>
-                </>
+                <ComparisonView
+                    outputText={finalData}
+                    onOutputChange={(newText) => {
+                        onSelect(newText);
+                        setFinalData(newText);
+                    }}
+                    direction={direction}
+                />
             );
-        } else {
-            return null;
-        }
-    };
+        case "diff":
+        case "diff-styleguide":
+            return (
+                <DiffComponent
+                    inputText={inputText}
+                    outputText={finalData}
+                    setSelectedText={onSelectCallback}
+                    type={
+                        outputType === "diff-styleguide"
+                            ? "style-guide"
+                            : "default"
+                    }
+                    direction={direction}
+                />
+            );
+        default:
+            if (OutputRenderer) {
+                return (
+                    <OutputRenderer
+                        queryArgs={args}
+                        value={finalData}
+                        query={query}
+                        originalText={text}
+                        direction={direction}
+                    />
+                );
+            } else {
+                if (outputType !== "list") {
+                    onSelect(finalData);
+                }
+                return (
+                    <SuggestionOutput
+                        outputType={outputType}
+                        value={finalData}
+                        onChange={(t) => onSelect(t)}
+                        direction={direction}
+                    />
+                );
+            }
+    }
+}
+
+function renderContent(
+    outputType,
+    output,
+    inputText,
+    setInputText,
+    CustomSuggestionInput,
+    outputTitle,
+    loading,
+    refetch,
+    redoText,
+    showInput,
+    loadingButtonVisible,
+    redo,
+    t,
+    direction,
+) {
+    if (outputType === "diff" || outputType === "diff-styleguide") {
+        return <div className="h-full">{output}</div>;
+    }
+
+    const isRTL = direction === "rtl";
+
+    return (
+        <div className="flex flex-col h-full overflow-hidden">
+            <div className="flex-grow flex flex-col md:flex-row min-h-0 space-y-4 md:space-y-0 md:space-x-4 rtl:space-x-reverse overflow-hidden">
+                {showInput && (
+                    <div
+                        className={`flex-1 md:w-1/2 flex flex-col overflow-hidden ${isRTL ? "md:ml-4" : "md:mr-4"}`}
+                    >
+                        <div className="flex-grow overflow-hidden">
+                            <CustomSuggestionInput
+                                value={inputText}
+                                onChange={(t) => setInputText(t)}
+                                inputType="readonly"
+                                direction={direction}
+                            />
+                        </div>
+                    </div>
+                )}
+                <div className="flex-1 md:w-1/2 flex flex-col overflow-hidden">
+                    {outputType === "compare" ? (
+                        <div className="flex-grow overflow-hidden">
+                            {output}
+                        </div>
+                    ) : (
+                        <>
+                            <h5
+                                className={`mb-2 font-bold ${isRTL ? "text-right" : "text-left"}`}
+                            >
+                                {outputTitle}
+                            </h5>
+                            <div className="flex-grow overflow-hidden">
+                                {output}
+                            </div>
+                        </>
+                    )}
+                </div>
+            </div>
+            <div className="mt-4">
+                {loadingButtonVisible && (
+                    <LoadingButton
+                        loading={loading}
+                        onClick={() => refetch()}
+                        className="lb-primary"
+                        text={t("Loading")}
+                        direction={direction}
+                    >
+                        {redoText}
+                    </LoadingButton>
+                )}
+            </div>
+        </div>
+    );
 }

@@ -51,16 +51,18 @@ const Tos = ({ showTos, setShowTos }) => {
             show={showTos}
             title={t("Terms of Service")}
         >
-            <div className="alert-content">
-                <div className="alert-logo">
-                    <img src={logo} height="40px" alt="alert logo" />
+            <div overflow="auto">
+                <div className="alert-content">
+                    <div className="alert-logo">
+                        <img src={logo} height="40px" alt="alert logo" />
+                    </div>
+                    <div className="alert-text">{tosContent}</div>
                 </div>
-                <div className="alert-text">{tosContent}</div>
-            </div>
-            <div className="flex justify-end mt-4">
-                <button className="lb-primary" onClick={handleTosClose}>
-                    {t("I Accept")}
-                </button>
+                <div className="flex justify-end mt-4">
+                    <button className="lb-primary" onClick={handleTosClose}>
+                        {t("I Accept")}
+                    </button>
+                </div>
             </div>
         </Modal>
     );
