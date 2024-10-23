@@ -76,6 +76,7 @@ export async function putPathway(id, attrs, user) {
             name: pathway.name,
             pathway: {
                 prompt: attrs.prompts,
+                systemPrompt: attrs.systemPrompt,
                 inputParameters: {},
                 model: attrs.model,
             },
