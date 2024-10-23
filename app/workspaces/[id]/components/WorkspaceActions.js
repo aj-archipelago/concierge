@@ -419,8 +419,8 @@ function PublishedWorkspace({ workspace }) {
                 <pre>
                     {`
 QUERY:
-query ExecutePathway($pathwayName: String!, $text: String, $userId: String!) {
-  executePathway(pathwayName: $pathwayName, text: $text, userId: $userId) {
+query ExecuteWorkspace($pathwayName: String!, $text: String, $userId: String!) {
+  executeWorkspace(pathwayName: $pathwayName, text: $text, userId: $userId) {
     result
   }
 }
