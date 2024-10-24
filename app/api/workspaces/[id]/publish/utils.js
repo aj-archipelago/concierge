@@ -58,6 +58,7 @@ export async function republishWorkspace(workspace) {
     const pathwayData = {
         name: pathway.name,
         prompts: prompts.map((p) => p.text),
+        systemPrompt: workspace.systemPrompt,
         inputParameters: {},
         model: pathway.model,
         owner: pathway.owner,
