@@ -314,10 +314,7 @@ function Actions({ user, workspace }) {
                             className="text-sm text-gray-600 font-mono bg-gray-100 p-2 rounded-md overflow-x-auto cursor-pointer"
                             onClick={() => setPublishModalOpen(true)}
                         >
-                            <span className="font-semibold">API:</span>{" "}
-                            <span className="break-all">
-                                {serverContext.graphQLPublicEndpoint}
-                            </span>
+                            <span className="">{t("Published")}</span>{" "}
                         </div>
                     )}
                 </div>
@@ -419,8 +416,8 @@ function PublishedWorkspace({ workspace }) {
                 <pre>
                     {`
 QUERY:
-query ExecutePathway($pathwayName: String!, $text: String, $userId: String!) {
-  executePathway(pathwayName: $pathwayName, text: $text, userId: $userId) {
+query ExecuteWorkspace($pathwayName: String!, $text: String, $userId: String!) {
+  executeWorkspace(pathwayName: $pathwayName, text: $text, userId: $userId) {
     result
   }
 }

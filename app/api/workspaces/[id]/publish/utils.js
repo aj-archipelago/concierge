@@ -11,6 +11,7 @@ export async function publishWorkspace(workspace, user, pathwayName, model) {
     // Create a pathway object from the workspace
     const pathwayData = {
         name: pathwayName,
+        systemPrompt: workspace.systemPrompt,
         prompts: prompts.map((p) => p.text),
         inputParameters: {},
         model: model,
@@ -57,6 +58,7 @@ export async function republishWorkspace(workspace) {
     const pathwayData = {
         name: pathway.name,
         prompts: prompts.map((p) => p.text),
+        systemPrompt: workspace.systemPrompt,
         inputParameters: {},
         model: pathway.model,
         owner: pathway.owner,
