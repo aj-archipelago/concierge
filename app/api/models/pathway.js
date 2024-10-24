@@ -15,6 +15,9 @@ const pathwaySchema = new mongoose.Schema({
         type: String,
         required: true,
     },
+    model: {
+        type: String,
+    },
     secret: {
         type: String,
         required: true,
