@@ -48,7 +48,7 @@ export default function DigestBlockList() {
 
     return (
         <>
-            <div className="flex justify-between mb-2 gap-8">
+            <div className="flex justify-between items-start mb-2 gap-8">
                 {digest?.greeting && (
                     <div className="[&_ul]:mb-4 [&_ul]:list-disc [&_ul]:ps-6 [&_ol]:mb-4 [&_ol]:list-decimal [&_ol]:ps-6">
                         <ReactMarkdown>{digest?.greeting}</ReactMarkdown>
