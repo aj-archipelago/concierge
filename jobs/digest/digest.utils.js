@@ -55,11 +55,22 @@ const generateDigestBlockContent = async (
             const { result: message, tool } = result.data.rag_generator_results;
             content = JSON.stringify({ payload: message, tool });
         } else {
-            logger.log(
-                "received searchRequired false, returning empty content.",
-                user?._id,
-                block?._id,
-            );
+            try {
+                content = JSON.stringify({
+                    payload: JSON.parse(result.data.rag_start.result).response,
+                    tool,
+                });
+            } catch (e) {
+                logger.error(
+                    `Error while parsing rag_start result: ${e.message}`,
+                    user?._id,
+                    block?._id,
+                );
+                content = JSON.stringify({
+                    payload: JSON.stringify(result.data),
+                    tool: null,
+                });
+            }
         }
     } catch (e) {
         logger.log(
