@@ -122,9 +122,9 @@ export default React.forwardRef(function Sidebar(_, ref) {
                 </Link>
             </div>
             <nav className="flex flex-1 flex-col">
-                <ul className="flex flex-1 flex-col gap-y-7">
+                <ul className="flex flex-1 flex-col gap-y-4">
                     <li className="grow">
-                        <ul className="-mx-2 space-y-1">
+                        <ul className="-mx-2 space-y-1 max-h-[calc(100vh-155px)] overflow-y-auto overflow-x-hidden ">
                             {updatedNavigation.map((item) => (
                                 <li
                                     key={item.name}
