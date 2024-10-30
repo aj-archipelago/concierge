@@ -4,10 +4,10 @@ const {
     generateDigestGreeting,
 } = require("./digest/digest.utils.js");
 
-const { DIGEST_REBUILD_INTERVAL_DAYS = 1, ACTIVE_USER_PERIOD_DAYS = 7 } =
+const { DIGEST_REBUILD_INTERVAL_HOURS = 4, ACTIVE_USER_PERIOD_DAYS = 7 } =
     process.env;
 
-async function buildDigestForUser(user, logger, job) {
+async function buildDigestForUser(user, logger, job, force = false) {
     const owner = user._id;
     const Digest = (await import("../app/api/models/digest.mjs")).default;
     const DigestGenerationStatus = (
@@ -35,8 +35,9 @@ async function buildDigestForUser(user, logger, job) {
         const shouldBeRebuilt =
             !b.updatedAt ||
             !b.content ||
-            dayjs().diff(dayjs(b.updatedAt), "days") >
-                DIGEST_REBUILD_INTERVAL_DAYS ||
+            dayjs().diff(dayjs(b.updatedAt), "hours") >
+                DIGEST_REBUILD_INTERVAL_HOURS ||
+            force ||
             b.state.status === DigestGenerationStatus.PENDING ||
             b.state.status === DigestGenerationStatus.IN_PROGRESS;
 
@@ -181,7 +182,7 @@ async function buildDigestsForAllUsers(logger) {
             ),
         },
     })) {
-        await buildDigestForUser(user, logger);
+        await buildDigestForUser(user, logger, null, true);
     }
 }
 
