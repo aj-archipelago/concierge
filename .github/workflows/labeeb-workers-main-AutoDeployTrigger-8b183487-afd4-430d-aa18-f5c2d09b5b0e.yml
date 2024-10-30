@@ -34,8 +34,8 @@ jobs:
       - name: Build and push container image to registry
         uses: azure/container-apps-deploy-action@v2
         with:
-          appSourcePath: ${{ github.workspace }}/Dockerfile.worker
-          _dockerfilePathKey_: _dockerfilePath_
+          appSourcePath: ${{ github.workspace }}
+          dockerFilePath: Dockerfile.worker
           registryUrl: archipelagoairegistry.azurecr.io
           registryUsername: ${{ secrets.LABEEBWORKERSMAIN_REGISTRY_USERNAME }}
           registryPassword: ${{ secrets.LABEEBWORKERSMAIN_REGISTRY_PASSWORD }}
