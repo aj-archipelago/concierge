@@ -12,6 +12,7 @@ import LoadingButton from "../editor/LoadingButton";
 import ProgressUpdate from "../editor/ProgressUpdate";
 import TaxonomySelector from "./TaxonomySelector";
 import TranscribeUrlSourcer from "./TranscribeUrlSourcer";
+import AzureVideoTranslate from "./AzureVideoTranslate";
 
 function Transcribe({
     dataText,
@@ -1005,6 +1006,8 @@ function Transcribe({
                     />
                 </div>
             )}
+
+            <AzureVideoTranslate url={url} />
         </div>
     );
 }

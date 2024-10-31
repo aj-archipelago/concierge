@@ -137,8 +137,8 @@ const ProgressUpdate = ({
                             onClick={() => setShowInfo(!showInfo)}
                         >
                             {showInfo
-                                ? "Hide agent info"
-                                : "Show agent info (click to expand)"}
+                                ? "hide info"
+                                : "show info (click to expand)"}
                         </button>
                     </div>
                 )}

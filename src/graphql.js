@@ -711,7 +711,28 @@ const getWorkspacePromptQuery = (pathwayName) => {
     `;
 };
 
+const AZURE_VIDEO_TRANSLATE = gql`
+    query (
+        $mode: String
+        $sourcelocale: String
+        $targetlocale: String
+        $sourcevideooraudiofilepath: String
+        $stream: Boolean
+    ) {
+        azure_video_translate(
+            mode: $mode
+            sourcelocale: $sourcelocale
+            targetlocale: $targetlocale
+            sourcevideooraudiofilepath: $sourcevideooraudiofilepath
+            stream: $stream
+        ) {
+            result
+        }
+    }
+`;
+
 const QUERIES = {
+    AZURE_VIDEO_TRANSLATE,
     CHAT_PERSIST,
     CHAT_LABEEB,
     CHAT_EXTENSION,
@@ -808,6 +829,7 @@ const MUTATIONS = {
 
 export {
     getClient,
+    AZURE_VIDEO_TRANSLATE,
     CHAT_PERSIST,
     CHAT_LABEEB,
     CHAT_CODE,
