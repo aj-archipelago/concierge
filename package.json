@@ -63,6 +63,7 @@
         "react-intersection-observer": "^9.13.1",
         "react-markdown": "^9.0.1",
         "react-monaco-editor": "^0.55.0",
+        "react-player": "^2.16.0",
         "react-progress-timer": "^1.0.3",
         "react-quill": "^2.0.0",
         "react-redux": "^8.0.5",

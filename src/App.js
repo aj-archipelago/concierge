@@ -71,11 +71,20 @@ const App = ({
     }
 
     const debouncedUpdateUserState = (value) => {
-        setUserState({
-            ...userState,
-            ...value,
-        });
-    };
+        if (typeof value === "function") {
+            setUserState((prev) => {
+                return {
+                    ...prev,
+                    ...value(prev),
+                };
+            });
+        } else {
+            setUserState({
+                ...userState,
+                ...value,
+            });
+        };
+    }
 
     return (
         <ApolloNextAppProvider makeClient={() => getClient(serverUrl)}>

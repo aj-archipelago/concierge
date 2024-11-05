@@ -9,7 +9,7 @@ import {
 } from "react-icons/md";
 import config from "../../../config";
 import CopyButton from "../CopyButton";
-import TranscribePage from "../transcribe/TranscribePage";
+import TranscribePage from "../transcribe/VideoPage";
 import ExpandStoryContent from "./ExpandStoryContent";
 import SuggestionInput from "./SuggestionInput";
 import { getTextSuggestionsComponent } from "./TextSuggestions";
