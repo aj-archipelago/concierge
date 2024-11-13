@@ -137,20 +137,21 @@ function ChatContent({
                 });
 
                 let resultMessage = "";
-                let searchRequired = false;
                 let tool = null;
                 let newTitle = null;
-                let codeRequestId = null;
+                let toolCallbackName = null;
+                let toolCallbackId = null;
 
                 try {
+                    console.log("result", result);
                     const resultObj = JSON.parse(result.data.rag_start.result);
                     resultMessage = resultObj?.response;
 
                     tool = result.data.rag_start.tool;
                     if (tool) {
                         const toolObj = JSON.parse(tool);
-                        searchRequired = toolObj?.search;
-                        codeRequestId = toolObj?.codeRequestId;
+                        toolCallbackName = toolObj?.toolCallbackName;
+                        toolCallbackId = toolObj?.toolCallbackId;
 
                         if (
                             !chat?.titleSetByUser &&
@@ -174,7 +175,7 @@ function ChatContent({
                     sender: "labeeb",
                 };
 
-                const isChatLoading = !!(searchRequired || codeRequestId);
+                const isChatLoading = !!(toolCallbackName);
 
                 const optimisticMessages = [
                     ...(chat?.messages || []),
@@ -188,24 +189,27 @@ function ChatContent({
                     messages: optimisticMessages,
                     ...(newTitle && { title: newTitle }),
                     isChatLoading,
-                    ...(codeRequestId && { codeRequestId }),
+                    ...(toolCallbackId && { toolCallbackId }),
                 });
 
-                if (searchRequired) {
+                if (toolCallbackName) {
                     const searchResult = await client.query({
-                        query: QUERIES.RAG_GENERATOR_RESULTS,
-                        variables,
+                        query: QUERIES.SYS_ENTITY_CONTINUE,
+                        variables: {
+                            ...variables,
+                            generatorPathway: toolCallbackName,
+                        },
                     });
-                    const { result: searchMessage, tool: searchTool } =
-                        searchResult.data.rag_generator_results;
+                    const { result, tool } =
+                        searchResult.data.sys_entity_continue;
 
                     await updateChatHook.mutateAsync({
                         chatId: String(chat?._id),
                         messages: [
                             ...optimisticMessages,
                             {
-                                payload: searchMessage,
-                                tool: searchTool,
+                                payload: result,
+                                tool: tool,
                                 sentTime: "just now",
                                 direction: "incoming",
                                 position: "single",
