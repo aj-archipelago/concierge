@@ -20,7 +20,7 @@ const generateDigestBlockContent = async (
     };
 
     const client = await getClient();
-    let searchRequired = false;
+    let toolCallbackName = null;
     let tool = null;
     let content;
     let progress = { progress: 0.05 };
@@ -42,17 +42,19 @@ const generateDigestBlockContent = async (
         tool = result.data.rag_start.tool;
         if (tool) {
             const toolObj = JSON.parse(result.data.rag_start.tool);
-            searchRequired = toolObj?.search;
+            toolCallbackName = toolObj?.toolCallbackName;
         }
 
-        if (searchRequired) {
+        if (toolCallbackName) {
             const result = await client.query({
-                query: QUERIES.RAG_GENERATOR_RESULTS,
-
-                variables,
+                query: QUERIES.SYS_ENTITY_CONTINUE,
+                variables: {
+                    ...variables,
+                    generatorPathway:toolCallbackName,
+                },
             });
 
-            const { result: message, tool } = result.data.rag_generator_results;
+            const { result: message, tool } = result.data.sys_entity_continue;
             content = JSON.stringify({ payload: message, tool });
         } else {
             try {

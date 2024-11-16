@@ -138,17 +138,17 @@ const VISION = gql`
     }
 `;
 
-const RAG_READ_MEMORY = gql`
-    query RagReadMemory($contextId: String!) {
-        rag_read_memory(contextId: $contextId) {
+const SYS_READ_MEMORY = gql`
+    query SysReadMemory($contextId: String!) {
+        sys_read_memory(contextId: $contextId) {
             result
         }
     }
 `;
 
-const RAG_SAVE_MEMORY = gql`
-    query RagSaveMemory($aiMemory: String!, $contextId: String!) {
-        rag_save_memory(aiMemory: $aiMemory, contextId: $contextId) {
+const SYS_SAVE_MEMORY = gql`
+    query SysSaveMemory($aiMemory: String!, $contextId: String!) {
+        sys_save_memory(aiMemory: $aiMemory, contextId: $contextId) {
             result
         }
     }
@@ -190,8 +190,8 @@ const RAG_START = gql`
     }
 `;
 
-const RAG_GENERATOR_CODE = gql`
-    query RagGeneratorCode(
+const SYS_ENTITY_CONTINUE = gql`
+    query SysEntityContinue(
         $chatHistory: [MultiMessage]!
         $dataSources: [String]
         $contextId: String
@@ -202,9 +202,9 @@ const RAG_GENERATOR_CODE = gql`
         $aiName: String
         $useMemory: Boolean
         $chatId: String
-        $codingResult: String
+        $generatorPathway: String
     ) {
-        rag_generator_code(
+        sys_entity_continue(
             chatHistory: $chatHistory
             dataSources: $dataSources
             contextId: $contextId
@@ -215,41 +215,7 @@ const RAG_GENERATOR_CODE = gql`
             aiName: $aiName
             useMemory: $useMemory
             chatId: $chatId
-            codingResult: $codingResult
-        ) {
-            result
-            contextId
-            tool
-            warnings
-            errors
-        }
-    }
-`;
-
-const RAG_GENERATOR_RESULTS = gql`
-    query RagFinish(
-        $chatHistory: [MultiMessage]!
-        $dataSources: [String]
-        $contextId: String
-        $text: String
-        $roleInformation: String
-        $indexName: String
-        $semanticConfiguration: String
-        $aiName: String
-        $useMemory: Boolean
-        $chatId: String
-    ) {
-        rag_generator_results(
-            chatHistory: $chatHistory
-            dataSources: $dataSources
-            contextId: $contextId
-            text: $text
-            roleInformation: $roleInformation
-            indexName: $indexName
-            semanticConfiguration: $semanticConfiguration
-            aiName: $aiName
-            useMemory: $useMemory
-            chatId: $chatId
+            generatorPathway: $generatorPathway
         ) {
             result
             contextId
@@ -741,11 +707,10 @@ const QUERIES = {
     COGNITIVE_DELETE,
     COGNITIVE_INSERT,
     IMAGE,
-    RAG_READ_MEMORY,
-    RAG_SAVE_MEMORY,
+    SYS_READ_MEMORY,
+    SYS_SAVE_MEMORY,
     RAG_START,
-    RAG_GENERATOR_RESULTS,
-    RAG_GENERATOR_CODE,
+    SYS_ENTITY_CONTINUE,
     EXPAND_STORY,
     FORMAT_PARAGRAPH_TURBO,
     SELECT_SERVICES,
@@ -837,11 +802,10 @@ export {
     COGNITIVE_INSERT,
     COGNITIVE_DELETE,
     EXPAND_STORY,
-    RAG_READ_MEMORY,
-    RAG_SAVE_MEMORY,
+    SYS_READ_MEMORY,
+    SYS_SAVE_MEMORY,
     RAG_START,
-    RAG_GENERATOR_RESULTS,
-    RAG_GENERATOR_CODE,
+    SYS_ENTITY_CONTINUE,
     SELECT_SERVICES,
     SUMMARY,
     HASHTAGS,

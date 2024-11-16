@@ -24,7 +24,7 @@ const UserOptions = ({ show, handleClose }) => {
         data: memoryData,
         loading: memoryLoading,
         refetch: refetchMemory,
-    } = useQuery(QUERIES.RAG_READ_MEMORY, {
+    } = useQuery(QUERIES.SYS_READ_MEMORY, {
         variables: { contextId: user.contextId },
         skip: !user.contextId,
         fetchPolicy: "network-only", // This ensures we always fetch from the network
@@ -38,16 +38,8 @@ const UserOptions = ({ show, handleClose }) => {
     }, [show, user.contextId, refetchMemory]);
 
     useEffect(() => {
-        if (memoryData && memoryData.rag_read_memory.result) {
-            try {
-                const parsedMemory = JSON.parse(
-                    memoryData.rag_read_memory.result,
-                );
-                setAiMemory(parsedMemory);
-            } catch (error) {
-                // If it's not valid JSON, set it as is
-                setAiMemory(memoryData.rag_read_memory.result);
-            }
+        if (memoryData && memoryData.sys_read_memory.result) {
+            setAiMemory(memoryData.sys_read_memory.result);
         }
     }, [memoryData]);
 
@@ -73,16 +65,13 @@ const UserOptions = ({ show, handleClose }) => {
             aiStyle,
         });
 
-        // update the Cortex copy
-        const variables = {
-            contextId: user.contextId,
-            aiMemory: aiMemory,
-        };
-
         apolloClient
-            .query({
-                query: QUERIES.RAG_SAVE_MEMORY,
-                variables,
+            .mutate({
+                mutation: QUERIES.SYS_SAVE_MEMORY,
+                variables: {
+                    contextId: user.contextId,
+                    aiMemory: aiMemory,
+                },
             })
             .then((result) => {
                 console.log("Saved memory to Cortex", result);

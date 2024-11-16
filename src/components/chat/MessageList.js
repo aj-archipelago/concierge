@@ -160,7 +160,19 @@ function MessageList({ messages, bot, loading, chatId }) {
                         )}
                     >
                         <div className="font-semibold">{t(botName)}</div>
-                        <div className="chat-message-bot relative break-words">
+                        <div 
+                            className="chat-message-bot relative break-words"
+                            ref={el => {
+                                if (el) {
+                                    const images = el.getElementsByTagName('img');
+                                    Array.from(images).forEach(img => {
+                                        if (!img.complete) {
+                                            img.addEventListener('load', () => handleMessageLoad(message.id));
+                                        }
+                                    });
+                                }
+                            }}
+                        >
                             {message.payload}
                         </div>
                     </div>

@@ -36,7 +36,7 @@ function ChatContent({
     const updateChat = useCallback(
         (message, tool, isChatLoading = false) => {
             const messages = chat?.messages || [];
-            if (message) {
+            if (message?.trim()) {
                 messages.push({
                     chatId,
                     message: {
@@ -84,12 +84,10 @@ function ChatContent({
                     position: "single",
                 };
 
-                updateChatHook.mutateAsync({
+                // Show the user message immediately
+                await updateChatHook.mutateAsync({
                     chatId: String(chat?._id),
-                    messages: [
-                        ...(chat?.messages || []),
-                        optimisticUserMessage,
-                    ],
+                    messages: [...(chat?.messages || []), optimisticUserMessage],
                     isChatLoading: true,
                 });
 
@@ -163,35 +161,51 @@ function ChatContent({
                     }
                 } catch (e) {
                     console.error("Error parsing result:", e);
+                    throw new Error("Failed to parse AI response");
                 }
 
-                // Optimistic update for AI's response
-                const optimisticAIMessage = {
+                // Only proceed if we have a valid response
+                if (!resultMessage?.trim()) {
+                    throw new Error("Received empty response from AI");
+                }
+
+                // Get current messages and check if we need to replace a hidden message
+                let currentMessages = [...(chat?.messages || []), optimisticUserMessage];
+                if (currentMessages.length >= 2) {
+                    const lastMessage = currentMessages[currentMessages.length - 1];
+                    const prevMessage = currentMessages[currentMessages.length - 2];
+                    if (prevMessage?.sender === "labeeb" && prevMessage?.tool) {
+                        try {
+                            const tool = JSON.parse(prevMessage.tool);
+                            if (tool.hideFromModel) {
+                                // Remove the previous hidden message
+                                currentMessages = [...currentMessages.slice(0, -2), lastMessage];
+                            }
+                        } catch (e) {
+                            console.error("Invalid JSON in tool:", e);
+                        }
+                    }
+                }
+
+                // Add the new response
+                currentMessages.push({
                     payload: resultMessage,
                     tool: tool,
                     sentTime: "just now",
                     direction: "incoming",
                     position: "single",
                     sender: "labeeb",
-                };
+                });
 
-                const isChatLoading = !!(toolCallbackName);
-
-                const optimisticMessages = [
-                    ...(chat?.messages || []),
-                    optimisticUserMessage,
-                    optimisticAIMessage,
-                ];
-
-                // Confirm updates with the server
                 await updateChatHook.mutateAsync({
                     chatId: String(chat?._id),
-                    messages: optimisticMessages,
+                    messages: currentMessages,
                     ...(newTitle && { title: newTitle }),
-                    isChatLoading,
+                    isChatLoading: !!(toolCallbackName),
                     ...(toolCallbackId && { toolCallbackId }),
                 });
 
+                // Similar logic for toolCallbackName response
                 if (toolCallbackName) {
                     const searchResult = await client.query({
                         query: QUERIES.SYS_ENTITY_CONTINUE,
@@ -200,27 +214,50 @@ function ChatContent({
                             generatorPathway: toolCallbackName,
                         },
                     });
-                    const { result, tool } =
-                        searchResult.data.sys_entity_continue;
+                    const { result, tool } = searchResult.data.sys_entity_continue;
+
+                    // Validate the callback result
+                    if (!result?.trim()) {
+                        throw new Error("Received empty tool callback response");
+                    }
+
+                    // Check again for hidden message before adding the tool callback response
+                    const finalMessages = currentMessages.slice();
+                    const lastMsg = finalMessages[finalMessages.length - 1];
+                    if (lastMsg?.sender === "labeeb" && lastMsg?.tool) {
+                        try {
+                            const lastTool = JSON.parse(lastMsg.tool);
+                            if (lastTool.hideFromModel) {
+                                finalMessages.pop();
+                            }
+                        } catch (e) {
+                            console.error("Invalid JSON in tool:", e);
+                        }
+                    }
+
+                    finalMessages.push({
+                        payload: result,
+                        tool: tool,
+                        sentTime: "just now",
+                        direction: "incoming",
+                        position: "single",
+                        sender: "labeeb",
+                    });
 
                     await updateChatHook.mutateAsync({
                         chatId: String(chat?._id),
-                        messages: [
-                            ...optimisticMessages,
-                            {
-                                payload: result,
-                                tool: tool,
-                                sentTime: "just now",
-                                direction: "incoming",
-                                position: "single",
-                                sender: "labeeb",
-                            },
-                        ],
+                        messages: finalMessages,
                         isChatLoading: false,
                     });
                 }
             } catch (error) {
                 handleError(error);
+                // Ensure we set isChatLoading to false when there's an error
+                await updateChatHook.mutateAsync({
+                    chatId: String(chat?._id),
+                    messages: chat?.messages || [],
+                    isChatLoading: false,
+                });
             }
         },
         [
