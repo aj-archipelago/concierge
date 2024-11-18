@@ -61,11 +61,11 @@ export async function GET(req) {
 
         // Find multiple similar items instead of just one
         const similarItems = axisData.items
-            .map(item => ({
+            .map((item) => ({
                 item,
-                similarity: calculateSimilarity(searchQuery, item.name)
+                similarity: calculateSimilarity(searchQuery, item.name),
             }))
-            .filter(result => result.similarity > SIMILARITY_THRESHOLD)
+            .filter((result) => result.similarity > SIMILARITY_THRESHOLD)
             .sort((a, b) => b.similarity - a.similarity)
             .slice(0, MAX_RESULTS);
 
@@ -75,7 +75,7 @@ export async function GET(req) {
                 name: item.name,
                 url: getBestRenditionForTranscription(item),
                 videoUrl: getBestQualityRendition(item),
-                similarity: calculateSimilarity(searchQuery, item.name)
+                similarity: calculateSimilarity(searchQuery, item.name),
             }));
 
             return NextResponse.json({ results });

@@ -985,14 +985,14 @@ function Transcribe({
                                 className="absolute top-1 right-1"
                             />
                         </div>
-                        {!responseFormat && (
+                        {/* {!responseFormat && (
                             <div className="mt-4">
                                 <h4 className="font-semibold text-lg">
                                     {t("Taxonomy: ")}
                                 </h4>
                                 <TaxonomySelector text={dataText} />
                             </div>
-                        )}
+                        )} */}
                     </div>
                 )}
             </div>

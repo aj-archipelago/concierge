@@ -26,7 +26,9 @@ const VideoSelector = ({ url, onSelect }) => {
     return (
         <div className="mb-4 min-h-[300px]">
             <div className="mb-1">
-                <label htmlFor="url-input" className="font-semibold">Search by video URL or title</label>
+                <label htmlFor="url-input" className="font-semibold">
+                    Search by video URL or title
+                </label>
             </div>
             <div className="flex gap-2">
                 <div className="grow">
@@ -36,7 +38,7 @@ const VideoSelector = ({ url, onSelect }) => {
                         value={searchInput}
                         onChange={(e) => setSearchInput(e.target.value)}
                         onKeyDown={(e) => {
-                            if (e.key === 'Enter') {
+                            if (e.key === "Enter") {
                                 handleSearch();
                             }
                         }}
@@ -59,18 +61,26 @@ const VideoSelector = ({ url, onSelect }) => {
             </div>
 
             {isLoading ? null : error ? (
-                <p className="mt-4">Error: {error.message || JSON.stringify(error)}</p>
+                <p className="mt-4">
+                    Error: {error.message || JSON.stringify(error)}
+                </p>
             ) : data?.results?.length > 0 ? (
-                <div className="bg-gray-100 p-4 rounded-sm text-md mt-4">
+                <div className="bg-gray-100 p-4 rounded-sm text-md mt-4 max-h-[350px] overflow-auto">
                     <h6 className="font-bold mb-2">
                         Found {data.results.length} potential matches:
                     </h6>
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                         {data.results.map((result, index) => (
-                            <div key={index} className="bg-white rounded-lg shadow-sm p-4">
-                                <p className="text-gray-700 font-semibold mb-1 truncate">{result.name}</p>
+                            <div
+                                key={index}
+                                className="bg-white rounded-lg shadow-sm p-4"
+                            >
+                                <p className="text-gray-700 font-semibold mb-1 truncate">
+                                    {result.name}
+                                </p>
                                 <p className="text-gray-500 text-sm mb-2">
-                                    Match confidence: {Math.round(result.similarity * 100)}%
+                                    Match confidence:{" "}
+                                    {Math.round(result.similarity * 100)}%
                                 </p>
                                 <video
                                     className="w-full aspect-video object-cover mb-4 rounded"
@@ -80,10 +90,12 @@ const VideoSelector = ({ url, onSelect }) => {
                                 <div className="flex justify-center gap-2 text-xs">
                                     <button
                                         className="lb-success"
-                                        onClick={() => onSelect({
-                                            videoUrl: result.videoUrl,
-                                            transcriptionUrl: result.url,
-                                        })}
+                                        onClick={() =>
+                                            onSelect({
+                                                videoUrl: result.videoUrl,
+                                                transcriptionUrl: result.url,
+                                            })
+                                        }
                                     >
                                         <CheckIcon className="w-4 h-4" />
                                         Use this video

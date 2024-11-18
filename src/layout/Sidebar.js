@@ -5,7 +5,7 @@ import {
     NewspaperIcon,
     PencilSquareIcon,
     PhotoIcon,
-    PlusIcon
+    PlusIcon,
 } from "@heroicons/react/24/outline";
 import { HelpCircle, VideoIcon } from "lucide-react";
 import Link from "next/link";

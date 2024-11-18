@@ -83,8 +83,8 @@ const App = ({
                 ...userState,
                 ...value,
             });
-        };
-    }
+        }
+    };
 
     return (
         <ApolloNextAppProvider makeClient={() => getClient(serverUrl)}>
