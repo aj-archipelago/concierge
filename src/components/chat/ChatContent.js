@@ -1,4 +1,4 @@
-import React, { useCallback, useContext, useMemo } from "react";
+import React, { useCallback, useContext, useMemo, useEffect } from "react";
 import { useSelector } from "react-redux";
 import { useApolloClient } from "@apollo/client";
 import { useTranslation } from "react-i18next";
@@ -139,7 +139,7 @@ function ChatContent({
                 let newTitle = null;
                 let toolCallbackName = null;
                 let toolCallbackId = null;
-
+                let codeRequestId = null;
                 try {
                     console.log("result", result);
                     const resultObj = JSON.parse(result.data.rag_start.result);
@@ -150,7 +150,7 @@ function ChatContent({
                         const toolObj = JSON.parse(tool);
                         toolCallbackName = toolObj?.toolCallbackName;
                         toolCallbackId = toolObj?.toolCallbackId;
-
+                        codeRequestId = toolObj?.codeRequestId;
                         if (
                             !chat?.titleSetByUser &&
                             toolObj?.title &&
@@ -203,10 +203,10 @@ function ChatContent({
                     ...(newTitle && { title: newTitle }),
                     isChatLoading: !!(toolCallbackName),
                     ...(toolCallbackId && { toolCallbackId }),
+                    ...(codeRequestId && { codeRequestId }),
                 });
 
-                // Similar logic for toolCallbackName response
-                if (toolCallbackName) {
+                if (toolCallbackName && toolCallbackName !== "coding") {
                     const searchResult = await client.query({
                         query: QUERIES.SYS_ENTITY_CONTINUE,
                         variables: {
@@ -271,6 +271,17 @@ function ChatContent({
             chatId,
         ],
     );
+
+    useEffect(() => {
+        if (chat?.isChatLoading && !chat?.toolCallbackName) {
+            updateChatHook.mutateAsync({
+                chatId: String(chat._id),
+                messages: chat.messages || [],
+                isChatLoading: false,
+            });
+        }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
     return (
         <ChatMessages
