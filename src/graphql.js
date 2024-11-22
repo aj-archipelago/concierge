@@ -631,6 +631,14 @@ const IMAGE = gql`
     }
 `;
 
+const IMAGE_FLUX = gql`
+    query ImageFlux($text: String!, $model: String, $async: Boolean) {
+        image_flux(text: $text, model: $model, async: $async) {
+            result
+        }
+    }
+`;
+
 const JIRA_STORY = gql`
     query JiraStory(
         $text: String!
@@ -707,6 +715,7 @@ const QUERIES = {
     COGNITIVE_DELETE,
     COGNITIVE_INSERT,
     IMAGE,
+    IMAGE_FLUX,
     SYS_READ_MEMORY,
     SYS_SAVE_MEMORY,
     RAG_START,
@@ -810,6 +819,7 @@ export {
     SUMMARY,
     HASHTAGS,
     HEADLINE,
+    IMAGE_FLUX,
     GRAMMAR,
     SPELLING,
     PARAPHRASE,
