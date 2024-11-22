@@ -50,7 +50,7 @@ const generateDigestBlockContent = async (
                 query: QUERIES.SYS_ENTITY_CONTINUE,
                 variables: {
                     ...variables,
-                    generatorPathway:toolCallbackName,
+                    generatorPathway: toolCallbackName,
                 },
             });
 

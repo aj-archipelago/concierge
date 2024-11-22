@@ -377,5 +377,12 @@
     "Pathway name": "اسم المسار",
     "A pathway with the name \"{{pathwayName}}\" already exists in your user's Cortex namespace. Please rename the workspace and try again.": "يوجد بالفعل مسار باسم \"{{pathwayName}}\" في مساحة اسم Cortex الخاصة بالمستخدم. يرجى إعادة تسمية مساحة العمل والمحاولة مرة أخرى.",
     "Copying...": "جاري النسخ...",
-    "Published": "منشور"
+    "Published": "منشور",
+    "Used {{tool}} tool": "استخدم أداة {{tool}}",
+    "tool.search": "بحث",
+    "tool.reasoning": "تفكير",
+    "tool.image": "صورة",
+    "tool.writing": "كتابة",
+    "tool.vision": "رؤية",
+    "tool.default": "أداة"
 }

@@ -87,7 +87,10 @@ function ChatContent({
                 // Show the user message immediately
                 await updateChatHook.mutateAsync({
                     chatId: String(chat?._id),
-                    messages: [...(chat?.messages || []), optimisticUserMessage],
+                    messages: [
+                        ...(chat?.messages || []),
+                        optimisticUserMessage,
+                    ],
                     isChatLoading: true,
                 });
 
@@ -170,16 +173,24 @@ function ChatContent({
                 }
 
                 // Get current messages and check if we need to replace a hidden message
-                let currentMessages = [...(chat?.messages || []), optimisticUserMessage];
+                let currentMessages = [
+                    ...(chat?.messages || []),
+                    optimisticUserMessage,
+                ];
                 if (currentMessages.length >= 2) {
-                    const lastMessage = currentMessages[currentMessages.length - 1];
-                    const prevMessage = currentMessages[currentMessages.length - 2];
+                    const lastMessage =
+                        currentMessages[currentMessages.length - 1];
+                    const prevMessage =
+                        currentMessages[currentMessages.length - 2];
                     if (prevMessage?.sender === "labeeb" && prevMessage?.tool) {
                         try {
                             const tool = JSON.parse(prevMessage.tool);
                             if (tool.hideFromModel) {
                                 // Remove the previous hidden message
-                                currentMessages = [...currentMessages.slice(0, -2), lastMessage];
+                                currentMessages = [
+                                    ...currentMessages.slice(0, -2),
+                                    lastMessage,
+                                ];
                             }
                         } catch (e) {
                             console.error("Invalid JSON in tool:", e);
@@ -201,7 +212,7 @@ function ChatContent({
                     chatId: String(chat?._id),
                     messages: currentMessages,
                     ...(newTitle && { title: newTitle }),
-                    isChatLoading: !!(toolCallbackName),
+                    isChatLoading: !!toolCallbackName,
                     ...(toolCallbackId && { toolCallbackId }),
                     ...(codeRequestId && { codeRequestId }),
                 });
@@ -214,11 +225,14 @@ function ChatContent({
                             generatorPathway: toolCallbackName,
                         },
                     });
-                    const { result, tool } = searchResult.data.sys_entity_continue;
+                    const { result, tool } =
+                        searchResult.data.sys_entity_continue;
 
                     // Validate the callback result
                     if (!result?.trim()) {
-                        throw new Error("Received empty tool callback response");
+                        throw new Error(
+                            "Received empty tool callback response",
+                        );
                     }
 
                     // Check again for hidden message before adding the tool callback response
@@ -280,7 +294,7 @@ function ChatContent({
                 isChatLoading: false,
             });
         }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     return (
