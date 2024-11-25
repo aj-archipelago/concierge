@@ -1,5 +1,4 @@
 import React, { useCallback, useContext, useMemo, useEffect } from "react";
-import { useSelector } from "react-redux";
 import { useApolloClient } from "@apollo/client";
 import { useTranslation } from "react-i18next";
 import { toast } from "react-toastify";
@@ -28,48 +27,15 @@ function ChatContent({
     const chat = viewingReadOnlyChat ? viewingChat : activeChat;
     const chatId = String(chat?._id);
     const memoizedMessages = useMemo(() => chat?.messages || [], [chat]);
-    const selectedSources = useSelector((state) => state.doc.selectedSources);
     const updateChatHook = useUpdateChat();
     const publicChatOwner = viewingChat?.owner;
     const isChatLoading = chat?.isChatLoading;
 
-    const updateChat = useCallback(
-        (message, tool, isChatLoading = false) => {
-            const messages = chat?.messages || [];
-            if (message?.trim()) {
-                messages.push({
-                    chatId,
-                    message: {
-                        payload: message,
-                        tool: tool,
-                        sentTime: "just now",
-                        direction: "incoming",
-                        position: "single",
-                        sender: "labeeb",
-                    },
-                });
-            }
-
-            updateChatHook.mutateAsync({
-                chatId,
-                isChatLoading,
-                messages,
-            });
-        },
-        [chatId, updateChatHook, chat],
-    );
-
     const handleError = useCallback(
         (error) => {
             toast.error(error.message);
-            updateChat(
-                t(
-                    "Something went wrong trying to respond to your request. Please try something else or start over to continue.",
-                ),
-                null,
-            );
         },
-        [t, updateChat],
+        [],
     );
 
     const handleSend = useCallback(
@@ -126,10 +92,6 @@ function ChatContent({
                     title: chat?.title,
                     chatId,
                 };
-
-                if (selectedSources && selectedSources.length > 0) {
-                    variables.dataSources = selectedSources;
-                }
 
                 // Perform RAG start query
                 const result = await client.query({
@@ -270,10 +232,26 @@ function ChatContent({
                 }
             } catch (error) {
                 handleError(error);
-                // Ensure we set isChatLoading to false when there's an error
+                // Update to include both the original user message and the error message
                 await updateChatHook.mutateAsync({
                     chatId: String(chat?._id),
-                    messages: chat?.messages || [],
+                    messages: [
+                        ...(chat?.messages || []),
+                        {
+                            payload: text,
+                            sender: "user",
+                            sentTime: "just now",
+                            direction: "outgoing",
+                            position: "single",
+                        },
+                        {
+                            payload: t("Something went wrong trying to respond to your request. Please try something else or start over to continue."),
+                            sender: "labeeb",
+                            sentTime: "just now",
+                            direction: "incoming",
+                            position: "single",
+                        }
+                    ],
                     isChatLoading: false,
                 });
             }
@@ -284,9 +262,9 @@ function ChatContent({
             client,
             user,
             memoizedMessages,
-            selectedSources,
             handleError,
             chatId,
+            t
         ],
     );
 

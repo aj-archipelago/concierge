@@ -15,6 +15,7 @@ import ChatContent from "./ChatContent";
 import config from "../../../config";
 import { useRouter, usePathname } from "next/navigation";
 import { AuthContext } from "../../App.js";
+import { useGetActiveChat } from "../../../app/queries/chats"; // Add this import at the top
 
 function ChatBox() {
     const { user } = useContext(AuthContext);
@@ -32,6 +33,7 @@ function ChatBox() {
     const { language } = useContext(LanguageContext);
     const router = useRouter();
     const pathname = usePathname(); // Get the current pathname
+    const activeChat = useGetActiveChat()?.data;
 
     const updateChatBox = useCallback(
         (newPosition) => {
@@ -109,7 +111,8 @@ function ChatBox() {
                         <FaWindowMaximize
                             onClick={(e) => {
                                 e.stopPropagation();
-                                router.push("/chat");
+                                const chatId = activeChat?._id;
+                                router.push(chatId ? `/chat/${chatId}` : '/chat');
                             }}
                         />
                         <FaWindowClose
