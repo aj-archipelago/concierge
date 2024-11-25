@@ -18,7 +18,7 @@ import { ToastContainer, Flip } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import { ThemeContext } from "../contexts/ThemeProvider";
 import { LanguageContext } from "../contexts/LanguageProvider";
-import { ProgressProvider } from '../contexts/ProgressContext';
+import { ProgressProvider } from "../contexts/ProgressContext";
 
 export default function Layout({ children }) {
     const [showOptions, setShowOptions] = useState(false);

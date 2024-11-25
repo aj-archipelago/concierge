@@ -447,7 +447,7 @@ function TranscriptView({
 
     return (
         <>
-            <div className="transcription-taxonomy-container flex flex-col gap-4 overflow-y-auto h-[calc(100vh-250px)]">
+            <div className="transcription-taxonomy-container flex flex-col gap-2 overflow-y-auto h-[calc(100vh-250px)]">
                 <div>
                     <div className="flex items-center justify-between gap-2">
                         <EditableName name={name} onNameChange={onNameChange} />

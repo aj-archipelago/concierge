@@ -15,7 +15,7 @@ import { QUERIES } from "../../graphql";
 import LoadingButton from "../editor/LoadingButton";
 import ProgressUpdate from "../editor/ProgressUpdate";
 import TranslationOptions from "./TranslationOptions";
-import { useProgress } from '../../contexts/ProgressContext';
+import { useProgress } from "../../contexts/ProgressContext";
 
 export function AddTrackOptions({
     url,
@@ -310,9 +310,10 @@ export default function TranscribeVideo({
         try {
             setLoading(true);
 
-            const _query = selectedModelOption === "NeuralSpace"
-                ? QUERIES.TRANSCRIBE_NEURALSPACE
-                : QUERIES.TRANSCRIBE;
+            const _query =
+                selectedModelOption === "NeuralSpace"
+                    ? QUERIES.TRANSCRIBE_NEURALSPACE
+                    : QUERIES.TRANSCRIBE;
 
             const { data } = await apolloClient.query({
                 query: _query,
@@ -320,7 +321,8 @@ export default function TranscribeVideo({
                     file: url,
                     language,
                     wordTimestamped,
-                    responseFormat: responseFormat !== "formatted" ? responseFormat : null,
+                    responseFormat:
+                        responseFormat !== "formatted" ? responseFormat : null,
                     maxLineCount,
                     maxLineWidth,
                     maxWordsPerLine,
@@ -330,13 +332,15 @@ export default function TranscribeVideo({
                 fetchPolicy: "network-only",
             });
 
-            const dataResult = data?.transcribe?.result || data?.transcribe_neuralspace?.result;
+            const dataResult =
+                data?.transcribe?.result ||
+                data?.transcribe_neuralspace?.result;
 
             if (dataResult) {
                 if (async) {
                     setRequestId(dataResult);
                     addProgressToast(
-                        dataResult, 
+                        dataResult,
                         t("Transcribing") + "...",
                         (finalData) => {
                             setLoading(false);
@@ -348,7 +352,7 @@ export default function TranscribeVideo({
                                     : selectedModelOption,
                             });
                             setRequestId(null);
-                        }
+                        },
                     );
                     onClose?.();
                 } else {
@@ -373,7 +377,7 @@ export default function TranscribeVideo({
         async,
         addProgressToast,
         t,
-        onClose
+        onClose,
     ]);
 
     // Add logging for select changes

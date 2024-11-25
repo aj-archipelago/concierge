@@ -1,5 +1,6 @@
 "use client";
 
+import { Checkbox } from "@/components/ui/checkbox";
 import {
     Dialog,
     DialogContent,
@@ -15,15 +16,25 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 import { useApolloClient } from "@apollo/client";
-import { PlusIcon, RefreshCwIcon, TextIcon, VideoIcon } from "lucide-react";
+import {
+    CheckIcon,
+    CopyIcon,
+    DownloadIcon,
+    PlusIcon,
+    RefreshCwIcon,
+    TextIcon,
+    VideoIcon,
+} from "lucide-react";
 import { useCallback, useContext, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import classNames from "../../../app/utils/class-names";
 import { AuthContext, ServerContext } from "../../App";
 import { QUERIES } from "../../graphql";
-import { AddTrackButton, AddTrackOptions } from "./TranscriptionOptions";
+import AddTrackDialog from "./AddTrackDialog";
+import AzureVideoTranslate from "./AzureVideoTranslate";
+import { AddTrackButton } from "./TranscriptionOptions";
 import TranscriptView from "./TranscriptView";
 import VideoInput from "./VideoInput";
-import AddTrackDialog from "./AddTrackDialog";
 
 const isValidUrl = (url) => {
     try {
@@ -33,402 +44,6 @@ const isValidUrl = (url) => {
         return false;
     }
 };
-
-const englishVtt = `WEBVTT
-
-2
-00:00:00.000 --> 00:00:08.000
-Now Israeli authorities are investigating a suspected intelligence leak that may have harmed efforts to reach a ceasefire in Gaza and the release of
-
-3
-00:00:08.160 --> 00:00:14.000
-Captives the case involves an aid of Prime Minister Benjamin Netanyahu's who's since been arrested
-
-4
-00:00:14.600 --> 00:00:22.840
-Investigators are examining four issues including the leaking of top secret documents and the use of those documents to influence public opinion on a captive
-
-5
-00:00:22.840 --> 00:00:28.799
-Deal critics say the leak was aimed at giving Netanyahu political cover and fuel public support
-
-6
-00:00:28.920 --> 00:00:34.119
-Particularly as ceasefire talks dragged on the case has outraged the families of captives
-
-7
-00:00:34.119 --> 00:00:37.840
-Who for months now have demanded a deal to bring them home?
-
-8
-00:00:39.680 --> 00:00:41.160
-Let's bring in Menashem Klein
-
-9
-00:00:41.160 --> 00:00:46.360
-He's a professor of political science at Bar-Ilan University and joins us now live from West Jerusalem
-
-10
-00:00:46.360 --> 00:00:51.959
-Good to have you especially on this story to get the Israeli perspective on how this is being perceived
-
-11
-00:00:51.959 --> 00:00:58.759
-First of all, do people believe that the information that was leaked by Netanyahu's office was actually false?
-
-12
-00:00:59.799 --> 00:01:04.720
-It is in my view as far as I read the Israeli public
-
-13
-00:01:04.720 --> 00:01:12.639
-So the general public cannot get a clear understanding on this affair
-
-14
-00:01:12.639 --> 00:01:24.239
-It's mainly a branch of a problem within the relations between the security establishment and the media
-
-15
-00:01:24.239 --> 00:01:32.959
-The general public has a problem to see what's going on there
-
-16
-00:01:32.959 --> 00:01:42.959
-Who is in charge of leaking top secrets? What wrong was done by Netanyahu's assistants and so on?
-
-17
-00:01:42.959 --> 00:01:53.959
-It seems that it is an affair in the relations between the security establishment and the Prime Minister's office
-
-18
-00:01:54.279 --> 00:02:01.480
-The relations between the two institutions is very bad from day one of this war
-
-19
-00:02:01.480 --> 00:02:09.880
-Netanyahu tries to blame the security and clean himself from any responsibility of October 7
-
-20
-00:02:10.679 --> 00:02:15.240
-The other way around is the security establishment approach
-
-21
-00:02:15.240 --> 00:02:21.880
-They say, okay, we are responsible, but you too, you are the number one responsible
-
-22
-00:02:22.520 --> 00:02:32.600
-So it is here once again, another round of blame exchange between the Prime Minister and the security establishment
-
-23
-00:02:32.600 --> 00:02:35.320
-So still the leak, yeah, sorry
-
-24
-00:02:35.320 --> 00:02:41.720
-Just to jump in there, has Netanyahu gained anything from this leak? Is he hoping to gain anything?
-
-25
-00:02:44.440 --> 00:02:51.160
-First of all, his strategy is to distance himself from this affair
-
-26
-00:02:51.240 --> 00:02:55.399
-No, it is not exactly my assistant
-
-27
-00:02:55.399 --> 00:03:01.080
-He was occupied in my office, but not in the inner circle
-
-28
-00:03:03.000 --> 00:03:07.160
-He was under the chief of staff, but not under me
-
-29
-00:03:07.160 --> 00:03:14.360
-And so when he tries to distance himself from what happened, this is his strategy
-
-30
-00:03:14.360 --> 00:03:22.759
-And then secondary, he says, no, it is not a top secret, it's not a big deal
-
-31
-00:03:23.639 --> 00:03:27.639
-So he tries to control the damage
-
-32
-00:03:28.679 --> 00:03:38.279
-And then I assume that later on he will come up with his version, full version, and apply to his supporters
-
-33
-00:03:38.279 --> 00:03:46.520
-For the general Israeli public, a person in Israel that is not fully aware
-
-34
-00:03:46.520 --> 00:03:53.720
-How the intelligence information is transferred to the Prime Minister's office
-
-35
-00:03:53.720 --> 00:04:01.720
-And the relations between the Prime Minister's office and what was done by the Prime Minister's office
-
-36
-00:04:02.199 --> 00:04:12.679
-And with this information and how it was published abroad, it is something very strange, they cannot get it
-
-37
-00:04:13.320 --> 00:04:18.440
-Netanyahu is on trial already for a number of cases, two of them for corruption
-
-38
-00:04:18.440 --> 00:04:23.880
-That allege that he gave favours to media moguls in return for favourable coverage
-
-39
-00:04:23.880 --> 00:04:27.720
-I mean, this is a man who is an extraordinarily canny political survivor
-
-40
-00:04:28.679 --> 00:04:34.679
-Definitely, he is a survivor and a very good campaigner
-
-41
-00:04:34.679 --> 00:04:38.679
-He is a very bad decision maker, he is a very bad Prime Minister
-
-42
-00:04:38.679 --> 00:04:43.880
-But he is a campaigner and survivor, political campaigner, political survivor
-
-43
-00:04:43.880 --> 00:04:49.640
-And he does many tricks in order to stay in power
-
-44
-00:04:50.600 --> 00:04:58.600
-And his main mean through which he shapes public opinion is the media
-
-45
-00:04:58.600 --> 00:05:02.600
-He was brought up, politically brought up, in the United States
-
-46
-00:05:02.600 --> 00:05:06.600
-And he is a Trump-style leader
-
-47
-00:05:06.600 --> 00:05:10.600
-The media is his main forum to shape the public opinion
-
-48
-00:05:10.600 --> 00:05:12.600
-Menachem Klein, great to speak to you
-
-49
-00:05:12.600 --> 00:05:16.600
-Thanks very much for taking the time to join us there from West Jerusalem
-
-50
-00:05:16.600 --> 00:05:18.600
-Thank you`;
-
-const arabicVtt = `WEBVTT
-
-2
-00:00:00.000 --> 00:00:08.000
-تحقق السلطات الإسرائيلية الآن في تسريب استخباراتي مشتبه به قد يكون قد اضر بجهود التوصل إلى وقف لإطلاق النار في غزة وإطلاق سراح
-
-3
-00:00:08.160 --> 00:00:14.000
-الأسرى. القضية تتعلق بمساعد لرئيس الوزراء بنيامين نتنياهو الذي تم اعتقاله منذ ذلك الحين
-
-4
-00:00:14.600 --> 00:00:22.840
-يحقق المحققون في أربعة قضايا بما في ذلك تسريب وثائق سرية للغاية واستخدام تلك الوثائق للتأثير على الرأي العام بشأن صفقة الأسرى
-
-5
-00:00:22.840 --> 00:00:28.799
-يقول النقاد إن التسريب كان يهدف إلى منح نتنياهو تغطية سياسية وتأجيج الدعم العام
-
-6
-00:00:28.920 --> 00:00:34.119
-خاصة مع استمرار محادثات وقف إطلاق النار. أثارت القضية غضب عائلات الأسرى
-
-7
-00:00:34.119 --> 00:00:37.840
-التي تطالب منذ شهور بصفقة لإعادتهم إلى الوطن
-
-8
-00:00:39.680 --> 00:00:41.160
-لنستمع إلى مناحم كلين
-
-9
-00:00:41.160 --> 00:00:46.360
-إنه أستاذ العلوم السياسية في جمعة بار-إيلان وينضم إلينا الآن مباشرة من القدس الغربية
-
-10
-00:00:46.360 --> 00:00:51.959
-من الجيد أن يكون معنا خصوًا في هذه القصة للحصول على وجهة النظر الإسرائيلية حول كيفية استيعاب هذا الأمر
-
-11
-00:00:51.959 --> 00:00:58.759
-أولاً، هل يعتقد اناس أن المعلومات التي تسربت من مكتب نتنياهو كانت بالفعل خاطئة؟
-
-12
-00:00:59.799 --> 00:01:04.720
-برأيي، كما أقرأ الجمهور الإسرائيلي
-
-13
-00:01:04.720 --> 00:01:12.639
-لا يمكن للجمهور العام أن يفهم بوضوح هذه القضية
-
-14
-00:01:12.639 --> 00:01:24.239
-إنها في الأساس جزء من مشكلة في العلاقة بين المؤسسة الأمنية والإعلام
-
-15
-00:01:24.239 --> 00:01:32.959
-يصعب على الجمهور العام رؤية ما يجري هناك
-
-16
-00:01:32.959 --> 00:01:42.959
-من المسؤول عن تسريب الأسرار العليا؟ ما الخطأ الذي ارتكبه مساعدو نتنياهو؟
-
-17
-00:01:42.959 --> 00:01:53.959
-يبدو أنها قضية في العلاقة بين المؤسسة الأمنية ومكتب رئيس الوزراء
-
-18
-00:01:54.279 --> 00:02:01.480
-العلاقة بين المؤسستين سيئة للغاية منذ اليوم الأول لهذه الحرب
-
-19
-00:02:01.480 --> 00:02:09.880
-يحاول نتنياهو إلقاء اللوم على الأمن وإبعاد نفسه عن أي مسؤولية في 7 أكتوبر
-
-20
-00:02:10.679 --> 00:02:15.240
-العكس هو نهج المؤسسة الأمنية
-
-21
-00:02:15.240 --> 00:02:21.880
-يقولون، حسنًا، نحن مسؤولون، لكنك أيضًا، أنت المسؤول الأول
-
-22
-00:02:22.520 --> 00:02:32.600
-لذا هنا جولة أخرى من تبادل الاتهامات بين رئيس الوزراء والمؤسسة الأمنية
-
-23
-00:02:32.600 --> 00:02:35.320
-لذا لا يزال التسريب، نعم، آسف
-
-24
-00:02:35.320 --> 00:02:41.720
-مجرد التدخل، هل استفاد نتنياهو من هذا التسريب؟ هل يأمل في الاستفادة منه؟
-
-25
-00:02:44.440 --> 00:02:51.160
-أولاً، استراتيجيته هي النأي بنفسه عن هذه القضية
-
-26
-00:02:51.240 --> 00:02:55.399
-لا، إنه ليس بالضبط مساعدي
-
-27
-00:02:55.399 --> 00:03:01.080
-كان يعمل في مكتبي، ولكنه ليس في الدائرة الداخلية
-
-28
-00:03:03.000 --> 00:03:07.160
-كان تحت رئيس الأركان، ولكن ليس تحت إدارتي
-
-29
-00:03:07.160 --> 00:03:14.360
-ولذا عندما يحاول النأي بنفسه عما حدث، هذه هي استراتيجيته
-
-30
-00:03:14.360 --> 00:03:22.759
-ثم في المقام الثاني، يقول، لا، هذا ليس سرًا كبيرًا، ليس قضية كبيرة
-
-31
-00:03:23.639 --> 00:03:27.639
-لذا يحاول السيطرة على الأضرار
-
-32
-00:03:28.679 --> 00:03:38.279
-ثم أفترض أنه لاحقًا سوف يأتي بإصداره الكامل ويعرضه على مؤيديه
-
-33
-00:03:38.279 --> 00:03:46.520
-بالنسبة للجمهور الإسرائيلي العام، الشخص في إسرائيل الذي ليس على دراية تامة
-
-34
-00:03:46.520 --> 00:03:53.720
-كيف يتم نقل المعلومات الاستخباراتية إلى مكتب رئيس الوزراء
-
-35
-00:03:53.720 --> 00:04:01.720
-والعلاقة بين مكتب رئيس الوزراء وما تم من قبل مكتب رئيس الوزراء
-
-36
-00:04:02.199 --> 00:04:12.679
-ومع هذه المعلومات وكيف تم نشرها في الخارج، هو شيء غريب للغاية، لا يستطيعون فهمه
-
-37
-00:04:13.320 --> 00:04:18.440
-نتنياهو يحاكم بالفعل في عدد من القضايا، اثنتان منها تتعلق بالفساد
-
-38
-00:04:18.440 --> 00:04:23.880
-تتهمه بأنه قدم خدمات لرجال الإعلام مقابل تغطية إعلامية إيجابية
-
-39
-00:04:23.880 --> 00:04:27.720
-هذا رجل سياسي بارع للغاية ويُعتبر نجا في البقاء السياسي
-
-40
-00:04:28.679 --> 00:04:34.679
-بالتأكيد، هو ناجٍ وحملة دعائية ماهرة
-
-41
-00:04:34.679 --> 00:04:38.679
-هو صانع قرارات سيء جداً، رئيس وزراء سيء جداً
-
-42
-00:04:38.679 --> 00:04:43.880
-لكنه حملة دعائية وناجٍ سياسي ماهر
-
-43
-00:04:43.880 --> 00:04:49.640
-ويقوم بالعديد من الحيل للبقاء في السلطة
-
-44
-00:04:50.600 --> 00:04:58.600
-ووسيلته الرئيسية التي من خلالها يشكل الرأي العام هي وسائل الإعلام
-
-45
-00:04:58.600 --> 00:05:02.600
-تم تربيته سياسيًا في الولايات المتحدة
-
-46
-00:05:02.600 --> 00:05:06.600
-وهو قائد على نمط ترامب
-
-47
-00:05:06.600 --> 00:05:10.600
-الإعلام هي ساحته الرئيسية لتشكيل الرأي العام
-
-48
-00:05:10.600 --> 00:05:12.600
-مناحم كلين، سعداء بالحديث معك
-
-49
-00:05:12.600 --> 00:05:16.600
-شكرًا جزيلاً لك على الانضمام إلينا من القدس الغربية
-
-50
-00:05:16.600 --> 00:05:18.600
-شكراً`;
 
 function convertSrtToVtt(data) {
     // remove dos newlines
@@ -506,8 +121,8 @@ function convertSrtCue(caption) {
 
 const isAudioFile = (url) => {
     if (!url) return false;
-    const audioExtensions = ['.mp3', '.wav', '.ogg', '.m4a', '.aac'];
-    return audioExtensions.some(ext => url.toLowerCase().endsWith(ext));
+    const audioExtensions = [".mp3", ".wav", ".ogg", ".m4a", ".aac"];
+    return audioExtensions.some((ext) => url.toLowerCase().endsWith(ext));
 };
 
 function VideoPage({ onSelect }) {
@@ -515,8 +130,7 @@ function VideoPage({ onSelect }) {
     const [activeTranscript, setActiveTranscript] = useState(0);
     const [asyncComplete, setAsyncComplete] = useState(false);
     const [url, setUrl] = useState("");
-    const [videoInformation, setVideoInformation] =
-        useState();
+    const [videoInformation, setVideoInformation] = useState();
     //     {
     //     // videoUrl: "http://ajmn-aje-vod.akamaized.net/media/v1/pmp4/static/clear/665003303001/b29925c2-d081-4f0f-bdbe-397a95a21029/e7f289f0-feda-42c2-89aa-72bb94eb96c6/main.mp4",
     //     // transcriptionUrl: "http://ajmn-aje-vod.akamaized.net/media/v1/pmp4/static/clear/665003303001/b29925c2-d081-4f0f-bdbe-397a95a21029/cce69697-17ba-48f4-9fdd-a8692f8ab971/main.mp4",
@@ -542,12 +156,41 @@ function VideoPage({ onSelect }) {
 
     const [isAudioOnly, setIsAudioOnly] = useState(false);
 
+    const [showTranslateOptions, setShowTranslateOptions] = useState(false);
+
+    const [showTranslateDialog, setShowTranslateDialog] = useState(false);
+    const [videoLanguages, setVideoLanguages] = useState([
+        { code: "en-US", label: "English", url: null },
+    ]);
+
+    const [activeLanguage, setActiveLanguage] = useState(0);
+
+    const [copied, setCopied] = useState(false);
+
+    const [showSubtitles, setShowSubtitles] = useState(true);
+
+    console.log("transcripts", transcripts);
+
     const clearVideoInformation = () => {
         setVideoInformation("");
         setUrl("");
         setIsVideoLoaded(false);
         setTranscripts([]);
     };
+
+    useEffect(() => {
+        if (videoInformation?.videoUrl) {
+            setVideoLanguages([
+                {
+                    code: "en-US",
+                    label: "English",
+                    url: videoInformation.videoUrl,
+                },
+                // { code: 'ar-QA', label: 'Arabic', url: "http://ajmn-aje-vod.akamaized.net/media/v1/pmp4/static/clear/665003303001/66ab4499-8a82-42a2-8fac-dbf5fba8aab5/32d8d127-0699-47a6-93b2-0633aca281df/main.mp4" }
+            ]);
+            setActiveLanguage(0);
+        }
+    }, [videoInformation]);
 
     useEffect(() => {
         if (userState?.transcribe !== prevUserStateRef.current?.transcribe) {
@@ -635,6 +278,16 @@ function VideoPage({ onSelect }) {
             setCurrentTime(videoRef.current.currentTime);
         }
     }, []);
+
+    const handleCopy = async (text) => {
+        try {
+            await navigator.clipboard.writeText(text);
+            setCopied(true);
+            setTimeout(() => setCopied(false), 2000);
+        } catch (err) {
+            console.error("Failed to copy text: ", err);
+        }
+    };
 
     if (!videoInformation && !transcripts?.length) {
         return (
@@ -734,10 +387,7 @@ function VideoPage({ onSelect }) {
 
     return (
         <div className="p-2">
-            <div className="flex justify-between items-center mb-4">
-                <h1 className="text-2xl font-bold">
-                    Video transcription and translation
-                </h1>
+            <div className="flex items-center gap-4 mb-4 justify-end">
                 <button
                     onClick={() => {
                         if (
@@ -755,160 +405,346 @@ function VideoPage({ onSelect }) {
                     Start over
                 </button>
             </div>
-            <div className="flex gap-4 mb-4">
-                <div className="basis-[calc(100%-12rem)]">
-                    <div className={`video-player-container overflow-hidden mb-4 ${isAudioOnly ? 'h-[50px] w-96' : ''}`}>
-                        {isValidUrl(videoInformation?.videoUrl) ? (
-                            <video
-                                className={`rounded-lg ${isAudioOnly ? 'h-[50px] w-96' : 'max-h-[40vh] min-h-[200px]'}`}
-                                ref={videoRef}
-                                src={videoInformation.videoUrl}
-                                controls
-                                onLoadedData={handleVideoReady}
-                                onTimeUpdate={handleTimeUpdate}
-                                controlsList="nodownload"
-                            >
-                                {vttUrl && (
-                                    <track
-                                        kind="subtitles"
-                                        src={vttUrl}
-                                        srcLang="en"
-                                        label="English"
-                                        default
-                                    />
-                                )}
-                            </video>
-                        ) : (
-                            <div>
-                                <button
-                                    onClick={() => setShowVideoInput(true)}
-                                    className="lb-outline-secondary flex items-center gap-1 lb-sm"
-                                >
-                                    <PlusIcon className="h-4 w-4" />
-                                    {t("Add video")}
-                                </button>
-                                {showVideoInput && (
-                                    <Dialog
-                                        open={showVideoInput}
-                                        onOpenChange={setShowVideoInput}
+            <div>
+                <div
+                    className={`video-player-container overflow-hidden mb-4 ${isAudioOnly ? "h-[50px] w-96" : ""}`}
+                >
+                    {isValidUrl(videoInformation?.videoUrl) ? (
+                        <>
+                            <div className="flex gap-4">
+                                <div className="w-[calc(100%-10rem)]">
+                                    <video
+                                        className={`rounded-lg ${isAudioOnly ? "h-[50px] w-96" : "grow"}`}
+                                        ref={videoRef}
+                                        src={
+                                            videoLanguages[activeLanguage]?.url
+                                        }
+                                        controls
+                                        onLoadedData={handleVideoReady}
+                                        onTimeUpdate={handleTimeUpdate}
+                                        controlsList="nodownload"
                                     >
-                                        <DialogContent>
-                                            <DialogHeader>
-                                                <DialogTitle>
-                                                    {t("Add video")}
-                                                </DialogTitle>
-                                            </DialogHeader>
-                                            <VideoInput
-                                                url={url}
-                                                setUrl={setUrl}
-                                                debouncedUpdateUserState={
-                                                    debouncedUpdateUserState
+                                        {vttUrl && showSubtitles && (
+                                            <track
+                                                kind="subtitles"
+                                                src={vttUrl}
+                                                srcLang="en"
+                                                label="English"
+                                                default
+                                            />
+                                        )}
+                                    </video>
+                                    {transcripts.length > 0 && (
+                                        <div className="flex items-center gap-2 mt-2">
+                                            <Checkbox
+                                                disabled={
+                                                    transcripts.length === 0 ||
+                                                    !vttUrl
                                                 }
-                                                setVideoInformation={(
-                                                    videoInfo,
-                                                ) => {
-                                                    setVideoInformation(
-                                                        videoInfo,
-                                                    );
-                                                    setShowVideoInput(false);
-                                                }}
-                                                onCancel={() =>
-                                                    setShowVideoInput(false)
+                                                id="showSubtitles"
+                                                checked={showSubtitles}
+                                                onCheckedChange={
+                                                    setShowSubtitles
                                                 }
                                             />
-                                        </DialogContent>
-                                    </Dialog>
-                                )}
-                            </div>
-                        )}
-                    </div>
-                    <h3 className="mb-2">{t("Subtitles and transcripts")}</h3>
-                    <div className="flex gap-2">
-                        {transcripts.length > 0 && (
-                            <div className="flex gap-2 items-center">
-                                {transcripts.length <= 3 ? (
-                                    // Show buttons for 3 or fewer transcripts
-                                    transcripts.map((transcript, index) => (
+                                            <label
+                                                htmlFor="showSubtitles"
+                                                className={classNames(
+                                                    "text-sm",
+                                                    !vttUrl
+                                                        ? "text-gray-400"
+                                                        : "text-gray-600",
+                                                )}
+                                            >
+                                                Show subtitles overlay
+                                            </label>
+                                        </div>
+                                    )}
+                                    <div className="flex gap-2 mt-2 items-center py-1 px-2 bg-gray-100 rounded-md">
+                                        <div className="text-xs text-gray-500 break-all flex-grow truncate">
+                                            {videoLanguages[activeLanguage]
+                                                ?.url ||
+                                                videoInformation.videoUrl}
+                                        </div>
                                         <button
-                                            key={index}
-                                            className={`lb-outline-secondary lb-sm ${activeTranscript === index ? "bg-gray-100" : ""}`}
                                             onClick={() =>
-                                                setActiveTranscript(index)
+                                                handleCopy(
+                                                    videoLanguages[
+                                                        activeLanguage
+                                                    ]?.url ||
+                                                        videoInformation.videoUrl,
+                                                )
                                             }
+                                            className="p-1 hover:bg-gray-100 rounded transition-colors"
+                                            title="Copy URL"
                                         >
-                                            {transcript.name ||
-                                                `Transcript ${index + 1}`}
+                                            {copied ? (
+                                                <CheckIcon className="h-4 w-4 text-green-500" />
+                                            ) : (
+                                                <CopyIcon className="h-4 w-4 text-gray-500" />
+                                            )}
                                         </button>
-                                    ))
-                                ) : (
-                                    // Use Select component for more than 3 transcripts
-                                    <Select
-                                        value={activeTranscript.toString()}
-                                        onValueChange={(value) =>
-                                            setActiveTranscript(parseInt(value))
+                                    </div>
+                                </div>
+                                <div className="flex flex-col gap-2 w-[10rem]">
+                                    <p className="text-sm font-semibold text-gray-500">
+                                        Video available in
+                                    </p>
+                                    <div className="flex flex-col gap-2">
+                                        {videoLanguages.map((lang, idx) => (
+                                            <div
+                                                key={idx}
+                                                className="flex items-center"
+                                            >
+                                                <div className="flex w-full rounded-md border border-gray-200 overflow-hidden">
+                                                    <button
+                                                        onClick={() => {
+                                                            setActiveLanguage(
+                                                                idx,
+                                                            );
+                                                        }}
+                                                        className={`flex-grow text-left text-sm px-3 py-1.5 hover:bg-sky-100 active:bg-sky-200 transition-colors
+                                                            ${activeLanguage === idx ? "bg-sky-50 text-gray-900" : "text-gray-600"}`}
+                                                    >
+                                                        {lang.label}
+                                                    </button>
+                                                    {lang.label && (
+                                                        <a
+                                                            href={lang.url}
+                                                            download={`video-${lang.code}.mp4`}
+                                                            className="px-2 hover:bg-sky-50 transition-colors border-l border-gray-200 flex items-center cursor-pointer"
+                                                            onClick={(e) =>
+                                                                e.stopPropagation()
+                                                            }
+                                                            title="Download video"
+                                                        >
+                                                            <DownloadIcon className="h-4 w-4 text-gray-500" />
+                                                        </a>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                    <button
+                                        onClick={() =>
+                                            setShowTranslateDialog(true)
+                                        }
+                                        className="lb-outline-secondary lb-sm flex items-center gap-1"
+                                    >
+                                        <PlusIcon className="h-4 w-4" />
+                                        Add Language
+                                    </button>
+                                </div>
+                            </div>
+
+                            <Dialog
+                                open={showTranslateDialog}
+                                onOpenChange={setShowTranslateDialog}
+                            >
+                                <DialogContent className="max-w-3xl">
+                                    <DialogHeader>
+                                        <DialogTitle>
+                                            Add Video Language
+                                        </DialogTitle>
+                                        <DialogDescription>
+                                            Translate this video into another
+                                            language using Azure's video
+                                            translation service.
+                                        </DialogDescription>
+                                    </DialogHeader>
+                                    <AzureVideoTranslate
+                                        url={videoInformation?.videoUrl}
+                                        onComplete={async (
+                                            targetLocale,
+                                            outputUrl,
+                                            vttUrl,
+                                        ) => {
+                                            console.log(
+                                                "onComplete",
+                                                targetLocale,
+                                                outputUrl,
+                                                vttUrl,
+                                            );
+
+                                            // Fetch the VTT content
+                                            try {
+                                                const response =
+                                                    await fetch(vttUrl);
+                                                const vttContent =
+                                                    await response.text();
+
+                                                setVideoLanguages((prev) => [
+                                                    ...prev,
+                                                    {
+                                                        code: targetLocale,
+                                                        label: new Intl.DisplayNames(
+                                                            ["en"],
+                                                            {
+                                                                type: "language",
+                                                            },
+                                                        ).of(
+                                                            targetLocale.split(
+                                                                "-",
+                                                            )[0],
+                                                        ),
+                                                        url: outputUrl,
+                                                    },
+                                                ]);
+
+                                                setTranscripts((prev) => [
+                                                    ...prev,
+                                                    {
+                                                        url: vttUrl,
+                                                        text: vttContent,
+                                                        format: "vtt",
+                                                        name: `VTT Subtitles`,
+                                                    },
+                                                ]);
+
+                                                setShowTranslateDialog(false);
+                                            } catch (error) {
+                                                console.error(
+                                                    "Failed to fetch VTT content:",
+                                                    error,
+                                                );
+                                                // Optionally show an error message to the user
+                                            }
+                                        }}
+                                        onQueued={(requestId) => {
+                                            setShowTranslateDialog(false);
+                                        }}
+                                    />
+                                </DialogContent>
+                            </Dialog>
+                        </>
+                    ) : (
+                        <div>
+                            <button
+                                onClick={() => setShowVideoInput(true)}
+                                className="lb-outline-secondary flex items-center gap-1 lb-sm"
+                            >
+                                <PlusIcon className="h-4 w-4" />
+                                {t("Add video")}
+                            </button>
+                            {showVideoInput && (
+                                <Dialog
+                                    open={showVideoInput}
+                                    onOpenChange={setShowVideoInput}
+                                >
+                                    <DialogContent>
+                                        <DialogHeader>
+                                            <DialogTitle>
+                                                {t("Add video")}
+                                            </DialogTitle>
+                                        </DialogHeader>
+                                        <VideoInput
+                                            url={url}
+                                            setUrl={setUrl}
+                                            debouncedUpdateUserState={
+                                                debouncedUpdateUserState
+                                            }
+                                            setVideoInformation={(
+                                                videoInfo,
+                                            ) => {
+                                                setVideoInformation(videoInfo);
+                                                setShowVideoInput(false);
+                                            }}
+                                            onCancel={() =>
+                                                setShowVideoInput(false)
+                                            }
+                                        />
+                                    </DialogContent>
+                                </Dialog>
+                            )}
+                        </div>
+                    )}
+                </div>
+                <h3 className="mb-2">{t("Subtitles and transcripts")}</h3>
+                <div className="flex gap-2 mb-2">
+                    {transcripts.length > 0 && (
+                        <div className="flex gap-2 items-center">
+                            {transcripts.length <= 3 ? (
+                                // Show buttons for 3 or fewer transcripts
+                                transcripts.map((transcript, index) => (
+                                    <button
+                                        key={index}
+                                        className={`lb-outline-secondary lb-sm ${activeTranscript === index ? "bg-gray-100" : ""}`}
+                                        onClick={() =>
+                                            setActiveTranscript(index)
                                         }
                                     >
-                                        <SelectTrigger className="w-[180px] py-1 text-sm">
-                                            <SelectValue
-                                                placeholder="Select transcript"
-                                                className="text-sm py-0"
-                                            >
-                                                {transcripts[activeTranscript]
-                                                    ?.name ||
-                                                    `Transcript ${activeTranscript + 1}`}
-                                            </SelectValue>
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            {transcripts.map(
-                                                (transcript, index) => (
-                                                    <SelectItem
-                                                        key={index}
-                                                        value={index.toString()}
-                                                    >
-                                                        {transcript.name ||
-                                                            `Transcript ${index + 1}`}
-                                                    </SelectItem>
-                                                ),
-                                            )}
-                                        </SelectContent>
-                                    </Select>
-                                )}
-                            </div>
-                        )}
-                        <AddTrackButton
-                            transcripts={transcripts}
-                            url={
-                                videoInformation?.transcriptionUrl ||
-                                videoInformation?.videoUrl
-                            }
-                            onAdd={(transcript) => {
-                                if (transcript) {
-                                    const { text, format, name } = transcript;
+                                        {transcript.name ||
+                                            `Transcript ${index + 1}`}
+                                    </button>
+                                ))
+                            ) : (
+                                // Use Select component for more than 3 transcripts
+                                <Select
+                                    value={activeTranscript.toString()}
+                                    onValueChange={(value) =>
+                                        setActiveTranscript(parseInt(value))
+                                    }
+                                >
+                                    <SelectTrigger className="w-[180px] py-1 text-sm">
+                                        <SelectValue
+                                            placeholder="Select transcript"
+                                            className="text-sm py-0"
+                                        >
+                                            {transcripts[activeTranscript]
+                                                ?.name ||
+                                                `Transcript ${activeTranscript + 1}`}
+                                        </SelectValue>
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {transcripts.map(
+                                            (transcript, index) => (
+                                                <SelectItem
+                                                    key={index}
+                                                    value={index.toString()}
+                                                >
+                                                    {transcript.name ||
+                                                        `Transcript ${index + 1}`}
+                                                </SelectItem>
+                                            ),
+                                        )}
+                                    </SelectContent>
+                                </Select>
+                            )}
+                        </div>
+                    )}
+                    <AddTrackButton
+                        transcripts={transcripts}
+                        url={
+                            videoInformation?.transcriptionUrl ||
+                            videoInformation?.videoUrl
+                        }
+                        onAdd={(transcript) => {
+                            if (transcript) {
+                                const { text, format, name } = transcript;
 
-                                    setTranscripts((prev) => [
-                                        ...prev,
-                                        { text, format, name },
-                                    ]);
-                                    setActiveTranscript(transcripts.length);
-                                }
-                                setDialogOpen(false);
-                            }}
-                            activeTranscript={activeTranscript}
-                            trigger={
-                                <button className="flex gap-1 items-center lb-outline-secondary lb-sm">
-                                    <PlusIcon className="h-4 w-4" />{" "}
-                                    {transcripts.length > 0
-                                        ? t("")
-                                        : t("Add subtitles or transcript")}
-                                </button>
+                                setTranscripts((prev) => [
+                                    ...prev,
+                                    { text, format, name },
+                                ]);
+                                setActiveTranscript(transcripts.length);
                             }
-                            apolloClient={apolloClient}
-                            dialogOpen={dialogOpen}
-                            setDialogOpen={setDialogOpen}
-                            selectedTab={selectedTab}
-                            setSelectedTab={setSelectedTab}
-                        />
-                    </div>
+                            setDialogOpen(false);
+                        }}
+                        activeTranscript={activeTranscript}
+                        trigger={
+                            <button className="flex gap-1 items-center lb-outline-secondary lb-sm">
+                                <PlusIcon className="h-4 w-4" />{" "}
+                                {transcripts.length > 0
+                                    ? t("")
+                                    : t("Add subtitles or transcript")}
+                            </button>
+                        }
+                        apolloClient={apolloClient}
+                        dialogOpen={dialogOpen}
+                        setDialogOpen={setDialogOpen}
+                        selectedTab={selectedTab}
+                        setSelectedTab={setSelectedTab}
+                    />
                 </div>
             </div>
 
