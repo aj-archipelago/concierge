@@ -145,9 +145,13 @@ function ChatContent({
                 let codeRequestId = null;
                 try {
                     console.log("result", result);
-                    const resultObj = JSON.parse(result.data.rag_start.result);
-                    resultMessage = resultObj?.response;
-
+                    let resultObj;
+                    try {
+                      resultObj = JSON.parse(result.data.rag_start.result);
+                    } catch {
+                      resultObj = { response: result.data.rag_start.result };
+                    }
+                    resultMessage = resultObj?.response || resultObj;
                     tool = result.data.rag_start.tool;
                     if (tool) {
                         const toolObj = JSON.parse(tool);
