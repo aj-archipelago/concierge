@@ -16,32 +16,20 @@ export default function AzureVideoTranslate({ url, onQueued, onComplete }) {
     function setFinalDataPre(data) {
         data = JSON.parse(data);
         try {
-            function findOutputVideoFileUrl(
-                obj,
-                keyToFind = "outputVideoFileUrl",
-            ) {
-                if (typeof obj !== "object" || obj === null) return null;
-                if (keyToFind in obj) return obj[keyToFind];
-                for (let key in obj) {
-                    let result = findOutputVideoFileUrl(obj[key]);
-                    if (result) return result;
-                }
-                return null;
-            }
+            const defaultSubtitlesUrl = data.outputVideoSubtitleWebVttFileUrl;
+            const targetVideoUrl =
+                data.targetLocales[targetLocale].outputVideoFileUrl;
+            const targetSubtitlesUrl =
+                data.targetLocales[targetLocale]
+                    .outputVideoSubtitleWebVttFileUrl;
 
-            console.log("data", data);
-            const outputUrl = findOutputVideoFileUrl(
-                data,
-                "outputVideoFileUrl",
-            );
-            const vttUrl = findOutputVideoFileUrl(
-                data,
-                "outputVideoSubtitleWebVttFileUrl",
-            );
-
-            onComplete?.(targetLocale, outputUrl, vttUrl);
+            onComplete?.(targetLocale, targetVideoUrl, {
+                original: defaultSubtitlesUrl,
+                translated: targetSubtitlesUrl,
+            });
         } catch (e) {
             console.error(e);
+            throw e;
         }
     }
 

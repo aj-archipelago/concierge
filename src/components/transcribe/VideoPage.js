@@ -28,13 +28,14 @@ import {
 import { useCallback, useContext, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import classNames from "../../../app/utils/class-names";
-import { AuthContext, ServerContext } from "../../App";
+import { AuthContext } from "../../App";
 import { QUERIES } from "../../graphql";
 import AddTrackDialog from "./AddTrackDialog";
 import AzureVideoTranslate from "./AzureVideoTranslate";
 import { AddTrackButton } from "./TranscriptionOptions";
 import TranscriptView from "./TranscriptView";
 import VideoInput from "./VideoInput";
+import { convertSrtToVtt } from "./transcribe.utils";
 
 const isValidUrl = (url) => {
     try {
@@ -44,80 +45,6 @@ const isValidUrl = (url) => {
         return false;
     }
 };
-
-function convertSrtToVtt(data) {
-    // remove dos newlines
-    var srt = data.replace(/\r+/g, "");
-    // trim white space start and end
-    srt = srt.replace(/^\s+|\s+$/g, "");
-    // get cues
-    var cuelist = srt.split("\n\n");
-    var result = "";
-    if (cuelist.length > 0) {
-        result += "WEBVTT\n\n";
-        for (var i = 0; i < cuelist.length; i = i + 1) {
-            result += convertSrtCue(cuelist[i]);
-        }
-    }
-    return result;
-}
-function convertSrtCue(caption) {
-    // remove all html tags for security reasons
-    //srt = srt.replace(/<[a-zA-Z\/][^>]*>/g, '');
-    var cue = "";
-    var s = caption.split(/\n/);
-    // concatenate muilt-line string separated in array into one
-    while (s.length > 3) {
-        for (var i = 3; i < s.length; i++) {
-            s[2] += "\n" + s[i];
-        }
-        s.splice(3, s.length - 3);
-    }
-    var line = 0;
-    // detect identifier
-    if (!s[0].match(/\d+:\d+:\d+/) && s[1].match(/\d+:\d+:\d+/)) {
-        cue += s[0].match(/\w+/) + "\n";
-        line += 1;
-    }
-    // get time strings
-    if (s[line].match(/\d+:\d+:\d+/)) {
-        // convert time string
-        var m = s[1].match(
-            /(\d+):(\d+):(\d+)(?:,(\d+))?\s*--?>\s*(\d+):(\d+):(\d+)(?:,(\d+))?/,
-        );
-        if (m) {
-            cue +=
-                m[1] +
-                ":" +
-                m[2] +
-                ":" +
-                m[3] +
-                "." +
-                m[4] +
-                " --> " +
-                m[5] +
-                ":" +
-                m[6] +
-                ":" +
-                m[7] +
-                "." +
-                m[8] +
-                "\n";
-            line += 1;
-        } else {
-            // Unrecognized timestring
-            return "";
-        }
-    } else {
-        // file format error or comment lines
-        return "";
-    }
-    // get cue text
-    if (s[line]) {
-        cue += s[line] + "\n\n";
-    }
-    return cue;
-}
 
 const isAudioFile = (url) => {
     if (!url) return false;
@@ -131,21 +58,13 @@ function VideoPage({ onSelect }) {
     const [asyncComplete, setAsyncComplete] = useState(false);
     const [url, setUrl] = useState("");
     const [videoInformation, setVideoInformation] = useState();
-    //     {
-    //     // videoUrl: "http://ajmn-aje-vod.akamaized.net/media/v1/pmp4/static/clear/665003303001/b29925c2-d081-4f0f-bdbe-397a95a21029/e7f289f0-feda-42c2-89aa-72bb94eb96c6/main.mp4",
-    //     // transcriptionUrl: "http://ajmn-aje-vod.akamaized.net/media/v1/pmp4/static/clear/665003303001/b29925c2-d081-4f0f-bdbe-397a95a21029/cce69697-17ba-48f4-9fdd-a8692f8ab971/main.mp4",
-    // }
     const { t } = useTranslation();
     const apolloClient = useApolloClient();
     const [error, setError] = useState(null);
-    const [fileUploading, setFileUploading] = useState(false);
     const [fileUploadError, setFileUploadError] = useState(null);
-    const { serverUrl } = useContext(ServerContext);
     const { userState, debouncedUpdateUserState } = useContext(AuthContext);
     const prevUserStateRef = useRef();
-    const [isVideoLoaded, setIsVideoLoaded] = useState(false);
     const [errorParagraph, setErrorParagraph] = useState(null);
-    const [requestId, setRequestId] = useState(null);
     const videoRef = useRef(null);
     const [currentTime, setCurrentTime] = useState(0);
 
@@ -155,8 +74,6 @@ function VideoPage({ onSelect }) {
     const [showVideoInput, setShowVideoInput] = useState(false);
 
     const [isAudioOnly, setIsAudioOnly] = useState(false);
-
-    const [showTranslateOptions, setShowTranslateOptions] = useState(false);
 
     const [showTranslateDialog, setShowTranslateDialog] = useState(false);
     const [videoLanguages, setVideoLanguages] = useState([
@@ -169,12 +86,9 @@ function VideoPage({ onSelect }) {
 
     const [showSubtitles, setShowSubtitles] = useState(true);
 
-    console.log("transcripts", transcripts);
-
     const clearVideoInformation = () => {
         setVideoInformation("");
         setUrl("");
-        setIsVideoLoaded(false);
         setTranscripts([]);
     };
 
@@ -182,8 +96,8 @@ function VideoPage({ onSelect }) {
         if (videoInformation?.videoUrl) {
             setVideoLanguages([
                 {
-                    code: "en-US",
-                    label: "English",
+                    code: "original",
+                    label: "Original",
                     url: videoInformation.videoUrl,
                 },
                 // { code: 'ar-QA', label: 'Arabic', url: "http://ajmn-aje-vod.akamaized.net/media/v1/pmp4/static/clear/665003303001/66ab4499-8a82-42a2-8fac-dbf5fba8aab5/32d8d127-0699-47a6-93b2-0633aca281df/main.mp4" }
@@ -214,7 +128,6 @@ function VideoPage({ onSelect }) {
                     const dataResult = data.format_paragraph_turbo.result;
                     if (async) {
                         setTranscripts([]);
-                        setRequestId(dataResult);
                         setAsyncComplete(false);
                     } else {
                         setFinalData(dataResult);
@@ -240,7 +153,6 @@ function VideoPage({ onSelect }) {
                 name: `Transcript ${prev.length + 1}`,
             },
         ]);
-        setRequestId(null);
         if (finalData.trim() && currentOperation === "Transcribing") {
             if (textFormatted) {
                 setCurrentOperation(t("Formatting"));
@@ -258,7 +170,6 @@ function VideoPage({ onSelect }) {
     }, [transcripts, asyncComplete, onSelect, activeTranscript]);
 
     const handleVideoReady = () => {
-        setIsVideoLoaded(true);
         if (videoRef.current && videoRef.current.videoHeight === 0) {
             setIsAudioOnly(true);
         } else {
@@ -413,27 +324,30 @@ function VideoPage({ onSelect }) {
                         <>
                             <div className="flex gap-4">
                                 <div className="w-[calc(100%-10rem)]">
-                                    <video
-                                        className={`rounded-lg ${isAudioOnly ? "h-[50px] w-96" : "grow"}`}
-                                        ref={videoRef}
-                                        src={
-                                            videoLanguages[activeLanguage]?.url
-                                        }
-                                        controls
-                                        onLoadedData={handleVideoReady}
-                                        onTimeUpdate={handleTimeUpdate}
-                                        controlsList="nodownload"
-                                    >
-                                        {vttUrl && showSubtitles && (
-                                            <track
-                                                kind="subtitles"
-                                                src={vttUrl}
-                                                srcLang="en"
-                                                label="English"
-                                                default
-                                            />
-                                        )}
-                                    </video>
+                                    <div className="bg-[#000] rounded-lg flex justify-center items-center">
+                                        <video
+                                            className={`rounded-lg ${isAudioOnly ? "h-[50px] w-96" : "grow max-h-[500px]"}`}
+                                            ref={videoRef}
+                                            src={
+                                                videoLanguages[activeLanguage]
+                                                    ?.url
+                                            }
+                                            controls
+                                            onLoadedData={handleVideoReady}
+                                            onTimeUpdate={handleTimeUpdate}
+                                            controlsList="nodownload"
+                                        >
+                                            {vttUrl && showSubtitles && (
+                                                <track
+                                                    kind="subtitles"
+                                                    src={vttUrl}
+                                                    srcLang="en"
+                                                    label="English"
+                                                    default
+                                                />
+                                            )}
+                                        </video>
+                                    </div>
                                     {transcripts.length > 0 && (
                                         <div className="flex items-center gap-2 mt-2">
                                             <Checkbox
@@ -510,6 +424,7 @@ function VideoPage({ onSelect }) {
                                                     </button>
                                                     {lang.label && (
                                                         <a
+                                                            target="_blank"
                                                             href={lang.url}
                                                             download={`video-${lang.code}.mp4`}
                                                             className="px-2 hover:bg-sky-50 transition-colors border-l border-gray-200 flex items-center cursor-pointer"
@@ -557,21 +472,41 @@ function VideoPage({ onSelect }) {
                                         onComplete={async (
                                             targetLocale,
                                             outputUrl,
-                                            vttUrl,
+                                            vttUrls,
                                         ) => {
                                             console.log(
                                                 "onComplete",
                                                 targetLocale,
                                                 outputUrl,
-                                                vttUrl,
+                                                vttUrls,
                                             );
+
+                                            const originalVttUrl =
+                                                vttUrls.original;
+                                            const translatedVttUrl =
+                                                vttUrls.translated;
 
                                             // Fetch the VTT content
                                             try {
-                                                const response =
-                                                    await fetch(vttUrl);
-                                                const vttContent =
-                                                    await response.text();
+                                                const addVtt = async (
+                                                    vttUrl,
+                                                    name,
+                                                ) => {
+                                                    const response =
+                                                        await fetch(vttUrl);
+                                                    const vttContent =
+                                                        await response.text();
+
+                                                    setTranscripts((prev) => [
+                                                        ...prev,
+                                                        {
+                                                            url: vttUrl,
+                                                            text: vttContent,
+                                                            format: "vtt",
+                                                            name,
+                                                        },
+                                                    ]);
+                                                };
 
                                                 setVideoLanguages((prev) => [
                                                     ...prev,
@@ -591,15 +526,21 @@ function VideoPage({ onSelect }) {
                                                     },
                                                 ]);
 
-                                                setTranscripts((prev) => [
-                                                    ...prev,
-                                                    {
-                                                        url: vttUrl,
-                                                        text: vttContent,
-                                                        format: "vtt",
-                                                        name: `VTT Subtitles`,
-                                                    },
-                                                ]);
+                                                await addVtt(
+                                                    originalVttUrl,
+                                                    "Original Subtitles",
+                                                );
+                                                await addVtt(
+                                                    translatedVttUrl,
+                                                    `${new Intl.DisplayNames(
+                                                        ["en"],
+                                                        { type: "language" },
+                                                    ).of(
+                                                        targetLocale.split(
+                                                            "-",
+                                                        )[0],
+                                                    )} Subtitles`,
+                                                );
 
                                                 setShowTranslateDialog(false);
                                             } catch (error) {
