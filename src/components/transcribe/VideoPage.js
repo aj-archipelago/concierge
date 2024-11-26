@@ -21,21 +21,19 @@ import {
     CopyIcon,
     DownloadIcon,
     PlusIcon,
-    RefreshCwIcon,
-    TextIcon,
-    VideoIcon,
+    RefreshCwIcon
 } from "lucide-react";
 import { useCallback, useContext, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import classNames from "../../../app/utils/class-names";
 import { AuthContext } from "../../App";
 import { QUERIES } from "../../graphql";
-import AddTrackDialog from "./AddTrackDialog";
 import AzureVideoTranslate from "./AzureVideoTranslate";
+import InitialView from "./InitialView";
+import { convertSrtToVtt } from "./transcribe.utils";
 import { AddTrackButton } from "./TranscriptionOptions";
 import TranscriptView from "./TranscriptView";
 import VideoInput from "./VideoInput";
-import { convertSrtToVtt } from "./transcribe.utils";
 
 const isValidUrl = (url) => {
     try {
@@ -46,11 +44,77 @@ const isValidUrl = (url) => {
     }
 };
 
-const isAudioFile = (url) => {
-    if (!url) return false;
-    const audioExtensions = [".mp3", ".wav", ".ogg", ".m4a", ".aac"];
-    return audioExtensions.some((ext) => url.toLowerCase().endsWith(ext));
-};
+function VideoPlayer({ videoLanguages, activeLanguage, transcripts, activeTranscript, onTimeUpdate }) {
+    const videoRef = useRef(null);
+    const [isAudioOnly, setIsAudioOnly] = useState(false);
+    const [showSubtitles, setShowSubtitles] = useState(true);
+
+    const handleVideoReady = () => {
+        if (videoRef.current && videoRef.current.videoHeight === 0) {
+            setIsAudioOnly(true);
+        } else {
+            setIsAudioOnly(false);
+        }
+    };
+
+    // Generate VTT URL for subtitles
+    let vttUrl = null;
+    if (transcripts[activeTranscript]?.format === "vtt") {
+        const file = new Blob([transcripts[activeTranscript].text], {
+            type: "text/plain",
+        });
+        vttUrl = URL.createObjectURL(file);
+    } else if (transcripts[activeTranscript]?.format === "srt") {
+        const vttSubtitles = convertSrtToVtt(transcripts[activeTranscript].text);
+        const file = new Blob([vttSubtitles], { type: "text/plain" });
+        vttUrl = URL.createObjectURL(file);
+    }
+
+    return (
+        <>
+            <div className="bg-[#000] rounded-lg flex justify-center items-center">
+                <video
+                    className={`rounded-lg ${isAudioOnly ? "h-[50px] w-96" : "grow max-h-[500px]"}`}
+                    ref={videoRef}
+                    src={videoLanguages[activeLanguage]?.url}
+                    controls
+                    onLoadedData={handleVideoReady}
+                    onTimeUpdate={() => onTimeUpdate(videoRef.current?.currentTime)}
+                    controlsList="nodownload"
+                >
+                    {vttUrl && showSubtitles && (
+                        <track
+                            kind="subtitles"
+                            src={vttUrl}
+                            srcLang="en"
+                            label="English"
+                            default
+                        />
+                    )}
+                </video>
+            </div>
+            {transcripts.length > 0 && (
+                <div className="flex items-center gap-2 mt-2">
+                    <Checkbox
+                        disabled={transcripts.length === 0 || !vttUrl}
+                        id="showSubtitles"
+                        checked={showSubtitles}
+                        onCheckedChange={setShowSubtitles}
+                    />
+                    <label
+                        htmlFor="showSubtitles"
+                        className={classNames(
+                            "text-sm",
+                            !vttUrl ? "text-gray-400" : "text-gray-600",
+                        )}
+                    >
+                        Show subtitles overlay
+                    </label>
+                </div>
+            )}
+        </>
+    );
+}
 
 function VideoPage({ onSelect }) {
     const [transcripts, setTranscripts] = useState([]);
@@ -60,24 +124,18 @@ function VideoPage({ onSelect }) {
     const [videoInformation, setVideoInformation] = useState();
     const { t } = useTranslation();
     const apolloClient = useApolloClient();
-    const [error, setError] = useState(null);
     const [fileUploadError, setFileUploadError] = useState(null);
     const { userState, debouncedUpdateUserState } = useContext(AuthContext);
     const prevUserStateRef = useRef();
     const [errorParagraph, setErrorParagraph] = useState(null);
-    const videoRef = useRef(null);
     const [currentTime, setCurrentTime] = useState(0);
-
     const [selectedTab, setSelectedTab] = useState("transcribe");
-    const [dialogOpen, setDialogOpen] = useState(false);
-
+    const [addTrackDialogOpen, setAddTrackDialogOpen] = useState(false);
     const [showVideoInput, setShowVideoInput] = useState(false);
-
     const [isAudioOnly, setIsAudioOnly] = useState(false);
-
     const [showTranslateDialog, setShowTranslateDialog] = useState(false);
     const [videoLanguages, setVideoLanguages] = useState([
-        { code: "en-US", label: "English", url: null },
+        { code: "original", label: "Original", url: null },
     ]);
 
     const [activeLanguage, setActiveLanguage] = useState(0);
@@ -86,34 +144,86 @@ function VideoPage({ onSelect }) {
 
     const [showSubtitles, setShowSubtitles] = useState(true);
 
+    const updateUserState = useCallback((updates) => {
+        debouncedUpdateUserState({
+            transcribe: {
+                ...userState?.transcribe,
+                ...updates
+            }
+        });
+    }, [userState?.transcribe, debouncedUpdateUserState]);
+
     const clearVideoInformation = () => {
         setVideoInformation("");
         setUrl("");
         setTranscripts([]);
+        updateUserState({
+            videoInformation: null,
+            transcripts: [],
+        });
     };
 
     useEffect(() => {
-        if (videoInformation?.videoUrl) {
-            setVideoLanguages([
+        if (userState) {
+            if (userState.transcribe?.url !== prevUserStateRef.current?.transcribe?.url) {
+                setUrl(userState.transcribe?.url);
+            }
+            if (userState.transcribe?.videoInformation?.videoUrl !== prevUserStateRef.current?.transcribe?.videoInformation?.videoUrl) {
+                setVideoInformation(userState.transcribe?.videoInformation);
+                if (userState.transcribe?.videoInformation?.videoLanguages) {
+                    setVideoLanguages(userState.transcribe.videoInformation.videoLanguages);
+                }
+            }
+
+            if (userState.transcribe?.transcripts?.length !== prevUserStateRef.current?.transcribe?.transcripts?.length) {
+                setTranscripts(userState.transcribe?.transcripts || []);
+            }
+            prevUserStateRef.current = userState;
+        }
+    }, [userState]);
+
+    useEffect(() => {
+        if (videoInformation?.videoUrl && !videoLanguages?.length) {
+            const initialLanguages = [
                 {
                     code: "original",
                     label: "Original",
                     url: videoInformation.videoUrl,
                 },
-                // { code: 'ar-QA', label: 'Arabic', url: "http://ajmn-aje-vod.akamaized.net/media/v1/pmp4/static/clear/665003303001/66ab4499-8a82-42a2-8fac-dbf5fba8aab5/32d8d127-0699-47a6-93b2-0633aca281df/main.mp4" }
-            ]);
+            ];
+            setVideoLanguages(initialLanguages);
             setActiveLanguage(0);
+            
+            updateUserState({
+                videoInformation: {
+                    ...userState?.transcribe?.videoInformation,
+                    videoLanguages: initialLanguages
+                }
+            });
         }
     }, [videoInformation]);
 
     useEffect(() => {
-        if (userState?.transcribe !== prevUserStateRef.current?.transcribe) {
-            if (userState?.transcribe?.url) {
-                setUrl(userState.transcribe.url);
-            }
-            prevUserStateRef.current = userState;
+        if (videoInformation) {
+            updateUserState({
+                videoInformation: {
+                    ...userState?.transcribe?.videoInformation,
+                    transcripts
+                }
+            });
         }
-    }, [userState]);
+    }, [transcripts]);
+
+    useEffect(() => {
+        if (videoInformation) {
+            updateUserState({
+                videoInformation: {
+                    ...userState?.transcribe?.videoInformation,
+                    videoLanguages
+                }
+            });
+        }
+    }, [videoLanguages]);
 
     const fetchParagraph = useCallback(
         async (text) => {
@@ -169,27 +279,6 @@ function VideoPage({ onSelect }) {
             onSelect(transcripts[activeTranscript]?.text);
     }, [transcripts, asyncComplete, onSelect, activeTranscript]);
 
-    const handleVideoReady = () => {
-        if (videoRef.current && videoRef.current.videoHeight === 0) {
-            setIsAudioOnly(true);
-        } else {
-            setIsAudioOnly(false);
-        }
-    };
-
-    const handleSeek = useCallback((time) => {
-        console.log("handleSeek", time);
-        if (videoRef.current) {
-            videoRef.current.currentTime = time;
-        }
-    }, []);
-
-    const handleTimeUpdate = useCallback(() => {
-        if (videoRef.current) {
-            setCurrentTime(videoRef.current.currentTime);
-        }
-    }, []);
-
     const handleCopy = async (text) => {
         try {
             await navigator.clipboard.writeText(text);
@@ -200,100 +289,47 @@ function VideoPage({ onSelect }) {
         }
     };
 
+    const addSubtitleTrack = useCallback((transcript) => {
+        if (transcript) {
+            const { text, format, name } = transcript;
+            const updatedTranscripts = [...transcripts, { text, format, name }];
+            
+            setTranscripts(updatedTranscripts);
+            setActiveTranscript(transcripts.length);
+            
+            updateUserState({
+                videoInformation: {
+                    ...userState?.transcribe?.videoInformation,
+                },
+                transcripts: updatedTranscripts
+            });
+        }
+        setAddTrackDialogOpen(false);
+    }, [transcripts, updateUserState, userState?.transcribe?.videoInformation]);
+
+    const handleSeek = useCallback((time) => {
+        const videoElement = document.querySelector('video');
+        if (videoElement) {
+            videoElement.currentTime = time;
+        }
+    }, []);
+
     if (!videoInformation && !transcripts?.length) {
         return (
-            <>
-                <h1 className="text-2xl font-bold">
-                    Transcription and translation
-                </h1>
-                <p className="text-sm text-gray-500">
-                    Transcribe and translate video and audio files.
-                </p>
-                <h3>How would you like to start?</h3>
-                <div className="flex gap-4 mt-4">
-                    <button
-                        onClick={() => setShowVideoInput(true)}
-                        className="lb-outline-secondary rounded-lg flex justify-center p-6"
-                    >
-                        <div className="text-center flex flex-col gap-2">
-                            <div className="flex justify-center">
-                                <VideoIcon className="w-12 h-12" />
-                            </div>
-                            I have a video or audio file
-                        </div>
-                    </button>
-                    <button
-                        onClick={() => {
-                            setDialogOpen(true);
-                            setSelectedTab("transcribe");
-                        }}
-                        className="lb-outline-secondary rounded-lg flex justify-center p-6"
-                    >
-                        <div className="text-center flex flex-col gap-2">
-                            <div className="flex justify-center">
-                                <TextIcon className="w-12 h-12" />
-                            </div>
-                            I have a transcript or subtitles
-                        </div>
-                    </button>
-                </div>
-                <AddTrackDialog
-                    dialogOpen={dialogOpen}
-                    setDialogOpen={setDialogOpen}
-                    url={url}
-                    transcripts={transcripts}
-                    onAdd={(x) => {
-                        if (x) {
-                            setTranscripts((prev) => [...prev, x]);
-                        }
-
-                        console.log("onAdd", x);
-                        setDialogOpen(false);
-                    }}
-                    options={["upload", "clipboard"]}
-                    async={true}
-                    apolloClient={apolloClient}
-                    activeTranscript={activeTranscript}
-                />
-                <Dialog open={showVideoInput} onOpenChange={setShowVideoInput}>
-                    <DialogContent className="min-w-[80%] max-h-[80%] overflow-auto">
-                        <DialogHeader>
-                            <DialogTitle>
-                                {t("Enter video or audio")}
-                            </DialogTitle>
-                            <DialogDescription>
-                                You can either enter a URL or upload a video or
-                                audio file.
-                            </DialogDescription>
-                        </DialogHeader>
-                        <VideoInput
-                            url={url}
-                            setUrl={setUrl}
-                            debouncedUpdateUserState={debouncedUpdateUserState}
-                            setVideoInformation={(videoInfo) => {
-                                setVideoInformation(videoInfo);
-                                setShowVideoInput(false);
-                            }}
-                            onCancel={() => setShowVideoInput(false)}
-                        />
-                    </DialogContent>
-                </Dialog>
-            </>
+            <InitialView
+                setAddTrackDialogOpen={setAddTrackDialogOpen}
+                setSelectedTab={setSelectedTab}
+                addTrackDialogOpen={addTrackDialogOpen}
+                url={url}
+                transcripts={transcripts}
+                addSubtitleTrack={addSubtitleTrack}
+                apolloClient={apolloClient}
+                activeTranscript={activeTranscript}
+                setVideoInformation={setVideoInformation}
+                updateUserState={updateUserState}
+                setUrl={setUrl}
+            />
         );
-    }
-
-    let vttUrl = null;
-    if (transcripts[activeTranscript]?.format === "vtt") {
-        const file = new Blob([transcripts[activeTranscript].text], {
-            type: "text/plain",
-        });
-        vttUrl = URL.createObjectURL(file);
-    } else if (transcripts[activeTranscript]?.format === "srt") {
-        const vttSubtitles = convertSrtToVtt(
-            transcripts[activeTranscript].text,
-        );
-        const file = new Blob([vttSubtitles], { type: "text/plain" });
-        vttUrl = URL.createObjectURL(file);
     }
 
     return (
@@ -317,63 +353,18 @@ function VideoPage({ onSelect }) {
                 </button>
             </div>
             <div>
-                <div
-                    className={`video-player-container overflow-hidden mb-4 ${isAudioOnly ? "h-[50px] w-96" : ""}`}
-                >
+                <div className="video-player-container overflow-hidden mb-4">
                     {isValidUrl(videoInformation?.videoUrl) ? (
                         <>
                             <div className="flex gap-4">
                                 <div className="w-[calc(100%-10rem)]">
-                                    <div className="bg-[#000] rounded-lg flex justify-center items-center">
-                                        <video
-                                            className={`rounded-lg ${isAudioOnly ? "h-[50px] w-96" : "grow max-h-[500px]"}`}
-                                            ref={videoRef}
-                                            src={
-                                                videoLanguages[activeLanguage]
-                                                    ?.url
-                                            }
-                                            controls
-                                            onLoadedData={handleVideoReady}
-                                            onTimeUpdate={handleTimeUpdate}
-                                            controlsList="nodownload"
-                                        >
-                                            {vttUrl && showSubtitles && (
-                                                <track
-                                                    kind="subtitles"
-                                                    src={vttUrl}
-                                                    srcLang="en"
-                                                    label="English"
-                                                    default
-                                                />
-                                            )}
-                                        </video>
-                                    </div>
-                                    {transcripts.length > 0 && (
-                                        <div className="flex items-center gap-2 mt-2">
-                                            <Checkbox
-                                                disabled={
-                                                    transcripts.length === 0 ||
-                                                    !vttUrl
-                                                }
-                                                id="showSubtitles"
-                                                checked={showSubtitles}
-                                                onCheckedChange={
-                                                    setShowSubtitles
-                                                }
-                                            />
-                                            <label
-                                                htmlFor="showSubtitles"
-                                                className={classNames(
-                                                    "text-sm",
-                                                    !vttUrl
-                                                        ? "text-gray-400"
-                                                        : "text-gray-600",
-                                                )}
-                                            >
-                                                Show subtitles overlay
-                                            </label>
-                                        </div>
-                                    )}
+                                    <VideoPlayer 
+                                        videoLanguages={videoLanguages}
+                                        activeLanguage={activeLanguage}
+                                        transcripts={transcripts}
+                                        activeTranscript={activeTranscript}
+                                        onTimeUpdate={setCurrentTime}
+                                    />
                                     <div className="flex gap-2 mt-2 items-center py-1 px-2 bg-gray-100 rounded-md">
                                         <div className="text-xs text-gray-500 break-all flex-grow truncate">
                                             {videoLanguages[activeLanguage]
@@ -401,9 +392,9 @@ function VideoPage({ onSelect }) {
                                     </div>
                                 </div>
                                 <div className="flex flex-col gap-2 w-[10rem]">
-                                    <p className="text-sm font-semibold text-gray-500">
+                                    <div className="text-sm font-semibold text-gray-500 mb-1">
                                         Video available in
-                                    </p>
+                                    </div>
                                     <div className="flex flex-col gap-2">
                                         {videoLanguages.map((lang, idx) => (
                                             <div
@@ -572,7 +563,7 @@ function VideoPage({ onSelect }) {
                                     open={showVideoInput}
                                     onOpenChange={setShowVideoInput}
                                 >
-                                    <DialogContent>
+                                    <DialogContent className="min-w-[80%] max-h-[80%] overflow-auto">
                                         <DialogHeader>
                                             <DialogTitle>
                                                 {t("Add video")}
@@ -581,13 +572,14 @@ function VideoPage({ onSelect }) {
                                         <VideoInput
                                             url={url}
                                             setUrl={setUrl}
-                                            debouncedUpdateUserState={
-                                                debouncedUpdateUserState
-                                            }
                                             setVideoInformation={(
                                                 videoInfo,
                                             ) => {
                                                 setVideoInformation(videoInfo);
+                                                updateUserState({
+                                                    videoInformation: videoInfo,
+                                                    url: videoInfo?.videoUrl || ""
+                                                });
                                                 setShowVideoInput(false);
                                             }}
                                             onCancel={() =>
@@ -659,18 +651,7 @@ function VideoPage({ onSelect }) {
                             videoInformation?.transcriptionUrl ||
                             videoInformation?.videoUrl
                         }
-                        onAdd={(transcript) => {
-                            if (transcript) {
-                                const { text, format, name } = transcript;
-
-                                setTranscripts((prev) => [
-                                    ...prev,
-                                    { text, format, name },
-                                ]);
-                                setActiveTranscript(transcripts.length);
-                            }
-                            setDialogOpen(false);
-                        }}
+                        onAdd={addSubtitleTrack}
                         activeTranscript={activeTranscript}
                         trigger={
                             <button className="flex gap-1 items-center lb-outline-secondary lb-sm">
@@ -681,15 +662,15 @@ function VideoPage({ onSelect }) {
                             </button>
                         }
                         apolloClient={apolloClient}
-                        dialogOpen={dialogOpen}
-                        setDialogOpen={setDialogOpen}
+                        addTrackDialogOpen={addTrackDialogOpen}
+                        setAddTrackDialogOpen={setAddTrackDialogOpen}
                         selectedTab={selectedTab}
                         setSelectedTab={setSelectedTab}
                     />
                 </div>
             </div>
 
-            {(error || errorParagraph || fileUploadError) && (
+            {(errorParagraph || fileUploadError) && (
                 <div className="mb-4">
                     <p>
                         Error:{" "}
@@ -720,16 +701,22 @@ function VideoPage({ onSelect }) {
                         onSeek={handleSeek}
                         currentTime={currentTime}
                         onTranslate={() => {
-                            setDialogOpen(true);
+                            setAddTrackDialogOpen(true);
                             setSelectedTab("translate");
                         }}
                         onDeleteTrack={() => {
-                            setTranscripts((prev) =>
-                                prev.filter(
-                                    (_, index) => index !== activeTranscript,
-                                ),
+                            const updatedTranscripts = transcripts.filter(
+                                (_, index) => index !== activeTranscript
                             );
+                            setTranscripts(updatedTranscripts);
                             setActiveTranscript(0);
+                            
+                            updateUserState({
+                                videoInformation: {
+                                    ...userState?.transcribe?.videoInformation,
+                                },
+                                transcripts: updatedTranscripts
+                            });
                         }}
                     />
                 )}

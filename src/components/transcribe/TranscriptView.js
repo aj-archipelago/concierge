@@ -503,14 +503,14 @@ function TranscriptView({
                             />
                         </div>
                     ) : (
-                        <pre className="transcribe-output border border-gray-300 rounded-md p-2.5 bg-gray-200 overflow-y-auto">
+                        <pre className="transcribe-output border border-gray-300 rounded-md p-2.5 bg-gray-50 overflow-y-auto">
                             {text.replace(/\n/g, "\n\n")}
                         </pre>
                     )}
                     <CopyButton
                         item={text}
                         variant={"opaque"}
-                        className="absolute top-1 right-1"
+                        className="absolute top-3 end-3"
                     />
                 </div>
             </div>

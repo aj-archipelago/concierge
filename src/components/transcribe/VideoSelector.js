@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { CheckIcon, SearchIcon } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import config from "../../../config";
 import LoadingButton from "../editor/LoadingButton";
 
@@ -20,6 +20,12 @@ const VideoSelector = ({ url, onSelect }) => {
         },
         enabled: !!debouncedUrl && !!fetchUrlSource,
     });
+
+    useEffect(() => {
+        if (data && !data.results?.length) {
+            onSelect({ videoUrl: debouncedUrl });
+        }
+    }, [data]);
 
     if (!fetchUrlSource) return null;
 

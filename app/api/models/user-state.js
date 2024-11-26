@@ -35,6 +35,20 @@ const userStateSchema = new mongoose.Schema(
             url: {
                 type: String,
             },
+            videoInformation: {
+                videoUrl: {
+                    type: String,
+                },
+                transcriptionUrl: {
+                    type: String,
+                },
+                videoLanguages: {
+                    type: Array,
+                },
+            },
+            transcripts: {
+                type: Array,
+            },
             outputFormat: {
                 type: String,
             },

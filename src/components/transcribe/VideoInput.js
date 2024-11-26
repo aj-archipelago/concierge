@@ -29,7 +29,6 @@ const checkVideoUrl = async (url) => {
 function VideoInput({
     url,
     setUrl,
-    debouncedUpdateUserState,
     setVideoInformation,
 }) {
     const { t } = useTranslation();
@@ -156,12 +155,6 @@ function VideoInput({
                             size="sm"
                             onChange={(e) => {
                                 setUrl(e.target.value);
-                                debouncedUpdateUserState((prev) => ({
-                                    transcribe: {
-                                        ...prev.transcribe,
-                                        url: e.target.value,
-                                    },
-                                }));
                             }}
                             onKeyDown={(e) => {
                                 if (e.key === "Enter") {

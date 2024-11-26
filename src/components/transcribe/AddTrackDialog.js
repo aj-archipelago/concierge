@@ -10,8 +10,8 @@ import {
 import { AddTrackOptions } from "./AddTrackOptions";
 
 export default function AddTrackDialog({
-    dialogOpen,
-    setDialogOpen,
+    addTrackDialogOpen,
+    setAddTrackDialogOpen,
     url,
     transcripts,
     onAdd,
@@ -22,7 +22,7 @@ export default function AddTrackDialog({
     activeTranscript,
 }) {
     return (
-        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <Dialog open={addTrackDialogOpen} onOpenChange={setAddTrackDialogOpen}>
             <DialogContent className="min-h-[450px]">
                 <DialogHeader>
                     <DialogTitle>Add subtitles/transcripts</DialogTitle>
@@ -35,14 +35,14 @@ export default function AddTrackDialog({
                         transcripts={transcripts}
                         onAdd={(x) => {
                             onAdd(x);
-                            setDialogOpen(false);
+                            setAddTrackDialogOpen(false);
                         }}
                         options={options}
                         async={async}
                         apolloClient={apolloClient}
                         defaultTab={defaultTab}
                         activeTranscript={activeTranscript}
-                        onClose={() => setDialogOpen(false)}
+                        onClose={() => setAddTrackDialogOpen(false)}
                     />
                 </DialogHeader>
             </DialogContent>

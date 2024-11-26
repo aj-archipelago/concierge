@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/select";
 
 function TranslationOptions({
-    transcripts,
+    transcripts = [],
     onAdd,
     activeTranscript,
     async = true,

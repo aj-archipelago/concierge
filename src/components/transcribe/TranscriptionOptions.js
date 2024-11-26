@@ -22,8 +22,8 @@ export function AddTrackButton({
     apolloClient,
     trigger,
     transcripts = [],
-    dialogOpen,
-    setDialogOpen,
+    addTrackDialogOpen,
+    setAddTrackDialogOpen,
     selectedTab,
     setSelectedTab,
     activeTranscript,
@@ -51,7 +51,7 @@ export function AddTrackButton({
                                             onClick={() => {
                                                 setSelectedTab("transcribe");
                                                 setTimeout(
-                                                    () => setDialogOpen(true),
+                                                    () => setAddTrackDialogOpen(true),
                                                     1,
                                                 );
                                             }}
@@ -68,7 +68,7 @@ export function AddTrackButton({
                                         onClick={() => {
                                             setSelectedTab("translate");
                                             setTimeout(
-                                                () => setDialogOpen(true),
+                                                () => setAddTrackDialogOpen(true),
                                                 1,
                                             );
                                         }}
@@ -84,7 +84,7 @@ export function AddTrackButton({
                                         onClick={() => {
                                             setSelectedTab("upload");
                                             setTimeout(
-                                                () => setDialogOpen(true),
+                                                () => setAddTrackDialogOpen(true),
                                                 1,
                                             );
                                         }}
@@ -100,7 +100,7 @@ export function AddTrackButton({
                                         onClick={() => {
                                             setSelectedTab("clipboard");
                                             setTimeout(
-                                                () => setDialogOpen(true),
+                                                () => setAddTrackDialogOpen(true),
                                                 1,
                                             );
                                         }}
@@ -116,8 +116,8 @@ export function AddTrackButton({
                 </DropdownMenuContent>
             </DropdownMenu>
             <AddTrackDialog
-                dialogOpen={dialogOpen}
-                setDialogOpen={setDialogOpen}
+                addTrackDialogOpen={addTrackDialogOpen}
+                setAddTrackDialogOpen={setAddTrackDialogOpen}
                 url={url}
                 transcripts={transcripts}
                 onAdd={onAdd}
