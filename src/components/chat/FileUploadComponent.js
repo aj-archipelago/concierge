@@ -4,7 +4,6 @@ import { v4 as uuidv4 } from "uuid";
 import { COGNITIVE_INSERT } from "../../graphql";
 import { useApolloClient } from "@apollo/client";
 import { useDispatch } from "react-redux";
-import { addSource } from "../../stores/docSlice";
 import {
     setFileLoading,
     clearFileLoading,
@@ -67,7 +66,6 @@ function FileUploadComponent({ text }) {
                             filename,
                             chatId: activeChatId,
                         });
-                        dispatch(addSource("mydata"));
                         setUrl(null);
                     })
                     .catch((err) => {
