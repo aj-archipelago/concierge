@@ -27,7 +27,6 @@ import { useCallback, useContext, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import classNames from "../../../app/utils/class-names";
 import { AuthContext } from "../../App";
-import { QUERIES } from "../../graphql";
 import AzureVideoTranslate from "./AzureVideoTranslate";
 import InitialView from "./InitialView";
 import { convertSrtToVtt } from "./transcribe.utils";
@@ -126,18 +125,15 @@ function VideoPlayer({
     );
 }
 
-function VideoPage({ onSelect }) {
+function VideoPage({  }) {
     const [transcripts, setTranscripts] = useState([]);
     const [activeTranscript, setActiveTranscript] = useState(0);
-    const [asyncComplete, setAsyncComplete] = useState(false);
     const [url, setUrl] = useState("");
     const [videoInformation, setVideoInformation] = useState();
     const { t } = useTranslation();
     const apolloClient = useApolloClient();
-    const [fileUploadError, setFileUploadError] = useState(null);
     const { userState, debouncedUpdateUserState } = useContext(AuthContext);
     const prevUserStateRef = useRef();
-    const [errorParagraph, setErrorParagraph] = useState(null);
     const [currentTime, setCurrentTime] = useState(0);
     const [selectedTab, setSelectedTab] = useState("transcribe");
     const [addTrackDialogOpen, setAddTrackDialogOpen] = useState(false);
@@ -246,60 +242,6 @@ function VideoPage({ onSelect }) {
         }
     }, [videoLanguages]);
 
-    const fetchParagraph = useCallback(
-        async (text) => {
-            try {
-                setLoadingParagraph(true);
-                const { data } = await apolloClient.query({
-                    query: QUERIES.FORMAT_PARAGRAPH_TURBO,
-                    variables: { text, async },
-                    fetchPolicy: "network-only",
-                });
-                if (data?.format_paragraph_turbo?.result) {
-                    const dataResult = data.format_paragraph_turbo.result;
-                    if (async) {
-                        setTranscripts([]);
-                        setAsyncComplete(false);
-                    } else {
-                        setFinalData(dataResult);
-                    }
-                }
-            } catch (e) {
-                setErrorParagraph(e);
-                console.error(e);
-            } finally {
-                setLoadingParagraph(false);
-            }
-        },
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-        [],
-    );
-
-    const setFinalData = (finalData) => {
-        setTranscripts((prev) => [
-            ...prev,
-            {
-                text: finalData,
-                format: "vtt",
-                name: `Transcript ${prev.length + 1}`,
-            },
-        ]);
-        if (finalData.trim() && currentOperation === "Transcribing") {
-            if (textFormatted) {
-                setCurrentOperation(t("Formatting"));
-                fetchParagraph(finalData);
-                return;
-            }
-        }
-        setAsyncComplete(true);
-    };
-
-    useEffect(() => {
-        asyncComplete &&
-            onSelect &&
-            onSelect(transcripts[activeTranscript]?.text);
-    }, [transcripts, asyncComplete, onSelect, activeTranscript]);
-
     const handleCopy = async (text) => {
         try {
             await navigator.clipboard.writeText(text);
@@ -404,7 +346,7 @@ function VideoPage({ onSelect }) {
                                                     videoLanguages[
                                                         activeLanguage
                                                     ]?.url ||
-                                                        videoInformation.videoUrl,
+                                                    videoInformation.videoUrl,
                                                 )
                                             }
                                             className="p-1 hover:bg-gray-100 rounded transition-colors"
@@ -698,15 +640,6 @@ function VideoPage({ onSelect }) {
                     />
                 </div>
             </div>
-
-            {(errorParagraph || fileUploadError) && (
-                <div className="mb-4">
-                    <p>
-                        Error:{" "}
-                        {(error || errorParagraph || fileUploadError).message}
-                    </p>
-                </div>
-            )}
 
             {activeTranscript !== null &&
                 transcripts[activeTranscript]?.text && (
