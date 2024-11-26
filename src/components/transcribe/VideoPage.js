@@ -21,7 +21,7 @@ import {
     CopyIcon,
     DownloadIcon,
     PlusIcon,
-    RefreshCwIcon
+    RefreshCwIcon,
 } from "lucide-react";
 import { useCallback, useContext, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -44,7 +44,13 @@ const isValidUrl = (url) => {
     }
 };
 
-function VideoPlayer({ videoLanguages, activeLanguage, transcripts, activeTranscript, onTimeUpdate }) {
+function VideoPlayer({
+    videoLanguages,
+    activeLanguage,
+    transcripts,
+    activeTranscript,
+    onTimeUpdate,
+}) {
     const videoRef = useRef(null);
     const [isAudioOnly, setIsAudioOnly] = useState(false);
     const [showSubtitles, setShowSubtitles] = useState(true);
@@ -65,7 +71,9 @@ function VideoPlayer({ videoLanguages, activeLanguage, transcripts, activeTransc
         });
         vttUrl = URL.createObjectURL(file);
     } else if (transcripts[activeTranscript]?.format === "srt") {
-        const vttSubtitles = convertSrtToVtt(transcripts[activeTranscript].text);
+        const vttSubtitles = convertSrtToVtt(
+            transcripts[activeTranscript].text,
+        );
         const file = new Blob([vttSubtitles], { type: "text/plain" });
         vttUrl = URL.createObjectURL(file);
     }
@@ -79,7 +87,9 @@ function VideoPlayer({ videoLanguages, activeLanguage, transcripts, activeTransc
                     src={videoLanguages[activeLanguage]?.url}
                     controls
                     onLoadedData={handleVideoReady}
-                    onTimeUpdate={() => onTimeUpdate(videoRef.current?.currentTime)}
+                    onTimeUpdate={() =>
+                        onTimeUpdate(videoRef.current?.currentTime)
+                    }
                     controlsList="nodownload"
                 >
                     {vttUrl && showSubtitles && (
@@ -132,7 +142,6 @@ function VideoPage({ onSelect }) {
     const [selectedTab, setSelectedTab] = useState("transcribe");
     const [addTrackDialogOpen, setAddTrackDialogOpen] = useState(false);
     const [showVideoInput, setShowVideoInput] = useState(false);
-    const [isAudioOnly, setIsAudioOnly] = useState(false);
     const [showTranslateDialog, setShowTranslateDialog] = useState(false);
     const [videoLanguages, setVideoLanguages] = useState([
         { code: "original", label: "Original", url: null },
@@ -142,16 +151,17 @@ function VideoPage({ onSelect }) {
 
     const [copied, setCopied] = useState(false);
 
-    const [showSubtitles, setShowSubtitles] = useState(true);
-
-    const updateUserState = useCallback((updates) => {
-        debouncedUpdateUserState({
-            transcribe: {
-                ...userState?.transcribe,
-                ...updates
-            }
-        });
-    }, [userState?.transcribe, debouncedUpdateUserState]);
+    const updateUserState = useCallback(
+        (updates) => {
+            debouncedUpdateUserState({
+                transcribe: {
+                    ...userState?.transcribe,
+                    ...updates,
+                },
+            });
+        },
+        [userState?.transcribe, debouncedUpdateUserState],
+    );
 
     const clearVideoInformation = () => {
         setVideoInformation("");
@@ -165,17 +175,28 @@ function VideoPage({ onSelect }) {
 
     useEffect(() => {
         if (userState) {
-            if (userState.transcribe?.url !== prevUserStateRef.current?.transcribe?.url) {
+            if (
+                userState.transcribe?.url !==
+                prevUserStateRef.current?.transcribe?.url
+            ) {
                 setUrl(userState.transcribe?.url);
             }
-            if (userState.transcribe?.videoInformation?.videoUrl !== prevUserStateRef.current?.transcribe?.videoInformation?.videoUrl) {
+            if (
+                userState.transcribe?.videoInformation?.videoUrl !==
+                prevUserStateRef.current?.transcribe?.videoInformation?.videoUrl
+            ) {
                 setVideoInformation(userState.transcribe?.videoInformation);
                 if (userState.transcribe?.videoInformation?.videoLanguages) {
-                    setVideoLanguages(userState.transcribe.videoInformation.videoLanguages);
+                    setVideoLanguages(
+                        userState.transcribe.videoInformation.videoLanguages,
+                    );
                 }
             }
 
-            if (userState.transcribe?.transcripts?.length !== prevUserStateRef.current?.transcribe?.transcripts?.length) {
+            if (
+                userState.transcribe?.transcripts?.length !==
+                prevUserStateRef.current?.transcribe?.transcripts?.length
+            ) {
                 setTranscripts(userState.transcribe?.transcripts || []);
             }
             prevUserStateRef.current = userState;
@@ -193,12 +214,12 @@ function VideoPage({ onSelect }) {
             ];
             setVideoLanguages(initialLanguages);
             setActiveLanguage(0);
-            
+
             updateUserState({
                 videoInformation: {
                     ...userState?.transcribe?.videoInformation,
-                    videoLanguages: initialLanguages
-                }
+                    videoLanguages: initialLanguages,
+                },
             });
         }
     }, [videoInformation]);
@@ -208,8 +229,8 @@ function VideoPage({ onSelect }) {
             updateUserState({
                 videoInformation: {
                     ...userState?.transcribe?.videoInformation,
-                    transcripts
-                }
+                    transcripts,
+                },
             });
         }
     }, [transcripts]);
@@ -219,8 +240,8 @@ function VideoPage({ onSelect }) {
             updateUserState({
                 videoInformation: {
                     ...userState?.transcribe?.videoInformation,
-                    videoLanguages
-                }
+                    videoLanguages,
+                },
             });
         }
     }, [videoLanguages]);
@@ -289,26 +310,32 @@ function VideoPage({ onSelect }) {
         }
     };
 
-    const addSubtitleTrack = useCallback((transcript) => {
-        if (transcript) {
-            const { text, format, name } = transcript;
-            const updatedTranscripts = [...transcripts, { text, format, name }];
-            
-            setTranscripts(updatedTranscripts);
-            setActiveTranscript(transcripts.length);
-            
-            updateUserState({
-                videoInformation: {
-                    ...userState?.transcribe?.videoInformation,
-                },
-                transcripts: updatedTranscripts
-            });
-        }
-        setAddTrackDialogOpen(false);
-    }, [transcripts, updateUserState, userState?.transcribe?.videoInformation]);
+    const addSubtitleTrack = useCallback(
+        (transcript) => {
+            if (transcript) {
+                const { text, format, name } = transcript;
+                const updatedTranscripts = [
+                    ...transcripts,
+                    { text, format, name },
+                ];
+
+                setTranscripts(updatedTranscripts);
+                setActiveTranscript(transcripts.length);
+
+                updateUserState({
+                    videoInformation: {
+                        ...userState?.transcribe?.videoInformation,
+                    },
+                    transcripts: updatedTranscripts,
+                });
+            }
+            setAddTrackDialogOpen(false);
+        },
+        [transcripts, updateUserState, userState?.transcribe?.videoInformation],
+    );
 
     const handleSeek = useCallback((time) => {
-        const videoElement = document.querySelector('video');
+        const videoElement = document.querySelector("video");
         if (videoElement) {
             videoElement.currentTime = time;
         }
@@ -358,7 +385,7 @@ function VideoPage({ onSelect }) {
                         <>
                             <div className="flex gap-4">
                                 <div className="w-[calc(100%-10rem)]">
-                                    <VideoPlayer 
+                                    <VideoPlayer
                                         videoLanguages={videoLanguages}
                                         activeLanguage={activeLanguage}
                                         transcripts={transcripts}
@@ -578,7 +605,9 @@ function VideoPage({ onSelect }) {
                                                 setVideoInformation(videoInfo);
                                                 updateUserState({
                                                     videoInformation: videoInfo,
-                                                    url: videoInfo?.videoUrl || ""
+                                                    url:
+                                                        videoInfo?.videoUrl ||
+                                                        "",
                                                 });
                                                 setShowVideoInput(false);
                                             }}
@@ -706,16 +735,16 @@ function VideoPage({ onSelect }) {
                         }}
                         onDeleteTrack={() => {
                             const updatedTranscripts = transcripts.filter(
-                                (_, index) => index !== activeTranscript
+                                (_, index) => index !== activeTranscript,
                             );
                             setTranscripts(updatedTranscripts);
                             setActiveTranscript(0);
-                            
+
                             updateUserState({
                                 videoInformation: {
                                     ...userState?.transcribe?.videoInformation,
                                 },
-                                transcripts: updatedTranscripts
+                                transcripts: updatedTranscripts,
                             });
                         }}
                     />

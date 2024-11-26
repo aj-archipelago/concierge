@@ -29,6 +29,30 @@ import {
 // New VTT component
 function VttSubtitles({ text, onSeek, currentTime }) {
     const containerRef = useRef(null);
+    const lines = text.split("\n");
+    const subtitles = [];
+    let currentSubtitle = {};
+
+    // Parse VTT content into structured data
+    lines.forEach((line) => {
+        const timestampMatch = line.match(
+            /(\d{2}:\d{2}:\d{2}\.\d{3}) --> (\d{2}:\d{2}:\d{2}\.\d{3})/,
+        );
+        if (timestampMatch) {
+            if (currentSubtitle.timestamp) {
+                subtitles.push(currentSubtitle);
+            }
+            currentSubtitle = {
+                timestamp: timestampMatch[1],
+                text: "",
+            };
+        } else if (line.trim() && currentSubtitle.timestamp) {
+            currentSubtitle.text = (currentSubtitle.text + " " + line).trim();
+        }
+    });
+    if (currentSubtitle.timestamp) {
+        subtitles.push(currentSubtitle);
+    }
 
     // Add effect to handle scrolling when currentTime changes
     useEffect(() => {
@@ -77,29 +101,9 @@ function VttSubtitles({ text, onSeek, currentTime }) {
         }
     };
 
-    const lines = text.split("\n");
-    const subtitles = [];
-    let currentSubtitle = {};
-
-    // Parse VTT content into structured data
-    lines.forEach((line) => {
-        const timestampMatch = line.match(
-            /(\d{2}:\d{2}:\d{2}\.\d{3}) --> (\d{2}:\d{2}:\d{2}\.\d{3})/,
-        );
-        if (timestampMatch) {
-            if (currentSubtitle.timestamp) {
-                subtitles.push(currentSubtitle);
-            }
-            currentSubtitle = {
-                timestamp: timestampMatch[1],
-                text: "",
-            };
-        } else if (line.trim() && currentSubtitle.timestamp) {
-            currentSubtitle.text = (currentSubtitle.text + " " + line).trim();
-        }
-    });
-    if (currentSubtitle.timestamp) {
-        subtitles.push(currentSubtitle);
+    // If no timestamps were found, return raw text
+    if (subtitles.length === 0) {
+        return <div className="whitespace-pre-wrap">{text}</div>;
     }
 
     return (
@@ -134,6 +138,8 @@ function VttSubtitles({ text, onSeek, currentTime }) {
 // New SRT component
 function SrtSubtitles({ text, onSeek, currentTime }) {
     const containerRef = useRef(null);
+
+    console.log("text", text);
 
     // Same scrolling effect as VTT
     useEffect(() => {
@@ -444,6 +450,7 @@ function TranscriptView({
     onDeleteTrack,
 }) {
     const { t } = useTranslation();
+    console.log("format", format);
 
     return (
         <>
@@ -486,32 +493,36 @@ function TranscriptView({
                     </div>
                 </div>
                 <div className="transcription-section relative">
-                    {format === "vtt" ? (
-                        <div className="border border-gray-300 rounded-md p-2.5 bg-gray-200">
+                    {format === "vtt" && text ? (
+                        <div className="border border-gray-300 rounded-md p-2.5 bg-gray-50">
                             <VttSubtitles
                                 text={text}
                                 onSeek={onSeek}
                                 currentTime={currentTime}
                             />
                         </div>
-                    ) : format === "srt" ? (
-                        <div className="border border-gray-300 rounded-md p-2.5 bg-gray-200">
+                    ) : format === "srt" && text ? (
+                        <div className="border border-gray-300 rounded-md p-2.5 bg-gray-50">
                             <SrtSubtitles
                                 text={text}
                                 onSeek={onSeek}
                                 currentTime={currentTime}
                             />
                         </div>
-                    ) : (
+                    ) : text ? (
                         <pre className="transcribe-output border border-gray-300 rounded-md p-2.5 bg-gray-50 overflow-y-auto">
                             {text.replace(/\n/g, "\n\n")}
                         </pre>
+                    ) : (
+                        "No content"
                     )}
-                    <CopyButton
-                        item={text}
-                        variant={"opaque"}
-                        className="absolute top-3 end-3"
-                    />
+                    {text && (
+                        <CopyButton
+                            item={text}
+                            variant={"opaque"}
+                            className="absolute top-3 end-3"
+                        />
+                    )}
                 </div>
             </div>
         </>

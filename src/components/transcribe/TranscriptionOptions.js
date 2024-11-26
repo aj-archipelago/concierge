@@ -51,7 +51,10 @@ export function AddTrackButton({
                                             onClick={() => {
                                                 setSelectedTab("transcribe");
                                                 setTimeout(
-                                                    () => setAddTrackDialogOpen(true),
+                                                    () =>
+                                                        setAddTrackDialogOpen(
+                                                            true,
+                                                        ),
                                                     1,
                                                 );
                                             }}
@@ -68,7 +71,8 @@ export function AddTrackButton({
                                         onClick={() => {
                                             setSelectedTab("translate");
                                             setTimeout(
-                                                () => setAddTrackDialogOpen(true),
+                                                () =>
+                                                    setAddTrackDialogOpen(true),
                                                 1,
                                             );
                                         }}
@@ -84,7 +88,8 @@ export function AddTrackButton({
                                         onClick={() => {
                                             setSelectedTab("upload");
                                             setTimeout(
-                                                () => setAddTrackDialogOpen(true),
+                                                () =>
+                                                    setAddTrackDialogOpen(true),
                                                 1,
                                             );
                                         }}
@@ -100,7 +105,8 @@ export function AddTrackButton({
                                         onClick={() => {
                                             setSelectedTab("clipboard");
                                             setTimeout(
-                                                () => setAddTrackDialogOpen(true),
+                                                () =>
+                                                    setAddTrackDialogOpen(true),
                                                 1,
                                             );
                                         }}

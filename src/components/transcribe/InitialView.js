@@ -7,19 +7,28 @@ import {
     DialogHeader,
     DialogTitle,
 } from "@/components/ui/dialog";
-import {
-    TextIcon,
-    VideoIcon
-} from "lucide-react";
+import { TextIcon, VideoIcon } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import AddTrackDialog from "./AddTrackDialog";
 import VideoInput from "./VideoInput";
 
-export default function InitialView({ setAddTrackDialogOpen, setSelectedTab, addTrackDialogOpen, url, transcripts, addSubtitleTrack, apolloClient, activeTranscript, setVideoInformation, updateUserState, setUrl }) {
+export default function InitialView({
+    setAddTrackDialogOpen,
+    setSelectedTab,
+    addTrackDialogOpen,
+    url,
+    transcripts,
+    addSubtitleTrack,
+    apolloClient,
+    activeTranscript,
+    setVideoInformation,
+    updateUserState,
+    setUrl,
+}) {
     const { t } = useTranslation();
     const [showVideoInput, setShowVideoInput] = useState(false);
-    
+
     return (
         <>
             <h1 className="text-2xl font-bold">
@@ -70,9 +79,7 @@ export default function InitialView({ setAddTrackDialogOpen, setSelectedTab, add
             <Dialog open={showVideoInput} onOpenChange={setShowVideoInput}>
                 <DialogContent className="min-w-[80%] max-h-[80%] overflow-auto">
                     <DialogHeader>
-                        <DialogTitle>
-                            {t("Enter video or audio")}
-                        </DialogTitle>
+                        <DialogTitle>{t("Enter video or audio")}</DialogTitle>
                         <DialogDescription>
                             You can either enter a URL or upload a video or
                             audio file.
@@ -85,7 +92,7 @@ export default function InitialView({ setAddTrackDialogOpen, setSelectedTab, add
                             setVideoInformation(videoInfo);
                             updateUserState({
                                 videoInformation: videoInfo,
-                                url: videoInfo?.videoUrl || ""
+                                url: videoInfo?.videoUrl || "",
                             });
                             setShowVideoInput(false);
                         }}

@@ -26,11 +26,7 @@ const checkVideoUrl = async (url) => {
     }
 };
 
-function VideoInput({
-    url,
-    setUrl,
-    setVideoInformation,
-}) {
+function VideoInput({ url, setUrl, setVideoInformation }) {
     const { t } = useTranslation();
     const [fileUploading, setFileUploading] = useState(false);
     const [fileUploadError, setFileUploadError] = useState(null);

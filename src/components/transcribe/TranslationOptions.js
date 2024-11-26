@@ -1,39 +1,30 @@
 import { useApolloClient } from "@apollo/client";
-import { useCallback, useState } from "react";
-import { FaLanguage } from "react-icons/fa";
-import { QUERIES } from "../../graphql";
-import ProgressUpdate from "../editor/ProgressUpdate";
-import LoadingButton from "../editor/LoadingButton";
-import { useTranslation } from "react-i18next";
 import { LanguageIcon } from "@heroicons/react/24/outline";
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from "@/components/ui/select";
+import { useCallback, useState } from "react";
+import { useTranslation } from "react-i18next";
+import { QUERIES } from "../../graphql";
+import LoadingButton from "../editor/LoadingButton";
+import { useProgress } from "../../contexts/ProgressContext";
 
 function TranslationOptions({
     transcripts = [],
     onAdd,
+    onClose,
     activeTranscript,
     async = true,
 }) {
     const { t } = useTranslation();
     const [loading, setLoading] = useState(false);
-    const [error, setError] = useState(null);
     const apolloClient = useApolloClient();
-    const [currentOperation, setCurrentOperation] = useState("");
     const [
         transcriptionTranslationLanguage,
         setTranscriptionTranslationLanguage,
     ] = useState("Arabic");
-    const [inputText, setInputText] = useState("");
     const [requestId, setRequestId] = useState(null);
     const [selectedTranscript, setSelectedTranscript] = useState(
         transcripts[activeTranscript],
     );
+    const { addProgressToast } = useProgress();
 
     const fetchTranslate = useCallback(
         async (text, language) => {
@@ -57,18 +48,29 @@ function TranslationOptions({
                 if (result) {
                     if (async) {
                         setRequestId(result);
+                        addProgressToast(
+                            result,
+                            t("Translating text to") +
+                                " " +
+                                transcriptionTranslationLanguage +
+                                "...",
+                            (finalData) => {
+                                setLoading(false);
+                                setFinalData(finalData);
+                            },
+                        );
+                        onClose();
                     } else {
                         setFinalData(result);
                     }
                 }
             } catch (e) {
-                setError(e);
                 console.error(e);
             } finally {
                 setLoading(false);
             }
         },
-        [apolloClient, async, setRequestId, t],
+        [apolloClient, async, addProgressToast, t],
     );
 
     const setFinalData = (finalData) => {
@@ -83,12 +85,6 @@ function TranslationOptions({
             format: selectedTranscript?.format,
         });
         setRequestId(null);
-    };
-
-    const handleDirectTranslate = () => {
-        if (!inputText || loading) return;
-        setFinalData(inputText);
-        fetchTranslate(inputText, transcriptionTranslationLanguage);
     };
 
     return (
@@ -157,16 +153,6 @@ function TranslationOptions({
                     </select>
                 </div>
             </div>
-
-            {requestId && (
-                <div className="h-12 mb-4">
-                    <ProgressUpdate
-                        requestId={requestId}
-                        setFinalData={setFinalData}
-                        initialText={t("Translating") + "..."}
-                    />
-                </div>
-            )}
 
             <LoadingButton
                 className="lb-primary"

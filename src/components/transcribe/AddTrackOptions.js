@@ -98,6 +98,7 @@ export function AddTrackOptions({
                             transcripts={transcripts}
                             onAdd={onAdd}
                             activeTranscript={activeTranscript}
+                            onClose={onClose}
                         />
                     </div>
                 </TabsContent>
@@ -270,7 +271,7 @@ export default function TranscribeVideo({
     const [currentOperation, setCurrentOperation] = useState("");
     const [error, setError] = useState(null);
     const { debouncedUpdateUserState } = useContext(AuthContext);
-    const { addProgressToast, removeProgressToast } = useProgress();
+    const { addProgressToast } = useProgress();
 
     const {
         responseFormat,
