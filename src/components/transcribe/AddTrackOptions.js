@@ -328,7 +328,7 @@ export default function TranscribeVideo({
                     maxLineWidth,
                     maxWordsPerLine,
                     highlightWords,
-                    async,
+                    async: true,
                 },
                 fetchPolicy: "network-only",
             });
@@ -338,27 +338,23 @@ export default function TranscribeVideo({
                 data?.transcribe_neuralspace?.result;
 
             if (dataResult) {
-                if (async) {
-                    setRequestId(dataResult);
-                    addProgressToast(
-                        dataResult,
-                        t("Transcribing") + "...",
-                        (finalData) => {
-                            setLoading(false);
-                            onAdd({
-                                text: finalData,
-                                format: responseFormat,
-                                name: responseFormat
-                                    ? `${selectedModelOption} (${responseFormat})`
-                                    : selectedModelOption,
-                            });
-                            setRequestId(null);
-                        },
-                    );
-                    onClose?.();
-                } else {
-                    setFinalData(dataResult);
-                }
+                setRequestId(dataResult);
+                addProgressToast(
+                    dataResult,
+                    t("Transcribing") + "...",
+                    (finalData) => {
+                        setLoading(false);
+                        onAdd({
+                            text: finalData,
+                            format: responseFormat,
+                            name: responseFormat
+                                ? `${selectedModelOption} (${responseFormat})`
+                                : selectedModelOption,
+                        });
+                        setRequestId(null);
+                    },
+                );
+                onClose?.();
             }
         } catch (e) {
             console.error("Transcription error:", e);

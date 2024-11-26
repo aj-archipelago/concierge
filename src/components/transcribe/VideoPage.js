@@ -125,7 +125,7 @@ function VideoPlayer({
     );
 }
 
-function VideoPage({  }) {
+function VideoPage({}) {
     const [transcripts, setTranscripts] = useState([]);
     const [activeTranscript, setActiveTranscript] = useState(0);
     const [url, setUrl] = useState("");
@@ -346,7 +346,7 @@ function VideoPage({  }) {
                                                     videoLanguages[
                                                         activeLanguage
                                                     ]?.url ||
-                                                    videoInformation.videoUrl,
+                                                        videoInformation.videoUrl,
                                                 )
                                             }
                                             className="p-1 hover:bg-gray-100 rounded transition-colors"
