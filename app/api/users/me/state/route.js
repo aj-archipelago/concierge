@@ -26,8 +26,8 @@ export async function PUT(req) {
             user: user._id,
         },
         {
+            ...body,
             user: user._id,
-            $set: body,
         },
         {
             upsert: true,
