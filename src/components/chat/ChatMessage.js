@@ -55,7 +55,7 @@ function customMarkdownDirective() {
 }
 
 function convertMessageToMarkdown(message) {
-    const { payload, tool, id } = message;
+    const { payload, tool } = message;
 
     const citations = tool ? JSON.parse(tool).citations : null;
 
@@ -150,16 +150,23 @@ function convertMessageToMarkdown(message) {
 
     return (
         <Markdown
-            className="chat-message min-h-[1.5rem]"
-            key={`lm-${id}`}
+            className="chat-message min-h-[1.5rem] overflow-x-auto"
+            components={{
+                ...components,
+                div: ({ node, ...props }) => (
+                    <div
+                        style={{ maxWidth: "100%", overflowWrap: "break-word" }}
+                        {...props}
+                    />
+                ),
+            }}
             remarkPlugins={[
                 directive,
                 customMarkdownDirective,
                 remarkGfm,
                 [remarkMath, { singleDollarTextMath: false }],
             ]}
-            rehypePlugins={[rehypeRaw, rehypeKatex]}
-            components={components}
+            rehypePlugins={[rehypeRaw, [rehypeKatex, { strict: false }]]}
             children={transformToCitation(modifiedPayload)}
         />
     );

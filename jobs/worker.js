@@ -1,5 +1,5 @@
 const pkg = require("bullmq");
-const { Worker, Queue, QueueScheduler } = pkg;
+const { Worker, Queue } = pkg;
 const {
     buildDigestsForAllUsers,
     buildDigestForSingleUser,

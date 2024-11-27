@@ -480,4 +480,11 @@ body.dark {
     }
 
     @include meta.load-css("highlight.js/styles/github-dark");
+
+    .chat-message {
+        img {
+            border-color: $border-color-dark;
+            background-color: $bg-color-dark;
+        }
+    }
 }
