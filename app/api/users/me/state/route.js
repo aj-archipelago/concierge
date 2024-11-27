@@ -1,6 +1,13 @@
 import UserState from "../../../models/user-state";
 import { getCurrentUser } from "../../../utils/auth";
 
+function transformUserState(userState) {
+    if (userState.transcribe && typeof userState.transcribe === "string") {
+        userState.transcribe = JSON.parse(userState.transcribe);
+    }
+    return userState;
+}
+
 export async function GET() {
     const user = await getCurrentUser();
     const userState = await UserState.findOneAndUpdate(
@@ -16,11 +23,7 @@ export async function GET() {
         },
     );
 
-    if (userState.transcribe && typeof userState.transcribe === "string") {
-        userState.transcribe = JSON.parse(userState.transcribe);
-    }
-
-    return Response.json(userState);
+    return Response.json(transformUserState(userState));
 }
 
 export async function PUT(req) {
@@ -45,7 +48,7 @@ export async function PUT(req) {
         },
     );
 
-    return Response.json(userState);
+    return Response.json(transformUserState(userState));
 }
 
 // don't want nextjs to cache this endpoint
