@@ -8,9 +8,11 @@ function transformUserState(userState) {
     if (userState.transcribe && typeof userState.transcribe === "string") {
         userState.transcribe = JSON.parse(userState.transcribe);
 
-        
         // clean up bad data
-        if (typeof userState.transcribe === "string" || Object.keys(userState.transcribe).length > 50) {
+        if (
+            typeof userState.transcribe === "string" ||
+            Object.keys(userState.transcribe).length > 50
+        ) {
             delete userState.transcribe;
         }
     }
