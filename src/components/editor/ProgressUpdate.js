@@ -64,12 +64,15 @@ const ProgressUpdate = ({
         const startTime = Date.now();
         const intervalId = setInterval(() => {
             const elapsed = Date.now() - startTime;
-            const calculatedProgress = Math.min((elapsed / autoDuration) * 100, 100);
-            
+            const calculatedProgress = Math.min(
+                (elapsed / autoDuration) * 100,
+                100,
+            );
+
             if (calculatedProgress > progressRef.current) {
                 setProgress(calculatedProgress);
             }
-            
+
             if (calculatedProgress >= 100) {
                 clearInterval(intervalId);
             }

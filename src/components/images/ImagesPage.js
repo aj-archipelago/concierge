@@ -8,7 +8,12 @@ import { Modal } from "../../../@/components/ui/modal";
 import { QUERIES } from "../../graphql";
 import LoadingButton from "../editor/LoadingButton";
 import ProgressUpdate from "../editor/ProgressUpdate";
-import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "../../../@/components/ui/tooltip";
+import {
+    Tooltip,
+    TooltipTrigger,
+    TooltipContent,
+    TooltipProvider,
+} from "../../../@/components/ui/tooltip";
 
 function ImagesPage() {
     const [prompt, setPrompt] = useState("");
@@ -35,7 +40,10 @@ function ImagesPage() {
             const variables = {
                 text: prompt,
                 async: true,
-                model: quality === "draft" ? "replicate-flux-1-schnell" : "replicate-flux-11-pro",
+                model:
+                    quality === "draft"
+                        ? "replicate-flux-1-schnell"
+                        : "replicate-flux-11-pro",
             };
 
             setLoading(true);
@@ -74,22 +82,34 @@ function ImagesPage() {
         return b.created - a.created;
     });
 
-    const handleBulkAction = useCallback((action) => {
-        if (action === 'delete') {
-            if (window.confirm(t("Are you sure you want to delete selected images?"))) {
-                const newImages = images.filter(img => !selectedImages.has(img.cortexRequestId));
-                setImages(newImages);
-                localStorage.setItem("generated-images", JSON.stringify(newImages));
-            }
-        } else if (action === 'download') {
-            images.forEach(img => {
-                if (selectedImages.has(img.cortexRequestId) && img.url) {
-                    window.open(img.url, "_blank");
+    const handleBulkAction = useCallback(
+        (action) => {
+            if (action === "delete") {
+                if (
+                    window.confirm(
+                        t("Are you sure you want to delete selected images?"),
+                    )
+                ) {
+                    const newImages = images.filter(
+                        (img) => !selectedImages.has(img.cortexRequestId),
+                    );
+                    setImages(newImages);
+                    localStorage.setItem(
+                        "generated-images",
+                        JSON.stringify(newImages),
+                    );
                 }
-            });
-        }
-        setSelectedImages(new Set());
-    }, [images, selectedImages, t]);
+            } else if (action === "download") {
+                images.forEach((img) => {
+                    if (selectedImages.has(img.cortexRequestId) && img.url) {
+                        window.open(img.url, "_blank");
+                    }
+                });
+            }
+            setSelectedImages(new Set());
+        },
+        [images, selectedImages, t],
+    );
 
     const imageTiles = useMemo(() => {
         return images.map((image) => {
@@ -113,19 +133,26 @@ function ImagesPage() {
                         const result = await generateImage(image.prompt);
                         if (result?.image_flux?.result) {
                             // Remove the old image and update its request ID
-                            const newImages = images.map(img => {
-                                if (img.cortexRequestId === image.cortexRequestId) {
+                            const newImages = images.map((img) => {
+                                if (
+                                    img.cortexRequestId ===
+                                    image.cortexRequestId
+                                ) {
                                     return {
                                         ...img,
-                                        cortexRequestId: result.image_flux.result,
+                                        cortexRequestId:
+                                            result.image_flux.result,
                                         url: undefined, // Clear the old URL
-                                        expires: undefined // Clear the expiration
+                                        expires: undefined, // Clear the expiration
                                     };
                                 }
                                 return img;
                             });
                             setImages(newImages);
-                            localStorage.setItem("generated-images", JSON.stringify(newImages));
+                            localStorage.setItem(
+                                "generated-images",
+                                JSON.stringify(newImages),
+                            );
                         }
 
                         // scroll to top
@@ -142,7 +169,9 @@ function ImagesPage() {
                             newImages[imageIndex] = {
                                 ...newImages[imageIndex],
                                 ...data,
-                                url: Array.isArray(data?.result?.output) ? data?.result?.output?.[0] : data?.result?.output,
+                                url: Array.isArray(data?.result?.output)
+                                    ? data?.result?.output?.[0]
+                                    : data?.result?.output,
                             };
                         }
                         setImages(newImages);
@@ -188,11 +217,13 @@ function ImagesPage() {
                     >
                         <textarea
                             className="lb-input flex-grow min-h-[2.5rem] max-h-32 resize-y"
-                            placeholder={t("Enter prompt and set quality to generate image")}
+                            placeholder={t(
+                                "Enter prompt and set quality to generate image",
+                            )}
                             value={prompt}
                             onChange={(e) => setPrompt(e.target.value)}
                             onKeyDown={(e) => {
-                                if (e.key === 'Enter' && !e.shiftKey) {
+                                if (e.key === "Enter" && !e.shiftKey) {
                                     e.preventDefault();
                                     if (!prompt.trim()) return;
                                     setGenerationPrompt(prompt);
@@ -200,15 +231,17 @@ function ImagesPage() {
                                 }
                             }}
                         />
-                        
+
                         <div className="flex gap-2">
-                            <select 
+                            <select
                                 className="lb-input w-full sm:w-fit"
                                 value={quality}
                                 onChange={(e) => setQuality(e.target.value)}
                             >
                                 <option value="draft">{t("Draft")}</option>
-                                <option value="high">{t("High Quality")}</option>
+                                <option value="high">
+                                    {t("High Quality")}
+                                </option>
                             </select>
 
                             <LoadingButton
@@ -230,7 +263,9 @@ function ImagesPage() {
                 <div className="flex justify-end items-center gap-2 mb-4">
                     <div className="text-sm text-gray-500 mr-2">
                         {selectedImages.size > 0 && (
-                            <span>{selectedImages.size} {t("selected")}</span>
+                            <span>
+                                {selectedImages.size} {t("selected")}
+                            </span>
                         )}
                     </div>
                     <TooltipProvider>
@@ -239,7 +274,7 @@ function ImagesPage() {
                                 <button
                                     className="lb-icon-button"
                                     disabled={selectedImages.size === 0}
-                                    onClick={() => handleBulkAction('download')}
+                                    onClick={() => handleBulkAction("download")}
                                 >
                                     <FaDownload />
                                 </button>
@@ -254,7 +289,7 @@ function ImagesPage() {
                                 <button
                                     className="lb-icon-button"
                                     disabled={selectedImages.size === 0}
-                                    onClick={() => handleBulkAction('delete')}
+                                    onClick={() => handleBulkAction("delete")}
                                 >
                                     <FaTrash />
                                 </button>
@@ -271,18 +306,25 @@ function ImagesPage() {
                                 <button
                                     className="lb-icon-button"
                                     onClick={() => {
-                                        if (window.confirm(t("Are you sure you want to delete all images?"))) {
+                                        if (
+                                            window.confirm(
+                                                t(
+                                                    "Are you sure you want to delete all images?",
+                                                ),
+                                            )
+                                        ) {
                                             setImages([]);
-                                            localStorage.setItem("generated-images", "[]");
+                                            localStorage.setItem(
+                                                "generated-images",
+                                                "[]",
+                                            );
                                         }
                                     }}
                                 >
                                     <FaTrash />
                                 </button>
                             </TooltipTrigger>
-                            <TooltipContent>
-                                {t("Delete All")}
-                            </TooltipContent>
+                            <TooltipContent>{t("Delete All")}</TooltipContent>
                         </Tooltip>
                     </TooltipProvider>
                 </div>
@@ -322,14 +364,14 @@ function Progress({ requestId, prompt, quality, onDataReceived }) {
                         onDataReceived({ result: { ...parsedData }, prompt });
                     } catch (e) {
                         console.error("Error parsing data", e);
-                        onDataReceived({ 
-                            result: { 
-                                error: { 
-                                    code: "PARSE_ERROR", 
-                                    message: "Failed to generate image" 
-                                } 
-                            }, 
-                            prompt 
+                        onDataReceived({
+                            result: {
+                                error: {
+                                    code: "PARSE_ERROR",
+                                    message: "Failed to generate image",
+                                },
+                            },
+                            prompt,
                         });
                     }
                 }}
@@ -347,7 +389,7 @@ function ImageTile({
     onGenerationComplete,
     quality,
     selectedImages,
-    setSelectedImages
+    setSelectedImages,
 }) {
     const [loadError, setLoadError] = useState(false);
     const url = image?.url;
@@ -360,8 +402,8 @@ function ImageTile({
     return (
         <div className="image-tile">
             {/* Selection checkbox - always visible */}
-            <div 
-                className={`selection-checkbox ${isSelected ? 'selected' : ''}`}
+            <div
+                className={`selection-checkbox ${isSelected ? "selected" : ""}`}
                 onClick={(e) => {
                     e.stopPropagation();
                     const newSelectedImages = new Set(selectedImages);
@@ -373,13 +415,12 @@ function ImageTile({
                     setSelectedImages(newSelectedImages);
                 }}
             >
-                <FaCheck className={`text-sm ${isSelected ? 'opacity-100' : 'opacity-0'}`} />
+                <FaCheck
+                    className={`text-sm ${isSelected ? "opacity-100" : "opacity-0"}`}
+                />
             </div>
 
-            <div 
-                className="image-wrapper"
-                onClick={onClick}
-            >
+            <div className="image-wrapper" onClick={onClick}>
                 {!expired && url && !loadError ? (
                     <img
                         src={url}
@@ -389,9 +430,10 @@ function ImageTile({
                     />
                 ) : (
                     <div className="h-full bg-gray-50 p-4 text-sm flex items-center justify-center">
-                        {cortexRequestId && !url && !code && (
-                            result ? <NoImageError /> : <ProgressComponent />
-                        )}
+                        {cortexRequestId &&
+                            !url &&
+                            !code &&
+                            (result ? <NoImageError /> : <ProgressComponent />)}
                         {code === "ERR_BAD_REQUEST" && <BadRequestError />}
                         {code && code !== "ERR_BAD_REQUEST" && <OtherError />}
                         {expired && url && <ExpiredImageComponent />}
@@ -419,7 +461,13 @@ function ImageTile({
                     className="lb-sm lb-outline-secondary"
                     title={t("Delete")}
                     onClick={(e) => {
-                        if (window.confirm(t("Are you sure you want to delete this image?"))) {
+                        if (
+                            window.confirm(
+                                t(
+                                    "Are you sure you want to delete this image?",
+                                ),
+                            )
+                        ) {
                             onDelete(image);
                         }
                         e.stopPropagation();
@@ -497,7 +545,9 @@ function ImageTile({
     function NoImageError() {
         return (
             <div className="text-center">
-                <div>{t("Generation completed but no image was produced.")}</div>
+                <div>
+                    {t("Generation completed but no image was produced.")}
+                </div>
                 <div className="mt-4">
                     <button
                         className="lb-primary"
@@ -540,10 +590,10 @@ function ImageModal({ show, image, onHide }) {
                                 className="w-full p-2 rounded-md bg-gray-50 sm:text-sm overflow-y-auto"
                                 value={image?.prompt}
                                 readOnly
-                                style={{ 
-                                    height: '100%',
-                                    maxHeight: 'calc(100% - 1.5rem)',
-                                    minHeight: '3rem'
+                                style={{
+                                    height: "100%",
+                                    maxHeight: "calc(100% - 1.5rem)",
+                                    minHeight: "3rem",
                                 }}
                             />
                         </div>
@@ -574,9 +624,7 @@ function ImageInfo({ data }) {
                 </div>
                 <div>
                     {data?.created
-                        ? new Date(
-                              data?.created * 1000,
-                          ).toLocaleString()
+                        ? new Date(data?.created * 1000).toLocaleString()
                         : t("(not found)")}
                 </div>
             </div>

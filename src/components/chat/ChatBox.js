@@ -112,7 +112,9 @@ function ChatBox() {
                             onClick={(e) => {
                                 e.stopPropagation();
                                 const chatId = activeChat?._id;
-                                router.push(chatId ? `/chat/${chatId}` : '/chat');
+                                router.push(
+                                    chatId ? `/chat/${chatId}` : "/chat",
+                                );
                             }}
                         />
                         <FaWindowClose

@@ -31,12 +31,9 @@ function ChatContent({
     const publicChatOwner = viewingChat?.owner;
     const isChatLoading = chat?.isChatLoading;
 
-    const handleError = useCallback(
-        (error) => {
-            toast.error(error.message);
-        },
-        [],
-    );
+    const handleError = useCallback((error) => {
+        toast.error(error.message);
+    }, []);
 
     const handleSend = useCallback(
         async (text) => {
@@ -109,9 +106,9 @@ function ChatContent({
                     console.log("result", result);
                     let resultObj;
                     try {
-                      resultObj = JSON.parse(result.data.rag_start.result);
+                        resultObj = JSON.parse(result.data.rag_start.result);
                     } catch {
-                      resultObj = { response: result.data.rag_start.result };
+                        resultObj = { response: result.data.rag_start.result };
                     }
                     resultMessage = resultObj?.response || resultObj;
                     tool = result.data.rag_start.tool;
@@ -245,12 +242,14 @@ function ChatContent({
                             position: "single",
                         },
                         {
-                            payload: t("Something went wrong trying to respond to your request. Please try something else or start over to continue."),
+                            payload: t(
+                                "Something went wrong trying to respond to your request. Please try something else or start over to continue.",
+                            ),
                             sender: "labeeb",
                             sentTime: "just now",
                             direction: "incoming",
                             position: "single",
-                        }
+                        },
                     ],
                     isChatLoading: false,
                 });
@@ -264,7 +263,7 @@ function ChatContent({
             memoizedMessages,
             handleError,
             chatId,
-            t
+            t,
         ],
     );
 
