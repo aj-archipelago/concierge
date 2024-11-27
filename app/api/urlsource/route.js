@@ -57,27 +57,31 @@ export async function GET(req) {
         const axisData = await axisResponse.json();
 
         const SIMILARITY_THRESHOLD = 0.1;
+        const MAX_RESULTS = 5; // Return up to 5 similar videos
 
-        const mostSimilarItem = findMostSimilarTitle(
-            axisData.items,
-            searchQuery,
-        );
-        if (
-            mostSimilarItem &&
-            mostSimilarItem.similarity > SIMILARITY_THRESHOLD
-        ) {
-            const { item } = mostSimilarItem;
-            const url = getBestRenditionForTranscription(item);
-            const videoUrl = getBestQualityRendition(item);
-            return NextResponse.json({
+        // Find multiple similar items instead of just one
+        const similarItems = axisData.items
+            .map((item) => ({
+                item,
+                similarity: calculateSimilarity(searchQuery, item.name),
+            }))
+            .filter((result) => result.similarity > SIMILARITY_THRESHOLD)
+            .sort((a, b) => b.similarity - a.similarity)
+            .slice(0, MAX_RESULTS);
+
+        if (similarItems.length > 0) {
+            const results = similarItems.map(({ item }) => ({
                 title: searchQuery,
                 name: item.name,
-                url,
-                videoUrl,
-            });
+                url: getBestRenditionForTranscription(item),
+                videoUrl: getBestQualityRendition(item),
+                similarity: calculateSimilarity(searchQuery, item.name),
+            }));
+
+            return NextResponse.json({ results });
         } else {
             return NextResponse.json(
-                { error: "No matching video found" },
+                { error: "No matching videos found" },
                 // { status: 404 },
             );
         }

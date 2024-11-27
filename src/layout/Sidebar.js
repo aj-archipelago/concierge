@@ -2,13 +2,12 @@ import {
     ChatBubbleLeftIcon,
     CodeBracketIcon,
     GlobeAltIcon,
-    MicrophoneIcon,
     NewspaperIcon,
     PencilSquareIcon,
     PhotoIcon,
     PlusIcon,
 } from "@heroicons/react/24/outline";
-import { HelpCircle } from "lucide-react";
+import { HelpCircle, VideoIcon } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import React, { useContext, useState } from "react";
@@ -34,7 +33,7 @@ const navigation = [
     },
     { name: "Chat", icon: ChatBubbleLeftIcon, href: "/chat", children: [] },
     { name: "Translate", icon: GlobeAltIcon, href: "/translate" },
-    { name: "Transcribe", icon: MicrophoneIcon, href: "/transcribe" },
+    { name: "Video", icon: VideoIcon, href: "/transcribe" },
     { name: "Write", icon: PencilSquareIcon, href: "/write" },
     { name: "Workspaces", icon: MdOutlineWorkspaces, href: "/workspaces" },
     { name: "Images", icon: PhotoIcon, href: "/images" },
