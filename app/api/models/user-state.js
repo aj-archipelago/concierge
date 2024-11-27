@@ -32,47 +32,49 @@ const userStateSchema = new mongoose.Schema(
             },
         },
         transcribe: {
-            url: {
-                type: String,
-            },
-            videoInformation: {
-                videoUrl: {
-                    type: String,
-                },
-                transcriptionUrl: {
-                    type: String,
-                },
-                videoLanguages: {
-                    type: Array,
-                },
-            },
-            transcripts: {
-                type: Array,
-            },
-            outputFormat: {
-                type: String,
-            },
-            transcriptionType: {
-                type: String,
-            },
-            language: {
-                type: String,
-            },
-            maxLineWidth: {
-                type: Number,
-            },
-            maxLineCount: {
-                type: Number,
-            },
-            model: {
-                type: String,
-            },
-            wordTimestamped: {
-                type: Boolean,
-            },
-            textFormatted: {
-                type: Boolean,
-            },
+            // encrypted fields are stored as strings
+            type: String,
+            // url: {
+            //     type: String,
+            // },
+            // videoInformation: {
+            //     videoUrl: {
+            //         type: String,
+            //     },
+            //     transcriptionUrl: {
+            //         type: String,
+            //     },
+            //     videoLanguages: {
+            //         type: Array,
+            //     },
+            // },
+            // transcripts: {
+            //     type: Array,
+            // },
+            // outputFormat: {
+            //     type: String,
+            // },
+            // transcriptionType: {
+            //     type: String,
+            // },
+            // language: {
+            //     type: String,
+            // },
+            // maxLineWidth: {
+            //     type: Number,
+            // },
+            // maxLineCount: {
+            //     type: Number,
+            // },
+            // model: {
+            //     type: String,
+            // },
+            // wordTimestamped: {
+            //     type: Boolean,
+            // },
+            // textFormatted: {
+            //     type: Boolean,
+            // },
         },
         jira: {
             input: {

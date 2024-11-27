@@ -1,3 +1,9 @@
 {
-    "footer_copyright": "Copyright © 2024."
+    "footer_copyright": "Copyright © 2024.",
+    "tool.search": "search",
+    "tool.reasoning": "reasoning",
+    "tool.image": "image",
+    "tool.writing": "writing",
+    "tool.vision": "vision",
+    "tool.default": "default"
 }

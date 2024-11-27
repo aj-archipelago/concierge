@@ -8,7 +8,6 @@ import { v4 as uuidv4 } from "uuid";
 import { useApolloClient } from "@apollo/client";
 import { COGNITIVE_INSERT } from "../../graphql";
 import { useDispatch } from "react-redux";
-import { addSource } from "../../stores/docSlice";
 import {
     setFileLoading,
     clearFileLoading,
@@ -114,7 +113,6 @@ function MessageInput({
                             filename,
                             chatId: activeChatId,
                         });
-                        dispatch(addSource("mydata"));
                         dispatch(clearFileLoading());
                     })
                     .catch((err) => {

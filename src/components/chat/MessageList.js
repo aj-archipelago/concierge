@@ -39,6 +39,40 @@ const getLoadState = (message) => {
     }
 };
 
+const getToolMetadata = (toolName, t) => {
+    const toolIcons = {
+        search: "🔍",
+        reasoning: "🧠",
+        image: "🖼️",
+        writing: "💻",
+        vision: "👁️",
+        default: "🛠️",
+    };
+
+    const normalizedToolName = toolName?.toLowerCase();
+    const icon = toolIcons[normalizedToolName] || toolIcons.default;
+    const translatedName = t(`tool.${normalizedToolName || "default"}`);
+
+    return {
+        icon,
+        translatedName,
+    };
+};
+
+const parseToolData = (toolString) => {
+    if (!toolString) return null;
+    try {
+        const toolObj = JSON.parse(toolString);
+        return {
+            avatarImage: toolObj.avatarImage,
+            toolUsed: toolObj.toolUsed,
+        };
+    } catch (e) {
+        console.error("Invalid JSON in tool:", e);
+        return null;
+    }
+};
+
 // Displays the list of messages and a message input box.
 function MessageList({ messages, bot, loading, chatId }) {
     const { user } = useContext(AuthContext);
@@ -116,21 +150,23 @@ function MessageList({ messages, bot, loading, chatId }) {
             : aiName || config?.chat?.botName;
 
     const renderMessage = (message) => {
-        let avatar = (
-            <img
-                src={getLogo(language)}
-                alt="Logo"
-                className={classNames(
-                    basis,
-                    "p-2",
-                    "w-12 [.docked_&]:w-10",
-                    rowHeight,
-                )}
-            />
-        );
+        let avatar;
+        const toolData = parseToolData(message.tool);
 
-        if (bot === "code") {
-            avatar = (
+        if (message.sender === "labeeb") {
+            avatar = toolData?.avatarImage ? (
+                <img
+                    src={toolData.avatarImage}
+                    alt="Tool Avatar"
+                    className={classNames(
+                        basis,
+                        "p-1",
+                        buttonWidthClass,
+                        rowHeight,
+                        "rounded-full object-cover",
+                    )}
+                />
+            ) : bot === "code" ? (
                 <AiOutlineRobot
                     className={classNames(
                         rowHeight,
@@ -139,29 +175,76 @@ function MessageList({ messages, bot, loading, chatId }) {
                         "text-gray-400",
                     )}
                 />
+            ) : (
+                <img
+                    src={getLogo(language)}
+                    alt="Logo"
+                    className={classNames(
+                        basis,
+                        "p-2",
+                        buttonWidthClass,
+                        rowHeight,
+                    )}
+                />
             );
-        }
 
-        if (message.sender === "labeeb") {
             return (
                 <div
                     key={message.id}
-                    className="flex bg-sky-50 ps-1 pt-1 relative [&_.copy-button]:hidden [&_.copy-button]:hover:block"
+                    className="flex bg-sky-50 ps-1 pt-1 relative group"
                 >
-                    <CopyButton
-                        item={message.text}
-                        className="absolute top-3 end-3 copy-button opacity-60 hover:opacity-100"
-                    />
+                    <div className="flex items-center gap-2 absolute top-3 end-3">
+                        {toolData?.toolUsed && (
+                            <div className="tool-badge inline-flex items-center gap-1.5 px-1.5 py-0.5 rounded-md bg-sky-50 border border-sky-100 text-xs text-sky-600 font-medium w-fit">
+                                <span className="tool-icon">
+                                    {getToolMetadata(toolData.toolUsed, t).icon}
+                                </span>
+                                <span className="tool-name">
+                                    {t("Used {{tool}} tool", {
+                                        tool: getToolMetadata(
+                                            toolData.toolUsed,
+                                            t,
+                                        ).translatedName,
+                                    })}
+                                </span>
+                            </div>
+                        )}
+                        <CopyButton
+                            item={message.text}
+                            className="copy-button opacity-0 group-hover:opacity-60 hover:opacity-100 transition-opacity"
+                        />
+                    </div>
 
                     <div className={classNames(basis)}>{avatar}</div>
                     <div
                         className={classNames(
-                            "px-1 pb-3 pt-2 [.docked_&]:px-0 [.docked_&]:py-3",
+                            "px-1 pb-3 pt-2 [.docked_&]:px-0 [.docked_&]:py-3 w-full",
                         )}
                     >
-                        <div className="font-semibold">{t(botName)}</div>
-                        <div className="chat-message-bot relative break-words">
-                            {message.payload}
+                        <div className="flex flex-col">
+                            <div className="font-semibold">{t(botName)}</div>
+                            <div
+                                className="chat-message-bot relative break-words"
+                                ref={(el) => {
+                                    if (el) {
+                                        const images =
+                                            el.getElementsByTagName("img");
+                                        Array.from(images).forEach((img) => {
+                                            if (!img.complete) {
+                                                img.addEventListener(
+                                                    "load",
+                                                    () =>
+                                                        handleMessageLoad(
+                                                            message.id,
+                                                        ),
+                                                );
+                                            }
+                                        });
+                                    }
+                                }}
+                            >
+                                {message.payload}
+                            </div>
                         </div>
                     </div>
                 </div>
