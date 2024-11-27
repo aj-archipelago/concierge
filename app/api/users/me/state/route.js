@@ -4,6 +4,11 @@ import { getCurrentUser } from "../../../utils/auth";
 function transformUserState(userState) {
     if (userState.transcribe && typeof userState.transcribe === "string") {
         userState.transcribe = JSON.parse(userState.transcribe);
+
+        // if it's still a string, it's bad data, delete it
+        if (typeof userState.transcribe === "string") {
+            delete userState.transcribe;
+        }
     }
     return userState;
 }
