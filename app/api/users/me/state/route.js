@@ -15,12 +15,22 @@ export async function GET() {
             new: true,
         },
     );
+
+    if (userState.transcribe && typeof userState.transcribe !== "string") {
+        userState.transcribe = JSON.parse(userState.transcribe);
+    }
+
     return Response.json(userState);
 }
 
 export async function PUT(req) {
     const body = await req.json();
     const user = await getCurrentUser();
+
+    if (body.transcribe && typeof body.transcribe !== "string") {
+        body.transcribe = JSON.stringify(body.transcribe);
+    }
+
     const userState = await UserState.findOneAndUpdate(
         {
             user: user._id,
