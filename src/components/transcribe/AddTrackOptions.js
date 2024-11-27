@@ -11,11 +11,10 @@ import { useCallback, useContext, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { FaVideo } from "react-icons/fa";
 import { AuthContext, ServerContext } from "../../App";
+import { useProgress } from "../../contexts/ProgressContext";
 import { QUERIES } from "../../graphql";
 import LoadingButton from "../editor/LoadingButton";
-import ProgressUpdate from "../editor/ProgressUpdate";
 import TranslationOptions from "./TranslationOptions";
-import { useProgress } from "../../contexts/ProgressContext";
 
 export function AddTrackOptions({
     url,
@@ -381,8 +380,6 @@ export default function TranscribeVideo({
     const handleFormatChange = (e) => {
         const selectedValue = e.target.value;
         console.log("Output format changed:", selectedValue);
-        const isSrt = selectedValue === "srt";
-        const isVtt = selectedValue === "vtt";
         setTranscriptionOption({
             responseFormat: selectedValue,
             wordTimestamped: false,
@@ -520,8 +517,6 @@ function ModelSelector({
     selectedModelOption,
     setSelectedModelOption,
 }) {
-    const { t } = useTranslation();
-
     return (
         <select
             className="lb-select ml-2 w-auto flex-shrink-0"

@@ -446,11 +446,9 @@ function TranscriptView({
     format,
     onSeek,
     currentTime,
-    onTranslate,
     onDeleteTrack,
 }) {
     const { t } = useTranslation();
-    console.log("format", format);
 
     return (
         <>

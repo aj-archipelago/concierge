@@ -40,7 +40,9 @@ function ProgressToast({
             progress,
         );
 
-        setProgress(newProgress);
+        if (newProgress > progress) {
+            setProgress(newProgress);
+        }
 
         if (result) {
             let finalData = result;
@@ -55,7 +57,7 @@ function ProgressToast({
                 toast.dismiss(requestId);
             }
         }
-    }, [data, requestId, onComplete]);
+    }, [data, requestId, onComplete, progress]);
 
     return (
         <div className="min-w-[250px]">

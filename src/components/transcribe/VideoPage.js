@@ -79,7 +79,14 @@ function VideoPlayer({
 
     return (
         <>
-            <div className="bg-[#000] rounded-lg flex justify-center items-center">
+            <div
+                className={classNames(
+                    "rounded-lg flex justify-center items-center",
+                    isAudioOnly
+                        ? "h-[50px] w-96"
+                        : "grow max-h-[500px] bg-[#000]",
+                )}
+            >
                 <video
                     className={`rounded-lg ${isAudioOnly ? "h-[50px] w-96" : "grow max-h-[500px]"}`}
                     ref={videoRef}
@@ -139,9 +146,7 @@ function VideoPage({}) {
     const [addTrackDialogOpen, setAddTrackDialogOpen] = useState(false);
     const [showVideoInput, setShowVideoInput] = useState(false);
     const [showTranslateDialog, setShowTranslateDialog] = useState(false);
-    const [videoLanguages, setVideoLanguages] = useState([
-        { code: "original", label: "Original", url: null },
-    ]);
+    const [videoLanguages, setVideoLanguages] = useState([]);
 
     const [activeLanguage, setActiveLanguage] = useState(0);
 
@@ -200,7 +205,13 @@ function VideoPage({}) {
     }, [userState]);
 
     useEffect(() => {
-        if (videoInformation?.videoUrl && !videoLanguages?.length) {
+        if (
+            videoInformation?.videoUrl &&
+            (!videoLanguages?.length ||
+                !videoLanguages.find(
+                    (lang) => lang.url === videoInformation.videoUrl,
+                ))
+        ) {
             const initialLanguages = [
                 {
                     code: "original",
@@ -662,10 +673,6 @@ function VideoPage({}) {
                         format={transcripts[activeTranscript].format}
                         onSeek={handleSeek}
                         currentTime={currentTime}
-                        onTranslate={() => {
-                            setAddTrackDialogOpen(true);
-                            setSelectedTab("translate");
-                        }}
                         onDeleteTrack={() => {
                             const updatedTranscripts = transcripts.filter(
                                 (_, index) => index !== activeTranscript,
