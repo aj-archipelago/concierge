@@ -16,7 +16,7 @@ export async function GET() {
         },
     );
 
-    if (userState.transcribe && typeof userState.transcribe !== "string") {
+    if (userState.transcribe && typeof userState.transcribe === "string") {
         userState.transcribe = JSON.parse(userState.transcribe);
     }
 
