@@ -18,6 +18,7 @@ import { ToastContainer, Flip } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import { ThemeContext } from "../contexts/ThemeProvider";
 import { LanguageContext } from "../contexts/LanguageProvider";
+import { ProgressProvider } from "../contexts/ProgressContext";
 
 export default function Layout({ children }) {
     const [showOptions, setShowOptions] = useState(false);
@@ -174,49 +175,51 @@ export default function Layout({ children }) {
                     </div>
 
                     <div className="relative flex-col">
-                        <main
-                            className="p-2 bg-slate-50 flex gap-2"
-                            ref={contentRef}
-                        >
-                            <div
-                                className={`${"grow"} bg-white dark:border-gray-200 rounded-md border p-3 lg:p-4 overflow-auto`}
-                                style={{ height: "calc(100vh - 120px)" }}
+                        <ProgressProvider>
+                            <main
+                                className="p-2 bg-slate-50 flex gap-2"
+                                ref={contentRef}
                             >
-                                {showOptions && (
-                                    <UserOptions
-                                        show={showOptions}
-                                        handleClose={handleCloseOptions}
+                                <div
+                                    className={`${"grow"} bg-white dark:border-gray-200 rounded-md border p-4 lg:p-6 overflow-auto`}
+                                    style={{ height: "calc(100vh - 120px)" }}
+                                >
+                                    {showOptions && (
+                                        <UserOptions
+                                            show={showOptions}
+                                            handleClose={handleCloseOptions}
+                                        />
+                                    )}
+                                    <Tos
+                                        showTos={showTos}
+                                        setShowTos={setShowTos}
                                     />
-                                )}
-                                <Tos
-                                    showTos={showTos}
-                                    setShowTos={setShowTos}
-                                />
-                                {children}
-                            </div>
-                            {showChatbox && (
-                                <div className="hidden sm:block basis-[302px] h-[calc(100vh-120px)]">
-                                    <ChatBox />
+                                    {children}
                                 </div>
-                            )}
-                            <ToastContainer
-                                position={
-                                    direction === "rtl"
-                                        ? "top-left"
-                                        : "top-right"
-                                }
-                                autoClose={10000}
-                                hideProgressBar={false}
-                                newestOnTop={false}
-                                closeOnClick
-                                rtl={direction === "rtl"}
-                                pauseOnFocusLoss
-                                draggable
-                                pauseOnHover
-                                theme={theme === "dark" ? "dark" : "light"}
-                                transition={Flip}
-                            />
-                        </main>
+                                {showChatbox && (
+                                    <div className="hidden sm:block basis-[302px] h-[calc(100vh-120px)]">
+                                        <ChatBox />
+                                    </div>
+                                )}
+                                <ToastContainer
+                                    position={
+                                        direction === "rtl"
+                                            ? "top-left"
+                                            : "top-right"
+                                    }
+                                    autoClose={10000}
+                                    hideProgressBar={false}
+                                    newestOnTop={false}
+                                    closeOnClick
+                                    rtl={direction === "rtl"}
+                                    pauseOnFocusLoss
+                                    draggable
+                                    pauseOnHover
+                                    theme={theme === "dark" ? "dark" : "light"}
+                                    transition={Flip}
+                                />
+                            </main>
+                        </ProgressProvider>
                         <Footer />
                     </div>
                 </div>
