@@ -44,12 +44,13 @@ const App = ({
     const { data: currentUser } = useCurrentUser();
     const { data: serverUserState } = useUserState();
     const updateUserState = useUpdateUserState();
-    const [userState, setUserState] = useState(serverUserState || {});
+    const [userState, setUserState] = useState(serverUserState);
     const debouncedUserState = useDebounce(userState, STATE_DEBOUNCE_TIME);
 
     useEffect(() => {
         // set user state from server if it exists
         if (!userState && serverUserState) {
+            console.log("setting user state from server");
             setUserState(serverUserState);
         }
     }, [userState, serverUserState]);
@@ -71,10 +72,19 @@ const App = ({
     }
 
     const debouncedUpdateUserState = (value) => {
-        setUserState({
-            ...userState,
-            ...value,
-        });
+        if (typeof value === "function") {
+            setUserState((prev) => {
+                return {
+                    ...prev,
+                    ...value(prev),
+                };
+            });
+        } else {
+            setUserState({
+                ...userState,
+                ...value,
+            });
+        }
     };
 
     return (

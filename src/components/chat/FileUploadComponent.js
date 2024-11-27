@@ -136,6 +136,7 @@ function FileUploadComponent({ text }) {
 
             // Handle any upload errors
             xhr.onerror = (error) => {
+                console.error(error);
                 setNewUrl({ error: t("File upload failed") });
             };
 
@@ -144,6 +145,7 @@ function FileUploadComponent({ text }) {
             xhr.send(formData);
             event.target.value = "";
         } catch (error) {
+            console.error(error);
             setNewUrl({ error: t("File upload failed") });
         }
     };
