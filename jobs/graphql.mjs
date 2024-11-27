@@ -107,9 +107,9 @@ const VISION = gql`
     }
 `;
 
-const RAG_SAVE_MEMORY = gql`
-    query RagSaveMemory($aiMemory: String!, $contextId: String!) {
-        rag_save_memory(aiMemory: $aiMemory, contextId: $contextId) {
+const SYS_SAVE_MEMORY = gql`
+    query SysSaveMemory($aiMemory: String!, $contextId: String!) {
+        sys_save_memory(aiMemory: $aiMemory, contextId: $contextId) {
             result
         }
     }
@@ -151,8 +151,8 @@ const RAG_START = gql`
     }
 `;
 
-const RAG_GENERATOR_RESULTS = gql`
-    query RagFinish(
+const SYS_ENTITY_CONTINUE = gql`
+    query SysEntityContinue(
         $chatHistory: [MultiMessage]!
         $dataSources: [String]
         $contextId: String
@@ -163,8 +163,9 @@ const RAG_GENERATOR_RESULTS = gql`
         $aiName: String
         $useMemory: Boolean
         $chatId: String
+        $generatorPathway: String
     ) {
-        rag_generator_results(
+        sys_entity_continue(
             chatHistory: $chatHistory
             dataSources: $dataSources
             contextId: $contextId
@@ -175,6 +176,7 @@ const RAG_GENERATOR_RESULTS = gql`
             aiName: $aiName
             useMemory: $useMemory
             chatId: $chatId
+            generatorPathway: $generatorPathway
         ) {
             result
             contextId
@@ -636,9 +638,9 @@ const QUERIES = {
     COGNITIVE_DELETE,
     COGNITIVE_INSERT,
     IMAGE,
-    RAG_SAVE_MEMORY,
+    SYS_SAVE_MEMORY,
     RAG_START,
-    RAG_GENERATOR_RESULTS,
+    SYS_ENTITY_CONTINUE,
     EXPAND_STORY,
     FORMAT_PARAGRAPH_TURBO,
     SELECT_SERVICES,
@@ -693,9 +695,9 @@ export {
     COGNITIVE_INSERT,
     COGNITIVE_DELETE,
     EXPAND_STORY,
-    RAG_SAVE_MEMORY,
+    SYS_SAVE_MEMORY,
     RAG_START,
-    RAG_GENERATOR_RESULTS,
+    SYS_ENTITY_CONTINUE,
     SELECT_SERVICES,
     SUMMARY,
     HASHTAGS,

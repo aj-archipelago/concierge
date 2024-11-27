@@ -38,7 +38,7 @@ function CopyButton({ item, className = "absolute top-1 end-1 " }) {
                 {copied && (
                     <div
                         className={
-                            "text-xs whitespace-nowrap absolute top-0 end-0 bg-gray-800/90 dark:text-gray-700 text-white px-2 py-1.5 rounded"
+                            "copy-notification text-xs whitespace-nowrap absolute top-0 end-0 bg-gray-800/90 dark:text-gray-700 text-white px-2 py-1.5 rounded"
                         }
                     >
                         {t("Copied to clipboard")}
