@@ -2,14 +2,19 @@ import UserState from "../../../models/user-state";
 import { getCurrentUser } from "../../../utils/auth";
 
 function transformUserState(userState) {
+    if (userState.toJSON) {
+        userState = userState.toJSON();
+    }
     if (userState.transcribe && typeof userState.transcribe === "string") {
         userState.transcribe = JSON.parse(userState.transcribe);
 
-        // if it's still a string, it's bad data, delete it
-        if (typeof userState.transcribe === "string") {
+        
+        // clean up bad data
+        if (typeof userState.transcribe === "string" || Object.keys(userState.transcribe).length > 50) {
             delete userState.transcribe;
         }
     }
+
     return userState;
 }
 
