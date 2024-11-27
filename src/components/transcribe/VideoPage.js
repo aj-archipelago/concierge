@@ -240,6 +240,7 @@ function VideoPage({}) {
                 },
             });
         }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [transcripts]);
 
     useEffect(() => {
@@ -396,6 +397,7 @@ function VideoPage({}) {
                                                     {lang.label && (
                                                         <a
                                                             target="_blank"
+                                                            rel="noreferrer"
                                                             href={lang.url}
                                                             download={`video-${lang.code}.mp4`}
                                                             className="px-2 hover:bg-sky-50 transition-colors border-l border-gray-200 flex items-center cursor-pointer"

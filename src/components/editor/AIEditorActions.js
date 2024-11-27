@@ -1,7 +1,7 @@
 import { useTranslation } from "react-i18next";
 import { BiNews } from "react-icons/bi";
 import { BsArrowsExpand, BsBook } from "react-icons/bs";
-import { FaEdit, FaLanguage, FaSpellCheck, FaVideo } from "react-icons/fa";
+import { FaEdit, FaLanguage, FaSpellCheck } from "react-icons/fa";
 import {
     MdOutlineListAlt,
     MdOutlineSummarize,

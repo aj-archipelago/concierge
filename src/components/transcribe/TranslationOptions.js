@@ -70,7 +70,7 @@ function TranslationOptions({
                 setLoading(false);
             }
         },
-        [apolloClient, async, addProgressToast, t],
+        [apolloClient, async, addProgressToast, t, onClose],
     );
 
     const setFinalData = (finalData) => {

@@ -1,23 +1,5 @@
 "use client";
 
-import React, { useRef, useEffect, useState } from "react";
-import { useTranslation } from "react-i18next";
-import CopyButton from "../CopyButton";
-import TaxonomySelector from "./TaxonomySelector";
-import {
-    DownloadIcon,
-    LanguagesIcon,
-    MoreVertical,
-    ChevronDown,
-} from "lucide-react";
-import { FaEdit } from "react-icons/fa";
-import LoadingButton from "../editor/LoadingButton";
-import {
-    DropdownMenu,
-    DropdownMenuContent,
-    DropdownMenuItem,
-    DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import {
     Dialog,
     DialogContent,
@@ -25,6 +7,19 @@ import {
     DialogTitle,
     DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { ChevronDown, DownloadIcon, MoreVertical } from "lucide-react";
+import React, { useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
+import { FaEdit } from "react-icons/fa";
+import CopyButton from "../CopyButton";
+import LoadingButton from "../editor/LoadingButton";
+import TaxonomySelector from "./TaxonomySelector";
 
 // New VTT component
 function VttSubtitles({ text, onSeek, currentTime }) {

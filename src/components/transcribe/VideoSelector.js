@@ -25,7 +25,7 @@ const VideoSelector = ({ url, onSelect }) => {
         if (data && !data.results?.length) {
             onSelect({ videoUrl: debouncedUrl });
         }
-    }, [data]);
+    }, [data, onSelect, debouncedUrl]);
 
     if (!fetchUrlSource) return null;
 
