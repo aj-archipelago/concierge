@@ -270,8 +270,8 @@ function ChatContent({
     useEffect(() => {
         // Only reset loading state if there's no active operation in progress
         if (
-            chat?.isChatLoading && 
-            !chat?.toolCallbackName && 
+            chat?.isChatLoading &&
+            !chat?.toolCallbackName &&
             !chat?.codeRequestId &&
             !chat?.toolCallbackId
         ) {
