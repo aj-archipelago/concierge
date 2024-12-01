@@ -268,7 +268,13 @@ function ChatContent({
     );
 
     useEffect(() => {
-        if (chat?.isChatLoading && !chat?.toolCallbackName) {
+        // Only reset loading state if there's no active operation in progress
+        if (
+            chat?.isChatLoading && 
+            !chat?.toolCallbackName && 
+            !chat?.codeRequestId &&
+            !chat?.toolCallbackId
+        ) {
             updateChatHook.mutateAsync({
                 chatId: String(chat._id),
                 messages: chat.messages || [],
