@@ -56,6 +56,7 @@ function VideoPlayer({
     const videoRef = useRef(null);
     const [isAudioOnly, setIsAudioOnly] = useState(false);
     const [showSubtitles, setShowSubtitles] = useState(true);
+    const { t } = useTranslation();
 
     const handleVideoReady = () => {
         if (videoRef.current && videoRef.current.videoHeight === 0) {
@@ -161,8 +162,10 @@ function VideoPlayer({
                         )}
                     >
                         {vttUrl
-                            ? "Show subtitles overlay"
-                            : "Select a VTT or SRT file to view it as an overlay on the video"}
+                            ? t("Show subtitles overlay")
+                            : t(
+                                  "Select a VTT or SRT file to view it as an overlay on the video",
+                              )}
                     </label>
                 </div>
             )}
@@ -347,7 +350,7 @@ function VideoPage({}) {
                         onClick={() => {
                             if (
                                 window.confirm(
-                                    "Are you sure you want to start over?",
+                                    t("Are you sure you want to start over?"),
                                 )
                             ) {
                                 clearVideoInformation();
@@ -357,7 +360,7 @@ function VideoPage({}) {
                         aria-label="Clear video"
                     >
                         <RefreshCwIcon className="w-4 h-4" />
-                        Start over
+                        {t("Start over")}
                     </button>
                 </div>
                 <div>
@@ -377,7 +380,7 @@ function VideoPage({}) {
                                     </div>
                                     <div className="flex flex-col gap-2 w-[10rem]">
                                         <div className="text-sm font-semibold text-gray-500 mb-1">
-                                            Video available in
+                                            {t("Video available in")}
                                         </div>
                                         <div className="flex flex-col gap-2">
                                             {videoLanguages.map((lang, idx) => (
@@ -423,7 +426,7 @@ function VideoPage({}) {
                                             className="lb-outline-secondary lb-sm flex items-center gap-1"
                                         >
                                             <PlusIcon className="h-4 w-4" />
-                                            Add Language
+                                            {t("Add Language")}
                                         </button>
                                     </div>
                                 </div>
