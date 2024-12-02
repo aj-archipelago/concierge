@@ -1,14 +1,12 @@
 import { useApolloClient } from "@apollo/client";
-import { AZURE_VIDEO_TRANSLATE } from "../../graphql";
-import ProgressUpdate from "../editor/ProgressUpdate";
+import { LanguagesIcon } from "lucide-react";
 import { useState } from "react";
 import { useProgress } from "../../contexts/ProgressContext";
-import { LanguagesIcon } from "lucide-react";
+import { AZURE_VIDEO_TRANSLATE } from "../../graphql";
 import { LOCALES } from "../../utils/constants";
 
 export default function AzureVideoTranslate({ url, onQueued, onComplete }) {
     const apolloClient = useApolloClient();
-    const [requestId, setRequestId] = useState(null);
     const [sourceLocale, setSourceLocale] = useState("en-US");
     const [targetLocale, setTargetLocale] = useState("ar-QA");
     const { addProgressToast } = useProgress();
@@ -78,7 +76,7 @@ export default function AzureVideoTranslate({ url, onQueued, onComplete }) {
             </div>
             <div>
                 <button
-                    disabled={requestId || !url}
+                    disabled={!url}
                     className="lb-primary"
                     onClick={async () => {
                         const { data } = await apolloClient.query(

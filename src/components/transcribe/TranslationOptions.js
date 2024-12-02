@@ -70,7 +70,14 @@ function TranslationOptions({
                 setLoading(false);
             }
         },
-        [apolloClient, async, addProgressToast, t, onClose],
+        [
+            apolloClient,
+            async,
+            addProgressToast,
+            t,
+            onClose,
+            transcriptionTranslationLanguage,
+        ],
     );
 
     const setFinalData = (finalData) => {
@@ -167,27 +174,6 @@ function TranslationOptions({
             >
                 <LanguageIcon className="h-4 w-4" /> {t("Translate")}
             </LoadingButton>
-
-            {/* <div className="mt-2 border-t border-gray-200 pt-4">
-                <div className="mb-2">
-                    <div className="font-semibold">{t("Direct SRT Translation")}</div>
-                    <textarea
-                        className="lb-input w-full mb-2"
-                        rows="4"
-                        value={inputText}
-                        onChange={(e) => setInputText(e.target.value)}
-                        placeholder={t("Enter SRT text to translate")}
-                    />
-                    <LoadingButton
-                        className="lb-primary"
-                        disabled={!inputText}
-                        loading={loading}
-                        onClick={handleDirectTranslate}
-                    >
-                        <FaLanguage /> {t("Translate")}
-                    </LoadingButton>
-                </div>
-            </div> */}
         </div>
     );
 }
