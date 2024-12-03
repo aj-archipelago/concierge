@@ -98,7 +98,7 @@ function TranslationOptions({
         <div>
             <div className="flex items-center gap-2">
                 <div className="mb-3 basis-1/2">
-                    <h3 className="text-sm mb-1">From</h3>
+                    <h3 className="text-sm mb-1">{t("From")}</h3>
                     {transcripts?.length > 0 && (
                         <select
                             className="lb-select"
@@ -129,7 +129,7 @@ function TranslationOptions({
                     )}
                 </div>
                 <div className="mb-3 basis-1/2">
-                    <h3 className="text-sm mb-1">To</h3>
+                    <h3 className="text-sm mb-1">{t("To")}</h3>
                     <select
                         className="lb-select"
                         disabled={loading}

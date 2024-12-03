@@ -8,6 +8,7 @@ import {
     DialogTitle,
 } from "@/components/ui/dialog";
 import { AddTrackOptions } from "./AddTrackOptions";
+import { useTranslation } from "react-i18next";
 
 export default function AddTrackDialog({
     addTrackDialogOpen,
@@ -21,14 +22,17 @@ export default function AddTrackDialog({
     defaultTab,
     activeTranscript,
 }) {
+    const { t } = useTranslation();
+
     return (
         <Dialog open={addTrackDialogOpen} onOpenChange={setAddTrackDialogOpen}>
             <DialogContent className="min-h-[450px]">
                 <DialogHeader>
-                    <DialogTitle>Add subtitles/transcripts</DialogTitle>
+                    <DialogTitle>{t("Add subtitles/transcripts")}</DialogTitle>
                     <DialogDescription>
-                        Please select the options below to create subtitles for
-                        your video.
+                        {t(
+                            "Please select the options below to create subtitles for your video.",
+                        )}
                     </DialogDescription>
                     <AddTrackOptions
                         url={url}

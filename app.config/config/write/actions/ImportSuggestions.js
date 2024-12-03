@@ -183,7 +183,7 @@ export function ImportSuggestions({ text, onSelect, diffEditorRef }) {
                                                 id={`post-${post.id}`}
                                             />
                                             <span className="sm:hidden">
-                                                Tap here to select
+                                                {t("Tap here to select")}
                                             </span>
                                         </div>
                                         <div className="w-full sm:w-[150px] sm:shrink-0">
@@ -235,7 +235,7 @@ export function ImportSuggestions({ text, onSelect, diffEditorRef }) {
                                                         className="text-sky-600"
                                                         href={`https://${storyFlow}.aj-harbinger.com${post.link}`}
                                                     >
-                                                        View on site
+                                                        {t("View on site")}
                                                     </a>{" "}
                                                     |{" "}
                                                     <a
@@ -244,7 +244,7 @@ export function ImportSuggestions({ text, onSelect, diffEditorRef }) {
                                                         target="_blank"
                                                         className="text-sky-600"
                                                     >
-                                                        View in UCMS
+                                                        {t("View in UCMS")}
                                                     </a>
                                                 </div>
                                             </div>
