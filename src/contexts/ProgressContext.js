@@ -9,28 +9,13 @@ import { toast } from "react-toastify";
 import { useSubscription } from "@apollo/client";
 import { SUBSCRIPTIONS } from "../graphql";
 
-type ProgressCallback = (finalData: any) => void;
-
 const TIMEOUT_DURATION = 5 * 60 * 1000; // 5 minutes timeout
 const ERROR_MESSAGES = {
     timeout: "The operation timed out. Please try again.",
     generic: "An error occurred. Please try again.",
 };
 
-type ProgressContextType = {
-    addProgressToast: (
-        requestId: string,
-        initialText?: string,
-        onComplete?: ProgressCallback,
-        onError?: (error: Error) => void,
-        timeout?: number,
-    ) => void;
-    removeProgressToast: (requestId: string) => void;
-};
-
-const ProgressContext = createContext<ProgressContextType | undefined>(
-    undefined,
-);
+const ProgressContext = createContext(undefined);
 
 function ProgressToast({
     requestId,
@@ -38,16 +23,10 @@ function ProgressToast({
     onComplete,
     onError,
     timeout = TIMEOUT_DURATION,
-}: {
-    requestId: string;
-    initialText: string;
-    onComplete?: ProgressCallback;
-    onError?: (error: Error) => void;
-    timeout?: number;
 }) {
     const [progress, setProgress] = useState(10);
-    const [errorMessage, setErrorMessage] = useState<string | null>(null);
-    const timeoutRef = useRef<NodeJS.Timeout>();
+    const [errorMessage, setErrorMessage] = useState(null);
+    const timeoutRef = useRef();
 
     useEffect(() => {
         timeoutRef.current = setTimeout(() => {
@@ -135,15 +114,15 @@ function ProgressToast({
     );
 }
 
-export function ProgressProvider({ children }: { children: React.ReactNode }) {
-    const [activeToasts] = useState(new Set<string>());
+export function ProgressProvider({ children }) {
+    const [activeToasts] = useState(new Set());
 
     const addProgressToast = (
-        requestId: string,
+        requestId,
         initialText = "Processing...",
-        onComplete?: ProgressCallback,
-        onError?: (error: Error) => void,
-        timeout?: number,
+        onComplete,
+        onError,
+        timeout,
     ) => {
         if (activeToasts.has(requestId)) return;
 
@@ -168,7 +147,7 @@ export function ProgressProvider({ children }: { children: React.ReactNode }) {
         );
     };
 
-    const removeProgressToast = (requestId: string) => {
+    const removeProgressToast = (requestId) => {
         toast.dismiss(requestId);
         activeToasts.delete(requestId);
     };
