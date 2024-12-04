@@ -102,7 +102,7 @@ function MessageList({ messages, bot, loading, chatId }) {
                 sentTime: "just now",
                 direction: "incoming",
                 position: "single",
-                tool: "{\"toolUsed\":\"coding\"}"
+                tool: '{"toolUsed":"coding"}',
             };
 
             updateChat.mutateAsync({
