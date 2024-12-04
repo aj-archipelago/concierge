@@ -98,7 +98,7 @@ const ProgressUpdate = ({
         });
 
         //optimistic update
-        setFinalData("Conversation terminated by user");
+        setFinalData("⛔ Tool call cancelled");
     };
 
     return (
