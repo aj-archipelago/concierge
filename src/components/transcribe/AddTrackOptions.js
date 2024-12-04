@@ -222,7 +222,7 @@ function ClipboardPaste({ onAdd }) {
         onAdd({
             text: text,
             format: "",
-            name: "Pasted Transcript",
+            name: t("Pasted Transcript"),
         });
         setText("");
     };

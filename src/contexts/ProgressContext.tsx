@@ -1,15 +1,29 @@
-import React, { createContext, useContext, useState } from "react";
+import React, {
+    createContext,
+    useContext,
+    useState,
+    useRef,
+    useEffect,
+} from "react";
 import { toast } from "react-toastify";
 import { useSubscription } from "@apollo/client";
 import { SUBSCRIPTIONS } from "../graphql";
 
 type ProgressCallback = (finalData: any) => void;
 
+const TIMEOUT_DURATION = 5 * 60 * 1000; // 5 minutes timeout
+const ERROR_MESSAGES = {
+    timeout: "The operation timed out. Please try again.",
+    generic: "An error occurred. Please try again.",
+};
+
 type ProgressContextType = {
     addProgressToast: (
         requestId: string,
         initialText?: string,
         onComplete?: ProgressCallback,
+        onError?: (error: Error) => void,
+        timeout?: number,
     ) => void;
     removeProgressToast: (requestId: string) => void;
 };
@@ -22,18 +36,48 @@ function ProgressToast({
     requestId,
     initialText,
     onComplete,
+    onError,
+    timeout = TIMEOUT_DURATION,
 }: {
     requestId: string;
     initialText: string;
     onComplete?: ProgressCallback;
+    onError?: (error: Error) => void;
+    timeout?: number;
 }) {
     const [progress, setProgress] = useState(10);
+    const [errorMessage, setErrorMessage] = useState<string | null>(null);
+    const timeoutRef = useRef<NodeJS.Timeout>();
 
-    const { data } = useSubscription(SUBSCRIPTIONS.REQUEST_PROGRESS, {
+    useEffect(() => {
+        timeoutRef.current = setTimeout(() => {
+            const timeoutError = new Error(ERROR_MESSAGES.timeout);
+            onError?.(timeoutError);
+            setErrorMessage(ERROR_MESSAGES.timeout);
+            // toast.dismiss(requestId);
+        }, timeout);
+
+        return () => {
+            if (timeoutRef.current) {
+                clearTimeout(timeoutRef.current);
+            }
+        };
+    }, [timeout, requestId, onError]);
+
+    console.log("initialText", initialText);
+
+    const { data, error } = useSubscription(SUBSCRIPTIONS.REQUEST_PROGRESS, {
         variables: { requestIds: [requestId] },
     });
 
     React.useEffect(() => {
+        if (error) {
+            onError?.(error);
+            setErrorMessage(ERROR_MESSAGES.generic);
+            // toast.dismiss(requestId);
+            return;
+        }
+
         const result = data?.requestProgress?.data;
         const newProgress = Math.max(
             (data?.requestProgress?.progress || 0) * 100,
@@ -53,27 +97,39 @@ function ProgressToast({
             }
 
             if (data.requestProgress.progress === 1) {
+                if (timeoutRef.current) {
+                    clearTimeout(timeoutRef.current);
+                }
                 onComplete?.(finalData);
                 toast.dismiss(requestId);
             }
         }
-    }, [data, requestId, onComplete, progress]);
+    }, [data, error, requestId, onComplete, progress, onError]);
 
     return (
         <div className="min-w-[250px]">
-            <div className="mb-2">
-                <div className="h-2 w-full bg-gray-200 rounded-full">
-                    <div
-                        className="h-full bg-sky-600 rounded-full transition-all duration-300"
-                        style={{ width: `${progress}%` }}
-                    />
-                </div>
-            </div>
-            <div className="text-sm">{initialText}</div>
-            {data?.requestProgress?.info && (
-                <div className="text-xs bg-gray-50 p-2 rounded-mdtext-gray-500 mt-1">
-                    {data.requestProgress.info}
-                </div>
+            {!errorMessage ? (
+                <>
+                    <div className="mb-2">
+                        <div className="h-2 w-full bg-gray-200 rounded-full">
+                            <div
+                                className="h-full bg-sky-600 rounded-full transition-all duration-300"
+                                style={{ width: `${progress}%` }}
+                            />
+                        </div>
+                    </div>
+                    <div className="text-sm">{initialText}</div>
+                    {data?.requestProgress?.info && (
+                        <div className="text-xs bg-gray-50 p-2 rounded-mdtext-gray-500 mt-1">
+                            {data.requestProgress.info}
+                        </div>
+                    )}
+                </>
+            ) : (
+                <>
+                    <div className="text-sm">{initialText}</div>
+                    <div className="text-sm text-red-600">{errorMessage}</div>
+                </>
             )}
         </div>
     );
@@ -86,6 +142,8 @@ export function ProgressProvider({ children }: { children: React.ReactNode }) {
         requestId: string,
         initialText = "Processing...",
         onComplete?: ProgressCallback,
+        onError?: (error: Error) => void,
+        timeout?: number,
     ) => {
         if (activeToasts.has(requestId)) return;
 
@@ -96,6 +154,8 @@ export function ProgressProvider({ children }: { children: React.ReactNode }) {
                 requestId={requestId}
                 initialText={initialText}
                 onComplete={onComplete}
+                onError={onError}
+                timeout={timeout}
             />,
             {
                 toastId: requestId,
