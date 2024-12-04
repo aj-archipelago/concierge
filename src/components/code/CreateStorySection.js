@@ -221,6 +221,7 @@ export default function CreateStorySection({ token, ticket }) {
                                 className="lb-warning"
                                 onClick={() => {
                                     setCreatedUrl("");
+                                    setFieldValues({});
                                 }}
                             >
                                 {t("Create another")}
@@ -277,6 +278,7 @@ function IssueFields({
                     (f) => !SPECIAL_FIELDS.includes(f.key) && f.required,
                 );
                 setFields(fields);
+                onChange({});
             })
             .catch((error) => {
                 setError(error);
@@ -316,11 +318,10 @@ function IssueFields({
             {fields
                 ?.sort((a, b) => a.name.localeCompare(b.name))
                 .map((field) => (
-                    <div
-                        key={field.key}
-                        className="flex gap-2 mb-2 items-center"
-                    >
-                        <label className="basis-32 text-sm">{field.name}</label>
+                    <div key={field.key} className="flex gap-2 mb-2">
+                        <label className="basis-32 mt-1 text-sm">
+                            {field.name}
+                        </label>
                         <FieldInput
                             field={field}
                             value={value[field.key]}
@@ -339,24 +340,56 @@ function IssueFields({
 
 function FieldInput({ field, value, onChange }) {
     const allowedValues = field.allowedValues;
+    const expectsArray = field.schema?.type === "array";
+
+    useEffect(() => {
+        // Set first value as default if there are allowed values and no value is selected
+        if (allowedValues?.length && !value) {
+            onChange(
+                expectsArray
+                    ? [{ id: allowedValues[0].id }]
+                    : { id: allowedValues[0].id },
+            );
+        }
+    }, [allowedValues]);
 
     if (allowedValues?.length) {
         return (
-            <select
-                value={value?.id}
-                onChange={(e) =>
-                    onChange({
-                        id: e.target.value,
-                    })
-                }
-                className="lb-input basis-64"
-            >
-                {allowedValues.map((value) => (
-                    <option key={value.id} value={value.id}>
-                        {value.value || value.name}
-                    </option>
-                ))}
-            </select>
+            <div>
+                <div>
+                    <select
+                        value={
+                            expectsArray ? value?.map((v) => v.id) : value?.id
+                        }
+                        onChange={(e) => {
+                            const selectedOptions = Array.from(
+                                e.target.selectedOptions,
+                            );
+                            const selectedValues = selectedOptions.map(
+                                (option) => ({ id: option.value }),
+                            );
+                            onChange(
+                                expectsArray
+                                    ? selectedValues
+                                    : { id: e.target.value },
+                            );
+                        }}
+                        className="lb-input basis-64"
+                        multiple={expectsArray}
+                    >
+                        {allowedValues.map((value) => (
+                            <option key={value.id} value={value.id}>
+                                {value.value || value.name}
+                            </option>
+                        ))}
+                    </select>
+                </div>
+                {expectsArray && (
+                    <div className="text-xs mt-1 text-gray-500 ml-2">
+                        (Hold Ctrl/Cmd to select multiple)
+                    </div>
+                )}
+            </div>
         );
     }
 
