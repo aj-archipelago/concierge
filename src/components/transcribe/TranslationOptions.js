@@ -50,7 +50,11 @@ function TranslationOptions({
                         setRequestId(result);
                         addProgressToast(
                             result,
-                            t("Translating text to") +
+                            t("Translating") +
+                                " " +
+                                selectedTranscript?.name +
+                                " " +
+                                t("to") +
                                 " " +
                                 transcriptionTranslationLanguage +
                                 "...",
