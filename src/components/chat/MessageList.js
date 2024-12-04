@@ -47,6 +47,7 @@ const getToolMetadata = (toolName, t) => {
         writing: "💻",
         vision: "👁️",
         default: "🛠️",
+        coding: "🤖",
     };
 
     const normalizedToolName = toolName?.toLowerCase();
@@ -96,11 +97,12 @@ function MessageList({ messages, bot, loading, chatId }) {
     const setCodeRequestFinalData = useCallback(
         (data) => {
             const message = {
-                payload: `<span class="text-indigo-500">🤖 Coding Agent ➡️ </span>\n${data}`,
+                payload: data,
                 sender: "labeeb",
                 sentTime: "just now",
                 direction: "incoming",
                 position: "single",
+                tool: "{\"toolUsed\":\"coding\"}"
             };
 
             updateChat.mutateAsync({
