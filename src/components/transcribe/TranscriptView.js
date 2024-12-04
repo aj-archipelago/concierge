@@ -397,10 +397,16 @@ function DownloadButton({ format, name, text }) {
             </DropdownMenuTrigger>
             {format === "srt" || format === "vtt" ? (
                 <DropdownMenuContent>
-                    <DropdownMenuItem className="text-xs" onClick={() => downloadFile("srt")}>
+                    <DropdownMenuItem
+                        className="text-xs"
+                        onClick={() => downloadFile("srt")}
+                    >
                         {t("Download SRT")}
                     </DropdownMenuItem>
-                    <DropdownMenuItem className="text-xs" onClick={() => downloadFile("vtt")}>
+                    <DropdownMenuItem
+                        className="text-xs"
+                        onClick={() => downloadFile("vtt")}
+                    >
                         {t("Download VTT")}
                     </DropdownMenuItem>
                 </DropdownMenuContent>

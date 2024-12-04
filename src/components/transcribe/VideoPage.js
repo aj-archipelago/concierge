@@ -643,12 +643,12 @@ function VideoPage({}) {
                     <div className="flex gap-2 mb-2">
                         {transcripts.length > 0 && (
                             <div className="flex gap-2 items-center">
-                                {transcripts.length <= 3 ? (
-                                    // Show buttons for 3 or fewer transcripts
+                                {transcripts.length <= 4 ? (
+                                    // Show buttons for 4 or fewer transcripts
                                     transcripts.map((transcript, index) => (
                                         <button
                                             key={index}
-                                            className={`lb-outline-secondary lb-sm ${activeTranscript === index ? "bg-gray-100" : ""}`}
+                                            className={`border lb-sm hover:bg-sky-200 active:bg-sky-300 transition-colors ${activeTranscript === index ? "bg-sky-100" : ""}`}
                                             onClick={() =>
                                                 setActiveTranscript(index)
                                             }
@@ -658,37 +658,71 @@ function VideoPage({}) {
                                         </button>
                                     ))
                                 ) : (
-                                    // Use Select component for more than 3 transcripts
-                                    <Select
-                                        value={activeTranscript.toString()}
-                                        onValueChange={(value) =>
-                                            setActiveTranscript(parseInt(value))
-                                        }
-                                    >
-                                        <SelectTrigger className="w-[180px] py-1 text-sm">
-                                            <SelectValue
-                                                placeholder="Select transcript"
-                                                className="text-sm py-0"
+                                    // Show first 4 as buttons, then use Select for the rest
+                                    <>
+                                        {transcripts
+                                            .slice(0, 4)
+                                            .map((transcript, index) => (
+                                                <button
+                                                    key={index}
+                                                    className={`border h-8 lb-sm hover:bg-sky-200 active:bg-sky-300 transition-colors ${activeTranscript === index ? "bg-sky-100" : ""}`}
+                                                    onClick={() =>
+                                                        setActiveTranscript(
+                                                            index,
+                                                        )
+                                                    }
+                                                >
+                                                    {transcript.name ||
+                                                        `Transcript ${index + 1}`}
+                                                </button>
+                                            ))}
+                                        <Select
+                                            value={activeTranscript.toString()}
+                                            onValueChange={(value) =>
+                                                setActiveTranscript(
+                                                    parseInt(value),
+                                                )
+                                            }
+                                        >
+                                            <SelectTrigger
+                                                className={classNames(
+                                                    "w-[180px] py-1 h-8 text-xs font-medium shadow-sm",
+                                                    activeTranscript > 3
+                                                        ? "bg-sky-100"
+                                                        : "",
+                                                )}
                                             >
-                                                {transcripts[activeTranscript]
-                                                    ?.name ||
-                                                    `Transcript ${activeTranscript + 1}`}
-                                            </SelectValue>
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            {transcripts.map(
-                                                (transcript, index) => (
-                                                    <SelectItem
-                                                        key={index}
-                                                        value={index.toString()}
-                                                    >
-                                                        {transcript.name ||
-                                                            `Transcript ${index + 1}`}
-                                                    </SelectItem>
-                                                ),
-                                            )}
-                                        </SelectContent>
-                                    </Select>
+                                                <SelectValue
+                                                    placeholder="Select transcript"
+                                                    className={"py-0"}
+                                                >
+                                                    {activeTranscript > 3
+                                                        ? transcripts[
+                                                              activeTranscript
+                                                          ]?.name ||
+                                                          `Transcript ${activeTranscript + 1}`
+                                                        : "More..."}
+                                                </SelectValue>
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                {transcripts
+                                                    .slice(4)
+                                                    .map(
+                                                        (transcript, index) => (
+                                                            <SelectItem
+                                                                key={index + 4}
+                                                                value={(
+                                                                    index + 4
+                                                                ).toString()}
+                                                            >
+                                                                {transcript.name ||
+                                                                    `Transcript ${index + 5}`}
+                                                            </SelectItem>
+                                                        ),
+                                                    )}
+                                            </SelectContent>
+                                        </Select>
+                                    </>
                                 )}
                             </div>
                         )}
