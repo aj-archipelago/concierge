@@ -3,6 +3,7 @@
     "tool.search": "search",
     "tool.reasoning": "reasoning",
     "tool.image": "image",
+    "tool.coding": "coding",
     "tool.writing": "writing",
     "tool.vision": "vision",
     "tool.default": "default"

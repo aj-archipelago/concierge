@@ -6,5 +6,6 @@
     "tool.image": "image",
     "tool.writing": "writing",
     "tool.vision": "vision",
-    "tool.default": "default"
+    "tool.default": "default",
+    "tool.coding": "coding"
 }
