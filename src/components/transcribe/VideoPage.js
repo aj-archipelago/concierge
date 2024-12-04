@@ -22,6 +22,7 @@ import {
     DownloadIcon,
     PlusIcon,
     RefreshCwIcon,
+    TrashIcon,
 } from "lucide-react";
 import { useCallback, useContext, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -368,7 +369,7 @@ function VideoPage({}) {
                         {isValidUrl(videoInformation?.videoUrl) ? (
                             <>
                                 <div className="flex gap-4">
-                                    <div className="w-[calc(100%-10rem)]">
+                                    <div className="w-[calc(100%-13rem)]">
                                         <VideoPlayer
                                             videoLanguages={videoLanguages}
                                             activeLanguage={activeLanguage}
@@ -378,7 +379,7 @@ function VideoPage({}) {
                                             videoInformation={videoInformation}
                                         />
                                     </div>
-                                    <div className="flex flex-col gap-2 w-[10rem]">
+                                    <div className="flex flex-col gap-2 w-[13rem]">
                                         <div className="text-sm font-semibold text-gray-500 mb-1">
                                             {t("Video available in")}
                                         </div>
@@ -400,7 +401,50 @@ function VideoPage({}) {
                                                         >
                                                             {lang.label}
                                                         </button>
-                                                        {lang.label && (
+                                                        <div className="flex">
+                                                            {/* Only show delete button if it's not the original language AND is currently selected */}
+                                                            {idx !== 0 &&
+                                                                activeLanguage ===
+                                                                    idx && (
+                                                                    <button
+                                                                        onClick={(
+                                                                            e,
+                                                                        ) => {
+                                                                            e.stopPropagation();
+                                                                            if (
+                                                                                window.confirm(
+                                                                                    t(
+                                                                                        "Are you sure you want to delete this language track?",
+                                                                                    ),
+                                                                                )
+                                                                            ) {
+                                                                                const newVideoLanguages =
+                                                                                    videoLanguages.filter(
+                                                                                        (
+                                                                                            _,
+                                                                                            i,
+                                                                                        ) =>
+                                                                                            i !==
+                                                                                            idx,
+                                                                                    );
+                                                                                setVideoLanguages(
+                                                                                    newVideoLanguages,
+                                                                                );
+                                                                                setActiveLanguage(
+                                                                                    0,
+                                                                                );
+                                                                            }
+                                                                        }}
+                                                                        className={
+                                                                            "px-2 bg-sky-50 text-gray-500 hover:text-red-500 transition-colors border-gray-200 flex items-center cursor-pointer"
+                                                                        }
+                                                                        title={t(
+                                                                            "Delete language",
+                                                                        )}
+                                                                    >
+                                                                        <TrashIcon className="h-3 w-3" />
+                                                                    </button>
+                                                                )}
                                                             <a
                                                                 target="_blank"
                                                                 rel="noreferrer"
@@ -410,11 +454,13 @@ function VideoPage({}) {
                                                                 onClick={(e) =>
                                                                     e.stopPropagation()
                                                                 }
-                                                                title="Download video"
+                                                                title={t(
+                                                                    "Download video",
+                                                                )}
                                                             >
                                                                 <DownloadIcon className="h-4 w-4 text-gray-500" />
                                                             </a>
-                                                        )}
+                                                        </div>
                                                     </div>
                                                 </div>
                                             ))}
