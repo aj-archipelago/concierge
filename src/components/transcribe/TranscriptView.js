@@ -104,7 +104,7 @@ function VttSubtitles({ text, onSeek, currentTime }) {
     return (
         <div
             ref={containerRef}
-            className="grid grid-cols-[auto,1fr] gap-x-4 gap-y-2 overflow-y-auto max-h-[500px]"
+            className="grid grid-cols-[auto,1fr] gap-x-4 gap-y-2 overflow-y-auto max-h-[500px] text-sm"
         >
             {subtitles.map((subtitle, index) => (
                 <React.Fragment key={index}>
@@ -215,7 +215,7 @@ function SrtSubtitles({ text, onSeek, currentTime }) {
     return (
         <div
             ref={containerRef}
-            className="grid grid-cols-[auto,1fr] gap-x-4 gap-y-2 overflow-y-auto max-h-[500px]"
+            className="grid grid-cols-[auto,1fr] gap-x-4 gap-y-2 overflow-y-auto max-h-[500px] text-sm"
         >
             {subtitles.map((subtitle, index) => (
                 <React.Fragment key={index}>
@@ -383,7 +383,7 @@ function DownloadButton({ format, name, text }) {
 
     return (
         <DropdownMenu>
-            <DropdownMenuTrigger className="lb-outline-secondary flex items-center gap-1 text-sm">
+            <DropdownMenuTrigger className="lb-outline-secondary flex items-center gap-1 text-xs">
                 <div className="flex items-center gap-2 pe-1">
                     <DownloadIcon className="h-4 w-4" />
                     {t("Download")}
@@ -397,10 +397,10 @@ function DownloadButton({ format, name, text }) {
             </DropdownMenuTrigger>
             {format === "srt" || format === "vtt" ? (
                 <DropdownMenuContent>
-                    <DropdownMenuItem onClick={() => downloadFile("srt")}>
+                    <DropdownMenuItem className="text-xs" onClick={() => downloadFile("srt")}>
                         {t("Download SRT")}
                     </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => downloadFile("vtt")}>
+                    <DropdownMenuItem className="text-xs" onClick={() => downloadFile("vtt")}>
                         {t("Download VTT")}
                     </DropdownMenuItem>
                 </DropdownMenuContent>
@@ -421,7 +421,7 @@ function TaxonomyDialog({ text }) {
 
     return (
         <Dialog>
-            <DialogTrigger className="lb-outline-secondary flex items-center gap-1 text-sm">
+            <DialogTrigger className="lb-outline-secondary flex items-center gap-1 text-xs">
                 {t("Hashtags and Topics")}
             </DialogTrigger>
             <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
@@ -465,7 +465,7 @@ function TranscriptView({
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent>
                                     <DropdownMenuItem
-                                        className="text-red-600 focus:text-red-600 focus:bg-red-50"
+                                        className="text-red-600 focus:text-red-600 focus:bg-red-50 text-xs"
                                         onClick={() => {
                                             if (
                                                 window.confirm(
@@ -503,7 +503,7 @@ function TranscriptView({
                             />
                         </div>
                     ) : text ? (
-                        <pre className="transcribe-output border border-gray-300 rounded-md p-2.5 bg-gray-50 overflow-y-auto">
+                        <pre className="transcribe-output border border-gray-300 rounded-md p-2.5 bg-gray-50 overflow-y-auto text-sm">
                             {text.replace(/\n/g, "\n\n")}
                         </pre>
                     ) : (
