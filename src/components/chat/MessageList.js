@@ -96,7 +96,7 @@ function MessageList({ messages, bot, loading, chatId }) {
     const setCodeRequestFinalData = useCallback(
         (data) => {
             const message = {
-                payload: `<span class="text-indigo-500">🤖 Coding Agent ➡️ </span> ${data}`,
+                payload: `<span class="text-indigo-500">🤖 Coding Agent ➡️ </span>\n${data}`,
                 sender: "labeeb",
                 sentTime: "just now",
                 direction: "incoming",
