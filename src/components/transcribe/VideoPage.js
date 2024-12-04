@@ -99,11 +99,11 @@ function VideoPlayer({
                     "rounded-lg flex justify-center items-center",
                     isAudioOnly
                         ? "h-[50px] w-96"
-                        : "grow max-h-[500px] bg-[#000]",
+                        : "grow max-h-[40vh] bg-[#000]",
                 )}
             >
                 <video
-                    className={`rounded-lg ${isAudioOnly ? "h-[50px] w-96" : "grow max-h-[500px]"}`}
+                    className={`rounded-lg ${isAudioOnly ? "h-[50px] w-96" : "grow max-h-[40vh]"}`}
                     ref={videoRef}
                     src={videoLanguages[activeLanguage]?.url}
                     controls
@@ -368,8 +368,8 @@ function VideoPage({}) {
                     <div className="video-player-container overflow-hidden mb-4">
                         {isValidUrl(videoInformation?.videoUrl) ? (
                             <>
-                                <div className="flex gap-4">
-                                    <div className="w-[calc(100%-13rem)]">
+                                <div className="flex gap-4 flex-col sm:flex-row">
+                                    <div className="sm:w-[calc(100%-13rem)]">
                                         <VideoPlayer
                                             videoLanguages={videoLanguages}
                                             activeLanguage={activeLanguage}
@@ -379,7 +379,7 @@ function VideoPage({}) {
                                             videoInformation={videoInformation}
                                         />
                                     </div>
-                                    <div className="flex flex-col gap-2 w-[13rem]">
+                                    <div className="flex flex-col gap-2 sm:w-[13rem]">
                                         <div className="text-sm font-semibold text-gray-500 mb-1">
                                             {t("Video available in")}
                                         </div>

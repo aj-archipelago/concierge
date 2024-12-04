@@ -449,10 +449,10 @@ function TranscriptView({
         <>
             <div className="transcription-taxonomy-container flex flex-col gap-2 overflow-y-auto h-[calc(100vh-250px)]">
                 <div>
-                    <div className="flex items-center justify-between gap-2">
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-2">
                         <EditableName name={name} onNameChange={onNameChange} />
 
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 justify-end">
                             <TaxonomyDialog text={text} />
                             <DownloadButton
                                 format={format}
