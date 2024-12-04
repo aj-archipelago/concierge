@@ -96,6 +96,9 @@ const ProgressUpdate = ({
             },
             fetchPolicy: "network-only",
         });
+
+        //optimistic update
+        setFinalData("Conversation terminated by user");
     };
 
     return (
