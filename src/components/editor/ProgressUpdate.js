@@ -96,6 +96,9 @@ const ProgressUpdate = ({
             },
             fetchPolicy: "network-only",
         });
+
+        //optimistic update
+        setFinalData("⛔ Tool call cancelled");
     };
 
     return (
