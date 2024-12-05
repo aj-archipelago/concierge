@@ -396,7 +396,7 @@ function VideoPage({}) {
                                                                     idx,
                                                                 );
                                                             }}
-                                                            className={`flex-grow text-left text-sm px-3 py-1.5 hover:bg-sky-100 active:bg-sky-200 transition-colors
+                                                            className={`flex-grow text-start text-xs px-3 py-1.5 hover:bg-sky-100 active:bg-sky-200 transition-colors
                                                             ${activeLanguage === idx ? "bg-sky-50 text-gray-900" : "text-gray-600"}`}
                                                         >
                                                             {lang.label}
@@ -458,7 +458,7 @@ function VideoPage({}) {
                                                                     "Download video",
                                                                 )}
                                                             >
-                                                                <DownloadIcon className="h-4 w-4 text-gray-500" />
+                                                                <DownloadIcon className="h-3.5 w-3.5 text-gray-500" />
                                                             </a>
                                                         </div>
                                                     </div>
@@ -642,13 +642,13 @@ function VideoPage({}) {
                     <h3 className="mb-2">{t("Subtitles and transcripts")}</h3>
                     <div className="flex gap-2 mb-2">
                         {transcripts.length > 0 && (
-                            <div className="flex gap-2 items-center">
+                            <div className="flex gap-2 flex-wrap items-center">
                                 {transcripts.length <= 4 ? (
                                     // Show buttons for 4 or fewer transcripts
                                     transcripts.map((transcript, index) => (
                                         <button
                                             key={index}
-                                            className={`border lb-sm hover:bg-sky-200 active:bg-sky-300 transition-colors ${activeTranscript === index ? "bg-sky-100" : ""}`}
+                                            className={`whitespace-nowrap border lb-sm hover:bg-sky-200 active:bg-sky-300 transition-colors ${activeTranscript === index ? "bg-sky-100" : ""}`}
                                             onClick={() =>
                                                 setActiveTranscript(index)
                                             }
@@ -665,7 +665,7 @@ function VideoPage({}) {
                                             .map((transcript, index) => (
                                                 <button
                                                     key={index}
-                                                    className={`border h-8 lb-sm hover:bg-sky-200 active:bg-sky-300 transition-colors ${activeTranscript === index ? "bg-sky-100" : ""}`}
+                                                    className={`whitespace-nowrap border h-8 lb-sm hover:bg-sky-200 active:bg-sky-300 transition-colors ${activeTranscript === index ? "bg-sky-100" : ""}`}
                                                     onClick={() =>
                                                         setActiveTranscript(
                                                             index,
