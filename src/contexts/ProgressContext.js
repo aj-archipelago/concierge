@@ -27,33 +27,47 @@ function ProgressToast({
     const [progress, setProgress] = useState(10);
     const [errorMessage, setErrorMessage] = useState(null);
     const timeoutRef = useRef();
+    const subscriptionRef = useRef();
 
     useEffect(() => {
         timeoutRef.current = setTimeout(() => {
             const timeoutError = new Error(ERROR_MESSAGES.timeout);
             onError?.(timeoutError);
             setErrorMessage(ERROR_MESSAGES.timeout);
-            // toast.dismiss(requestId);
+            if (subscriptionRef.current) {
+                subscriptionRef.current();
+            }
         }, timeout);
 
         return () => {
             if (timeoutRef.current) {
                 clearTimeout(timeoutRef.current);
             }
+            if (subscriptionRef.current) {
+                subscriptionRef.current();
+            }
         };
     }, [timeout, requestId, onError]);
 
-    console.log("initialText", initialText);
-
     const { data, error } = useSubscription(SUBSCRIPTIONS.REQUEST_PROGRESS, {
         variables: { requestIds: [requestId] },
+        onSubscriptionComplete: () => {
+            subscriptionRef.current = null;
+        },
     });
+
+    useEffect(() => {
+        return () => {
+            if (subscriptionRef.current) {
+                subscriptionRef.current();
+            }
+        };
+    }, []);
 
     React.useEffect(() => {
         if (error) {
             onError?.(error);
             setErrorMessage(ERROR_MESSAGES.generic);
-            // toast.dismiss(requestId);
             return;
         }
 
@@ -67,7 +81,16 @@ function ProgressToast({
             setProgress(newProgress);
         }
 
-        if (result) {
+        if (result && data.requestProgress.progress === 1) {
+            console.log("progress complete finalData", data.requestProgress);
+
+            if (timeoutRef.current) {
+                clearTimeout(timeoutRef.current);
+                timeoutRef.current = null;
+            } else {
+                return;
+            }
+
             let finalData = result;
             try {
                 finalData = JSON.parse(result);
@@ -75,13 +98,8 @@ function ProgressToast({
                 // ignore json parse error
             }
 
-            if (data.requestProgress.progress === 1) {
-                if (timeoutRef.current) {
-                    clearTimeout(timeoutRef.current);
-                }
-                onComplete?.(finalData);
-                toast.dismiss(requestId);
-            }
+            onComplete?.(finalData);
+            toast.dismiss(requestId);
         }
     }, [data, error, requestId, onComplete, progress, onError]);
 

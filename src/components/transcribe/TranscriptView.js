@@ -422,7 +422,7 @@ function DownloadButton({ format, name, text }) {
             ) : (
                 <DropdownMenuContent>
                     <DropdownMenuItem onClick={() => downloadFile("txt")}>
-                        {t("Download TXT")}
+                        {t("Download .txt")}
                     </DropdownMenuItem>
                 </DropdownMenuContent>
             )}

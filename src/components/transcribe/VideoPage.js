@@ -298,24 +298,27 @@ function VideoPage({}) {
         (transcript) => {
             if (transcript) {
                 const { text, format, name } = transcript;
-                const updatedTranscripts = [
-                    ...transcripts,
-                    { text, format, name },
-                ];
 
-                setTranscripts(updatedTranscripts);
-                setActiveTranscript(transcripts.length);
+                setTranscripts((prev) => {
+                    const updatedTranscripts = [
+                        ...prev,
+                        { text, format, name },
+                    ];
+                    setActiveTranscript(updatedTranscripts.length - 1);
 
-                updateUserState({
-                    videoInformation: {
-                        ...userState?.transcribe?.videoInformation,
-                    },
-                    transcripts: updatedTranscripts,
+                    updateUserState({
+                        videoInformation: {
+                            ...userState?.transcribe?.videoInformation,
+                        },
+                        transcripts: updatedTranscripts,
+                    });
+
+                    return updatedTranscripts;
                 });
             }
             setAddTrackDialogOpen(false);
         },
-        [transcripts, updateUserState, userState?.transcribe?.videoInformation],
+        [updateUserState, userState?.transcribe?.videoInformation],
     );
 
     const handleSeek = useCallback((time) => {
@@ -546,9 +549,7 @@ function VideoPage({}) {
                                                                         type: "language",
                                                                     },
                                                                 ).of(
-                                                                    targetLocale.split(
-                                                                        "-",
-                                                                    )[0],
+                                                                    targetLocale,
                                                                 ),
                                                                 url: outputUrl,
                                                             },
