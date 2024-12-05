@@ -772,6 +772,33 @@ function VideoPage({}) {
                             format={transcripts[activeTranscript].format}
                             onSeek={handleSeek}
                             currentTime={currentTime}
+                            onTextChange={(newText) => {
+                                // Update the transcript text
+                                setTranscripts((prev) =>
+                                    prev.map((transcript, index) =>
+                                        index === activeTranscript
+                                            ? { ...transcript, text: newText }
+                                            : transcript,
+                                    ),
+                                );
+
+                                // Update user state with new transcripts
+                                updateUserState({
+                                    videoInformation: {
+                                        ...userState?.transcribe
+                                            ?.videoInformation,
+                                    },
+                                    transcripts: transcripts.map(
+                                        (transcript, index) =>
+                                            index === activeTranscript
+                                                ? {
+                                                      ...transcript,
+                                                      text: newText,
+                                                  }
+                                                : transcript,
+                                    ),
+                                });
+                            }}
                             onDeleteTrack={() => {
                                 const updatedTranscripts = transcripts.filter(
                                     (_, index) => index !== activeTranscript,

@@ -340,7 +340,7 @@ export default function TranscribeVideo({
                 setRequestId(dataResult);
                 addProgressToast(
                     dataResult,
-                    t("Transcribing") + "...",
+                    t("Transcribing") + ` ${file.name} in ${language}...`,
                     (finalData) => {
                         setLoading(false);
                         onAdd({

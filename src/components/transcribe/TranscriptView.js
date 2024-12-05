@@ -21,7 +21,7 @@ import CopyButton from "../CopyButton";
 import LoadingButton from "../editor/LoadingButton";
 import TaxonomySelector from "./TaxonomySelector";
 
-// New VTT component
+// Simplified VTT component
 function VttSubtitles({ text, onSeek, currentTime }) {
     const containerRef = useRef(null);
     const lines = text.split("\n");
@@ -98,7 +98,7 @@ function VttSubtitles({ text, onSeek, currentTime }) {
 
     // If no timestamps were found, return raw text
     if (subtitles.length === 0) {
-        return <div className="whitespace-pre-wrap">{text}</div>;
+        return <div className="whitespace-pre-wrap text-sm">{text}</div>;
     }
 
     return (
@@ -123,7 +123,7 @@ function VttSubtitles({ text, onSeek, currentTime }) {
                             {subtitle.timestamp}
                         </a>
                     </div>
-                    <div>{subtitle.text}</div>
+                    <div className="text-sm">{subtitle.text}</div>
                 </React.Fragment>
             ))}
         </div>
@@ -131,7 +131,7 @@ function VttSubtitles({ text, onSeek, currentTime }) {
 }
 
 // New SRT component
-function SrtSubtitles({ text, onSeek, currentTime }) {
+function SrtSubtitles({ text, onSeek, currentTime, onSubtitleChange }) {
     const containerRef = useRef(null);
 
     console.log("text", text);
@@ -234,7 +234,16 @@ function SrtSubtitles({ text, onSeek, currentTime }) {
                             {subtitle.timestamp}
                         </a>
                     </div>
-                    <div>{subtitle.text}</div>
+                    <input
+                        type="text"
+                        value={subtitle.text}
+                        onChange={(e) => {
+                            const updatedSubtitles = [...subtitles];
+                            updatedSubtitles[index].text = e.target.value;
+                            onSubtitleChange(updatedSubtitles);
+                        }}
+                        className="border-0 bg-transparent p-0 focus:outline-0 focus:ring-0 text-sm"
+                    />
                 </React.Fragment>
             ))}
         </div>
@@ -269,7 +278,7 @@ function EditableName({ name, onNameChange }) {
                     <input
                         autoFocus
                         type="text"
-                        className="border-0 bg-gray-50 p-0 focus:outline-0 focus:ring-0 font-medium text-xl"
+                        className="border-0 bg-gray-50 p-0 focus:outline-0 focus:ring-0 font-medium"
                         value={tempName}
                         onChange={(e) => setTempName(e.target.value)}
                         onKeyDown={(e) => {
@@ -281,13 +290,13 @@ function EditableName({ name, onNameChange }) {
                         <LoadingButton
                             text={t("Saving...")}
                             loading={false}
-                            className="lb-sm lb-primary"
+                            className="font-medium rounded-md w-16 py-0 bg-gray-50 text-xs hover:bg-gray-100 active:bg-gray-200"
                             onClick={handleSave}
                         >
                             {t("Save")}
                         </LoadingButton>
                         <button
-                            className="lb-sm lb-outline-secondary"
+                            className="font-medium rounded-md w-16 py-0 bg-gray-50 text-xs hover:bg-gray-100 active:bg-gray-200"
                             onClick={handleCancel}
                         >
                             {t("Cancel")}
@@ -295,9 +304,9 @@ function EditableName({ name, onNameChange }) {
                     </div>
                 </div>
             ) : (
-                <div className="flex gap-2">
+                <div className="flex gap-2 items-center">
                     <h1
-                        className="text-xl font-medium hover:underline cursor-pointer"
+                        className=" font-medium hover:underline cursor-pointer"
                         onClick={() => setEditing(true)}
                     >
                         {name}
@@ -448,80 +457,134 @@ function TranscriptView({
     onSeek,
     currentTime,
     onDeleteTrack,
+    onTextChange,
 }) {
     const { t } = useTranslation();
+    const [isEditing, setIsEditing] = useState(false);
+    const [editableText, setEditableText] = useState(text);
+
+    useEffect(() => {
+        setEditableText(text);
+    }, [text]);
+
+    const handleSave = () => {
+        onTextChange(editableText);
+        setIsEditing(false);
+    };
 
     return (
         <>
-            <div className="transcription-taxonomy-container flex flex-col gap-2 overflow-y-auto h-[calc(100vh-250px)]">
+            <div className="transcription-taxonomy-container flex flex-col gap-2 overflow-y-auto mt-4">
                 <div>
                     <div className="flex flex-col md:flex-row md:items-center justify-between gap-2">
                         <EditableName name={name} onNameChange={onNameChange} />
 
                         <div className="flex items-center gap-2 justify-end">
-                            <TaxonomyDialog text={text} />
-                            <DownloadButton
-                                format={format}
-                                name={name}
-                                text={text}
-                            />
-                            <DropdownMenu>
-                                <DropdownMenuTrigger className="">
-                                    <MoreVertical className="h-4 w-4" />
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent>
-                                    <DropdownMenuItem
-                                        className="text-red-600 focus:text-red-600 focus:bg-red-50 text-xs"
-                                        onClick={() => {
-                                            if (
-                                                window.confirm(
-                                                    t(
-                                                        "Are you sure you want to delete this track?",
-                                                    ),
-                                                )
-                                            ) {
-                                                onDeleteTrack(name);
-                                            }
-                                        }}
+                            {isEditing ? (
+                                <>
+                                    <button
+                                        onClick={handleSave}
+                                        className="lb-outline-secondary flex items-center gap-1 text-xs"
                                     >
-                                        {t("Delete track")}
-                                    </DropdownMenuItem>
-                                </DropdownMenuContent>
-                            </DropdownMenu>
+                                        {t("Save")}
+                                    </button>
+                                    <button
+                                        onClick={() => {
+                                            setIsEditing(false);
+                                            setEditableText(text);
+                                        }}
+                                        className="lb-outline-secondary flex items-center gap-1 text-xs"
+                                    >
+                                        {t("Cancel")}
+                                    </button>
+                                </>
+                            ) : (
+                                <>
+                                    <button
+                                        onClick={() => setIsEditing(!isEditing)}
+                                        className="lb-outline-secondary flex items-center gap-1 text-xs"
+                                        title={t("Edit")}
+                                    >
+                                        <FaEdit className="h-4 w-4" />
+                                        {t("Edit")}
+                                    </button>
+                                    <TaxonomyDialog text={text} />
+                                    <DownloadButton
+                                        format={format}
+                                        name={name}
+                                        text={text}
+                                    />
+                                    <DropdownMenu>
+                                        <DropdownMenuTrigger className="">
+                                            <MoreVertical className="h-4 w-4" />
+                                        </DropdownMenuTrigger>
+                                        <DropdownMenuContent>
+                                            <DropdownMenuItem
+                                                className="text-red-600 focus:text-red-600 focus:bg-red-50 text-xs"
+                                                onClick={() => {
+                                                    if (
+                                                        window.confirm(
+                                                            t(
+                                                                "Are you sure you want to delete this track?",
+                                                            ),
+                                                        )
+                                                    ) {
+                                                        onDeleteTrack(name);
+                                                    }
+                                                }}
+                                            >
+                                                {t("Delete track")}
+                                            </DropdownMenuItem>
+                                        </DropdownMenuContent>
+                                    </DropdownMenu>
+                                </>
+                            )}
                         </div>
                     </div>
                 </div>
                 <div className="transcription-section relative">
-                    {format === "vtt" && text ? (
+                    {isEditing ? (
                         <div className="border border-gray-300 rounded-md p-2.5 bg-gray-50">
-                            <VttSubtitles
-                                text={text}
-                                onSeek={onSeek}
-                                currentTime={currentTime}
+                            <textarea
+                                value={editableText}
+                                onChange={(e) =>
+                                    setEditableText(e.target.value)
+                                }
+                                className="w-full h-[400px] focus:outline-none border rounded-md bg-white"
                             />
                         </div>
-                    ) : format === "srt" && text ? (
-                        <div className="border border-gray-300 rounded-md p-2.5 bg-gray-50">
-                            <SrtSubtitles
-                                text={text}
-                                onSeek={onSeek}
-                                currentTime={currentTime}
-                            />
-                        </div>
-                    ) : text ? (
-                        <pre className="transcribe-output border border-gray-300 rounded-md p-2.5 bg-gray-50 overflow-y-auto text-sm">
-                            {text.replace(/\n/g, "\n\n")}
-                        </pre>
                     ) : (
-                        "No content"
+                        <div className="border border-gray-300 rounded-md p-2.5 bg-gray-50">
+                            {format === "vtt" && text ? (
+                                <VttSubtitles
+                                    text={text}
+                                    onSeek={onSeek}
+                                    currentTime={currentTime}
+                                />
+                            ) : format === "srt" && text ? (
+                                <SrtSubtitles
+                                    text={text}
+                                    onSeek={onSeek}
+                                    currentTime={currentTime}
+                                />
+                            ) : text ? (
+                                <pre className="whitespace-pre-wrap text-sm">
+                                    {text.replace(/\n/g, "\n\n")}
+                                </pre>
+                            ) : (
+                                "No content"
+                            )}
+                        </div>
                     )}
-                    {text && (
-                        <CopyButton
-                            item={text}
-                            variant={"opaque"}
-                            className="absolute top-3 end-3"
-                        />
-                    )}
+                    <div className="absolute top-3 end-3 flex gap-1 bg-gray-50 opacity-80  hover:opacity-100 text-sm">
+                        {!isEditing && text && (
+                            <CopyButton
+                                item={text}
+                                variant={"opaque"}
+                                className=""
+                            />
+                        )}
+                    </div>
                 </div>
             </div>
         </>
