@@ -96,7 +96,9 @@ function VttSubtitles({ text, onSeek, currentTime }) {
                         data-timestamp={subtitle.timestamp}
                     >
                         <button
-                            onClick={() => handleTimestampClick(subtitle.timestamp)}
+                            onClick={() =>
+                                handleTimestampClick(subtitle.timestamp)
+                            }
                             className="text-blue-600 hover:text-blue-800"
                         >
                             {subtitle.timestamp}
@@ -203,7 +205,9 @@ function SrtSubtitles({ text, onSeek, currentTime, onSubtitleChange }) {
                         data-timestamp={subtitle.timestamp}
                     >
                         <button
-                            onClick={() => handleTimestampClick(subtitle.timestamp)}
+                            onClick={() =>
+                                handleTimestampClick(subtitle.timestamp)
+                            }
                             className="text-blue-600 hover:text-blue-800"
                         >
                             {subtitle.timestamp}

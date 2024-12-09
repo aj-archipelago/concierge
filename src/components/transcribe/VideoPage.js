@@ -32,7 +32,7 @@ import {
     PlusCircleIcon,
     PlusIcon,
     RefreshCwIcon,
-    TrashIcon
+    TrashIcon,
 } from "lucide-react";
 import { useCallback, useContext, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -48,6 +48,8 @@ import { convertSrtToVtt } from "./transcribe.utils";
 import { AddTrackButton } from "./TranscriptionOptions";
 import TranscriptView from "./TranscriptView";
 import VideoInput from "./VideoInput";
+import dayjs from "dayjs";
+import ReactTimeAgo from "react-time-ago";
 
 const isValidUrl = (url) => {
     try {
@@ -210,7 +212,7 @@ function EditableTranscriptSelect({
         if (transcripts[activeTranscript]) {
             setTempName(
                 transcripts[activeTranscript].name ||
-                `Transcript ${activeTranscript + 1}`,
+                    `Transcript ${activeTranscript + 1}`,
             );
         }
     }, [activeTranscript, transcripts]);
@@ -226,7 +228,7 @@ function EditableTranscriptSelect({
         if (transcripts[activeTranscript]) {
             setTempName(
                 transcripts[activeTranscript].name ||
-                `Transcript ${activeTranscript + 1}`,
+                    `Transcript ${activeTranscript + 1}`,
             );
         }
     };
@@ -260,7 +262,7 @@ function EditableTranscriptSelect({
                     <input
                         autoFocus
                         type="text"
-                        className="text-md w-[250px] font-medium rounded-md py-1.5 my-[1px] px-3 border border-gray-300"
+                        className="text-md w-[300px] font-medium rounded-md py-1.5 my-[1px] px-3 border border-gray-300"
                         value={tempName}
                         onChange={(e) => setTempName(e.target.value)}
                         onKeyDown={(e) => {
@@ -298,7 +300,7 @@ function EditableTranscriptSelect({
                                 setActiveTranscript(parseInt(value))
                             }
                         >
-                            <SelectTrigger className="w-[250px] py-1 text-md font-medium">
+                            <SelectTrigger className="w-[300px] py-1 text-md font-medium">
                                 <SelectValue>
                                     {transcripts[activeTranscript]?.name ||
                                         `Transcript ${activeTranscript + 1}`}
@@ -310,8 +312,22 @@ function EditableTranscriptSelect({
                                         key={index}
                                         value={index.toString()}
                                     >
-                                        {transcript.name ||
-                                            `Transcript ${index + 1}`}
+                                        <div className="flex flex-col">
+                                            <div>
+                                                {transcript.name ||
+                                                    `Transcript ${index + 1}`}
+                                            </div>
+                                            {transcript.timestamp && (
+                                                <div className="text-xs text-gray-400">
+                                                    <ReactTimeAgo
+                                                        date={
+                                                            transcript.timestamp
+                                                        }
+                                                        locale="en-US"
+                                                    />
+                                                </div>
+                                            )}
+                                        </div>
                                     </SelectItem>
                                 ))}
                             </SelectContent>
@@ -388,6 +404,14 @@ function EditableTranscriptSelect({
                                 </DropdownMenuContent>
                             </DropdownMenu>
                         </div>
+                    )}
+                </div>
+            )}
+            {transcripts[activeTranscript]?.timestamp && (
+                <div className="text-gray-400 text-xs py-1 px-3">
+                    {t("Created")}{" "}
+                    {dayjs(transcripts[activeTranscript]?.timestamp).format(
+                        "MMM DD, YYYY HH:mm:ss",
                     )}
                 </div>
             )}
@@ -483,7 +507,7 @@ function VideoPlayer({
                     onClick={() =>
                         handleCopy(
                             videoLanguages[activeLanguage]?.url ||
-                            videoInformation.videoUrl,
+                                videoInformation.videoUrl,
                         )
                     }
                     className="p-1 hover:bg-gray-100 rounded transition-colors"
@@ -653,7 +677,12 @@ function VideoPage() {
                 setTranscripts((prev) => {
                     const updatedTranscripts = [
                         ...prev,
-                        { text, format, name },
+                        {
+                            text,
+                            format,
+                            name,
+                            timestamp: new Date().toISOString(),
+                        },
                     ];
                     setActiveTranscript(updatedTranscripts.length - 1);
 
@@ -759,7 +788,7 @@ function VideoPage() {
                                                             {/* Only show delete button if it's not the original language AND is currently selected */}
                                                             {idx !== 0 &&
                                                                 activeLanguage ===
-                                                                idx && (
+                                                                    idx && (
                                                                     <button
                                                                         onClick={(
                                                                             e,
@@ -1043,9 +1072,9 @@ function VideoPage() {
                                         prev.map((transcript, index) =>
                                             index === activeTranscript
                                                 ? {
-                                                    ...transcript,
-                                                    text: newText,
-                                                }
+                                                      ...transcript,
+                                                      text: newText,
+                                                  }
                                                 : transcript,
                                         ),
                                     );
@@ -1060,9 +1089,9 @@ function VideoPage() {
                                             (transcript, index) =>
                                                 index === activeTranscript
                                                     ? {
-                                                        ...transcript,
-                                                        text: newText,
-                                                    }
+                                                          ...transcript,
+                                                          text: newText,
+                                                      }
                                                     : transcript,
                                         ),
                                     });

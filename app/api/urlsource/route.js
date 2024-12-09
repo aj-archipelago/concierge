@@ -5,7 +5,7 @@ import {
     getAxisUrl,
 } from "../../../app.config/config/transcribe/TranscribeUrlConstants";
 
-export const dynamic = 'force-dynamic';
+export const dynamic = "force-dynamic";
 
 export async function GET(req) {
     try {
