@@ -26,8 +26,8 @@ export async function GET(req) {
         let accountId = AJE; // AJE, AJA, etc.
 
         //check if url is a valid youtube url
-        // eslint-disable-next-line no-useless-escape
         const youtubeRegex =
+            // eslint-disable-next-line no-useless-escape
             /^(https?\:\/\/)?(www\.)?(youtube\.com|youtu\.?be)\/.+$/;
         if (youtubeRegex.test(urlInput)) {
             const oEmbedUrl = `https://www.youtube.com/oembed?url=${encodeURIComponent(urlInput)}&format=json`;

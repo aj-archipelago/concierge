@@ -15,6 +15,7 @@ import { useProgress } from "../../contexts/ProgressContext";
 import { QUERIES } from "../../graphql";
 import LoadingButton from "../editor/LoadingButton";
 import TranslationOptions from "./TranslationOptions";
+import { convertSrtToVtt } from "./transcribe.utils";
 
 export function AddTrackOptions({
     url,
@@ -161,6 +162,7 @@ function SubtitleUpload({ onAdd }) {
     };
 
     const handleFile = async (file) => {
+        console.log("handleFile", file);
         const fileExtension = file.name.split(".").pop().toLowerCase();
 
         if (!["srt", "vtt"].includes(fileExtension)) {
@@ -168,13 +170,25 @@ function SubtitleUpload({ onAdd }) {
             return;
         }
 
+        console.log("fileExtension1", fileExtension);
+
         const reader = new FileReader();
         reader.onload = async (e) => {
-            const text = e.target.result;
+            let text = e.target.result;
+
+            if (fileExtension === "srt") {
+                console.log(
+                    "fileExtension",
+                    fileExtension,
+                    convertSrtToVtt(text),
+                );
+                text = convertSrtToVtt(text);
+            }
+
             onAdd({
                 text: text,
                 name: file.name,
-                format: fileExtension,
+                format: "vtt",
             });
         };
         reader.readAsText(file);
@@ -350,8 +364,7 @@ export default function TranscribeVideo({
                                 text: finalData,
                                 format: responseFormat,
                                 name:
-                                    responseFormat === "vtt" ||
-                                    responseFormat === "srt"
+                                    responseFormat === "vtt"
                                         ? "Subtitles"
                                         : "Transcript",
                             });
@@ -430,17 +443,6 @@ export default function TranscribeVideo({
             maxLineCount: newOptions.maxLineCount,
             wordTimestamped: newOptions.wordTimestamped,
         }));
-    };
-
-    const getLanguageName = (code) => {
-        if (!code) return "";
-        try {
-            return new Intl.DisplayNames([navigator.language || "en"], {
-                type: "language",
-            }).of(code);
-        } catch (e) {
-            return code;
-        }
     };
 
     return (

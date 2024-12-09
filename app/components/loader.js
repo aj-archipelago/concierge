@@ -11,7 +11,7 @@ export default function Loader({ size = "default", delay = 500 }) {
         }, delay);
 
         return () => clearTimeout(timer);
-    }, []);
+    }, [delay]);
 
     if (!showLoader) {
         return null;

@@ -120,7 +120,9 @@ const SelectItem = React.forwardRef(
                 </SelectPrimitive.ItemIndicator>
             </span>
 
-            <SelectPrimitive.ItemText>{children}</SelectPrimitive.ItemText>
+            <div className="grow">
+                <SelectPrimitive.ItemText>{children}</SelectPrimitive.ItemText>
+            </div>
         </SelectPrimitive.Item>
     ),
 );

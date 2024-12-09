@@ -23,6 +23,7 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 import { useApolloClient } from "@apollo/client";
+import dayjs from "dayjs";
 import {
     CheckIcon,
     ChevronDown,
@@ -37,6 +38,7 @@ import {
 import { useCallback, useContext, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { FaEdit } from "react-icons/fa";
+import ReactTimeAgo from "react-time-ago";
 import classNames from "../../../app/utils/class-names";
 import { AuthContext } from "../../App";
 import LoadingButton from "../editor/LoadingButton";
@@ -44,12 +46,9 @@ import AzureVideoTranslate from "./AzureVideoTranslate";
 import TranscribeErrorBoundary from "./ErrorBoundary";
 import InitialView from "./InitialView";
 import TaxonomySelector from "./TaxonomySelector";
-import { convertSrtToVtt } from "./transcribe.utils";
 import { AddTrackButton } from "./TranscriptionOptions";
 import TranscriptView from "./TranscriptView";
 import VideoInput from "./VideoInput";
-import dayjs from "dayjs";
-import ReactTimeAgo from "react-time-ago";
 
 const isValidUrl = (url) => {
     try {
@@ -128,7 +127,7 @@ function DownloadButton({ format, name, text }) {
         let downloadText = text;
 
         // Convert format if needed
-        if (format === "vtt" && selectedFormat === "srt") {
+        if (selectedFormat === "srt") {
             downloadText = convertVttToSrt(text);
         }
 
@@ -310,27 +309,41 @@ function EditableTranscriptSelect({
                                         `Transcript ${activeTranscript + 1}`}
                                 </SelectValue>
                             </SelectTrigger>
-                            <SelectContent>
+                            <SelectContent className="divide-y">
                                 {transcripts.map((transcript, index) => (
                                     <SelectItem
+                                        className="w-[500px]"
                                         key={index}
                                         value={index.toString()}
                                     >
-                                        <div className="flex flex-col">
-                                            <div>
-                                                {transcript.name ||
-                                                    `Transcript ${index + 1}`}
+                                        <div className="flex flex-col py-2 w-full">
+                                            <div className="flex w-full items-center justify-between gap-4">
+                                                <div className="grow ">
+                                                    {transcript.name ||
+                                                        `Transcript ${index + 1}`}
+                                                </div>
+                                                <span
+                                                    className={`inline-flex items-center px-2 py-0.5 text-xs font-medium rounded-md 
+                                                ${transcripts[index].format === "vtt" ? "bg-green-100 text-green-800" : "bg-orange-100 text-orange-800"}`}
+                                                >
+                                                    {transcripts[index]
+                                                        .format === "vtt"
+                                                        ? "Subtitles"
+                                                        : "Transcript"}
+                                                </span>
                                             </div>
-                                            {transcript.timestamp && (
-                                                <div className="text-xs text-gray-400">
+
+                                            <div className="flex items-center gap-2 justify-between">
+                                                <div className="text-xs text-gray-400 flex items-center">
                                                     <ReactTimeAgo
                                                         date={
-                                                            transcript.timestamp
+                                                            transcript.timestamp ||
+                                                            new Date()
                                                         }
                                                         locale="en-US"
                                                     />
                                                 </div>
-                                            )}
+                                            </div>
                                         </div>
                                     </SelectItem>
                                 ))}
@@ -369,13 +382,15 @@ function EditableTranscriptSelect({
                     </div>
                     {!isEditing && (
                         <div className="flex items-center gap-2">
-                            <button
-                                onClick={() => setIsEditing(!isEditing)}
-                                className="lb-outline-secondary flex items-center gap-1 text-xs"
-                                title={t("Edit")}
-                            >
-                                {t("Edit")}
-                            </button>
+                            {transcripts[activeTranscript].format !== "vtt" && (
+                                <button
+                                    onClick={() => setIsEditing(!isEditing)}
+                                    className="lb-outline-secondary flex items-center gap-1 text-xs"
+                                    title={t("Edit")}
+                                >
+                                    {t("Edit")}
+                                </button>
+                            )}
                             <TaxonomyDialog
                                 text={transcripts[activeTranscript].text}
                             />
@@ -461,12 +476,6 @@ function VideoPlayer({
         const file = new Blob([transcripts[activeTranscript].text], {
             type: "text/plain",
         });
-        vttUrl = URL.createObjectURL(file);
-    } else if (transcripts[activeTranscript]?.format === "srt") {
-        const vttSubtitles = convertSrtToVtt(
-            transcripts[activeTranscript].text,
-        );
-        const file = new Blob([vttSubtitles], { type: "text/plain" });
         vttUrl = URL.createObjectURL(file);
     }
 
@@ -960,11 +969,11 @@ function VideoPage() {
 
                                                     await addVtt(
                                                         originalVttUrl,
-                                                        "Original Subtitles",
+                                                        "Subtitles (auto)",
                                                     );
                                                     await addVtt(
                                                         translatedVttUrl,
-                                                        `${new Intl.DisplayNames(
+                                                        `Subtitles (auto): ${new Intl.DisplayNames(
                                                             ["en"],
                                                             {
                                                                 type: "language",
@@ -973,7 +982,7 @@ function VideoPage() {
                                                             targetLocale.split(
                                                                 "-",
                                                             )[0],
-                                                        )} Subtitles`,
+                                                        )}`,
                                                     );
 
                                                     setShowTranslateDialog(

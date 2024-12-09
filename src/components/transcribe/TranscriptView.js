@@ -2,10 +2,9 @@
 
 import React, { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import CopyButton from "../CopyButton";
-import { FaCheck, FaCross, FaEdit } from "react-icons/fa";
-import { XMarkIcon, CheckIcon } from "@heroicons/react/24/outline";
+import { FaCheck, FaEdit } from "react-icons/fa";
 import { FaX } from "react-icons/fa6";
+import CopyButton from "../CopyButton";
 
 // Simplified VTT component
 function VttSubtitles({ text, onSeek, currentTime, onTextChange }) {
@@ -45,6 +44,7 @@ function VttSubtitles({ text, onSeek, currentTime, onTextChange }) {
             }
             currentSubtitle = {
                 timestamp: timestampMatch[1],
+                endTimestamp: timestampMatch[2],
                 text: "",
             };
             isInSubtitle = true;
@@ -52,6 +52,11 @@ function VttSubtitles({ text, onSeek, currentTime, onTextChange }) {
             currentSubtitle.text = (currentSubtitle.text + " " + line).trim();
         }
     });
+
+    // Add the last subtitle if it exists
+    if (currentSubtitle.timestamp) {
+        subtitles.push(currentSubtitle);
+    }
 
     // Add effect to handle scrolling when currentTime changes
     useEffect(() => {
@@ -134,142 +139,13 @@ function VttSubtitles({ text, onSeek, currentTime, onTextChange }) {
                             // Reconstruct VTT text with header and subtitle numbers
                             const vttText =
                                 "WEBVTT\n\n" +
-                                subtitles
-                                    .map(
-                                        (subtitle, i) =>
-                                            `${i + 1}\n${subtitle.timestamp} --> ${subtitle.timestamp}\n${subtitle.text}`,
-                                    )
-                                    .join("\n\n");
-                            onTextChange(vttText);
-                        }}
-                        className="text-sm"
-                    />
-                </React.Fragment>
-            ))}
-        </div>
-    );
-}
-
-// New SRT component
-function SrtSubtitles({ text, onSeek, currentTime, onTextChange }) {
-    const containerRef = useRef(null);
-
-    // Same scrolling effect as VTT
-    useEffect(() => {
-        if (!containerRef.current || !currentTime) return;
-
-        const subtitleElements =
-            containerRef.current.getElementsByClassName("subtitle-row");
-        let targetElement = null;
-
-        for (let i = subtitleElements.length - 1; i >= 0; i--) {
-            const element = subtitleElements[i];
-            const timestamp = element.getAttribute("data-timestamp");
-            const [hours, minutes, seconds] = timestamp.split(":");
-            const timestampSeconds =
-                parseInt(hours) * 3600 +
-                parseInt(minutes) * 60 +
-                parseFloat(seconds);
-
-            if (timestampSeconds <= currentTime) {
-                targetElement = element;
-                break;
-            }
-        }
-
-        if (targetElement) {
-            const container = containerRef.current;
-            const elementTop = targetElement.offsetTop;
-            container.scrollTo({
-                top: elementTop - container.offsetTop,
-                behavior: "smooth",
-            });
-        }
-    }, [currentTime]);
-
-    const handleTimestampClick = (timestamp) => {
-        const [hours, minutes, seconds] = timestamp.split(":");
-        const totalSeconds =
-            parseInt(hours) * 3600 +
-            parseInt(minutes) * 60 +
-            parseFloat(seconds);
-
-        if (onSeek) {
-            onSeek(totalSeconds);
-        }
-    };
-
-    const lines = text.split("\n");
-    const subtitles = [];
-    let currentSubtitle = {};
-
-    let isInSubtitle = false;
-    lines.forEach((line) => {
-        line = line.trim();
-
-        // Skip empty lines and numeric identifiers
-        if (!line || /^\d+$/.test(line)) {
-            return;
-        }
-
-        const timestampMatch = line.match(
-            /(\d{2}:\d{2}:\d{2},\d{3}) --> (\d{2}:\d{2}:\d{2},\d{3})/,
-        );
-        if (timestampMatch) {
-            if (currentSubtitle.timestamp) {
-                subtitles.push(currentSubtitle);
-            }
-            currentSubtitle = {
-                timestamp: timestampMatch[1],
-                endTimestamp: timestampMatch[2],
-                text: "",
-            };
-            isInSubtitle = true;
-        } else if (isInSubtitle && currentSubtitle.timestamp) {
-            currentSubtitle.text = (currentSubtitle.text + " " + line).trim();
-        }
-    });
-
-    // Don't forget to push the last subtitle
-    if (currentSubtitle.timestamp) {
-        subtitles.push(currentSubtitle);
-    }
-
-    return (
-        <div
-            ref={containerRef}
-            className="grid grid-cols-[auto,1fr] gap-x-4 gap-y-2 overflow-y-auto max-h-[500px] text-sm"
-        >
-            {subtitles.map((subtitle, index) => (
-                <React.Fragment key={index}>
-                    <div
-                        className="subtitle-row"
-                        data-timestamp={subtitle.timestamp}
-                    >
-                        <button
-                            onClick={() =>
-                                handleTimestampClick(subtitle.timestamp)
-                            }
-                            className="text-blue-600 hover:text-blue-800"
-                        >
-                            {subtitle.timestamp}
-                        </button>
-                    </div>
-                    <EditableSubtitleText
-                        text={subtitle.text}
-                        onSave={(newText) => {
-                            const updatedSubtitles = [...subtitles];
-                            updatedSubtitles[index].text = newText;
-
-                            // Reconstruct SRT format with numbers, but don't display them
-                            const srtText =
                                 updatedSubtitles
                                     .map(
                                         (subtitle, i) =>
                                             `${i + 1}\n${subtitle.timestamp} --> ${subtitle.endTimestamp}\n${subtitle.text}`,
                                     )
-                                    .join("\n\n") + "\n"; // Add final newline
-                            onTextChange(srtText);
+                                    .join("\n\n");
+                            onTextChange(vttText);
                         }}
                         className="text-sm"
                     />
@@ -310,7 +186,7 @@ function EditableSubtitleText({ text, onSave, className = "" }) {
                     value={editedText}
                     onChange={(e) => setEditedText(e.target.value)}
                     onKeyDown={handleKeyDown}
-                    className="border-0 bg-transparent p-0 focus:outline-0 focus:ring-0 text-sm"
+                    className="flex-1 border-0 bg-transparent p-0 focus:outline-0 focus:ring-0 text-sm"
                 />
                 <div className="flex gap-1">
                     <button
@@ -402,13 +278,6 @@ function TranscriptView({
                     <div className="border border-gray-300 rounded-md p-2.5 bg-gray-50">
                         {format === "vtt" && text ? (
                             <VttSubtitles
-                                text={text}
-                                onSeek={onSeek}
-                                currentTime={currentTime}
-                                onTextChange={onTextChange}
-                            />
-                        ) : format === "srt" && text ? (
-                            <SrtSubtitles
                                 text={text}
                                 onSeek={onSeek}
                                 currentTime={currentTime}
