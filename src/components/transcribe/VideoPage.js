@@ -103,7 +103,11 @@ function DownloadButton({ format, name, text }) {
                     timestamp: `${timestampMatch[1].replace(".", ",")} --> ${timestampMatch[2].replace(".", ",")}`,
                     text: "",
                 };
-            } else if (line.trim() && currentSubtitle.timestamp) {
+            } else if (
+                line.trim() &&
+                !/^\d+$/.test(line) &&
+                currentSubtitle.timestamp
+            ) {
                 currentSubtitle.text = (
                     currentSubtitle.text +
                     " " +
@@ -613,6 +617,15 @@ function VideoPage() {
             ) {
                 setTranscripts(userState.transcribe?.transcripts || []);
             }
+
+            if (
+                userState.transcribe?.activeTranscript !== undefined &&
+                userState.transcribe?.activeTranscript !==
+                    prevUserStateRef.current?.transcribe?.activeTranscript
+            ) {
+                setActiveTranscript(userState.transcribe.activeTranscript);
+            }
+
             prevUserStateRef.current = userState;
         }
     }, [userState]);
@@ -708,6 +721,13 @@ function VideoPage() {
         }
     }, []);
 
+    const handleActiveTranscriptChange = (index) => {
+        setActiveTranscript(index);
+        updateUserState({
+            activeTranscript: index,
+        });
+    };
+
     if (!videoInformation && !transcripts?.length) {
         return (
             <InitialView
@@ -725,6 +745,8 @@ function VideoPage() {
             />
         );
     }
+
+    console.log("active", transcripts[activeTranscript]);
 
     return (
         <TranscribeErrorBoundary>
@@ -1025,7 +1047,7 @@ function VideoPage() {
                 <EditableTranscriptSelect
                     transcripts={transcripts}
                     activeTranscript={activeTranscript}
-                    setActiveTranscript={setActiveTranscript}
+                    setActiveTranscript={handleActiveTranscriptChange}
                     onNameChange={(name) => {
                         setTranscripts((prev) =>
                             prev.map((transcript, index) =>
@@ -1052,7 +1074,15 @@ function VideoPage() {
                             (_, index) => index !== activeTranscript,
                         );
                         setTranscripts(updatedTranscripts);
-                        setActiveTranscript(0);
+                        setActiveTranscript(
+                            Math.max(0, updatedTranscripts.length - 1),
+                        );
+                        updateUserState({
+                            videoInformation: {
+                                ...userState?.transcribe?.videoInformation,
+                            },
+                            transcripts: updatedTranscripts,
+                        });
                     }}
                 />
 
@@ -1094,23 +1124,6 @@ function VideoPage() {
                                                       }
                                                     : transcript,
                                         ),
-                                    });
-                                }}
-                                onDeleteTrack={() => {
-                                    const updatedTranscripts =
-                                        transcripts.filter(
-                                            (_, index) =>
-                                                index !== activeTranscript,
-                                        );
-                                    setTranscripts(updatedTranscripts);
-                                    setActiveTranscript(0);
-
-                                    updateUserState({
-                                        videoInformation: {
-                                            ...userState?.transcribe
-                                                ?.videoInformation,
-                                        },
-                                        transcripts: updatedTranscripts,
                                     });
                                 }}
                             />

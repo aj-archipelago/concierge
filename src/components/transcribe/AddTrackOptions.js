@@ -352,8 +352,8 @@ export default function TranscribeVideo({
                                 name:
                                     responseFormat === "vtt" ||
                                     responseFormat === "srt"
-                                        ? `Subtitles`
-                                        : `Transcript`,
+                                        ? "Subtitles"
+                                        : "Transcript",
                             });
                             setRequestId(null);
                         },
@@ -522,10 +522,9 @@ function FormatSelector({ loading, responseFormat, handleFormatChange }) {
             value={responseFormat || ""}
             onChange={handleFormatChange}
         >
-            <option value="">{t("Plain Text")}</option>
-            <option value="formatted">{t("Formatted Text")}</option>
-            <option value="srt">{t("SRT Format")}</option>
-            <option value="vtt">{t("VTT Format")}</option>
+            <option value="">{t("Plain Text transcript")}</option>
+            <option value="formatted">{t("Formatted Transcript")}</option>
+            <option value="vtt">{t("Subtitles")}</option>
         </select>
     );
 }
