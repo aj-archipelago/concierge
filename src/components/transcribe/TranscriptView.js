@@ -400,7 +400,7 @@ function DownloadButton({ format, name, text }) {
                 {(format === "srt" || format === "vtt") && (
                     <>
                         <div className="h-4 w-px bg-gray-300" />
-                        <ChevronDown className="h-4 w-4" />
+                        <ChevronDown className="h-4 w-4 -me-[0.25rem]" />
                     </>
                 )}
             </DropdownMenuTrigger>
@@ -421,7 +421,7 @@ function DownloadButton({ format, name, text }) {
                 </DropdownMenuContent>
             ) : (
                 <DropdownMenuContent>
-                    <DropdownMenuItem onClick={() => downloadFile("txt")}>
+                    <DropdownMenuItem onClick={() => downloadFile("txt")} className="text-xs">
                         {t("Download .txt")}
                     </DropdownMenuItem>
                 </DropdownMenuContent>
