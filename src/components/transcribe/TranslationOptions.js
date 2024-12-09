@@ -36,7 +36,6 @@ function TranslationOptions({
                         text,
                         to: language,
                         async,
-                        text: text,
                         format: selectedTranscript?.format,
                     },
                     fetchPolicy: "network-only",
@@ -74,6 +73,7 @@ function TranslationOptions({
                 setLoading(false);
             }
         },
+        // eslint-disable-next-line react-hooks/exhaustive-deps
         [
             apolloClient,
             async,
@@ -81,6 +81,7 @@ function TranslationOptions({
             t,
             onClose,
             transcriptionTranslationLanguage,
+            selectedTranscript,
         ],
     );
 

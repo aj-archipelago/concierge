@@ -10,6 +10,12 @@ import {
     DialogTrigger,
 } from "@/components/ui/dialog";
 import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
     Select,
     SelectContent,
     SelectItem,
@@ -19,36 +25,29 @@ import {
 import { useApolloClient } from "@apollo/client";
 import {
     CheckIcon,
+    ChevronDown,
     CopyIcon,
     DownloadIcon,
+    MoreVertical,
+    PlusCircleIcon,
     PlusIcon,
     RefreshCwIcon,
-    TrashIcon,
-    MoreVertical,
-    PencilIcon,
-    PlusCircleIcon,
-    ChevronDown,
+    TrashIcon
 } from "lucide-react";
 import { useCallback, useContext, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { FaEdit } from "react-icons/fa";
 import classNames from "../../../app/utils/class-names";
 import { AuthContext } from "../../App";
+import LoadingButton from "../editor/LoadingButton";
 import AzureVideoTranslate from "./AzureVideoTranslate";
+import TranscribeErrorBoundary from "./ErrorBoundary";
 import InitialView from "./InitialView";
+import TaxonomySelector from "./TaxonomySelector";
 import { convertSrtToVtt } from "./transcribe.utils";
 import { AddTrackButton } from "./TranscriptionOptions";
 import TranscriptView from "./TranscriptView";
 import VideoInput from "./VideoInput";
-import TranscribeErrorBoundary from "./ErrorBoundary";
-import { FaEdit } from "react-icons/fa";
-import LoadingButton from "../editor/LoadingButton";
-import {
-    DropdownMenu,
-    DropdownMenuContent,
-    DropdownMenuItem,
-    DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import TaxonomySelector from "./TaxonomySelector";
 
 const isValidUrl = (url) => {
     try {
@@ -211,7 +210,7 @@ function EditableTranscriptSelect({
         if (transcripts[activeTranscript]) {
             setTempName(
                 transcripts[activeTranscript].name ||
-                    `Transcript ${activeTranscript + 1}`,
+                `Transcript ${activeTranscript + 1}`,
             );
         }
     }, [activeTranscript, transcripts]);
@@ -227,7 +226,7 @@ function EditableTranscriptSelect({
         if (transcripts[activeTranscript]) {
             setTempName(
                 transcripts[activeTranscript].name ||
-                    `Transcript ${activeTranscript + 1}`,
+                `Transcript ${activeTranscript + 1}`,
             );
         }
     };
@@ -484,7 +483,7 @@ function VideoPlayer({
                     onClick={() =>
                         handleCopy(
                             videoLanguages[activeLanguage]?.url ||
-                                videoInformation.videoUrl,
+                            videoInformation.videoUrl,
                         )
                     }
                     className="p-1 hover:bg-gray-100 rounded transition-colors"
@@ -523,7 +522,7 @@ function VideoPlayer({
     );
 }
 
-function VideoPage({}) {
+function VideoPage() {
     const [transcripts, setTranscripts] = useState([]);
     const [activeTranscript, setActiveTranscript] = useState(0);
     const [url, setUrl] = useState("");
@@ -619,6 +618,7 @@ function VideoPage({}) {
                 },
             });
         }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [videoInformation]);
 
     useEffect(() => {
@@ -642,6 +642,7 @@ function VideoPage({}) {
                 },
             });
         }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [videoLanguages]);
 
     const addSubtitleTrack = useCallback(
@@ -758,7 +759,7 @@ function VideoPage({}) {
                                                             {/* Only show delete button if it's not the original language AND is currently selected */}
                                                             {idx !== 0 &&
                                                                 activeLanguage ===
-                                                                    idx && (
+                                                                idx && (
                                                                     <button
                                                                         onClick={(
                                                                             e,
@@ -1042,9 +1043,9 @@ function VideoPage({}) {
                                         prev.map((transcript, index) =>
                                             index === activeTranscript
                                                 ? {
-                                                      ...transcript,
-                                                      text: newText,
-                                                  }
+                                                    ...transcript,
+                                                    text: newText,
+                                                }
                                                 : transcript,
                                         ),
                                     );
@@ -1059,9 +1060,9 @@ function VideoPage({}) {
                                             (transcript, index) =>
                                                 index === activeTranscript
                                                     ? {
-                                                          ...transcript,
-                                                          text: newText,
-                                                      }
+                                                        ...transcript,
+                                                        text: newText,
+                                                    }
                                                     : transcript,
                                         ),
                                     });

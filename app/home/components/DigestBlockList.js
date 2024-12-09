@@ -15,7 +15,6 @@ import {
     useCurrentUserDigest,
     useUpdateCurrentUserDigest,
 } from "../../queries/digest";
-import { useCurrentUser } from "../../queries/users";
 import classNames from "../../utils/class-names";
 import DigestBlock from "./DigestBlock";
 
@@ -24,7 +23,6 @@ export default function DigestBlockList() {
     const updateCurrentUserDigest = useUpdateCurrentUserDigest();
     const [editing, setEditing] = useState(false);
     const { t } = useTranslation();
-    const { data: user } = useCurrentUser();
 
     if (!digest) {
         return <Loader />;

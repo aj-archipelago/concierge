@@ -1,5 +1,4 @@
 import Pathway, { generateRandomString } from "../models/pathway";
-import stringcase from "stringcase";
 
 export async function createPathway({
     pathwayName,

@@ -70,7 +70,7 @@ export async function putPathway(id, attrs, user) {
 
     await pathway.save();
 
-    const result = await getClient().mutate({
+    await getClient().mutate({
         mutation: MUTATIONS.PUT_PATHWAY,
         variables: {
             name: pathway.name,

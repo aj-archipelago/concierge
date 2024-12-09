@@ -95,16 +95,12 @@ function VttSubtitles({ text, onSeek, currentTime }) {
                         className="subtitle-row"
                         data-timestamp={subtitle.timestamp}
                     >
-                        <a
-                            href="#"
-                            onClick={(e) => {
-                                e.preventDefault();
-                                handleTimestampClick(subtitle.timestamp);
-                            }}
+                        <button
+                            onClick={() => handleTimestampClick(subtitle.timestamp)}
                             className="text-blue-600 hover:text-blue-800"
                         >
                             {subtitle.timestamp}
-                        </a>
+                        </button>
                     </div>
                     <div className="text-sm">{subtitle.text}</div>
                 </React.Fragment>
@@ -206,16 +202,12 @@ function SrtSubtitles({ text, onSeek, currentTime, onSubtitleChange }) {
                         className="subtitle-row"
                         data-timestamp={subtitle.timestamp}
                     >
-                        <a
-                            href="#"
-                            onClick={(e) => {
-                                e.preventDefault();
-                                handleTimestampClick(subtitle.timestamp);
-                            }}
+                        <button
+                            onClick={() => handleTimestampClick(subtitle.timestamp)}
                             className="text-blue-600 hover:text-blue-800"
                         >
                             {subtitle.timestamp}
-                        </a>
+                        </button>
                     </div>
                     <input
                         type="text"

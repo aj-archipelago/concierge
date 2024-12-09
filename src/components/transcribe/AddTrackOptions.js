@@ -360,7 +360,10 @@ export default function TranscribeVideo({
             setError(e);
             setLoading(false);
         }
-    }, [
+        
+    }, 
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [
         url,
         language,
         wordTimestamped,

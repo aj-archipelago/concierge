@@ -5,6 +5,8 @@ import {
     getAxisUrl,
 } from "../../../app.config/config/transcribe/TranscribeUrlConstants";
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(req) {
     try {
         const url = new URL(req.url);
@@ -24,6 +26,7 @@ export async function GET(req) {
         let accountId = AJE; // AJE, AJA, etc.
 
         //check if url is a valid youtube url
+        // eslint-disable-next-line no-useless-escape
         const youtubeRegex =
             /^(https?\:\/\/)?(www\.)?(youtube\.com|youtu\.?be)\/.+$/;
         if (youtubeRegex.test(urlInput)) {
@@ -91,17 +94,17 @@ export async function GET(req) {
     }
 }
 
-function findMostSimilarTitle(items, targetTitle) {
-    return items.reduce(
-        (best, current) => {
-            const similarity = calculateSimilarity(targetTitle, current.name);
-            return similarity > best.similarity
-                ? { item: current, similarity }
-                : best;
-        },
-        { item: null, similarity: 0 },
-    );
-}
+// function findMostSimilarTitle(items, targetTitle) {
+//     return items.reduce(
+//         (best, current) => {
+//             const similarity = calculateSimilarity(targetTitle, current.name);
+//             return similarity > best.similarity
+//                 ? { item: current, similarity }
+//                 : best;
+//         },
+//         { item: null, similarity: 0 },
+//     );
+// }
 
 function calculateSimilarity(str1, str2) {
     const set1 = new Set(str1.toLowerCase().split(" "));
