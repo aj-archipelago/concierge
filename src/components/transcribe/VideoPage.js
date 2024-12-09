@@ -7,6 +7,7 @@ import {
     DialogDescription,
     DialogHeader,
     DialogTitle,
+    DialogTrigger,
 } from "@/components/ui/dialog";
 import {
     Select,
@@ -23,6 +24,10 @@ import {
     PlusIcon,
     RefreshCwIcon,
     TrashIcon,
+    MoreVertical,
+    PencilIcon,
+    PlusCircleIcon,
+    ChevronDown,
 } from "lucide-react";
 import { useCallback, useContext, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -35,6 +40,15 @@ import { AddTrackButton } from "./TranscriptionOptions";
 import TranscriptView from "./TranscriptView";
 import VideoInput from "./VideoInput";
 import TranscribeErrorBoundary from "./ErrorBoundary";
+import { FaEdit } from "react-icons/fa";
+import LoadingButton from "../editor/LoadingButton";
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import TaxonomySelector from "./TaxonomySelector";
 
 const isValidUrl = (url) => {
     try {
@@ -44,6 +58,343 @@ const isValidUrl = (url) => {
         return false;
     }
 };
+
+// New TaxonomyDialog component
+function TaxonomyDialog({ text }) {
+    const { t } = useTranslation();
+
+    return (
+        <Dialog>
+            <DialogTrigger className="lb-outline-secondary flex items-center gap-1 text-xs">
+                {t("Hashtags and Topics")}
+            </DialogTrigger>
+            <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
+                <DialogHeader>
+                    <DialogTitle>{t("Select Taxonomy")}</DialogTitle>
+                </DialogHeader>
+                <TaxonomySelector text={text} />
+            </DialogContent>
+        </Dialog>
+    );
+}
+
+// New DownloadButton component
+function DownloadButton({ format, name, text }) {
+    const { t } = useTranslation();
+
+    const convertVttToSrt = (vttText) => {
+        const lines = vttText.split("\n");
+        let srtContent = "";
+        let subtitleCount = 1;
+        let currentSubtitle = {};
+
+        lines.forEach((line) => {
+            const timestampMatch = line.match(
+                /(\d{2}:\d{2}:\d{2}\.\d{3}) --> (\d{2}:\d{2}:\d{2}\.\d{3})/,
+            );
+            if (timestampMatch) {
+                if (currentSubtitle.timestamp) {
+                    srtContent += `${subtitleCount}\n${currentSubtitle.timestamp}\n${currentSubtitle.text}\n\n`;
+                    subtitleCount++;
+                }
+                // Convert timestamp format from VTT to SRT (replace . with ,)
+                currentSubtitle = {
+                    timestamp: `${timestampMatch[1].replace(".", ",")} --> ${timestampMatch[2].replace(".", ",")}`,
+                    text: "",
+                };
+            } else if (line.trim() && currentSubtitle.timestamp) {
+                currentSubtitle.text = (
+                    currentSubtitle.text +
+                    " " +
+                    line
+                ).trim();
+            }
+        });
+
+        // Add the last subtitle
+        if (currentSubtitle.timestamp) {
+            srtContent += `${subtitleCount}\n${currentSubtitle.timestamp}\n${currentSubtitle.text}\n\n`;
+        }
+
+        return srtContent.trim();
+    };
+
+    const downloadFile = (selectedFormat) => {
+        let downloadText = text;
+
+        // Convert format if needed
+        if (format === "vtt" && selectedFormat === "srt") {
+            downloadText = convertVttToSrt(text);
+        }
+
+        const element = document.createElement("a");
+        const file = new Blob([downloadText], { type: "text/plain" });
+        element.href = URL.createObjectURL(file);
+        const fileExt = selectedFormat;
+        element.download = `${name}_sub.${fileExt}`;
+        element.style.display = "none";
+        document.body.appendChild(element);
+
+        const event = new MouseEvent("click");
+        element.dispatchEvent(event);
+
+        setTimeout(() => {
+            document.body.removeChild(element);
+            URL.revokeObjectURL(element.href);
+        }, 100);
+    };
+
+    return (
+        <DropdownMenu>
+            <DropdownMenuTrigger className="lb-outline-secondary flex items-center gap-1 text-xs">
+                <div className="flex items-center gap-2 pe-1">
+                    <DownloadIcon className="h-4 w-4" />
+                    {t("Download")}
+                </div>
+                {(format === "srt" || format === "vtt") && (
+                    <>
+                        <div className="h-4 w-px bg-gray-300" />
+                        <ChevronDown className="h-4 w-4 -me-[0.25rem]" />
+                    </>
+                )}
+            </DropdownMenuTrigger>
+            {format === "srt" || format === "vtt" ? (
+                <DropdownMenuContent>
+                    <DropdownMenuItem
+                        className="text-xs"
+                        onClick={() => downloadFile("srt")}
+                    >
+                        {t("Download SRT")}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                        className="text-xs"
+                        onClick={() => downloadFile("vtt")}
+                    >
+                        {t("Download VTT")}
+                    </DropdownMenuItem>
+                </DropdownMenuContent>
+            ) : (
+                <DropdownMenuContent>
+                    <DropdownMenuItem
+                        onClick={() => downloadFile("txt")}
+                        className="text-xs"
+                    >
+                        {t("Download .txt")}
+                    </DropdownMenuItem>
+                </DropdownMenuContent>
+            )}
+        </DropdownMenu>
+    );
+}
+
+function EditableTranscriptSelect({
+    transcripts,
+    activeTranscript,
+    setActiveTranscript,
+    onNameChange,
+    url,
+    onAdd,
+    apolloClient,
+    addTrackDialogOpen,
+    setAddTrackDialogOpen,
+    selectedTab,
+    setSelectedTab,
+    isEditing,
+    setIsEditing,
+    onDeleteTrack,
+}) {
+    const { t } = useTranslation();
+    const [editing, setEditing] = useState(false);
+    const [tempName, setTempName] = useState("");
+
+    useEffect(() => {
+        if (transcripts[activeTranscript]) {
+            setTempName(
+                transcripts[activeTranscript].name ||
+                    `Transcript ${activeTranscript + 1}`,
+            );
+        }
+    }, [activeTranscript, transcripts]);
+
+    const handleSave = () => {
+        if (!tempName) return;
+        setEditing(false);
+        onNameChange(tempName);
+    };
+
+    const handleCancel = () => {
+        setEditing(false);
+        if (transcripts[activeTranscript]) {
+            setTempName(
+                transcripts[activeTranscript].name ||
+                    `Transcript ${activeTranscript + 1}`,
+            );
+        }
+    };
+
+    if (!transcripts.length) {
+        // return add track button
+        return (
+            <AddTrackButton
+                transcripts={transcripts}
+                url={url}
+                onAdd={onAdd}
+                activeTranscript={activeTranscript}
+                trigger={
+                    <button className="lb-outline-secondary flex items-center gap-1 text-xs">
+                        {t("Add subtitles or transcript")}
+                    </button>
+                }
+                apolloClient={apolloClient}
+                addTrackDialogOpen={addTrackDialogOpen}
+                setAddTrackDialogOpen={setAddTrackDialogOpen}
+                selectedTab={selectedTab}
+                setSelectedTab={setSelectedTab}
+            />
+        );
+    }
+
+    return (
+        <div className="mb-2">
+            {editing ? (
+                <div className="flex gap-2">
+                    <input
+                        autoFocus
+                        type="text"
+                        className="text-md w-[250px] font-medium rounded-md py-1.5 my-[1px] px-3 border border-gray-300"
+                        value={tempName}
+                        onChange={(e) => setTempName(e.target.value)}
+                        onKeyDown={(e) => {
+                            if (e.key === "Enter") handleSave();
+                            if (e.key === "Escape") handleCancel();
+                        }}
+                    />
+                    <div className="flex gap-2 items-center">
+                        <div>
+                            <LoadingButton
+                                text={t("Saving...")}
+                                loading={false}
+                                className="lb-primary lb-sm"
+                                onClick={handleSave}
+                            >
+                                {t("Save")}
+                            </LoadingButton>
+                        </div>
+                        <div>
+                            <button
+                                className="lb-outline-secondary lb-sm"
+                                onClick={handleCancel}
+                            >
+                                {t("Cancel")}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            ) : (
+                <div className="flex gap-2 justify-between ">
+                    <div className="flex gap-2 grow">
+                        <Select
+                            value={activeTranscript.toString()}
+                            onValueChange={(value) =>
+                                setActiveTranscript(parseInt(value))
+                            }
+                        >
+                            <SelectTrigger className="w-[250px] py-1 text-md font-medium">
+                                <SelectValue>
+                                    {transcripts[activeTranscript]?.name ||
+                                        `Transcript ${activeTranscript + 1}`}
+                                </SelectValue>
+                            </SelectTrigger>
+                            <SelectContent>
+                                {transcripts.map((transcript, index) => (
+                                    <SelectItem
+                                        key={index}
+                                        value={index.toString()}
+                                    >
+                                        {transcript.name ||
+                                            `Transcript ${index + 1}`}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                        <div className="flex gap-2 items-center">
+                            <div>
+                                <button
+                                    title={t("Edit")}
+                                    className="ms-0.5 text-gray-400 hover:text-gray-600"
+                                    onClick={() => setEditing(true)}
+                                >
+                                    <FaEdit className="h-4 w-4" />
+                                </button>
+                            </div>
+                            <AddTrackButton
+                                transcripts={transcripts}
+                                url={url}
+                                onAdd={onAdd}
+                                activeTranscript={activeTranscript}
+                                trigger={
+                                    <button className="text-gray-400 hover:text-gray-600">
+                                        <PlusCircleIcon className="h-4 w-4" />{" "}
+                                        {transcripts.length > 0
+                                            ? t("")
+                                            : t("Add subtitles or transcript")}
+                                    </button>
+                                }
+                                apolloClient={apolloClient}
+                                addTrackDialogOpen={addTrackDialogOpen}
+                                setAddTrackDialogOpen={setAddTrackDialogOpen}
+                                selectedTab={selectedTab}
+                                setSelectedTab={setSelectedTab}
+                            />
+                        </div>
+                    </div>
+                    {!isEditing && (
+                        <div className="flex items-center gap-2">
+                            <button
+                                onClick={() => setIsEditing(!isEditing)}
+                                className="lb-outline-secondary flex items-center gap-1 text-xs"
+                                title={t("Edit")}
+                            >
+                                {t("Edit")}
+                            </button>
+                            <TaxonomyDialog
+                                text={transcripts[activeTranscript].text}
+                            />
+                            <DownloadButton
+                                format={transcripts[activeTranscript].format}
+                                name={transcripts[activeTranscript].name}
+                                text={transcripts[activeTranscript].text}
+                            />
+                            <DropdownMenu>
+                                <DropdownMenuTrigger className="">
+                                    <MoreVertical className="h-4 w-4" />
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent>
+                                    <DropdownMenuItem
+                                        className="text-red-600 focus:text-red-600 focus:bg-red-50 text-xs"
+                                        onClick={() => {
+                                            if (
+                                                window.confirm(
+                                                    t(
+                                                        "Are you sure you want to delete this track?",
+                                                    ),
+                                                )
+                                            ) {
+                                                onDeleteTrack();
+                                            }
+                                        }}
+                                    >
+                                        {t("Delete track")}
+                                    </DropdownMenuItem>
+                                </DropdownMenuContent>
+                            </DropdownMenu>
+                        </div>
+                    )}
+                </div>
+            )}
+        </div>
+    );
+}
 
 function VideoPlayer({
     videoLanguages,
@@ -164,9 +515,7 @@ function VideoPlayer({
                     >
                         {vttUrl
                             ? t("Show subtitles overlay")
-                            : t(
-                                  "Select a VTT or SRT file to view it as an overlay on the video",
-                              )}
+                            : t("Show subtitles overlay")}
                     </label>
                 </div>
             )}
@@ -179,6 +528,7 @@ function VideoPage({}) {
     const [activeTranscript, setActiveTranscript] = useState(0);
     const [url, setUrl] = useState("");
     const [videoInformation, setVideoInformation] = useState();
+    const [isEditing, setIsEditing] = useState(false);
     const { t } = useTranslation();
     const apolloClient = useApolloClient();
     const { userState, debouncedUpdateUserState } = useContext(AuthContext);
@@ -640,182 +990,101 @@ function VideoPage({}) {
                             </div>
                         )}
                     </div>
-                    <h3 className="mb-2">{t("Subtitles and transcripts")}</h3>
-                    <div className="flex gap-2 mb-2">
-                        {transcripts.length > 0 && (
-                            <div className="flex gap-2 flex-wrap items-center">
-                                {transcripts.length <= 4 ? (
-                                    // Show buttons for 4 or fewer transcripts
-                                    transcripts.map((transcript, index) => (
-                                        <button
-                                            key={index}
-                                            className={`whitespace-nowrap border lb-sm hover:bg-sky-200 active:bg-sky-300 transition-colors ${activeTranscript === index ? "bg-sky-100" : ""}`}
-                                            onClick={() =>
-                                                setActiveTranscript(index)
-                                            }
-                                        >
-                                            {transcript.name ||
-                                                `Transcript ${index + 1}`}
-                                        </button>
-                                    ))
-                                ) : (
-                                    // Show first 4 as buttons, then use Select for the rest
-                                    <>
-                                        {transcripts
-                                            .slice(0, 4)
-                                            .map((transcript, index) => (
-                                                <button
-                                                    key={index}
-                                                    className={`whitespace-nowrap border h-8 lb-sm hover:bg-sky-200 active:bg-sky-300 transition-colors ${activeTranscript === index ? "bg-sky-100" : ""}`}
-                                                    onClick={() =>
-                                                        setActiveTranscript(
-                                                            index,
-                                                        )
-                                                    }
-                                                >
-                                                    {transcript.name ||
-                                                        `Transcript ${index + 1}`}
-                                                </button>
-                                            ))}
-                                        <Select
-                                            value={activeTranscript.toString()}
-                                            onValueChange={(value) =>
-                                                setActiveTranscript(
-                                                    parseInt(value),
-                                                )
-                                            }
-                                        >
-                                            <SelectTrigger
-                                                className={classNames(
-                                                    "w-[180px] py-1 h-8 text-xs font-medium shadow-sm",
-                                                    activeTranscript > 3
-                                                        ? "bg-sky-100"
-                                                        : "",
-                                                )}
-                                            >
-                                                <SelectValue
-                                                    placeholder="Select transcript"
-                                                    className={"py-0"}
-                                                >
-                                                    {activeTranscript > 3
-                                                        ? transcripts[
-                                                              activeTranscript
-                                                          ]?.name ||
-                                                          `Transcript ${activeTranscript + 1}`
-                                                        : "More..."}
-                                                </SelectValue>
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                {transcripts
-                                                    .slice(4)
-                                                    .map(
-                                                        (transcript, index) => (
-                                                            <SelectItem
-                                                                key={index + 4}
-                                                                value={(
-                                                                    index + 4
-                                                                ).toString()}
-                                                            >
-                                                                {transcript.name ||
-                                                                    `Transcript ${index + 5}`}
-                                                            </SelectItem>
-                                                        ),
-                                                    )}
-                                            </SelectContent>
-                                        </Select>
-                                    </>
-                                )}
-                            </div>
-                        )}
-                        <AddTrackButton
-                            transcripts={transcripts}
-                            url={
-                                videoInformation?.transcriptionUrl ||
-                                videoInformation?.videoUrl
-                            }
-                            onAdd={addSubtitleTrack}
-                            activeTranscript={activeTranscript}
-                            trigger={
-                                <button className="flex gap-1 items-center lb-outline-secondary lb-sm">
-                                    <PlusIcon className="h-4 w-4" />{" "}
-                                    {transcripts.length > 0
-                                        ? t("")
-                                        : t("Add subtitles or transcript")}
-                                </button>
-                            }
-                            apolloClient={apolloClient}
-                            addTrackDialogOpen={addTrackDialogOpen}
-                            setAddTrackDialogOpen={setAddTrackDialogOpen}
-                            selectedTab={selectedTab}
-                            setSelectedTab={setSelectedTab}
-                        />
-                    </div>
+                    <div className="flex gap-2 mb-2"></div>
                 </div>
+                <EditableTranscriptSelect
+                    transcripts={transcripts}
+                    activeTranscript={activeTranscript}
+                    setActiveTranscript={setActiveTranscript}
+                    onNameChange={(name) => {
+                        setTranscripts((prev) =>
+                            prev.map((transcript, index) =>
+                                index === activeTranscript
+                                    ? { ...transcript, name }
+                                    : transcript,
+                            ),
+                        );
+                    }}
+                    url={
+                        videoInformation?.transcriptionUrl ||
+                        videoInformation?.videoUrl
+                    }
+                    onAdd={addSubtitleTrack}
+                    apolloClient={apolloClient}
+                    addTrackDialogOpen={addTrackDialogOpen}
+                    setAddTrackDialogOpen={setAddTrackDialogOpen}
+                    selectedTab={selectedTab}
+                    setSelectedTab={setSelectedTab}
+                    isEditing={isEditing}
+                    setIsEditing={setIsEditing}
+                    onDeleteTrack={() => {
+                        const updatedTranscripts = transcripts.filter(
+                            (_, index) => index !== activeTranscript,
+                        );
+                        setTranscripts(updatedTranscripts);
+                        setActiveTranscript(0);
+                    }}
+                />
 
                 {activeTranscript !== null &&
                     transcripts[activeTranscript]?.text && (
-                        <TranscriptView
-                            name={transcripts[activeTranscript].name}
-                            onNameChange={(name) => {
-                                setTranscripts((prev) =>
-                                    prev.map((transcript, index) =>
-                                        index === activeTranscript
-                                            ? { ...transcript, name }
-                                            : transcript,
-                                    ),
-                                );
-                            }}
-                            url={
-                                videoInformation?.transcriptionUrl ||
-                                videoInformation?.videoUrl
-                            }
-                            text={transcripts[activeTranscript].text}
-                            format={transcripts[activeTranscript].format}
-                            onSeek={handleSeek}
-                            currentTime={currentTime}
-                            onTextChange={(newText) => {
-                                // Update the transcript text
-                                setTranscripts((prev) =>
-                                    prev.map((transcript, index) =>
-                                        index === activeTranscript
-                                            ? { ...transcript, text: newText }
-                                            : transcript,
-                                    ),
-                                );
-
-                                // Update user state with new transcripts
-                                updateUserState({
-                                    videoInformation: {
-                                        ...userState?.transcribe
-                                            ?.videoInformation,
-                                    },
-                                    transcripts: transcripts.map(
-                                        (transcript, index) =>
+                        <>
+                            <TranscriptView
+                                text={transcripts[activeTranscript].text}
+                                format={transcripts[activeTranscript].format}
+                                onSeek={handleSeek}
+                                currentTime={currentTime}
+                                isEditing={isEditing}
+                                setIsEditing={setIsEditing}
+                                onTextChange={(newText) => {
+                                    // Update the transcript text
+                                    setTranscripts((prev) =>
+                                        prev.map((transcript, index) =>
                                             index === activeTranscript
                                                 ? {
                                                       ...transcript,
                                                       text: newText,
                                                   }
                                                 : transcript,
-                                    ),
-                                });
-                            }}
-                            onDeleteTrack={() => {
-                                const updatedTranscripts = transcripts.filter(
-                                    (_, index) => index !== activeTranscript,
-                                );
-                                setTranscripts(updatedTranscripts);
-                                setActiveTranscript(0);
+                                        ),
+                                    );
 
-                                updateUserState({
-                                    videoInformation: {
-                                        ...userState?.transcribe
-                                            ?.videoInformation,
-                                    },
-                                    transcripts: updatedTranscripts,
-                                });
-                            }}
-                        />
+                                    // Update user state with new transcripts
+                                    updateUserState({
+                                        videoInformation: {
+                                            ...userState?.transcribe
+                                                ?.videoInformation,
+                                        },
+                                        transcripts: transcripts.map(
+                                            (transcript, index) =>
+                                                index === activeTranscript
+                                                    ? {
+                                                          ...transcript,
+                                                          text: newText,
+                                                      }
+                                                    : transcript,
+                                        ),
+                                    });
+                                }}
+                                onDeleteTrack={() => {
+                                    const updatedTranscripts =
+                                        transcripts.filter(
+                                            (_, index) =>
+                                                index !== activeTranscript,
+                                        );
+                                    setTranscripts(updatedTranscripts);
+                                    setActiveTranscript(0);
+
+                                    updateUserState({
+                                        videoInformation: {
+                                            ...userState?.transcribe
+                                                ?.videoInformation,
+                                        },
+                                        transcripts: updatedTranscripts,
+                                    });
+                                }}
+                            />
+                        </>
                     )}
             </div>
         </TranscribeErrorBoundary>
