@@ -1,6 +1,5 @@
-import { useTranslation } from "react-i18next";
-import { useLLMs } from "../../queries/llms";
 import { useEffect } from "react";
+import { useLLMs } from "../../queries/llms";
 
 export default function LLMSelector({ value, onChange }) {
     const { data: llms, isLoading } = useLLMs();

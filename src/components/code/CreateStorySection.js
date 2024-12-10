@@ -288,7 +288,7 @@ function IssueFields({
             .finally(() => {
                 setLoading(false);
             });
-    }, [issueTypeId, projectKey, siteId, token, SPECIAL_FIELDS]);
+    }, [issueTypeId, projectKey, siteId, token]);
 
     if (error) {
         return (
@@ -444,6 +444,7 @@ function IssueTypes({
                 setLoading(false);
                 setError(error);
             });
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [siteId, projectKey, token]);
 
     if (error) {

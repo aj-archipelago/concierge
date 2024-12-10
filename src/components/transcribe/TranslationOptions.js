@@ -5,6 +5,14 @@ import { useTranslation } from "react-i18next";
 import { QUERIES } from "../../graphql";
 import LoadingButton from "../editor/LoadingButton";
 import { useProgress } from "../../contexts/ProgressContext";
+import dayjs from "dayjs";
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select";
 
 function TranslationOptions({
     transcripts = [],
@@ -36,7 +44,6 @@ function TranslationOptions({
                         text,
                         to: language,
                         async,
-                        text: text,
                         format: selectedTranscript?.format,
                     },
                     fetchPolicy: "network-only",
@@ -50,7 +57,11 @@ function TranslationOptions({
                         setRequestId(result);
                         addProgressToast(
                             result,
-                            t("Translating text to") +
+                            t("Translating") +
+                                " " +
+                                selectedTranscript?.name +
+                                " " +
+                                t("to") +
                                 " " +
                                 transcriptionTranslationLanguage +
                                 "...",
@@ -70,6 +81,7 @@ function TranslationOptions({
                 setLoading(false);
             }
         },
+        // eslint-disable-next-line react-hooks/exhaustive-deps
         [
             apolloClient,
             async,
@@ -77,6 +89,7 @@ function TranslationOptions({
             t,
             onClose,
             transcriptionTranslationLanguage,
+            selectedTranscript,
         ],
     );
 
@@ -88,7 +101,7 @@ function TranslationOptions({
         );
         onAdd({
             text: finalData,
-            name: `${transcriptionTranslationLanguage}`,
+            name: `${selectedTranscript?.name}: ${transcriptionTranslationLanguage} Translation`,
             format: selectedTranscript?.format,
         });
         setRequestId(null);
@@ -99,34 +112,41 @@ function TranslationOptions({
             <div className="flex items-center gap-2">
                 <div className="mb-3 basis-1/2">
                     <h3 className="text-sm mb-1">{t("From")}</h3>
-                    {transcripts?.length > 0 && (
-                        <select
-                            className="lb-select"
-                            value={selectedTranscript?.name || ""}
-                            onChange={(event) =>
-                                setSelectedTranscript(
-                                    transcripts.find(
-                                        (transcript) =>
-                                            transcript.name ===
-                                            event.target.value,
-                                    ),
-                                )
-                            }
-                        >
-                            <option value="">{t("Select transcript")}</option>
+                    <Select
+                        value={selectedTranscript?.name || ""}
+                        onValueChange={(value) =>
+                            setSelectedTranscript(
+                                transcripts.find(
+                                    (transcript) => transcript.name === value,
+                                ),
+                            )
+                        }
+                    >
+                        <SelectTrigger className="lb-select">
+                            <SelectValue placeholder={t("Select transcript")} />
+                        </SelectTrigger>
+                        <SelectContent>
                             {transcripts.map((transcript) => (
-                                <option
+                                <SelectItem
                                     key={transcript.name}
                                     value={transcript.name}
                                 >
-                                    {transcript.name}{" "}
-                                    {transcript.format
-                                        ? `(${transcript.format})`
-                                        : ""}
-                                </option>
+                                    <div className="flex flex-col">
+                                        <div>{transcript.name}</div>
+                                        {transcript.timestamp && (
+                                            <div className="text-xs text-gray-400">
+                                                {dayjs(
+                                                    transcript.timestamp,
+                                                ).format(
+                                                    "MMM DD, YYYY HH:mm:ss",
+                                                )}
+                                            </div>
+                                        )}
+                                    </div>
+                                </SelectItem>
                             ))}
-                        </select>
-                    )}
+                        </SelectContent>
+                    </Select>
                 </div>
                 <div className="mb-3 basis-1/2">
                     <h3 className="text-sm mb-1">{t("To")}</h3>

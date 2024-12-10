@@ -1,5 +1,5 @@
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useContext, useEffect, useState } from "react";
+import { useContext, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Modal } from "../../../@/components/ui/modal";
 import LoadingButton from "../../../src/components/editor/LoadingButton";
@@ -9,8 +9,8 @@ import {
     usePromptsByIds,
 } from "../../queries/prompts";
 import classNames from "../../utils/class-names";
-import { WorkspaceContext } from "./WorkspaceContent";
 import LLMSelector from "./LLMSelector"; // Add this import
+import { WorkspaceContext } from "./WorkspaceContent";
 
 export default function PromptSelectorModal({ isOpen, setIsOpen }) {
     const { t } = useTranslation();

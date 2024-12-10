@@ -69,6 +69,7 @@ export default function JiraProjectSelect({ token, value, onChange }) {
                     }
                 });
         }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [token]);
 
     if (!token) {
@@ -197,6 +198,7 @@ function IssueTypes({ value, onChange, projectKey, token, siteId }) {
                 setLoading(false);
                 setError(error);
             });
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [siteId, projectKey, token]);
 
     if (error) {

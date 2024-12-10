@@ -15,6 +15,7 @@ import { useProgress } from "../../contexts/ProgressContext";
 import { QUERIES } from "../../graphql";
 import LoadingButton from "../editor/LoadingButton";
 import TranslationOptions from "./TranslationOptions";
+import { convertSrtToVtt } from "./transcribe.utils";
 
 export function AddTrackOptions({
     url,
@@ -161,6 +162,7 @@ function SubtitleUpload({ onAdd }) {
     };
 
     const handleFile = async (file) => {
+        console.log("handleFile", file);
         const fileExtension = file.name.split(".").pop().toLowerCase();
 
         if (!["srt", "vtt"].includes(fileExtension)) {
@@ -168,13 +170,25 @@ function SubtitleUpload({ onAdd }) {
             return;
         }
 
+        console.log("fileExtension1", fileExtension);
+
         const reader = new FileReader();
         reader.onload = async (e) => {
-            const text = e.target.result;
+            let text = e.target.result;
+
+            if (fileExtension === "srt") {
+                console.log(
+                    "fileExtension",
+                    fileExtension,
+                    convertSrtToVtt(text),
+                );
+                text = convertSrtToVtt(text);
+            }
+
             onAdd({
                 text: text,
                 name: file.name,
-                format: fileExtension,
+                format: "vtt",
             });
         };
         reader.readAsText(file);
@@ -303,83 +317,89 @@ export default function TranscribeVideo({
     ]);
 
     // Move handleSubmit from Video.js
-    const handleSubmit = useCallback(async () => {
-        if (!url || loading) return;
+    const handleSubmit = useCallback(
+        async () => {
+            if (!url || loading) return;
 
-        setCurrentOperation(t("Transcribing"));
-        try {
-            setLoading(true);
+            setCurrentOperation(t("Transcribing"));
+            try {
+                setLoading(true);
 
-            const _query =
-                selectedModelOption === "NeuralSpace"
-                    ? QUERIES.TRANSCRIBE_NEURALSPACE
-                    : QUERIES.TRANSCRIBE;
+                const _query =
+                    selectedModelOption === "NeuralSpace"
+                        ? QUERIES.TRANSCRIBE_NEURALSPACE
+                        : QUERIES.TRANSCRIBE;
 
-            const { data } = await apolloClient.query({
-                query: _query,
-                variables: {
-                    file: url,
-                    language,
-                    wordTimestamped,
-                    responseFormat:
-                        responseFormat !== "formatted" ? responseFormat : null,
-                    maxLineCount,
-                    maxLineWidth,
-                    maxWordsPerLine,
-                    highlightWords,
-                    async: true,
-                },
-                fetchPolicy: "network-only",
-            });
-
-            const dataResult =
-                data?.transcribe?.result ||
-                data?.transcribe_neuralspace?.result;
-
-            if (dataResult) {
-                setRequestId(dataResult);
-                addProgressToast(
-                    dataResult,
-                    t("Transcribing") + "...",
-                    (finalData) => {
-                        setLoading(false);
-                        onAdd({
-                            text: finalData,
-                            format: responseFormat,
-                            name: responseFormat
-                                ? `${selectedModelOption} (${responseFormat})`
-                                : selectedModelOption,
-                        });
-                        setRequestId(null);
+                const { data } = await apolloClient.query({
+                    query: _query,
+                    variables: {
+                        file: url,
+                        language,
+                        wordTimestamped,
+                        responseFormat:
+                            responseFormat !== "formatted"
+                                ? responseFormat
+                                : null,
+                        maxLineCount,
+                        maxLineWidth,
+                        maxWordsPerLine,
+                        highlightWords,
+                        async: true,
                     },
-                );
-                onClose?.();
+                    fetchPolicy: "network-only",
+                });
+
+                const dataResult =
+                    data?.transcribe?.result ||
+                    data?.transcribe_neuralspace?.result;
+
+                if (dataResult) {
+                    setRequestId(dataResult);
+                    addProgressToast(
+                        dataResult,
+                        t("Transcribing") + "...",
+                        (finalData) => {
+                            setLoading(false);
+                            onAdd({
+                                text: finalData,
+                                format: responseFormat,
+                                name:
+                                    responseFormat === "vtt"
+                                        ? "Subtitles"
+                                        : "Transcript",
+                            });
+                            setRequestId(null);
+                        },
+                    );
+                    onClose?.();
+                }
+            } catch (e) {
+                console.error("Transcription error:", e);
+                setError(e);
+                setLoading(false);
             }
-        } catch (e) {
-            console.error("Transcription error:", e);
-            setError(e);
-            setLoading(false);
-        }
-    }, [
-        url,
-        language,
-        wordTimestamped,
-        responseFormat,
-        maxLineCount,
-        maxLineWidth,
-        maxWordsPerLine,
-        highlightWords,
-        loading,
-        async,
-        addProgressToast,
-        t,
-        onClose,
-    ]);
+        },
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+        [
+            url,
+            language,
+            wordTimestamped,
+            responseFormat,
+            maxLineCount,
+            maxLineWidth,
+            maxWordsPerLine,
+            highlightWords,
+            loading,
+            async,
+            addProgressToast,
+            t,
+            onClose,
+        ],
+    );
 
     // Add logging for select changes
     const handleFormatChange = (e) => {
         const selectedValue = e.target.value;
-        console.log("Output format changed:", selectedValue);
         setTranscriptionOption({
             responseFormat: selectedValue,
             wordTimestamped: false,
@@ -504,10 +524,9 @@ function FormatSelector({ loading, responseFormat, handleFormatChange }) {
             value={responseFormat || ""}
             onChange={handleFormatChange}
         >
-            <option value="">{t("Plain Text")}</option>
-            <option value="formatted">{t("Formatted Text")}</option>
-            <option value="srt">{t("SRT Format")}</option>
-            <option value="vtt">{t("VTT Format")}</option>
+            <option value="">{t("Plain Text transcript")}</option>
+            <option value="formatted">{t("Formatted Transcript")}</option>
+            <option value="vtt">{t("Subtitles")}</option>
         </select>
     );
 }

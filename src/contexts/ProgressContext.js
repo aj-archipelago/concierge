@@ -9,28 +9,13 @@ import { toast } from "react-toastify";
 import { useSubscription } from "@apollo/client";
 import { SUBSCRIPTIONS } from "../graphql";
 
-type ProgressCallback = (finalData: any) => void;
-
 const TIMEOUT_DURATION = 5 * 60 * 1000; // 5 minutes timeout
 const ERROR_MESSAGES = {
     timeout: "The operation timed out. Please try again.",
     generic: "An error occurred. Please try again.",
 };
 
-type ProgressContextType = {
-    addProgressToast: (
-        requestId: string,
-        initialText?: string,
-        onComplete?: ProgressCallback,
-        onError?: (error: Error) => void,
-        timeout?: number,
-    ) => void;
-    removeProgressToast: (requestId: string) => void;
-};
-
-const ProgressContext = createContext<ProgressContextType | undefined>(
-    undefined,
-);
+const ProgressContext = createContext(undefined);
 
 function ProgressToast({
     requestId,
@@ -38,43 +23,51 @@ function ProgressToast({
     onComplete,
     onError,
     timeout = TIMEOUT_DURATION,
-}: {
-    requestId: string;
-    initialText: string;
-    onComplete?: ProgressCallback;
-    onError?: (error: Error) => void;
-    timeout?: number;
 }) {
     const [progress, setProgress] = useState(10);
-    const [errorMessage, setErrorMessage] = useState<string | null>(null);
-    const timeoutRef = useRef<NodeJS.Timeout>();
+    const [errorMessage, setErrorMessage] = useState(null);
+    const timeoutRef = useRef();
+    const subscriptionRef = useRef();
 
     useEffect(() => {
         timeoutRef.current = setTimeout(() => {
             const timeoutError = new Error(ERROR_MESSAGES.timeout);
             onError?.(timeoutError);
             setErrorMessage(ERROR_MESSAGES.timeout);
-            // toast.dismiss(requestId);
+            if (subscriptionRef.current) {
+                subscriptionRef.current();
+            }
         }, timeout);
 
         return () => {
             if (timeoutRef.current) {
                 clearTimeout(timeoutRef.current);
             }
+            if (subscriptionRef.current) {
+                subscriptionRef.current();
+            }
         };
     }, [timeout, requestId, onError]);
 
-    console.log("initialText", initialText);
-
     const { data, error } = useSubscription(SUBSCRIPTIONS.REQUEST_PROGRESS, {
         variables: { requestIds: [requestId] },
+        onSubscriptionComplete: () => {
+            subscriptionRef.current = null;
+        },
     });
+
+    useEffect(() => {
+        return () => {
+            if (subscriptionRef.current) {
+                subscriptionRef.current();
+            }
+        };
+    }, []);
 
     React.useEffect(() => {
         if (error) {
             onError?.(error);
             setErrorMessage(ERROR_MESSAGES.generic);
-            // toast.dismiss(requestId);
             return;
         }
 
@@ -88,7 +81,16 @@ function ProgressToast({
             setProgress(newProgress);
         }
 
-        if (result) {
+        if (result && data.requestProgress.progress === 1) {
+            console.log("progress complete finalData", data.requestProgress);
+
+            if (timeoutRef.current) {
+                clearTimeout(timeoutRef.current);
+                timeoutRef.current = null;
+            } else {
+                return;
+            }
+
             let finalData = result;
             try {
                 finalData = JSON.parse(result);
@@ -96,13 +98,8 @@ function ProgressToast({
                 // ignore json parse error
             }
 
-            if (data.requestProgress.progress === 1) {
-                if (timeoutRef.current) {
-                    clearTimeout(timeoutRef.current);
-                }
-                onComplete?.(finalData);
-                toast.dismiss(requestId);
-            }
+            onComplete?.(finalData);
+            toast.dismiss(requestId);
         }
     }, [data, error, requestId, onComplete, progress, onError]);
 
@@ -135,15 +132,15 @@ function ProgressToast({
     );
 }
 
-export function ProgressProvider({ children }: { children: React.ReactNode }) {
-    const [activeToasts] = useState(new Set<string>());
+export function ProgressProvider({ children }) {
+    const [activeToasts] = useState(new Set());
 
     const addProgressToast = (
-        requestId: string,
+        requestId,
         initialText = "Processing...",
-        onComplete?: ProgressCallback,
-        onError?: (error: Error) => void,
-        timeout?: number,
+        onComplete,
+        onError,
+        timeout,
     ) => {
         if (activeToasts.has(requestId)) return;
 
@@ -168,7 +165,7 @@ export function ProgressProvider({ children }: { children: React.ReactNode }) {
         );
     };
 
-    const removeProgressToast = (requestId: string) => {
+    const removeProgressToast = (requestId) => {
         toast.dismiss(requestId);
         activeToasts.delete(requestId);
     };

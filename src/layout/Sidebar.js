@@ -33,7 +33,7 @@ const navigation = [
     },
     { name: "Chat", icon: ChatBubbleLeftIcon, href: "/chat", children: [] },
     { name: "Translate", icon: GlobeAltIcon, href: "/translate" },
-    { name: "Video", icon: VideoIcon, href: "/transcribe" },
+    { name: "Video", icon: VideoIcon, href: "/video" },
     { name: "Write", icon: PencilSquareIcon, href: "/write" },
     { name: "Workspaces", icon: MdOutlineWorkspaces, href: "/workspaces" },
     { name: "Images", icon: PhotoIcon, href: "/images" },
