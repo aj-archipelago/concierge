@@ -755,8 +755,6 @@ function VideoPage() {
         );
     }
 
-    console.log("active", transcripts[activeTranscript]);
-
     return (
         <TranscribeErrorBoundary>
             <div className="p-2">

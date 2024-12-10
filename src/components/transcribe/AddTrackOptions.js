@@ -162,15 +162,12 @@ function SubtitleUpload({ onAdd }) {
     };
 
     const handleFile = async (file) => {
-        console.log("handleFile", file);
         const fileExtension = file.name.split(".").pop().toLowerCase();
 
         if (!["srt", "vtt"].includes(fileExtension)) {
             alert(t("Please upload an SRT or VTT file"));
             return;
         }
-
-        console.log("fileExtension1", fileExtension);
 
         const reader = new FileReader();
         reader.onload = async (e) => {
@@ -270,8 +267,6 @@ export default function TranscribeVideo({
     apolloClient,
     onClose,
 }) {
-    console.log("TranscribeVideo rendered with props:", { url, async });
-
     const { t } = useTranslation();
     const { neuralspaceEnabled } = useContext(ServerContext);
 
@@ -358,7 +353,20 @@ export default function TranscribeVideo({
                     addProgressToast(
                         dataResult,
                         t("Transcribing") + "...",
-                        (finalData) => {
+                        async (finalData) => {
+                            if (responseFormat === "formatted") {
+                                const response = await apolloClient.query({
+                                    query: QUERIES.FORMAT_PARAGRAPH_TURBO,
+                                    variables: {
+                                        text: finalData,
+                                        async: false,
+                                    },
+                                });
+
+                                finalData =
+                                    response.data?.format_paragraph_turbo
+                                        ?.result;
+                            }
                             setLoading(false);
                             onAdd({
                                 text: finalData,
