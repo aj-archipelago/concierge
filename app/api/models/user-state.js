@@ -6,6 +6,14 @@ const userStateSchema = new mongoose.Schema(
             type: mongoose.Schema.Types.ObjectId,
             ref: "User",
         },
+        serializedState: {
+            type: String,
+        },
+
+        // old state model. All fields are now in serializedState.
+        // These fields are deprecated, but cannot be removed until
+        // all users have been migrated to the new model (to have them
+        // work with mongoose).
         write: {
             headline: {
                 type: String,
