@@ -28,7 +28,6 @@ function FileUploadComponent({ text }) {
     const { serverUrl } = useContext(ServerContext);
     const addDocument = useAddDocument();
     const activeChatId = useGetActiveChatId();
-    console.log("activeChatId", activeChatId);
 
     const setLoadingState = (isLoading) => {
         setIsLoading(isLoading);

@@ -50,7 +50,6 @@ const App = ({
     useEffect(() => {
         // set user state from server if it exists
         if (!userState && serverUserState) {
-            console.log("setting user state from server");
             setUserState(serverUserState);
         }
     }, [userState, serverUserState]);

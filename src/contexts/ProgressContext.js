@@ -82,8 +82,6 @@ function ProgressToast({
         }
 
         if (result && data.requestProgress.progress === 1) {
-            console.log("progress complete finalData", data.requestProgress);
-
             if (timeoutRef.current) {
                 clearTimeout(timeoutRef.current);
                 timeoutRef.current = null;
@@ -98,8 +96,13 @@ function ProgressToast({
                 // ignore json parse error
             }
 
-            onComplete?.(finalData);
-            toast.dismiss(requestId);
+            onComplete?.(finalData)
+                .then(() => {
+                    toast.dismiss(requestId);
+                })
+                .catch((e) => {
+                    setErrorMessage(e.message);
+                });
         }
     }, [data, error, requestId, onComplete, progress, onError]);
 

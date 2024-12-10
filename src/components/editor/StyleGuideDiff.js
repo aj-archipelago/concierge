@@ -221,7 +221,6 @@ const StyleGuideDiff = ({ styleGuideResult = "", setSelectedText }) => {
 
     const getDecorationsCallback = useCallback(
         (suggestions, i, excludedRange) => {
-            //console.log("i", i);
             return suggestions
                 .map((s, sIndex) => {
                     return suggestionToRangeInModifiedTextCallback(
@@ -340,7 +339,6 @@ const StyleGuideDiff = ({ styleGuideResult = "", setSelectedText }) => {
     );
 
     const onSelectCallback = useCallback((i) => {
-        //console.log("onselectCallback");
         setSelectedSuggestion(i);
     }, []);
 

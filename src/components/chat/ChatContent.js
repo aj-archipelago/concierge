@@ -103,7 +103,6 @@ function ChatContent({
                 let toolCallbackId = null;
                 let codeRequestId = null;
                 try {
-                    console.log("result", result);
                     let resultObj;
                     try {
                         resultObj = JSON.parse(result.data.rag_start.result);
