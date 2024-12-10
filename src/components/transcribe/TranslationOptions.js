@@ -65,7 +65,7 @@ function TranslationOptions({
                                 " " +
                                 transcriptionTranslationLanguage +
                                 "...",
-                            (finalData) => {
+                            async (finalData) => {
                                 setLoading(false);
                                 setFinalData(finalData);
                             },
@@ -114,22 +114,32 @@ function TranslationOptions({
                     <h3 className="text-sm mb-1">{t("From")}</h3>
                     <Select
                         value={selectedTranscript?.name || ""}
-                        onValueChange={(value) =>
-                            setSelectedTranscript(
-                                transcripts.find(
-                                    (transcript) => transcript.name === value,
-                                ),
-                            )
-                        }
+                        onValueChange={(value) => {
+                            console.log("value", value);
+                            setSelectedTranscript(transcripts[parseInt(value)]);
+                        }}
                     >
-                        <SelectTrigger className="lb-select">
-                            <SelectValue placeholder={t("Select transcript")} />
+                        <SelectTrigger className="">
+                            {selectedTranscript ? (
+                                <div className="flex flex-col text-start text-sm">
+                                    {selectedTranscript?.name}
+                                    <div className="text-xs text-gray-400">
+                                        {dayjs(
+                                            selectedTranscript?.timestamp,
+                                        ).format("MMM DD, YYYY HH:mm:ss")}
+                                    </div>
+                                </div>
+                            ) : (
+                                <SelectValue
+                                    placeholder={t("Select transcript")}
+                                />
+                            )}
                         </SelectTrigger>
                         <SelectContent>
-                            {transcripts.map((transcript) => (
+                            {transcripts.map((transcript, index) => (
                                 <SelectItem
                                     key={transcript.name}
-                                    value={transcript.name}
+                                    value={index.toString()}
                                 >
                                     <div className="flex flex-col">
                                         <div>{transcript.name}</div>

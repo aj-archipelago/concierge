@@ -303,7 +303,7 @@ function EditableTranscriptSelect({
                                 setActiveTranscript(parseInt(value))
                             }
                         >
-                            <SelectTrigger className="w-[300px] py-1 text-md font-medium">
+                            <SelectTrigger className="w-[300px] py-1 text-md font-medium text-start">
                                 <SelectValue>
                                     {transcripts[activeTranscript]?.name ||
                                         `Transcript ${activeTranscript + 1}`}
