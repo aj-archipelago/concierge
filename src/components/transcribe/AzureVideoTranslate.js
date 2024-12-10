@@ -11,7 +11,7 @@ export default function AzureVideoTranslate({ url, onQueued, onComplete }) {
     const [targetLocale, setTargetLocale] = useState("ar-QA");
     const { addProgressToast } = useProgress();
 
-    function setFinalDataPre(data) {
+    async function setFinalDataPre(data) {
         data = JSON.parse(data);
         try {
             const defaultSubtitlesUrl = data.outputVideoSubtitleWebVttFileUrl;
