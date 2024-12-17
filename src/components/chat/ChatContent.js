@@ -6,6 +6,7 @@ import { AuthContext } from "../../App.js";
 import ChatMessages from "./ChatMessages";
 import { QUERIES } from "../../graphql";
 import { useGetActiveChat, useUpdateChat } from "../../../app/queries/chats";
+import { useDeleteAutogenRun } from "../../../app/queries/autogen.js";
 
 const contextMessageCount = 50;
 
@@ -30,6 +31,7 @@ function ChatContent({
     const updateChatHook = useUpdateChat();
     const publicChatOwner = viewingChat?.owner;
     const isChatLoading = chat?.isChatLoading;
+    const deleteAutogenRun = useDeleteAutogenRun();
 
     const handleError = useCallback((error) => {
         toast.error(error.message);
@@ -80,6 +82,16 @@ function ChatContent({
 
                 const { contextId, aiMemorySelfModify, aiName, aiStyle } = user;
 
+                const codeRequestIdParam =
+                    new Date() - new Date(chat?.lastCodeRequestTime) <
+                    15 * 60 * 1000
+                        ? chat?.lastCodeRequestId
+                        : "";
+                console.log("codeRequestIdParam", codeRequestIdParam);
+                if (codeRequestIdParam) {
+                    await deleteAutogenRun.mutateAsync(codeRequestIdParam);
+                }
+
                 const variables = {
                     chatHistory: conversation,
                     contextId,
@@ -88,6 +100,7 @@ function ChatContent({
                     aiStyle,
                     title: chat?.title,
                     chatId,
+                    codeRequestId: codeRequestIdParam,
                 };
 
                 // Perform RAG start query
@@ -176,7 +189,11 @@ function ChatContent({
                     ...(newTitle && { title: newTitle }),
                     isChatLoading: !!toolCallbackName,
                     ...(toolCallbackId && { toolCallbackId }),
-                    ...(codeRequestId && { codeRequestId }),
+                    ...(codeRequestId && {
+                        codeRequestId,
+                        lastCodeRequestId: codeRequestId,
+                        lastCodeRequestTime: new Date(),
+                    }),
                 });
 
                 if (toolCallbackName && toolCallbackName !== "coding") {

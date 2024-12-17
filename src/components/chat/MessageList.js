@@ -444,15 +444,13 @@ function MessageList({ messages, bot, loading, chatId }) {
                                     <Loader />
                                 </div>
                                 {codeRequestId && (
-                                    <div className="border p-4 rounded-md bg-white animate-fade-in">
+                                    <div className="border pt-5 pb-3 px-7 rounded-md bg-white animate-fade-in">
                                         <ProgressUpdate
                                             requestId={codeRequestId}
                                             setFinalData={
                                                 setCodeRequestFinalData
                                             }
-                                            initialText={
-                                                "🤖 Agent coding in background..."
-                                            }
+                                            initialText={"🤖 Agent coding..."}
                                             codeAgent={true}
                                         />
                                     </div>
