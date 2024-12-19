@@ -1097,6 +1097,7 @@ function VideoPage() {
                     transcripts[activeTranscript]?.text && (
                         <>
                             <TranscriptView
+                                name={transcripts[activeTranscript].name}
                                 text={transcripts[activeTranscript].text}
                                 format={transcripts[activeTranscript].format}
                                 onSeek={handleSeek}
