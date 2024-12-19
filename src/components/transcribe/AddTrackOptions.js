@@ -282,7 +282,7 @@ export default function TranscribeVideo({
     const { addProgressToast } = useProgress();
 
     const {
-        responseFormat,
+        responseFormat = "vtt",
         wordTimestamped,
         maxLineCount,
         maxLineWidth,
