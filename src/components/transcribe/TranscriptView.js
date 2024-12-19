@@ -2,13 +2,12 @@
 
 import React, { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { FaCheck, FaEdit } from "react-icons/fa";
-import { FaX } from "react-icons/fa6";
-import CopyButton from "../CopyButton";
+import { FaEdit } from "react-icons/fa";
 import TextareaAutosize from "react-textarea-autosize";
+import CopyButton from "../CopyButton";
 
 // Simplified VTT component
-function VttSubtitles({ text, onSeek, currentTime, onTextChange }) {
+function VttSubtitles({ name, text, onSeek, currentTime, onTextChange }) {
     const containerRef = useRef(null);
     const lines = text.split("\n");
     const subtitles = [];
@@ -163,7 +162,6 @@ function EditableSubtitleText({ text, onSave, className = "" }) {
     const inputRef = useRef(null);
 
     useEffect(() => {
-        console.log("useEffect", text);
         setEditedText(text);
     }, [text]);
 

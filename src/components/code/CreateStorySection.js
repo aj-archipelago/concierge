@@ -288,6 +288,7 @@ function IssueFields({
             .finally(() => {
                 setLoading(false);
             });
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [issueTypeId, projectKey, siteId, token]);
 
     if (error) {
@@ -351,6 +352,7 @@ function FieldInput({ field, value, onChange }) {
                     : { id: allowedValues[0].id },
             );
         }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [allowedValues]);
 
     if (allowedValues?.length) {
