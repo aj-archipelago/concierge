@@ -120,14 +120,7 @@ function isDocumentUrl(url) {
     return DOC_EXTENSIONS.includes(urlExt);
 }
 
-const IMAGE_EXTENSIONS = [
-    ".jpg",
-    ".jpeg",
-    ".png",
-    ".webp",
-    ".heic",
-    ".heif",
-];
+const IMAGE_EXTENSIONS = [".jpg", ".jpeg", ".png", ".webp", ".heic", ".heif"];
 
 const VIDEO_EXTENSIONS = [
     ".mp4",
@@ -238,50 +231,47 @@ async function hashMediaFile(file) {
 const DOC_MIME_TYPES = DOC_EXTENSIONS.map((ext) => mime.lookup(ext));
 const MEDIA_MIME_TYPES = [
     // Images
-    'image/png',
-    'image/jpeg',
-    'image/webp',
-    'image/heic',
-    'image/heif',
+    "image/png",
+    "image/jpeg",
+    "image/webp",
+    "image/heic",
+    "image/heif",
     // Videos
-    'video/mp4',
-    'video/mpeg',
-    'video/mov',
-    'video/avi',
-    'video/x-flv',
-    'video/mpg',
-    'video/webm',
-    'video/wmv',
-    'video/3gpp',
+    "video/mp4",
+    "video/mpeg",
+    "video/mov",
+    "video/avi",
+    "video/x-flv",
+    "video/mpg",
+    "video/webm",
+    "video/wmv",
+    "video/3gpp",
     // Audio
-    'audio/wav',
-    'audio/mp3',
-    'audio/aac',
-    'audio/ogg',
-    'audio/flac',
+    "audio/wav",
+    "audio/mp3",
+    "audio/aac",
+    "audio/ogg",
+    "audio/flac",
     // PDF
-    'application/pdf',
+    "application/pdf",
 ];
 
-const ACCEPTED_FILE_TYPES = [
-    ...DOC_MIME_TYPES,
-    ...MEDIA_MIME_TYPES,
-];
+const ACCEPTED_FILE_TYPES = [...DOC_MIME_TYPES, ...MEDIA_MIME_TYPES];
 const FILE_TYPE_NOT_ALLOWED_ERROR =
     "File of type {fileExtension} is not allowed.";
 
 // Add this helper function to check video duration
 function getVideoDuration(file) {
     return new Promise((resolve, reject) => {
-        const video = document.createElement('video');
-        video.preload = 'metadata';
+        const video = document.createElement("video");
+        video.preload = "metadata";
 
-        video.onloadedmetadata = function() {
+        video.onloadedmetadata = function () {
             window.URL.revokeObjectURL(video.src);
             resolve(video.duration);
         };
 
-        video.onerror = function() {
+        video.onerror = function () {
             reject("Error loading video file");
         };
 
@@ -402,29 +392,39 @@ function MyFilePond({ addUrl, files, setFiles, setIsUploadingMedia }) {
                                 }
 
                                 // Check PDF file size (50MB = 50 * 1024 * 1024 bytes)
-                                if (file.type === 'application/pdf') {
+                                if (file.type === "application/pdf") {
                                     const MAX_PDF_SIZE = 50 * 1024 * 1024;
                                     if (file.size > MAX_PDF_SIZE) {
                                         setIsUploadingMedia(false);
-                                        error("PDF files must be less than 50MB");
+                                        error(
+                                            "PDF files must be less than 50MB",
+                                        );
                                         return;
                                     }
                                 }
 
                                 // Check video duration
-                                if (file.type.startsWith('video/')) {
+                                if (file.type.startsWith("video/")) {
                                     try {
-                                        const duration = await getVideoDuration(file);
+                                        const duration =
+                                            await getVideoDuration(file);
                                         if (duration > 3600) {
                                             setIsUploadingMedia(false);
                                             // Pass error message as a string with specific prefix
-                                            error("Video must be less than 60 minutes long");
+                                            error(
+                                                "Video must be less than 60 minutes long",
+                                            );
                                             return;
                                         }
                                     } catch (err) {
-                                        console.error('Error checking video duration:', err);
+                                        console.error(
+                                            "Error checking video duration:",
+                                            err,
+                                        );
                                         setIsUploadingMedia(false);
-                                        error("Could not verify video duration");
+                                        error(
+                                            "Could not verify video duration",
+                                        );
                                         return;
                                     }
                                 }
