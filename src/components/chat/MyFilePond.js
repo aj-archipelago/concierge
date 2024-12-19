@@ -124,26 +124,24 @@ const IMAGE_EXTENSIONS = [
     ".jpg",
     ".jpeg",
     ".png",
-    ".gif",
-    ".bmp",
     ".webp",
-    ".tiff",
-    ".svg",
-    ".pdf",
+    ".heic",
+    ".heif",
 ];
 
 const VIDEO_EXTENSIONS = [
     ".mp4",
-    ".webm",
-    ".ogg",
+    ".mpeg",
     ".mov",
     ".avi",
     ".flv",
+    ".mpg",
+    ".webm",
     ".wmv",
-    ".mkv",
+    ".3gp",
 ];
 
-const AUDIO_EXTENSIONS = [".wav", ".mp3", ".aiff", ".aac", ".ogg", ".flac"];
+const AUDIO_EXTENSIONS = [".wav", ".mp3", ".aac", ".ogg", ".flac"];
 
 // Extracts the filename from a URL
 export function getFilename(url) {
@@ -209,56 +207,87 @@ function isMediaUrl(url) {
 
 async function hashMediaFile(file) {
     const hash = crypto.createHash("sha256");
-
-    const chunkSize = 512 * 1024;
-
+    const chunkSize = 2 * 1024 * 1024; // Increased to 2MB chunks for better performance
     const numOfChunks = Math.ceil(file.size / chunkSize);
-
     const reader = new FileReader();
 
     async function processChunk(index) {
         const start = index * chunkSize;
-        const end = start + chunkSize;
+        const end = Math.min(start + chunkSize, file.size);
         const blobSlice = file.slice(start, end);
 
         return new Promise((resolve, reject) => {
             reader.onload = (event) => {
-                const arrayBuffer = event.target.result;
-                const array = new Uint8Array(arrayBuffer);
-                array.forEach((chunk) => {
-                    hash.update(new Uint8Array([chunk]));
-                });
-
+                // Update hash with entire chunk at once
+                hash.update(Buffer.from(event.target.result));
                 resolve();
             };
-
             reader.onerror = reject;
-
             reader.readAsArrayBuffer(blobSlice);
         });
     }
 
+    // Process chunks sequentially
     for (let i = 0; i < numOfChunks; i++) {
         await processChunk(i);
     }
 
-    // Obtain the hash of the file
     return hash.digest("hex");
 }
 
 const DOC_MIME_TYPES = DOC_EXTENSIONS.map((ext) => mime.lookup(ext));
-const IMAGE_MIME_TYPES = IMAGE_EXTENSIONS.map((ext) => mime.lookup(ext));
-const VIDEO_MIME_TYPES = VIDEO_EXTENSIONS.map((ext) => mime.lookup(ext));
-const AUDIO_MIME_TYPES = AUDIO_EXTENSIONS.map((ext) => mime.lookup(ext));
+const MEDIA_MIME_TYPES = [
+    // Images
+    'image/png',
+    'image/jpeg',
+    'image/webp',
+    'image/heic',
+    'image/heif',
+    // Videos
+    'video/mp4',
+    'video/mpeg',
+    'video/mov',
+    'video/avi',
+    'video/x-flv',
+    'video/mpg',
+    'video/webm',
+    'video/wmv',
+    'video/3gpp',
+    // Audio
+    'audio/wav',
+    'audio/mp3',
+    'audio/aac',
+    'audio/ogg',
+    'audio/flac',
+    // PDF
+    'application/pdf',
+];
 
 const ACCEPTED_FILE_TYPES = [
     ...DOC_MIME_TYPES,
-    ...IMAGE_MIME_TYPES,
-    ...VIDEO_MIME_TYPES,
-    ...AUDIO_MIME_TYPES,
+    ...MEDIA_MIME_TYPES,
 ];
 const FILE_TYPE_NOT_ALLOWED_ERROR =
     "File of type {fileExtension} is not allowed.";
+
+// Add this helper function to check video duration
+function getVideoDuration(file) {
+    return new Promise((resolve, reject) => {
+        const video = document.createElement('video');
+        video.preload = 'metadata';
+
+        video.onloadedmetadata = function() {
+            window.URL.revokeObjectURL(video.src);
+            resolve(video.duration);
+        };
+
+        video.onerror = function() {
+            reject("Error loading video file");
+        };
+
+        video.src = URL.createObjectURL(file);
+    });
+}
 
 // Our app
 function MyFilePond({ addUrl, files, setFiles, setIsUploadingMedia }) {
@@ -272,6 +301,25 @@ function MyFilePond({ addUrl, files, setFiles, setIsUploadingMedia }) {
         setIsUploadingMedia(true);
         setFiles([...files, { source: inputUrl }]);
         setInputUrl("");
+    };
+
+    // Add FilePond labels in current language
+    const labels = {
+        labelIdle: `${t("Drag & Drop your files or")} <span class="filepond--label-action">${t("Browse")}</span>`,
+        labelFileProcessing: t("Uploading..."),
+        labelFileProcessingComplete: t("Upload complete"),
+        labelFileProcessingAborted: t("Upload cancelled"),
+        labelFileProcessingRevertError: t("Error during removal"),
+        labelTapToCancel: t("tap to cancel"),
+        labelTapToRetry: t("tap to retry"),
+        labelTapToUndo: t("tap to undo"),
+        labelButtonRemoveItem: t("Remove"),
+        labelButtonAbortItemLoad: t("Cancel"),
+        labelButtonRetryItemLoad: t("Retry"),
+        labelButtonAbortItemProcessing: t("Cancel"),
+        labelButtonUndoItemProcessing: t("Undo"),
+        labelButtonRetryItemProcessing: t("Retry"),
+        labelButtonProcessItem: t("Upload"),
     };
 
     return (
@@ -291,7 +339,11 @@ function MyFilePond({ addUrl, files, setFiles, setIsUploadingMedia }) {
                         files={files}
                         onupdatefiles={setFiles}
                         allowFileTypeValidation={true}
+                        {...labels}
                         labelFileTypeNotAllowed={FILE_TYPE_NOT_ALLOWED_ERROR}
+                        labelFileProcessingError={(error) => {
+                            return t(error?.body || "Error during upload");
+                        }}
                         acceptedFileTypes={ACCEPTED_FILE_TYPES}
                         allowMultiple={true}
                         // maxFiles={3}
@@ -349,6 +401,34 @@ function MyFilePond({ addUrl, files, setFiles, setIsUploadingMedia }) {
                                     return;
                                 }
 
+                                // Check PDF file size (50MB = 50 * 1024 * 1024 bytes)
+                                if (file.type === 'application/pdf') {
+                                    const MAX_PDF_SIZE = 50 * 1024 * 1024;
+                                    if (file.size > MAX_PDF_SIZE) {
+                                        setIsUploadingMedia(false);
+                                        error("PDF files must be less than 50MB");
+                                        return;
+                                    }
+                                }
+
+                                // Check video duration
+                                if (file.type.startsWith('video/')) {
+                                    try {
+                                        const duration = await getVideoDuration(file);
+                                        if (duration > 3600) {
+                                            setIsUploadingMedia(false);
+                                            // Pass error message as a string with specific prefix
+                                            error("Video must be less than 60 minutes long");
+                                            return;
+                                        }
+                                    } catch (err) {
+                                        console.error('Error checking video duration:', err);
+                                        setIsUploadingMedia(false);
+                                        error("Could not verify video duration");
+                                        return;
+                                    }
+                                }
+
                                 if (isMediaUrl(file?.name)) {
                                     setIsUploadingMedia(true);
                                 }
@@ -360,7 +440,6 @@ function MyFilePond({ addUrl, files, setFiles, setIsUploadingMedia }) {
                                         `${serverUrl}&hash=${fileHash}&checkHash=true`,
                                     );
                                     if (response.status === 200) {
-                                        // console.log(response.data)
                                         if (
                                             response.data &&
                                             response.data.url

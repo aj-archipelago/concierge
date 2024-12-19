@@ -421,5 +421,17 @@
     "Video": "فيديو",
     "Tap here to select": "اضغط هنا للاختيار",
     "View on site": "عرض على الموقع",
-    "View in UCMS": "عرض في UCMS"
+    "View in UCMS": "عرض في UCMS",
+    "PDF files must be less than 50MB": "يجب أن تكون ملفات PDF أقل من 50 ميجابايت",
+    "Video must be less than 60 minutes long": "يجب أن تكون مدة الفيديو أقل من 60 دقيقة",
+    "Could not verify video duration": "تعذر التحقق من مدة الفيديو",
+    "Upload complete": "اكتمل التحميل",
+    "Upload cancelled": "تم إلغاء التحميل",
+    "Error during upload": "حدث خطأ أثناء التحميل",
+    "Error during removal": "حدث خطأ أثناء الإزالة",
+    "tap to cancel": "انقر للإلغاء",
+    "tap to retry": "انقر لإعادة المحاولة",
+    "tap to undo": "انقر للتراجع",
+    "Retry": "إعادة المحاولة",
+    "Undo": "تراجع"
 }
