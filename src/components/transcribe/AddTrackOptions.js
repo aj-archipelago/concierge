@@ -478,21 +478,21 @@ export default function TranscribeVideo({
                     />
                 </div>
 
-                <div
-                    className={`flex flex-col ${!responseFormat ? "hidden" : ""}`}
-                >
-                    <h5 className="font-semibold text-xs text-gray-400 mb-1">
-                        Transcription type
-                    </h5>
-                    <TranscriptionTypeSelector
-                        loading={loading}
-                        wordTimestamped={wordTimestamped}
-                        maxLineWidth={maxLineWidth}
-                        handleTranscriptionTypeChange={
-                            handleTranscriptionTypeChange
-                        }
-                    />
-                </div>
+                {responseFormat === "vtt" && (
+                    <div className={`flex flex-col`}>
+                        <h5 className="font-semibold text-xs text-gray-400 mb-1">
+                            Transcription type
+                        </h5>
+                        <TranscriptionTypeSelector
+                            loading={loading}
+                            wordTimestamped={wordTimestamped}
+                            maxLineWidth={maxLineWidth}
+                            handleTranscriptionTypeChange={
+                                handleTranscriptionTypeChange
+                            }
+                        />
+                    </div>
+                )}
 
                 <div className="flex flex-col">
                     <h5 className="font-semibold text-xs text-gray-400 mb-1">
