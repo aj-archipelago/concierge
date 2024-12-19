@@ -167,6 +167,7 @@ const RAG_START = gql`
         $aiMemorySelfModify: Boolean
         $aiStyle: String
         $title: String
+        $codeRequestId: String
     ) {
         rag_start(
             chatHistory: $chatHistory
@@ -180,6 +181,7 @@ const RAG_START = gql`
             aiMemorySelfModify: $aiMemorySelfModify
             aiStyle: $aiStyle
             title: $title
+            codeRequestId: $codeRequestId
         ) {
             result
             contextId
