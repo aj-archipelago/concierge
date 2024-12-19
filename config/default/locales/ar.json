@@ -387,5 +387,17 @@
     "Download SRT": "تنزيل SRT",
     "Download TXT": "تنزيل TXT",
     "Download VTT": "تنزيل VTT",
-    "Video": "فيديو"
+    "Video": "فيديو",
+    "PDF files must be less than 50MB": "يجب أن تكون ملفات PDF أقل من 50 ميجابايت",
+    "Video must be less than 60 minutes long": "يجب أن تكون مدة الفيديو أقل من 60 دقيقة",
+    "Could not verify video duration": "تعذر التحقق من مدة الفيديو",
+    "Upload complete": "اكتمل التحميل",
+    "Upload cancelled": "تم إلغاء التحميل",
+    "Error during upload": "حدث خطأ أثناء التحميل",
+    "Error during removal": "حدث خطأ أثناء الإزالة",
+    "tap to cancel": "انقر للإلغاء",
+    "tap to retry": "انقر لإعادة المحاولة",
+    "tap to undo": "انقر للتراجع",
+    "Retry": "إعادة المحاولة",
+    "Undo": "تراجع"
 }
