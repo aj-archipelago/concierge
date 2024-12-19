@@ -116,7 +116,7 @@ function VttSubtitles({ text, onSeek, currentTime, onTextChange }) {
             className="grid grid-cols-[auto,1fr] gap-x-4 gap-y-2 overflow-y-auto max-h-[500px] text-sm"
         >
             {subtitles.map((subtitle, index) => (
-                <React.Fragment key={index}>
+                <React.Fragment key={`${name}-${index}`}>
                     <div
                         className="subtitle-row"
                         data-timestamp={subtitle.timestamp}
@@ -160,6 +160,10 @@ function EditableSubtitleText({ text, onSave, className = "" }) {
     const [isEditing, setIsEditing] = useState(false);
     const [editedText, setEditedText] = useState(text);
     const inputRef = useRef(null);
+
+    useEffect(() => {
+        setEditedText(text);
+    }, [text]);
 
     useEffect(() => {
         if (isEditing && inputRef.current) {
@@ -224,6 +228,7 @@ function EditableSubtitleText({ text, onSave, className = "" }) {
 }
 
 function TranscriptView({
+    name,
     text,
     format,
     onSeek,
@@ -278,6 +283,7 @@ function TranscriptView({
                     <div className="border border-gray-300 rounded-md p-2.5 bg-gray-50">
                         {format === "vtt" && text ? (
                             <VttSubtitles
+                                name={name}
                                 text={text}
                                 onSeek={onSeek}
                                 currentTime={currentTime}
