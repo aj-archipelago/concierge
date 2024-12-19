@@ -280,7 +280,7 @@ function TranscriptView({
                         </div>
                     </div>
                 ) : (
-                    <div className="border border-gray-300 rounded-md p-2.5 bg-gray-50">
+                    <div className="border border-gray-300 rounded-md py-2.5 ps-2.5 pe-6 bg-gray-50">
                         {format === "vtt" && text ? (
                             <VttSubtitles
                                 name={name}
