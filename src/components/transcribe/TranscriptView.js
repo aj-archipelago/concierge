@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import { FaCheck, FaEdit } from "react-icons/fa";
 import { FaX } from "react-icons/fa6";
 import CopyButton from "../CopyButton";
+import TextareaAutosize from "react-textarea-autosize";
 
 // Simplified VTT component
 function VttSubtitles({ text, onSeek, currentTime, onTextChange }) {
@@ -162,6 +163,7 @@ function EditableSubtitleText({ text, onSave, className = "" }) {
     const inputRef = useRef(null);
 
     useEffect(() => {
+        console.log("useEffect", text);
         setEditedText(text);
     }, [text]);
 
@@ -184,34 +186,18 @@ function EditableSubtitleText({ text, onSave, className = "" }) {
     if (isEditing) {
         return (
             <div className="flex items-center gap-2 w-full">
-                <input
+                <TextareaAutosize
                     ref={inputRef}
                     type="text"
                     value={editedText}
                     onChange={(e) => setEditedText(e.target.value)}
+                    onBlur={() => {
+                        setIsEditing(false);
+                        onSave(editedText);
+                    }}
                     onKeyDown={handleKeyDown}
-                    className="flex-1 border-0 bg-transparent p-0 focus:outline-0 focus:ring-0 text-sm"
+                    className="bg-yellow-50 border flex-1 border-0 bg-transparent p-0 focus:outline-0 focus:ring-0 text-sm max-w-[calc(100%-20px)] resize-none"
                 />
-                <div className="flex gap-1">
-                    <button
-                        onClick={() => {
-                            onSave(editedText);
-                            setIsEditing(false);
-                        }}
-                        className="p-1 hover:text-green-600 transition-colors"
-                    >
-                        <FaCheck className="w-3 h-3" />
-                    </button>
-                    <button
-                        onClick={() => {
-                            setEditedText(text);
-                            setIsEditing(false);
-                        }}
-                        className="p-1 hover:text-red-600 transition-colors"
-                    >
-                        <FaX className="w-3 h-3" />
-                    </button>
-                </div>
             </div>
         );
     }
@@ -221,7 +207,7 @@ function EditableSubtitleText({ text, onSave, className = "" }) {
             onClick={() => setIsEditing(true)}
             className={`group cursor-pointer flex items-center gap-2 ${className}`}
         >
-            <span className="hover:underline">{text}</span>
+            <div className="hover:underline w-[calc(100%-20px)]">{text}</div>
             <FaEdit className="w-3 h-3 text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity hover:text-sky-600" />
         </div>
     );
@@ -280,7 +266,7 @@ function TranscriptView({
                         </div>
                     </div>
                 ) : (
-                    <div className="border border-gray-300 rounded-md py-2.5 ps-2.5 pe-6 bg-gray-50">
+                    <div className="border border-gray-300 rounded-md py-2.5 px-2.5 bg-gray-50">
                         {format === "vtt" && text ? (
                             <VttSubtitles
                                 name={name}
