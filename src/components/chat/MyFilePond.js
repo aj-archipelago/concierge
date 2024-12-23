@@ -510,4 +510,3 @@ function MyFilePond({ addUrl, files, setFiles, setIsUploadingMedia }) {
 export default MyFilePond;
 
 export { isAudioUrl, isDocumentUrl, isImageUrl, isMediaUrl, isVideoUrl };
-
