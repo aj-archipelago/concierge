@@ -1,11 +1,10 @@
-import { FilePond, registerPlugin } from "react-filepond";
+import axios from "axios";
 import FilePondPluginFileValidateType from "filepond-plugin-file-validate-type";
 import mime from "mime-types";
-import crypto from "crypto";
-import axios from "axios";
-import { IoIosVideocam } from "react-icons/io";
-import { FaYoutube } from "react-icons/fa";
+import { FilePond, registerPlugin } from "react-filepond";
 import { AiOutlineClose } from "react-icons/ai";
+import { FaYoutube } from "react-icons/fa";
+import { IoIosVideocam } from "react-icons/io";
 
 // Import FilePond styles
 import "filepond/dist/filepond.min.css";
@@ -510,4 +509,5 @@ function MyFilePond({ addUrl, files, setFiles, setIsUploadingMedia }) {
 
 export default MyFilePond;
 
-export { isDocumentUrl, isImageUrl, isVideoUrl, isMediaUrl, isAudioUrl };
+export { isAudioUrl, isDocumentUrl, isImageUrl, isMediaUrl, isVideoUrl };
+
