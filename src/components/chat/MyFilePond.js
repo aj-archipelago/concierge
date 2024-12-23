@@ -18,6 +18,7 @@ import FilePondPluginImagePreview from "filepond-plugin-image-preview";
 import "filepond-plugin-image-preview/dist/filepond-plugin-image-preview.css";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { hashMediaFile } from "../../utils/mediaUtils";
 
 // Register the plugins
 registerPlugin(
@@ -196,36 +197,6 @@ function isAudioUrl(url) {
 
 function isMediaUrl(url) {
     return isImageUrl(url) || isVideoUrl(url) || isAudioUrl(url);
-}
-
-async function hashMediaFile(file) {
-    const hash = crypto.createHash("sha256");
-    const chunkSize = 2 * 1024 * 1024; // Increased to 2MB chunks for better performance
-    const numOfChunks = Math.ceil(file.size / chunkSize);
-    const reader = new FileReader();
-
-    async function processChunk(index) {
-        const start = index * chunkSize;
-        const end = Math.min(start + chunkSize, file.size);
-        const blobSlice = file.slice(start, end);
-
-        return new Promise((resolve, reject) => {
-            reader.onload = (event) => {
-                // Update hash with entire chunk at once
-                hash.update(Buffer.from(event.target.result));
-                resolve();
-            };
-            reader.onerror = reject;
-            reader.readAsArrayBuffer(blobSlice);
-        });
-    }
-
-    // Process chunks sequentially
-    for (let i = 0; i < numOfChunks; i++) {
-        await processChunk(i);
-    }
-
-    return hash.digest("hex");
 }
 
 const DOC_MIME_TYPES = DOC_EXTENSIONS.map((ext) => mime.lookup(ext));

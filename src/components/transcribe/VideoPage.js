@@ -295,7 +295,7 @@ function EditableTranscriptSelect({
                     </div>
                 </div>
             ) : (
-                <div className="flex gap-2 justify-between ">
+                <div className="flex flex-col md:flex-row gap-2 justify-between ">
                     <div className="flex gap-2 grow">
                         <Select
                             value={activeTranscript.toString()}
@@ -380,8 +380,8 @@ function EditableTranscriptSelect({
                             />
                         </div>
                     </div>
-                    {!isEditing && (
-                        <div className="flex items-center gap-2">
+                    {!isEditing && transcripts[activeTranscript] && (
+                        <div className="flex items-center gap-2 justify-end">
                             {transcripts[activeTranscript].format !== "vtt" && (
                                 <button
                                     onClick={() => setIsEditing(!isEditing)}
@@ -793,7 +793,7 @@ function VideoPage() {
                                     </div>
                                     <div className="flex flex-col gap-2 sm:w-[13rem]">
                                         <div className="text-sm font-semibold text-gray-500 mb-1">
-                                            {t("Video available in")}
+                                            {t("Video languages")}
                                         </div>
                                         <div className="flex flex-col gap-2">
                                             {videoLanguages.map((lang, idx) => (
@@ -884,7 +884,7 @@ function VideoPage() {
                                             className="lb-outline-secondary lb-sm flex items-center gap-1"
                                         >
                                             <PlusIcon className="h-4 w-4" />
-                                            {t("Add Language")}
+                                            {t("Add translation")}
                                         </button>
                                     </div>
                                 </div>

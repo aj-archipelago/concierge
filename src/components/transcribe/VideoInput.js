@@ -6,6 +6,7 @@ import { useTranslation } from "react-i18next";
 import VideoSelector from "./VideoSelector";
 import { ServerContext } from "../../App";
 import config from "../../../config";
+import { hashMediaFile, getVideoDuration } from "../../utils/mediaUtils";
 
 const isValidUrl = (url) => {
     try {
@@ -16,13 +17,47 @@ const isValidUrl = (url) => {
     }
 };
 
+const MAX_VIDEO_DURATION = 3600; // 60 minutes in seconds
+
+const checkDuration = async (duration) => {
+    if (duration > MAX_VIDEO_DURATION) {
+        throw new Error("Video length exceeds 60 minutes");
+    }
+    return true;
+};
+
 const checkVideoUrl = async (url) => {
+    let video = null;
     try {
+        // First check if it's a valid video URL
         const response = await fetch(url, { method: "HEAD" });
         const contentType = response.headers.get("content-type");
-        return contentType && contentType.startsWith("video/");
+        if (!contentType || !contentType.startsWith("video/")) {
+            return false;
+        }
+
+        // Check video duration
+        video = document.createElement("video");
+        video.preload = "metadata";
+
+        const durationPromise = new Promise((resolve, reject) => {
+            video.onloadedmetadata = () => resolve(video.duration);
+            video.onerror = reject;
+        });
+
+        video.src = url;
+
+        const duration = await durationPromise;
+        await checkDuration(duration);
+        return true;
     } catch (error) {
-        return false;
+        console.error("Error checking video URL:", error);
+        return error.message || false;
+    } finally {
+        // Clean up
+        if (video) {
+            video.remove();
+        }
     }
 };
 
@@ -30,16 +65,58 @@ function VideoInput({ url, setUrl, setVideoInformation }) {
     const { t } = useTranslation();
     const [fileUploading, setFileUploading] = useState(false);
     const [fileUploadError, setFileUploadError] = useState(null);
+    const [videoSelectorError, setVideoSelectorError] = useState(null);
     const [showVideoSelector, setShowVideoSelector] = useState(false);
     const { serverUrl } = useContext(ServerContext);
+    const [uploadProgress, setUploadProgress] = useState(0);
 
     // Function to handle file upload and post it to the API
     const handleFileUpload = async (event) => {
-        setUrl(t("Uploading file..."));
         setFileUploading(true);
         setFileUploadError(null);
+        setUploadProgress(0);
+        setUrl("");
 
         const file = event.target.files[0];
+
+        // Check file duration
+        try {
+            const duration = await getVideoDuration(file);
+            await checkDuration(duration);
+        } catch (error) {
+            console.error("Error checking video duration:", error);
+            setFileUploading(false);
+            setFileUploadError({
+                message: t(
+                    "Video length exceeds 60 minutes. Please upload a shorter video.",
+                ),
+            });
+            return;
+        }
+
+        const fileHash = await hashMediaFile(file);
+
+        // Check if file with same hash exists
+        try {
+            const checkResponse = await fetch(
+                `${config.endpoints.mediaHelper(serverUrl)}?hash=${fileHash}&checkHash=true`,
+            );
+            if (checkResponse.ok) {
+                const data = await checkResponse.json().catch(() => null);
+                if (data && data.url) {
+                    setUrl(data.url);
+                    setVideoInformation({
+                        videoUrl: data.url,
+                        transcriptionUrl: null,
+                    });
+                    setFileUploading(false);
+                    return;
+                }
+            }
+        } catch (error) {
+            console.error("Error checking file hash:", error);
+            // Continue with upload even if hash check fails
+        }
 
         // Add file type validation
         const supportedVideoTypes = ["video/mp4", "video/webm", "video/ogg"];
@@ -60,13 +137,18 @@ function VideoInput({ url, setUrl, setVideoInformation }) {
             return;
         }
 
-        // Create FormData object to hold the file data
+        // Continue with upload if no match found
         const formData = new FormData();
         formData.append("file", file);
+        formData.append("hash", fileHash);
 
         try {
             const xhr = new XMLHttpRequest();
-            xhr.open("POST", config.endpoints.mediaHelper(serverUrl), true);
+            xhr.open(
+                "POST",
+                `${config.endpoints.mediaHelper(serverUrl)}?hash=${fileHash}`,
+                true,
+            );
 
             // Monitor the upload progress
             xhr.upload.onprogress = (event) => {
@@ -74,7 +156,7 @@ function VideoInput({ url, setUrl, setVideoInformation }) {
                     const percentage = Math.round(
                         (event.loaded * 100) / event.total,
                     );
-                    setUrl(`${t("Uploading file...")} ${percentage}%`);
+                    setUploadProgress(percentage);
                 }
             };
 
@@ -120,9 +202,15 @@ function VideoInput({ url, setUrl, setVideoInformation }) {
             return;
         }
 
-        const isValidVideo = await checkVideoUrl(url);
-        if (isValidVideo) {
+        const result = await checkVideoUrl(url);
+        if (result === true) {
             setVideoInformation({ videoUrl: url, transcriptionUrl: null });
+        } else if (result === "Video length exceeds 60 minutes") {
+            setVideoSelectorError({
+                message: t(
+                    "Video length exceeds 60 minutes. Please use a shorter video.",
+                ),
+            });
         } else {
             setShowVideoSelector(true);
         }
@@ -131,13 +219,45 @@ function VideoInput({ url, setUrl, setVideoInformation }) {
     return (
         <div className="flex flex-col gap-2 mb-5">
             {showVideoSelector ? (
-                <VideoSelector
-                    url={url}
-                    onSelect={(v) => {
-                        setVideoInformation(v);
-                        setShowVideoSelector(false);
-                    }}
-                />
+                <>
+                    {videoSelectorError && (
+                        <p className="text-red-500 text-sm">
+                            {videoSelectorError.message}
+                        </p>
+                    )}
+                    <VideoSelector
+                        url={url}
+                        onSelect={async (v) => {
+                            try {
+                                const result = await checkVideoUrl(v.videoUrl);
+                                if (result === true) {
+                                    setVideoInformation(v);
+                                    setShowVideoSelector(false);
+                                    setVideoSelectorError(null);
+                                } else if (
+                                    result === "Video length exceeds 60 minutes"
+                                ) {
+                                    setVideoSelectorError({
+                                        message: t(
+                                            "Video length exceeds 60 minutes. Please use a shorter video.",
+                                        ),
+                                    });
+                                } else {
+                                    setVideoSelectorError({
+                                        message: t(
+                                            "Invalid video URL or format",
+                                        ),
+                                    });
+                                }
+                            } catch (error) {
+                                console.error("Error validating video:", error);
+                                setVideoSelectorError({
+                                    message: t("Error validating video"),
+                                });
+                            }
+                        }}
+                    />
+                </>
             ) : (
                 <>
                     <div className="w-full">
@@ -218,13 +338,17 @@ function VideoInput({ url, setUrl, setVideoInformation }) {
                                         disabled={fileUploading}
                                     />
                                     {fileUploading ? (
-                                        <Loader2Icon className="w-4 h-4 animate-spin" />
+                                        <>
+                                            <Loader2Icon className="w-4 h-4 animate-spin" />
+                                            {t("Uploading...")} {uploadProgress}
+                                            %
+                                        </>
                                     ) : (
-                                        <UploadIcon className="w-4 h-4" />
+                                        <>
+                                            <UploadIcon className="w-4 h-4" />
+                                            {t("Choose a file")}
+                                        </>
                                     )}
-                                    {fileUploading
-                                        ? t("Uploading...")
-                                        : t("Choose a file")}
                                 </label>
                                 <p className="text-sm text-gray-500 mb-2">
                                     {t("or drag and drop here")}

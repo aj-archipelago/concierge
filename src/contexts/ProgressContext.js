@@ -9,7 +9,7 @@ import { toast } from "react-toastify";
 import { useSubscription } from "@apollo/client";
 import { SUBSCRIPTIONS } from "../graphql";
 
-const TIMEOUT_DURATION = 5 * 60 * 1000; // 5 minutes timeout
+const TIMEOUT_DURATION = 60 * 60 * 1000; // 60-minute timeout
 const ERROR_MESSAGES = {
     timeout: "The operation timed out. Please try again.",
     generic: "An error occurred. Please try again.",
@@ -23,11 +23,13 @@ function ProgressToast({
     onComplete,
     onError,
     timeout = TIMEOUT_DURATION,
+    activeToasts,
 }) {
     const [progress, setProgress] = useState(10);
     const [errorMessage, setErrorMessage] = useState(null);
     const timeoutRef = useRef();
     const subscriptionRef = useRef();
+    const [isCancelled, setIsCancelled] = useState(false);
 
     useEffect(() => {
         timeoutRef.current = setTimeout(() => {
@@ -68,6 +70,7 @@ function ProgressToast({
         if (error) {
             onError?.(error);
             setErrorMessage(ERROR_MESSAGES.generic);
+            toast.update(requestId, { closeButton: true });
             return;
         }
 
@@ -98,13 +101,31 @@ function ProgressToast({
 
             onComplete?.(finalData)
                 .then(() => {
-                    toast.dismiss(requestId);
+                    activeToasts?.delete(requestId);
+                    toast.update(requestId, { closeButton: true });
                 })
                 .catch((e) => {
                     setErrorMessage(e.message);
+                    toast.update(requestId, { closeButton: true });
                 });
         }
-    }, [data, error, requestId, onComplete, progress, onError]);
+    }, [data, error, requestId, onComplete, progress, onError, activeToasts]);
+
+    const handleCancel = () => {
+        if (window.confirm("Are you sure you want to cancel this operation?")) {
+            setIsCancelled(true);
+            if (subscriptionRef.current) {
+                subscriptionRef.current();
+            }
+            if (timeoutRef.current) {
+                clearTimeout(timeoutRef.current);
+            }
+            onError?.(new Error("Operation cancelled"));
+            setErrorMessage("Operation cancelled");
+            activeToasts?.delete(requestId);
+            toast.update(requestId, { closeButton: true });
+        }
+    };
 
     return (
         <div className="min-w-[250px]">
@@ -118,10 +139,29 @@ function ProgressToast({
                             />
                         </div>
                     </div>
-                    <div className="text-sm">{initialText}</div>
+                    <div className="flex justify-between items-center">
+                        <div className="text-sm">{initialText}</div>
+                    </div>
+                    {progress === 100 && (
+                        <div className="flex justify-end">
+                            <div className="text-sm text-green-700">
+                                Complete
+                            </div>
+                        </div>
+                    )}
                     {data?.requestProgress?.info && (
-                        <div className="text-xs bg-gray-50 p-2 rounded-mdtext-gray-500 mt-1">
+                        <div className="text-xs bg-gray-50 p-2 rounded-md text-gray-500 mt-1">
                             {data.requestProgress.info}
+                        </div>
+                    )}
+                    {!isCancelled && progress < 100 && (
+                        <div className="flex justify-end">
+                            <button
+                                onClick={handleCancel}
+                                className="text-sm text-red-600 hover:text-red-800"
+                            >
+                                Cancel
+                            </button>
                         </div>
                     )}
                 </>
@@ -156,13 +196,14 @@ export function ProgressProvider({ children }) {
                 onComplete={onComplete}
                 onError={onError}
                 timeout={timeout}
+                activeToasts={activeToasts}
             />,
             {
                 toastId: requestId,
                 autoClose: false,
                 closeOnClick: false,
                 draggable: false,
-                closeButton: true,
+                closeButton: false,
                 position: "bottom-right",
             },
         );
@@ -175,7 +216,11 @@ export function ProgressProvider({ children }) {
 
     return (
         <ProgressContext.Provider
-            value={{ addProgressToast, removeProgressToast }}
+            value={{
+                addProgressToast,
+                removeProgressToast,
+                activeToasts,
+            }}
         >
             {children}
         </ProgressContext.Provider>
