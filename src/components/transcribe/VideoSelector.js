@@ -29,8 +29,8 @@ const VideoSelector = ({ url, onSelect }) => {
 
     // Add helper function
     const ensureHttps = (url) => {
-        if (url?.startsWith('http://')) {
-            return url.replace('http://', 'https://');
+        if (url?.startsWith("http://")) {
+            return url.replace("http://", "https://");
         }
         return url;
     };
@@ -106,8 +106,12 @@ const VideoSelector = ({ url, onSelect }) => {
                                         className="lb-success"
                                         onClick={() =>
                                             onSelect({
-                                                videoUrl: ensureHttps(result.videoUrl),
-                                                transcriptionUrl: ensureHttps(result.url),
+                                                videoUrl: ensureHttps(
+                                                    result.videoUrl,
+                                                ),
+                                                transcriptionUrl: ensureHttps(
+                                                    result.url,
+                                                ),
                                             })
                                         }
                                     >
