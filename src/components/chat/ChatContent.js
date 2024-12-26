@@ -84,10 +84,9 @@ function ChatContent({
 
                 const codeRequestIdParam =
                     new Date() - new Date(chat?.lastCodeRequestTime) <
-                    15 * 60 * 1000
+                    30 * 60 * 1000
                         ? chat?.lastCodeRequestId
                         : "";
-                console.log("codeRequestIdParam", codeRequestIdParam);
                 if (codeRequestIdParam) {
                     await deleteAutogenRun.mutateAsync(codeRequestIdParam);
                 }
