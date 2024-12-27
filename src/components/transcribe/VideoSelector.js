@@ -23,9 +23,17 @@ const VideoSelector = ({ url, onSelect }) => {
 
     useEffect(() => {
         if (data && !data.results?.length) {
-            onSelect({ videoUrl: debouncedUrl });
+            onSelect({ videoUrl: ensureHttps(debouncedUrl) });
         }
     }, [data, onSelect, debouncedUrl]);
+
+    // Add helper function
+    const ensureHttps = (url) => {
+        if (url?.startsWith("http://")) {
+            return url.replace("http://", "https://");
+        }
+        return url;
+    };
 
     if (!fetchUrlSource) return null;
 
@@ -98,8 +106,12 @@ const VideoSelector = ({ url, onSelect }) => {
                                         className="lb-success"
                                         onClick={() =>
                                             onSelect({
-                                                videoUrl: result.videoUrl,
-                                                transcriptionUrl: result.url,
+                                                videoUrl: ensureHttps(
+                                                    result.videoUrl,
+                                                ),
+                                                transcriptionUrl: ensureHttps(
+                                                    result.url,
+                                                ),
                                             })
                                         }
                                     >
