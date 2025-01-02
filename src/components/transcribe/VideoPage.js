@@ -1,6 +1,5 @@
 "use client";
 
-import { Checkbox } from "@/components/ui/checkbox";
 import {
     Dialog,
     DialogContent,
@@ -445,12 +444,10 @@ function VideoPlayer({
     activeTranscript,
     onTimeUpdate,
     videoInformation,
+    vttUrl,
 }) {
-    const [copied, setCopied] = useState(false);
-    const videoRef = useRef(null);
     const [isAudioOnly, setIsAudioOnly] = useState(false);
-    const [showSubtitles, setShowSubtitles] = useState(true);
-    const { t } = useTranslation();
+    const videoRef = useRef(null);
 
     const handleVideoReady = () => {
         if (videoRef.current && videoRef.current.videoHeight === 0) {
@@ -460,30 +457,11 @@ function VideoPlayer({
         }
     };
 
-    const handleCopy = async (text) => {
-        try {
-            await navigator.clipboard.writeText(text);
-            setCopied(true);
-            setTimeout(() => setCopied(false), 2000);
-        } catch (err) {
-            console.error("Failed to copy text: ", err);
-        }
-    };
-
-    // Generate VTT URL for subtitles
-    let vttUrl = null;
-    if (transcripts[activeTranscript]?.format === "vtt") {
-        const file = new Blob([transcripts[activeTranscript].text], {
-            type: "text/plain",
-        });
-        vttUrl = URL.createObjectURL(file);
-    }
-
     return (
         <>
             <div
                 className={classNames(
-                    "rounded-lg flex justify-center items-center",
+                    "rounded-lg flex justify-center items-center border border-gray-200/50",
                     isAudioOnly
                         ? "h-[50px] w-96"
                         : "grow max-h-[40vh] bg-[#000]",
@@ -500,7 +478,7 @@ function VideoPlayer({
                     }
                     controlsList="nodownload"
                 >
-                    {vttUrl && showSubtitles && (
+                    {vttUrl && (
                         <track
                             kind="subtitles"
                             src={vttUrl}
@@ -511,50 +489,6 @@ function VideoPlayer({
                     )}
                 </video>
             </div>
-            <div className="flex gap-2 mt-2 items-center py-1 px-2 bg-gray-100 rounded-md">
-                <div className="text-xs text-gray-500 break-all flex-grow truncate">
-                    {videoLanguages[activeLanguage]?.url ||
-                        videoInformation.videoUrl}
-                </div>
-                <button
-                    onClick={() =>
-                        handleCopy(
-                            videoLanguages[activeLanguage]?.url ||
-                                videoInformation.videoUrl,
-                        )
-                    }
-                    className="p-1 hover:bg-gray-100 rounded transition-colors"
-                    title="Copy URL"
-                >
-                    {copied ? (
-                        <CheckIcon className="h-4 w-4 text-green-500" />
-                    ) : (
-                        <CopyIcon className="h-4 w-4 text-gray-500" />
-                    )}
-                </button>
-            </div>
-            {transcripts.length > 0 && (
-                <div className="flex items-center gap-2 mt-2">
-                    <Checkbox
-                        className="border-gray-400 data-[state=checked]:border-sky-600"
-                        disabled={transcripts.length === 0 || !vttUrl}
-                        id="showSubtitles"
-                        checked={vttUrl && showSubtitles}
-                        onCheckedChange={setShowSubtitles}
-                    />
-                    <label
-                        htmlFor="showSubtitles"
-                        className={classNames(
-                            "text-sm",
-                            !vttUrl ? "text-gray-400" : "text-gray-600",
-                        )}
-                    >
-                        {vttUrl
-                            ? t("Show subtitles overlay")
-                            : t("Show subtitles overlay")}
-                    </label>
-                </div>
-            )}
         </>
     );
 }
@@ -575,8 +509,36 @@ function VideoPage() {
     const [showVideoInput, setShowVideoInput] = useState(false);
     const [showTranslateDialog, setShowTranslateDialog] = useState(false);
     const [videoLanguages, setVideoLanguages] = useState([]);
-
     const [activeLanguage, setActiveLanguage] = useState(0);
+    const [copied, setCopied] = useState(false);
+    const [vttUrl, setVttUrl] = useState(null);
+
+    // Handle VTT URL creation and cleanup
+    useEffect(() => {
+        if (transcripts[activeTranscript]?.format === "vtt") {
+            const file = new Blob([transcripts[activeTranscript].text], {
+                type: "text/plain",
+            });
+            const url = URL.createObjectURL(file);
+            setVttUrl(url);
+
+            return () => {
+                URL.revokeObjectURL(url);
+            };
+        } else {
+            setVttUrl(null);
+        }
+    }, [transcripts, activeTranscript]);
+
+    const handleCopy = async (text) => {
+        try {
+            await navigator.clipboard.writeText(text);
+            setCopied(true);
+            setTimeout(() => setCopied(false), 2000);
+        } catch (err) {
+            console.error("Failed to copy text: ", err);
+        }
+    };
 
     const updateUserState = useCallback(
         (updates) => {
@@ -758,23 +720,56 @@ function VideoPage() {
     return (
         <TranscribeErrorBoundary>
             <div className="p-2">
-                <div className="flex items-center gap-4 mb-4 justify-end">
-                    <button
-                        onClick={() => {
-                            if (
-                                window.confirm(
-                                    t("Are you sure you want to start over?"),
-                                )
-                            ) {
-                                clearVideoInformation();
-                            }
-                        }}
-                        className="lb-outline-secondary lb-sm flex items-center gap-2"
-                        aria-label="Clear video"
-                    >
-                        <RefreshCwIcon className="w-4 h-4" />
-                        {t("Start over")}
-                    </button>
+                <div className="flex flex-col gap-4 mb-4">
+                    <div className="flex gap-4 justify-between">
+                        <div className="grow min-w-0 sm:w-[calc(100%-13rem)] sm:grow-0">
+                            {videoInformation?.videoUrl && (
+                                <div className="flex gap-2 items-center py-1 px-2 bg-gray-100 rounded-md grow min-w-0">
+                                    <div className="text-xs text-gray-500 truncate">
+                                        {videoLanguages[activeLanguage]?.url ||
+                                            videoInformation.videoUrl}
+                                    </div>
+                                    <button
+                                        onClick={() =>
+                                            handleCopy(
+                                                videoLanguages[activeLanguage]
+                                                    ?.url ||
+                                                    videoInformation.videoUrl,
+                                            )
+                                        }
+                                        className="p-1 hover:bg-gray-100 rounded transition-colors flex-shrink-0"
+                                        title="Copy URL"
+                                    >
+                                        {copied ? (
+                                            <CheckIcon className="h-4 w-4 text-green-500" />
+                                        ) : (
+                                            <CopyIcon className="h-4 w-4 text-gray-500" />
+                                        )}
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+                        <div className="flex-shrink-0 sm:w-[13rem] flex justify-end">
+                            <button
+                                onClick={() => {
+                                    if (
+                                        window.confirm(
+                                            t(
+                                                "Are you sure you want to start over?",
+                                            ),
+                                        )
+                                    ) {
+                                        clearVideoInformation();
+                                    }
+                                }}
+                                className="lb-outline-secondary lb-sm flex items-center gap-2 flex-shrink-0"
+                                aria-label="Clear video"
+                            >
+                                <RefreshCwIcon className="w-4 h-4" />
+                                {t("Start over")}
+                            </button>
+                        </div>
+                    </div>
                 </div>
                 <div>
                     <div className="video-player-container overflow-hidden mb-4">
@@ -789,103 +784,112 @@ function VideoPage() {
                                             activeTranscript={activeTranscript}
                                             onTimeUpdate={setCurrentTime}
                                             videoInformation={videoInformation}
+                                            vttUrl={vttUrl}
                                         />
                                     </div>
                                     <div className="flex flex-col gap-2 sm:w-[13rem]">
-                                        <div className="text-sm font-semibold text-gray-500 mb-1">
-                                            {t("Video languages")}
-                                        </div>
-                                        <div className="flex flex-col gap-2">
-                                            {videoLanguages.map((lang, idx) => (
-                                                <div
-                                                    key={idx}
-                                                    className="flex items-center"
-                                                >
-                                                    <div className="flex w-full rounded-md border border-gray-200 overflow-hidden">
-                                                        <button
-                                                            onClick={() => {
-                                                                setActiveLanguage(
-                                                                    idx,
-                                                                );
-                                                            }}
-                                                            className={`flex-grow text-start text-xs px-3 py-1.5 hover:bg-sky-100 active:bg-sky-200 transition-colors
-                                                            ${activeLanguage === idx ? "bg-sky-50 text-gray-900" : "text-gray-600"}`}
+                                        <div className="border rounded-lg border-gray-200/50 p-3 space-y-3">
+                                            <div className="text-sm font-semibold text-gray-500">
+                                                {t("Video languages")}
+                                            </div>
+                                            <div className="flex flex-col gap-2">
+                                                {videoLanguages.map(
+                                                    (lang, idx) => (
+                                                        <div
+                                                            key={idx}
+                                                            className="flex items-center"
                                                         >
-                                                            {lang.label}
-                                                        </button>
-                                                        <div className="flex">
-                                                            {/* Only show delete button if it's not the original language AND is currently selected */}
-                                                            {idx !== 0 &&
-                                                                activeLanguage ===
-                                                                    idx && (
-                                                                    <button
+                                                            <div className="flex w-full rounded-md border border-gray-200 overflow-hidden">
+                                                                <button
+                                                                    onClick={() => {
+                                                                        setActiveLanguage(
+                                                                            idx,
+                                                                        );
+                                                                    }}
+                                                                    className={`flex-grow text-start text-xs px-3 py-1.5 hover:bg-sky-100 active:bg-sky-200 transition-colors
+                                                                ${activeLanguage === idx ? "bg-sky-50 text-gray-900" : "text-gray-600"}`}
+                                                                >
+                                                                    {lang.label}
+                                                                </button>
+                                                                <div className="flex">
+                                                                    {idx !==
+                                                                        0 &&
+                                                                        activeLanguage ===
+                                                                            idx && (
+                                                                            <button
+                                                                                onClick={(
+                                                                                    e,
+                                                                                ) => {
+                                                                                    e.stopPropagation();
+                                                                                    if (
+                                                                                        window.confirm(
+                                                                                            t(
+                                                                                                "Are you sure you want to delete this language track?",
+                                                                                            ),
+                                                                                        )
+                                                                                    ) {
+                                                                                        const newVideoLanguages =
+                                                                                            videoLanguages.filter(
+                                                                                                (
+                                                                                                    _,
+                                                                                                    i,
+                                                                                                ) =>
+                                                                                                    i !==
+                                                                                                    idx,
+                                                                                            );
+                                                                                        setVideoLanguages(
+                                                                                            newVideoLanguages,
+                                                                                        );
+                                                                                        setActiveLanguage(
+                                                                                            0,
+                                                                                        );
+                                                                                    }
+                                                                                }}
+                                                                                className={
+                                                                                    "px-2 bg-sky-50 text-gray-500 hover:text-red-500 transition-colors border-gray-200 flex items-center cursor-pointer"
+                                                                                }
+                                                                                title={t(
+                                                                                    "Delete language",
+                                                                                )}
+                                                                            >
+                                                                                <TrashIcon className="h-3 w-3" />
+                                                                            </button>
+                                                                        )}
+                                                                    <a
+                                                                        target="_blank"
+                                                                        rel="noreferrer"
+                                                                        href={
+                                                                            lang.url
+                                                                        }
+                                                                        download={`video-${lang.code}.mp4`}
+                                                                        className="px-2 hover:bg-sky-50 transition-colors border-l border-gray-200 flex items-center cursor-pointer"
                                                                         onClick={(
                                                                             e,
-                                                                        ) => {
-                                                                            e.stopPropagation();
-                                                                            if (
-                                                                                window.confirm(
-                                                                                    t(
-                                                                                        "Are you sure you want to delete this language track?",
-                                                                                    ),
-                                                                                )
-                                                                            ) {
-                                                                                const newVideoLanguages =
-                                                                                    videoLanguages.filter(
-                                                                                        (
-                                                                                            _,
-                                                                                            i,
-                                                                                        ) =>
-                                                                                            i !==
-                                                                                            idx,
-                                                                                    );
-                                                                                setVideoLanguages(
-                                                                                    newVideoLanguages,
-                                                                                );
-                                                                                setActiveLanguage(
-                                                                                    0,
-                                                                                );
-                                                                            }
-                                                                        }}
-                                                                        className={
-                                                                            "px-2 bg-sky-50 text-gray-500 hover:text-red-500 transition-colors border-gray-200 flex items-center cursor-pointer"
+                                                                        ) =>
+                                                                            e.stopPropagation()
                                                                         }
                                                                         title={t(
-                                                                            "Delete language",
+                                                                            "Download video",
                                                                         )}
                                                                     >
-                                                                        <TrashIcon className="h-3 w-3" />
-                                                                    </button>
-                                                                )}
-                                                            <a
-                                                                target="_blank"
-                                                                rel="noreferrer"
-                                                                href={lang.url}
-                                                                download={`video-${lang.code}.mp4`}
-                                                                className="px-2 hover:bg-sky-50 transition-colors border-l border-gray-200 flex items-center cursor-pointer"
-                                                                onClick={(e) =>
-                                                                    e.stopPropagation()
-                                                                }
-                                                                title={t(
-                                                                    "Download video",
-                                                                )}
-                                                            >
-                                                                <DownloadIcon className="h-3.5 w-3.5 text-gray-500" />
-                                                            </a>
+                                                                        <DownloadIcon className="h-3.5 w-3.5 text-gray-500" />
+                                                                    </a>
+                                                                </div>
+                                                            </div>
                                                         </div>
-                                                    </div>
-                                                </div>
-                                            ))}
+                                                    ),
+                                                )}
+                                            </div>
+                                            <button
+                                                onClick={() =>
+                                                    setShowTranslateDialog(true)
+                                                }
+                                                className="lb-outline-secondary lb-sm flex items-center gap-1 w-full"
+                                            >
+                                                <PlusIcon className="h-4 w-4" />
+                                                {t("Add translation")}
+                                            </button>
                                         </div>
-                                        <button
-                                            onClick={() =>
-                                                setShowTranslateDialog(true)
-                                            }
-                                            className="lb-outline-secondary lb-sm flex items-center gap-1"
-                                        >
-                                            <PlusIcon className="h-4 w-4" />
-                                            {t("Add translation")}
-                                        </button>
                                     </div>
                                 </div>
 
