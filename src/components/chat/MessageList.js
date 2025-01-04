@@ -48,6 +48,7 @@ const getToolMetadata = (toolName, t) => {
         vision: "👁️",
         default: "🛠️",
         coding: "🤖",
+        memory: "🧠",
     };
 
     const normalizedToolName = toolName?.toLowerCase();
