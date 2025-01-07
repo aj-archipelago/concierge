@@ -97,6 +97,8 @@ export default function AzureVideoTranslate({ url, onQueued, onComplete }) {
                             requestId,
                             `Translating video to ${LOCALES[targetLocale]}`,
                             setFinalDataPre,
+                            () => {},
+                            60 * 1000, // consider it failed if no heartbeats are received
                         );
                         onQueued?.(requestId);
                     }}
