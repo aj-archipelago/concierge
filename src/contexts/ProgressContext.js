@@ -9,7 +9,7 @@ import { toast } from "react-toastify";
 import { useSubscription } from "@apollo/client";
 import { SUBSCRIPTIONS } from "../graphql";
 
-const TIMEOUT_DURATION = 60 * 60 * 1000; // 60-minute timeout
+const TIMEOUT_DURATION = 5 * 60 * 1000; // time out if no progress update received for 5 minutes
 const ERROR_MESSAGES = {
     timeout: "The operation timed out. Please try again.",
     generic: "An error occurred. Please try again.",
@@ -31,16 +31,25 @@ function ProgressToast({
     const subscriptionRef = useRef();
     const [isCancelled, setIsCancelled] = useState(false);
 
-    useEffect(() => {
+    const resetTimeout = React.useCallback(() => {
+        if (timeoutRef.current) {
+            clearTimeout(timeoutRef.current);
+        }
+
         timeoutRef.current = setTimeout(() => {
             const timeoutError = new Error(ERROR_MESSAGES.timeout);
             onError?.(timeoutError);
             setErrorMessage(ERROR_MESSAGES.timeout);
+            toast.update(requestId, { closeButton: true });
             if (subscriptionRef.current) {
                 subscriptionRef.current();
             }
         }, timeout);
+    }, [timeout, onError, requestId]);
 
+    // Initial timeout setup
+    useEffect(() => {
+        resetTimeout();
         return () => {
             if (timeoutRef.current) {
                 clearTimeout(timeoutRef.current);
@@ -49,7 +58,7 @@ function ProgressToast({
                 subscriptionRef.current();
             }
         };
-    }, [timeout, requestId, onError]);
+    }, [resetTimeout]);
 
     const { data, error } = useSubscription(SUBSCRIPTIONS.REQUEST_PROGRESS, {
         variables: { requestIds: [requestId] },
@@ -72,6 +81,11 @@ function ProgressToast({
             setErrorMessage(ERROR_MESSAGES.generic);
             toast.update(requestId, { closeButton: true });
             return;
+        }
+
+        // Reset timeout when new progress data is received
+        if (data?.requestProgress) {
+            resetTimeout();
         }
 
         const result = data?.requestProgress?.data;
@@ -109,7 +123,16 @@ function ProgressToast({
                     toast.update(requestId, { closeButton: true });
                 });
         }
-    }, [data, error, requestId, onComplete, progress, onError, activeToasts]);
+    }, [
+        data,
+        error,
+        requestId,
+        onComplete,
+        progress,
+        onError,
+        activeToasts,
+        resetTimeout,
+    ]);
 
     const handleCancel = () => {
         if (window.confirm("Are you sure you want to cancel this operation?")) {
