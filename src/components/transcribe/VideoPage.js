@@ -949,6 +949,15 @@ function VideoPage() {
                                                                 },
                                                             ],
                                                         );
+                                                        updateUserState({
+                                                            videoInformation: {
+                                                                ...userState
+                                                                    ?.transcribe
+                                                                    ?.videoInformation,
+                                                            },
+                                                            transcripts:
+                                                                transcripts,
+                                                        });
                                                     };
 
                                                     setVideoLanguages(
