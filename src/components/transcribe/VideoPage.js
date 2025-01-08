@@ -949,6 +949,15 @@ function VideoPage() {
                                                                 },
                                                             ],
                                                         );
+                                                        updateUserState({
+                                                            videoInformation: {
+                                                                ...userState
+                                                                    ?.transcribe
+                                                                    ?.videoInformation,
+                                                            },
+                                                            transcripts:
+                                                                transcripts,
+                                                        });
                                                     };
 
                                                     setVideoLanguages(
@@ -969,10 +978,20 @@ function VideoPage() {
                                                         ],
                                                     );
 
-                                                    await addVtt(
-                                                        originalVttUrl,
-                                                        "Subtitles (auto)",
-                                                    );
+                                                    // Check if auto subtitles already exist
+                                                    const autoSubtitlesExist =
+                                                        transcripts.some(
+                                                            (t) =>
+                                                                t.name ===
+                                                                "Subtitles (auto)",
+                                                        );
+
+                                                    if (!autoSubtitlesExist) {
+                                                        await addVtt(
+                                                            originalVttUrl,
+                                                            "Subtitles (auto)",
+                                                        );
+                                                    }
                                                     await addVtt(
                                                         translatedVttUrl,
                                                         `Subtitles (auto): ${new Intl.DisplayNames(
@@ -980,11 +999,7 @@ function VideoPage() {
                                                             {
                                                                 type: "language",
                                                             },
-                                                        ).of(
-                                                            targetLocale.split(
-                                                                "-",
-                                                            )[0],
-                                                        )}`,
+                                                        ).of(targetLocale)}`,
                                                     );
 
                                                     setShowTranslateDialog(
