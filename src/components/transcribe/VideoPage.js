@@ -915,13 +915,6 @@ function VideoPage() {
                                                 outputUrl,
                                                 vttUrls,
                                             ) => {
-                                                console.log(
-                                                    "onComplete",
-                                                    targetLocale,
-                                                    outputUrl,
-                                                    vttUrls,
-                                                );
-
                                                 const originalVttUrl =
                                                     vttUrls.original;
                                                 const translatedVttUrl =
@@ -933,50 +926,34 @@ function VideoPage() {
                                                         vttUrl,
                                                         name,
                                                     ) => {
+                                                        if (!vttUrl) {
+                                                            return null;
+                                                        }
                                                         const response =
                                                             await fetch(vttUrl);
                                                         const vttContent =
                                                             await response.text();
 
-                                                        setTranscripts(
-                                                            (prev) => [
-                                                                ...prev,
-                                                                {
-                                                                    url: vttUrl,
-                                                                    text: vttContent,
-                                                                    format: "vtt",
-                                                                    name,
-                                                                },
-                                                            ],
-                                                        );
-                                                        updateUserState({
-                                                            videoInformation: {
-                                                                ...userState
-                                                                    ?.transcribe
-                                                                    ?.videoInformation,
-                                                            },
-                                                            transcripts:
-                                                                transcripts,
-                                                        });
+                                                        return {
+                                                            url: vttUrl,
+                                                            text: vttContent,
+                                                            format: "vtt",
+                                                            name,
+                                                        };
                                                     };
 
-                                                    setVideoLanguages(
-                                                        (prev) => [
-                                                            ...prev,
-                                                            {
-                                                                code: targetLocale,
-                                                                label: new Intl.DisplayNames(
-                                                                    ["en"],
-                                                                    {
-                                                                        type: "language",
-                                                                    },
-                                                                ).of(
-                                                                    targetLocale,
-                                                                ),
-                                                                url: outputUrl,
-                                                            },
-                                                        ],
-                                                    );
+                                                    const newVideoLanguages = [
+                                                        ...videoLanguages,
+                                                        {
+                                                            code: targetLocale,
+                                                            label: new Intl.DisplayNames(
+                                                                ["en"],
+                                                                {
+                                                                    type: "language",
+                                                                },
+                                                            ).of(targetLocale),
+                                                        },
+                                                    ];
 
                                                     // Check if auto subtitles already exist
                                                     const autoSubtitlesExist =
@@ -986,21 +963,72 @@ function VideoPage() {
                                                                 "Subtitles (auto)",
                                                         );
 
-                                                    if (!autoSubtitlesExist) {
+                                                    // Collect new transcripts
+                                                    const originalTranscript =
+                                                        !autoSubtitlesExist
+                                                            ? await addVtt(
+                                                                  originalVttUrl,
+                                                                  "Subtitles (auto)",
+                                                              )
+                                                            : null;
+
+                                                    const translatedTranscript =
                                                         await addVtt(
-                                                            originalVttUrl,
-                                                            "Subtitles (auto)",
+                                                            translatedVttUrl,
+                                                            `Subtitles (auto): ${new Intl.DisplayNames(
+                                                                ["en"],
+                                                                {
+                                                                    type: "language",
+                                                                },
+                                                            ).of(
+                                                                targetLocale,
+                                                            )}`,
                                                         );
-                                                    }
-                                                    await addVtt(
-                                                        translatedVttUrl,
-                                                        `Subtitles (auto): ${new Intl.DisplayNames(
-                                                            ["en"],
-                                                            {
-                                                                type: "language",
-                                                            },
-                                                        ).of(targetLocale)}`,
+
+                                                    // Create final transcript array
+                                                    const newTranscripts = [
+                                                        ...transcripts,
+                                                        ...(originalTranscript
+                                                            ? [
+                                                                  originalTranscript,
+                                                              ]
+                                                            : []),
+                                                        ...(translatedTranscript
+                                                            ? [
+                                                                  translatedTranscript,
+                                                              ]
+                                                            : []),
+                                                    ];
+
+                                                    // Single update call with all changes
+                                                    setTranscripts(
+                                                        newTranscripts,
                                                     );
+                                                    setVideoLanguages(
+                                                        newVideoLanguages,
+                                                    );
+                                                    setActiveLanguage(
+                                                        newVideoLanguages.length -
+                                                            1,
+                                                    );
+                                                    setActiveTranscript(
+                                                        newTranscripts.length -
+                                                            1,
+                                                    );
+                                                    updateUserState({
+                                                        videoInformation: {
+                                                            ...userState
+                                                                ?.transcribe
+                                                                ?.videoInformation,
+                                                            videoLanguages:
+                                                                newVideoLanguages,
+                                                        },
+                                                        transcripts:
+                                                            newTranscripts,
+                                                        activeTranscript:
+                                                            newTranscripts.length -
+                                                            1,
+                                                    });
 
                                                     setShowTranslateDialog(
                                                         false,
