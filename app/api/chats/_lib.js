@@ -71,9 +71,9 @@ export async function createNewChat(data) {
         // First find chats marked as empty
         const emptyChats = await Chat.find({
             userId: currentUser._id,
-            isEmpty: true
+            isEmpty: true,
         });
-        
+
         // Then verify they are actually empty by checking messages
         for (const chat of emptyChats) {
             if (!chat.messages || chat.messages.length === 0) {
@@ -104,7 +104,9 @@ export async function updateChat(data) {
     const { chatId, newMessageContent } = data;
     const currentUser = await getCurrentUser(false);
 
-    const messageArray = Array.isArray(newMessageContent) ? newMessageContent : [];
+    const messageArray = Array.isArray(newMessageContent)
+        ? newMessageContent
+        : [];
     const hasMessages = messageArray.length > 0;
 
     const chat = await Chat.findOneAndUpdate(
@@ -112,7 +114,7 @@ export async function updateChat(data) {
         {
             $set: {
                 messages: messageArray,
-                isEmpty: !hasMessages
+                isEmpty: !hasMessages,
             },
         },
         { new: true, useFindAndModify: false },
@@ -239,7 +241,7 @@ export async function getUserChatInfo() {
     if (!activeChatId) {
         const existingEmptyChat = await Chat.findOne({
             userId: currentUser._id,
-            isEmpty: true
+            isEmpty: true,
         });
 
         if (existingEmptyChat) {
