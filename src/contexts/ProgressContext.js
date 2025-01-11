@@ -30,6 +30,7 @@ function ProgressToast({
     const timeoutRef = useRef();
     const subscriptionRef = useRef();
     const [isCancelled, setIsCancelled] = useState(false);
+    const onCompleteCalledRef = useRef(false);
 
     const resetTimeout = React.useCallback(() => {
         if (timeoutRef.current) {
@@ -98,12 +99,14 @@ function ProgressToast({
             setProgress(newProgress);
         }
 
-        if (result && data.requestProgress.progress === 1) {
+        if (
+            result &&
+            data.requestProgress.progress === 1 &&
+            !onCompleteCalledRef.current
+        ) {
             if (timeoutRef.current) {
                 clearTimeout(timeoutRef.current);
                 timeoutRef.current = null;
-            } else {
-                return;
             }
 
             let finalData = result;
@@ -112,6 +115,8 @@ function ProgressToast({
             } catch (e) {
                 // ignore json parse error
             }
+
+            onCompleteCalledRef.current = true;
 
             onComplete?.(finalData)
                 .then(() => {
