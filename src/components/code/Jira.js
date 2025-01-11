@@ -56,7 +56,7 @@ export default function Jira({ clientSecret }) {
         <div className="">
             <ol className="list-decimal text-lg font-medium ps-8 flex flex-col gap-4 mb-6">
                 <li>
-                    <h4 className="mb-2 ">{t("Connect JIRA to Labeeb")}</h4>
+                    <h4 className="mb-2 ">{t("Connect Jira to Labeeb")}</h4>
                     <div className="ps4">
                         <ConnectJiraButton
                             clientSecret={clientSecret}
@@ -68,7 +68,7 @@ export default function Jira({ clientSecret }) {
                     <h4 className="mb-2">{t("Enter story details")}</h4>
                     <div className="text-base mb-2 text-gray-500 font-normal">
                         {t(
-                            "In a few sentences, describe the story you want to create in JIRA. Alternatively, you can copy-paste an email or a Slack thread to automatically create stories from.",
+                            "In a few sentences, describe the story you want to create in Jira. Alternatively, you can copy-paste an email or a Slack thread to automatically create stories from.",
                         )}
                     </div>
 
@@ -109,7 +109,7 @@ export default function Jira({ clientSecret }) {
                     <>
                         <li>
                             <h4 className="mb-2">
-                                {t("Enter JIRA project details")}
+                                {t("Enter Jira project details")}
                             </h4>
 
                             <JiraProjectSelect
@@ -133,7 +133,7 @@ export default function Jira({ clientSecret }) {
                                         setPrompt(text);
                                     }}
                                 >
-                                    {t("Get JIRA Story Details")}
+                                    {t("Get Jira Story Details")}
                                 </LoadingButton>
                             </div>
                         </li>

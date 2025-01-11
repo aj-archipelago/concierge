@@ -333,7 +333,7 @@ function MessageList({ messages, bot, loading, chatId }) {
                                         // Display the video
                                         return (
                                             <video
-                                                onLoad={() => {
+                                                onLoadedData={() => {
                                                     handleMessageLoad(
                                                         newMessage.id,
                                                     );
@@ -342,13 +342,15 @@ function MessageList({ messages, bot, loading, chatId }) {
                                                 src={src}
                                                 className="max-h-[20%] max-w-[60%] [.docked_&]:max-w-[90%] rounded border bg-white p-1 my-2 dark:border-neutral-700 dark:bg-neutral-800 shadow-lg dark:shadow-black/30"
                                                 controls
+                                                preload="metadata"
+                                                playsInline
                                             />
                                         );
                                     } else if (isAudioUrl(src)) {
                                         // Display the audio
                                         return (
                                             <audio
-                                                onLoad={() => {
+                                                onLoadedData={() => {
                                                     handleMessageLoad(
                                                         newMessage.id,
                                                     );

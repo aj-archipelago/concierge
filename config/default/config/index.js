@@ -69,9 +69,6 @@ export default {
         botName: "Jarvis",
         dataSources: [],
     },
-    code: {
-        botName: "Knuth",
-    },
     endpoints: {
         mediaHelper: (serverUrl) => `${serverUrl}${basePath}/media-helper`,
         graphql: (serverUrl) => `${serverUrl}${basePath}/graphql`,
