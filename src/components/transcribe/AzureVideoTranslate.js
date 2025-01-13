@@ -14,7 +14,9 @@ export default function AzureVideoTranslate({ url, onQueued, onComplete }) {
     async function setFinalDataPre(data) {
         if (data === "[DONE]") {
             console.log("[DONE] received");
-            throw new Error("There was an unknown error returned by the translation service. Please try again.");
+            throw new Error(
+                "There was an unknown error returned by the translation service. Please try again.",
+            );
         }
 
         data = JSON.parse(data);
