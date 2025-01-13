@@ -84,7 +84,7 @@ export default function CreateStorySection({ token, ticket }) {
         return (
             <div className="mb-4 text-sm italic text-gray-500">
                 {t(
-                    "To create this issue in JIRA, please connect Labeeb to your JIRA account.",
+                    "To create this issue in Jira, please connect Labeeb to your Jira account.",
                 )}
             </div>
         );
@@ -197,7 +197,7 @@ export default function CreateStorySection({ token, ticket }) {
                                 }
                             }}
                         >
-                            {t("Create issue in JIRA")}
+                            {t("Create issue in Jira")}
                         </LoadingButton>
                     </div>
                 )}

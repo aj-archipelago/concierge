@@ -66,9 +66,32 @@ export async function createNewChat(data) {
           ? [messages]
           : [];
 
+    // Only look for existing empty chat if we're creating a new empty chat
+    if (normalizedMessages.length === 0) {
+        // First find chats marked as empty
+        const emptyChats = await Chat.find({
+            userId: currentUser._id,
+            isEmpty: true,
+        });
+
+        // Then verify they are actually empty by checking messages
+        for (const chat of emptyChats) {
+            if (!chat.messages || chat.messages.length === 0) {
+                await setActiveChatId(chat._id);
+                return chat;
+            }
+            // If we find a chat marked as empty but with messages, fix it
+            if (chat.messages && chat.messages.length > 0) {
+                chat.isEmpty = false;
+                await chat.save();
+            }
+        }
+    }
+
     const chat = new Chat({
         userId,
         messages: normalizedMessages,
+        isEmpty: normalizedMessages.length === 0,
         title: title || getSimpleTitle(normalizedMessages[0] || ""),
     });
 
@@ -81,17 +104,29 @@ export async function updateChat(data) {
     const { chatId, newMessageContent } = data;
     const currentUser = await getCurrentUser(false);
 
+    const messageArray = Array.isArray(newMessageContent)
+        ? newMessageContent
+        : [];
+    const hasMessages = messageArray.length > 0;
+
     const chat = await Chat.findOneAndUpdate(
         { _id: chatId, userId: currentUser._id },
         {
             $set: {
-                messages: newMessageContent,
+                messages: messageArray,
+                isEmpty: !hasMessages,
             },
         },
         { new: true, useFindAndModify: false },
     );
 
     if (!chat) throw new Error("Chat not found");
+
+    // Double check the isEmpty state matches reality
+    if (chat.isEmpty !== !hasMessages) {
+        chat.isEmpty = !hasMessages;
+        await chat.save();
+    }
 
     return chat;
 }
@@ -206,7 +241,7 @@ export async function getUserChatInfo() {
     if (!activeChatId) {
         const existingEmptyChat = await Chat.findOne({
             userId: currentUser._id,
-            messages: { $size: 0 },
+            isEmpty: true,
         });
 
         if (existingEmptyChat) {

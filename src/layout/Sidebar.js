@@ -37,15 +37,7 @@ const navigation = [
     { name: "Write", icon: PencilSquareIcon, href: "/write" },
     { name: "Workspaces", icon: MdOutlineWorkspaces, href: "/workspaces" },
     { name: "Images", icon: PhotoIcon, href: "/images" },
-    {
-        name: "Code",
-        icon: CodeBracketIcon,
-        href: "/code",
-        children: [
-            { name: "Knuth", href: "/code/knuth" },
-            { name: "JIRA", href: "/code/jira" },
-        ],
-    },
+    { name: "Jira", icon: CodeBracketIcon, href: "/code/jira" },
 ];
 
 export default React.forwardRef(function Sidebar(_, ref) {

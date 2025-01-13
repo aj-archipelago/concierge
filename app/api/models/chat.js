@@ -53,6 +53,10 @@ const chatSchema = new mongoose.Schema(
             type: mongoose.Schema.Types.ObjectId,
             auto: true,
         },
+        isEmpty: {
+            type: Boolean,
+            default: true,
+        },
         title: {
             type: String,
             default: "Chat",

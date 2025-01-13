@@ -10,7 +10,7 @@ const redirects = [
     },
     {
         source: "/code",
-        destination: "/code/knuth",
+        destination: "/code/jira",
         permanent: true,
     },
 ];

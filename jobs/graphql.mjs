@@ -229,15 +229,6 @@ const COGNITIVE_DELETE = gql`
     }
 `;
 
-const CHAT_CODE = gql`
-    query ChatCode($text: String, $async: Boolean, $chatHistory: [Message]!) {
-        chat_code(text: $text, async: $async, chatHistory: $chatHistory) {
-            result
-            previousResult
-        }
-    }
-`;
-
 const EXPAND_STORY = gql`
     query ExpandStory($text: String) {
         expand_story(text: $text) {
@@ -634,7 +625,6 @@ const QUERIES = {
     CHAT_PERSIST,
     CHAT_LABEEB,
     CHAT_EXTENSION,
-    CHAT_CODE,
     COGNITIVE_DELETE,
     COGNITIVE_INSERT,
     IMAGE,
@@ -691,7 +681,6 @@ export {
     getClient,
     CHAT_PERSIST,
     CHAT_LABEEB,
-    CHAT_CODE,
     COGNITIVE_INSERT,
     COGNITIVE_DELETE,
     EXPAND_STORY,
