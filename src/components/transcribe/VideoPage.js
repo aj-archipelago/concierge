@@ -799,14 +799,14 @@ function VideoPage() {
                                                             key={idx}
                                                             className="flex items-center"
                                                         >
-                                                            <div className="flex w-full rounded-md border border-gray-200 overflow-hidden">
+                                                            <div className="flex w-[13rem] rounded-md border border-gray-200 overflow-hidden">
                                                                 <button
                                                                     onClick={() => {
                                                                         setActiveLanguage(
                                                                             idx,
                                                                         );
                                                                     }}
-                                                                    className={`flex-grow text-start text-xs px-3 py-1.5 hover:bg-sky-100 active:bg-sky-200 transition-colors
+                                                                    className={`grow truncate text-start text-xs px-3 py-1.5 hover:bg-sky-100 active:bg-sky-200 transition-colors
                                                                 ${activeLanguage === idx ? "bg-sky-50 text-gray-900" : "text-gray-600"}`}
                                                                 >
                                                                     {lang.label}
