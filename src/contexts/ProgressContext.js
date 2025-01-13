@@ -38,6 +38,15 @@ function ProgressToast({
         }
 
         timeoutRef.current = setTimeout(() => {
+            if (onCompleteCalledRef.current) {
+                // if we're here, it means that the timeout
+                // has elapsed since we received the last message.
+                // if onComplete has been called, there's nothing
+                // else to do, so we can just close the toast.
+                toast.dismiss(requestId);
+                return;
+            }
+
             const timeoutError = new Error(ERROR_MESSAGES.timeout);
             onError?.(timeoutError);
             setErrorMessage(ERROR_MESSAGES.timeout);
