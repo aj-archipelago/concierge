@@ -952,6 +952,7 @@ function VideoPage() {
                                                                     type: "language",
                                                                 },
                                                             ).of(targetLocale),
+                                                            url: outputUrl,
                                                         },
                                                     ];
 
