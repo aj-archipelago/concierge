@@ -269,7 +269,6 @@
     "Memory size: {{size}} characters": "حجم الذاكرة: {{size}} أحرف",
     "Something went wrong trying to respond to your request. Please try something else or start over to continue.": "حدث خطأ ما أثناء محاولة الرد على طلبك. يرجى محاولة شيء آخر أو البدء من جديد للمتابعة.",
     "vpn_connection_error": "لاستخدام اختيار التصنيف الضريبي ، يرجى التأكد من أنك متصل بشبكة VPN. بعد الاتصال بشبكة VPN ، يرجى تحديث الصفحة.",
-    "Add Youtube / Remote Media Url": "إضافة عنوان URL لمقطع فيديو من يوتيوب أو وسائط عن بعد",
     "Drag & Drop your files or": "اسحب وأسقط ملفاتك أو",
     "Browse": "تصفح",
     "e.g.": "على سبيل المثال",
@@ -429,5 +428,12 @@
     "tap to retry": "انقر لإعادة المحاولة",
     "tap to undo": "انقر للتراجع",
     "Retry": "إعادة المحاولة",
-    "Undo": "تراجع"
+    "Undo": "تراجع",
+    "Add Remote Media Url": "إضافة رابط وسائط عن بعد",
+    "Checking file...": "جاري فحص الملف...",
+    "Error...": "خطأ...",
+    "Idle...": "جاهز...",
+    "Invalid file type": "نوع ملف غير صالح",
+    "Please upload a document, image, video, or audio file": "يرجى تحميل مستند أو صورة أو فيديو أو ملف صوتي",
+    "Media file upload failed: Missing required storage URLs": "فشل تحميل ملف الوسائط: روابط التخزين المطلوبة مفقودة"
 }
