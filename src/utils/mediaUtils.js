@@ -1,34 +1,32 @@
-import crypto from "crypto";
+import xxhash from 'xxhash-wasm';
+
+let xxhashInstance = null;
+
+// Initialize xxhash once and reuse the instance
+async function getXXHashInstance() {
+    if (!xxhashInstance) {
+        xxhashInstance = await xxhash();
+    }
+    return xxhashInstance;
+}
 
 export async function hashMediaFile(file) {
-    const hash = crypto.createHash("sha256");
-    const chunkSize = 512 * 1024;
-    const numOfChunks = Math.ceil(file.size / chunkSize);
-    const reader = new FileReader();
+    const hasher = await getXXHashInstance();
+    const xxh64 = hasher.create64();
 
-    async function processChunk(index) {
-        const start = index * chunkSize;
-        const end = start + chunkSize;
-        const blobSlice = file.slice(start, end);
+    const stream = file.stream();
+    const reader = stream.getReader();
 
-        return new Promise((resolve, reject) => {
-            reader.onload = (event) => {
-                const arrayBuffer = event.target.result;
-                const array = new Uint8Array(arrayBuffer);
-                array.forEach((chunk) => {
-                    hash.update(new Uint8Array([chunk]));
-                });
-                resolve();
-            };
-            reader.onerror = reject;
-            reader.readAsArrayBuffer(blobSlice);
-        });
+    try {
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            xxh64.update(value);
+        }
+        return xxh64.digest().toString(16);
+    } finally {
+        reader.releaseLock();
     }
-
-    for (let i = 0; i < numOfChunks; i++) {
-        await processChunk(i);
-    }
-    return hash.digest("hex");
 }
 
 export const getVideoDuration = (file) => {

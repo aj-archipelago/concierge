@@ -255,7 +255,6 @@
     "Clear Memory": "مسح الذاكرة",
     "Memory size: {{size}} characters": "حجم الذاكرة: {{size}} أحرف",
     "Save changes": "حفظ التغييرات",
-    "Add Youtube / Remote Media Url": "إضافة عنوان URL لمقطع فيديو من يوتيوب أو وسائط عن بعد",
     "Drag & Drop your files or": "اسحب وأسقط ملفاتك أو",
     "Browse": "تصفح",
     "e.g.": "على سبيل المثال",
@@ -396,5 +395,12 @@
     "tap to retry": "انقر لإعادة المحاولة",
     "tap to undo": "انقر للتراجع",
     "Retry": "إعادة المحاولة",
-    "Undo": "تراجع"
+    "Undo": "تراجع",
+    "Add Remote Media Url": "إضافة رابط وسائط عن بعد",
+    "Checking file...": "جاري فحص الملف...",
+    "Error...": "خطأ...",
+    "Idle...": "جاهز...",
+    "Invalid file type": "نوع ملف غير صالح",
+    "Please upload a document, image, video, or audio file": "يرجى تحميل مستند أو صورة أو فيديو أو ملف صوتي",
+    "Media file upload failed: Missing required storage URLs": "فشل تحميل ملف الوسائط: روابط التخزين المطلوبة مفقودة"
 }

@@ -75,3 +75,44 @@
     background-color: transparent;
     border: 1px solid rgb(107 114 128);
 }
+
+/* Processing state styles */
+[data-filepond-item-state="processing"] .filepond--item-panel {
+    background-color: #4a90e2;
+}
+
+/* Add a subtle pulse animation for the processing state */
+@keyframes processingPulse {
+    0% { opacity: 0.8; }
+    50% { opacity: 1; }
+    100% { opacity: 0.8; }
+}
+
+[data-filepond-item-state="processing"] .filepond--item-panel {
+    animation: processingPulse 2s ease-in-out infinite;
+}
+
+/* Make the text more visible during processing */
+[data-filepond-item-state="processing"] .filepond--file-status-main {
+    color: white;
+    font-weight: 500;
+}
+
+/* Adjust the progress indicator styles */
+.filepond--progress-indicator {
+    background: none;
+}
+
+[data-filepond-item-state="processing"] .filepond--progress-indicator {
+    background: none;
+    opacity: 0.8;
+}
+
+[data-filepond-item-state="processing"] .filepond--file {
+    color: white;
+}
+
+/* Make sure the progress bar is visible */
+.filepond--progress-bar {
+    background: rgba(255, 255, 255, 0.85);
+}
