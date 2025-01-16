@@ -119,11 +119,6 @@ const DOC_EXTENSIONS = [
     ".doc",
 ];
 
-function isDocumentUrl(url) {
-    const urlExt = getExtension(url);
-    return DOC_EXTENSIONS.includes(urlExt);
-}
-
 const IMAGE_EXTENSIONS = [
     ".jpg",
     ".jpeg",
@@ -148,6 +143,11 @@ const VIDEO_EXTENSIONS = [
 ];
 
 const AUDIO_EXTENSIONS = [".wav", ".mp3", ".aac", ".ogg", ".flac"];
+
+function isDocumentUrl(url) {
+    const urlExt = getExtension(url);
+    return DOC_EXTENSIONS.includes(urlExt);
+}
 
 // Extracts the filename from a URL
 export function getFilename(url) {
@@ -617,7 +617,6 @@ function MyFilePond({ addUrl, files, setFiles, setIsUploadingMedia }) {
                                                 return;
                                             }
                                         }
-
                                         load(responseData);
                                         addUrl(responseData);
                                         setIsUploadingMedia(false);
