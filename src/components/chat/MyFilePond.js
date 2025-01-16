@@ -19,6 +19,9 @@ import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { hashMediaFile } from "../../utils/mediaUtils";
 
+// Global upload speed tracking
+let lastBytesPerMs = null; // bytes per millisecond from last successful upload including cloud processing
+
 // Register the plugins
 registerPlugin(
     FilePondPluginImageExifOrientation,
@@ -54,7 +57,7 @@ function RemoteUrlInputUI({
                         <FaYoutube />
                     </span>
                     <span className="underline">
-                        {t("Add Youtube / Remote Media Url")}
+                        {t("Add Remote Media Url")}
                     </span>
                     <span className="inline-block px-2">
                         <IoIosVideocam />
@@ -113,14 +116,19 @@ const DOC_EXTENSIONS = [
     ".css",
     ".docx",
     ".xlsx",
+    ".xls",
+    ".doc",
 ];
 
-function isDocumentUrl(url) {
-    const urlExt = getExtension(url);
-    return DOC_EXTENSIONS.includes(urlExt);
-}
-
-const IMAGE_EXTENSIONS = [".jpg", ".jpeg", ".png", ".webp", ".heic", ".heif"];
+const IMAGE_EXTENSIONS = [
+    ".jpg",
+    ".jpeg",
+    ".png",
+    ".webp",
+    ".heic",
+    ".heif",
+    ".pdf",
+];
 
 const VIDEO_EXTENSIONS = [
     ".mp4",
@@ -135,6 +143,11 @@ const VIDEO_EXTENSIONS = [
 ];
 
 const AUDIO_EXTENSIONS = [".wav", ".mp3", ".aac", ".ogg", ".flac"];
+
+function isDocumentUrl(url) {
+    const urlExt = getExtension(url);
+    return DOC_EXTENSIONS.includes(urlExt);
+}
 
 // Extracts the filename from a URL
 export function getFilename(url) {
@@ -227,8 +240,6 @@ const MEDIA_MIME_TYPES = [
 ];
 
 const ACCEPTED_FILE_TYPES = [...DOC_MIME_TYPES, ...MEDIA_MIME_TYPES];
-const FILE_TYPE_NOT_ALLOWED_ERROR =
-    "File of type {fileExtension} is not allowed.";
 
 // Add this helper function to check video duration
 function getVideoDuration(file) {
@@ -255,9 +266,22 @@ function MyFilePond({ addUrl, files, setFiles, setIsUploadingMedia }) {
     const [inputUrl, setInputUrl] = useState("");
     const [showInputUI, setShowInputUI] = useState(false);
     const { t } = useTranslation();
+
+    const [processingLabel, setProcessingLabel] = useState(
+        t("Checking file..."),
+    );
     const labelIdle = `${t("Drag & Drop your files or")} <span class="filepond--label-action">${t("Browse")}</span>`;
 
     const handleAddFile = () => {
+        // Validate URL format
+        try {
+            new URL(inputUrl);
+        } catch (err) {
+            // Invalid URL format
+            alert(t("Please enter a valid URL"));
+            return;
+        }
+
         setIsUploadingMedia(true);
         setFiles([...files, { source: inputUrl }]);
         setInputUrl("");
@@ -266,9 +290,13 @@ function MyFilePond({ addUrl, files, setFiles, setIsUploadingMedia }) {
     // Add FilePond labels in current language
     const labels = {
         labelIdle: `${t("Drag & Drop your files or")} <span class="filepond--label-action">${t("Browse")}</span>`,
-        labelFileProcessing: t("Uploading..."),
+        labelFileProcessing: processingLabel,
         labelFileProcessingComplete: t("Upload complete"),
         labelFileProcessingAborted: t("Upload cancelled"),
+        labelFileProcessingError: (error) =>
+            t(error?.body || "Error during upload"),
+        labelFileLoadError: (error) => t(error?.body || "Invalid URL"),
+        labelFileLoading: t("Checking URL..."),
         labelFileProcessingRevertError: t("Error during removal"),
         labelTapToCancel: t("tap to cancel"),
         labelTapToRetry: t("tap to retry"),
@@ -280,6 +308,10 @@ function MyFilePond({ addUrl, files, setFiles, setIsUploadingMedia }) {
         labelButtonUndoItemProcessing: t("Undo"),
         labelButtonRetryItemProcessing: t("Retry"),
         labelButtonProcessItem: t("Upload"),
+        labelFileTypeNotAllowed: t("Invalid file type"),
+        fileValidateTypeLabelExpectedTypes: t(
+            "Please upload a document, image, video, or audio file",
+        ),
     };
 
     return (
@@ -300,11 +332,14 @@ function MyFilePond({ addUrl, files, setFiles, setIsUploadingMedia }) {
                         onupdatefiles={setFiles}
                         allowFileTypeValidation={true}
                         {...labels}
-                        labelFileTypeNotAllowed={FILE_TYPE_NOT_ALLOWED_ERROR}
+                        acceptedFileTypes={ACCEPTED_FILE_TYPES}
+                        labelFileTypeNotAllowed={t("Invalid file type")}
+                        fileValidateTypeLabelExpectedTypes={t(
+                            "Please upload a document, image, video, or audio file",
+                        )}
                         labelFileProcessingError={(error) => {
                             return t(error?.body || "Error during upload");
                         }}
-                        acceptedFileTypes={ACCEPTED_FILE_TYPES}
                         allowMultiple={true}
                         // maxFiles={3}
                         server={{
@@ -335,13 +370,17 @@ function MyFilePond({ addUrl, files, setFiles, setIsUploadingMedia }) {
                                                 url,
                                             }),
                                         );
-                                        // load(response.data);
                                         addUrl(response.data);
                                         setIsUploadingMedia(false);
                                         return;
                                     }
                                 } catch (err) {
                                     console.error(err);
+                                    error({
+                                        body:
+                                            err.response?.data || "Invalid URL",
+                                        type: "error",
+                                    });
                                     setIsUploadingMedia(false);
                                 }
                             },
@@ -354,6 +393,9 @@ function MyFilePond({ addUrl, files, setFiles, setIsUploadingMedia }) {
                                 progress,
                                 abort,
                             ) => {
+                                setProcessingLabel(t("Checking file..."));
+                                setIsUploadingMedia(true);
+
                                 const isRemote = !(file instanceof File);
                                 if (isRemote) {
                                     setIsUploadingMedia(false);
@@ -361,7 +403,7 @@ function MyFilePond({ addUrl, files, setFiles, setIsUploadingMedia }) {
                                     return;
                                 }
 
-                                // Check PDF file size (50MB = 50 * 1024 * 1024 bytes)
+                                // File validation checks
                                 if (file.type === "application/pdf") {
                                     const MAX_PDF_SIZE = 50 * 1024 * 1024;
                                     if (file.size > MAX_PDF_SIZE) {
@@ -373,14 +415,13 @@ function MyFilePond({ addUrl, files, setFiles, setIsUploadingMedia }) {
                                     }
                                 }
 
-                                // Check video duration
+                                // Video duration check
                                 if (file.type.startsWith("video/")) {
                                     try {
                                         const duration =
                                             await getVideoDuration(file);
                                         if (duration > 3600) {
                                             setIsUploadingMedia(false);
-                                            // Pass error message as a string with specific prefix
                                             error(
                                                 "Video must be less than 60 minutes long",
                                             );
@@ -402,74 +443,216 @@ function MyFilePond({ addUrl, files, setFiles, setIsUploadingMedia }) {
                                 if (isMediaUrl(file?.name)) {
                                     setIsUploadingMedia(true);
                                 }
+
+                                // Start showing upload progress
+                                progress(true, 0, file.size);
                                 const fileHash = await hashMediaFile(file);
 
-                                // Check if file with same hash is already on the server
+                                // Check if file exists
                                 try {
                                     const response = await axios.get(
                                         `${serverUrl}&hash=${fileHash}&checkHash=true`,
                                     );
-                                    if (response.status === 200) {
-                                        if (
-                                            response.data &&
-                                            response.data.url
-                                        ) {
-                                            load(response.data);
-                                            addUrl(response.data);
-                                            setIsUploadingMedia(false);
-                                            return;
+                                    if (
+                                        response.status === 200 &&
+                                        response.data?.url
+                                    ) {
+                                        if (isMediaUrl(file?.name)) {
+                                            const hasAzureUrl =
+                                                response.data.url &&
+                                                response.data.url.includes(
+                                                    "blob.core.windows.net",
+                                                );
+                                            const hasGcsUrl = response.data.gcs;
+
+                                            if (!hasAzureUrl || !hasGcsUrl) {
+                                                error({
+                                                    body: "Media file upload failed: Missing required storage URLs",
+                                                    type: "error",
+                                                });
+                                                setIsUploadingMedia(false);
+                                                return;
+                                            }
                                         }
+                                        progress(true, file.size, file.size);
+                                        load(response.data);
+                                        addUrl(response.data);
+                                        setIsUploadingMedia(false);
+                                        return;
                                     }
                                 } catch (err) {
-                                    console.error(err);
+                                    if (err.response?.status !== 404) {
+                                        console.error(
+                                            "Error checking file hash:",
+                                            err,
+                                        );
+                                    }
                                     setIsUploadingMedia(false);
                                 }
 
-                                // Do the uploading after checking
+                                // If we get here, we need to upload the file
+                                const startTimestamp = Date.now();
+                                let totalBytes = 0;
+                                setProcessingLabel(t("Uploading..."));
                                 const formData = new FormData();
                                 formData.append("hash", fileHash);
                                 formData.append(fieldName, file, file.name);
                                 const request = new XMLHttpRequest();
-                                request.open(
-                                    "POST",
-                                    `${serverUrl}&hash=${fileHash}`,
-                                ); // attach fileHash as a URL parameter
 
+                                let cloudProgressInterval;
                                 request.upload.onprogress = (e) => {
-                                    progress(
-                                        e.lengthComputable,
-                                        e.loaded,
-                                        e.total,
-                                    );
+                                    console.log(e);
+                                    if (e.lengthComputable) {
+                                        totalBytes = e.total; // Store total bytes for later use
+                                        // First 50% is actual upload progress
+                                        const uploadProgress =
+                                            (e.loaded / e.total) * 50;
+                                        progress(true, uploadProgress, 100);
+
+                                        // Start cloud processing simulation when upload is at 20%
+                                        if (
+                                            uploadProgress >= 49 &&
+                                            !cloudProgressInterval
+                                        ) {
+                                            let cloudProgress = 50;
+
+                                            // Calculate expected total time based on file size and last known speed
+                                            let expectedTotalTime;
+                                            if (lastBytesPerMs) {
+                                                // Use historical speed if available
+                                                expectedTotalTime =
+                                                    totalBytes / lastBytesPerMs;
+                                            } else {
+                                                // Fallback to actual elapsed time if no historical data
+                                                expectedTotalTime =
+                                                    Date.now() -
+                                                    startTimestamp * 2;
+                                            }
+
+                                            // Calculate cloud processing simulation parameters
+                                            const remainingSteps = 49; // remaining percentage points
+                                            const cloudProcessingInterval =
+                                                expectedTotalTime /
+                                                remainingSteps;
+
+                                            cloudProgressInterval = setInterval(
+                                                () => {
+                                                    cloudProgress += 1;
+                                                    if (cloudProgress >= 99) {
+                                                        clearInterval(
+                                                            cloudProgressInterval,
+                                                        );
+                                                    }
+                                                    progress(
+                                                        true,
+                                                        cloudProgress,
+                                                        100,
+                                                    );
+                                                },
+                                                cloudProcessingInterval,
+                                            );
+                                        }
+                                    }
                                 };
+
                                 request.onload = function () {
+                                    const totalTime =
+                                        Date.now() - startTimestamp;
+
+                                    if (cloudProgressInterval) {
+                                        clearInterval(cloudProgressInterval);
+                                        progress(true, 100, 100);
+                                    }
+                                    let responseData;
+                                    try {
+                                        responseData = JSON.parse(
+                                            request.responseText,
+                                        );
+                                    } catch (err) {
+                                        console.error(
+                                            "Error parsing response:",
+                                            err,
+                                        );
+                                        error({
+                                            body:
+                                                request.responseText ||
+                                                "Error parsing server response",
+                                            type: "error",
+                                        });
+                                        setIsUploadingMedia(false);
+                                        abort();
+                                        return;
+                                    }
+
                                     if (
                                         request.status >= 200 &&
                                         request.status < 300
                                     ) {
-                                        let responseData = request.responseText;
-                                        try {
-                                            responseData = JSON.parse(
-                                                request.responseText,
-                                            ); // Parse the response to a JS object
-                                        } catch (err) {
-                                            console.error(err);
+                                        // Update global speed metric using total bytes and time including cloud processing
+                                        if (totalBytes > 0) {
+                                            lastBytesPerMs =
+                                                totalBytes / totalTime;
                                         }
+
+                                        // Add validation for media files requiring both Azure and GCS URLs
+                                        if (isMediaUrl(file?.name)) {
+                                            const hasAzureUrl =
+                                                responseData.url &&
+                                                responseData.url.includes(
+                                                    "blob.core.windows.net",
+                                                );
+                                            const hasGcsUrl = responseData.gcs;
+
+                                            if (!hasAzureUrl || !hasGcsUrl) {
+                                                error({
+                                                    body: "Media file upload failed: Missing required storage URLs",
+                                                    type: "error",
+                                                });
+                                                setIsUploadingMedia(false);
+                                                abort();
+                                                return;
+                                            }
+                                        }
+
                                         load(responseData);
-                                        addUrl(responseData); // Call 'addUrl' with the parsed response data
+                                        addUrl(responseData);
                                         setIsUploadingMedia(false);
                                     } else {
-                                        error("Error while uploading");
+                                        // Handle both string and object responses
+                                        const errorMessage =
+                                            typeof responseData === "string"
+                                                ? responseData
+                                                : responseData.error ||
+                                                  responseData.message ||
+                                                  "Error while uploading";
+
+                                        error({
+                                            body: errorMessage,
+                                            type: "error",
+                                        });
                                         setIsUploadingMedia(false);
+                                        return false;
                                     }
                                 };
+
+                                request.onerror = () => {
+                                    error({
+                                        body: "Error while uploading",
+                                        type: "error",
+                                    });
+                                    setIsUploadingMedia(false);
+                                };
+
+                                request.open(
+                                    "POST",
+                                    `${serverUrl}&hash=${fileHash}`,
+                                );
                                 request.send(formData);
 
-                                // expose an abort method so FilePond can cancel the file if requested
                                 return {
                                     abort: () => {
                                         request.abort();
-                                        // Let FilePond know the request has been cancelled
+                                        setIsUploadingMedia(false);
                                         abort();
                                     },
                                 };
