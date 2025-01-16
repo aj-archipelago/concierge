@@ -148,7 +148,7 @@ function MessageInput({
         if (isDocumentUrl(url)) {
             fetchData(url);
         } else {
-            //media urls, 'll be sent with active message
+            //media urls, will be sent with active message
             if (isMediaUrl(url)) {
                 setUrlsData((prevUrlsData) => [...prevUrlsData, urlData]);
             }
