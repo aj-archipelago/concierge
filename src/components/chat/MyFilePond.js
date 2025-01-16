@@ -19,6 +19,9 @@ import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { hashMediaFile } from "../../utils/mediaUtils";
 
+// Global upload speed tracking
+let lastBytesPerMs = null; // bytes per millisecond from last successful upload including cloud processing
+
 // Register the plugins
 registerPlugin(
     FilePondPluginImageExifOrientation,
@@ -113,6 +116,8 @@ const DOC_EXTENSIONS = [
     ".css",
     ".docx",
     ".xlsx",
+    ".xls",
+    ".doc"
 ];
 
 const IMAGE_EXTENSIONS = [
@@ -465,27 +470,66 @@ function MyFilePond({ addUrl, files, setFiles, setIsUploadingMedia }) {
                                         return;
                                     }
                                 } catch (err) {
-                                    console.error("Error checking file hash:", err);
+                                    if (err.response?.status !== 404) {
+                                        console.error("Error checking file hash:", err);
+                                    }
                                     setIsUploadingMedia(false);
                                 }
 
                                 // If we get here, we need to upload the file
+                                const startTimestamp = Date.now();
+                                let totalBytes = 0;
                                 setProcessingLabel(t("Uploading..."));
                                 const formData = new FormData();
                                 formData.append("hash", fileHash);
                                 formData.append(fieldName, file, file.name);
                                 const request = new XMLHttpRequest();
 
+                                let cloudProgressInterval;
                                 request.upload.onprogress = (e) => {
+                                    console.log(e);
                                     if (e.lengthComputable) {
-                                        progress(true, e.loaded, e.total);
-                                        if (e.loaded === e.total) {
-                                            setProcessingLabel(t("Processing..."));
+                                        totalBytes = e.total; // Store total bytes for later use
+                                        // First 50% is actual upload progress
+                                        const uploadProgress = (e.loaded / e.total) * 50;
+                                        progress(true, uploadProgress, 100);
+                                        
+                                        // Start cloud processing simulation when upload is at 20%
+                                        if (uploadProgress >= 49 && !cloudProgressInterval) {
+                                            let cloudProgress = 50;
+                                            
+                                            // Calculate expected total time based on file size and last known speed
+                                            let expectedTotalTime;
+                                            if (lastBytesPerMs) {
+                                                // Use historical speed if available
+                                                expectedTotalTime = totalBytes / lastBytesPerMs;
+                                            } else {
+                                                // Fallback to actual elapsed time if no historical data
+                                                expectedTotalTime = Date.now() - startTimestamp * 2;
+                                            }
+                                            
+                                            // Calculate cloud processing simulation parameters
+                                            const remainingSteps = 49; // remaining percentage points
+                                            const cloudProcessingInterval = expectedTotalTime / remainingSteps;
+                                            
+                                            cloudProgressInterval = setInterval(() => {
+                                                cloudProgress += 1;
+                                                if (cloudProgress >= 99) {
+                                                    clearInterval(cloudProgressInterval);
+                                                }
+                                                progress(true, cloudProgress, 100);
+                                            }, cloudProcessingInterval);
                                         }
                                     }
                                 };
 
                                 request.onload = function () {
+                                    const totalTime = Date.now() - startTimestamp;
+
+                                    if (cloudProgressInterval) {
+                                        clearInterval(cloudProgressInterval);
+                                        progress(true, 100, 100);
+                                    }
                                     let responseData;
                                     try {
                                         responseData = JSON.parse(request.responseText);
@@ -496,13 +540,15 @@ function MyFilePond({ addUrl, files, setFiles, setIsUploadingMedia }) {
                                             type: 'error'
                                         });
                                         setIsUploadingMedia(false);
-                                        setProcessingLabel(t("Error..."));
                                         abort();
                                         return;
                                     }
 
                                     if (request.status >= 200 && request.status < 300) {
-                                        setProcessingLabel(t("Uploading..."));
+                                        // Update global speed metric using total bytes and time including cloud processing
+                                        if (totalBytes > 0) {
+                                            lastBytesPerMs = totalBytes / totalTime;
+                                        }
                                         
                                         // Add validation for media files requiring both Azure and GCS URLs
                                         if (isMediaUrl(file?.name)) {
@@ -523,7 +569,6 @@ function MyFilePond({ addUrl, files, setFiles, setIsUploadingMedia }) {
                                         load(responseData);
                                         addUrl(responseData);
                                         setIsUploadingMedia(false);
-                                        setProcessingLabel(t("Idle...")); // Reset the label
                                     } else {
                                         // Handle both string and object responses
                                         const errorMessage = typeof responseData === 'string' 
@@ -535,7 +580,6 @@ function MyFilePond({ addUrl, files, setFiles, setIsUploadingMedia }) {
                                             type: 'error'
                                         });
                                         setIsUploadingMedia(false);
-                                        setProcessingLabel(t("Error...")); // Reset the label
                                         return false;
                                     }
                                 };
@@ -546,7 +590,6 @@ function MyFilePond({ addUrl, files, setFiles, setIsUploadingMedia }) {
                                         type: 'error'
                                     });
                                     setIsUploadingMedia(false);
-                                    setProcessingLabel(t("Error...")); // Reset the label
                                 };
 
                                 request.open("POST", `${serverUrl}&hash=${fileHash}`);
