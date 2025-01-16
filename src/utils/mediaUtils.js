@@ -1,4 +1,4 @@
-import xxhash from 'xxhash-wasm';
+import xxhash from "xxhash-wasm";
 
 let xxhashInstance = null;
 
