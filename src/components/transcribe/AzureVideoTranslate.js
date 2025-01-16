@@ -1,15 +1,19 @@
 import { useApolloClient } from "@apollo/client";
 import { LanguagesIcon } from "lucide-react";
-import { useState } from "react";
+import { useContext, useState } from "react";
 import { useProgress } from "../../contexts/ProgressContext";
 import { AZURE_VIDEO_TRANSLATE } from "../../graphql";
 import { LOCALES } from "../../utils/constants";
+import { useTranslation } from "react-i18next";
+import { LanguageContext } from "../../contexts/LanguageProvider";
 
 export default function AzureVideoTranslate({ url, onQueued, onComplete }) {
     const apolloClient = useApolloClient();
     const [sourceLocale, setSourceLocale] = useState("en-US");
     const [targetLocale, setTargetLocale] = useState("ar-QA");
     const { addProgressToast } = useProgress();
+    const { t } = useTranslation();
+    const { language } = useContext(LanguageContext);
 
     async function setFinalDataPre(data) {
         if (data === "[DONE]") {
@@ -44,17 +48,19 @@ export default function AzureVideoTranslate({ url, onQueued, onComplete }) {
                 <div className="flex items-end gap-3">
                     <div>
                         <label htmlFor="sourceLocaleSelect">
-                            Source Locale
+                            {t("Source Locale")}
                         </label>
                         <select
                             id="sourceLocaleSelect"
                             value={sourceLocale}
-                            className="lb-input"
+                            className="lb-select"
                             onChange={(e) => setSourceLocale(e.target.value)}
                         >
-                            {Object.entries(LOCALES).map(([code, name]) => (
+                            {LOCALES.map((code) => (
                                 <option key={code} value={code}>
-                                    {name}
+                                    {new Intl.DisplayNames([language], {
+                                        type: "language",
+                                    }).of(code)}
                                 </option>
                             ))}
                         </select>
@@ -62,17 +68,19 @@ export default function AzureVideoTranslate({ url, onQueued, onComplete }) {
 
                     <div>
                         <label htmlFor="targetLocaleSelect">
-                            Target Locale
+                            {t("Target Locale")}
                         </label>
                         <select
-                            className="lb-input"
+                            className="lb-select"
                             id="targetLocaleSelect"
                             value={targetLocale}
                             onChange={(e) => setTargetLocale(e.target.value)}
                         >
-                            {Object.entries(LOCALES).map(([code, name]) => (
+                            {LOCALES.map((code) => (
                                 <option key={code} value={code}>
-                                    {name}
+                                    {new Intl.DisplayNames([language], {
+                                        type: "language",
+                                    }).of(code)}
                                 </option>
                             ))}
                         </select>
@@ -102,7 +110,11 @@ export default function AzureVideoTranslate({ url, onQueued, onComplete }) {
                         const requestId = data.azure_video_translate.result;
                         addProgressToast(
                             requestId,
-                            `Translating video to ${LOCALES[targetLocale]}`,
+                            t("Translating video to {{locale}}", {
+                                locale: new Intl.DisplayNames([language], {
+                                    type: "language",
+                                }).of(targetLocale),
+                            }),
                             setFinalDataPre,
                             () => {},
                             60 * 1000, // consider it failed if no heartbeats are received
@@ -111,7 +123,7 @@ export default function AzureVideoTranslate({ url, onQueued, onComplete }) {
                     }}
                 >
                     <LanguagesIcon className="w-4 h-4 me-1" />
-                    Translate Video
+                    {t("Translate Video")}
                 </button>
             </div>
         </>

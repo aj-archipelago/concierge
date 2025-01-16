@@ -16,6 +16,7 @@ import { QUERIES } from "../../graphql";
 import LoadingButton from "../editor/LoadingButton";
 import TranslationOptions from "./TranslationOptions";
 import { convertSrtToVtt } from "./transcribe.utils";
+import { LanguageContext } from "../../contexts/LanguageProvider";
 
 export function AddTrackOptions({
     url,
@@ -29,6 +30,7 @@ export function AddTrackOptions({
     onClose,
 }) {
     const { t } = useTranslation();
+    const { direction } = useContext(LanguageContext);
 
     const visibleOptions = options.filter(
         (opt) =>
@@ -90,7 +92,7 @@ export function AddTrackOptions({
 
             {options.includes("translate") && (
                 <TabsContent value="translate">
-                    <div className="">
+                    <div style={{ direction: direction }}>
                         <p className="text-sm text-gray-500">
                             {t("Translate your transcript")}
                         </p>
@@ -106,7 +108,7 @@ export function AddTrackOptions({
 
             {options.includes("upload") && (
                 <TabsContent value="upload">
-                    <div className="">
+                    <div style={{ direction: direction }}>
                         <p className="text-sm text-gray-500">
                             {t("Upload subtitles or a transcript")}
                         </p>
@@ -117,7 +119,7 @@ export function AddTrackOptions({
 
             {options.includes("clipboard") && (
                 <TabsContent value="clipboard">
-                    <div className="">
+                    <div style={{ direction: direction }}>
                         <p className="text-sm text-gray-500">
                             {t("Paste your transcript text from clipboard")}
                         </p>
@@ -290,27 +292,6 @@ export default function TranscribeVideo({
         highlightWords,
     } = transcriptionOption ?? {};
 
-    // Add debug logging for state changes
-    useEffect(() => {
-        console.log("Transcription options state:", {
-            language,
-            selectedModelOption,
-            transcriptionOption,
-            requestId,
-            loading,
-            currentOperation,
-            error,
-        });
-    }, [
-        language,
-        selectedModelOption,
-        transcriptionOption,
-        requestId,
-        loading,
-        currentOperation,
-        error,
-    ]);
-
     // Move handleSubmit from Video.js
     const handleSubmit = useCallback(
         async () => {
@@ -373,8 +354,8 @@ export default function TranscribeVideo({
                                 format: responseFormat,
                                 name:
                                     responseFormat === "vtt"
-                                        ? "Subtitles"
-                                        : "Transcript",
+                                        ? t("Subtitles")
+                                        : t("Transcript"),
                             });
                             setRequestId(null);
                         },
@@ -421,7 +402,6 @@ export default function TranscribeVideo({
 
     const handleTranscriptionTypeChange = (e) => {
         const selectedValue = e.target.value;
-        console.log("Transcription type changed:", selectedValue);
         let newOptions = {
             responseFormat,
             wordTimestamped: false,
