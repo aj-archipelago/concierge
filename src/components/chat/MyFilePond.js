@@ -186,7 +186,9 @@ function isImageUrl(url) {
     const mimeType = mime.contentType(urlExt);
     return (
         IMAGE_EXTENSIONS.includes(urlExt) &&
-        (mimeType.startsWith("image/") || mimeType === "application/pdf" || mimeType.startsWith("text/plain"))
+        (mimeType.startsWith("image/") ||
+            mimeType === "application/pdf" ||
+            mimeType.startsWith("text/plain"))
     );
 }
 
