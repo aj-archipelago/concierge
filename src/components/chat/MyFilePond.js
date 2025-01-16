@@ -133,7 +133,6 @@ const IMAGE_EXTENSIONS = [
     ".heif",
     ".pdf",
     ".txt",
-    ".txt",
 ];
 
 const VIDEO_EXTENSIONS = [
