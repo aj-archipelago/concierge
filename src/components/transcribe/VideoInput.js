@@ -1,12 +1,18 @@
 "use client";
 
-import { ArrowRightIcon, Loader2Icon, UploadIcon } from "lucide-react";
+import {
+    ArrowLeftIcon,
+    ArrowRightIcon,
+    Loader2Icon,
+    UploadIcon,
+} from "lucide-react";
 import { useContext, useState } from "react";
 import { useTranslation } from "react-i18next";
 import VideoSelector from "./VideoSelector";
 import { ServerContext } from "../../App";
 import config from "../../../config";
 import { hashMediaFile, getVideoDuration } from "../../utils/mediaUtils";
+import { LanguageContext } from "../../contexts/LanguageProvider";
 
 const isValidUrl = (url) => {
     try {
@@ -69,6 +75,7 @@ function VideoInput({ url, setUrl, setVideoInformation }) {
     const [showVideoSelector, setShowVideoSelector] = useState(false);
     const { serverUrl } = useContext(ServerContext);
     const [uploadProgress, setUploadProgress] = useState(0);
+    const { direction } = useContext(LanguageContext);
 
     // Function to handle file upload and post it to the API
     const handleFileUpload = async (event) => {
@@ -286,7 +293,12 @@ function VideoInput({ url, setUrl, setVideoInformation }) {
                             className="lb-primary flex gap-1 ps-4 pe-3 items-center"
                             onClick={handleUrlValidation}
                         >
-                            {t("Next")} <ArrowRightIcon className="w-4 h-4" />
+                            {t("Next")}{" "}
+                            {direction === "rtl" ? (
+                                <ArrowLeftIcon className="w-4 h-4" />
+                            ) : (
+                                <ArrowRightIcon className="w-4 h-4" />
+                            )}
                         </button>
                     </div>
 

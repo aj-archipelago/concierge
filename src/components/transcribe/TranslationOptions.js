@@ -94,14 +94,12 @@ function TranslationOptions({
     );
 
     const setFinalData = (finalData) => {
-        console.log(
-            "finalData selectedTranscript",
-            finalData,
-            selectedTranscript,
-        );
         onAdd({
             text: finalData,
-            name: `${selectedTranscript?.name}: ${transcriptionTranslationLanguage} Translation`,
+            name: t("{{name}}: {{language}} Translation", {
+                name: selectedTranscript?.name,
+                language: transcriptionTranslationLanguage,
+            }),
             format: selectedTranscript?.format,
         });
         setRequestId(null);
@@ -115,7 +113,6 @@ function TranslationOptions({
                     <Select
                         value={selectedTranscript?.name || ""}
                         onValueChange={(value) => {
-                            console.log("value", value);
                             setSelectedTranscript(transcripts[parseInt(value)]);
                         }}
                     >
@@ -170,23 +167,29 @@ function TranslationOptions({
                         }
                         value={transcriptionTranslationLanguage}
                     >
-                        <option>{t("Arabic")}</option>
-                        <option>{t("English (UK)")}</option>
-                        <option>{t("English (US)")}</option>
-                        <option>{t("French")}</option>
-                        <option>{t("Spanish")}</option>
-                        <option>{t("German")}</option>
-                        <option>{t("Hebrew")}</option>
-                        <option>{t("Italian")}</option>
-                        <option>{t("Portuguese")}</option>
-                        <option>{t("Chinese")}</option>
-                        <option>{t("Japanese")}</option>
-                        <option>{t("Korean")}</option>
-                        <option>{t("Bosnian")}</option>
-                        <option>{t("Croatian")}</option>
-                        <option>{t("Serbian")}</option>
-                        <option>{t("Russian")}</option>
-                        <option>{t("Turkish")}</option>
+                        <option value={t("Arabic")}>{t("Arabic")}</option>
+                        <option value={t("English (UK)")}>
+                            {t("English (UK)")}
+                        </option>
+                        <option value={t("English (US)")}>
+                            {t("English (US)")}
+                        </option>
+                        <option value={t("French")}>{t("French")}</option>
+                        <option value={t("Spanish")}>{t("Spanish")}</option>
+                        <option value={t("German")}>{t("German")}</option>
+                        <option value={t("Hebrew")}>{t("Hebrew")}</option>
+                        <option value={t("Italian")}>{t("Italian")}</option>
+                        <option value={t("Portuguese")}>
+                            {t("Portuguese")}
+                        </option>
+                        <option value={t("Chinese")}>{t("Chinese")}</option>
+                        <option value={t("Japanese")}>{t("Japanese")}</option>
+                        <option value={t("Korean")}>{t("Korean")}</option>
+                        <option value={t("Bosnian")}>{t("Bosnian")}</option>
+                        <option value={t("Croatian")}>{t("Croatian")}</option>
+                        <option value={t("Serbian")}>{t("Serbian")}</option>
+                        <option value={t("Russian")}>{t("Russian")}</option>
+                        <option value={t("Turkish")}>{t("Turkish")}</option>
                     </select>
                 </div>
             </div>

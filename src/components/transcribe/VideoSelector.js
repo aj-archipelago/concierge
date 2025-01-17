@@ -43,7 +43,7 @@ const VideoSelector = ({ url, onSelect }) => {
         <div className="mb-4 min-h-[300px]">
             <div className="mb-1">
                 <label htmlFor="url-input" className="font-semibold">
-                    Search by video URL or title
+                    {t("Search by video URL or title")}
                 </label>
             </div>
             <div className="flex gap-2">
@@ -68,10 +68,10 @@ const VideoSelector = ({ url, onSelect }) => {
                         className="lb-primary flex items-center gap-2"
                         loading={isLoading}
                         disabled={isLoading || !searchInput}
-                        text={isLoading ? "Searching..." : "Search"}
+                        text={isLoading ? t("Searching...") : t("Search")}
                     >
                         <SearchIcon className="w-4 h-4" />
-                        {isLoading ? "Searching..." : "Search"}
+                        {isLoading ? t("Searching...") : t("Search")}
                     </LoadingButton>
                 </div>
             </div>
@@ -83,7 +83,9 @@ const VideoSelector = ({ url, onSelect }) => {
             ) : data?.results?.length > 0 ? (
                 <div className="bg-gray-100 p-4 rounded-sm text-md mt-4 max-h-[350px] overflow-auto">
                     <h6 className="font-bold mb-2">
-                        Found {data.results.length} potential matches:
+                        {t("Found {{count}} potential matches:", {
+                            count: data.results.length,
+                        })}
                     </h6>
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                         {data.results.map((result, index) => (
@@ -95,7 +97,7 @@ const VideoSelector = ({ url, onSelect }) => {
                                     {result.name}
                                 </p>
                                 <p className="text-gray-500 text-sm mb-2">
-                                    Match confidence:{" "}
+                                    {t("Match confidence:")}{" "}
                                     {Math.round(result.similarity * 100)}%
                                 </p>
                                 <video
@@ -106,7 +108,7 @@ const VideoSelector = ({ url, onSelect }) => {
                                 <div className="flex justify-center gap-2 text-xs">
                                     <button
                                         className="lb-success"
-                                        onClick={() =>
+                                        onClick={() => {
                                             onSelect({
                                                 videoUrl: ensureHttps(
                                                     result.videoUrl,
@@ -114,11 +116,11 @@ const VideoSelector = ({ url, onSelect }) => {
                                                 transcriptionUrl: ensureHttps(
                                                     result.url,
                                                 ),
-                                            })
-                                        }
+                                            });
+                                        }}
                                     >
                                         <CheckIcon className="w-4 h-4" />
-                                        Use this video
+                                        {t("Use this video")}
                                     </button>
                                 </div>
                             </div>

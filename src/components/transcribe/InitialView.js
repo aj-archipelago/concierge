@@ -8,10 +8,11 @@ import {
     DialogTitle,
 } from "@/components/ui/dialog";
 import { TextIcon, VideoIcon } from "lucide-react";
-import { useState } from "react";
+import { useContext, useState } from "react";
 import { useTranslation } from "react-i18next";
 import AddTrackDialog from "./AddTrackDialog";
 import VideoInput from "./VideoInput";
+import { LanguageContext } from "../../contexts/LanguageProvider";
 
 export default function InitialView({
     setAddTrackDialogOpen,
@@ -28,16 +29,17 @@ export default function InitialView({
 }) {
     const { t } = useTranslation();
     const [showVideoInput, setShowVideoInput] = useState(false);
+    const { direction } = useContext(LanguageContext);
 
     return (
         <>
             <h1 className="text-2xl font-bold">
-                Transcription and translation
+                {t("Transcription and translation")}
             </h1>
             <p className="text-sm text-gray-500">
-                Transcribe and translate video and audio files.
+                {t("Transcribe and translate video and audio files.")}
             </p>
-            <h3>How would you like to start?</h3>
+            <h3>{t("How would you like to start?")}</h3>
             <div className="flex gap-4 mt-4">
                 <button
                     onClick={() => setShowVideoInput(true)}
@@ -47,7 +49,7 @@ export default function InitialView({
                         <div className="flex justify-center">
                             <VideoIcon className="w-12 h-12" />
                         </div>
-                        I have a video or audio file
+                        {t("I have a video or audio file")}
                     </div>
                 </button>
                 <button
@@ -61,7 +63,7 @@ export default function InitialView({
                         <div className="flex justify-center">
                             <TextIcon className="w-12 h-12" />
                         </div>
-                        I have a transcript or subtitles
+                        {t("I have a transcript or subtitles")}
                     </div>
                 </button>
             </div>
@@ -81,8 +83,9 @@ export default function InitialView({
                     <DialogHeader>
                         <DialogTitle>{t("Enter video or audio")}</DialogTitle>
                         <DialogDescription>
-                            You can either enter a URL or upload a video or
-                            audio file.
+                            {t(
+                                "You can either enter a URL or upload a video or audio file.",
+                            )}
                         </DialogDescription>
                     </DialogHeader>
                     <VideoInput

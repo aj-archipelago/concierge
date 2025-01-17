@@ -48,6 +48,7 @@ import TaxonomySelector from "./TaxonomySelector";
 import { AddTrackButton } from "./TranscriptionOptions";
 import TranscriptView from "./TranscriptView";
 import VideoInput from "./VideoInput";
+import { LanguageContext } from "../../contexts/LanguageProvider";
 
 const isValidUrl = (url) => {
     try {
@@ -327,8 +328,8 @@ function EditableTranscriptSelect({
                                                 >
                                                     {transcripts[index]
                                                         .format === "vtt"
-                                                        ? "Subtitles"
-                                                        : "Transcript"}
+                                                        ? t("Subtitles")
+                                                        : t("Transcript")}
                                                 </span>
                                             </div>
 
@@ -512,6 +513,7 @@ function VideoPage() {
     const [activeLanguage, setActiveLanguage] = useState(0);
     const [copied, setCopied] = useState(false);
     const [vttUrl, setVttUrl] = useState(null);
+    const { language } = useContext(LanguageContext);
 
     // Handle VTT URL creation and cleanup
     useEffect(() => {
@@ -612,7 +614,7 @@ function VideoPage() {
             const initialLanguages = [
                 {
                     code: "original",
-                    label: "Original",
+                    label: t("Original"),
                     url: videoInformation.videoUrl,
                 },
             ];
@@ -900,12 +902,12 @@ function VideoPage() {
                                     <DialogContent className="max-w-3xl">
                                         <DialogHeader>
                                             <DialogTitle>
-                                                Add Video Language
+                                                {t("Add Video Language")}
                                             </DialogTitle>
                                             <DialogDescription>
-                                                Translate this video into
-                                                another language using Azure's
-                                                video translation service.
+                                                {t(
+                                                    "Translate this video into another language using Azure's video translation service.",
+                                                )}
                                             </DialogDescription>
                                         </DialogHeader>
                                         <AzureVideoTranslate
@@ -947,7 +949,7 @@ function VideoPage() {
                                                         {
                                                             code: targetLocale,
                                                             label: new Intl.DisplayNames(
-                                                                ["en"],
+                                                                [language],
                                                                 {
                                                                     type: "language",
                                                                 },
@@ -961,7 +963,9 @@ function VideoPage() {
                                                         transcripts.some(
                                                             (t) =>
                                                                 t.name ===
-                                                                "Subtitles (auto)",
+                                                                t(
+                                                                    "Subtitles (auto)",
+                                                                ),
                                                         );
 
                                                     // Collect new transcripts
@@ -969,21 +973,31 @@ function VideoPage() {
                                                         !autoSubtitlesExist
                                                             ? await addVtt(
                                                                   originalVttUrl,
-                                                                  "Subtitles (auto)",
+                                                                  t(
+                                                                      "Subtitles (auto)",
+                                                                  ),
                                                               )
                                                             : null;
 
                                                     const translatedTranscript =
                                                         await addVtt(
                                                             translatedVttUrl,
-                                                            `Subtitles (auto): ${new Intl.DisplayNames(
-                                                                ["en"],
+                                                            t(
+                                                                "Subtitles (auto): {{language}}",
                                                                 {
-                                                                    type: "language",
+                                                                    language:
+                                                                        new Intl.DisplayNames(
+                                                                            [
+                                                                                language,
+                                                                            ],
+                                                                            {
+                                                                                type: "language",
+                                                                            },
+                                                                        ).of(
+                                                                            targetLocale,
+                                                                        ),
                                                                 },
-                                                            ).of(
-                                                                targetLocale,
-                                                            )}`,
+                                                            ),
                                                         );
 
                                                     // Create final transcript array

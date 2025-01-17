@@ -8,12 +8,9 @@ import React, {
 import { toast } from "react-toastify";
 import { useSubscription } from "@apollo/client";
 import { SUBSCRIPTIONS } from "../graphql";
+import { useTranslation } from "react-i18next";
 
 const TIMEOUT_DURATION = 5 * 60 * 1000; // time out if no progress update received for 5 minutes
-const ERROR_MESSAGES = {
-    timeout: "The operation timed out. Please try again.",
-    generic: "An error occurred. Please try again.",
-};
 
 const ProgressContext = createContext(undefined);
 
@@ -31,6 +28,12 @@ function ProgressToast({
     const subscriptionRef = useRef();
     const [isCancelled, setIsCancelled] = useState(false);
     const onCompleteCalledRef = useRef(false);
+    const { t } = useTranslation();
+
+    const ERROR_MESSAGES = {
+        timeout: t("The operation timed out. Please try again."),
+        generic: t("An error occurred. Please try again."),
+    };
 
     const resetTimeout = React.useCallback(() => {
         if (timeoutRef.current) {
@@ -149,7 +152,9 @@ function ProgressToast({
     ]);
 
     const handleCancel = () => {
-        if (window.confirm("Are you sure you want to cancel this operation?")) {
+        if (
+            window.confirm(t("Are you sure you want to cancel this operation?"))
+        ) {
             setIsCancelled(true);
             if (subscriptionRef.current) {
                 subscriptionRef.current();
@@ -157,8 +162,8 @@ function ProgressToast({
             if (timeoutRef.current) {
                 clearTimeout(timeoutRef.current);
             }
-            onError?.(new Error("Operation cancelled"));
-            setErrorMessage("Operation cancelled");
+            onError?.(new Error(t("Operation cancelled")));
+            setErrorMessage(t("Operation cancelled"));
             activeToasts?.delete(requestId);
             toast.update(requestId, { closeButton: true });
         }
@@ -182,7 +187,7 @@ function ProgressToast({
                     {progress === 100 && (
                         <div className="flex justify-end">
                             <div className="text-sm text-green-700">
-                                Complete
+                                {t("Complete")}
                             </div>
                         </div>
                     )}
@@ -197,7 +202,7 @@ function ProgressToast({
                                 onClick={handleCancel}
                                 className="text-sm text-red-600 hover:text-red-800"
                             >
-                                Cancel
+                                {t("Cancel")}
                             </button>
                         </div>
                     )}
