@@ -106,7 +106,6 @@ function RemoteUrlInputUI({
 }
 
 const DOC_EXTENSIONS = [
-    ".txt",
     ".json",
     ".csv",
     ".md",
@@ -128,6 +127,7 @@ const IMAGE_EXTENSIONS = [
     ".heic",
     ".heif",
     ".pdf",
+    ".txt",
 ];
 
 const VIDEO_EXTENSIONS = [
@@ -191,7 +191,9 @@ function isImageUrl(url) {
     const mimeType = mime.contentType(urlExt);
     return (
         IMAGE_EXTENSIONS.includes(urlExt) &&
-        (mimeType.startsWith("image/") || mimeType === "application/pdf")
+        (mimeType.startsWith("image/") ||
+            mimeType === "application/pdf" ||
+            mimeType.startsWith("text/plain"))
     );
 }
 
@@ -237,6 +239,8 @@ const MEDIA_MIME_TYPES = [
     "audio/flac",
     // PDF
     "application/pdf",
+    // Text
+    "text/plain",
 ];
 
 const ACCEPTED_FILE_TYPES = [...DOC_MIME_TYPES, ...MEDIA_MIME_TYPES];
@@ -613,7 +617,6 @@ function MyFilePond({ addUrl, files, setFiles, setIsUploadingMedia }) {
                                                 return;
                                             }
                                         }
-
                                         load(responseData);
                                         addUrl(responseData);
                                         setIsUploadingMedia(false);

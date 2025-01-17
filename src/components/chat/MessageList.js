@@ -1,7 +1,7 @@
 import i18next from "i18next";
 import React, { useEffect, useContext, useCallback } from "react";
 import { useTranslation } from "react-i18next";
-import { AiFillFilePdf, AiOutlineRobot } from "react-icons/ai";
+import { AiFillFilePdf, AiFillFileText, AiOutlineRobot } from "react-icons/ai";
 import { FaUserCircle } from "react-icons/fa";
 import classNames from "../../../app/utils/class-names";
 import config from "../../../config";
@@ -382,6 +382,33 @@ function MessageList({ messages, bot, loading, chatId }) {
                                                 rel="noopener noreferrer"
                                             >
                                                 <AiFillFilePdf
+                                                    size={40}
+                                                    className="text-red-600 dark:text-red-400"
+                                                />
+                                                {filename}
+                                            </a>
+                                        );
+                                    }
+
+                                    if (getExtension(src) === ".txt") {
+                                        const filename = decodeURIComponent(
+                                            getFilename(src),
+                                        );
+
+                                        return (
+                                            <a
+                                                key={`txt-${index}-${index2}`}
+                                                className="bg-neutral-100 py-2 ps-2 pe-4 m-2 shadow-md rounded-lg border flex gap-2 items-center"
+                                                onLoad={() => {
+                                                    handleMessageLoad(
+                                                        newMessage.id,
+                                                    );
+                                                }}
+                                                href={src}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                            >
+                                                <AiFillFileText
                                                     size={40}
                                                     className="text-red-600 dark:text-red-400"
                                                 />
