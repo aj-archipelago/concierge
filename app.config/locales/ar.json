@@ -332,6 +332,7 @@
     "Make this chat public?": "هل تريد جعل هذه الدردشة عامة؟",
     "Chat made public. Share URL copied to clipboard!": "تم جعل الدردشة عامة. تم نسخ عنوان URL للمشاركة إلى الحافظة!",
     "An error was received from the API server:": "تم استلام خطأ من خادم API:",
+    "This YouTube channel is not supported. If you're using a YouTube URL, it should be from an Al Jazeera channel. Otherwise, please use a direct URL to a video file (e.g. mp4, webm, etc.)": "هذا القناة يوتيوب غير مدعومة. إذا كنت تستخدم رابط يوتيوب، يجب أن يكون من قناة الجزيرة. وبخلاف ذلك، يرجى استخدام رابط مباشر إلى ملف فيديو (على سبيل المثال، mp4، webm، إلخ).",
     "Suggestion": "اقتراح",
     "Revision": "مراجعة",
     "Remove content": "إزالة المحتوى",

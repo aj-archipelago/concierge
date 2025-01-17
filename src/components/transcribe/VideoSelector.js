@@ -3,11 +3,13 @@ import { CheckIcon, SearchIcon } from "lucide-react";
 import { useState, useEffect } from "react";
 import config from "../../../config";
 import LoadingButton from "../editor/LoadingButton";
+import { useTranslation } from "react-i18next";
 
 const VideoSelector = ({ url, onSelect }) => {
     const [debouncedUrl, setDebouncedUrl] = useState(url);
     const [searchInput, setSearchInput] = useState(url);
     const fetchUrlSource = config?.transcribe?.fetchUrlSource;
+    const { t } = useTranslation();
 
     const handleSearch = () => {
         setDebouncedUrl(searchInput);
@@ -76,7 +78,7 @@ const VideoSelector = ({ url, onSelect }) => {
 
             {isLoading ? null : error ? (
                 <p className="mt-4">
-                    Error: {error.message || JSON.stringify(error)}
+                    Error: {t(error.message) || JSON.stringify(error)}
                 </p>
             ) : data?.results?.length > 0 ? (
                 <div className="bg-gray-100 p-4 rounded-sm text-md mt-4 max-h-[350px] overflow-auto">

@@ -7,6 +7,21 @@ export const fetchUrlSource = async (url) => {
     const response = await fetch(
         `/api/urlsource?url=${encodeURIComponent(url)}`,
     );
-    if (!response.ok) throw new Error("Network response was not ok");
+    if (!response.ok) {
+        const data = await response.json();
+        throw new Error(
+            formatErrorMessage(data.error) || "Network response was not ok",
+        );
+    }
     return response.json();
+};
+
+const formatErrorMessage = (error) => {
+    const errorMessages = {
+        "Unsupported YouTube channel":
+            "This YouTube channel is not supported. If you're using a YouTube URL, it should be from an Al Jazeera channel. Otherwise, please use a direct URL to a video file (e.g. mp4, webm, etc.)",
+        // Add more error mappings as needed
+    };
+
+    return errorMessages[error] || error;
 };
