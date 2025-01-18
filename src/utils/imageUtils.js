@@ -63,7 +63,6 @@ const MEDIA_HELPER_TIMEOUT_MS = 5000; // 5 seconds timeout
  */
 async function processImageUrls(message, serverUrl) {
     if (typeof message !== "string" || !isMediaHelperConfigured()) {
-        console.log("No media helper configured or message is not a string");
         return message;
     }
 
@@ -94,7 +93,11 @@ async function processImageUrls(message, serverUrl) {
     for (const { url, description, fullMatch } of matches) {
         if (isImageUrl(url)) {
             try {
-                const mediaHelperUrl = `${getMediaHelperUrl(serverUrl)}?fetch=${encodeURIComponent(url)}`;
+                // Create URL object from base media helper URL
+                const baseUrl = new URL(getMediaHelperUrl(serverUrl));
+                // Add fetch parameter to existing parameters
+                baseUrl.searchParams.append("fetch", url);
+                const mediaHelperUrl = baseUrl.toString();
 
                 // Create an AbortController for the timeout
                 const controller = new AbortController();
@@ -104,7 +107,6 @@ async function processImageUrls(message, serverUrl) {
                 );
 
                 try {
-                    console.log("Fetching from media helper:", mediaHelperUrl);
                     const uploadResponse = await fetch(mediaHelperUrl, {
                         signal: controller.signal,
                     });
