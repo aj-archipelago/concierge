@@ -47,35 +47,38 @@ function ImagesPage() {
             };
 
             setLoading(true);
-            const { data } = await apolloClient.query({
-                query: QUERIES.IMAGE_FLUX,
-                variables,
-                fetchPolicy: "network-only",
-            });
-            setLoading(false);
+            try {
+                const { data } = await apolloClient.query({
+                    query: QUERIES.IMAGE_FLUX,
+                    variables,
+                    fetchPolicy: "network-only",
+                });
+                setLoading(false);
 
-            if (data?.image_flux?.result) {
-                const requestId = data?.image_flux?.result;
+                if (data?.image_flux?.result) {
+                    const requestId = data?.image_flux?.result;
 
-                // if already in images, ignore
-                if (images.find((img) => img.cortexRequestId === requestId)) {
+                    setImages((prevImages) => {
+                        const filteredImages = prevImages.filter(img => img.cortexRequestId !== requestId);
+                        const newImage = {
+                            cortexRequestId: requestId,
+                            prompt: prompt,
+                            created: Math.floor(Date.now() / 1000),
+                        };
+                        const updatedImages = [newImage, ...filteredImages];
+                        // Update localStorage with the new images array
+                        localStorage.setItem("generated-images", JSON.stringify(updatedImages));
+                        return updatedImages;
+                    });
+
                     return data;
                 }
-
-                setImages((images) => {
-                    const newImages = [...images];
-                    newImages.unshift({
-                        cortexRequestId: requestId,
-                        prompt: prompt,
-                        created: Math.floor(Date.now() / 1000),
-                    });
-                    return newImages;
-                });
+            } catch (error) {
+                setLoading(false);
+                console.error("Error generating image:", error);
             }
-
-            return data;
         },
-        [apolloClient, images, quality],
+        [apolloClient, quality],
     );
 
     images.sort((a, b) => {
@@ -129,34 +132,16 @@ function ImagesPage() {
                         }
                     }}
                     onRegenerate={async () => {
-                        // Generate new image
-                        const result = await generateImage(image.prompt);
-                        if (result?.image_flux?.result) {
-                            // Remove the old image and update its request ID
-                            const newImages = images.map((img) => {
-                                if (
-                                    img.cortexRequestId ===
-                                    image.cortexRequestId
-                                ) {
-                                    return {
-                                        ...img,
-                                        cortexRequestId:
-                                            result.image_flux.result,
-                                        url: undefined, // Clear the old URL
-                                        expires: undefined, // Clear the expiration
-                                    };
-                                }
-                                return img;
-                            });
-                            setImages(newImages);
-                            localStorage.setItem(
-                                "generated-images",
-                                JSON.stringify(newImages),
+                        // Remove the old image first
+                        setImages((prevImages) => {
+                            const newImages = prevImages.filter(
+                                (img) => img.cortexRequestId !== image.cortexRequestId
                             );
-                        }
-
-                        // scroll to top
-                        window.scrollTo(0, 0);
+                            localStorage.setItem("generated-images", JSON.stringify(newImages));
+                            return newImages;
+                        });
+                        // Generate new image with the same prompt
+                        await generateImage(image.prompt);
                     }}
                     onGenerationComplete={(requestId, data) => {
                         const newImages = [...images];
@@ -504,7 +489,7 @@ function ImageTile({
 
     function OtherError() {
         return (
-            <div className="text-center">
+            <div className="text-center flex flex-col items-center justify-center h-full">
                 <div>{`${t("Image Error: ")} ${message}`}</div>
                 <div className="mt-4">
                     <button
@@ -523,11 +508,11 @@ function ImageTile({
 
     function ExpiredImageComponent() {
         return (
-            <div>
+            <div className="flex flex-col items-center justify-center h-full">
                 <div className="mb-4 text-center">
                     {t("Image expired or not available.")}
                 </div>
-                <div className="flex justify-center">
+                <div>
                     <button
                         className="lb-primary"
                         onClick={(e) => {
@@ -544,8 +529,8 @@ function ImageTile({
 
     function NoImageError() {
         return (
-            <div className="text-center">
-                <div>
+            <div className="flex flex-col items-center justify-center h-full">
+                <div className="text-center">
                     {t("Generation completed but no image was produced.")}
                 </div>
                 <div className="mt-4">
