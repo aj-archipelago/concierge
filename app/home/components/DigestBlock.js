@@ -75,25 +75,28 @@ export default function DigestBlock({ block, contentClassName }) {
                     )}
                     {block.updatedAt && (
                         <div>
-                            <div className="text-xs flex items-center gap-2 rounded-full px-3 py-2 border bg-gray-50 whitespace-nowrap">
+                            <div 
+                                className={classNames(
+                                    "text-xs flex items-center gap-2 rounded-full px-3 py-2 border bg-gray-50 whitespace-nowrap",
+                                    !block.state?.progress && "cursor-pointer hover:bg-gray-100"
+                                )}
+                                onClick={() => {
+                                    if (!block.state?.progress) {
+                                        regenerateDigestBlock.mutate({
+                                            blockId: block._id,
+                                        });
+                                    }
+                                }}
+                            >
                                 {block.updatedAt && !block.state?.progress && (
-                                    <button
-                                        className="shrink-0"
-                                        onClick={() => {
-                                            regenerateDigestBlock.mutate({
-                                                blockId: block._id,
-                                            });
-                                        }}
-                                    >
-                                        <RefreshCw
-                                            className={classNames(
-                                                "text-gray-600 hover:text-gray-800",
-                                                isRebuilding ? "animate-spin" : "",
-                                                "inline-block",
-                                            )}
-                                            size={14}
-                                        />
-                                    </button>
+                                    <RefreshCw
+                                        className={classNames(
+                                            "text-gray-600 hover:text-gray-800 shrink-0",
+                                            isRebuilding ? "animate-spin" : "",
+                                            "inline-block",
+                                        )}
+                                        size={14}
+                                    />
                                 )}
                                 <div className="flex items-center justify-center gap-1 min-w-0">
                                     {isRebuilding ? (
