@@ -21,6 +21,7 @@ const getMediaHelperUrl = (serverUrl) => {
 // Skip image processing if no media helper is configured
 const isMediaHelperConfigured = () => {
     try {
+        console.log("isMediaHelperConfigured", process.env.CORTEX_MEDIA_API_URL);
         return (
             process.env.CORTEX_MEDIA_API_URL ||
             (getConfig()?.endpoints?.mediaHelper &&
