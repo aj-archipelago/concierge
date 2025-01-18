@@ -21,7 +21,6 @@ const getMediaHelperUrl = (serverUrl) => {
 // Skip image processing if no media helper is configured
 const isMediaHelperConfigured = () => {
     try {
-        console.log("isMediaHelperConfigured", process.env.CORTEX_MEDIA_API_URL);
         return (
             process.env.CORTEX_MEDIA_API_URL ||
             (getConfig()?.endpoints?.mediaHelper &&
@@ -64,6 +63,7 @@ const MEDIA_HELPER_TIMEOUT_MS = 5000; // 5 seconds timeout
  */
 async function processImageUrls(message, serverUrl) {
     if (typeof message !== "string" || !isMediaHelperConfigured()) {
+        console.log("No media helper configured or message is not a string");
         return message;
     }
 
@@ -104,6 +104,7 @@ async function processImageUrls(message, serverUrl) {
                 );
 
                 try {
+                    console.log("Fetching from media helper:", mediaHelperUrl);
                     const uploadResponse = await fetch(mediaHelperUrl, {
                         signal: controller.signal,
                     });
