@@ -59,7 +59,9 @@ function ImagesPage() {
                     const requestId = data?.image_flux?.result;
 
                     setImages((prevImages) => {
-                        const filteredImages = prevImages.filter(img => img.cortexRequestId !== requestId);
+                        const filteredImages = prevImages.filter(
+                            (img) => img.cortexRequestId !== requestId,
+                        );
                         const newImage = {
                             cortexRequestId: requestId,
                             prompt: prompt,
@@ -67,7 +69,10 @@ function ImagesPage() {
                         };
                         const updatedImages = [newImage, ...filteredImages];
                         // Update localStorage with the new images array
-                        localStorage.setItem("generated-images", JSON.stringify(updatedImages));
+                        localStorage.setItem(
+                            "generated-images",
+                            JSON.stringify(updatedImages),
+                        );
                         return updatedImages;
                     });
 
@@ -135,9 +140,14 @@ function ImagesPage() {
                         // Remove the old image first
                         setImages((prevImages) => {
                             const newImages = prevImages.filter(
-                                (img) => img.cortexRequestId !== image.cortexRequestId
+                                (img) =>
+                                    img.cortexRequestId !==
+                                    image.cortexRequestId,
                             );
-                            localStorage.setItem("generated-images", JSON.stringify(newImages));
+                            localStorage.setItem(
+                                "generated-images",
+                                JSON.stringify(newImages),
+                            );
                             return newImages;
                         });
                         // Generate new image with the same prompt
