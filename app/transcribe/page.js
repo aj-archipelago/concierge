@@ -1,5 +1,5 @@
-import TranscribePage from "../../src/components/transcribe/TranscribePage";
+import { redirect } from "next/navigation";
 
 export default function write() {
-    return <TranscribePage></TranscribePage>;
+    redirect("/video");
 }

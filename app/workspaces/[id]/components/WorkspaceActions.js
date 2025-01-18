@@ -30,16 +30,14 @@ import {
     usePublishWorkspace,
     useWorkspace,
 } from "../../../queries/workspaces";
-import LLMSelector from "../../components/LLMSelector";
 import Loader from "../../../components/loader";
-import { useLLM, useLLMs } from "../../../queries/llms";
+import { useLLMs } from "../../../queries/llms";
 import { usePromptsByIds } from "../../../queries/prompts";
 
 export default function WorkspaceActions({ idOrSlug, user }) {
     const router = useRouter();
     const { data: workspace, isLoading } = useWorkspace(idOrSlug);
     const { direction } = useContext(LanguageContext);
-    const { t } = useTranslation();
 
     if (isLoading) return null;
 
@@ -181,7 +179,7 @@ function Name({ workspace, user }) {
                         </div>
                         <input
                             type="text"
-                            className="border-0 ring-1 text-xs sm:text-sm bg-gray-50 p-0 text-sm "
+                            className="border-0 ring-1 text-xs sm:text-sm bg-gray-50 p-0"
                             value={slug}
                             onChange={(e) => {
                                 setSlug(e.target.value);
@@ -292,7 +290,6 @@ function Actions({ user, workspace }) {
     const deleteWorkspace = useDeleteWorkspace();
     const { t } = useTranslation();
     const [publishModalOpen, setPublishModalOpen] = useState(false);
-    const serverContext = useContext(ServerContext);
 
     const handleDelete = async () => {
         if (

@@ -32,13 +32,14 @@ export default {
                 cortexModelName: "azure-gpt4-omni",
             },
             {
+                name: "GPT 4o Mini",
+                cortexPathwayName: "run_gpt4_o_mini",
+                cortexModelName: "azure-gpt4-omni-mini",
+            },
+            {
                 name: "GPT 4.0",
                 cortexPathwayName: "run_gpt4",
                 cortexModelName: "azure-gpt4",
-            },
-            {
-                name: "GPT 4.0 Mini",
-                cortexPathwayName: "run_gpt4_o_mini",
             },
             {
                 name: "GPT 4.0 32k",
@@ -60,6 +61,16 @@ export default {
                 cortexPathwayName: "run_claude3_opus",
                 cortexModelName: "claude-3-opus-vertex",
             },
+            {
+                name: "o1",
+                cortexPathwayName: "run_o1",
+                cortexModelName: "azure-o1",
+            },
+            {
+                name: "o1 Mini",
+                cortexPathwayName: "run_o1_mini",
+                cortexModelName: "azure-o1-mini",
+            },
         ],
     },
     write: {
@@ -68,9 +79,6 @@ export default {
     chat: {
         botName: "Jarvis",
         dataSources: [],
-    },
-    code: {
-        botName: "Knuth",
     },
     endpoints: {
         mediaHelper: (serverUrl) => `${serverUrl}${basePath}/media-helper`,

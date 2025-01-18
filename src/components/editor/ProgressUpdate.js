@@ -11,6 +11,7 @@ const ProgressUpdate = ({
     setFinalData,
     initialText = "Processing...",
     codeAgent = false,
+    autoDuration = null,
 }) => {
     const { data } = useSubscription(SUBSCRIPTIONS.REQUEST_PROGRESS, {
         variables: { requestIds: [requestId] },
@@ -57,6 +58,29 @@ const ProgressUpdate = ({
         curInfo && setInfo(curInfo);
     }, [data, progress, setFinalData, info]);
 
+    useEffect(() => {
+        if (!autoDuration || data?.requestProgress?.data) return;
+
+        const startTime = Date.now();
+        const intervalId = setInterval(() => {
+            const elapsed = Date.now() - startTime;
+            const calculatedProgress = Math.min(
+                (elapsed / autoDuration) * 100,
+                100,
+            );
+
+            if (calculatedProgress > progressRef.current) {
+                setProgress(calculatedProgress);
+            }
+
+            if (calculatedProgress >= 100) {
+                clearInterval(intervalId);
+            }
+        }, 100);
+
+        return () => clearInterval(intervalId);
+    }, [autoDuration, data?.requestProgress?.data]);
+
     if (data?.requestProgress?.data) {
         return null;
     }
@@ -72,6 +96,9 @@ const ProgressUpdate = ({
             },
             fetchPolicy: "network-only",
         });
+
+        //optimistic update
+        setFinalData("⛔ Tool call cancelled");
     };
 
     return (
@@ -137,8 +164,8 @@ const ProgressUpdate = ({
                             onClick={() => setShowInfo(!showInfo)}
                         >
                             {showInfo
-                                ? "Hide agent info"
-                                : "Show agent info (click to expand)"}
+                                ? "hide info"
+                                : "show info (click to expand)"}
                         </button>
                     </div>
                 )}

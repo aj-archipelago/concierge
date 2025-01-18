@@ -9,22 +9,20 @@ import {
 import { PlusIcon, SettingsIcon, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import ReactMarkdown from "react-markdown";
 import Loader from "../../components/loader";
 import {
     useCurrentUserDigest,
     useUpdateCurrentUserDigest,
 } from "../../queries/digest";
-import { useCurrentUser } from "../../queries/users";
 import classNames from "../../utils/class-names";
 import DigestBlock from "./DigestBlock";
+import { convertMessageToMarkdown } from "../../../src/components/chat/ChatMessage";
 
 export default function DigestBlockList() {
     const { data: digest } = useCurrentUserDigest();
     const updateCurrentUserDigest = useUpdateCurrentUserDigest();
     const [editing, setEditing] = useState(false);
     const { t } = useTranslation();
-    const { data: user } = useCurrentUser();
 
     if (!digest) {
         return <Loader />;
@@ -48,10 +46,10 @@ export default function DigestBlockList() {
 
     return (
         <>
-            <div className="flex justify-between mb-2 gap-8">
+            <div className="flex justify-between items-start mb-2 gap-8">
                 {digest?.greeting && (
-                    <div className="[&_ul]:mb-4 [&_ul]:list-disc [&_ul]:ps-6 [&_ol]:mb-4 [&_ol]:list-decimal [&_ol]:ps-6">
-                        <ReactMarkdown>{digest?.greeting}</ReactMarkdown>
+                    <div>
+                        {convertMessageToMarkdown({ payload: digest.greeting })}
                     </div>
                 )}
                 <DropdownMenu>

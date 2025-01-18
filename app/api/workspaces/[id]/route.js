@@ -1,10 +1,10 @@
+import mongoose from "mongoose";
 import stringcase from "stringcase";
-import Workspace from "../../models/workspace";
+import Workspace, { workspaceSchema } from "../../models/workspace";
+import WorkspaceState from "../../models/workspace-state";
 import { getCurrentUser } from "../../utils/auth";
 import { getWorkspace } from "./db";
-import WorkspaceState from "../../models/workspace-state";
-import { republishWorkspace } from "./publish/utils";
-import { unpublishWorkspace } from "./publish/utils";
+import { republishWorkspace, unpublishWorkspace } from "./publish/utils";
 
 export async function DELETE(req, { params }) {
     const { id } = params;
@@ -62,7 +62,43 @@ export async function PUT(req, { params }) {
 
 export async function GET(req, { params }) {
     const { id } = params;
-    const workspace = await getWorkspace(id);
+    let workspace = await getWorkspace(id);
+
+    if (!workspace) {
+        if (!mongoose.isObjectIdOrHexString(id)) {
+            // The id is not a valid ObjectId, so it could be an old record with
+            // a plaintext slug.
+            //
+            // TEMPORARY CODE - DO NOT REMOVE UNTIL MIGRATION IS COMPLETE
+            // This code handles backwards compatibility for workspaces that still use
+            // unencrypted slugs in production. It attempts to find and migrate old
+            // workspace records that haven't been updated to the new slug format.
+            // This block can be safely removed once all production workspaces
+            // have been migrated to use encrypted slugs. See ARC-2487 for more details.
+            const connection = await mongoose.createConnection(
+                process.env.MONGO_URI,
+            );
+            const LegacyWorkspaceModel = connection.model(
+                "Workspace",
+                workspaceSchema,
+            );
+
+            const legacyWorkspace = await LegacyWorkspaceModel.findOne({
+                slug: id,
+            });
+
+            if (legacyWorkspace) {
+                workspace = await getWorkspace(legacyWorkspace._id);
+
+                // migrate to new slug using the new model
+                await Workspace.findByIdAndUpdate(legacyWorkspace._id, {
+                    $set: {
+                        slug: workspace.slug,
+                    },
+                });
+            }
+        }
+    }
 
     if (!workspace) {
         return Response.json({ error: "Workspace not found" }, { status: 404 });

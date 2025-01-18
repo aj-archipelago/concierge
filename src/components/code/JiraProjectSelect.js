@@ -69,13 +69,14 @@ export default function JiraProjectSelect({ token, value, onChange }) {
                     }
                 });
         }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [token]);
 
     if (!token) {
         return (
             <div className="mb-4 text-sm italic text-gray-500">
                 {t(
-                    "To create this issue in JIRA, please connect Labeeb to your JIRA account.",
+                    "To create this issue in Jira, please connect Labeeb to your Jira account.",
                 )}
             </div>
         );
@@ -197,6 +198,7 @@ function IssueTypes({ value, onChange, projectKey, token, siteId }) {
                 setLoading(false);
                 setError(error);
             });
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [siteId, projectKey, token]);
 
     if (error) {

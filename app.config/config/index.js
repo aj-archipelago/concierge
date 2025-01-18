@@ -70,9 +70,6 @@ export default {
             },
         ],
     },
-    code: {
-        botName: "Knuth",
-    },
     transcribe: {
         fetchUrlSource,
     },

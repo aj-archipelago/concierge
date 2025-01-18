@@ -6,6 +6,14 @@ const userStateSchema = new mongoose.Schema(
             type: mongoose.Schema.Types.ObjectId,
             ref: "User",
         },
+        serializedState: {
+            type: String,
+        },
+
+        // old state model. All fields are now in serializedState.
+        // These fields are deprecated, but cannot be removed until
+        // all users have been migrated to the new model (to have them
+        // work with mongoose).
         write: {
             headline: {
                 type: String,
@@ -32,33 +40,49 @@ const userStateSchema = new mongoose.Schema(
             },
         },
         transcribe: {
-            url: {
-                type: String,
-            },
-            outputFormat: {
-                type: String,
-            },
-            transcriptionType: {
-                type: String,
-            },
-            language: {
-                type: String,
-            },
-            maxLineWidth: {
-                type: Number,
-            },
-            maxLineCount: {
-                type: Number,
-            },
-            model: {
-                type: String,
-            },
-            wordTimestamped: {
-                type: Boolean,
-            },
-            textFormatted: {
-                type: Boolean,
-            },
+            // encrypted fields are stored as strings
+            type: String,
+            // url: {
+            //     type: String,
+            // },
+            // videoInformation: {
+            //     videoUrl: {
+            //         type: String,
+            //     },
+            //     transcriptionUrl: {
+            //         type: String,
+            //     },
+            //     videoLanguages: {
+            //         type: Array,
+            //     },
+            // },
+            // transcripts: {
+            //     type: Array,
+            // },
+            // outputFormat: {
+            //     type: String,
+            // },
+            // transcriptionType: {
+            //     type: String,
+            // },
+            // language: {
+            //     type: String,
+            // },
+            // maxLineWidth: {
+            //     type: Number,
+            // },
+            // maxLineCount: {
+            //     type: Number,
+            // },
+            // model: {
+            //     type: String,
+            // },
+            // wordTimestamped: {
+            //     type: Boolean,
+            // },
+            // textFormatted: {
+            //     type: Boolean,
+            // },
         },
         jira: {
             input: {

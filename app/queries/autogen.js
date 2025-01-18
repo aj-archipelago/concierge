@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import axios from "../utils/axios-client";
 
 export function useGetAutogenRun(codeRequestId) {
@@ -15,5 +15,21 @@ export function useGetAutogenRun(codeRequestId) {
         enabled: !!codeRequestId,
         refetchInterval: (data) => (data?.data ? false : 30000),
         refetchIntervalInBackground: true,
+    });
+}
+
+export function useDeleteAutogenRun() {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: async (codeRequestId) => {
+            console.log("Deleting autogen run", codeRequestId);
+            const { data } = await axios.delete(
+                `/api/autogen?codeRequestId=${codeRequestId}`,
+            );
+            return data;
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries("autogenRun");
+        },
     });
 }

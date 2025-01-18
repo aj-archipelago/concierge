@@ -25,7 +25,7 @@ const LoadingButton = ({
         if (loading) {
             return (
                 <>
-                    <Loader size="small" className="text-current" />
+                    <Loader size="small" className="text-current" delay={0} />
                     {text && <span>{text}</span>}
                 </>
             );

@@ -2,13 +2,12 @@ import {
     ChatBubbleLeftIcon,
     CodeBracketIcon,
     GlobeAltIcon,
-    MicrophoneIcon,
     NewspaperIcon,
     PencilSquareIcon,
     PhotoIcon,
     PlusIcon,
 } from "@heroicons/react/24/outline";
-import { HelpCircle } from "lucide-react";
+import { HelpCircle, VideoIcon } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import React, { useContext, useState } from "react";
@@ -34,19 +33,11 @@ const navigation = [
     },
     { name: "Chat", icon: ChatBubbleLeftIcon, href: "/chat", children: [] },
     { name: "Translate", icon: GlobeAltIcon, href: "/translate" },
-    { name: "Transcribe", icon: MicrophoneIcon, href: "/transcribe" },
+    { name: "Video", icon: VideoIcon, href: "/video" },
     { name: "Write", icon: PencilSquareIcon, href: "/write" },
     { name: "Workspaces", icon: MdOutlineWorkspaces, href: "/workspaces" },
     { name: "Images", icon: PhotoIcon, href: "/images" },
-    {
-        name: "Code",
-        icon: CodeBracketIcon,
-        href: "/code",
-        children: [
-            { name: "Knuth", href: "/code/knuth" },
-            { name: "JIRA", href: "/code/jira" },
-        ],
-    },
+    { name: "Jira", icon: CodeBracketIcon, href: "/code/jira" },
 ];
 
 export default React.forwardRef(function Sidebar(_, ref) {
@@ -122,9 +113,9 @@ export default React.forwardRef(function Sidebar(_, ref) {
                 </Link>
             </div>
             <nav className="flex flex-1 flex-col">
-                <ul className="flex flex-1 flex-col gap-y-7">
+                <ul className="flex flex-1 flex-col gap-y-4">
                     <li className="grow">
-                        <ul className="-mx-2 space-y-1">
+                        <ul className="-mx-2 space-y-1 max-h-[calc(100vh-155px)] overflow-y-auto overflow-x-hidden ">
                             {updatedNavigation.map((item) => (
                                 <li
                                     key={item.name}

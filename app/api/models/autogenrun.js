@@ -13,11 +13,11 @@ const autogenRunSchema = new mongoose.Schema({
     startedAt: Date,
 });
 
+// Add index at schema level
+autogenRunSchema.index({ requestId: 1, contextId: 1 });
+
 const AutogenRun =
     mongoose.models.AutogenRun ||
     mongoose.model("AutogenRun", autogenRunSchema);
-
-// Index request id and context id
-AutogenRun.collection.createIndex({ requestId: 1, contextId: 1 });
 
 export default AutogenRun;

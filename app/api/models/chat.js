@@ -53,6 +53,10 @@ const chatSchema = new mongoose.Schema(
             type: mongoose.Schema.Types.ObjectId,
             auto: true,
         },
+        isEmpty: {
+            type: Boolean,
+            default: true,
+        },
         title: {
             type: String,
             default: "Chat",
@@ -72,6 +76,14 @@ const chatSchema = new mongoose.Schema(
         },
         codeRequestId: {
             type: String,
+            default: null,
+        },
+        lastCodeRequestId: {
+            type: String,
+            default: null,
+        },
+        lastCodeRequestTime: {
+            type: Date,
             default: null,
         },
         isChatLoading: {

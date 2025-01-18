@@ -2,16 +2,16 @@
 
 import { useState, useEffect } from "react";
 
-export default function Loader({ size = "default" }) {
+export default function Loader({ size = "default", delay = 500 }) {
     const [showLoader, setShowLoader] = useState(false);
 
     useEffect(() => {
         const timer = setTimeout(() => {
             setShowLoader(true);
-        }, 500);
+        }, delay);
 
         return () => clearTimeout(timer);
-    }, []);
+    }, [delay]);
 
     if (!showLoader) {
         return null;

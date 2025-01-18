@@ -34,7 +34,7 @@ export default function ConnectJiraButton({ clientSecret, onTokenChange }) {
     }, []);
 
     const getSites = async (token) => {
-        // Sometimes JIRA returns 500, so we have to retry
+        // Sometimes Jira returns 500, so we have to retry
         let attemptCount = 0;
         const retryCount = 3;
 

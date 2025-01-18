@@ -1,5 +1,6 @@
 const APPROXIMATE_DURATION_SECONDS = 60;
 const PROGRESS_UPDATE_INTERVAL = 3000;
+const { processImageUrls } = require("../../src/utils/imageUtils");
 
 const generateDigestBlockContent = async (
     block,
@@ -20,7 +21,7 @@ const generateDigestBlockContent = async (
     };
 
     const client = await getClient();
-    let searchRequired = false;
+    let toolCallbackName = null;
     let tool = null;
     let content;
     let progress = { progress: 0.05 };
@@ -42,24 +43,46 @@ const generateDigestBlockContent = async (
         tool = result.data.rag_start.tool;
         if (tool) {
             const toolObj = JSON.parse(result.data.rag_start.tool);
-            searchRequired = toolObj?.search;
+            toolCallbackName = toolObj?.toolCallbackName;
         }
 
-        if (searchRequired) {
+        if (toolCallbackName) {
             const result = await client.query({
-                query: QUERIES.RAG_GENERATOR_RESULTS,
-
-                variables,
+                query: QUERIES.SYS_ENTITY_CONTINUE,
+                variables: {
+                    ...variables,
+                    generatorPathway: toolCallbackName,
+                },
             });
 
-            const { result: message, tool } = result.data.rag_generator_results;
-            content = JSON.stringify({ payload: message, tool });
+            const { result: message, tool } = result.data.sys_entity_continue;
+            content = JSON.stringify({
+                payload: await processImageUrls(
+                    message,
+                    process.env.SERVER_URL,
+                ),
+                tool,
+            });
         } else {
-            logger.log(
-                "received searchRequired false, returning empty content.",
-                user?._id,
-                block?._id,
-            );
+            try {
+                content = JSON.stringify({
+                    payload: await processImageUrls(
+                        JSON.parse(result.data.rag_start.result).response,
+                        process.env.SERVER_URL,
+                    ),
+                    tool,
+                });
+            } catch (e) {
+                logger.error(
+                    `Error while parsing rag_start result: ${e.message}`,
+                    user?._id,
+                    block?._id,
+                );
+                content = JSON.stringify({
+                    payload: JSON.stringify(result.data),
+                    tool: null,
+                });
+            }
         }
     } catch (e) {
         logger.log(

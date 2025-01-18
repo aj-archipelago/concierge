@@ -9,12 +9,18 @@ import { AuthContext } from "../App";
 const UserOptions = ({ show, handleClose }) => {
     const { t } = useTranslation();
     const { user } = useContext(AuthContext);
-    const [aiMemory, setAiMemory] = useState("");
     const [aiMemorySelfModify, setAiMemorySelfModify] = useState(
         user.aiMemorySelfModify || false,
     );
     const [aiName, setAiName] = useState(user.aiName || "Labeeb");
     const [aiStyle, setAiStyle] = useState(user.aiStyle || "OpenAI");
+    const [activeMemoryTab, setActiveMemoryTab] = useState("user");
+    const [parsedMemory, setParsedMemory] = useState({
+        memorySelf: "",
+        memoryDirectives: "",
+        memoryUser: "",
+        memoryTopics: "",
+    });
 
     const updateAiOptionsMutation = useUpdateAiOptions();
     const apolloClient = useApolloClient();
@@ -24,7 +30,7 @@ const UserOptions = ({ show, handleClose }) => {
         data: memoryData,
         loading: memoryLoading,
         refetch: refetchMemory,
-    } = useQuery(QUERIES.RAG_READ_MEMORY, {
+    } = useQuery(QUERIES.SYS_READ_MEMORY, {
         variables: { contextId: user.contextId },
         skip: !user.contextId,
         fetchPolicy: "network-only", // This ensures we always fetch from the network
@@ -38,15 +44,23 @@ const UserOptions = ({ show, handleClose }) => {
     }, [show, user.contextId, refetchMemory]);
 
     useEffect(() => {
-        if (memoryData && memoryData.rag_read_memory.result) {
+        if (memoryData && memoryData.sys_read_memory.result) {
             try {
-                const parsedMemory = JSON.parse(
-                    memoryData.rag_read_memory.result,
-                );
-                setAiMemory(parsedMemory);
-            } catch (error) {
-                // If it's not valid JSON, set it as is
-                setAiMemory(memoryData.rag_read_memory.result);
+                const parsed = JSON.parse(memoryData.sys_read_memory.result);
+                setParsedMemory({
+                    memorySelf: parsed.memorySelf || "",
+                    memoryDirectives: parsed.memoryDirectives || "",
+                    memoryUser: parsed.memoryUser || "",
+                    memoryTopics: parsed.memoryTopics || "",
+                });
+            } catch (e) {
+                // If parsing fails, put everything in memoryUser
+                setParsedMemory({
+                    memorySelf: "",
+                    memoryDirectives: "",
+                    memoryUser: memoryData.sys_read_memory.result || "",
+                    memoryTopics: "",
+                });
             }
         }
     }, [memoryData]);
@@ -56,7 +70,12 @@ const UserOptions = ({ show, handleClose }) => {
     }, [user]);
 
     const handleClearMemory = () => {
-        setAiMemory("");
+        setParsedMemory({
+            memorySelf: "",
+            memoryDirectives: "",
+            memoryUser: "",
+            memoryTopics: "",
+        });
     };
 
     const handleSave = async () => {
@@ -73,16 +92,15 @@ const UserOptions = ({ show, handleClose }) => {
             aiStyle,
         });
 
-        // update the Cortex copy
-        const variables = {
-            contextId: user.contextId,
-            aiMemory: aiMemory,
-        };
+        const combinedMemory = JSON.stringify(parsedMemory);
 
         apolloClient
-            .query({
-                query: QUERIES.RAG_SAVE_MEMORY,
-                variables,
+            .mutate({
+                mutation: QUERIES.SYS_SAVE_MEMORY,
+                variables: {
+                    contextId: user.contextId,
+                    aiMemory: combinedMemory,
+                },
             })
             .then((result) => {
                 console.log("Saved memory to Cortex", result);
@@ -94,16 +112,45 @@ const UserOptions = ({ show, handleClose }) => {
         handleClose();
     };
 
+    const memoryTabs = [
+        { id: "user", label: "User Memory" },
+        { id: "self", label: "Self Memory" },
+        { id: "directives", label: "Directives" },
+        { id: "topics", label: "Topics" },
+    ];
+
+    const getMemoryValueForTab = (tabId) => {
+        const mapping = {
+            user: "memoryUser",
+            self: "memorySelf",
+            directives: "memoryDirectives",
+            topics: "memoryTopics",
+        };
+        return parsedMemory[mapping[tabId]];
+    };
+
+    const handleMemoryChange = (value, tabId) => {
+        const mapping = {
+            user: "memoryUser",
+            self: "memorySelf",
+            directives: "memoryDirectives",
+            topics: "memoryTopics",
+        };
+        setParsedMemory((prev) => ({
+            ...prev,
+            [mapping[tabId]]: value,
+        }));
+    };
+
     return (
         <Modal
             widthClassName="max-w-2xl"
             title={t("Options")}
             show={show}
             onHide={handleClose}
-            style={{ fontSize: "0.875rem" }}
         >
-            <div>
-                <h4 className="font-semibold mb-2">{t("AI Name")}</h4>
+            <div className="text-sm">
+                <h4 className="text-base font-semibold mb-2">{t("AI Name")}</h4>
                 <input
                     type="text"
                     value={aiName}
@@ -112,7 +159,9 @@ const UserOptions = ({ show, handleClose }) => {
                     placeholder={t("Enter AI Name")}
                 />
 
-                <h4 className="font-semibold mb-2">{t("AI Style")}</h4>
+                <h4 className="text-base font-semibold mb-2">
+                    {t("AI Style")}
+                </h4>
                 <select
                     value={aiStyle}
                     onChange={(e) => setAiStyle(e.target.value)}
@@ -122,7 +171,9 @@ const UserOptions = ({ show, handleClose }) => {
                     <option value="Anthropic">{t("Anthropic")}</option>
                 </select>
 
-                <h4 className="font-semibold mb-2">{t("AI Memory")}</h4>
+                <h4 className="text-base font-semibold mb-2">
+                    {t("AI Memory")}
+                </h4>
                 <p className="text-gray-600">
                     {t(
                         "You can customize your interactions with the AI assistant by giving it things to remember. You can enter plain text or something more structured like JSON or XML. If you allow it, the AI will periodically modify its own memory to improve its ability to assist you.",
@@ -145,7 +196,7 @@ const UserOptions = ({ show, handleClose }) => {
                     </label>
                 </div>
                 <div>
-                    <h4 className="font-semibold mb-2">
+                    <h4 className="text-base font-semibold mb-2">
                         {t("Currently stored memory")}
                     </h4>
                     {memoryLoading ? (
@@ -161,14 +212,39 @@ const UserOptions = ({ show, handleClose }) => {
                                 </button>
                                 <span className="text-sm text-gray-500">
                                     {t("Memory size: {{size}} characters", {
-                                        size: aiMemory.length,
+                                        size: JSON.stringify(parsedMemory)
+                                            .length,
                                     })}
                                 </span>
                             </div>
+                            <div className="border-b border-gray-200">
+                                <nav className="flex -mb-px">
+                                    {memoryTabs.map((tab) => (
+                                        <button
+                                            key={tab.id}
+                                            className={`mr-2 py-2 px-4 font-medium text-sm border-b-2 ${
+                                                activeMemoryTab === tab.id
+                                                    ? "border-sky-500 text-sky-600"
+                                                    : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+                                            }`}
+                                            onClick={() =>
+                                                setActiveMemoryTab(tab.id)
+                                            }
+                                        >
+                                            {t(tab.label)}
+                                        </button>
+                                    ))}
+                                </nav>
+                            </div>
                             <textarea
-                                value={aiMemory}
-                                onChange={(e) => setAiMemory(e.target.value)}
-                                className="lb-input font-mono w-full"
+                                value={getMemoryValueForTab(activeMemoryTab)}
+                                onChange={(e) =>
+                                    handleMemoryChange(
+                                        e.target.value,
+                                        activeMemoryTab,
+                                    )
+                                }
+                                className="lb-input font-mono w-full mt-4"
                                 rows={10}
                             />
                         </>

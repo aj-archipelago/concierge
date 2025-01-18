@@ -138,17 +138,17 @@ const VISION = gql`
     }
 `;
 
-const RAG_READ_MEMORY = gql`
-    query RagReadMemory($contextId: String!) {
-        rag_read_memory(contextId: $contextId) {
+const SYS_READ_MEMORY = gql`
+    query SysReadMemory($contextId: String!) {
+        sys_read_memory(contextId: $contextId) {
             result
         }
     }
 `;
 
-const RAG_SAVE_MEMORY = gql`
-    query RagSaveMemory($aiMemory: String!, $contextId: String!) {
-        rag_save_memory(aiMemory: $aiMemory, contextId: $contextId) {
+const SYS_SAVE_MEMORY = gql`
+    query SysSaveMemory($aiMemory: String!, $contextId: String!) {
+        sys_save_memory(aiMemory: $aiMemory, contextId: $contextId) {
             result
         }
     }
@@ -167,6 +167,7 @@ const RAG_START = gql`
         $aiMemorySelfModify: Boolean
         $aiStyle: String
         $title: String
+        $codeRequestId: String
     ) {
         rag_start(
             chatHistory: $chatHistory
@@ -180,6 +181,7 @@ const RAG_START = gql`
             aiMemorySelfModify: $aiMemorySelfModify
             aiStyle: $aiStyle
             title: $title
+            codeRequestId: $codeRequestId
         ) {
             result
             contextId
@@ -190,8 +192,8 @@ const RAG_START = gql`
     }
 `;
 
-const RAG_GENERATOR_CODE = gql`
-    query RagGeneratorCode(
+const SYS_ENTITY_CONTINUE = gql`
+    query SysEntityContinue(
         $chatHistory: [MultiMessage]!
         $dataSources: [String]
         $contextId: String
@@ -202,9 +204,9 @@ const RAG_GENERATOR_CODE = gql`
         $aiName: String
         $useMemory: Boolean
         $chatId: String
-        $codingResult: String
+        $generatorPathway: String
     ) {
-        rag_generator_code(
+        sys_entity_continue(
             chatHistory: $chatHistory
             dataSources: $dataSources
             contextId: $contextId
@@ -215,41 +217,7 @@ const RAG_GENERATOR_CODE = gql`
             aiName: $aiName
             useMemory: $useMemory
             chatId: $chatId
-            codingResult: $codingResult
-        ) {
-            result
-            contextId
-            tool
-            warnings
-            errors
-        }
-    }
-`;
-
-const RAG_GENERATOR_RESULTS = gql`
-    query RagFinish(
-        $chatHistory: [MultiMessage]!
-        $dataSources: [String]
-        $contextId: String
-        $text: String
-        $roleInformation: String
-        $indexName: String
-        $semanticConfiguration: String
-        $aiName: String
-        $useMemory: Boolean
-        $chatId: String
-    ) {
-        rag_generator_results(
-            chatHistory: $chatHistory
-            dataSources: $dataSources
-            contextId: $contextId
-            text: $text
-            roleInformation: $roleInformation
-            indexName: $indexName
-            semanticConfiguration: $semanticConfiguration
-            aiName: $aiName
-            useMemory: $useMemory
-            chatId: $chatId
+            generatorPathway: $generatorPathway
         ) {
             result
             contextId
@@ -298,15 +266,6 @@ const COGNITIVE_DELETE = gql`
             chatId: $chatId
         ) {
             result
-        }
-    }
-`;
-
-const CHAT_CODE = gql`
-    query ChatCode($text: String, $async: Boolean, $chatHistory: [Message]!) {
-        chat_code(text: $text, async: $async, chatHistory: $chatHistory) {
-            result
-            previousResult
         }
     }
 `;
@@ -493,8 +452,18 @@ const TRANSCRIBE_NEURALSPACE = gql`
 `;
 
 const TRANSLATE_SUBTITLE = gql`
-    query TranslateSubtitle($text: String, $to: String, $async: Boolean) {
-        translate_subtitle(text: $text, to: $to, async: $async) {
+    query TranslateSubtitle(
+        $text: String
+        $to: String
+        $async: Boolean
+        $format: String
+    ) {
+        translate_subtitle(
+            text: $text
+            to: $to
+            async: $async
+            format: $format
+        ) {
             result
         }
     }
@@ -665,6 +634,14 @@ const IMAGE = gql`
     }
 `;
 
+const IMAGE_FLUX = gql`
+    query ImageFlux($text: String!, $model: String, $async: Boolean) {
+        image_flux(text: $text, model: $model, async: $async) {
+            result
+        }
+    }
+`;
+
 const JIRA_STORY = gql`
     query JiraStory(
         $text: String!
@@ -711,20 +688,40 @@ const getWorkspacePromptQuery = (pathwayName) => {
     `;
 };
 
+const AZURE_VIDEO_TRANSLATE = gql`
+    query (
+        $mode: String
+        $sourcelocale: String
+        $targetlocale: String
+        $sourcevideooraudiofilepath: String
+        $stream: Boolean
+    ) {
+        azure_video_translate(
+            mode: $mode
+            sourcelocale: $sourcelocale
+            targetlocale: $targetlocale
+            sourcevideooraudiofilepath: $sourcevideooraudiofilepath
+            stream: $stream
+        ) {
+            result
+        }
+    }
+`;
+
 const QUERIES = {
+    AZURE_VIDEO_TRANSLATE,
     CHAT_PERSIST,
     CHAT_LABEEB,
     CHAT_EXTENSION,
-    CHAT_CODE,
     CODE_HUMAN_INPUT,
     COGNITIVE_DELETE,
     COGNITIVE_INSERT,
     IMAGE,
-    RAG_READ_MEMORY,
-    RAG_SAVE_MEMORY,
+    IMAGE_FLUX,
+    SYS_READ_MEMORY,
+    SYS_SAVE_MEMORY,
     RAG_START,
-    RAG_GENERATOR_RESULTS,
-    RAG_GENERATOR_CODE,
+    SYS_ENTITY_CONTINUE,
     EXPAND_STORY,
     FORMAT_PARAGRAPH_TURBO,
     SELECT_SERVICES,
@@ -808,22 +805,22 @@ const MUTATIONS = {
 
 export {
     getClient,
+    AZURE_VIDEO_TRANSLATE,
     CHAT_PERSIST,
     CHAT_LABEEB,
-    CHAT_CODE,
     CODE_HUMAN_INPUT,
     COGNITIVE_INSERT,
     COGNITIVE_DELETE,
     EXPAND_STORY,
-    RAG_READ_MEMORY,
-    RAG_SAVE_MEMORY,
+    SYS_READ_MEMORY,
+    SYS_SAVE_MEMORY,
     RAG_START,
-    RAG_GENERATOR_RESULTS,
-    RAG_GENERATOR_CODE,
+    SYS_ENTITY_CONTINUE,
     SELECT_SERVICES,
     SUMMARY,
     HASHTAGS,
     HEADLINE,
+    IMAGE_FLUX,
     GRAMMAR,
     SPELLING,
     PARAPHRASE,

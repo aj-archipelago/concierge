@@ -5,6 +5,8 @@ import {
     getAxisUrl,
 } from "../../../app.config/config/transcribe/TranscribeUrlConstants";
 
+export const dynamic = "force-dynamic";
+
 export async function GET(req) {
     try {
         const url = new URL(req.url);
@@ -25,6 +27,7 @@ export async function GET(req) {
 
         //check if url is a valid youtube url
         const youtubeRegex =
+            // eslint-disable-next-line no-useless-escape
             /^(https?\:\/\/)?(www\.)?(youtube\.com|youtu\.?be)\/.+$/;
         if (youtubeRegex.test(urlInput)) {
             const oEmbedUrl = `https://www.youtube.com/oembed?url=${encodeURIComponent(urlInput)}&format=json`;
@@ -57,27 +60,31 @@ export async function GET(req) {
         const axisData = await axisResponse.json();
 
         const SIMILARITY_THRESHOLD = 0.1;
+        const MAX_RESULTS = 5; // Return up to 5 similar videos
 
-        const mostSimilarItem = findMostSimilarTitle(
-            axisData.items,
-            searchQuery,
-        );
-        if (
-            mostSimilarItem &&
-            mostSimilarItem.similarity > SIMILARITY_THRESHOLD
-        ) {
-            const { item } = mostSimilarItem;
-            const url = getBestRenditionForTranscription(item);
-            const videoUrl = getBestQualityRendition(item);
-            return NextResponse.json({
+        // Find multiple similar items instead of just one
+        const similarItems = axisData.items
+            .map((item) => ({
+                item,
+                similarity: calculateSimilarity(searchQuery, item.name),
+            }))
+            .filter((result) => result.similarity > SIMILARITY_THRESHOLD)
+            .sort((a, b) => b.similarity - a.similarity)
+            .slice(0, MAX_RESULTS);
+
+        if (similarItems.length > 0) {
+            const results = similarItems.map(({ item }) => ({
                 title: searchQuery,
                 name: item.name,
-                url,
-                videoUrl,
-            });
+                url: getBestRenditionForTranscription(item),
+                videoUrl: getBestQualityRendition(item),
+                similarity: calculateSimilarity(searchQuery, item.name),
+            }));
+
+            return NextResponse.json({ results });
         } else {
             return NextResponse.json(
-                { error: "No matching video found" },
+                { error: "No matching videos found" },
                 // { status: 404 },
             );
         }
@@ -87,17 +94,17 @@ export async function GET(req) {
     }
 }
 
-function findMostSimilarTitle(items, targetTitle) {
-    return items.reduce(
-        (best, current) => {
-            const similarity = calculateSimilarity(targetTitle, current.name);
-            return similarity > best.similarity
-                ? { item: current, similarity }
-                : best;
-        },
-        { item: null, similarity: 0 },
-    );
-}
+// function findMostSimilarTitle(items, targetTitle) {
+//     return items.reduce(
+//         (best, current) => {
+//             const similarity = calculateSimilarity(targetTitle, current.name);
+//             return similarity > best.similarity
+//                 ? { item: current, similarity }
+//                 : best;
+//         },
+//         { item: null, similarity: 0 },
+//     );
+// }
 
 function calculateSimilarity(str1, str2) {
     const set1 = new Set(str1.toLowerCase().split(" "));
