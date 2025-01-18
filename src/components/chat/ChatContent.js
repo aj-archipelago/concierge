@@ -7,6 +7,7 @@ import ChatMessages from "./ChatMessages";
 import { QUERIES } from "../../graphql";
 import { useGetActiveChat, useUpdateChat } from "../../../app/queries/chats";
 import { useDeleteAutogenRun } from "../../../app/queries/autogen.js";
+import { processImageUrls } from "../../utils/imageUtils";
 
 const contextMessageCount = 50;
 
@@ -146,6 +147,12 @@ function ChatContent({
                     throw new Error("Received empty response from AI");
                 }
 
+                // Process any image URLs in the response
+                resultMessage = await processImageUrls(
+                    resultMessage,
+                    window.location.origin,
+                );
+
                 // Get current messages and check if we need to replace a hidden message
                 let currentMessages = [
                     ...(chat?.messages || []),
@@ -213,6 +220,12 @@ function ChatContent({
                         );
                     }
 
+                    // Process any image URLs in the tool callback response
+                    const processedResult = await processImageUrls(
+                        result,
+                        window.location.origin,
+                    );
+
                     // Check again for hidden message before adding the tool callback response
                     const finalMessages = currentMessages.slice();
                     const lastMsg = finalMessages[finalMessages.length - 1];
@@ -228,7 +241,7 @@ function ChatContent({
                     }
 
                     finalMessages.push({
-                        payload: result,
+                        payload: processedResult,
                         tool: tool,
                         sentTime: "just now",
                         direction: "incoming",

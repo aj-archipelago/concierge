@@ -1,5 +1,6 @@
 const APPROXIMATE_DURATION_SECONDS = 60;
 const PROGRESS_UPDATE_INTERVAL = 3000;
+const { processImageUrls } = require("../../src/utils/imageUtils");
 
 const generateDigestBlockContent = async (
     block,
@@ -55,11 +56,20 @@ const generateDigestBlockContent = async (
             });
 
             const { result: message, tool } = result.data.sys_entity_continue;
-            content = JSON.stringify({ payload: message, tool });
+            content = JSON.stringify({
+                payload: await processImageUrls(
+                    message,
+                    process.env.SERVER_URL,
+                ),
+                tool,
+            });
         } else {
             try {
                 content = JSON.stringify({
-                    payload: JSON.parse(result.data.rag_start.result).response,
+                    payload: await processImageUrls(
+                        JSON.parse(result.data.rag_start.result).response,
+                        process.env.SERVER_URL,
+                    ),
                     tool,
                 });
             } catch (e) {
