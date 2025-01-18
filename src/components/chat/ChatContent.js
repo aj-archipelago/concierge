@@ -148,7 +148,10 @@ function ChatContent({
                 }
 
                 // Process any image URLs in the response
-                resultMessage = await processImageUrls(resultMessage, window.location.origin);
+                resultMessage = await processImageUrls(
+                    resultMessage,
+                    window.location.origin,
+                );
 
                 // Get current messages and check if we need to replace a hidden message
                 let currentMessages = [
@@ -218,7 +221,10 @@ function ChatContent({
                     }
 
                     // Process any image URLs in the tool callback response
-                    const processedResult = await processImageUrls(result, window.location.origin);
+                    const processedResult = await processImageUrls(
+                        result,
+                        window.location.origin,
+                    );
 
                     // Check again for hidden message before adding the tool callback response
                     const finalMessages = currentMessages.slice();

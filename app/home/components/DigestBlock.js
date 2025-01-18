@@ -49,9 +49,9 @@ export default function DigestBlock({ block, contentClassName }) {
                     position: "single",
                 },
             ];
-            const { _id } = await addChat.mutateAsync({ 
+            const { _id } = await addChat.mutateAsync({
                 messages,
-                title: block.title
+                title: block.title,
             });
             router.push(`/chat/${_id}`);
         } catch (error) {
@@ -75,10 +75,11 @@ export default function DigestBlock({ block, contentClassName }) {
                     )}
                     {block.updatedAt && (
                         <div>
-                            <div 
+                            <div
                                 className={classNames(
                                     "text-xs flex items-center gap-2 rounded-full px-3 py-2 border bg-gray-50 whitespace-nowrap",
-                                    !block.state?.progress && "cursor-pointer hover:bg-gray-100"
+                                    !block.state?.progress &&
+                                        "cursor-pointer hover:bg-gray-100",
                                 )}
                                 onClick={() => {
                                     if (!block.state?.progress) {
@@ -110,7 +111,9 @@ export default function DigestBlock({ block, contentClassName }) {
                                         )
                                     ) : (
                                         <>
-                                            <span className="hidden lg:inline">{t("Updated")}</span>{" "}
+                                            <span className="hidden lg:inline">
+                                                {t("Updated")}
+                                            </span>{" "}
                                             <ReactTimeAgo
                                                 date={block.updatedAt}
                                                 locale={language}

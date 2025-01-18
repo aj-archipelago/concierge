@@ -56,14 +56,20 @@ const generateDigestBlockContent = async (
             });
 
             const { result: message, tool } = result.data.sys_entity_continue;
-            content = JSON.stringify({ 
-                payload: await processImageUrls(message, process.env.SERVER_URL),
-                tool 
+            content = JSON.stringify({
+                payload: await processImageUrls(
+                    message,
+                    process.env.SERVER_URL,
+                ),
+                tool,
             });
         } else {
             try {
                 content = JSON.stringify({
-                    payload: await processImageUrls(JSON.parse(result.data.rag_start.result).response, process.env.SERVER_URL),
+                    payload: await processImageUrls(
+                        JSON.parse(result.data.rag_start.result).response,
+                        process.env.SERVER_URL,
+                    ),
                     tool,
                 });
             } catch (e) {
