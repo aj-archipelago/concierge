@@ -31,9 +31,10 @@ export default function DigestBlock({ block, contentClassName }) {
                 <h4 className="font-semibold">{block.title}</h4>
                 {block.updatedAt && (
                     <div>
-                        <div className="text-xs flex items-center gap-2 rounded-full px-3 py-2 border bg-gray-50">
+                        <div className="text-xs flex items-center gap-2 rounded-full px-3 py-2 border bg-gray-50 whitespace-nowrap">
                             {block.updatedAt && !block.state?.progress && (
                                 <button
+                                    className="shrink-0"
                                     onClick={() => {
                                         regenerateDigestBlock.mutate({
                                             blockId: block._id,
@@ -50,7 +51,7 @@ export default function DigestBlock({ block, contentClassName }) {
                                     />
                                 </button>
                             )}
-                            <div className="flex items-center justify-center gap-1">
+                            <div className="flex items-center justify-center gap-1 min-w-0">
                                 {isRebuilding ? (
                                     block.state.progress ? (
                                         <Progress
@@ -62,7 +63,7 @@ export default function DigestBlock({ block, contentClassName }) {
                                     )
                                 ) : (
                                     <>
-                                        {t("Updated")}{" "}
+                                        <span className="hidden lg:inline">{t("Updated")}</span>{" "}
                                         <ReactTimeAgo
                                             date={block.updatedAt}
                                             locale={language}
