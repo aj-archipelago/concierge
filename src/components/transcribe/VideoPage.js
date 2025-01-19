@@ -350,23 +350,14 @@ function EditableTranscriptSelect({
                             </SelectContent>
                         </Select>
                         <div className="flex gap-2 items-center">
-                            <div>
-                                <button
-                                    title={t("Edit")}
-                                    className="ms-0.5 text-gray-400 hover:text-gray-600"
-                                    onClick={() => setEditing(true)}
-                                >
-                                    <FaEdit className="h-4 w-4" />
-                                </button>
-                            </div>
                             <AddTrackButton
                                 transcripts={transcripts}
                                 url={url}
                                 onAdd={onAdd}
                                 activeTranscript={activeTranscript}
                                 trigger={
-                                    <button className="text-gray-400 hover:text-gray-600">
-                                        <PlusCircleIcon className="h-4 w-4" />{" "}
+                                    <button className="flex items-center text-sky-600 hover:text-sky-700">
+                                        <PlusCircleIcon className="h-6 w-6" />{" "}
                                         {transcripts.length > 0
                                             ? t("")
                                             : t("Add subtitles or transcript")}
@@ -427,11 +418,20 @@ function EditableTranscriptSelect({
                 </div>
             )}
             {transcripts[activeTranscript]?.timestamp && (
-                <div className="text-gray-400 text-xs py-1 px-3">
+                <div className="flex items-center text-gray-400 text-xs py-1 px-3">
                     {t("Created")}{" "}
                     {dayjs(transcripts[activeTranscript]?.timestamp).format(
                         "MMM DD, YYYY HH:mm:ss",
                     )}
+                    <span className="ml-2">
+                        <button
+                            title={t("Edit")}
+                            className="ms-0.5 text-gray-400 hover:text-gray-600"
+                            onClick={() => setEditing(true)}
+                        >
+                            <FaEdit className="h-4 w-4" />
+                        </button>
+                    </span>
                 </div>
             )}
         </div>
