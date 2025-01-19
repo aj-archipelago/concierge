@@ -108,7 +108,7 @@ function TranslationOptions({
     return (
         <div>
             <div className="flex items-center gap-2">
-                <div className="mb-3 basis-1/2">
+                <div className="mb-3 basis-2/3">
                     <h3 className="text-sm mb-1">{t("From")}</h3>
                     <Select
                         value={selectedTranscript?.name || ""}
@@ -116,14 +116,19 @@ function TranslationOptions({
                             setSelectedTranscript(transcripts[parseInt(value)]);
                         }}
                     >
-                        <SelectTrigger className="">
+                        <SelectTrigger className="w-full justify-between text-left">
                             {selectedTranscript ? (
-                                <div className="flex flex-col text-start text-sm">
-                                    {selectedTranscript?.name}
-                                    <div className="text-xs text-gray-400">
-                                        {dayjs(
-                                            selectedTranscript?.timestamp,
-                                        ).format("MMM DD, YYYY HH:mm:ss")}
+                                <div className="flex flex-col text-sm max-w-[250px]">
+                                    <div
+                                        className="truncate overflow-ellipsis whitespace-nowrap"
+                                        title={selectedTranscript?.name}
+                                    >
+                                        {selectedTranscript?.name}
+                                    </div>
+                                    <div className="text-xs text-gray-400 truncate overflow-ellipsis whitespace-nowrap">
+                                        {dayjs(selectedTranscript?.timestamp).format(
+                                            "MMM DD, YYYY HH:mm:ss"
+                                        )}
                                     </div>
                                 </div>
                             ) : (
@@ -138,14 +143,17 @@ function TranslationOptions({
                                     key={transcript.name}
                                     value={index.toString()}
                                 >
-                                    <div className="flex flex-col">
-                                        <div>{transcript.name}</div>
+                                    <div className="flex flex-col max-w-[250px]">
+                                        <div
+                                            className="truncate overflow-ellipsis whitespace-nowrap"
+                                            title={transcript.name}
+                                        >
+                                            {transcript.name}
+                                        </div>
                                         {transcript.timestamp && (
                                             <div className="text-xs text-gray-400">
-                                                {dayjs(
-                                                    transcript.timestamp,
-                                                ).format(
-                                                    "MMM DD, YYYY HH:mm:ss",
+                                                {dayjs(transcript.timestamp).format(
+                                                    "MMM DD, YYYY HH:mm:ss"
                                                 )}
                                             </div>
                                         )}
@@ -155,7 +163,7 @@ function TranslationOptions({
                         </SelectContent>
                     </Select>
                 </div>
-                <div className="mb-3 basis-1/2">
+                <div className="mb-3 basis-1/3">
                     <h3 className="text-sm mb-1">{t("To")}</h3>
                     <select
                         className="lb-select"
