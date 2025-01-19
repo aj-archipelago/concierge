@@ -126,9 +126,9 @@ function TranslationOptions({
                                         {selectedTranscript?.name}
                                     </div>
                                     <div className="text-xs text-gray-400 truncate overflow-ellipsis whitespace-nowrap">
-                                        {dayjs(selectedTranscript?.timestamp).format(
-                                            "MMM DD, YYYY HH:mm:ss"
-                                        )}
+                                        {dayjs(
+                                            selectedTranscript?.timestamp,
+                                        ).format("MMM DD, YYYY HH:mm:ss")}
                                     </div>
                                 </div>
                             ) : (
@@ -152,8 +152,10 @@ function TranslationOptions({
                                         </div>
                                         {transcript.timestamp && (
                                             <div className="text-xs text-gray-400">
-                                                {dayjs(transcript.timestamp).format(
-                                                    "MMM DD, YYYY HH:mm:ss"
+                                                {dayjs(
+                                                    transcript.timestamp,
+                                                ).format(
+                                                    "MMM DD, YYYY HH:mm:ss",
                                                 )}
                                             </div>
                                         )}
