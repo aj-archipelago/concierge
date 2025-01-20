@@ -23,7 +23,18 @@ export default function AzureVideoTranslate({ url, onQueued, onComplete }) {
             );
         }
 
-        data = JSON.parse(data);
+        // Parse the data - handle both single and double JSON stringified cases
+        try {
+            data = JSON.parse(data);
+            // Check if it's still a string and potentially another JSON
+            if (typeof data === "string") {
+                data = JSON.parse(data);
+            }
+        } catch (e) {
+            console.error("Error parsing JSON response:", e);
+            throw new Error("Failed to parse translation service response");
+        }
+
         try {
             const defaultSubtitlesUrl = data.outputVideoSubtitleWebVttFileUrl;
             const targetVideoUrl =
