@@ -27,14 +27,14 @@ export default function AzureVideoTranslate({ url, onQueued, onComplete }) {
         try {
             data = JSON.parse(data);
             // Check if it's still a string and potentially another JSON
-            if (typeof data === 'string') {
+            if (typeof data === "string") {
                 data = JSON.parse(data);
             }
         } catch (e) {
-            console.error('Error parsing JSON response:', e);
-            throw new Error('Failed to parse translation service response');
+            console.error("Error parsing JSON response:", e);
+            throw new Error("Failed to parse translation service response");
         }
-        
+
         try {
             const defaultSubtitlesUrl = data.outputVideoSubtitleWebVttFileUrl;
             const targetVideoUrl =
