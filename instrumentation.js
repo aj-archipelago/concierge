@@ -20,13 +20,37 @@ export async function register() {
 async function seed() {
     const defaultLLM = config.data.llms.find((llm) => llm.isDefault);
 
-    // Get all cortexModelNames from config
-    const configModelNames = config.data.llms
-        .map((llm) => llm.cortexModelName)
+    // one-time migration to assign identifiers based on
+    // cortexModelName
+    const llmsWithoutIdentifiers = await LLM.find({
+        identifier: null,
+    });
+
+    if (llmsWithoutIdentifiers.length > 0) {
+        await Promise.all(
+            llmsWithoutIdentifiers.map(async (llm) => {
+                const identifier = config.data.llms.find(
+                    (llm) => llm.cortexModelName === llm.cortexModelName,
+                )?.identifier;
+                llm.identifier = identifier;
+                return llm.save();
+            }),
+        );
+    }
+
+    // now that every LLM has an identifier, we can upsert them
+    for (const llm of config.data.llms) {
+        await LLM.findOneAndUpdate({ identifier: llm.identifier }, llm, {
+            upsert: true,
+        });
+    }
+
+    const modelIdentifiers = config.data.llms
+        .map((llm) => llm.identifier)
         .filter(Boolean);
 
     const llmsMissingFromConfig = await LLM.find({
-        cortexModelName: { $nin: configModelNames },
+        identifier: { $nin: modelIdentifiers },
     });
 
     if (llmsMissingFromConfig.length > 0) {
@@ -40,29 +64,32 @@ async function seed() {
             llm: { $in: llmIdsToFixup },
         });
 
-        console.log(
-            `Found ${promptsToFixup.length} prompts referencing LLMs that don't exist in config. These will be updated to use the default LLM.`,
-        );
+        // Update prompts to use the default LLM
+        // if they reference LLMs that don't exist in config
+        if (promptsToFixup.length > 0) {
+            console.log(
+                `Found ${promptsToFixup.length} prompts referencing LLMs that don't exist in config. These will be updated to use the default LLM.`,
+            );
 
-        await Promise.all(
-            promptsToFixup.map((prompt) => {
-                prompt.llm = defaultLLM._id;
-                return prompt.save();
-            }),
-        );
+            await Promise.all(
+                promptsToFixup.map((prompt) => {
+                    prompt.llm = defaultLLM._id;
+                    return prompt.save();
+                }),
+            );
+
+            console.log(
+                `Updated ${promptsToFixup.length} prompts to use the default LLM.`,
+            );
+        }
 
         // Delete LLMs that don't exist in config
         await LLM.deleteMany({
-            cortexModelName: { $nin: configModelNames },
+            identifier: { $nin: modelIdentifiers },
         });
-    }
 
-    // Update or insert existing LLMs
-    for (const llm of config.data.llms) {
-        await LLM.findOneAndUpdate(
-            { cortexModelName: llm.cortexModelName },
-            llm,
-            { upsert: true },
+        console.log(
+            `Deleted ${llmsMissingFromConfig.length} LLMs that don't exist in config.`,
         );
     }
 }
