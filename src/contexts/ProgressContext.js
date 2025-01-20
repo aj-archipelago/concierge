@@ -134,6 +134,10 @@ function ProgressToast({
                 .then(() => {
                     activeToasts?.delete(requestId);
                     toast.update(requestId, { closeButton: true });
+                    // Auto dismiss after 10 seconds
+                    setTimeout(() => {
+                        toast.dismiss(requestId);
+                    }, 10000);
                 })
                 .catch((e) => {
                     setErrorMessage(e.message);
