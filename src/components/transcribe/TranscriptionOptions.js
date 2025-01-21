@@ -40,13 +40,14 @@ export function AddTrackButton({
         <div className="">
             <DropdownMenu>
                 <DropdownMenuTrigger asChild>{trigger}</DropdownMenuTrigger>
-                <DropdownMenuContent>
+                <DropdownMenuContent className="flex flex-col p-2">
                     {options.map((option) => {
                         switch (option) {
                             case "transcribe":
                                 return (
                                     url && (
                                         <DropdownMenuItem
+                                            className="flex items-center cursor-pointer"
                                             key="transcribe"
                                             onClick={() => {
                                                 setSelectedTab("transcribe");
@@ -67,6 +68,7 @@ export function AddTrackButton({
                             case "translate":
                                 return (
                                     <DropdownMenuItem
+                                        className="flex items-center cursor-pointer"
                                         key="translate"
                                         onClick={() => {
                                             setSelectedTab("translate");
@@ -84,6 +86,7 @@ export function AddTrackButton({
                             case "upload":
                                 return (
                                     <DropdownMenuItem
+                                        className="flex items-center cursor-pointer"
                                         key="upload"
                                         onClick={() => {
                                             setSelectedTab("upload");
@@ -101,6 +104,7 @@ export function AddTrackButton({
                             case "clipboard":
                                 return (
                                     <DropdownMenuItem
+                                        className="flex items-center cursor-pointer"
                                         key="clipboard"
                                         onClick={() => {
                                             setSelectedTab("clipboard");
