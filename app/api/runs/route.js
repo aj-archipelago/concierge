@@ -19,10 +19,7 @@ export async function POST(req, res) {
         let llm;
         if (llmId) {
             llm = await LLM.findOne({ _id: llmId });
-        }
-
-        // If no LLM is found, use the default LLM
-        if (!llm) {
+        } else {
             llm = await LLM.findOne({ isDefault: true });
         }
 
