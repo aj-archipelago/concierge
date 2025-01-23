@@ -682,16 +682,21 @@ function VideoPage() {
                     const baseNameMatch = name.match(/(.*?)(?:\s+\((\d+)\))?$/);
                     const baseName = baseNameMatch[1];
                     const existingNumbers = prev
-                        .filter(t => t.name && t.name.startsWith(baseName))
-                        .map(t => {
-                            const match = t.name.match(new RegExp(`${baseName}\\s+\\((\\d+)\\)$`));
+                        .filter((t) => t.name && t.name.startsWith(baseName))
+                        .map((t) => {
+                            const match = t.name.match(
+                                new RegExp(`${baseName}\\s+\\((\\d+)\\)$`),
+                            );
                             return match ? parseInt(match[1]) : 0;
                         });
-                    
+
                     // Determine the new name with suffix if needed
                     let newName = name;
-                    if (prev.some(t => t.name === name)) {
-                        const nextNumber = existingNumbers.length > 0 ? Math.max(...existingNumbers) + 1 : 1;
+                    if (prev.some((t) => t.name === name)) {
+                        const nextNumber =
+                            existingNumbers.length > 0
+                                ? Math.max(...existingNumbers) + 1
+                                : 1;
                         newName = `${baseName} (${nextNumber})`;
                     }
 

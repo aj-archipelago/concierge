@@ -45,17 +45,25 @@ function ProgressToast({
         if (secondMatch) {
             const seconds = parseInt(secondMatch[1]);
             if (seconds === 1) {
-                return t("Translating video... {{n}} second remaining", { n: seconds });
+                return t("Translating video... {{n}} second remaining", {
+                    n: seconds,
+                });
             }
-            return t("Translating video... {{n}} seconds remaining", { n: seconds });
+            return t("Translating video... {{n}} seconds remaining", {
+                n: seconds,
+            });
         }
 
         if (minuteMatch) {
             const minutes = parseInt(minuteMatch[1]);
             if (minutes === 1) {
-                return t("Translating video... {{n}} minute remaining", { n: minutes });
+                return t("Translating video... {{n}} minute remaining", {
+                    n: minutes,
+                });
             }
-            return t("Translating video... {{n}} minutes remaining", { n: minutes });
+            return t("Translating video... {{n}} minutes remaining", {
+                n: minutes,
+            });
         }
 
         // For all other messages, use the direct translation
@@ -224,7 +232,9 @@ function ProgressToast({
                     )}
                     {data?.requestProgress?.info && (
                         <div className="text-xs bg-gray-50 p-2 rounded-md text-gray-500 mt-1">
-                            {translateProgressMessage(data.requestProgress.info)}
+                            {translateProgressMessage(
+                                data.requestProgress.info,
+                            )}
                         </div>
                     )}
                     {!isCancelled && progress < 100 && (
