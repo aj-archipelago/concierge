@@ -320,10 +320,10 @@ function EditableTranscriptSelect({
                                         `Transcript ${activeTranscript + 1}`}
                                 </SelectValue>
                             </SelectTrigger>
-                            <SelectContent className="divide-y">
+                            <SelectContent className="overflow-hidden">
                                 {transcripts.map((transcript, index) => (
                                     <SelectItem
-                                        className="w-[500px]"
+                                        className="w-[500px] border-b last:border-b-0 border-gray-100"
                                         key={index}
                                         value={index.toString()}
                                     >
@@ -678,12 +678,29 @@ function VideoPage() {
                 const { text, format, name } = transcript;
 
                 setTranscripts((prev) => {
+                    // Find existing tracks with the same name and get the highest number
+                    const baseNameMatch = name.match(/(.*?)(?:\s+\((\d+)\))?$/);
+                    const baseName = baseNameMatch[1];
+                    const existingNumbers = prev
+                        .filter(t => t.name && t.name.startsWith(baseName))
+                        .map(t => {
+                            const match = t.name.match(new RegExp(`${baseName}\\s+\\((\\d+)\\)$`));
+                            return match ? parseInt(match[1]) : 0;
+                        });
+                    
+                    // Determine the new name with suffix if needed
+                    let newName = name;
+                    if (prev.some(t => t.name === name)) {
+                        const nextNumber = existingNumbers.length > 0 ? Math.max(...existingNumbers) + 1 : 1;
+                        newName = `${baseName} (${nextNumber})`;
+                    }
+
                     const updatedTranscripts = [
                         ...prev,
                         {
                             text,
                             format,
-                            name,
+                            name: newName,
                             timestamp: new Date().toISOString(),
                         },
                     ];
@@ -938,9 +955,8 @@ function VideoPage() {
                                                     vttUrls.original;
                                                 const translatedVttUrl =
                                                     vttUrls.translated;
-                                                let translatedTranscript = null;
-                                                let originalTranscript = null;
 
+                                                // Fetch the VTT content
                                                 try {
                                                     const addVtt = async (
                                                         vttUrl,
@@ -962,146 +978,143 @@ function VideoPage() {
                                                         };
                                                     };
 
-                                                    // First fetch all VTT content
-                                                    if (originalVttUrl) {
-                                                        originalTranscript =
-                                                            await addVtt(
-                                                                originalVttUrl,
-                                                                t(
-                                                                    "Original Subtitles",
-                                                                ),
-                                                            );
-                                                    }
-
-                                                    if (translatedVttUrl) {
-                                                        translatedTranscript =
-                                                            await addVtt(
-                                                                translatedVttUrl,
-                                                                t(
-                                                                    "{{language}} Subtitles",
-                                                                    {
-                                                                        language:
-                                                                            new Intl.DisplayNames(
-                                                                                [
-                                                                                    language,
-                                                                                ],
-                                                                                {
-                                                                                    type: "language",
-                                                                                },
-                                                                            ).of(
-                                                                                targetLocale,
-                                                                            ),
-                                                                    },
-                                                                ),
-                                                            );
-                                                    }
-
-                                                    const newLanguage = {
-                                                        code: targetLocale,
-                                                        label: new Intl.DisplayNames(
-                                                            [language],
-                                                            {
-                                                                type: "language",
-                                                            },
-                                                        ).of(targetLocale),
-                                                        url: outputUrl,
-                                                    };
-
-                                                    // First update languages and transcripts
-                                                    const updatedLanguages = [
+                                                    const newVideoLanguages = [
                                                         ...videoLanguages,
-                                                        newLanguage,
+                                                        {
+                                                            code: targetLocale,
+                                                            label: new Intl.DisplayNames(
+                                                                [language],
+                                                                {
+                                                                    type: "language",
+                                                                },
+                                                            ).of(targetLocale),
+                                                            url: outputUrl,
+                                                        },
                                                     ];
-                                                    const updatedTranscripts = [
+
+                                                    let newTranscripts = [
                                                         ...transcripts,
                                                     ];
-                                                    const autoSubtitlesExist =
-                                                        transcripts.some(
-                                                            (transcript) =>
-                                                                transcript.name ===
-                                                                t(
-                                                                    "Original Subtitles",
-                                                                ),
-                                                        );
 
-                                                    if (
-                                                        !autoSubtitlesExist &&
-                                                        originalTranscript
-                                                    ) {
-                                                        updatedTranscripts.push(
-                                                            originalTranscript,
+                                                    // Try to add original subtitles if they don't exist
+                                                    try {
+                                                        const autoSubtitlesExist =
+                                                            transcripts.some(
+                                                                (transcript) =>
+                                                                    transcript.name ===
+                                                                    t(
+                                                                        "Original Subtitles",
+                                                                    ),
+                                                            );
+
+                                                        if (
+                                                            !autoSubtitlesExist &&
+                                                            originalVttUrl
+                                                        ) {
+                                                            const originalTranscript =
+                                                                await addVtt(
+                                                                    originalVttUrl,
+                                                                    t(
+                                                                        "Original Subtitles",
+                                                                    ),
+                                                                );
+                                                            if (
+                                                                originalTranscript
+                                                            ) {
+                                                                newTranscripts.push(
+                                                                    originalTranscript,
+                                                                );
+                                                            }
+                                                        }
+                                                    } catch (error) {
+                                                        console.error(
+                                                            "Failed to fetch original VTT content:",
+                                                            error,
+                                                        );
+                                                        // Continue with translation even if original subtitles fail
+                                                    }
+
+                                                    // Try to add translated subtitles
+                                                    try {
+                                                        if (translatedVttUrl) {
+                                                            const translatedTranscript =
+                                                                await addVtt(
+                                                                    translatedVttUrl,
+                                                                    t(
+                                                                        "{{language}} Subtitles",
+                                                                        {
+                                                                            language:
+                                                                                new Intl.DisplayNames(
+                                                                                    [
+                                                                                        language,
+                                                                                    ],
+                                                                                    {
+                                                                                        type: "language",
+                                                                                    },
+                                                                                ).of(
+                                                                                    targetLocale,
+                                                                                ),
+                                                                        },
+                                                                    ),
+                                                                );
+                                                            if (
+                                                                translatedTranscript
+                                                            ) {
+                                                                newTranscripts.push(
+                                                                    translatedTranscript,
+                                                                );
+                                                            }
+                                                        }
+                                                    } catch (error) {
+                                                        console.error(
+                                                            "Failed to fetch translated VTT content:",
+                                                            error,
                                                         );
                                                     }
-                                                    if (translatedTranscript) {
-                                                        updatedTranscripts.push(
-                                                            translatedTranscript,
-                                                        );
-                                                    }
 
-                                                    const newLanguageIndex =
-                                                        updatedLanguages.length -
-                                                        1;
-                                                    const newTranscriptIndex =
-                                                        updatedTranscripts.length -
-                                                        1;
-
-                                                    // Update the state in sequence
-                                                    setVideoLanguages(
-                                                        updatedLanguages,
-                                                    );
+                                                    // Update state with whatever we successfully got
                                                     setTranscripts(
-                                                        updatedTranscripts,
+                                                        newTranscripts,
+                                                    );
+                                                    setVideoLanguages(
+                                                        newVideoLanguages,
                                                     );
                                                     setActiveLanguage(
-                                                        newLanguageIndex,
+                                                        newVideoLanguages.length -
+                                                            1,
                                                     );
                                                     setActiveTranscript(
-                                                        newTranscriptIndex,
+                                                        newTranscripts.length -
+                                                            1,
                                                     );
-
-                                                    // Schedule user state update for next render
-                                                    Promise.resolve().then(
-                                                        () => {
-                                                            updateUserState({
-                                                                videoInformation:
-                                                                    {
-                                                                        ...userState
-                                                                            ?.transcribe
-                                                                            ?.videoInformation,
-                                                                        videoLanguages:
-                                                                            updatedLanguages,
-                                                                    },
-                                                                transcripts:
-                                                                    updatedTranscripts,
-                                                                activeTranscript:
-                                                                    newTranscriptIndex,
-                                                            });
+                                                    updateUserState({
+                                                        videoInformation: {
+                                                            ...userState
+                                                                ?.transcribe
+                                                                ?.videoInformation,
+                                                            videoLanguages:
+                                                                newVideoLanguages,
                                                         },
-                                                    );
+                                                        transcripts:
+                                                            newTranscripts,
+                                                        activeTranscript:
+                                                            newTranscripts.length -
+                                                            1,
+                                                    });
 
-                                                    // Don't close dialog here - it's already closed
-                                                } catch (error) {
-                                                    console.error(
-                                                        "Failed to process translation:",
-                                                        error,
-                                                    );
-                                                    alert(
-                                                        t(
-                                                            "Failed to process translation. Please try again.",
-                                                        ),
-                                                    );
                                                     setShowTranslateDialog(
                                                         false,
-                                                    ); // Only close on error
+                                                    );
+                                                } catch (error) {
+                                                    console.error(
+                                                        "Failed to fetch VTT content:",
+                                                        error,
+                                                    );
+                                                    // Optionally show an error message to the user
                                                 }
                                             }}
                                             onQueued={(requestId) => {
-                                                // Close dialog only after progress tracking is set up
-                                                Promise.resolve().then(() => {
-                                                    setShowTranslateDialog(
-                                                        false,
-                                                    );
-                                                });
+                                                setShowTranslateDialog(false);
                                             }}
                                         />
                                     </DialogContent>
