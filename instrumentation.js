@@ -17,8 +17,8 @@ export async function register() {
     config.global.initialize();
 }
 
-async function seed() {
-    const defaultLLM = config.data.llms.find((llm) => llm.isDefault);
+export async function seed() {
+    const defaultLLMConfig = config.data.llms.find((llm) => llm.isDefault);
 
     // one-time migration to assign identifiers based on
     // cortexModelName
@@ -30,7 +30,7 @@ async function seed() {
         await Promise.all(
             llmsWithoutIdentifiers.map(async (llm) => {
                 const identifier = config.data.llms.find(
-                    (llm) => llm.cortexModelName === llm.cortexModelName,
+                    (llmFromConfig) => llmFromConfig.cortexModelName === llm.cortexModelName,
                 )?.identifier;
                 llm.identifier = identifier;
                 return llm.save();
@@ -43,6 +43,12 @@ async function seed() {
         await LLM.findOneAndUpdate({ identifier: llm.identifier }, llm, {
             upsert: true,
         });
+    }
+
+    // Get the actual default LLM document after upserting
+    const defaultLLM = await LLM.findOne({ identifier: defaultLLMConfig.identifier });
+    if (!defaultLLM) {
+        throw new Error('Default LLM not found after upserting');
     }
 
     const modelIdentifiers = config.data.llms
