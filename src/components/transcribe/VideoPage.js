@@ -82,7 +82,7 @@ function TaxonomyDialog({ text }) {
 function DownloadButton({ format, name, text }) {
     const { t } = useTranslation();
 
-    const convertVttToSrt = (vttText) => {
+    const convertVttToSrt = (vttText, includeNumbers = true) => {
         const lines = vttText.split("\n");
         let srtContent = "";
         let subtitleCount = 1;
@@ -94,7 +94,8 @@ function DownloadButton({ format, name, text }) {
             );
             if (timestampMatch) {
                 if (currentSubtitle.timestamp) {
-                    srtContent += `${subtitleCount}\n${currentSubtitle.timestamp}\n${currentSubtitle.text}\n\n`;
+                    srtContent += includeNumbers ? `${subtitleCount}\n` : "";
+                    srtContent += `${currentSubtitle.timestamp}\n${currentSubtitle.text}\n\n`;
                     subtitleCount++;
                 }
                 // Convert timestamp format from VTT to SRT (replace . with ,)
@@ -117,7 +118,8 @@ function DownloadButton({ format, name, text }) {
 
         // Add the last subtitle
         if (currentSubtitle.timestamp) {
-            srtContent += `${subtitleCount}\n${currentSubtitle.timestamp}\n${currentSubtitle.text}\n\n`;
+            srtContent += includeNumbers ? `${subtitleCount}\n` : "";
+            srtContent += `${currentSubtitle.timestamp}\n${currentSubtitle.text}\n\n`;
         }
 
         return srtContent.trim();
@@ -128,13 +130,16 @@ function DownloadButton({ format, name, text }) {
 
         // Convert format if needed
         if (selectedFormat === "srt") {
-            downloadText = convertVttToSrt(text);
+            downloadText = convertVttToSrt(text, true);
+        } else if (selectedFormat === "srt-no-numbers") {
+            downloadText = convertVttToSrt(text, false);
         }
 
         const element = document.createElement("a");
         const file = new Blob([downloadText], { type: "text/plain" });
         element.href = URL.createObjectURL(file);
-        const fileExt = selectedFormat;
+        const fileExt =
+            selectedFormat === "srt-no-numbers" ? "srt" : selectedFormat;
         element.download = `${name}_sub.${fileExt}`;
         element.style.display = "none";
         document.body.appendChild(element);
@@ -169,6 +174,12 @@ function DownloadButton({ format, name, text }) {
                         onClick={() => downloadFile("srt")}
                     >
                         {t("Download SRT")}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                        className="text-xs"
+                        onClick={() => downloadFile("srt-no-numbers")}
+                    >
+                        {t("Download Plain SRT")}
                     </DropdownMenuItem>
                     <DropdownMenuItem
                         className="text-xs"
@@ -309,10 +320,10 @@ function EditableTranscriptSelect({
                                         `Transcript ${activeTranscript + 1}`}
                                 </SelectValue>
                             </SelectTrigger>
-                            <SelectContent className="divide-y">
+                            <SelectContent className="overflow-hidden">
                                 {transcripts.map((transcript, index) => (
                                     <SelectItem
-                                        className="w-[500px]"
+                                        className="w-[500px] border-b last:border-b-0 border-gray-100"
                                         key={index}
                                         value={index.toString()}
                                     >
@@ -337,8 +348,11 @@ function EditableTranscriptSelect({
                                                 <div className="text-xs text-gray-400 flex items-center">
                                                     <ReactTimeAgo
                                                         date={
-                                                            transcript.timestamp ||
-                                                            new Date()
+                                                            transcript.timestamp
+                                                                ? new Date(
+                                                                      transcript.timestamp,
+                                                                  ).getTime()
+                                                                : Date.now()
                                                         }
                                                         locale="en-US"
                                                     />
@@ -558,9 +572,12 @@ function VideoPage() {
         setVideoInformation("");
         setUrl("");
         setTranscripts([]);
+        setVideoLanguages([]);
+        setActiveLanguage(0);
         updateUserState({
             videoInformation: null,
             transcripts: [],
+            videoLanguages: [],
         });
     };
 
@@ -661,12 +678,34 @@ function VideoPage() {
                 const { text, format, name } = transcript;
 
                 setTranscripts((prev) => {
+                    // Find existing tracks with the same name and get the highest number
+                    const baseNameMatch = name.match(/(.*?)(?:\s+\((\d+)\))?$/);
+                    const baseName = baseNameMatch[1];
+                    const existingNumbers = prev
+                        .filter((t) => t.name && t.name.startsWith(baseName))
+                        .map((t) => {
+                            const match = t.name.match(
+                                new RegExp(`${baseName}\\s+\\((\\d+)\\)$`),
+                            );
+                            return match ? parseInt(match[1]) : 0;
+                        });
+
+                    // Determine the new name with suffix if needed
+                    let newName = name;
+                    if (prev.some((t) => t.name === name)) {
+                        const nextNumber =
+                            existingNumbers.length > 0
+                                ? Math.max(...existingNumbers) + 1
+                                : 1;
+                        newName = `${baseName} (${nextNumber})`;
+                    }
+
                     const updatedTranscripts = [
                         ...prev,
                         {
                             text,
                             format,
-                            name,
+                            name: newName,
                             timestamp: new Date().toISOString(),
                         },
                     ];
@@ -969,7 +1008,7 @@ function VideoPage() {
                                                                 (transcript) =>
                                                                     transcript.name ===
                                                                     t(
-                                                                        "Subtitles (auto)",
+                                                                        "Original Subtitles",
                                                                     ),
                                                             );
 
@@ -981,7 +1020,7 @@ function VideoPage() {
                                                                 await addVtt(
                                                                     originalVttUrl,
                                                                     t(
-                                                                        "Subtitles (auto)",
+                                                                        "Original Subtitles",
                                                                     ),
                                                                 );
                                                             if (
@@ -1007,7 +1046,7 @@ function VideoPage() {
                                                                 await addVtt(
                                                                     translatedVttUrl,
                                                                     t(
-                                                                        "Subtitles (auto): {{language}}",
+                                                                        "{{language}} Subtitles",
                                                                         {
                                                                             language:
                                                                                 new Intl.DisplayNames(

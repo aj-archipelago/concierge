@@ -164,6 +164,7 @@ const SYS_ENTITY_CONTINUE = gql`
         $useMemory: Boolean
         $chatId: String
         $generatorPathway: String
+        $aiStyle: String
     ) {
         sys_entity_continue(
             chatHistory: $chatHistory
@@ -177,6 +178,7 @@ const SYS_ENTITY_CONTINUE = gql`
             useMemory: $useMemory
             chatId: $chatId
             generatorPathway: $generatorPathway
+            aiStyle: $aiStyle
         ) {
             result
             contextId
