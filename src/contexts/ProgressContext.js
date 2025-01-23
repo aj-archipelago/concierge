@@ -75,7 +75,7 @@ function ProgressToast({
 
     const { data, error } = useSubscription(SUBSCRIPTIONS.REQUEST_PROGRESS, {
         variables: { requestIds: [requestId] },
-        onSubscriptionComplete: () => {
+        onComplete: () => {
             subscriptionRef.current = null;
         },
     });
