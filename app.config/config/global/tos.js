@@ -4,10 +4,7 @@ export const getTosContent = (language) => {
             <>
                 <div dir="rtl">
                     <p>
-                        نائب الجزيرة الذكاء الاصطناعي ("لبيب") الآن في بيتا.
-                        نريد الناس أن يستمتعوا باستخدامه واختبار الوظائف ، ولكن
-                        يرجى توقع بعض عدم الاستقرار والبطء ، خاصة حول ميزات
-                        GPT-4 ، التي هي في مرحلة ما قبل الإصدار.
+                    مساعد الذكاء الاصطناعي من الجزيرة ("لبيب") هو الآن في النسخة التجريبية. نريد أن يستمتع الناس باستخدامه واختبار وظيفته، لكن يرجى توقع بعض عدم الاستقرار والبطء، خصوصاً حول ميزات النموذج الأحدث التي غالبًا ما تكون في مرحلة ما قبل الإصدار.
                     </p>
 
                     <p>
@@ -64,8 +61,8 @@ export const getTosContent = (language) => {
                     The Al Jazeera AI Assistant (“Labeeb”) is now in Beta. We
                     want people to enjoy using it and test the functionality,
                     but please expect some instability and slowness,
-                    particularly around GPT-4 features, which are in
-                    pre-release.
+                    particularly around the newest model features which are
+                    often in pre-release.
                 </p>
 
                 <p>
