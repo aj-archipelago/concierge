@@ -1,20 +1,20 @@
 // Mock taxonomy sets data
 const mockTaxonomySets = [
-  {
-    setName: "news",
-    topics: [],
-    tags: []
-  }
+    {
+        setName: "news",
+        topics: [],
+        tags: [],
+    },
 ];
 
 export const getTaxonomySets = async function () {
-  return mockTaxonomySets;
+    return mockTaxonomySets;
 };
 
 export const getTopics = async function (language) {
-  return mockTaxonomySets.find((set) => set.setName === "news")?.topics;
+    return mockTaxonomySets.find((set) => set.setName === "news")?.topics;
 };
 
 export const getTags = async function () {
-  return mockTaxonomySets.find((set) => set.setName === "news")?.tags;
-}; 
+    return mockTaxonomySets.find((set) => set.setName === "news")?.tags;
+};

@@ -31,7 +31,7 @@ describe("LLM Initialization", () => {
             cortexModelName: "azure-turbo-chat",
             cortexPathwayName: "run_gpt35turbo",
             isDefault: false,
-            identifier: null
+            identifier: null,
         });
 
         await seed();
@@ -59,14 +59,14 @@ describe("LLM Initialization", () => {
             cortexModelName: "obsolete-model",
             cortexPathwayName: "run_obsolete",
             identifier: "obsolete",
-            isDefault: false
+            isDefault: false,
         });
 
         // Create a prompt using the obsolete LLM
         const prompt = await Prompt.create({
             title: "Test Prompt",
             text: "Test prompt text",
-            llm: obsoleteLLM._id
+            llm: obsoleteLLM._id,
         });
 
         await seed();
@@ -88,7 +88,7 @@ describe("LLM Initialization", () => {
             cortexModelName: "obsolete-model",
             cortexPathwayName: "run_obsolete",
             identifier: "obsolete",
-            isDefault: false
+            isDefault: false,
         });
 
         // Create multiple prompts using the obsolete LLM
@@ -96,13 +96,13 @@ describe("LLM Initialization", () => {
             Prompt.create({
                 title: "Prompt 1",
                 text: "Test prompt 1",
-                llm: obsoleteLLM._id
+                llm: obsoleteLLM._id,
             }),
             Prompt.create({
                 title: "Prompt 2",
                 text: "Test prompt 2",
-                llm: obsoleteLLM._id
-            })
+                llm: obsoleteLLM._id,
+            }),
         ]);
 
         await seed();
@@ -110,10 +110,10 @@ describe("LLM Initialization", () => {
         // Verify all prompts were updated to use default LLM
         const defaultLLM = await LLM.findOne({ isDefault: true });
         const updatedPrompts = await Prompt.find({
-            _id: { $in: prompts.map(p => p._id) }
+            _id: { $in: prompts.map((p) => p._id) },
         });
 
-        updatedPrompts.forEach(prompt => {
+        updatedPrompts.forEach((prompt) => {
             expect(prompt.llm.toString()).toBe(defaultLLM._id.toString());
         });
     });
@@ -121,14 +121,14 @@ describe("LLM Initialization", () => {
     test("should not modify prompts if no LLMs are missing from config", async () => {
         // First seed to create valid LLMs
         await seed();
-        
+
         const defaultLLM = await LLM.findOne({ isDefault: true });
-        
+
         // Create a prompt with valid LLM
         const prompt = await Prompt.create({
             title: "Test Prompt",
             text: "Test prompt text",
-            llm: defaultLLM._id
+            llm: defaultLLM._id,
         });
 
         // Run seed again
@@ -142,17 +142,17 @@ describe("LLM Initialization", () => {
     test("should correctly match config LLM with database LLM using cortexModelName", async () => {
         // Ensure we have multiple LLMs in config to test against
         expect(config.data.llms.length).toBeGreaterThan(1);
-        
+
         // Find a non-first LLM from config to test against
         const targetConfigLLM = config.data.llms[1]; // Use second LLM in config
-        
+
         // Create an LLM without identifier but with matching cortexModelName
         const llmWithoutIdentifier = await LLM.create({
             name: "Test LLM",
             cortexModelName: targetConfigLLM.cortexModelName,
             cortexPathwayName: targetConfigLLM.cortexPathwayName,
             isDefault: false,
-            identifier: null
+            identifier: null,
         });
 
         await seed();
@@ -161,4 +161,4 @@ describe("LLM Initialization", () => {
         const updatedLLM = await LLM.findById(llmWithoutIdentifier._id);
         expect(updatedLLM.identifier).toBe(targetConfigLLM.identifier);
     });
-}); 
+});
