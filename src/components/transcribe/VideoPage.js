@@ -138,7 +138,7 @@ function DownloadButton({ format, name, text }) {
         const file = new Blob([downloadText], { type: "text/plain" });
         element.href = URL.createObjectURL(file);
         const fileExt = selectedFormat;
-        element.download = `${name}_sub.${fileExt}`;
+        element.download = `${name}.${fileExt}`;
         element.style.display = "none";
         document.body.appendChild(element);
 
