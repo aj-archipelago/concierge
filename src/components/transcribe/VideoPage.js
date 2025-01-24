@@ -82,11 +82,12 @@ function TaxonomyDialog({ text }) {
 function DownloadButton({ format, name, text }) {
     const { t } = useTranslation();
 
-    const convertVttToSrt = (vttText, includeNumbers = true) => {
+    const convertVttToSrt = (vttText) => {
         const lines = vttText.split("\n");
         let srtContent = "";
         let subtitleCount = 1;
         let currentSubtitle = {};
+        let isTextContent = false;
 
         lines.forEach((line) => {
             const timestampMatch = line.match(
@@ -94,8 +95,7 @@ function DownloadButton({ format, name, text }) {
             );
             if (timestampMatch) {
                 if (currentSubtitle.timestamp) {
-                    srtContent += includeNumbers ? `${subtitleCount}\n` : "";
-                    srtContent += `${currentSubtitle.timestamp}\n${currentSubtitle.text}\n\n`;
+                    srtContent += `${subtitleCount}\n${currentSubtitle.timestamp}\n${currentSubtitle.text.trim()}\n\n`;
                     subtitleCount++;
                 }
                 // Convert timestamp format from VTT to SRT (replace . with ,)
@@ -103,23 +103,24 @@ function DownloadButton({ format, name, text }) {
                     timestamp: `${timestampMatch[1].replace(".", ",")} --> ${timestampMatch[2].replace(".", ",")}`,
                     text: "",
                 };
+                isTextContent = true;
             } else if (
                 line.trim() &&
-                !/^\d+$/.test(line) &&
+                isTextContent &&
                 currentSubtitle.timestamp
             ) {
-                currentSubtitle.text = (
-                    currentSubtitle.text +
-                    " " +
-                    line
-                ).trim();
+                const trimmedLine = line.trim();
+                currentSubtitle.text = currentSubtitle.text
+                    ? `${currentSubtitle.text}\n${trimmedLine}`
+                    : trimmedLine;
+            } else if (!line.trim()) {
+                isTextContent = false;
             }
         });
 
         // Add the last subtitle
         if (currentSubtitle.timestamp) {
-            srtContent += includeNumbers ? `${subtitleCount}\n` : "";
-            srtContent += `${currentSubtitle.timestamp}\n${currentSubtitle.text}\n\n`;
+            srtContent += `${subtitleCount}\n${currentSubtitle.timestamp}\n${currentSubtitle.text.trim()}\n\n`;
         }
 
         return srtContent.trim();
@@ -130,17 +131,14 @@ function DownloadButton({ format, name, text }) {
 
         // Convert format if needed
         if (selectedFormat === "srt") {
-            downloadText = convertVttToSrt(text, true);
-        } else if (selectedFormat === "srt-no-numbers") {
-            downloadText = convertVttToSrt(text, false);
+            downloadText = convertVttToSrt(text);
         }
 
         const element = document.createElement("a");
         const file = new Blob([downloadText], { type: "text/plain" });
         element.href = URL.createObjectURL(file);
-        const fileExt =
-            selectedFormat === "srt-no-numbers" ? "srt" : selectedFormat;
-        element.download = `${name}_sub.${fileExt}`;
+        const fileExt = selectedFormat;
+        element.download = `${name}.${fileExt}`;
         element.style.display = "none";
         document.body.appendChild(element);
 
@@ -174,12 +172,6 @@ function DownloadButton({ format, name, text }) {
                         onClick={() => downloadFile("srt")}
                     >
                         {t("Download SRT")}
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                        className="text-xs"
-                        onClick={() => downloadFile("srt-no-numbers")}
-                    >
-                        {t("Download Plain SRT")}
                     </DropdownMenuItem>
                     <DropdownMenuItem
                         className="text-xs"
