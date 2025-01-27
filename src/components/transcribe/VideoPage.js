@@ -87,6 +87,7 @@ function DownloadButton({ format, name, text }) {
         let srtContent = "";
         let subtitleCount = 1;
         let currentSubtitle = {};
+        let isTextContent = false;
 
         lines.forEach((line) => {
             const timestampMatch = line.match(
@@ -94,7 +95,7 @@ function DownloadButton({ format, name, text }) {
             );
             if (timestampMatch) {
                 if (currentSubtitle.timestamp) {
-                    srtContent += `${subtitleCount}\n${currentSubtitle.timestamp}\n${currentSubtitle.text}\n\n`;
+                    srtContent += `${subtitleCount}\n${currentSubtitle.timestamp}\n${currentSubtitle.text.trim()}\n\n`;
                     subtitleCount++;
                 }
                 // Convert timestamp format from VTT to SRT (replace . with ,)
@@ -102,22 +103,24 @@ function DownloadButton({ format, name, text }) {
                     timestamp: `${timestampMatch[1].replace(".", ",")} --> ${timestampMatch[2].replace(".", ",")}`,
                     text: "",
                 };
+                isTextContent = true;
             } else if (
                 line.trim() &&
-                !/^\d+$/.test(line) &&
+                isTextContent &&
                 currentSubtitle.timestamp
             ) {
-                currentSubtitle.text = (
-                    currentSubtitle.text +
-                    " " +
-                    line
-                ).trim();
+                const trimmedLine = line.trim();
+                currentSubtitle.text = currentSubtitle.text
+                    ? `${currentSubtitle.text}\n${trimmedLine}`
+                    : trimmedLine;
+            } else if (!line.trim()) {
+                isTextContent = false;
             }
         });
 
         // Add the last subtitle
         if (currentSubtitle.timestamp) {
-            srtContent += `${subtitleCount}\n${currentSubtitle.timestamp}\n${currentSubtitle.text}\n\n`;
+            srtContent += `${subtitleCount}\n${currentSubtitle.timestamp}\n${currentSubtitle.text.trim()}\n\n`;
         }
 
         return srtContent.trim();
@@ -135,7 +138,7 @@ function DownloadButton({ format, name, text }) {
         const file = new Blob([downloadText], { type: "text/plain" });
         element.href = URL.createObjectURL(file);
         const fileExt = selectedFormat;
-        element.download = `${name}_sub.${fileExt}`;
+        element.download = `${name}.${fileExt}`;
         element.style.display = "none";
         document.body.appendChild(element);
 
@@ -309,10 +312,10 @@ function EditableTranscriptSelect({
                                         `Transcript ${activeTranscript + 1}`}
                                 </SelectValue>
                             </SelectTrigger>
-                            <SelectContent className="divide-y">
+                            <SelectContent className="overflow-hidden">
                                 {transcripts.map((transcript, index) => (
                                     <SelectItem
-                                        className="w-[500px]"
+                                        className="w-[500px] border-b last:border-b-0 border-gray-100"
                                         key={index}
                                         value={index.toString()}
                                     >
@@ -337,8 +340,11 @@ function EditableTranscriptSelect({
                                                 <div className="text-xs text-gray-400 flex items-center">
                                                     <ReactTimeAgo
                                                         date={
-                                                            transcript.timestamp ||
-                                                            new Date()
+                                                            transcript.timestamp
+                                                                ? new Date(
+                                                                      transcript.timestamp,
+                                                                  ).getTime()
+                                                                : Date.now()
                                                         }
                                                         locale="en-US"
                                                     />
@@ -558,9 +564,12 @@ function VideoPage() {
         setVideoInformation("");
         setUrl("");
         setTranscripts([]);
+        setVideoLanguages([]);
+        setActiveLanguage(0);
         updateUserState({
             videoInformation: null,
             transcripts: [],
+            videoLanguages: [],
         });
     };
 
@@ -661,12 +670,34 @@ function VideoPage() {
                 const { text, format, name } = transcript;
 
                 setTranscripts((prev) => {
+                    // Find existing tracks with the same name and get the highest number
+                    const baseNameMatch = name.match(/(.*?)(?:\s+\((\d+)\))?$/);
+                    const baseName = baseNameMatch[1];
+                    const existingNumbers = prev
+                        .filter((t) => t.name && t.name.startsWith(baseName))
+                        .map((t) => {
+                            const match = t.name.match(
+                                new RegExp(`${baseName}\\s+\\((\\d+)\\)$`),
+                            );
+                            return match ? parseInt(match[1]) : 0;
+                        });
+
+                    // Determine the new name with suffix if needed
+                    let newName = name;
+                    if (prev.some((t) => t.name === name)) {
+                        const nextNumber =
+                            existingNumbers.length > 0
+                                ? Math.max(...existingNumbers) + 1
+                                : 1;
+                        newName = `${baseName} (${nextNumber})`;
+                    }
+
                     const updatedTranscripts = [
                         ...prev,
                         {
                             text,
                             format,
-                            name,
+                            name: newName,
                             timestamp: new Date().toISOString(),
                         },
                     ];
@@ -969,7 +1000,7 @@ function VideoPage() {
                                                                 (transcript) =>
                                                                     transcript.name ===
                                                                     t(
-                                                                        "Subtitles (auto)",
+                                                                        "Original Subtitles",
                                                                     ),
                                                             );
 
@@ -981,7 +1012,7 @@ function VideoPage() {
                                                                 await addVtt(
                                                                     originalVttUrl,
                                                                     t(
-                                                                        "Subtitles (auto)",
+                                                                        "Original Subtitles",
                                                                     ),
                                                                 );
                                                             if (
@@ -1007,7 +1038,7 @@ function VideoPage() {
                                                                 await addVtt(
                                                                     translatedVttUrl,
                                                                     t(
-                                                                        "Subtitles (auto): {{language}}",
+                                                                        "{{language}} Subtitles",
                                                                         {
                                                                             language:
                                                                                 new Intl.DisplayNames(

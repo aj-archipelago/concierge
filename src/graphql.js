@@ -203,6 +203,7 @@ const SYS_ENTITY_CONTINUE = gql`
         $semanticConfiguration: String
         $aiName: String
         $useMemory: Boolean
+        $aiStyle: String
         $chatId: String
         $generatorPathway: String
     ) {
@@ -215,6 +216,7 @@ const SYS_ENTITY_CONTINUE = gql`
             indexName: $indexName
             semanticConfiguration: $semanticConfiguration
             aiName: $aiName
+            aiStyle: $aiStyle
             useMemory: $useMemory
             chatId: $chatId
             generatorPathway: $generatorPathway
