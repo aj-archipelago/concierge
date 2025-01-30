@@ -1,17 +1,4 @@
 module.exports = {
-    testEnvironment: "jsdom",
-    transform: {
-        "^.+\\.(js|jsx|mjs)$": [
-            "babel-jest",
-            {
-                presets: [
-                    ["@babel/preset-env", { targets: { node: "current" } }],
-                    "@babel/preset-react",
-                ],
-            },
-        ],
-    },
-    testMatch: ["**/*.test.js"],
     setupFiles: ["<rootDir>/__mocks__/setup.js", "<rootDir>/jest.setup.js"],
     moduleDirectories: ["node_modules", "__mocks__"],
     moduleNameMapper: {
@@ -25,7 +12,9 @@ module.exports = {
         "^config/(.*)$": "<rootDir>/__mocks__/config/$1",
         "^./config/(.*)$": "<rootDir>/__mocks__/config/$1",
     },
-    modulePathIgnorePatterns: [".next"],
+    modulePathIgnorePatterns: ["<rootDir>/.next", "<rootDir>/.next/standalone"],
+    watchPathIgnorePatterns: ["<rootDir>/.next", "<rootDir>/.next/standalone"],
+    testPathIgnorePatterns: ["<rootDir>/.next", "<rootDir>/.next/standalone"],
     projects: [
         {
             displayName: "components",
@@ -38,13 +27,17 @@ module.exports = {
                         presets: [
                             [
                                 "@babel/preset-env",
-                                { targets: { node: "current" } },
+                                {
+                                    targets: { node: "current" },
+                                    modules: "commonjs",
+                                },
                             ],
                             "@babel/preset-react",
                         ],
                     },
                 ],
             },
+            setupFiles: ["<rootDir>/jest.setup.js"],
         },
         {
             displayName: "node",
