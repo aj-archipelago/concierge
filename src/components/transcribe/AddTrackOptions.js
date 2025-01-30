@@ -503,7 +503,7 @@ export default function TranscribeVideo({
                 {responseFormat === "vtt" && (
                     <div className={`flex flex-col`}>
                         <h5 className="font-semibold text-xs text-gray-400 mb-1">
-                            Transcription type
+                            {t("Transcription type")}
                         </h5>
                         <TranscriptionTypeSelector
                             loading={loading}
