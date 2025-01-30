@@ -1,5 +1,5 @@
 module.exports = {
-    testEnvironment: "node",
+    testEnvironment: "jsdom",
     transform: {
         "^.+\\.(js|jsx|mjs)$": [
             "babel-jest",
@@ -12,7 +12,10 @@ module.exports = {
         ],
     },
     testMatch: ["**/*.test.js"],
-    setupFiles: ["<rootDir>/__mocks__/setup.js"],
+    setupFiles: [
+        "<rootDir>/__mocks__/setup.js",
+        "<rootDir>/jest.setup.js"
+    ],
     moduleDirectories: ["node_modules", "__mocks__"],
     moduleNameMapper: {
         "^@/(.*)$": "<rootDir>/@/$1",
@@ -25,4 +28,46 @@ module.exports = {
         "^config/(.*)$": "<rootDir>/__mocks__/config/$1",
         "^./config/(.*)$": "<rootDir>/__mocks__/config/$1",
     },
+    modulePathIgnorePatterns: [".next"],
+    projects: [
+        {
+            displayName: "components",
+            testEnvironment: "jsdom",
+            testMatch: ["<rootDir>/src/**/*.test.js"],
+            transform: {
+                "^.+\\.(js|jsx|mjs)$": [
+                    "babel-jest",
+                    {
+                        presets: [
+                            ["@babel/preset-env", { targets: { node: "current" } }],
+                            "@babel/preset-react",
+                        ],
+                    },
+                ],
+            },
+        },
+        {
+            displayName: "node",
+            testEnvironment: "node",
+            testMatch: ["<rootDir>/instrumentation.test.js"],
+            transform: {
+                "^.+\\.(js|jsx|mjs)$": [
+                    "babel-jest",
+                    {
+                        presets: [
+                            ["@babel/preset-env", { 
+                                targets: { node: "current" },
+                                modules: "commonjs"
+                            }],
+                            "@babel/preset-react",
+                        ],
+                    },
+                ],
+            },
+            moduleNameMapper: {
+                "^config/(.*)$": "<rootDir>/__mocks__/config/$1",
+                "^./config/(.*)$": "<rootDir>/__mocks__/config/$1",
+            },
+        },
+    ],
 };
