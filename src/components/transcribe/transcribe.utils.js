@@ -8,10 +8,10 @@ export function convertSrtToVtt(data) {
     srt = srt.replace(/^\s+|\s+$/g, "");
 
     // Convert all timestamps from comma to dot format
-    srt = srt.replace(/(\d{2}:\d{2}:\d{2}),(\d{3})/g, '$1.$2');
+    srt = srt.replace(/(\d{2}:\d{2}:\d{2}),(\d{3})/g, "$1.$2");
 
     // Add blank lines before sequence numbers that are followed by timecodes
-    srt = srt.replace(/(\n)(\d+)\n(\d{2}:\d{2}:\d{2}[,.])/g, '$1\n$2\n$3');
+    srt = srt.replace(/(\n)(\d+)\n(\d{2}:\d{2}:\d{2}[,.])/g, "$1\n$2\n$3");
 
     // get cues
     var cuelist = srt.split("\n\n");
@@ -46,8 +46,13 @@ function convertSrtCue(caption) {
     }
     var line = 0;
     // detect identifier
-    if (s[0] && s[1] && !s[0].match(/\d+:\d+:\d+/) && s[1].match(/\d+:\d+:\d+/)) {
-        const match = s[0].match(/^\d+$/);  // Only match if the entire line is a number
+    if (
+        s[0] &&
+        s[1] &&
+        !s[0].match(/\d+:\d+:\d+/) &&
+        s[1].match(/\d+:\d+:\d+/)
+    ) {
+        const match = s[0].match(/^\d+$/); // Only match if the entire line is a number
         if (match) {
             cue += match[0] + "\n";
             line += 1;
@@ -95,12 +100,12 @@ function convertSrtCue(caption) {
 
 export function detectSubtitleFormat(text) {
     // Remove DOS newlines and trim whitespace
-    const cleanText = text.replace(/\r+/g, '').trim();
-    const lines = cleanText.split('\n');
+    const cleanText = text.replace(/\r+/g, "").trim();
+    const lines = cleanText.split("\n");
 
     // Check if it's VTT format
-    if (lines[0]?.trim() === 'WEBVTT') {
-        return 'vtt';
+    if (lines[0]?.trim() === "WEBVTT") {
+        return "vtt";
     }
 
     // Check if it's SRT format
@@ -109,8 +114,9 @@ export function detectSubtitleFormat(text) {
     // 2. Timestamp in format: 00:00:00,000 --> 00:00:00,000
     // 3. Subtitle text
     // 4. Blank line
-    const timeRegex = /(\d{2}:\d{2}:\d{2})[,.](\d{3})\s*-->\s*(\d{2}:\d{2}:\d{2})[,.](\d{3})/;
-    
+    const timeRegex =
+        /(\d{2}:\d{2}:\d{2})[,.](\d{3})\s*-->\s*(\d{2}:\d{2}:\d{2})[,.](\d{3})/;
+
     let hasValidStructure = false;
     let index = 1;
 
@@ -132,7 +138,7 @@ export function detectSubtitleFormat(text) {
     }
 
     if (hasValidStructure) {
-        return 'srt';
+        return "srt";
     }
 
     return null;

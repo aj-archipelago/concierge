@@ -239,11 +239,11 @@ function ClipboardPaste({ onAdd }) {
         let outputFormat = "";
         let name = t("Pasted Transcript");
 
-        if (format === 'srt') {
+        if (format === "srt") {
             processedText = convertSrtToVtt(text);
             outputFormat = "vtt";
             name = t("Pasted Subtitles");
-        } else if (format === 'vtt') {
+        } else if (format === "vtt") {
             outputFormat = "vtt";
             name = t("Pasted Subtitles");
         }

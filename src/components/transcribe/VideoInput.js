@@ -34,17 +34,17 @@ export const checkDuration = async (duration) => {
 
 export const isCloudStorageUrl = (url) => {
     const cloudStoragePatterns = [
-        '.blob.core.windows.net/', // Azure
-        'storage.googleapis.com/', // Google Cloud Storage
-        'storage.cloud.google.com/',
-        's3.amazonaws.com/', // AWS S3
-        's3-[a-z0-9-]+.amazonaws.com/', // AWS S3 with region
-        'cloudfront.net/', // AWS CloudFront
-        'digitaloceanspaces.com/', // DigitalOcean Spaces
+        ".blob.core.windows.net/", // Azure
+        "storage.googleapis.com/", // Google Cloud Storage
+        "storage.cloud.google.com/",
+        "s3.amazonaws.com/", // AWS S3
+        "s3-[a-z0-9-]+.amazonaws.com/", // AWS S3 with region
+        "cloudfront.net/", // AWS CloudFront
+        "digitaloceanspaces.com/", // DigitalOcean Spaces
     ];
-    
-    return cloudStoragePatterns.some(pattern => 
-        url.match(new RegExp(pattern, 'i'))
+
+    return cloudStoragePatterns.some((pattern) =>
+        url.match(new RegExp(pattern, "i")),
     );
 };
 
@@ -61,7 +61,10 @@ export const checkVideoUrl = async (url) => {
                     return false;
                 }
             } catch (error) {
-                console.warn("HEAD request failed, continuing with video element check:", error);
+                console.warn(
+                    "HEAD request failed, continuing with video element check:",
+                    error,
+                );
                 // Continue even if HEAD request fails - some servers might block HEAD
             }
         }
@@ -86,7 +89,8 @@ export const checkVideoUrl = async (url) => {
         video.src = url;
 
         const duration = await durationPromise;
-        if (duration > 0) { // Only check duration if we got a valid duration
+        if (duration > 0) {
+            // Only check duration if we got a valid duration
             await checkDuration(duration);
         }
         return true;
