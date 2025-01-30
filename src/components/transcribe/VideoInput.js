@@ -479,76 +479,80 @@ function VideoInput({
                         )}
                     </span>
 
-                    <div className="flex items-center my-4 max-w-xl">
-                        <div className="w-64 border-t border-gray-300"></div>
-                        <span className="px-4 text-sm text-gray-500">
-                            {t("OR")}
-                        </span>
-                        <div className="flex-1 border-t border-gray-300"></div>
+                    <div className="flex justify-center w-full">
+                        <div className="flex items-center my-4">
+                            <div className="w-64 border-t border-gray-300"></div>
+                            <span className="px-4 text-sm text-gray-500">
+                                {t("OR")}
+                            </span>
+                            <div className="flex-1 border-t border-gray-300 w-64"></div>
+                        </div>
                     </div>
 
-                    <div className="flex flex-col  gap-4">
-                        <div
-                            className="border-2 border-dashed border-gray-300 rounded-lg p-8 w-full max-w-xl hover:border-primary-500 transition-colors"
-                            onDragOver={(e) => {
-                                e.preventDefault();
-                                e.currentTarget.classList.add(
-                                    "border-primary-500",
-                                );
-                            }}
-                            onDragLeave={(e) => {
-                                e.currentTarget.classList.remove(
-                                    "border-primary-500",
-                                );
-                            }}
-                            onDrop={(e) => {
-                                e.preventDefault();
-                                e.currentTarget.classList.remove(
-                                    "border-primary-500",
-                                );
-                                const file = e.dataTransfer.files[0];
-                                const event = { target: { files: [file] } };
-                                handleFileUpload(event);
-                            }}
-                        >
-                            <div className="text-center">
-                                <label className="lb-outline-secondary text-sm flex gap-2 items-center cursor-pointer justify-center w-64 mx-auto mb-3">
-                                    <input
-                                        type="file"
-                                        className="hidden"
-                                        accept="video/*,audio/*"
-                                        onChange={handleFileUpload}
-                                        disabled={fileUploading}
-                                    />
-                                    {fileUploading ? (
-                                        <>
-                                            <Loader2Icon className="w-4 h-4 animate-spin" />
-                                            {t("Uploading...")}{" "}
-                                            {Math.round(uploadProgress)}%
-                                        </>
-                                    ) : (
-                                        <>
-                                            <UploadIcon className="w-4 h-4" />
-                                            {t("Choose a file")}
-                                        </>
-                                    )}
-                                </label>
-                                <p className="text-sm text-gray-500 mb-2">
-                                    {t("or drag and drop here")}
-                                </p>
-                                <p className="text-xs text-gray-400">
-                                    {t("Supported formats")}: MP4, WebM, OGG,
-                                    MP3, WAV
-                                    <br />
-                                    {t("Maximum file size")}: 500MB
-                                </p>
+                    <div className="flex justify-center w-full">
+                        <div className="flex flex-col gap-4">
+                            <div
+                                className="border-2 border-dashed border-gray-300 rounded-lg p-8 w-full max-w-xl hover:border-primary-500 transition-colors"
+                                onDragOver={(e) => {
+                                    e.preventDefault();
+                                    e.currentTarget.classList.add(
+                                        "border-primary-500",
+                                    );
+                                }}
+                                onDragLeave={(e) => {
+                                    e.currentTarget.classList.remove(
+                                        "border-primary-500",
+                                    );
+                                }}
+                                onDrop={(e) => {
+                                    e.preventDefault();
+                                    e.currentTarget.classList.remove(
+                                        "border-primary-500",
+                                    );
+                                    const file = e.dataTransfer.files[0];
+                                    const event = { target: { files: [file] } };
+                                    handleFileUpload(event);
+                                }}
+                            >
+                                <div className="text-center w-96">
+                                    <label className="lb-outline-secondary text-sm flex gap-2 items-center cursor-pointer justify-center w-64 mx-auto mb-3">
+                                        <input
+                                            type="file"
+                                            className="hidden"
+                                            accept="video/*,audio/*"
+                                            onChange={handleFileUpload}
+                                            disabled={fileUploading}
+                                        />
+                                        {fileUploading ? (
+                                            <>
+                                                <Loader2Icon className="w-4 h-4 animate-spin" />
+                                                {t("Uploading...")}{" "}
+                                                {Math.round(uploadProgress)}%
+                                            </>
+                                        ) : (
+                                            <>
+                                                <UploadIcon className="w-4 h-4" />
+                                                {t("Choose a file")}
+                                            </>
+                                        )}
+                                    </label>
+                                    <p className="text-sm text-gray-500 mb-2">
+                                        {t("or drag and drop here")}
+                                    </p>
+                                    <p className="text-xs text-gray-400">
+                                        {t("Supported formats")}: MP4, WebM,
+                                        OGG, MP3, WAV
+                                        <br />
+                                        {t("Maximum file size")}: 500MB
+                                    </p>
+                                </div>
                             </div>
+                            {fileUploadError && (
+                                <p className="text-red-500 text-sm">
+                                    {fileUploadError.message}
+                                </p>
+                            )}
                         </div>
-                        {fileUploadError && (
-                            <p className="text-red-500 text-sm">
-                                {fileUploadError.message}
-                            </p>
-                        )}
                     </div>
                 </>
             )}
