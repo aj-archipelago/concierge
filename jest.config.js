@@ -12,10 +12,7 @@ module.exports = {
         ],
     },
     testMatch: ["**/*.test.js"],
-    setupFiles: [
-        "<rootDir>/__mocks__/setup.js",
-        "<rootDir>/jest.setup.js"
-    ],
+    setupFiles: ["<rootDir>/__mocks__/setup.js", "<rootDir>/jest.setup.js"],
     moduleDirectories: ["node_modules", "__mocks__"],
     moduleNameMapper: {
         "^@/(.*)$": "<rootDir>/@/$1",
@@ -39,7 +36,10 @@ module.exports = {
                     "babel-jest",
                     {
                         presets: [
-                            ["@babel/preset-env", { targets: { node: "current" } }],
+                            [
+                                "@babel/preset-env",
+                                { targets: { node: "current" } },
+                            ],
                             "@babel/preset-react",
                         ],
                     },
@@ -55,10 +55,13 @@ module.exports = {
                     "babel-jest",
                     {
                         presets: [
-                            ["@babel/preset-env", { 
-                                targets: { node: "current" },
-                                modules: "commonjs"
-                            }],
+                            [
+                                "@babel/preset-env",
+                                {
+                                    targets: { node: "current" },
+                                    modules: "commonjs",
+                                },
+                            ],
                             "@babel/preset-react",
                         ],
                     },
