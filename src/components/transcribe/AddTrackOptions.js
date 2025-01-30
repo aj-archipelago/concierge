@@ -15,7 +15,7 @@ import { useProgress } from "../../contexts/ProgressContext";
 import { QUERIES } from "../../graphql";
 import LoadingButton from "../editor/LoadingButton";
 import TranslationOptions from "./TranslationOptions";
-import { convertSrtToVtt } from "./transcribe.utils";
+import { convertSrtToVtt, detectSubtitleFormat } from "./transcribe.utils";
 import { LanguageContext } from "../../contexts/LanguageProvider";
 
 export function AddTrackOptions({
@@ -232,10 +232,26 @@ function ClipboardPaste({ onAdd }) {
 
     const handleSubmit = () => {
         if (!text.trim()) return;
+
+        // Detect if the pasted text is in a subtitle format
+        const format = detectSubtitleFormat(text);
+        let processedText = text;
+        let outputFormat = "";
+        let name = t("Pasted Transcript");
+
+        if (format === 'srt') {
+            processedText = convertSrtToVtt(text);
+            outputFormat = "vtt";
+            name = t("Pasted Subtitles");
+        } else if (format === 'vtt') {
+            outputFormat = "vtt";
+            name = t("Pasted Subtitles");
+        }
+
         onAdd({
-            text: text,
-            format: "",
-            name: t("Pasted Transcript"),
+            text: processedText,
+            format: outputFormat,
+            name: name,
         });
         setText("");
     };

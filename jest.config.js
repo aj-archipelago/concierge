@@ -1,5 +1,3 @@
-const { pathsToModuleNameMapper } = require("ts-jest");
-
 module.exports = {
     testEnvironment: "node",
     transform: {
