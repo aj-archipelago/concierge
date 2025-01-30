@@ -15,6 +15,10 @@ module.exports = {
     modulePathIgnorePatterns: ["<rootDir>/.next", "<rootDir>/.next/standalone"],
     watchPathIgnorePatterns: ["<rootDir>/.next", "<rootDir>/.next/standalone"],
     testPathIgnorePatterns: ["<rootDir>/.next", "<rootDir>/.next/standalone"],
+    haste: {
+        forceNodeFilesystemAPI: true,
+        enableSymlinks: false,
+    },
     projects: [
         {
             displayName: "components",
@@ -37,7 +41,7 @@ module.exports = {
                     },
                 ],
             },
-            setupFiles: ["<rootDir>/jest.setup.js"],
+            setupFilesAfterEnv: ["<rootDir>/jest.setup.js"],
         },
         {
             displayName: "node",
