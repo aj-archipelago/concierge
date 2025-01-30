@@ -105,7 +105,15 @@ export const checkVideoUrl = async (url) => {
     }
 };
 
-function VideoInput({ url, setUrl, gcs, setGcs, setVideoInformation }) {
+function VideoInput({
+    url,
+    setUrl,
+    gcs,
+    setGcs,
+    setVideoInformation,
+    onUploadStart,
+    onUploadComplete,
+}) {
     const { t } = useTranslation();
     const [fileUploading, setFileUploading] = useState(false);
     const [fileUploadError, setFileUploadError] = useState(null);
@@ -122,6 +130,7 @@ function VideoInput({ url, setUrl, gcs, setGcs, setVideoInformation }) {
         setUploadProgress(0);
         setUrl("");
         setGcs("");
+        onUploadStart?.(); // Notify parent that upload is starting
 
         const file = event.target.files[0];
 
@@ -157,6 +166,7 @@ function VideoInput({ url, setUrl, gcs, setGcs, setVideoInformation }) {
                         transcriptionUrl: null,
                     });
                     setFileUploading(false);
+                    onUploadComplete?.(); // Notify parent that upload is complete
                     return;
                 }
             }
@@ -220,12 +230,14 @@ function VideoInput({ url, setUrl, gcs, setGcs, setVideoInformation }) {
                         transcriptionUrl: null,
                     });
                     setFileUploading(false);
+                    onUploadComplete?.(); // Notify parent that upload is complete
                 } else {
                     console.error(xhr.statusText);
                     setFileUploadError({
                         message: `${t("File upload failed, response:")} ${xhr.statusText}`,
                     });
                     setFileUploading(false);
+                    onUploadComplete?.(); // Notify parent that upload failed
                 }
             };
 
@@ -234,6 +246,7 @@ function VideoInput({ url, setUrl, gcs, setGcs, setVideoInformation }) {
                 console.error(error);
                 setFileUploadError({ message: t("File upload failed") });
                 setFileUploading(false);
+                onUploadComplete?.(); // Notify parent that upload failed
             };
 
             // Send the file
@@ -242,6 +255,35 @@ function VideoInput({ url, setUrl, gcs, setGcs, setVideoInformation }) {
             console.error(error);
             setFileUploadError({ message: t("File upload failed") });
             setFileUploading(false);
+            onUploadComplete?.(); // Notify parent that upload failed
+        }
+    };
+
+    const uploadVideoFromUrl = async (videoUrl) => {
+        try {
+            const response = await fetch(
+                `${config.endpoints.mediaHelper(serverUrl)}`,
+                {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify({ url: videoUrl }),
+                },
+            );
+
+            if (!response.ok) {
+                throw new Error(`Upload failed: ${response.statusText}`);
+            }
+
+            const data = await response.json();
+            return {
+                url: data.url || "",
+                gcs: data.gcs || "",
+            };
+        } catch (error) {
+            console.error("Error uploading video from URL:", error);
+            throw error;
         }
     };
 
@@ -267,7 +309,16 @@ function VideoInput({ url, setUrl, gcs, setGcs, setVideoInformation }) {
 
     return (
         <div className="flex flex-col gap-2 mb-5">
-            {showVideoSelector ? (
+            {fileUploading ? (
+                <div className="flex flex-col items-center justify-center gap-4 py-8">
+                    <div className="flex items-center gap-2 text-sm text-gray-500">
+                        <Loader2Icon className="w-4 h-4 animate-spin" />
+                        <span>
+                            {t("Processing video...")} {uploadProgress}%
+                        </span>
+                    </div>
+                </div>
+            ) : showVideoSelector ? (
                 <>
                     {videoSelectorError && (
                         <p className="text-red-500 text-sm">
@@ -280,7 +331,27 @@ function VideoInput({ url, setUrl, gcs, setGcs, setVideoInformation }) {
                             try {
                                 const result = await checkVideoUrl(v.videoUrl);
                                 if (result === true) {
-                                    setVideoInformation(v);
+                                    setFileUploading(true);
+                                    onUploadStart?.(); // Notify parent that upload is starting
+
+                                    // Download the video as a blob and create a File object
+                                    const response = await fetch(v.videoUrl);
+                                    const blob = await response.blob();
+                                    const file = new File([blob], "video.mp4", {
+                                        type: blob.type,
+                                    });
+
+                                    // Use the existing handleFileUpload logic
+                                    await handleFileUpload({
+                                        target: { files: [file] },
+                                    });
+
+                                    // Set the transcription URL if available
+                                    setVideoInformation((prev) => ({
+                                        ...prev,
+                                        transcriptionUrl: v.transcriptionUrl,
+                                    }));
+
                                     setShowVideoSelector(false);
                                     setVideoSelectorError(null);
                                 } else if (
@@ -303,6 +374,7 @@ function VideoInput({ url, setUrl, gcs, setGcs, setVideoInformation }) {
                                 setVideoSelectorError({
                                     message: t("Error validating video"),
                                 });
+                                onUploadComplete?.(); // Notify parent that upload failed
                             }
                         }}
                     />

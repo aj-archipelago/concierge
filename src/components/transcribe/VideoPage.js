@@ -524,6 +524,7 @@ function VideoPage() {
     const [copied, setCopied] = useState(false);
     const [vttUrl, setVttUrl] = useState(null);
     const { language } = useContext(LanguageContext);
+    const [isUploading, setIsUploading] = useState(false);
 
     // Handle VTT URL creation and cleanup
     useEffect(() => {
@@ -1136,7 +1137,12 @@ function VideoPage() {
                                 {showVideoInput && (
                                     <Dialog
                                         open={showVideoInput}
-                                        onOpenChange={setShowVideoInput}
+                                        onOpenChange={(open) => {
+                                            // Prevent closing if upload is in progress
+                                            if (!isUploading) {
+                                                setShowVideoInput(open);
+                                            }
+                                        }}
                                     >
                                         <DialogContent className="min-w-[80%] max-h-[80%] overflow-auto">
                                             <DialogHeader>
@@ -1161,10 +1167,18 @@ function VideoPage() {
                                                             videoInfo?.videoUrl ||
                                                             "",
                                                     });
+                                                    // Only close the modal when upload is complete
                                                     setShowVideoInput(false);
                                                 }}
                                                 onCancel={() =>
+                                                    !isUploading &&
                                                     setShowVideoInput(false)
+                                                }
+                                                onUploadStart={() =>
+                                                    setIsUploading(true)
+                                                }
+                                                onUploadComplete={() =>
+                                                    setIsUploading(false)
                                                 }
                                             />
                                         </DialogContent>
