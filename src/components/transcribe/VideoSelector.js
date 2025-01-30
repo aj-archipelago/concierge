@@ -1,11 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
-import { CheckIcon, SearchIcon } from "lucide-react";
+import { CheckIcon, SearchIcon, XIcon } from "lucide-react";
 import { useState, useEffect } from "react";
 import config from "../../../config";
 import LoadingButton from "../editor/LoadingButton";
 import { useTranslation } from "react-i18next";
 
-const VideoSelector = ({ url, onSelect }) => {
+const VideoSelector = ({ url, onSelect, onClose }) => {
     const [debouncedUrl, setDebouncedUrl] = useState(url);
     const [searchInput, setSearchInput] = useState(url);
     const fetchUrlSource = config?.transcribe?.fetchUrlSource;
@@ -23,13 +23,6 @@ const VideoSelector = ({ url, onSelect }) => {
         enabled: !!debouncedUrl && !!fetchUrlSource,
     });
 
-    useEffect(() => {
-        if (data && !data.results?.length) {
-            onSelect({ videoUrl: ensureHttps(debouncedUrl) });
-        }
-    }, [data, onSelect, debouncedUrl]);
-
-    // Add helper function
     const ensureHttps = (url) => {
         if (url?.startsWith("http://")) {
             return url.replace("http://", "https://");
@@ -40,10 +33,17 @@ const VideoSelector = ({ url, onSelect }) => {
     if (!fetchUrlSource) return null;
 
     return (
-        <div className="mb-4 min-h-[300px]">
+        <div className="mb-4 min-h-[300px] p-4 border relative rounded-md">
+            <button
+                onClick={onClose}
+                className="absolute top-2 right-2 p-2 hover:bg-gray-100 rounded-full"
+                aria-label="Close"
+            >
+                <XIcon className="w-4 h-4" />
+            </button>
             <div className="mb-1">
                 <label htmlFor="url-input" className="font-semibold">
-                    {t("Search by video URL or title")}
+                    {t("Search the AJ library by video URL or title")}
                 </label>
             </div>
             <div className="flex gap-2">
@@ -127,6 +127,12 @@ const VideoSelector = ({ url, onSelect }) => {
                         ))}
                     </div>
                 </div>
+            ) : data?.results ? (
+                <p className="mt-4 text-gray-600">
+                    {t("No matching videos found")}
+                </p>
+            ) : data?.error ? (
+                <p className="mt-4">{data.error}</p>
             ) : null}
         </div>
     );

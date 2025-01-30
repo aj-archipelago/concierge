@@ -11,7 +11,11 @@ import { useTranslation } from "react-i18next";
 import VideoSelector from "./VideoSelector";
 import { ServerContext } from "../../App";
 import config from "../../../config";
-import { hashMediaFile, getVideoDuration } from "../../utils/mediaUtils";
+import {
+    hashMediaFile,
+    getVideoDuration,
+    getVideoDurationFromUrl,
+} from "../../utils/mediaUtils";
 import { LanguageContext } from "../../contexts/LanguageProvider";
 
 export const isValidUrl = (url) => {
@@ -51,10 +55,10 @@ export const isCloudStorageUrl = (url) => {
 export const checkVideoUrl = async (url) => {
     let video = null;
     try {
-        // Skip HEAD request for cloud storage URLs since they often have CORS restrictions
-        if (!isCloudStorageUrl(url)) {
+        const isCloudUrl = isCloudStorageUrl(url);
+
+        if (!isCloudUrl) {
             try {
-                // First check if it's a valid video URL
                 const response = await fetch(url, { method: "HEAD" });
                 const contentType = response.headers.get("content-type");
                 if (!contentType || !contentType.startsWith("video/")) {
@@ -72,15 +76,17 @@ export const checkVideoUrl = async (url) => {
         // Check video duration
         video = document.createElement("video");
         video.preload = "metadata";
-        video.crossOrigin = "anonymous"; // Add cross-origin attribute
+        video.crossOrigin = "anonymous";
 
         const durationPromise = new Promise((resolve, reject) => {
-            video.onloadedmetadata = () => resolve(video.duration);
+            video.onloadedmetadata = () => {
+                resolve(video.duration);
+            };
             video.onerror = (e) => {
-                // If there's a CORS error but it's a cloud storage URL, we'll assume it's valid
-                if (isCloudStorageUrl(url)) {
-                    resolve(0); // Resolve with 0 to skip duration check for cloud storage URLs
+                if (isCloudUrl) {
+                    resolve(0);
                 } else {
+                    console.error("❌ Video loading error:", e);
                     reject(e);
                 }
             };
@@ -259,18 +265,33 @@ function VideoInput({
         }
     };
 
-    const uploadVideoFromUrl = async (videoUrl) => {
+    const uploadVideoFromUrl = async (videoUrl, videoDuration = 0) => {
         try {
+            // Estimate total time as videoDuration seconds, minimum 5 seconds
+            const estimatedTime = Math.max(5000, videoDuration * 1000);
+            const updateInterval = 100; // Update every 100ms
+            const steps = estimatedTime / updateInterval;
+
+            // Start progress updates
+            const progressInterval = setInterval(() => {
+                setUploadProgress((prev) => {
+                    const increment = 100 / steps;
+                    return Math.min(95, prev + increment); // Cap at 95% until complete
+                });
+            }, updateInterval);
+
             const response = await fetch(
-                `${config.endpoints.mediaHelper(serverUrl)}`,
+                `${config.endpoints.mediaHelper(serverUrl)}?fetch=${videoUrl}`,
                 {
-                    method: "POST",
+                    method: "GET",
                     headers: {
                         "Content-Type": "application/json",
                     },
-                    body: JSON.stringify({ url: videoUrl }),
                 },
             );
+
+            clearInterval(progressInterval);
+            setUploadProgress(100);
 
             if (!response.ok) {
                 throw new Error(`Upload failed: ${response.statusText}`);
@@ -295,7 +316,30 @@ function VideoInput({
 
         const result = await checkVideoUrl(url);
         if (result === true) {
-            setVideoInformation({ videoUrl: url, transcriptionUrl: null });
+            setFileUploading(true);
+            onUploadStart?.(); // Notify parent that upload is starting
+
+            try {
+                const videoDuration = await getVideoDurationFromUrl(url);
+                const uploadResult = await uploadVideoFromUrl(
+                    url,
+                    videoDuration,
+                );
+                setUrl(uploadResult.url);
+                setGcs(uploadResult.gcs);
+                setVideoInformation({
+                    videoUrl: uploadResult.url,
+                    transcriptionUrl: null,
+                });
+            } catch (error) {
+                console.error("Error uploading video from URL:", error);
+                setVideoSelectorError({
+                    message: t("Error uploading video"),
+                });
+            } finally {
+                setFileUploading(false);
+                onUploadComplete?.();
+            }
         } else if (result === "Video length exceeds 60 minutes") {
             setVideoSelectorError({
                 message: t(
@@ -314,7 +358,8 @@ function VideoInput({
                     <div className="flex items-center gap-2 text-sm text-gray-500">
                         <Loader2Icon className="w-4 h-4 animate-spin" />
                         <span>
-                            {t("Processing video...")} {uploadProgress}%
+                            {t("Processing video...")}{" "}
+                            {Math.round(uploadProgress)}%
                         </span>
                     </div>
                 </div>
@@ -327,6 +372,7 @@ function VideoInput({
                     )}
                     <VideoSelector
                         url={url}
+                        onClose={() => setShowVideoSelector(false)}
                         onSelect={async (v) => {
                             try {
                                 const result = await checkVideoUrl(v.videoUrl);
@@ -334,26 +380,37 @@ function VideoInput({
                                     setFileUploading(true);
                                     onUploadStart?.(); // Notify parent that upload is starting
 
-                                    // Download the video as a blob and create a File object
-                                    const response = await fetch(v.videoUrl);
-                                    const blob = await response.blob();
-                                    const file = new File([blob], "video.mp4", {
-                                        type: blob.type,
-                                    });
-
-                                    // Use the existing handleFileUpload logic
-                                    await handleFileUpload({
-                                        target: { files: [file] },
-                                    });
-
-                                    // Set the transcription URL if available
-                                    setVideoInformation((prev) => ({
-                                        ...prev,
-                                        transcriptionUrl: v.transcriptionUrl,
-                                    }));
-
-                                    setShowVideoSelector(false);
-                                    setVideoSelectorError(null);
+                                    try {
+                                        const videoDuration =
+                                            await getVideoDurationFromUrl(
+                                                v.videoUrl,
+                                            );
+                                        const uploadResult =
+                                            await uploadVideoFromUrl(
+                                                v.videoUrl,
+                                                videoDuration,
+                                            );
+                                        setUrl(uploadResult.url);
+                                        setGcs(uploadResult.gcs);
+                                        setVideoInformation({
+                                            videoUrl: uploadResult.url,
+                                            transcriptionUrl:
+                                                v.transcriptionUrl,
+                                        });
+                                        setShowVideoSelector(false);
+                                        setVideoSelectorError(null);
+                                    } catch (error) {
+                                        console.error(
+                                            "Error uploading video from URL:",
+                                            error,
+                                        );
+                                        setVideoSelectorError({
+                                            message: t("Error uploading video"),
+                                        });
+                                    } finally {
+                                        setFileUploading(false);
+                                        onUploadComplete?.();
+                                    }
                                 } else if (
                                     result === "Video length exceeds 60 minutes"
                                 ) {
@@ -374,7 +431,7 @@ function VideoInput({
                                 setVideoSelectorError({
                                     message: t("Error validating video"),
                                 });
-                                onUploadComplete?.(); // Notify parent that upload failed
+                                onUploadComplete?.();
                             }
                         }}
                     />
@@ -466,8 +523,8 @@ function VideoInput({
                                     {fileUploading ? (
                                         <>
                                             <Loader2Icon className="w-4 h-4 animate-spin" />
-                                            {t("Uploading...")} {uploadProgress}
-                                            %
+                                            {t("Uploading...")}{" "}
+                                            {Math.round(uploadProgress)}%
                                         </>
                                     ) : (
                                         <>
