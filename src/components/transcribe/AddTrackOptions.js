@@ -20,6 +20,7 @@ import { LanguageContext } from "../../contexts/LanguageProvider";
 
 export function AddTrackOptions({
     url,
+    gcs,
     onAdd,
     async = true,
     apolloClient,
@@ -82,6 +83,7 @@ export function AddTrackOptions({
                     </p>
                     <TranscribeVideo
                         url={url}
+                        gcs={gcs}
                         onAdd={onAdd}
                         async={async}
                         apolloClient={apolloClient}
@@ -278,8 +280,22 @@ function ClipboardPaste({ onAdd }) {
     );
 }
 
+const getTranscribeQuery = (modelOption) => {
+    switch (modelOption?.toLowerCase()) {
+        case "neuralSpace":
+            return QUERIES.TRANSCRIBE_NEURALSPACE;
+        case "gemini":
+            return QUERIES.TRANSCRIBE_GEMINI;
+        case "whisper":
+            return QUERIES.TRANSCRIBE;
+        default:
+            return QUERIES.TRANSCRIBE;
+    }
+};
+
 export default function TranscribeVideo({
     url,
+    gcs,
     onAdd,
     async = true,
     apolloClient,
@@ -317,15 +333,20 @@ export default function TranscribeVideo({
             try {
                 setLoading(true);
 
-                const _query =
-                    selectedModelOption === "NeuralSpace"
-                        ? QUERIES.TRANSCRIBE_NEURALSPACE
-                        : QUERIES.TRANSCRIBE;
+                const isGeminiSelected =
+                    selectedModelOption?.toLowerCase() === "gemini";
+                const _query = getTranscribeQuery(selectedModelOption);
+
+                if (isGeminiSelected && !gcs) {
+                    throw new Error("Gemini requires a GCS file");
+                }
+
+                const file = isGeminiSelected ? gcs : url;
 
                 const { data } = await apolloClient.query({
                     query: _query,
                     variables: {
-                        file: url,
+                        file,
                         language,
                         wordTimestamped,
                         responseFormat:
@@ -343,7 +364,8 @@ export default function TranscribeVideo({
 
                 const dataResult =
                     data?.transcribe?.result ||
-                    data?.transcribe_neuralspace?.result;
+                    data?.transcribe_neuralspace?.result ||
+                    data?.transcribe_gemini?.result;
 
                 if (dataResult) {
                     setRequestId(dataResult);
@@ -399,6 +421,9 @@ export default function TranscribeVideo({
             addProgressToast,
             t,
             onClose,
+            apolloClient,
+            gcs,
+            selectedModelOption,
         ],
     );
 
@@ -451,16 +476,17 @@ export default function TranscribeVideo({
 
     return (
         <>
-            {neuralspaceEnabled && (
+            <div>
                 <span className="flex items-center pb-2">
                     <label className="text-sm px-1">{t("Using model")}</label>
                     <ModelSelector
                         loading={loading}
                         selectedModelOption={selectedModelOption}
                         setSelectedModelOption={setSelectedModelOption}
+                        neuralspaceEnabled={neuralspaceEnabled}
                     />
                 </span>
-            )}
+            </div>
 
             <div className="options-section flex flex-col justify-between gap-2 mb-5 p-2.5 border border-gray-300 rounded-md bg-neutral-100 w-full">
                 <div className="flex flex-col">
@@ -539,6 +565,7 @@ function ModelSelector({
     loading,
     selectedModelOption,
     setSelectedModelOption,
+    neuralspaceEnabled,
 }) {
     return (
         <select
@@ -548,7 +575,10 @@ function ModelSelector({
             onChange={(e) => setSelectedModelOption(e.target.value)}
         >
             <option value="Whisper">Whisper</option>
-            <option value="NeuralSpace">NeuralSpace</option>
+            <option value="Gemini">Gemini</option>
+            {neuralspaceEnabled && (
+                <option value="NeuralSpace">NeuralSpace</option>
+            )}
         </select>
     );
 }

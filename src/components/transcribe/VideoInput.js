@@ -105,7 +105,7 @@ export const checkVideoUrl = async (url) => {
     }
 };
 
-function VideoInput({ url, setUrl, setVideoInformation }) {
+function VideoInput({ url, setUrl, gcs, setGcs, setVideoInformation }) {
     const { t } = useTranslation();
     const [fileUploading, setFileUploading] = useState(false);
     const [fileUploadError, setFileUploadError] = useState(null);
@@ -121,6 +121,7 @@ function VideoInput({ url, setUrl, setVideoInformation }) {
         setFileUploadError(null);
         setUploadProgress(0);
         setUrl("");
+        setGcs("");
 
         const file = event.target.files[0];
 
@@ -150,6 +151,7 @@ function VideoInput({ url, setUrl, setVideoInformation }) {
                 const data = await checkResponse.json().catch(() => null);
                 if (data && data.url) {
                     setUrl(data.url);
+                    setGcs(data.gcs);
                     setVideoInformation({
                         videoUrl: data.url,
                         transcriptionUrl: null,
@@ -211,6 +213,8 @@ function VideoInput({ url, setUrl, setVideoInformation }) {
                     const data = JSON.parse(xhr.responseText);
                     const fileUrl = data.url || ``;
                     setUrl(fileUrl);
+                    const gcsUrl = data.gcs || ``;
+                    setGcs(gcsUrl);
                     setVideoInformation({
                         videoUrl: fileUrl,
                         transcriptionUrl: null,

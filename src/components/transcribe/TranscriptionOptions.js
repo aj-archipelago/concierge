@@ -17,6 +17,7 @@ import AddTrackDialog from "./AddTrackDialog";
 
 export function AddTrackButton({
     url,
+    gcs,
     onAdd,
     async = true,
     apolloClient,
@@ -129,6 +130,7 @@ export function AddTrackButton({
                 addTrackDialogOpen={addTrackDialogOpen}
                 setAddTrackDialogOpen={setAddTrackDialogOpen}
                 url={url}
+                gcs={gcs}
                 transcripts={transcripts}
                 onAdd={onAdd}
                 options={options}

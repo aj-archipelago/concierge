@@ -19,6 +19,8 @@ export default function InitialView({
     setSelectedTab,
     addTrackDialogOpen,
     url,
+    gcs,
+    setGcs,
     transcripts,
     addSubtitleTrack,
     apolloClient,
@@ -71,6 +73,7 @@ export default function InitialView({
                 addTrackDialogOpen={addTrackDialogOpen}
                 setAddTrackDialogOpen={setAddTrackDialogOpen}
                 url={url}
+                gcs={gcs}
                 transcripts={transcripts}
                 onAdd={addSubtitleTrack}
                 options={["upload", "clipboard"]}
@@ -91,6 +94,8 @@ export default function InitialView({
                     <VideoInput
                         url={url}
                         setUrl={setUrl}
+                        gcs={gcs}
+                        setGcs={setGcs}
                         setVideoInformation={(videoInfo) => {
                             setVideoInformation(videoInfo);
                             updateUserState({
