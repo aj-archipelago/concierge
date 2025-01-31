@@ -333,15 +333,18 @@ export default function TranscribeVideo({
             try {
                 setLoading(true);
 
-                const isGeminiSelected =
-                    selectedModelOption?.toLowerCase() === "gemini";
                 const _query = getTranscribeQuery(selectedModelOption);
 
-                if (isGeminiSelected && !gcs) {
-                    throw new Error("Gemini requires a GCS file");
-                }
+                // TODO url or gcs?
+                // const isGeminiSelected =
+                //     selectedModelOption?.toLowerCase() === "gemini";
 
-                const file = isGeminiSelected ? gcs : url;
+                // if (isGeminiSelected && !gcs) {
+                //     throw new Error("Gemini requires a GCS file");
+                // }
+
+                // const file = isGeminiSelected ? gcs : url;
+                const file = url;
 
                 const { data } = await apolloClient.query({
                     query: _query,
