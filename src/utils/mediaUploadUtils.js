@@ -6,18 +6,27 @@ export const uploadVideoFromUrl = async (
     serverUrl,
     setUploadProgress,
 ) => {
-    const videoDuration = await getVideoDurationFromUrl(videoUrl);
+    let videoDuration;
     try {
-        const estimatedTime = Math.max(5000, videoDuration * 1000);
-        const updateInterval = 100;
-        const steps = estimatedTime / updateInterval;
+        videoDuration = await getVideoDurationFromUrl(videoUrl);
+    } catch (error) {
+        console.warn("Failed to get video duration:", error);
+    }
 
-        const progressInterval = setInterval(() => {
-            setUploadProgress((prev) => {
-                const increment = 100 / steps;
-                return Math.min(95, prev + increment);
-            });
-        }, updateInterval);
+    try {
+        let progressInterval;
+        if (videoDuration) {
+            const estimatedTime = Math.max(5000, videoDuration * 1000);
+            const updateInterval = 100;
+            const steps = estimatedTime / updateInterval;
+
+            progressInterval = setInterval(() => {
+                setUploadProgress((prev) => {
+                    const increment = 100 / steps;
+                    return Math.min(95, prev + increment);
+                });
+            }, updateInterval);
+        }
 
         const response = await fetch(
             `${config.endpoints.mediaHelper(serverUrl)}?fetch=${videoUrl}`,
@@ -29,8 +38,10 @@ export const uploadVideoFromUrl = async (
             },
         );
 
-        clearInterval(progressInterval);
-        setUploadProgress(100);
+        if (progressInterval) {
+            clearInterval(progressInterval);
+            setUploadProgress(100);
+        }
 
         if (!response.ok) {
             const errorBody = await response.text();
