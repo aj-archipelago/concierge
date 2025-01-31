@@ -29,7 +29,7 @@ export const uploadVideoFromUrl = async (
         }
 
         const response = await fetch(
-            `${config.endpoints.mediaHelper(serverUrl)}?fetch=${videoUrl}`,
+            `${config.endpoints.mediaHelper(serverUrl)}?fetch=${encodeURIComponent(videoUrl)}`,
             {
                 method: "GET",
                 headers: {
