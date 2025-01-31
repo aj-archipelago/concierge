@@ -201,6 +201,7 @@ function EditableTranscriptSelect({
     onNameChange,
     url,
     gcs,
+    setGcs,
     onAdd,
     apolloClient,
     addTrackDialogOpen,
@@ -247,6 +248,7 @@ function EditableTranscriptSelect({
                 transcripts={transcripts}
                 url={url}
                 gcs={gcs}
+                setGcs={setGcs}
                 onAdd={onAdd}
                 activeTranscript={activeTranscript}
                 trigger={
@@ -362,6 +364,7 @@ function EditableTranscriptSelect({
                                 transcripts={transcripts}
                                 url={url}
                                 gcs={gcs}
+                                setGcs={setGcs}
                                 onAdd={onAdd}
                                 activeTranscript={activeTranscript}
                                 trigger={
@@ -1207,6 +1210,7 @@ function VideoPage() {
                         videoInformation?.videoUrl
                     }
                     gcs={gcs}
+                    setGcs={setGcs}
                     onAdd={addSubtitleTrack}
                     apolloClient={apolloClient}
                     addTrackDialogOpen={addTrackDialogOpen}

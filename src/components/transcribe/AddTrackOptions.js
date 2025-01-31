@@ -17,10 +17,12 @@ import LoadingButton from "../editor/LoadingButton";
 import TranslationOptions from "./TranslationOptions";
 import { convertSrtToVtt, detectSubtitleFormat } from "./transcribe.utils";
 import { LanguageContext } from "../../contexts/LanguageProvider";
+import { uploadVideoFromUrl } from "../../utils/mediaUploadUtils";
 
 export function AddTrackOptions({
     url,
     gcs,
+    setGcs,
     onAdd,
     async = true,
     apolloClient,
@@ -84,6 +86,7 @@ export function AddTrackOptions({
                     <TranscribeVideo
                         url={url}
                         gcs={gcs}
+                        setGcs={setGcs}
                         onAdd={onAdd}
                         async={async}
                         apolloClient={apolloClient}
@@ -296,6 +299,7 @@ const getTranscribeQuery = (modelOption) => {
 export default function TranscribeVideo({
     url,
     gcs,
+    setGcs,
     onAdd,
     async = true,
     apolloClient,
@@ -314,6 +318,8 @@ export default function TranscribeVideo({
     const [error, setError] = useState(null);
     const { debouncedUpdateUserState } = useContext(AuthContext);
     const { addProgressToast } = useProgress();
+    const { serverUrl } = useContext(ServerContext);
+    const [uploadProgress, setUploadProgress] = useState(0);
 
     const {
         responseFormat = "vtt",
@@ -334,17 +340,27 @@ export default function TranscribeVideo({
                 setLoading(true);
 
                 const _query = getTranscribeQuery(selectedModelOption);
+                let file = url;
 
-                // TODO url or gcs?
-                // const isGeminiSelected =
-                //     selectedModelOption?.toLowerCase() === "gemini";
+                const isGeminiSelected =
+                    selectedModelOption?.toLowerCase() === "gemini";
 
-                // if (isGeminiSelected && !gcs) {
-                //     throw new Error("Gemini requires a GCS file");
-                // }
-
-                // const file = isGeminiSelected ? gcs : url;
-                const file = url;
+                if (isGeminiSelected) {
+                    if (!gcs) {
+                        setCurrentOperation(t("Uploading video"));
+                        // use cortex file handler to get gcs URL
+                        const uploadedFile = await uploadVideoFromUrl(
+                            url,
+                            serverUrl,
+                            setUploadProgress,
+                        );
+                        setGcs(uploadedFile?.gcs);
+                        file = uploadedFile?.gcs;
+                        setCurrentOperation(t("Transcribing"));
+                    } else {
+                        file = gcs;
+                    }
+                }
 
                 const { data } = await apolloClient.query({
                     query: _query,
@@ -376,6 +392,7 @@ export default function TranscribeVideo({
                         dataResult,
                         t("Transcribing") + "...",
                         async (finalData) => {
+                            console.log("finalData", finalData);
                             if (responseFormat === "formatted") {
                                 const response = await apolloClient.query({
                                     query: QUERIES.FORMAT_PARAGRAPH_TURBO,
@@ -407,6 +424,7 @@ export default function TranscribeVideo({
                 console.error("Transcription error:", e);
                 setError(e);
                 setLoading(false);
+                setUploadProgress(0);
             }
         },
         // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -427,6 +445,8 @@ export default function TranscribeVideo({
             apolloClient,
             gcs,
             selectedModelOption,
+            setUploadProgress,
+            serverUrl,
         ],
     );
 
@@ -532,12 +552,22 @@ export default function TranscribeVideo({
                 </div>
             </div>
 
+            {error && (
+                <div className="text-red-500 text-sm mb-2">
+                    {t("Error")}: {error.message}
+                </div>
+            )}
+
             <div className="">
                 <LoadingButton
                     className="mb-2.5 lb-primary"
                     disabled={!url}
                     loading={loading}
-                    text={t(currentOperation)}
+                    text={
+                        uploadProgress > 0 && uploadProgress < 100
+                            ? `${t(currentOperation)} ${Math.round(uploadProgress)}%`
+                            : t(currentOperation)
+                    }
                     onClick={() => handleSubmit()}
                 >
                     <FaVideo className="text-lg" /> {t("Transcribe")}

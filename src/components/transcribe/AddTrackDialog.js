@@ -15,6 +15,7 @@ export default function AddTrackDialog({
     setAddTrackDialogOpen,
     url,
     gcs,
+    setGcs,
     transcripts,
     onAdd,
     options,
@@ -38,6 +39,7 @@ export default function AddTrackDialog({
                     <AddTrackOptions
                         url={url}
                         gcs={gcs}
+                        setGcs={setGcs}
                         transcripts={transcripts}
                         onAdd={(x) => {
                             onAdd(x);

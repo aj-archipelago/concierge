@@ -114,7 +114,6 @@ export const checkVideoUrl = async (url) => {
 function VideoInput({
     url,
     setUrl,
-    gcs,
     setGcs,
     setVideoInformation,
     onUploadStart,
@@ -364,7 +363,9 @@ function VideoInput({
                                     });
                                     setShowVideoSelector(false);
                                     setVideoSelectorError(null);
-                                } else if (result === "Video length exceeds 60 minutes") {
+                                } else if (
+                                    result === "Video length exceeds 60 minutes"
+                                ) {
                                     setVideoSelectorError({
                                         message: t(
                                             "Video length exceeds 60 minutes. Please use a shorter video.",
@@ -372,7 +373,9 @@ function VideoInput({
                                     });
                                 } else {
                                     setVideoSelectorError({
-                                        message: t("Invalid video URL or format"),
+                                        message: t(
+                                            "Invalid video URL or format",
+                                        ),
                                     });
                                 }
                             } catch (error) {

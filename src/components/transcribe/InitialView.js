@@ -74,6 +74,7 @@ export default function InitialView({
                 setAddTrackDialogOpen={setAddTrackDialogOpen}
                 url={url}
                 gcs={gcs}
+                setGcs={setGcs}
                 transcripts={transcripts}
                 onAdd={addSubtitleTrack}
                 options={["upload", "clipboard"]}
