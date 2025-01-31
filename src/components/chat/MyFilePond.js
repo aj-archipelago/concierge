@@ -243,7 +243,7 @@ const MEDIA_MIME_TYPES = [
     "audio/m4a",
     "audio/mp3",
     "audio/mp4",
-    "audio/x-m4a",  // Common browser MIME type for .m4a files
+    "audio/x-m4a", // Common browser MIME type for .m4a files
     // PDF
     "application/pdf",
     // Text
