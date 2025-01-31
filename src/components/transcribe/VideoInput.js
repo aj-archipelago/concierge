@@ -316,30 +316,10 @@ function VideoInput({
 
         const result = await checkVideoUrl(url);
         if (result === true) {
-            setFileUploading(true);
-            onUploadStart?.(); // Notify parent that upload is starting
-
-            try {
-                const videoDuration = await getVideoDurationFromUrl(url);
-                const uploadResult = await uploadVideoFromUrl(
-                    url,
-                    videoDuration,
-                );
-                setUrl(uploadResult.url);
-                setGcs(uploadResult.gcs);
-                setVideoInformation({
-                    videoUrl: uploadResult.url,
-                    transcriptionUrl: null,
-                });
-            } catch (error) {
-                console.error("Error uploading video from URL:", error);
-                setVideoSelectorError({
-                    message: t("Error uploading video"),
-                });
-            } finally {
-                setFileUploading(false);
-                onUploadComplete?.();
-            }
+            setVideoInformation({
+                videoUrl: url,
+                transcriptionUrl: null,
+            });
         } else if (result === "Video length exceeds 60 minutes") {
             setVideoSelectorError({
                 message: t(
@@ -377,43 +357,14 @@ function VideoInput({
                             try {
                                 const result = await checkVideoUrl(v.videoUrl);
                                 if (result === true) {
-                                    setFileUploading(true);
-                                    onUploadStart?.(); // Notify parent that upload is starting
-
-                                    try {
-                                        const videoDuration =
-                                            await getVideoDurationFromUrl(
-                                                v.videoUrl,
-                                            );
-                                        const uploadResult =
-                                            await uploadVideoFromUrl(
-                                                v.videoUrl,
-                                                videoDuration,
-                                            );
-                                        setUrl(uploadResult.url);
-                                        setGcs(uploadResult.gcs);
-                                        setVideoInformation({
-                                            videoUrl: uploadResult.url,
-                                            transcriptionUrl:
-                                                v.transcriptionUrl,
-                                        });
-                                        setShowVideoSelector(false);
-                                        setVideoSelectorError(null);
-                                    } catch (error) {
-                                        console.error(
-                                            "Error uploading video from URL:",
-                                            error,
-                                        );
-                                        setVideoSelectorError({
-                                            message: t("Error uploading video"),
-                                        });
-                                    } finally {
-                                        setFileUploading(false);
-                                        onUploadComplete?.();
-                                    }
-                                } else if (
-                                    result === "Video length exceeds 60 minutes"
-                                ) {
+                                    setUrl(v.videoUrl);
+                                    setVideoInformation({
+                                        videoUrl: v.videoUrl,
+                                        transcriptionUrl: v.transcriptionUrl,
+                                    });
+                                    setShowVideoSelector(false);
+                                    setVideoSelectorError(null);
+                                } else if (result === "Video length exceeds 60 minutes") {
                                     setVideoSelectorError({
                                         message: t(
                                             "Video length exceeds 60 minutes. Please use a shorter video.",
@@ -421,9 +372,7 @@ function VideoInput({
                                     });
                                 } else {
                                     setVideoSelectorError({
-                                        message: t(
-                                            "Invalid video URL or format",
-                                        ),
+                                        message: t("Invalid video URL or format"),
                                     });
                                 }
                             } catch (error) {
@@ -431,7 +380,6 @@ function VideoInput({
                                 setVideoSelectorError({
                                     message: t("Error validating video"),
                                 });
-                                onUploadComplete?.();
                             }
                         }}
                     />
