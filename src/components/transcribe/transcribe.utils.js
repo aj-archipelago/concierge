@@ -8,10 +8,10 @@ export function convertSrtToVtt(data) {
         const lines = data.split("\n");
         const result = ["WEBVTT", ""]; // Start with header and blank line
         let currentCue = [];
-        
+
         for (let i = 0; i < lines.length; i++) {
             const line = lines[i].trim();
-            
+
             // Skip empty lines and the WEBVTT header
             if (!line || line === "WEBVTT") {
                 continue;
@@ -30,11 +30,13 @@ export function convertSrtToVtt(data) {
             }
 
             // Check for and convert timestamps
-            const shortTimeRegex = /^(\d{2}):(\d{2})[.](\d{3})\s*-->\s*(\d{2}):(\d{2})[.](\d{3})$/;
-            const ultraShortTimeRegex = /^(\d{2})[.](\d{3})\s*-->\s*(\d{2})[.](\d{3})$/;
+            const shortTimeRegex =
+                /^(\d{2}):(\d{2})[.](\d{3})\s*-->\s*(\d{2}):(\d{2})[.](\d{3})$/;
+            const ultraShortTimeRegex =
+                /^(\d{2})[.](\d{3})\s*-->\s*(\d{2})[.](\d{3})$/;
             const timeMatch = line.match(shortTimeRegex);
             const ultraShortMatch = line.match(ultraShortTimeRegex);
-            
+
             if (timeMatch) {
                 // Convert MM:SS to HH:MM:SS
                 const convertedTime = `00:${timeMatch[1]}:${timeMatch[2]}.${timeMatch[3]} --> 00:${timeMatch[4]}:${timeMatch[5]}.${timeMatch[6]}`;
@@ -109,7 +111,12 @@ function convertSrtCue(caption) {
     var line = 0;
 
     // detect identifier
-    if (s[0] && s[1] && !s[0].match(/\d+:\d+:\d+/) && s[1].match(/\d+:\d+:\d+/)) {
+    if (
+        s[0] &&
+        s[1] &&
+        !s[0].match(/\d+:\d+:\d+/) &&
+        s[1].match(/\d+:\d+:\d+/)
+    ) {
         const match = s[0].match(/^\d+$/); // Only match if the entire line is a number
         if (match) {
             cue += match[0] + "\n";
@@ -120,18 +127,50 @@ function convertSrtCue(caption) {
     // get time strings
     if (s[line] && s[line].match(/\d+:\d+:\d+/)) {
         // convert time string
-        var m = s[line].match(/(\d{2}):(\d{2}):(\d{2})[,.](\d{3})\s*--?>\s*(\d{2}):(\d{2}):(\d{2})[,.](\d{3})/);
+        var m = s[line].match(
+            /(\d{2}):(\d{2}):(\d{2})[,.](\d{3})\s*--?>\s*(\d{2}):(\d{2}):(\d{2})[,.](\d{3})/,
+        );
         if (m) {
-            cue += m[1] + ":" + m[2] + ":" + m[3] + "." + m[4] + " --> " +
-                   m[5] + ":" + m[6] + ":" + m[7] + "." + m[8] + "\n";
+            cue +=
+                m[1] +
+                ":" +
+                m[2] +
+                ":" +
+                m[3] +
+                "." +
+                m[4] +
+                " --> " +
+                m[5] +
+                ":" +
+                m[6] +
+                ":" +
+                m[7] +
+                "." +
+                m[8] +
+                "\n";
             line += 1;
         } else {
             // Try alternate timestamp format
-            m = s[line].match(/(\d{2}):(\d{2})\.(\d{3})\s*--?>\s*(\d{2}):(\d{2})\.(\d{3})/);
+            m = s[line].match(
+                /(\d{2}):(\d{2})\.(\d{3})\s*--?>\s*(\d{2}):(\d{2})\.(\d{3})/,
+            );
             if (m) {
                 // Convert to full timestamp format
-                cue += "00:" + m[1] + ":" + m[2] + "." + m[3] + " --> " +
-                       "00:" + m[4] + ":" + m[5] + "." + m[6] + "\n";
+                cue +=
+                    "00:" +
+                    m[1] +
+                    ":" +
+                    m[2] +
+                    "." +
+                    m[3] +
+                    " --> " +
+                    "00:" +
+                    m[4] +
+                    ":" +
+                    m[5] +
+                    "." +
+                    m[6] +
+                    "\n";
                 line += 1;
             } else {
                 // Unrecognized timestring
@@ -161,8 +200,10 @@ export function detectSubtitleFormat(text) {
     }
 
     // Define regex patterns for timestamp formats
-    const srtTimeRegex = /(\d{2}:\d{2}:\d{2})[,.]\d{3}\s*-->\s*(\d{2}:\d{2}:\d{2})[,.]\d{3}/;
-    const vttTimeRegex = /(?:\d{2}:)?(\d{1,2})[.]\d{3}\s*-->\s*(?:\d{2}:)?(\d{1,2})[.]\d{3}/;
+    const srtTimeRegex =
+        /(\d{2}:\d{2}:\d{2})[,.]\d{3}\s*-->\s*(\d{2}:\d{2}:\d{2})[,.]\d{3}/;
+    const vttTimeRegex =
+        /(?:\d{2}:)?(\d{1,2})[.]\d{3}\s*-->\s*(?:\d{2}:)?(\d{1,2})[.]\d{3}/;
 
     let hasSrtTimestamps = false;
     let hasVttTimestamps = false;
@@ -219,7 +260,7 @@ export function normalizeVtt(vttText) {
 
     for (let i = 0; i < lines.length; i++) {
         const line = lines[i].trim();
-        
+
         // Handle header
         if (isHeader) {
             if (line === "WEBVTT") {
@@ -244,7 +285,9 @@ export function normalizeVtt(vttText) {
         }
 
         // Check for and convert timestamps
-        const timestampMatch = line.match(/(?:(\d{2}):)?(\d{1,2})[.](\d{3})\s*-->\s*(?:(\d{2}):)?(\d{1,2})[.](\d{3})/);
+        const timestampMatch = line.match(
+            /(?:(\d{2}):)?(\d{1,2})[.](\d{3})\s*-->\s*(?:(\d{2}):)?(\d{1,2})[.](\d{3})/,
+        );
         if (timestampMatch) {
             const startHours = timestampMatch[1] || "00";
             const startMinutes = timestampMatch[2].padStart(2, "0");
@@ -254,8 +297,10 @@ export function normalizeVtt(vttText) {
             const endMinutes = timestampMatch[5].padStart(2, "0");
             const endSeconds = "00";
             const endMs = timestampMatch[6];
-            
-            currentCue.push(`${startHours}:${startMinutes}:${startSeconds}.${startMs} --> ${endHours}:${endMinutes}:${endSeconds}.${endMs}`);
+
+            currentCue.push(
+                `${startHours}:${startMinutes}:${startSeconds}.${startMs} --> ${endHours}:${endMinutes}:${endSeconds}.${endMs}`,
+            );
             continue;
         }
 

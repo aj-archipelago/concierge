@@ -15,7 +15,11 @@ import { useProgress } from "../../contexts/ProgressContext";
 import { QUERIES } from "../../graphql";
 import LoadingButton from "../editor/LoadingButton";
 import TranslationOptions from "./TranslationOptions";
-import { convertSrtToVtt, detectSubtitleFormat, normalizeVtt } from "./transcribe.utils";
+import {
+    convertSrtToVtt,
+    detectSubtitleFormat,
+    normalizeVtt,
+} from "./transcribe.utils";
 import { LanguageContext } from "../../contexts/LanguageProvider";
 
 export function AddTrackOptions({

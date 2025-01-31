@@ -112,7 +112,7 @@ Second line
 00:06.178 --> 00:07.518
 Third line`;
 
-const longArabicVttWithParseIssues = `WEBVTT
+    const longArabicVttWithParseIssues = `WEBVTT
 
 1
 00:03.298 --> 00:04.578
@@ -179,11 +179,15 @@ const longArabicVttWithParseIssues = `WEBVTT
 
         it("should detect VTT format with MM:SS timestamps", () => {
             expect(detectSubtitleFormat(longVttExample)).toBe("vtt");
-            expect(detectSubtitleFormat(longVttWithMissingNewlines)).toBe("vtt");
+            expect(detectSubtitleFormat(longVttWithMissingNewlines)).toBe(
+                "vtt",
+            );
         });
 
         it("should detect VTT format with Arabic text", () => {
-            expect(detectSubtitleFormat(longArabicVttWithParseIssues)).toBe("vtt");
+            expect(detectSubtitleFormat(longArabicVttWithParseIssues)).toBe(
+                "vtt",
+            );
         });
 
         it("should preserve VTT format when converting", () => {
@@ -241,16 +245,26 @@ const longArabicVttWithParseIssues = `WEBVTT
             expect(converted).toContain("WEBVTT");
             expect(converted).toContain("00:00:03.298 --> 00:00:04.578");
             expect(converted).toContain("First line");
-            expect(converted).toContain("1\n00:00:03.298 --> 00:00:04.578\nFirst line\n\n");
-            expect(converted).toContain("2\n00:00:04.578 --> 00:00:06.178\nSecond line\n\n");
+            expect(converted).toContain(
+                "1\n00:00:03.298 --> 00:00:04.578\nFirst line\n\n",
+            );
+            expect(converted).toContain(
+                "2\n00:00:04.578 --> 00:00:06.178\nSecond line\n\n",
+            );
         });
 
         it("should handle VTT with missing newlines between cues", () => {
             const converted = convertSrtToVtt(longVttWithMissingNewlines);
             expect(converted).toContain("WEBVTT");
-            expect(converted).toContain("1\n00:00:03.298 --> 00:00:04.578\nFirst line\n\n");
-            expect(converted).toContain("2\n00:00:04.578 --> 00:00:06.178\nSecond line\n\n");
-            expect(converted).toContain("3\n00:00:06.178 --> 00:00:07.518\nThird line\n\n");
+            expect(converted).toContain(
+                "1\n00:00:03.298 --> 00:00:04.578\nFirst line\n\n",
+            );
+            expect(converted).toContain(
+                "2\n00:00:04.578 --> 00:00:06.178\nSecond line\n\n",
+            );
+            expect(converted).toContain(
+                "3\n00:00:06.178 --> 00:00:07.518\nThird line\n\n",
+            );
         });
 
         it("should convert ultra-short timestamps (SS.mmm) to full format", () => {
@@ -263,11 +277,15 @@ First line
 2
 04.578 --> 06.178
 Second line`;
-            
+
             const converted = convertSrtToVtt(ultraShortVtt);
             expect(converted).toContain("WEBVTT");
-            expect(converted).toContain("1\n00:00:03.298 --> 00:00:04.578\nFirst line\n\n");
-            expect(converted).toContain("2\n00:00:04.578 --> 00:00:06.178\nSecond line\n\n");
+            expect(converted).toContain(
+                "1\n00:00:03.298 --> 00:00:04.578\nFirst line\n\n",
+            );
+            expect(converted).toContain(
+                "2\n00:00:04.578 --> 00:00:06.178\nSecond line\n\n",
+            );
         });
 
         it("should handle mixed timestamp formats", () => {
@@ -284,12 +302,18 @@ Second line
 3
 00:00:06.178 --> 00:00:07.518
 Third line`;
-            
+
             const converted = convertSrtToVtt(mixedVtt);
             expect(converted).toContain("WEBVTT");
-            expect(converted).toContain("1\n00:00:03.298 --> 00:00:04.578\nFirst line\n\n");
-            expect(converted).toContain("2\n00:00:04.578 --> 00:00:06.178\nSecond line\n\n");
-            expect(converted).toContain("3\n00:00:06.178 --> 00:00:07.518\nThird line\n\n");
+            expect(converted).toContain(
+                "1\n00:00:03.298 --> 00:00:04.578\nFirst line\n\n",
+            );
+            expect(converted).toContain(
+                "2\n00:00:04.578 --> 00:00:06.178\nSecond line\n\n",
+            );
+            expect(converted).toContain(
+                "3\n00:00:06.178 --> 00:00:07.518\nThird line\n\n",
+            );
         });
     });
 });
