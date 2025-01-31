@@ -14,7 +14,7 @@ import config from "../../../config";
 import { hashMediaFile, getVideoDuration } from "../../utils/mediaUtils";
 import { LanguageContext } from "../../contexts/LanguageProvider";
 
-const isValidUrl = (url) => {
+export const isValidUrl = (url) => {
     try {
         new URL(url);
         return true;
@@ -25,36 +25,74 @@ const isValidUrl = (url) => {
 
 const MAX_VIDEO_DURATION = 3600; // 60 minutes in seconds
 
-const checkDuration = async (duration) => {
+export const checkDuration = async (duration) => {
     if (duration > MAX_VIDEO_DURATION) {
         throw new Error("Video length exceeds 60 minutes");
     }
     return true;
 };
 
-const checkVideoUrl = async (url) => {
+export const isCloudStorageUrl = (url) => {
+    const cloudStoragePatterns = [
+        ".blob.core.windows.net/", // Azure
+        "storage.googleapis.com/", // Google Cloud Storage
+        "storage.cloud.google.com/",
+        "s3.amazonaws.com/", // AWS S3
+        "s3-[a-z0-9-]+.amazonaws.com/", // AWS S3 with region
+        "cloudfront.net/", // AWS CloudFront
+        "digitaloceanspaces.com/", // DigitalOcean Spaces
+    ];
+
+    return cloudStoragePatterns.some((pattern) =>
+        url.match(new RegExp(pattern, "i")),
+    );
+};
+
+export const checkVideoUrl = async (url) => {
     let video = null;
     try {
-        // First check if it's a valid video URL
-        const response = await fetch(url, { method: "HEAD" });
-        const contentType = response.headers.get("content-type");
-        if (!contentType || !contentType.startsWith("video/")) {
-            return false;
+        // Skip HEAD request for cloud storage URLs since they often have CORS restrictions
+        if (!isCloudStorageUrl(url)) {
+            try {
+                // First check if it's a valid video URL
+                const response = await fetch(url, { method: "HEAD" });
+                const contentType = response.headers.get("content-type");
+                if (!contentType || !contentType.startsWith("video/")) {
+                    return false;
+                }
+            } catch (error) {
+                console.warn(
+                    "HEAD request failed, continuing with video element check:",
+                    error,
+                );
+                // Continue even if HEAD request fails - some servers might block HEAD
+            }
         }
 
         // Check video duration
         video = document.createElement("video");
         video.preload = "metadata";
+        video.crossOrigin = "anonymous"; // Add cross-origin attribute
 
         const durationPromise = new Promise((resolve, reject) => {
             video.onloadedmetadata = () => resolve(video.duration);
-            video.onerror = reject;
+            video.onerror = (e) => {
+                // If there's a CORS error but it's a cloud storage URL, we'll assume it's valid
+                if (isCloudStorageUrl(url)) {
+                    resolve(0); // Resolve with 0 to skip duration check for cloud storage URLs
+                } else {
+                    reject(e);
+                }
+            };
         });
 
         video.src = url;
 
         const duration = await durationPromise;
-        await checkDuration(duration);
+        if (duration > 0) {
+            // Only check duration if we got a valid duration
+            await checkDuration(duration);
+        }
         return true;
     } catch (error) {
         console.error("Error checking video URL:", error);
