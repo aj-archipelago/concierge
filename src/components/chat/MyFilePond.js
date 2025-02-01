@@ -137,12 +137,13 @@ const VIDEO_EXTENSIONS = [
     ".avi",
     ".flv",
     ".mpg",
+    ".mov",
     ".webm",
     ".wmv",
     ".3gp",
 ];
 
-const AUDIO_EXTENSIONS = [".wav", ".mp3", ".aac", ".ogg", ".flac"];
+const AUDIO_EXTENSIONS = [".wav", ".mp3", ".m4a", ".aac", ".ogg", ".flac"];
 
 function isDocumentUrl(url) {
     const urlExt = getExtension(url);
@@ -225,18 +226,24 @@ const MEDIA_MIME_TYPES = [
     "video/mp4",
     "video/mpeg",
     "video/mov",
+    "video/quicktime",
     "video/avi",
     "video/x-flv",
     "video/mpg",
     "video/webm",
     "video/wmv",
     "video/3gpp",
+    "video/m4v",
     // Audio
     "audio/wav",
-    "audio/mp3",
+    "audio/mpeg",
     "audio/aac",
     "audio/ogg",
     "audio/flac",
+    "audio/m4a",
+    "audio/mp3",
+    "audio/mp4",
+    "audio/x-m4a", // Common browser MIME type for .m4a files
     // PDF
     "application/pdf",
     // Text

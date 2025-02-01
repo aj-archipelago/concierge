@@ -7,7 +7,7 @@ import {
     UploadIcon,
     VideoIcon,
 } from "lucide-react";
-import { useCallback, useContext, useEffect, useRef, useState } from "react";
+import { useCallback, useContext, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { FaVideo } from "react-icons/fa";
 import { AuthContext, ServerContext } from "../../App";
@@ -15,7 +15,11 @@ import { useProgress } from "../../contexts/ProgressContext";
 import { QUERIES } from "../../graphql";
 import LoadingButton from "../editor/LoadingButton";
 import TranslationOptions from "./TranslationOptions";
-import { convertSrtToVtt, detectSubtitleFormat } from "./transcribe.utils";
+import {
+    convertSrtToVtt,
+    detectSubtitleFormat,
+    normalizeVtt,
+} from "./transcribe.utils";
 import { LanguageContext } from "../../contexts/LanguageProvider";
 
 export function AddTrackOptions({
@@ -244,6 +248,7 @@ function ClipboardPaste({ onAdd }) {
             outputFormat = "vtt";
             name = t("Pasted Subtitles");
         } else if (format === "vtt") {
+            processedText = normalizeVtt(text);
             outputFormat = "vtt";
             name = t("Pasted Subtitles");
         }
