@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from "react";
 
 export default function OutputSandbox({ content, height = "300px" }) {
     const iframeRef = useRef(null);
@@ -12,10 +12,11 @@ export default function OutputSandbox({ content, height = "300px" }) {
         const setupFrame = async () => {
             try {
                 setIsLoading(true);
-                const doc = iframe.contentDocument || iframe.contentWindow.document;
-                
+                const doc =
+                    iframe.contentDocument || iframe.contentWindow.document;
+
                 // Create a base tag to handle relative URLs
-                const base = document.createElement('base');
+                const base = document.createElement("base");
                 base.href = window.location.origin;
 
                 // Create proper HTML structure
@@ -43,19 +44,20 @@ export default function OutputSandbox({ content, height = "300px" }) {
 
                 // Handle iframe load
                 iframe.onload = () => {
-                    const frameDoc = iframe.contentDocument || iframe.contentWindow.document;
-                    
+                    const frameDoc =
+                        iframe.contentDocument || iframe.contentWindow.document;
+
                     // Clean up any existing observer
                     if (resizeObserverRef.current) {
                         resizeObserverRef.current.disconnect();
                     }
 
                     // Setup new resize observer
-                    const resizeObserver = new ResizeObserver(entries => {
+                    const resizeObserver = new ResizeObserver((entries) => {
                         for (const entry of entries) {
                             const height = Math.max(
                                 entry.contentRect.height,
-                                entry.target.scrollHeight
+                                entry.target.scrollHeight,
                             );
                             iframe.style.height = `${height}px`;
                         }
@@ -68,23 +70,25 @@ export default function OutputSandbox({ content, height = "300px" }) {
                     }
 
                     // Setup message handling for iframe->parent communication
-                    iframe.contentWindow.addEventListener('message', (event) => {
-                        if (event.origin !== window.location.origin) return;
-                        // Handle messages from the iframe
-                        console.log('Message from sandbox:', event.data);
-                    });
+                    iframe.contentWindow.addEventListener(
+                        "message",
+                        (event) => {
+                            if (event.origin !== window.location.origin) return;
+                            // Handle messages from the iframe
+                            console.log("Message from sandbox:", event.data);
+                        },
+                    );
 
                     setIsLoading(false);
                 };
 
                 // Handle errors
                 iframe.onerror = (error) => {
-                    console.error('Sandbox iframe error:', error);
+                    console.error("Sandbox iframe error:", error);
                     setIsLoading(false);
                 };
-
             } catch (error) {
-                console.error('Error setting up sandbox:', error);
+                console.error("Error setting up sandbox:", error);
                 setIsLoading(false);
             }
         };
@@ -97,7 +101,7 @@ export default function OutputSandbox({ content, height = "300px" }) {
                 resizeObserverRef.current.disconnect();
             }
             if (iframe.contentWindow) {
-                iframe.contentWindow.removeEventListener('message', () => {});
+                iframe.contentWindow.removeEventListener("message", () => {});
             }
         };
     }, [content]);
@@ -112,16 +116,16 @@ export default function OutputSandbox({ content, height = "300px" }) {
             <iframe
                 ref={iframeRef}
                 style={{
-                    width: '100%',
+                    width: "100%",
                     height,
-                    border: 'none',
-                    backgroundColor: 'transparent',
+                    border: "none",
+                    backgroundColor: "transparent",
                     opacity: isLoading ? 0 : 1,
-                    transition: 'opacity 0.2s'
+                    transition: "opacity 0.2s",
                 }}
                 sandbox="allow-scripts allow-popups allow-forms allow-same-origin allow-downloads allow-presentation"
                 title="Output Sandbox"
             />
         </div>
     );
-} 
+}

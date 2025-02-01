@@ -18,24 +18,28 @@ function Output({ output, onDelete }) {
     const { t } = useTranslation();
 
     // Check if the output is HTML content
-    const isHtmlContent = output.output.trim().startsWith('<!DOCTYPE html>') || 
-                         output.output.trim().startsWith('<html>') ||
-                         (output.tool && JSON.parse(output.tool)?.isHtml);
+    const isHtmlContent =
+        output.output.trim().startsWith("<!DOCTYPE html>") ||
+        output.output.trim().startsWith("<html>") ||
+        (output.tool && JSON.parse(output.tool)?.isHtml);
 
     return (
         <div key={output._id} className="relative mb-3">
             <div className="font-semibold text-lg">{output.title}</div>
             <div className="mt-3 mb-1 p-4 bg-gray-50 border rounded-md relative">
                 <div className="absolute top-3 right-3">
-                    <CopyButton item={output.output} className="opacity-60 hover:opacity-100" />
+                    <CopyButton
+                        item={output.output}
+                        className="opacity-60 hover:opacity-100"
+                    />
                 </div>
                 {isHtmlContent ? (
                     <OutputSandbox content={output.output} />
                 ) : (
                     <div className="chat-message-bot">
-                        {convertMessageToMarkdown({ 
+                        {convertMessageToMarkdown({
                             payload: output.output,
-                            tool: output.tool
+                            tool: output.tool,
                         })}
                     </div>
                 )}
