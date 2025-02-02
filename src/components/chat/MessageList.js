@@ -92,7 +92,7 @@ const getYoutubeEmbedUrl = (url) => {
         return null;
     }
     return null;
-}
+};
 
 // Add memoized YouTube component
 const MemoizedYouTubeEmbed = React.memo(({ url, onLoad }) => {
@@ -106,7 +106,7 @@ const MemoizedYouTubeEmbed = React.memo(({ url, onLoad }) => {
                 minWidth: "360px",
                 width: "640px",
                 aspectRatio: "16/9",
-                backgroundColor: "transparent"
+                backgroundColor: "transparent",
             }}
             allowFullScreen
             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
@@ -370,13 +370,18 @@ function MessageList({ messages, bot, loading, chatId }) {
                                         obj?.gcs;
                                     if (isVideoUrl(src)) {
                                         // Check if it's a YouTube URL
-                                        const youtubeEmbedUrl = getYoutubeEmbedUrl(src);
+                                        const youtubeEmbedUrl =
+                                            getYoutubeEmbedUrl(src);
                                         if (youtubeEmbedUrl) {
                                             return (
                                                 <MemoizedYouTubeEmbed
                                                     key={youtubeEmbedUrl}
                                                     url={youtubeEmbedUrl}
-                                                    onLoad={() => handleMessageLoad(newMessage.id)}
+                                                    onLoad={() =>
+                                                        handleMessageLoad(
+                                                            newMessage.id,
+                                                        )
+                                                    }
                                                 />
                                             );
                                         }
@@ -391,7 +396,10 @@ function MessageList({ messages, bot, loading, chatId }) {
                                                 key={`video-${index}-${index2}`}
                                                 src={src}
                                                 className="max-h-[20%] max-w-[60%] [.docked_&]:max-w-[90%] rounded border-0 my-2 shadow-lg dark:shadow-black/30"
-                                                style={{ backgroundColor: "transparent" }}
+                                                style={{
+                                                    backgroundColor:
+                                                        "transparent",
+                                                }}
                                                 controls
                                                 preload="metadata"
                                                 playsInline
@@ -480,7 +488,10 @@ function MessageList({ messages, bot, loading, chatId }) {
                                                 src={src}
                                                 alt="uploadedimage"
                                                 className="max-h-[20%] max-w-[60%] [.docked_&]:max-w-[90%] rounded border-0 my-2 shadow-lg dark:shadow-black/30"
-                                                style={{ backgroundColor: "transparent" }}
+                                                style={{
+                                                    backgroundColor:
+                                                        "transparent",
+                                                }}
                                             />
                                         </div>
                                     );

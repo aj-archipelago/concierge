@@ -98,10 +98,10 @@ function convertMessageToMarkdown(message) {
                 <img
                     alt={alt || ""}
                     className="max-h-[20%] max-w-[60%] [.docked_&]:max-w-[90%] rounded my-2 shadow-lg dark:shadow-black/30"
-                    style={{ 
+                    style={{
                         backgroundColor: "transparent",
                         border: "none",
-                        outline: "none"
+                        outline: "none",
                     }}
                     {...props}
                 />
