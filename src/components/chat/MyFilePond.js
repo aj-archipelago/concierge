@@ -150,9 +150,35 @@ function isDocumentUrl(url) {
     return DOC_EXTENSIONS.includes(urlExt);
 }
 
+function getYoutubeVideoId(url) {
+    try {
+        const urlObj = new URL(url);
+        // Handle youtu.be URLs
+        if (urlObj.hostname === "youtu.be") {
+            return urlObj.pathname.substring(1).split("?")[0];
+        }
+        // Handle youtube.com URLs
+        if (
+            urlObj.hostname === "youtube.com" ||
+            urlObj.hostname === "www.youtube.com"
+        ) {
+            return urlObj.searchParams.get("v");
+        }
+        return null;
+    } catch (err) {
+        return null;
+    }
+}
+
 // Extracts the filename from a URL
 export function getFilename(url) {
     try {
+        // Special handling for YouTube URLs
+        if (isYoutubeUrl(url)) {
+            const videoId = getYoutubeVideoId(url);
+            return videoId ? `youtube-video-${videoId}` : "youtube-video";
+        }
+
         // Create a URL object to handle parsing
         const urlObject = new URL(url);
 
@@ -199,6 +225,9 @@ function isImageUrl(url) {
 }
 
 function isVideoUrl(url) {
+    if (isYoutubeUrl(url)) {
+        return true;
+    }
     const urlExt = getExtension(url);
     const mimeType = mime.contentType(urlExt);
     return VIDEO_EXTENSIONS.includes(urlExt) && mimeType.startsWith("video/");
@@ -212,6 +241,19 @@ function isAudioUrl(url) {
 
 function isMediaUrl(url) {
     return isImageUrl(url) || isVideoUrl(url) || isAudioUrl(url);
+}
+
+function isYoutubeUrl(url) {
+    try {
+        const urlObj = new URL(url);
+        return (
+            urlObj.hostname === "youtube.com" ||
+            urlObj.hostname === "www.youtube.com" ||
+            urlObj.hostname === "youtu.be"
+        );
+    } catch (err) {
+        return false;
+    }
 }
 
 const DOC_MIME_TYPES = DOC_EXTENSIONS.map((ext) => mime.lookup(ext));
@@ -234,6 +276,7 @@ const MEDIA_MIME_TYPES = [
     "video/wmv",
     "video/3gpp",
     "video/m4v",
+    "video/youtube",
     // Audio
     "audio/wav",
     "audio/mpeg",
@@ -273,6 +316,7 @@ function getVideoDuration(file) {
 
 // Our app
 function MyFilePond({ addUrl, files, setFiles, setIsUploadingMedia }) {
+    const pondRef = useRef(null);
     const serverUrl = "/media-helper?useGoogle=true";
     const [inputUrl, setInputUrl] = useState("");
     const [showInputUI, setShowInputUI] = useState(false);
@@ -288,11 +332,51 @@ function MyFilePond({ addUrl, files, setFiles, setIsUploadingMedia }) {
         try {
             new URL(inputUrl);
         } catch (err) {
-            // Invalid URL format
             alert(t("Please enter a valid URL"));
             return;
         }
 
+        // If it's a YouTube URL, simulate an instant upload through FilePond's API
+        if (isYoutubeUrl(inputUrl)) {
+            const youtubeResponse = {
+                url: inputUrl,
+                gcs: inputUrl,
+                type: "video/youtube", // custom type used internally
+                filename: getFilename(inputUrl),
+                payload: JSON.stringify([
+                    JSON.stringify({
+                        type: "image_url",
+                        url: inputUrl,
+                        gcs: inputUrl,
+                    }),
+                ]),
+            };
+
+            // Pass the response to your existing chat logic
+            addUrl(youtubeResponse);
+
+            // Create a pre-loaded file object
+            setFiles((prevFiles) => [
+                ...prevFiles,
+                {
+                    source: youtubeResponse,
+                    options: {
+                        type: "limbo",
+                        file: {
+                            name: getFilename(inputUrl),
+                            type: "video/youtube",
+                            size: 0,
+                        },
+                    },
+                },
+            ]);
+
+            // Clear the URL input
+            setInputUrl("");
+            return;
+        }
+
+        // For non-YouTube URLs, continue with the existing logic
         setIsUploadingMedia(true);
         setFiles([...files, { source: inputUrl }]);
         setInputUrl("");
@@ -339,6 +423,7 @@ function MyFilePond({ addUrl, files, setFiles, setIsUploadingMedia }) {
             <div className="flex">
                 <div className="flex-grow w-full">
                     <FilePond
+                        ref={pondRef}
                         files={files}
                         onupdatefiles={setFiles}
                         allowFileTypeValidation={true}
@@ -356,16 +441,27 @@ function MyFilePond({ addUrl, files, setFiles, setIsUploadingMedia }) {
                         server={{
                             url: serverUrl,
                             fetch: async (
-                                url,
+                                fileUrl,
                                 load,
                                 error,
                                 progress,
                                 abort,
                                 headers,
                             ) => {
+                                // For YouTube URLs, immediately load without fetching
+                                if (isYoutubeUrl(fileUrl)) {
+                                    const response = {
+                                        url: fileUrl,
+                                        gcs: fileUrl,
+                                        type: "video/youtube",
+                                        filename: getFilename(fileUrl),
+                                    };
+                                    load(response);
+                                    return;
+                                }
                                 try {
                                     const response = await axios.get(
-                                        `${serverUrl}&fetch=${url}`,
+                                        `${serverUrl}&fetch=${fileUrl}`,
                                     );
                                     if (response.data && response.data.url) {
                                         const { url } = response.data;
@@ -377,8 +473,6 @@ function MyFilePond({ addUrl, files, setFiles, setIsUploadingMedia }) {
                                         load(
                                             new Blob([url], {
                                                 type,
-                                                filename,
-                                                url,
                                             }),
                                         );
                                         addUrl(response.data);
@@ -387,11 +481,7 @@ function MyFilePond({ addUrl, files, setFiles, setIsUploadingMedia }) {
                                     }
                                 } catch (err) {
                                     console.error(err);
-                                    error({
-                                        body:
-                                            err.response?.data || "Invalid URL",
-                                        type: "error",
-                                    });
+                                    error("Could not load file");
                                     setIsUploadingMedia(false);
                                 }
                             },
@@ -404,6 +494,25 @@ function MyFilePond({ addUrl, files, setFiles, setIsUploadingMedia }) {
                                 progress,
                                 abort,
                             ) => {
+                                // Handle YouTube URLs differently
+                                if (
+                                    file.type === "video/youtube" ||
+                                    (metadata &&
+                                        metadata.type === "video/youtube")
+                                ) {
+                                    const response = {
+                                        url: file.name || file,
+                                        gcs: file.name || file,
+                                        type: "video/youtube",
+                                        filename: getFilename(
+                                            file.name || file,
+                                        ),
+                                    };
+                                    progress(true, 100, 100);
+                                    load(response);
+                                    return;
+                                }
+
                                 setProcessingLabel(t("Checking file..."));
                                 setIsUploadingMedia(true);
 
