@@ -21,8 +21,6 @@ import { uploadVideoFromUrl } from "../../utils/mediaUploadUtils";
 
 export function AddTrackOptions({
     url,
-    gcs,
-    setGcs,
     onAdd,
     async = true,
     apolloClient,
@@ -85,8 +83,6 @@ export function AddTrackOptions({
                     </p>
                     <TranscribeVideo
                         url={url}
-                        gcs={gcs}
-                        setGcs={setGcs}
                         onAdd={onAdd}
                         async={async}
                         apolloClient={apolloClient}
@@ -298,8 +294,6 @@ const getTranscribeQuery = (modelOption) => {
 
 export default function TranscribeVideo({
     url,
-    gcs,
-    setGcs,
     onAdd,
     async = true,
     apolloClient,
@@ -308,7 +302,6 @@ export default function TranscribeVideo({
     const { t } = useTranslation();
     const { neuralspaceEnabled } = useContext(ServerContext);
 
-    // Move state variables from Video.js
     const [language, setLanguage] = useState("");
     const [selectedModelOption, setSelectedModelOption] = useState("Whisper");
     const [transcriptionOption, setTranscriptionOption] = useState(null);
@@ -318,8 +311,6 @@ export default function TranscribeVideo({
     const [error, setError] = useState(null);
     const { debouncedUpdateUserState } = useContext(AuthContext);
     const { addProgressToast } = useProgress();
-    const { serverUrl } = useContext(ServerContext);
-    const [uploadProgress, setUploadProgress] = useState(0);
 
     const {
         responseFormat = "vtt",
@@ -330,7 +321,6 @@ export default function TranscribeVideo({
         highlightWords,
     } = transcriptionOption ?? {};
 
-    // Move handleSubmit from Video.js
     const handleSubmit = useCallback(
         async () => {
             if (!url || loading) return;
@@ -340,38 +330,14 @@ export default function TranscribeVideo({
                 setLoading(true);
 
                 const _query = getTranscribeQuery(selectedModelOption);
-                let file = url;
-
-                const isGeminiSelected =
-                    selectedModelOption?.toLowerCase() === "gemini";
-
-                if (isGeminiSelected) {
-                    if (!gcs) {
-                        setCurrentOperation(t("Uploading video"));
-                        // use cortex file handler to get gcs URL
-                        const uploadedFile = await uploadVideoFromUrl(
-                            url,
-                            serverUrl,
-                            setUploadProgress,
-                        );
-                        setGcs(uploadedFile?.gcs);
-                        file = uploadedFile?.gcs;
-                        setCurrentOperation(t("Transcribing"));
-                    } else {
-                        file = gcs;
-                    }
-                }
 
                 const { data } = await apolloClient.query({
                     query: _query,
                     variables: {
-                        file,
+                        file: url,
                         language,
                         wordTimestamped,
-                        responseFormat:
-                            responseFormat !== "formatted"
-                                ? responseFormat
-                                : null,
+                        responseFormat: responseFormat !== "formatted" ? responseFormat : null,
                         maxLineCount,
                         maxLineWidth,
                         maxWordsPerLine,
@@ -392,7 +358,6 @@ export default function TranscribeVideo({
                         dataResult,
                         t("Transcribing") + "...",
                         async (finalData) => {
-                            console.log("finalData", finalData);
                             if (responseFormat === "formatted") {
                                 const response = await apolloClient.query({
                                     query: QUERIES.FORMAT_PARAGRAPH_TURBO,
@@ -402,18 +367,13 @@ export default function TranscribeVideo({
                                     },
                                 });
 
-                                finalData =
-                                    response.data?.format_paragraph_turbo
-                                        ?.result;
+                                finalData = response.data?.format_paragraph_turbo?.result;
                             }
                             setLoading(false);
                             onAdd({
                                 text: finalData,
                                 format: responseFormat,
-                                name:
-                                    responseFormat === "vtt"
-                                        ? t("Subtitles")
-                                        : t("Transcript"),
+                                name: responseFormat === "vtt" ? t("Subtitles") : t("Transcript"),
                             });
                             setRequestId(null);
                         },
@@ -424,10 +384,8 @@ export default function TranscribeVideo({
                 console.error("Transcription error:", e);
                 setError(e);
                 setLoading(false);
-                setUploadProgress(0);
             }
         },
-        // eslint-disable-next-line react-hooks/exhaustive-deps
         [
             url,
             language,
@@ -443,10 +401,7 @@ export default function TranscribeVideo({
             t,
             onClose,
             apolloClient,
-            gcs,
             selectedModelOption,
-            setUploadProgress,
-            serverUrl,
         ],
     );
 
@@ -563,11 +518,7 @@ export default function TranscribeVideo({
                     className="mb-2.5 lb-primary"
                     disabled={!url}
                     loading={loading}
-                    text={
-                        uploadProgress > 0 && uploadProgress < 100
-                            ? `${t(currentOperation)} ${Math.round(uploadProgress)}%`
-                            : t(currentOperation)
-                    }
+                    text={t(currentOperation)}
                     onClick={() => handleSubmit()}
                 >
                     <FaVideo className="text-lg" /> {t("Transcribe")}

@@ -200,8 +200,6 @@ function EditableTranscriptSelect({
     setActiveTranscript,
     onNameChange,
     url,
-    gcs,
-    setGcs,
     onAdd,
     apolloClient,
     addTrackDialogOpen,
@@ -247,8 +245,6 @@ function EditableTranscriptSelect({
             <AddTrackButton
                 transcripts={transcripts}
                 url={url}
-                gcs={gcs}
-                setGcs={setGcs}
                 onAdd={onAdd}
                 activeTranscript={activeTranscript}
                 trigger={
@@ -363,8 +359,6 @@ function EditableTranscriptSelect({
                             <AddTrackButton
                                 transcripts={transcripts}
                                 url={url}
-                                gcs={gcs}
-                                setGcs={setGcs}
                                 onAdd={onAdd}
                                 activeTranscript={activeTranscript}
                                 trigger={
@@ -510,7 +504,6 @@ function VideoPage() {
     const [transcripts, setTranscripts] = useState([]);
     const [activeTranscript, setActiveTranscript] = useState(0);
     const [url, setUrl] = useState("");
-    const [gcs, setGcs] = useState("");
     const [videoInformation, setVideoInformation] = useState();
     const [isEditing, setIsEditing] = useState(false);
     const { t } = useTranslation();
@@ -571,7 +564,6 @@ function VideoPage() {
     const clearVideoInformation = () => {
         setVideoInformation("");
         setUrl("");
-        setGcs("");
         setTranscripts([]);
         setVideoLanguages([]);
         setActiveLanguage(0);
@@ -748,7 +740,6 @@ function VideoPage() {
                 setSelectedTab={setSelectedTab}
                 addTrackDialogOpen={addTrackDialogOpen}
                 url={url}
-                gcs={gcs}
                 transcripts={transcripts}
                 addSubtitleTrack={addSubtitleTrack}
                 apolloClient={apolloClient}
@@ -756,7 +747,6 @@ function VideoPage() {
                 setVideoInformation={setVideoInformation}
                 updateUserState={updateUserState}
                 setUrl={setUrl}
-                setGcs={setGcs}
             />
         );
     }
@@ -1156,7 +1146,6 @@ function VideoPage() {
                                             <VideoInput
                                                 url={url}
                                                 setUrl={setUrl}
-                                                setGcs={setGcs}
                                                 setVideoInformation={(
                                                     videoInfo,
                                                 ) => {
@@ -1209,8 +1198,6 @@ function VideoPage() {
                         videoInformation?.transcriptionUrl ||
                         videoInformation?.videoUrl
                     }
-                    gcs={gcs}
-                    setGcs={setGcs}
                     onAdd={addSubtitleTrack}
                     apolloClient={apolloClient}
                     addTrackDialogOpen={addTrackDialogOpen}

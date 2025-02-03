@@ -1,9 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
 import { CheckIcon, SearchIcon, XIcon } from "lucide-react";
-import { useState, useEffect } from "react";
+import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import config from "../../../config";
 import LoadingButton from "../editor/LoadingButton";
-import { useTranslation } from "react-i18next";
 
 const VideoSelector = ({ url, onSelect, onClose }) => {
     const [debouncedUrl, setDebouncedUrl] = useState(url);

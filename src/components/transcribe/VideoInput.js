@@ -114,7 +114,6 @@ export const checkVideoUrl = async (url) => {
 function VideoInput({
     url,
     setUrl,
-    setGcs,
     setVideoInformation,
     onUploadStart,
     onUploadComplete,
@@ -134,7 +133,6 @@ function VideoInput({
         setFileUploadError(null);
         setUploadProgress(0);
         setUrl("");
-        setGcs("");
         onUploadStart?.(); // Notify parent that upload is starting
 
         const file = event.target.files[0];
@@ -165,7 +163,6 @@ function VideoInput({
                 const data = await checkResponse.json().catch(() => null);
                 if (data && data.url) {
                     setUrl(data.url);
-                    setGcs(data.gcs);
                     setVideoInformation({
                         videoUrl: data.url,
                         transcriptionUrl: null,
@@ -228,8 +225,6 @@ function VideoInput({
                     const data = JSON.parse(xhr.responseText);
                     const fileUrl = data.url || ``;
                     setUrl(fileUrl);
-                    const gcsUrl = data.gcs || ``;
-                    setGcs(gcsUrl);
                     setVideoInformation({
                         videoUrl: fileUrl,
                         transcriptionUrl: null,
@@ -261,49 +256,6 @@ function VideoInput({
             setFileUploadError({ message: t("File upload failed") });
             setFileUploading(false);
             onUploadComplete?.(); // Notify parent that upload failed
-        }
-    };
-
-    const uploadVideoFromUrl = async (videoUrl, videoDuration = 0) => {
-        try {
-            // Estimate total time as videoDuration seconds, minimum 5 seconds
-            const estimatedTime = Math.max(5000, videoDuration * 1000);
-            const updateInterval = 100; // Update every 100ms
-            const steps = estimatedTime / updateInterval;
-
-            // Start progress updates
-            const progressInterval = setInterval(() => {
-                setUploadProgress((prev) => {
-                    const increment = 100 / steps;
-                    return Math.min(95, prev + increment); // Cap at 95% until complete
-                });
-            }, updateInterval);
-
-            const response = await fetch(
-                `${config.endpoints.mediaHelper(serverUrl)}?fetch=${videoUrl}`,
-                {
-                    method: "GET",
-                    headers: {
-                        "Content-Type": "application/json",
-                    },
-                },
-            );
-
-            clearInterval(progressInterval);
-            setUploadProgress(100);
-
-            if (!response.ok) {
-                throw new Error(`Upload failed: ${response.statusText}`);
-            }
-
-            const data = await response.json();
-            return {
-                url: data.url || "",
-                gcs: data.gcs || "",
-            };
-        } catch (error) {
-            console.error("Error uploading video from URL:", error);
-            throw error;
         }
     };
 
