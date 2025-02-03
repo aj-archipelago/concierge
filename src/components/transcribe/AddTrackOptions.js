@@ -321,89 +321,91 @@ export default function TranscribeVideo({
         highlightWords,
     } = transcriptionOption ?? {};
 
-    const handleSubmit = useCallback(
-        async () => {
-            if (!url || loading) return;
+    const handleSubmit = useCallback(async () => {
+        if (!url || loading) return;
 
-            setCurrentOperation(t("Transcribing"));
-            try {
-                setLoading(true);
+        setCurrentOperation(t("Transcribing"));
+        try {
+            setLoading(true);
 
-                const _query = getTranscribeQuery(selectedModelOption);
+            const _query = getTranscribeQuery(selectedModelOption);
 
-                const { data } = await apolloClient.query({
-                    query: _query,
-                    variables: {
-                        file: url,
-                        language,
-                        wordTimestamped,
-                        responseFormat: responseFormat !== "formatted" ? responseFormat : null,
-                        maxLineCount,
-                        maxLineWidth,
-                        maxWordsPerLine,
-                        highlightWords,
-                        async: true,
-                    },
-                    fetchPolicy: "network-only",
-                });
+            const { data } = await apolloClient.query({
+                query: _query,
+                variables: {
+                    file: url,
+                    language,
+                    wordTimestamped,
+                    responseFormat:
+                        responseFormat !== "formatted" ? responseFormat : null,
+                    maxLineCount,
+                    maxLineWidth,
+                    maxWordsPerLine,
+                    highlightWords,
+                    async: true,
+                },
+                fetchPolicy: "network-only",
+            });
 
-                const dataResult =
-                    data?.transcribe?.result ||
-                    data?.transcribe_neuralspace?.result ||
-                    data?.transcribe_gemini?.result;
+            const dataResult =
+                data?.transcribe?.result ||
+                data?.transcribe_neuralspace?.result ||
+                data?.transcribe_gemini?.result;
 
-                if (dataResult) {
-                    setRequestId(dataResult);
-                    addProgressToast(
-                        dataResult,
-                        t("Transcribing") + "...",
-                        async (finalData) => {
-                            if (responseFormat === "formatted") {
-                                const response = await apolloClient.query({
-                                    query: QUERIES.FORMAT_PARAGRAPH_TURBO,
-                                    variables: {
-                                        text: finalData,
-                                        async: false,
-                                    },
-                                });
-
-                                finalData = response.data?.format_paragraph_turbo?.result;
-                            }
-                            setLoading(false);
-                            onAdd({
-                                text: finalData,
-                                format: responseFormat,
-                                name: responseFormat === "vtt" ? t("Subtitles") : t("Transcript"),
+            if (dataResult) {
+                setRequestId(dataResult);
+                addProgressToast(
+                    dataResult,
+                    t("Transcribing") + "...",
+                    async (finalData) => {
+                        if (responseFormat === "formatted") {
+                            const response = await apolloClient.query({
+                                query: QUERIES.FORMAT_PARAGRAPH_TURBO,
+                                variables: {
+                                    text: finalData,
+                                    async: false,
+                                },
                             });
-                            setRequestId(null);
-                        },
-                    );
-                    onClose?.();
-                }
-            } catch (e) {
-                console.error("Transcription error:", e);
-                setError(e);
-                setLoading(false);
+
+                            finalData =
+                                response.data?.format_paragraph_turbo?.result;
+                        }
+                        setLoading(false);
+                        onAdd({
+                            text: finalData,
+                            format: responseFormat,
+                            name:
+                                responseFormat === "vtt"
+                                    ? t("Subtitles")
+                                    : t("Transcript"),
+                        });
+                        setRequestId(null);
+                    },
+                );
+                onClose?.();
             }
-        },
-        [
-            url,
-            language,
-            wordTimestamped,
-            responseFormat,
-            maxLineCount,
-            maxLineWidth,
-            maxWordsPerLine,
-            highlightWords,
-            loading,
-            async,
-            addProgressToast,
-            t,
-            onClose,
-            apolloClient,
-            selectedModelOption,
-        ],
-    );
+        } catch (e) {
+            console.error("Transcription error:", e);
+            setError(e);
+            setLoading(false);
+        }
+    }, [
+        url,
+        language,
+        wordTimestamped,
+        responseFormat,
+        maxLineCount,
+        maxLineWidth,
+        maxWordsPerLine,
+        highlightWords,
+        loading,
+        async,
+        addProgressToast,
+        t,
+        onClose,
+        apolloClient,
+        selectedModelOption,
+    ]);
 
     // Add logging for select changes
     const handleFormatChange = (e) => {
