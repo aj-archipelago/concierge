@@ -93,6 +93,20 @@ function convertMessageToMarkdown(message) {
         p({ node, ...rest }) {
             return <div className="mb-1" {...rest} />;
         },
+        img({ node, alt, ...props }) {
+            return (
+                <img
+                    alt={alt || ""}
+                    className="max-h-[20%] max-w-[60%] [.docked_&]:max-w-[90%] rounded my-2 shadow-lg dark:shadow-black/30"
+                    style={{
+                        backgroundColor: "transparent",
+                        border: "none",
+                        outline: "none",
+                    }}
+                    {...props}
+                />
+            );
+        },
         cd_inline_emotion({ children, emotion }) {
             return (
                 <InlineEmotionDisplay emotion={emotion}>

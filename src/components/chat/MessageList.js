@@ -75,6 +75,45 @@ const parseToolData = (toolString) => {
     }
 };
 
+const getYoutubeEmbedUrl = (url) => {
+    try {
+        const urlObj = new URL(url);
+        if (urlObj.hostname === "youtu.be") {
+            const videoId = urlObj.pathname.slice(1);
+            return `https://www.youtube.com/embed/${videoId}`;
+        } else if (
+            urlObj.hostname === "youtube.com" ||
+            urlObj.hostname === "www.youtube.com"
+        ) {
+            const videoId = urlObj.searchParams.get("v");
+            return `https://www.youtube.com/embed/${videoId}`;
+        }
+    } catch (err) {
+        return null;
+    }
+    return null;
+};
+
+// Add memoized YouTube component
+const MemoizedYouTubeEmbed = React.memo(({ url, onLoad }) => {
+    return (
+        <iframe
+            title={`YouTube video ${url.split("/").pop()}`}
+            onLoad={onLoad}
+            src={url}
+            className="w-full max-h-[20%] max-w-[60%] [.docked_&]:max-w-[90%] rounded border-0 my-2 shadow-lg dark:shadow-black/30"
+            style={{
+                minWidth: "360px",
+                width: "640px",
+                aspectRatio: "16/9",
+                backgroundColor: "transparent",
+            }}
+            allowFullScreen
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+        />
+    );
+});
+
 // Displays the list of messages and a message input box.
 function MessageList({ messages, bot, loading, chatId }) {
     const { user } = useContext(AuthContext);
@@ -330,7 +369,23 @@ function MessageList({ messages, bot, loading, chatId }) {
                                         obj?.image_url?.url ||
                                         obj?.gcs;
                                     if (isVideoUrl(src)) {
-                                        // Display the video
+                                        // Check if it's a YouTube URL
+                                        const youtubeEmbedUrl =
+                                            getYoutubeEmbedUrl(src);
+                                        if (youtubeEmbedUrl) {
+                                            return (
+                                                <MemoizedYouTubeEmbed
+                                                    key={youtubeEmbedUrl}
+                                                    url={youtubeEmbedUrl}
+                                                    onLoad={() =>
+                                                        handleMessageLoad(
+                                                            newMessage.id,
+                                                        )
+                                                    }
+                                                />
+                                            );
+                                        }
+                                        // Regular video
                                         return (
                                             <video
                                                 onLoadedData={() => {
@@ -340,7 +395,11 @@ function MessageList({ messages, bot, loading, chatId }) {
                                                 }}
                                                 key={`video-${index}-${index2}`}
                                                 src={src}
-                                                className="max-h-[20%] max-w-[60%] [.docked_&]:max-w-[90%] rounded border bg-white p-1 my-2 dark:border-neutral-700 dark:bg-neutral-800 shadow-lg dark:shadow-black/30"
+                                                className="max-h-[20%] max-w-[60%] [.docked_&]:max-w-[90%] rounded border-0 my-2 shadow-lg dark:shadow-black/30"
+                                                style={{
+                                                    backgroundColor:
+                                                        "transparent",
+                                                }}
                                                 controls
                                                 preload="metadata"
                                                 playsInline
@@ -428,7 +487,11 @@ function MessageList({ messages, bot, loading, chatId }) {
                                                 }}
                                                 src={src}
                                                 alt="uploadedimage"
-                                                className="max-h-[20%] max-w-[60%] [.docked_&]:max-w-[90%] rounded-md border bg-white p-1 my-2 dark:border-neutral-700 dark:bg-neutral-800 shadow-lg dark:shadow-black/30"
+                                                className="max-h-[20%] max-w-[60%] [.docked_&]:max-w-[90%] rounded border-0 my-2 shadow-lg dark:shadow-black/30"
+                                                style={{
+                                                    backgroundColor:
+                                                        "transparent",
+                                                }}
                                             />
                                         </div>
                                     );
