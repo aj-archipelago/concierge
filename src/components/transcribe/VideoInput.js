@@ -11,7 +11,11 @@ import { useTranslation } from "react-i18next";
 import VideoSelector from "./VideoSelector";
 import { ServerContext } from "../../App";
 import config from "../../../config";
-import { hashMediaFile, getVideoDuration } from "../../utils/mediaUtils";
+import {
+    hashMediaFile,
+    getVideoDuration,
+    getVideoDurationFromUrl,
+} from "../../utils/mediaUtils";
 import { LanguageContext } from "../../contexts/LanguageProvider";
 
 export const isValidUrl = (url) => {
@@ -51,10 +55,10 @@ export const isCloudStorageUrl = (url) => {
 export const checkVideoUrl = async (url) => {
     let video = null;
     try {
-        // Skip HEAD request for cloud storage URLs since they often have CORS restrictions
-        if (!isCloudStorageUrl(url)) {
+        const isCloudUrl = isCloudStorageUrl(url);
+
+        if (!isCloudUrl) {
             try {
-                // First check if it's a valid video URL
                 const response = await fetch(url, { method: "HEAD" });
                 const contentType = response.headers.get("content-type");
                 if (!contentType || !contentType.startsWith("video/")) {
@@ -72,15 +76,17 @@ export const checkVideoUrl = async (url) => {
         // Check video duration
         video = document.createElement("video");
         video.preload = "metadata";
-        video.crossOrigin = "anonymous"; // Add cross-origin attribute
+        video.crossOrigin = "anonymous";
 
         const durationPromise = new Promise((resolve, reject) => {
-            video.onloadedmetadata = () => resolve(video.duration);
+            video.onloadedmetadata = () => {
+                resolve(video.duration);
+            };
             video.onerror = (e) => {
-                // If there's a CORS error but it's a cloud storage URL, we'll assume it's valid
-                if (isCloudStorageUrl(url)) {
-                    resolve(0); // Resolve with 0 to skip duration check for cloud storage URLs
+                if (isCloudUrl) {
+                    resolve(0);
                 } else {
+                    console.error("❌ Video loading error:", e);
                     reject(e);
                 }
             };
@@ -105,7 +111,13 @@ export const checkVideoUrl = async (url) => {
     }
 };
 
-function VideoInput({ url, setUrl, setVideoInformation }) {
+function VideoInput({
+    url,
+    setUrl,
+    setVideoInformation,
+    onUploadStart,
+    onUploadComplete,
+}) {
     const { t } = useTranslation();
     const [fileUploading, setFileUploading] = useState(false);
     const [fileUploadError, setFileUploadError] = useState(null);
@@ -121,6 +133,7 @@ function VideoInput({ url, setUrl, setVideoInformation }) {
         setFileUploadError(null);
         setUploadProgress(0);
         setUrl("");
+        onUploadStart?.(); // Notify parent that upload is starting
 
         const file = event.target.files[0];
 
@@ -155,6 +168,7 @@ function VideoInput({ url, setUrl, setVideoInformation }) {
                         transcriptionUrl: null,
                     });
                     setFileUploading(false);
+                    onUploadComplete?.(); // Notify parent that upload is complete
                     return;
                 }
             }
@@ -216,12 +230,14 @@ function VideoInput({ url, setUrl, setVideoInformation }) {
                         transcriptionUrl: null,
                     });
                     setFileUploading(false);
+                    onUploadComplete?.(); // Notify parent that upload is complete
                 } else {
                     console.error(xhr.statusText);
                     setFileUploadError({
                         message: `${t("File upload failed, response:")} ${xhr.statusText}`,
                     });
                     setFileUploading(false);
+                    onUploadComplete?.(); // Notify parent that upload failed
                 }
             };
 
@@ -230,6 +246,7 @@ function VideoInput({ url, setUrl, setVideoInformation }) {
                 console.error(error);
                 setFileUploadError({ message: t("File upload failed") });
                 setFileUploading(false);
+                onUploadComplete?.(); // Notify parent that upload failed
             };
 
             // Send the file
@@ -238,6 +255,7 @@ function VideoInput({ url, setUrl, setVideoInformation }) {
             console.error(error);
             setFileUploadError({ message: t("File upload failed") });
             setFileUploading(false);
+            onUploadComplete?.(); // Notify parent that upload failed
         }
     };
 
@@ -249,7 +267,10 @@ function VideoInput({ url, setUrl, setVideoInformation }) {
 
         const result = await checkVideoUrl(url);
         if (result === true) {
-            setVideoInformation({ videoUrl: url, transcriptionUrl: null });
+            setVideoInformation({
+                videoUrl: url,
+                transcriptionUrl: null,
+            });
         } else if (result === "Video length exceeds 60 minutes") {
             setVideoSelectorError({
                 message: t(
@@ -263,7 +284,17 @@ function VideoInput({ url, setUrl, setVideoInformation }) {
 
     return (
         <div className="flex flex-col gap-2 mb-5">
-            {showVideoSelector ? (
+            {fileUploading ? (
+                <div className="flex flex-col items-center justify-center gap-4 py-8">
+                    <div className="flex items-center gap-2 text-sm text-gray-500">
+                        <Loader2Icon className="w-4 h-4 animate-spin" />
+                        <span>
+                            {t("Processing video...")}{" "}
+                            {Math.round(uploadProgress)}%
+                        </span>
+                    </div>
+                </div>
+            ) : showVideoSelector ? (
                 <>
                     {videoSelectorError && (
                         <p className="text-red-500 text-sm">
@@ -272,11 +303,16 @@ function VideoInput({ url, setUrl, setVideoInformation }) {
                     )}
                     <VideoSelector
                         url={url}
+                        onClose={() => setShowVideoSelector(false)}
                         onSelect={async (v) => {
                             try {
                                 const result = await checkVideoUrl(v.videoUrl);
                                 if (result === true) {
-                                    setVideoInformation(v);
+                                    setUrl(v.videoUrl);
+                                    setVideoInformation({
+                                        videoUrl: v.videoUrl,
+                                        transcriptionUrl: v.transcriptionUrl,
+                                    });
                                     setShowVideoSelector(false);
                                     setVideoSelectorError(null);
                                 } else if (
@@ -346,76 +382,80 @@ function VideoInput({ url, setUrl, setVideoInformation }) {
                         )}
                     </span>
 
-                    <div className="flex items-center my-4 max-w-xl">
-                        <div className="w-64 border-t border-gray-300"></div>
-                        <span className="px-4 text-sm text-gray-500">
-                            {t("OR")}
-                        </span>
-                        <div className="flex-1 border-t border-gray-300"></div>
+                    <div className="flex justify-center w-full">
+                        <div className="flex items-center my-4">
+                            <div className="w-64 border-t border-gray-300"></div>
+                            <span className="px-4 text-sm text-gray-500">
+                                {t("OR")}
+                            </span>
+                            <div className="flex-1 border-t border-gray-300 w-64"></div>
+                        </div>
                     </div>
 
-                    <div className="flex flex-col  gap-4">
-                        <div
-                            className="border-2 border-dashed border-gray-300 rounded-lg p-8 w-full max-w-xl hover:border-primary-500 transition-colors"
-                            onDragOver={(e) => {
-                                e.preventDefault();
-                                e.currentTarget.classList.add(
-                                    "border-primary-500",
-                                );
-                            }}
-                            onDragLeave={(e) => {
-                                e.currentTarget.classList.remove(
-                                    "border-primary-500",
-                                );
-                            }}
-                            onDrop={(e) => {
-                                e.preventDefault();
-                                e.currentTarget.classList.remove(
-                                    "border-primary-500",
-                                );
-                                const file = e.dataTransfer.files[0];
-                                const event = { target: { files: [file] } };
-                                handleFileUpload(event);
-                            }}
-                        >
-                            <div className="text-center">
-                                <label className="lb-outline-secondary text-sm flex gap-2 items-center cursor-pointer justify-center w-64 mx-auto mb-3">
-                                    <input
-                                        type="file"
-                                        className="hidden"
-                                        accept="video/*,audio/*"
-                                        onChange={handleFileUpload}
-                                        disabled={fileUploading}
-                                    />
-                                    {fileUploading ? (
-                                        <>
-                                            <Loader2Icon className="w-4 h-4 animate-spin" />
-                                            {t("Uploading...")} {uploadProgress}
-                                            %
-                                        </>
-                                    ) : (
-                                        <>
-                                            <UploadIcon className="w-4 h-4" />
-                                            {t("Choose a file")}
-                                        </>
-                                    )}
-                                </label>
-                                <p className="text-sm text-gray-500 mb-2">
-                                    {t("or drag and drop here")}
-                                </p>
-                                <p className="text-xs text-gray-400">
-                                    {t("Supported formats")}: MP4, WebM, OGG,
-                                    MP3, WAV
-                                    <br />
-                                    {t("Maximum file size")}: 500MB
-                                </p>
+                    <div className="flex justify-center w-full">
+                        <div className="flex flex-col gap-4">
+                            <div
+                                className="border-2 border-dashed border-gray-300 rounded-lg p-8 w-full max-w-xl hover:border-primary-500 transition-colors"
+                                onDragOver={(e) => {
+                                    e.preventDefault();
+                                    e.currentTarget.classList.add(
+                                        "border-primary-500",
+                                    );
+                                }}
+                                onDragLeave={(e) => {
+                                    e.currentTarget.classList.remove(
+                                        "border-primary-500",
+                                    );
+                                }}
+                                onDrop={(e) => {
+                                    e.preventDefault();
+                                    e.currentTarget.classList.remove(
+                                        "border-primary-500",
+                                    );
+                                    const file = e.dataTransfer.files[0];
+                                    const event = { target: { files: [file] } };
+                                    handleFileUpload(event);
+                                }}
+                            >
+                                <div className="text-center w-96">
+                                    <label className="lb-outline-secondary text-sm flex gap-2 items-center cursor-pointer justify-center w-64 mx-auto mb-3">
+                                        <input
+                                            type="file"
+                                            className="hidden"
+                                            accept="video/*,audio/*"
+                                            onChange={handleFileUpload}
+                                            disabled={fileUploading}
+                                        />
+                                        {fileUploading ? (
+                                            <>
+                                                <Loader2Icon className="w-4 h-4 animate-spin" />
+                                                {t("Uploading...")}{" "}
+                                                {Math.round(uploadProgress)}%
+                                            </>
+                                        ) : (
+                                            <>
+                                                <UploadIcon className="w-4 h-4" />
+                                                {t("Choose a file")}
+                                            </>
+                                        )}
+                                    </label>
+                                    <p className="text-sm text-gray-500 mb-2">
+                                        {t("or drag and drop here")}
+                                    </p>
+                                    <p className="text-xs text-gray-400">
+                                        {t("Supported formats")}: MP4, WebM,
+                                        OGG, MP3, WAV
+                                        <br />
+                                        {t("Maximum file size")}: 500MB
+                                    </p>
+                                </div>
                             </div>
+                            {fileUploadError && (
+                                <p className="text-red-500 text-sm">
+                                    {fileUploadError.message}
+                                </p>
+                            )}
                         </div>
-                        {fileUploadError && (
-                            <p className="text-red-500 text-sm">
-                                {fileUploadError.message}
-                            </p>
-                        )}
                     </div>
                 </>
             )}

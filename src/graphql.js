@@ -423,6 +423,38 @@ const TRANSCRIBE = gql`
     }
 `;
 
+const TRANSCRIBE_GEMINI = gql`
+    query TranscribeGemini(
+        $file: String!
+        $text: String
+        $language: String
+        $wordTimestamped: Boolean
+        $maxLineCount: Int
+        $maxLineWidth: Int
+        $maxWordsPerLine: Int
+        $highlightWords: Boolean
+        $responseFormat: String
+        $async: Boolean
+        $contextId: String
+    ) {
+        transcribe_gemini(
+            file: $file
+            text: $text
+            language: $language
+            wordTimestamped: $wordTimestamped
+            maxLineCount: $maxLineCount
+            maxLineWidth: $maxLineWidth
+            maxWordsPerLine: $maxWordsPerLine
+            highlightWords: $highlightWords
+            responseFormat: $responseFormat
+            async: $async
+            contextId: $contextId
+        ) {
+            result
+        }
+    }
+`;
+
 const TRANSCRIBE_NEURALSPACE = gql`
     query TranscribeNeuralSpace(
         $file: String!
@@ -746,6 +778,7 @@ const QUERIES = {
     SUMMARIZE_TURBO,
     TRANSCRIBE,
     TRANSCRIBE_NEURALSPACE,
+    TRANSCRIBE_GEMINI,
     TRANSLATE,
     TRANSLATE_AZURE,
     TRANSLATE_CONTEXT,

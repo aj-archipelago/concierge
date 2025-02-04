@@ -38,3 +38,13 @@ export const getVideoDuration = (file) => {
         video.src = URL.createObjectURL(file);
     });
 };
+
+export const getVideoDurationFromUrl = (url) => {
+    return new Promise((resolve, reject) => {
+        const video = document.createElement("video");
+        video.preload = "metadata";
+        video.src = url;
+        video.onloadedmetadata = () => resolve(video.duration);
+        video.onerror = reject;
+    });
+};
