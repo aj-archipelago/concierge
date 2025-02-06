@@ -15,13 +15,8 @@ import { useProgress } from "../../contexts/ProgressContext";
 import { QUERIES } from "../../graphql";
 import LoadingButton from "../editor/LoadingButton";
 import TranslationOptions from "./TranslationOptions";
-import {
-    convertSrtToVtt,
-    detectSubtitleFormat,
-    normalizeVtt,
-} from "./transcribe.utils";
 import { LanguageContext } from "../../contexts/LanguageProvider";
-import { uploadVideoFromUrl } from "../../utils/mediaUploadUtils";
+import { parse, build } from "@aj-archipelago/subvibe";
 
 export function AddTrackOptions({
     url,
@@ -180,13 +175,11 @@ function SubtitleUpload({ onAdd }) {
         reader.onload = async (e) => {
             let text = e.target.result;
 
+            const parsed = parse(text);
+
             if (fileExtension === "srt") {
-                console.log(
-                    "fileExtension",
-                    fileExtension,
-                    convertSrtToVtt(text),
-                );
-                text = convertSrtToVtt(text);
+                // Convert SRT to VTT format
+                text = build(parsed.cues, "vtt");
             }
 
             onAdd({
@@ -239,17 +232,20 @@ function ClipboardPaste({ onAdd }) {
         if (!text.trim()) return;
 
         // Detect if the pasted text is in a subtitle format
-        const format = detectSubtitleFormat(text);
+        const parsed = parse(text);
+        const format = parsed?.type;
+        const cues = parsed?.cues;
+
         let processedText = text;
         let outputFormat = "";
         let name = t("Pasted Transcript");
 
         if (format === "srt") {
-            processedText = convertSrtToVtt(text);
+            processedText = build(cues, "vtt");
             outputFormat = "vtt";
             name = t("Pasted Subtitles");
         } else if (format === "vtt") {
-            processedText = normalizeVtt(text);
+            processedText = build(cues, "vtt");
             outputFormat = "vtt";
             name = t("Pasted Subtitles");
         }

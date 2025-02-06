@@ -49,6 +49,7 @@ import { AddTrackButton } from "./TranscriptionOptions";
 import TranscriptView from "./TranscriptView";
 import VideoInput from "./VideoInput";
 import { LanguageContext } from "../../contexts/LanguageProvider";
+import { parse, build } from "@aj-archipelago/subvibe";
 
 const isValidUrl = (url) => {
     try {
@@ -82,56 +83,13 @@ function TaxonomyDialog({ text }) {
 function DownloadButton({ format, name, text }) {
     const { t } = useTranslation();
 
-    const convertVttToSrt = (vttText) => {
-        const lines = vttText.split("\n");
-        let srtContent = "";
-        let subtitleCount = 1;
-        let currentSubtitle = {};
-        let isTextContent = false;
-
-        lines.forEach((line) => {
-            const timestampMatch = line.match(
-                /(\d{2}:\d{2}:\d{2}\.\d{3}) --> (\d{2}:\d{2}:\d{2}\.\d{3})/,
-            );
-            if (timestampMatch) {
-                if (currentSubtitle.timestamp) {
-                    srtContent += `${subtitleCount}\n${currentSubtitle.timestamp}\n${currentSubtitle.text.trim()}\n\n`;
-                    subtitleCount++;
-                }
-                // Convert timestamp format from VTT to SRT (replace . with ,)
-                currentSubtitle = {
-                    timestamp: `${timestampMatch[1].replace(".", ",")} --> ${timestampMatch[2].replace(".", ",")}`,
-                    text: "",
-                };
-                isTextContent = true;
-            } else if (
-                line.trim() &&
-                isTextContent &&
-                currentSubtitle.timestamp
-            ) {
-                const trimmedLine = line.trim();
-                currentSubtitle.text = currentSubtitle.text
-                    ? `${currentSubtitle.text}\n${trimmedLine}`
-                    : trimmedLine;
-            } else if (!line.trim()) {
-                isTextContent = false;
-            }
-        });
-
-        // Add the last subtitle
-        if (currentSubtitle.timestamp) {
-            srtContent += `${subtitleCount}\n${currentSubtitle.timestamp}\n${currentSubtitle.text.trim()}\n\n`;
-        }
-
-        return srtContent.trim();
-    };
-
     const downloadFile = (selectedFormat) => {
         let downloadText = text;
 
         // Convert format if needed
         if (selectedFormat === "srt") {
-            downloadText = convertVttToSrt(text);
+            const parsed = parse(downloadText);
+            downloadText = build(parsed.cues, "srt");
         }
 
         const element = document.createElement("a");
