@@ -48,11 +48,13 @@ const App = ({
     const debouncedUserState = useDebounce(userState, STATE_DEBOUNCE_TIME);
 
     useEffect(() => {
-        // set user state from server if it exists
-        if (!userState && serverUserState) {
+        if (
+            JSON.stringify(userState || {}) !==
+            JSON.stringify(serverUserState || {})
+        ) {
             setUserState(serverUserState);
         }
-    }, [userState, serverUserState]);
+    }, [serverUserState]);
 
     useEffect(() => {
         if (i18next.language !== language) {

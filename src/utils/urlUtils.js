@@ -74,6 +74,9 @@ export function getYoutubeEmbedUrl(url) {
 
 export function getYoutubeVideoId(url) {
     const embedUrl = getYoutubeEmbedUrl(url);
+    if (!embedUrl) {
+        throw new Error("Invalid YouTube URL");
+    }
     const urlObj = new URL(embedUrl);
     return urlObj.pathname.slice(7); // Remove '/embed/'
 }

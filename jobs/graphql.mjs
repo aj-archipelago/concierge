@@ -493,6 +493,7 @@ const REQUEST_PROGRESS = gql`
         requestProgress(requestIds: $requestIds) {
             data
             progress
+            info
         }
     }
 `;
