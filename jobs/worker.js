@@ -102,8 +102,7 @@ console.log("starting worker");
     await connectToDatabase();
     console.log("Connected to database");
 
-    // Add test job and run workers
-    // await requestProgressWorker.addTestJob();
+    // run workers
     requestProgressWorker.run();
     worker.run();
 })();

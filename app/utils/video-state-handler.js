@@ -1,5 +1,3 @@
-const UserState = require("../api/models/user-state.js").default;
-
 async function fetchVttContent(url) {
     try {
         const response = await fetch(url);
@@ -26,6 +24,8 @@ async function handleVideoTranslationCompletion(
     }
 
     try {
+        const UserState = (await import("../api/models/user-state.mjs"))
+            .default;
         const userState = await UserState.findOne({ user: userId });
         if (!userState) {
             console.log("User state not found");

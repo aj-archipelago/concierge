@@ -1,4 +1,4 @@
-import UserState from "../../../models/user-state";
+import UserState from "../../../models/user-state.mjs";
 import { getCurrentUser } from "../../../utils/auth";
 
 function transformUserState(userState) {
