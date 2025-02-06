@@ -8,15 +8,12 @@ import {
 } from "lucide-react";
 import { useContext, useState } from "react";
 import { useTranslation } from "react-i18next";
-import VideoSelector from "./VideoSelector";
-import { ServerContext } from "../../App";
 import config from "../../../config";
-import {
-    hashMediaFile,
-    getVideoDuration,
-    getVideoDurationFromUrl,
-} from "../../utils/mediaUtils";
+import { ServerContext } from "../../App";
 import { LanguageContext } from "../../contexts/LanguageProvider";
+import { getVideoDuration, hashMediaFile } from "../../utils/mediaUtils";
+import { isYoutubeUrl } from "../../utils/urlUtils";
+import VideoSelector from "./VideoSelector";
 
 export const isValidUrl = (url) => {
     try {
@@ -53,6 +50,11 @@ export const isCloudStorageUrl = (url) => {
 };
 
 export const checkVideoUrl = async (url) => {
+    // Early return for YouTube URLs
+    if (isYoutubeUrl(url)) {
+        return true;
+    }
+
     let video = null;
     try {
         const isCloudUrl = isCloudStorageUrl(url);
