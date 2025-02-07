@@ -295,7 +295,6 @@ html[dir="ltr"] {
     line-height: 1.5; // Spacing for readability
     color: #333; // Dark color for contrast
     padding-inline-end: 4px;
-    overflow: hidden;
 
     // Markdown heading styling
     h1,
@@ -374,6 +373,13 @@ html[dir="ltr"] {
             background-color: #f5f5f5; // Light background for contrast
         }
     }
+
+    .tool-used {
+        font-size: 0.75rem;
+        color: #666;
+        font-style: italic;
+        margin-right: 2rem;
+    }
 }
 
 .bt-highlight {
@@ -410,11 +416,68 @@ html[dir="ltr"] {
     font-size: 0.8rem;
     display: flex;
     border-bottom: 1px solid #eee;
+    width: 100%;
+    max-width: 100%;
 
     .chat-message {
         width: 100%;
         padding-inline-start: 0;
         padding: 25px 20px 24px 5px;
+        overflow-x: hidden;
+
+        // Force all content to wrap
+        * {
+            overflow-wrap: break-word !important;
+            word-wrap: break-word !important;
+            word-break: break-word !important;
+            white-space: pre-wrap !important;
+        }
+
+        // Target code blocks specifically
+        pre {
+            width: 100% !important;
+            max-width: 100% !important;
+            white-space: pre-wrap !important;
+            overflow: visible !important;
+
+            code {
+                width: 100% !important;
+                max-width: 100% !important;
+                white-space: pre-wrap !important;
+                overflow: visible !important;
+            }
+        }
+
+        // Target markdown content
+        .markdown-content {
+            width: 100% !important;
+            max-width: 100% !important;
+            overflow: visible !important;
+        }
+
+        // Handle math content
+        .katex-display,
+        .katex {
+            width: 100% !important;
+            max-width: 100% !important;
+            overflow: visible !important;
+            white-space: normal !important;
+        }
+
+        img {
+            max-height: 20%;
+            max-width: 60%;
+            border-radius: 0.375rem;
+            border: 1px solid #e5e7eb;
+            background-color: white;
+            padding: 0.25rem;
+            margin: 0.5rem 0;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+
+            .docked & {
+                max-width: 90%;
+            }
+        }
     }
 }
 
@@ -543,5 +606,91 @@ html[dir="ltr"] {
     }
     .url-input {
         font-size: 0.7rem;
+    }
+}
+
+.chat-message {
+    pre,
+    code {
+        overflow-x: auto;
+        max-width: 100%;
+        white-space: pre-wrap;
+    }
+
+    // Handle math equations
+    .katex-display {
+        text-align: left !important;
+        margin: 0.5em 0 !important;
+        font-size: 1em !important;
+
+        > .katex {
+            text-align: left !important;
+            display: inline-block !important;
+            font-size: inherit !important;
+        }
+    }
+
+    // Handle inline math
+    .katex {
+        text-align: left !important;
+        font-size: 1em !important;
+    }
+
+    // Handle tables
+    table {
+        display: block;
+        overflow-x: auto;
+        max-width: 100%;
+    }
+
+    img {
+        max-height: 20%;
+        max-width: 60%;
+        border-radius: 0.375rem;
+        border: 1px solid #e5e7eb;
+        background-color: white;
+        padding: 0.25rem;
+        margin: 0.5rem 0;
+        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+
+        .docked & {
+            max-width: 90%;
+        }
+    }
+}
+
+.code-block {
+    width: 100% !important;
+    max-width: 100% !important;
+    white-space: pre-wrap !important;
+    overflow: visible !important;
+
+    *:not(.copy-notification) {
+        white-space: pre-wrap !important;
+        word-break: break-word !important;
+        overflow-wrap: break-word !important;
+    }
+}
+
+.tool-badge {
+    max-width: 200px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    backdrop-filter: blur(8px);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+
+    .tool-icon {
+        font-size: 12px;
+        line-height: 1;
+    }
+
+    .tool-name {
+        position: relative;
+        top: 0.5px;
+    }
+
+    &:hover {
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
     }
 }

@@ -6,9 +6,8 @@ import classNames from "../../../app/utils/class-names";
 import dynamic from "next/dynamic";
 import { v4 as uuidv4 } from "uuid";
 import { useApolloClient } from "@apollo/client";
-import { COGNITIVE_INSERT } from "../../graphql";
+import { COGNITIVE_INSERT, CODE_HUMAN_INPUT } from "../../graphql";
 import { useDispatch } from "react-redux";
-import { addSource } from "../../stores/docSlice";
 import {
     setFileLoading,
     clearFileLoading,
@@ -16,10 +15,13 @@ import {
 } from "../../stores/fileUploadSlice";
 import { FaFileCirclePlus } from "react-icons/fa6";
 import { IoCloseCircle } from "react-icons/io5";
-import { isDocumentUrl, isMediaUrl } from "./MyFilePond";
+import { getFilename, isDocumentUrl, isMediaUrl } from "./MyFilePond";
 import { AuthContext } from "../../App";
 import { useAddDocument } from "../../../app/queries/uploadedDocs";
-import { useGetActiveChatId } from "../../../app/queries/chats";
+import {
+    useGetActiveChat,
+    useGetActiveChatId,
+} from "../../../app/queries/chats";
 
 const DynamicFilepond = dynamic(() => import("./MyFilePond"), {
     ssr: false,
@@ -47,6 +49,9 @@ function MessageInput({
         setInputValue(event.target.value);
     };
     const activeChatId = useGetActiveChatId();
+    const activeChat = useGetActiveChat().data;
+    const codeRequestId = activeChat?.codeRequestId;
+    const apolloClient = useApolloClient();
 
     const prepareMessage = (inputText) => {
         return [
@@ -73,6 +78,19 @@ function MessageInput({
 
     const handleFormSubmit = (event) => {
         event.preventDefault();
+        if (codeRequestId && inputValue) {
+            apolloClient.query({
+                query: CODE_HUMAN_INPUT,
+                variables: {
+                    codeRequestId,
+                    text: inputValue,
+                },
+                fetchPolicy: "network-only",
+            });
+
+            setInputValue("");
+            return;
+        }
         if (!loading && inputValue) {
             const message = prepareMessage(inputValue);
             onSend(urlsData && urlsData.length > 0 ? message : inputValue);
@@ -89,13 +107,7 @@ function MessageInput({
 
             try {
                 const docId = uuidv4();
-                const filename = url
-                    .split("/")
-                    .pop()
-                    .split("?")[0]
-                    .split("_")
-                    .slice(1)
-                    .join("_");
+                const filename = getFilename(url);
 
                 dispatch(setFileLoading());
 
@@ -120,7 +132,6 @@ function MessageInput({
                             filename,
                             chatId: activeChatId,
                         });
-                        dispatch(addSource("mydata"));
                         dispatch(clearFileLoading());
                     })
                     .catch((err) => {
@@ -137,7 +148,7 @@ function MessageInput({
         if (isDocumentUrl(url)) {
             fetchData(url);
         } else {
-            //media urls, 'll be sent with active message
+            //media urls, will be sent with active message
             if (isMediaUrl(url)) {
                 setUrlsData((prevUrlsData) => [...prevUrlsData, urlData]);
             }
@@ -193,7 +204,11 @@ function MessageInput({
                                         handleFormSubmit(e);
                                     }
                                 }}
-                                placeholder={placeholder || "Send a message"}
+                                placeholder={
+                                    codeRequestId
+                                        ? "Send a message to active coding agent 🤖"
+                                        : placeholder || "Send a message"
+                                }
                                 value={inputValue}
                                 onChange={handleInputChange}
                                 autoComplete="on"
@@ -209,10 +224,12 @@ function MessageInput({
                             <button
                                 type="submit"
                                 disabled={
-                                    loading ||
-                                    inputValue === "" ||
-                                    isUploadingMedia ||
-                                    viewingReadOnlyChat
+                                    codeRequestId
+                                        ? false
+                                        : loading ||
+                                          inputValue === "" ||
+                                          isUploadingMedia ||
+                                          viewingReadOnlyChat
                                 }
                                 className={classNames(
                                     "text-base rtl:rotate-180 text-emerald-600 hover:text-emerald-600 disabled:text-gray-300 active:text-gray-800 dark:bg-zinc-100",

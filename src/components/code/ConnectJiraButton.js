@@ -34,7 +34,7 @@ export default function ConnectJiraButton({ clientSecret, onTokenChange }) {
     }, []);
 
     const getSites = async (token) => {
-        // Sometimes JIRA returns 500, so we have to retry
+        // Sometimes Jira returns 500, so we have to retry
         let attemptCount = 0;
         const retryCount = 3;
 
@@ -207,8 +207,8 @@ export default function ConnectJiraButton({ clientSecret, onTokenChange }) {
         connectionUri.searchParams.append("state", "jira");
 
         return (
-            <div className="mb-4">
-                <div className="flex justify-end">
+            <div className="">
+                <div className="flex">
                     <a className="lb-success" href={connectionUri.toString()}>
                         {t("Connect to Jira")}
                     </a>
@@ -225,7 +225,7 @@ export default function ConnectJiraButton({ clientSecret, onTokenChange }) {
         );
     } else {
         return (
-            <div className="mb-4">
+            <div className="">
                 <div className="flex">
                     <button
                         className="lb-danger"

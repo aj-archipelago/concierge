@@ -107,9 +107,9 @@ const VISION = gql`
     }
 `;
 
-const RAG_SAVE_MEMORY = gql`
-    query RagSaveMemory($aiMemory: String!, $contextId: String!) {
-        rag_save_memory(aiMemory: $aiMemory, contextId: $contextId) {
+const SYS_SAVE_MEMORY = gql`
+    query SysSaveMemory($aiMemory: String!, $contextId: String!) {
+        sys_save_memory(aiMemory: $aiMemory, contextId: $contextId) {
             result
         }
     }
@@ -127,6 +127,7 @@ const RAG_START = gql`
         $aiName: String
         $aiMemorySelfModify: Boolean
         $title: String
+        $aiStyle: String
     ) {
         rag_start(
             chatHistory: $chatHistory
@@ -139,6 +140,7 @@ const RAG_START = gql`
             aiName: $aiName
             aiMemorySelfModify: $aiMemorySelfModify
             title: $title
+            aiStyle: $aiStyle
         ) {
             result
             contextId
@@ -149,8 +151,8 @@ const RAG_START = gql`
     }
 `;
 
-const RAG_GENERATOR_RESULTS = gql`
-    query RagFinish(
+const SYS_ENTITY_CONTINUE = gql`
+    query SysEntityContinue(
         $chatHistory: [MultiMessage]!
         $dataSources: [String]
         $contextId: String
@@ -161,8 +163,10 @@ const RAG_GENERATOR_RESULTS = gql`
         $aiName: String
         $useMemory: Boolean
         $chatId: String
+        $generatorPathway: String
+        $aiStyle: String
     ) {
-        rag_generator_results(
+        sys_entity_continue(
             chatHistory: $chatHistory
             dataSources: $dataSources
             contextId: $contextId
@@ -173,6 +177,8 @@ const RAG_GENERATOR_RESULTS = gql`
             aiName: $aiName
             useMemory: $useMemory
             chatId: $chatId
+            generatorPathway: $generatorPathway
+            aiStyle: $aiStyle
         ) {
             result
             contextId
@@ -225,15 +231,6 @@ const COGNITIVE_DELETE = gql`
     }
 `;
 
-const CHAT_CODE = gql`
-    query ChatCode($text: String, $async: Boolean, $chatHistory: [Message]!) {
-        chat_code(text: $text, async: $async, chatHistory: $chatHistory) {
-            result
-            previousResult
-        }
-    }
-`;
-
 const EXPAND_STORY = gql`
     query ExpandStory($text: String) {
         expand_story(text: $text) {
@@ -272,6 +269,24 @@ const HEADLINE = gql`
 const FORMAT_PARAGRAPH_TURBO = gql`
     query FormatParaghraphTurbo($text: String!, $async: Boolean) {
         format_paragraph_turbo(text: $text, async: $async) {
+            result
+        }
+    }
+`;
+
+const GREETING = gql`
+    query Greeting(
+        $text: String!
+        $async: Boolean
+        $contextId: String
+        $aiName: String
+    ) {
+        greeting(
+            text: $text
+            async: $async
+            contextId: $contextId
+            aiName: $aiName
+        ) {
             result
         }
     }
@@ -478,6 +493,7 @@ const REQUEST_PROGRESS = gql`
         requestProgress(requestIds: $requestIds) {
             data
             progress
+            info
         }
     }
 `;
@@ -612,13 +628,12 @@ const QUERIES = {
     CHAT_PERSIST,
     CHAT_LABEEB,
     CHAT_EXTENSION,
-    CHAT_CODE,
     COGNITIVE_DELETE,
     COGNITIVE_INSERT,
     IMAGE,
-    RAG_SAVE_MEMORY,
+    SYS_SAVE_MEMORY,
     RAG_START,
-    RAG_GENERATOR_RESULTS,
+    SYS_ENTITY_CONTINUE,
     EXPAND_STORY,
     FORMAT_PARAGRAPH_TURBO,
     SELECT_SERVICES,
@@ -626,6 +641,7 @@ const QUERIES = {
     SUMMARY,
     HASHTAGS,
     HEADLINE,
+    GREETING,
     GRAMMAR,
     SPELLING,
     PARAPHRASE,
@@ -668,13 +684,12 @@ export {
     getClient,
     CHAT_PERSIST,
     CHAT_LABEEB,
-    CHAT_CODE,
     COGNITIVE_INSERT,
     COGNITIVE_DELETE,
     EXPAND_STORY,
-    RAG_SAVE_MEMORY,
+    SYS_SAVE_MEMORY,
     RAG_START,
-    RAG_GENERATOR_RESULTS,
+    SYS_ENTITY_CONTINUE,
     SELECT_SERVICES,
     SUMMARY,
     HASHTAGS,

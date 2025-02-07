@@ -1,23 +1,25 @@
 "use client";
 import { Dialog, Transition } from "@headlessui/react";
 import { Bars3Icon, XMarkIcon } from "@heroicons/react/24/outline";
+import { MessageCircle } from "lucide-react";
+import { usePathname } from "next/navigation";
 import { Fragment, useContext, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { IoIosChatbubbles } from "react-icons/io";
 import { useDispatch, useSelector } from "react-redux";
+import { Flip, ToastContainer } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
 import { AuthContext } from "../App";
+import ChatBox from "../components/chat/ChatBox";
+import NotificationButton from "../components/notifications/NotificationButton";
+import Tos from "../components/Tos";
+import UserOptions from "../components/UserOptions";
+import { LanguageContext } from "../contexts/LanguageProvider";
+import { ProgressProvider } from "../contexts/ProgressContext";
+import { ThemeContext } from "../contexts/ThemeProvider";
 import { setChatBoxPosition } from "../stores/chatSlice";
 import Footer from "./Footer";
 import ProfileDropdown from "./ProfileDropdown";
-import UserOptions from "../components/UserOptions";
 import Sidebar from "./Sidebar";
-import { usePathname } from "next/navigation";
-import ChatBox from "../components/chat/ChatBox";
-import Tos from "../components/Tos";
-import { ToastContainer, Flip } from "react-toastify";
-import "react-toastify/dist/ReactToastify.css";
-import { ThemeContext } from "../contexts/ThemeProvider";
-import { LanguageContext } from "../contexts/LanguageProvider";
 
 export default function Layout({ children }) {
     const [showOptions, setShowOptions] = useState(false);
@@ -131,7 +133,7 @@ export default function Layout({ children }) {
                 </div>
 
                 <div className="lg:ps-56 overflow-hidden">
-                    <div className="sticky top-0 z-40 flex h-16 shrink-0 items-center gap-x-4 border-b border-gray-200 bg-white px-4 shadow-sm sm:gap-x-6 sm:px-6 lg:px-8">
+                    <div className="sticky top-0 z-40 flex h-12 shrink-0 items-center gap-x-4 border-b border-gray-200 bg-white px-2 shadow-sm sm:gap-x-6 sm:px-3 lg:px-4">
                         <button
                             type="button"
                             className="-m-2.5 p-2.5 text-gray-700 lg:hidden"
@@ -147,21 +149,50 @@ export default function Layout({ children }) {
                             aria-hidden="true"
                         />
 
-                        <div className="flex flex-1 items-center gap-x-2 justify-end lg:gap-x-4">
-                            <div className="hidden sm:block">
-                                <button
-                                    className="lb-primary"
-                                    disabled={/^\/chat(\/|$)/.test(pathname)}
-                                    onClick={() => {
-                                        dispatch(
-                                            setChatBoxPosition({
-                                                position: "docked",
-                                            }),
-                                        );
-                                    }}
-                                >
-                                    <IoIosChatbubbles /> {t("Chat")}
-                                </button>
+                        <div className="flex flex-1 items-center gap-x-3 justify-end ">
+                            <div className="flex gap-3">
+                                {!pathname?.includes("/chat") && (
+                                    <div className="hidden sm:block flex items-center">
+                                        <button
+                                            disabled={/^\/chat(\/|$)/.test(
+                                                pathname,
+                                            )}
+                                            onClick={() => {
+                                                if (
+                                                    statePosition === "docked"
+                                                ) {
+                                                    dispatch(
+                                                        setChatBoxPosition({
+                                                            position: "closed",
+                                                        }),
+                                                    );
+                                                } else {
+                                                    dispatch(
+                                                        setChatBoxPosition({
+                                                            position: "docked",
+                                                        }),
+                                                    );
+                                                }
+                                            }}
+                                            className="relative mt-1"
+                                        >
+                                            <MessageCircle
+                                                fill={
+                                                    statePosition ===
+                                                        "docked" ||
+                                                    pathname === "/chat"
+                                                        ? "#0284c7"
+                                                        : "none"
+                                                }
+                                                stroke="#0284c7"
+                                                className="h-5 w-5 text-gray-500 hover:text-gray-700"
+                                            />
+                                        </button>
+                                    </div>
+                                )}
+                                <div className="flex items-center">
+                                    <NotificationButton />
+                                </div>
                             </div>
                             <div>
                                 <ProfileDropdown
@@ -174,49 +205,51 @@ export default function Layout({ children }) {
                     </div>
 
                     <div className="relative flex-col">
-                        <main
-                            className="p-2 bg-slate-50 flex gap-2"
-                            ref={contentRef}
-                        >
-                            <div
-                                className={`${"grow"} bg-white dark:border-gray-200 rounded-md border p-3 lg:p-4 overflow-auto`}
-                                style={{ height: "calc(100vh - 120px)" }}
+                        <ProgressProvider>
+                            <main
+                                className="p-2 bg-slate-50 flex gap-2"
+                                ref={contentRef}
                             >
-                                {showOptions && (
-                                    <UserOptions
-                                        show={showOptions}
-                                        handleClose={handleCloseOptions}
+                                <div
+                                    className={`${"grow"} bg-white dark:border-gray-200 rounded-md border p-4 lg:p-6 overflow-auto`}
+                                    style={{ height: "calc(100vh - 120px)" }}
+                                >
+                                    {showOptions && (
+                                        <UserOptions
+                                            show={showOptions}
+                                            handleClose={handleCloseOptions}
+                                        />
+                                    )}
+                                    <Tos
+                                        showTos={showTos}
+                                        setShowTos={setShowTos}
                                     />
-                                )}
-                                <Tos
-                                    showTos={showTos}
-                                    setShowTos={setShowTos}
-                                />
-                                {children}
-                            </div>
-                            {showChatbox && (
-                                <div className="hidden sm:block basis-[302px] h-[calc(100vh-120px)]">
-                                    <ChatBox />
+                                    {children}
                                 </div>
-                            )}
-                            <ToastContainer
-                                position={
-                                    direction === "rtl"
-                                        ? "top-left"
-                                        : "top-right"
-                                }
-                                autoClose={10000}
-                                hideProgressBar={false}
-                                newestOnTop={false}
-                                closeOnClick
-                                rtl={direction === "rtl"}
-                                pauseOnFocusLoss
-                                draggable
-                                pauseOnHover
-                                theme={theme === "dark" ? "dark" : "light"}
-                                transition={Flip}
-                            />
-                        </main>
+                                {showChatbox && (
+                                    <div className="hidden sm:block basis-[302px] h-[calc(100vh-120px)]">
+                                        <ChatBox />
+                                    </div>
+                                )}
+                                <ToastContainer
+                                    position={
+                                        direction === "rtl"
+                                            ? "top-left"
+                                            : "top-right"
+                                    }
+                                    autoClose={10000}
+                                    hideProgressBar={false}
+                                    newestOnTop={false}
+                                    closeOnClick
+                                    rtl={direction === "rtl"}
+                                    pauseOnFocusLoss
+                                    draggable
+                                    pauseOnHover
+                                    theme={theme === "dark" ? "dark" : "light"}
+                                    transition={Flip}
+                                />
+                            </main>
+                        </ProgressProvider>
                         <Footer />
                     </div>
                 </div>

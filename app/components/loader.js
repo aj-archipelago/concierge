@@ -1,4 +1,22 @@
-export default function Loader({ size = "default" }) {
+"use client";
+
+import { useState, useEffect } from "react";
+
+export default function Loader({ size = "default", delay = 500 }) {
+    const [showLoader, setShowLoader] = useState(false);
+
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            setShowLoader(true);
+        }, delay);
+
+        return () => clearTimeout(timer);
+    }, [delay]);
+
+    if (!showLoader) {
+        return null;
+    }
+
     let heightClass = "h-4";
     let widthClass = "w-4";
 
@@ -8,7 +26,7 @@ export default function Loader({ size = "default" }) {
     }
 
     return (
-        <div className="relative inline-flex">
+        <div className="relative inline-flex animate-fade-in">
             <div
                 className={`${heightClass} ${widthClass} bg-sky-500 rounded-full`}
             ></div>

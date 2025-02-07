@@ -4,8 +4,15 @@ const getJiraRestUrl = (siteId) =>
 
 export async function POST(request) {
     try {
-        const { title, description, projectKey, siteId, token, issueType } =
-            await request.json();
+        const {
+            fields,
+            title,
+            description,
+            projectKey,
+            siteId,
+            token,
+            issueType,
+        } = await request.json();
 
         const response = await axios.post(
             getJiraRestUrl(siteId),
@@ -31,8 +38,9 @@ export async function POST(request) {
                         ],
                     },
                     issuetype: {
-                        name: issueType,
+                        id: issueType,
                     },
+                    ...fields,
                 },
             },
             {
@@ -48,19 +56,14 @@ export async function POST(request) {
         const data = response.data;
         return Response.json(data);
     } catch (error) {
-        console.error(
-            error?.response?.data?.errors ||
-                error?.response?.data?.error ||
-                error?.response?.data ||
-                error?.toString(),
-        );
+        console.error(error);
+        const errorString =
+            error.response?.data?.errorMessages?.join(", ") ||
+            JSON.stringify(error.response?.data?.errors) ||
+            error.toString();
+        console.error(errorString);
         return Response.json({
-            error: JSON.stringify(
-                error?.response?.data?.errors ||
-                    error?.response?.data?.error ||
-                    error?.response?.data ||
-                    error?.toString(),
-            ),
+            error: errorString,
         });
     }
 }

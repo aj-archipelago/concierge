@@ -53,6 +53,10 @@ const chatSchema = new mongoose.Schema(
             type: mongoose.Schema.Types.ObjectId,
             auto: true,
         },
+        isEmpty: {
+            type: Boolean,
+            default: true,
+        },
         title: {
             type: String,
             default: "Chat",
@@ -70,6 +74,22 @@ const chatSchema = new mongoose.Schema(
             type: Boolean,
             default: false,
         },
+        codeRequestId: {
+            type: String,
+            default: null,
+        },
+        lastCodeRequestId: {
+            type: String,
+            default: null,
+        },
+        lastCodeRequestTime: {
+            type: Date,
+            default: null,
+        },
+        isChatLoading: {
+            type: Boolean,
+            default: false,
+        },
     },
     {
         timestamps: true,
@@ -79,6 +99,7 @@ const chatSchema = new mongoose.Schema(
 // Add indexes
 chatSchema.index({ userId: 1 });
 chatSchema.index({ updatedAt: -1 });
+chatSchema.index({ createdAt: -1 });
 chatSchema.index({ userId: 1, updatedAt: -1 });
 
 // Create the Chat model from the schema

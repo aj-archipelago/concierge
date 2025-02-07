@@ -10,7 +10,7 @@ const redirects = [
     },
     {
         source: "/code",
-        destination: "/code/knuth",
+        destination: "/code/jira",
         permanent: true,
     },
 ];
@@ -82,6 +82,10 @@ module.exports = {
     webpack: (config) => {
         // Exclude mongodb and mongodb-client-encryption from the bundle to avoid errors, will be required and imported at runtime
         config.externals.push("mongodb-client-encryption", "mongodb");
+
+        // Add @ path alias
+        config.resolve.alias["@"] = path.join(__dirname, "@");
+
         return config;
     },
 };

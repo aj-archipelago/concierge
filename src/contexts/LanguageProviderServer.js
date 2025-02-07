@@ -9,8 +9,6 @@ export const LanguageContext = createContext({});
 export async function LanguageProviderServer({ children }) {
     const savedLanguage = cookies.get("concierge-lang") || "en";
 
-    //console.log("savedLanguage", savedLanguage);
-
     return (
         <LanguageProvider savedLanguage={savedLanguage}>
             {children}

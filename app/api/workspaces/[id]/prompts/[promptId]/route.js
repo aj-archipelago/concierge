@@ -1,6 +1,7 @@
 import Prompt from "../../../../models/prompt";
 import Workspace from "../../../../models/workspace";
 import { getCurrentUser } from "../../../../utils/auth";
+import { republishWorkspace } from "../../publish/utils";
 
 export async function DELETE(req, { params }) {
     const { id, promptId } = params;
@@ -23,6 +24,8 @@ export async function DELETE(req, { params }) {
             (p) => p?.toString() !== promptId,
         );
         await workspace.save();
+        await republishWorkspace(workspace);
+
         return Response.json({ success: true });
     } catch (e) {
         console.error("e", e);
@@ -32,5 +35,43 @@ export async function DELETE(req, { params }) {
                 status: 500,
             },
         );
+    }
+}
+
+export async function PUT(req, { params }) {
+    const { id, promptId } = params;
+    const attrs = await req.json();
+    const user = await getCurrentUser();
+
+    try {
+        const workspace = await Workspace.findById(id);
+        if (!workspace.owner.equals(user._id)) {
+            return Response.json(
+                { error: "You are not the owner of this workspace" },
+                { status: 403 },
+            );
+        }
+
+        const prompt = await Prompt.findById(promptId);
+
+        if (!prompt.owner.equals(user._id)) {
+            return Response.json(
+                { error: "You are not the owner of this prompt" },
+                { status: 403 },
+            );
+        }
+
+        const updatedPrompt = await Prompt.findByIdAndUpdate(promptId, attrs, {
+            new: true,
+        });
+
+        if (workspace.published) {
+            await republishWorkspace(workspace);
+        }
+
+        return Response.json(updatedPrompt);
+    } catch (e) {
+        console.error(e);
+        return Response.json({ error: e.message }, { status: 500 });
     }
 }
