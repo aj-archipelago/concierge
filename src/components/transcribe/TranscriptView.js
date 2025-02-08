@@ -5,58 +5,19 @@ import { useTranslation } from "react-i18next";
 import { FaEdit } from "react-icons/fa";
 import TextareaAutosize from "react-textarea-autosize";
 import CopyButton from "../CopyButton";
+import { parse, formatTimestamp } from "@aj-archipelago/subvibe";
 
 // Simplified VTT component
 function VttSubtitles({ name, text, onSeek, currentTime, onTextChange }) {
     const containerRef = useRef(null);
-    const lines = text.split("\n");
-    const subtitles = [];
-    let currentSubtitle = {};
+    const parsed = parse(text);
 
-    let isInSubtitle = false;
-    let isHeader = true;
-    lines.forEach((line) => {
-        line = line.trim();
-
-        // Handle header
-        if (isHeader) {
-            if (line === "WEBVTT") {
-                return;
-            }
-            if (!line) {
-                isHeader = false;
-                return;
-            }
-            return;
-        }
-
-        // Skip empty lines and numeric identifiers
-        if (!line || /^\d+$/.test(line)) {
-            return;
-        }
-
-        const timestampMatch = line.match(
-            /(\d{2}:\d{2}:\d{2}\.\d{3}) --> (\d{2}:\d{2}:\d{2}\.\d{3})/,
-        );
-        if (timestampMatch) {
-            if (currentSubtitle.timestamp) {
-                subtitles.push(currentSubtitle);
-            }
-            currentSubtitle = {
-                timestamp: timestampMatch[1],
-                endTimestamp: timestampMatch[2],
-                text: "",
-            };
-            isInSubtitle = true;
-        } else if (isInSubtitle && currentSubtitle.timestamp) {
-            currentSubtitle.text = (currentSubtitle.text + " " + line).trim();
-        }
+    const subtitles = parsed.cues;
+    subtitles.forEach((subtitle) => {
+        // Replace the integer startTime/endTime with formatted strings for UI display
+        subtitle.timestamp = formatTimestamp(subtitle.startTime);
+        subtitle.endTimestamp = formatTimestamp(subtitle.endTime);
     });
-
-    // Add the last subtitle if it exists
-    if (currentSubtitle.timestamp) {
-        subtitles.push(currentSubtitle);
-    }
 
     // Add effect to handle scrolling when currentTime changes
     useEffect(() => {
