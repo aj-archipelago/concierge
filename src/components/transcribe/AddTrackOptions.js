@@ -17,7 +17,6 @@ import { QUERIES } from "../../graphql";
 import { isYoutubeUrl } from "../../utils/urlUtils";
 import LoadingButton from "../editor/LoadingButton";
 import TranslationOptions from "./TranslationOptions";
-import { LanguageContext } from "../../contexts/LanguageProvider";
 import { parse, build } from "@aj-archipelago/subvibe";
 
 export function AddTrackOptions({

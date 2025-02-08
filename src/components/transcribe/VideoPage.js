@@ -50,6 +50,11 @@ import TranscriptView from "./TranscriptView";
 import VideoInput from "./VideoInput";
 import { LanguageContext } from "../../contexts/LanguageProvider";
 import { parse, build } from "@aj-archipelago/subvibe";
+import {
+    getYoutubeEmbedUrl,
+    getYoutubeVideoId,
+    isYoutubeUrl,
+} from "../../utils/urlUtils";
 
 const isValidUrl = (url) => {
     try {
