@@ -1,9 +1,9 @@
 {
     "name": "labeeb",
-    "version": "2.4.24",
+    "version": "2.4.25",
     "private": true,
     "dependencies": {
-        "@aj-archipelago/subvibe": "^1.0.0",
+        "@aj-archipelago/subvibe": "^1.0.3",
         "@amplitude/analytics-browser": "^2.3.2",
         "@apollo/client": "^3.10.4",
         "@apollo/experimental-nextjs-app-support": "^0.11.0",
