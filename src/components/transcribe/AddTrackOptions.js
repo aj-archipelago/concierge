@@ -7,12 +7,14 @@ import {
     UploadIcon,
     VideoIcon,
 } from "lucide-react";
-import { useCallback, useContext, useRef, useState } from "react";
+import { useCallback, useContext, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { FaVideo } from "react-icons/fa";
 import { AuthContext, ServerContext } from "../../App";
+import { LanguageContext } from "../../contexts/LanguageProvider";
 import { useProgress } from "../../contexts/ProgressContext";
 import { QUERIES } from "../../graphql";
+import { isYoutubeUrl } from "../../utils/urlUtils";
 import LoadingButton from "../editor/LoadingButton";
 import TranslationOptions from "./TranslationOptions";
 import { LanguageContext } from "../../contexts/LanguageProvider";
@@ -302,9 +304,12 @@ export default function TranscribeVideo({
 }) {
     const { t } = useTranslation();
     const { neuralspaceEnabled } = useContext(ServerContext);
+    const isYouTubeVideo = url ? isYoutubeUrl(url) : false;
 
     const [language, setLanguage] = useState("");
-    const [selectedModelOption, setSelectedModelOption] = useState("Whisper");
+    const [selectedModelOption, setSelectedModelOption] = useState(
+        isYouTubeVideo ? "Gemini" : "Whisper",
+    );
     const [transcriptionOption, setTranscriptionOption] = useState(null);
     const [requestId, setRequestId] = useState(null);
     const [loading, setLoading] = useState(false);
@@ -321,6 +326,13 @@ export default function TranscribeVideo({
         maxWordsPerLine,
         highlightWords,
     } = transcriptionOption ?? {};
+
+    // Update model if URL changes and it's a YouTube video
+    useEffect(() => {
+        if (isYouTubeVideo) {
+            setSelectedModelOption("Gemini");
+        }
+    }, [url, isYouTubeVideo]);
 
     const handleSubmit = useCallback(async () => {
         if (!url || loading) return;
@@ -459,12 +471,15 @@ export default function TranscribeVideo({
         <>
             <div>
                 <span className="flex items-center pb-2">
-                    <label className="text-sm px-1">{t("Using model")}</label>
+                    <label className="text-sm px-1 whitespace-nowrap">
+                        {t("Using model")}
+                    </label>
                     <ModelSelector
                         loading={loading}
                         selectedModelOption={selectedModelOption}
                         setSelectedModelOption={setSelectedModelOption}
                         neuralspaceEnabled={neuralspaceEnabled}
+                        disabled={isYouTubeVideo}
                     />
                 </span>
             </div>
@@ -553,17 +568,20 @@ function ModelSelector({
     selectedModelOption,
     setSelectedModelOption,
     neuralspaceEnabled,
+    disabled,
 }) {
+    const { t } = useTranslation();
+
     return (
         <select
-            className="lb-select ml-2 w-auto flex-shrink-0"
-            disabled={loading}
+            className="lb-select text-sm"
             value={selectedModelOption}
             onChange={(e) => setSelectedModelOption(e.target.value)}
+            disabled={loading || disabled}
         >
-            <option value="Whisper">Whisper</option>
+            {!disabled && <option value="Whisper">Whisper</option>}
             <option value="Gemini">Gemini</option>
-            {neuralspaceEnabled && (
+            {neuralspaceEnabled && !disabled && (
                 <option value="NeuralSpace">NeuralSpace</option>
             )}
         </select>

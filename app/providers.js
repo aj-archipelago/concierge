@@ -1,6 +1,7 @@
 // In Next.js, this file would be called: app/providers.jsx
 "use client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { NotificationProvider } from "../src/contexts/NotificationContext";
 
 function makeQueryClient() {
     return new QueryClient({
@@ -39,7 +40,7 @@ export default function Providers({ children }) {
 
     return (
         <QueryClientProvider client={queryClient}>
-            {children}
+            <NotificationProvider>{children}</NotificationProvider>
         </QueryClientProvider>
     );
 }

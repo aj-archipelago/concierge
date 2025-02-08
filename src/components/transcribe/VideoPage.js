@@ -404,18 +404,70 @@ function EditableTranscriptSelect({
 
 function VideoPlayer({
     videoLanguages,
+    setYoutubePlayer,
     activeLanguage,
-    transcripts,
-    activeTranscript,
     onTimeUpdate,
-    videoInformation,
     vttUrl,
 }) {
     const [isAudioOnly, setIsAudioOnly] = useState(false);
     const videoRef = useRef(null);
+    const videoUrl = videoLanguages[activeLanguage]?.url;
+    const isYouTube = isYoutubeUrl(videoUrl);
+    const embedUrl = isYouTube ? getYoutubeEmbedUrl(videoUrl) : videoUrl;
+
+    useEffect(() => {
+        if (!videoUrl || !isYouTube) return;
+
+        // Check if script already exists
+        if (!document.getElementById("youtube-iframe-api")) {
+            const tag = document.createElement("script");
+            tag.id = "youtube-iframe-api";
+            tag.src = "https://www.youtube.com/iframe_api";
+            const firstScriptTag = document.getElementsByTagName("script")[0];
+            firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
+        }
+
+        // Poll for YT API to be ready
+        const maxAttempts = 40; // 10 seconds total (40 * 250ms)
+        let attempts = 0;
+
+        const initializePlayer = () => {
+            new window.YT.Player("ytplayer", {
+                videoId: getYoutubeVideoId(videoUrl),
+                width: 800,
+                height: 450,
+                events: {
+                    onReady: (event) => {
+                        setYoutubePlayer(event.target);
+                    },
+                },
+            });
+        };
+
+        const pollForYT = setInterval(() => {
+            if (window.YT && window.YT.loaded) {
+                clearInterval(pollForYT);
+                initializePlayer();
+            } else if (attempts >= maxAttempts) {
+                clearInterval(pollForYT);
+                console.error("Timeout waiting for YouTube IFrame API to load");
+            }
+            attempts++;
+        }, 250);
+
+        // Cleanup
+        return () => {
+            clearInterval(pollForYT);
+            setYoutubePlayer(null);
+        };
+    }, [videoUrl, isYouTube]);
 
     const handleVideoReady = () => {
-        if (videoRef.current && videoRef.current.videoHeight === 0) {
+        if (
+            !isYouTube &&
+            videoRef.current &&
+            videoRef.current.videoHeight === 0
+        ) {
             setIsAudioOnly(true);
         } else {
             setIsAudioOnly(false);
@@ -426,33 +478,44 @@ function VideoPlayer({
         <>
             <div
                 className={classNames(
-                    "rounded-lg flex justify-center items-center border border-gray-200/50",
-                    isAudioOnly
-                        ? "h-[50px] w-96"
-                        : "grow max-h-[40vh] bg-[#000]",
+                    "rounded-lg flex justify-center items-center border border-gray-200/50 bg-[#000]",
+                    isAudioOnly ? "h-[50px] w-96" : "w-full",
                 )}
             >
-                <video
-                    className={`rounded-lg ${isAudioOnly ? "h-[50px] w-96" : "grow max-h-[40vh]"}`}
-                    ref={videoRef}
-                    src={videoLanguages[activeLanguage]?.url}
-                    controls
-                    onLoadedData={handleVideoReady}
-                    onTimeUpdate={() =>
-                        onTimeUpdate(videoRef.current?.currentTime)
-                    }
-                    controlsList="nodownload"
-                >
-                    {vttUrl && (
-                        <track
-                            kind="subtitles"
-                            src={vttUrl}
-                            srcLang="en"
-                            label="English"
-                            default
+                {isYouTube ? (
+                    <div className="w-full relative h-[40vh] max-h-[40vh]">
+                        <div
+                            id="ytplayer"
+                            className="h-full rounded-lg aspect-video mx-auto"
+                            src={embedUrl}
+                            allowFullScreen
+                            title="YouTube video player"
+                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                         />
-                    )}
-                </video>
+                    </div>
+                ) : (
+                    <video
+                        className={`rounded-lg ${isAudioOnly ? "h-[50px] w-96" : "w-full max-h-[40vh]"}`}
+                        ref={videoRef}
+                        src={videoUrl}
+                        controls
+                        onLoadedData={handleVideoReady}
+                        onTimeUpdate={() =>
+                            onTimeUpdate(videoRef.current?.currentTime)
+                        }
+                        controlsList="nodownload"
+                    >
+                        {vttUrl && (
+                            <track
+                                kind="subtitles"
+                                src={vttUrl}
+                                srcLang="en"
+                                label="English"
+                                default
+                            />
+                        )}
+                    </video>
+                )}
             </div>
         </>
     );
@@ -479,6 +542,8 @@ function VideoPage() {
     const [vttUrl, setVttUrl] = useState(null);
     const { language } = useContext(LanguageContext);
     const [isUploading, setIsUploading] = useState(false);
+    const [youtubePlayer, setYoutubePlayer] = useState(null);
+    const [isYTPlaying, setIsYTPlaying] = useState(false);
 
     // Handle VTT URL creation and cleanup
     useEffect(() => {
@@ -545,11 +610,18 @@ function VideoPage() {
                 prevUserStateRef.current?.transcribe?.videoInformation?.videoUrl
             ) {
                 setVideoInformation(userState.transcribe?.videoInformation);
-                if (userState.transcribe?.videoInformation?.videoLanguages) {
-                    setVideoLanguages(
-                        userState.transcribe.videoInformation.videoLanguages,
-                    );
-                }
+            }
+
+            if (
+                userState.transcribe?.videoInformation?.videoLanguages
+                    ?.length !==
+                prevUserStateRef.current?.transcribe?.videoInformation
+                    ?.videoLanguages?.length
+            ) {
+                setVideoLanguages(
+                    userState.transcribe?.videoInformation?.videoLanguages ||
+                        [],
+                );
             }
 
             if (
@@ -677,12 +749,76 @@ function VideoPage() {
         [updateUserState, userState?.transcribe?.videoInformation],
     );
 
-    const handleSeek = useCallback((time) => {
-        const videoElement = document.querySelector("video");
-        if (videoElement) {
-            videoElement.currentTime = time;
-        }
+    const handleSeek = useCallback(
+        (time) => {
+            if (isYoutubeUrl(videoInformation?.videoUrl)) {
+                // For YouTube videos, use the stored player instance
+                if (youtubePlayer) {
+                    try {
+                        youtubePlayer.seekTo(time, true);
+                    } catch (error) {
+                        console.error("Error seeking YouTube video:", error);
+                    }
+                }
+            } else {
+                // For regular videos, use the video element API
+                const videoElement = document.querySelector("video");
+                if (videoElement) {
+                    videoElement.currentTime = time;
+                }
+            }
+        },
+        [videoInformation?.videoUrl, youtubePlayer],
+    );
+
+    // Add YouTube player state change handler
+    const handleYTStateChange = useCallback((event) => {
+        // YT.PlayerState.PLAYING === 1
+        setIsYTPlaying(event.data === 1);
     }, []);
+
+    // Update time only when playing
+    useEffect(() => {
+        let timeUpdateInterval;
+
+        if (
+            isYoutubeUrl(videoInformation?.videoUrl) &&
+            youtubePlayer &&
+            isYTPlaying
+        ) {
+            timeUpdateInterval = setInterval(() => {
+                try {
+                    const currentTime = youtubePlayer.getCurrentTime();
+                    setCurrentTime(currentTime);
+                } catch (error) {
+                    console.error("Error getting YouTube current time:", error);
+                }
+            }, 250); // Update 4 times per second
+        }
+
+        return () => {
+            if (timeUpdateInterval) {
+                clearInterval(timeUpdateInterval);
+            }
+        };
+    }, [videoInformation?.videoUrl, youtubePlayer, isYTPlaying]);
+
+    // Add the state change event listener when creating YouTube player
+    useEffect(() => {
+        if (youtubePlayer) {
+            youtubePlayer.addEventListener(
+                "onStateChange",
+                handleYTStateChange,
+            );
+
+            return () => {
+                youtubePlayer.removeEventListener(
+                    "onStateChange",
+                    handleYTStateChange,
+                );
+            };
+        }
+    }, [youtubePlayer, handleYTStateChange]);
 
     const handleActiveTranscriptChange = (index) => {
         setActiveTranscript(index);
@@ -711,55 +847,67 @@ function VideoPage() {
 
     return (
         <TranscribeErrorBoundary>
-            <div className="p-2">
+            <div>
                 <div className="flex flex-col gap-4 mb-4">
                     <div className="flex gap-4 justify-between">
-                        <div className="grow min-w-0 sm:w-[calc(100%-13rem)] sm:grow-0">
-                            {videoInformation?.videoUrl && (
-                                <div className="flex gap-2 items-center py-1 px-2 bg-gray-100 rounded-md grow min-w-0">
-                                    <div className="text-xs text-gray-500 truncate">
-                                        {videoLanguages[activeLanguage]?.url ||
-                                            videoInformation.videoUrl}
+                        <div className="min-w-0 sm:w-[calc(100%-13rem)]">
+                            <div className="w-full">
+                                {videoInformation?.videoUrl && (
+                                    <div className="flex gap-2 items-center py-1 px-2 bg-gray-100 rounded-md grow min-w-0">
+                                        <div className="text-xs text-gray-500 truncate grow">
+                                            {videoLanguages[activeLanguage]
+                                                ?.url ||
+                                                videoInformation.videoUrl}
+                                        </div>
+                                        <button
+                                            onClick={() =>
+                                                handleCopy(
+                                                    videoLanguages[
+                                                        activeLanguage
+                                                    ]?.url ||
+                                                        videoInformation.videoUrl,
+                                                )
+                                            }
+                                            className="p-1 hover:bg-gray-100 rounded transition-colors flex-shrink-0"
+                                            title="Copy URL"
+                                        >
+                                            {copied ? (
+                                                <CheckIcon className="h-4 w-4 text-green-500" />
+                                            ) : (
+                                                <CopyIcon className="h-4 w-4 text-gray-500" />
+                                            )}
+                                        </button>
                                     </div>
-                                    <button
-                                        onClick={() =>
-                                            handleCopy(
-                                                videoLanguages[activeLanguage]
-                                                    ?.url ||
-                                                    videoInformation.videoUrl,
-                                            )
-                                        }
-                                        className="p-1 hover:bg-gray-100 rounded transition-colors flex-shrink-0"
-                                        title="Copy URL"
-                                    >
-                                        {copied ? (
-                                            <CheckIcon className="h-4 w-4 text-green-500" />
-                                        ) : (
-                                            <CopyIcon className="h-4 w-4 text-gray-500" />
-                                        )}
-                                    </button>
-                                </div>
-                            )}
+                                )}
+                            </div>
+                            {isYoutubeUrl(videoInformation?.videoUrl) ? (
+                                <p className="text-xs text-gray-400 ps-2 mt-1">
+                                    Note: Direct video translation is not
+                                    supported for YouTube videos
+                                </p>
+                            ) : null}
                         </div>
                         <div className="flex-shrink-0 sm:w-[13rem] flex justify-end">
-                            <button
-                                onClick={() => {
-                                    if (
-                                        window.confirm(
-                                            t(
-                                                "Are you sure you want to start over?",
-                                            ),
-                                        )
-                                    ) {
-                                        clearVideoInformation();
-                                    }
-                                }}
-                                className="lb-outline-secondary lb-sm flex items-center gap-2 flex-shrink-0"
-                                aria-label="Clear video"
-                            >
-                                <RefreshCwIcon className="w-4 h-4" />
-                                {t("Start over")}
-                            </button>
+                            <div>
+                                <button
+                                    onClick={() => {
+                                        if (
+                                            window.confirm(
+                                                t(
+                                                    "Are you sure you want to start over?",
+                                                ),
+                                            )
+                                        ) {
+                                            clearVideoInformation();
+                                        }
+                                    }}
+                                    className="lb-outline-secondary lb-sm flex items-center gap-2 flex-shrink-0"
+                                    aria-label="Clear video"
+                                >
+                                    <RefreshCwIcon className="w-4 h-4" />
+                                    {t("Start over")}
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -770,118 +918,130 @@ function VideoPage() {
                                 <div className="flex gap-4 flex-col sm:flex-row">
                                     <div className="sm:w-[calc(100%-13rem)]">
                                         <VideoPlayer
+                                            setYoutubePlayer={setYoutubePlayer}
                                             videoLanguages={videoLanguages}
                                             activeLanguage={activeLanguage}
-                                            transcripts={transcripts}
-                                            activeTranscript={activeTranscript}
                                             onTimeUpdate={setCurrentTime}
-                                            videoInformation={videoInformation}
                                             vttUrl={vttUrl}
                                         />
                                     </div>
                                     <div className="flex flex-col gap-2 sm:w-[13rem]">
-                                        <div className="border rounded-lg border-gray-200/50 p-3 space-y-3">
-                                            <div className="text-sm font-semibold text-gray-500">
-                                                {t("Video languages")}
-                                            </div>
-                                            <div className="flex flex-col gap-2">
-                                                {videoLanguages.map(
-                                                    (lang, idx) => (
-                                                        <div
-                                                            key={idx}
-                                                            className="flex items-center"
-                                                        >
-                                                            <div className="flex w-[13rem] rounded-md border border-gray-200 overflow-hidden">
-                                                                <button
-                                                                    onClick={() => {
-                                                                        setActiveLanguage(
-                                                                            idx,
-                                                                        );
-                                                                    }}
-                                                                    className={`grow truncate text-start text-xs px-3 py-1.5 hover:bg-sky-100 active:bg-sky-200 transition-colors
+                                        {isYoutubeUrl(
+                                            videoInformation?.videoUrl,
+                                        ) ? null : (
+                                            <div className="border rounded-lg border-gray-200/50 p-3 space-y-3">
+                                                <div className="text-sm font-semibold text-gray-500">
+                                                    {t("Video languages")}
+                                                </div>
+                                                <div className="flex flex-col gap-2">
+                                                    {videoLanguages.map(
+                                                        (lang, idx) => (
+                                                            <div
+                                                                key={idx}
+                                                                className="flex items-center"
+                                                            >
+                                                                <div className="flex w-[13rem] rounded-md border border-gray-200 overflow-hidden">
+                                                                    <button
+                                                                        onClick={() => {
+                                                                            setActiveLanguage(
+                                                                                idx,
+                                                                            );
+                                                                        }}
+                                                                        className={`grow truncate text-start text-xs px-3 py-1.5 hover:bg-sky-100 active:bg-sky-200 transition-colors
                                                                 ${activeLanguage === idx ? "bg-sky-50 text-gray-900" : "text-gray-600"}`}
-                                                                >
-                                                                    {lang.label}
-                                                                </button>
-                                                                <div className="flex">
-                                                                    {idx !==
-                                                                        0 &&
-                                                                        activeLanguage ===
-                                                                            idx && (
-                                                                            <button
-                                                                                onClick={(
-                                                                                    e,
-                                                                                ) => {
-                                                                                    e.stopPropagation();
-                                                                                    if (
-                                                                                        window.confirm(
-                                                                                            t(
-                                                                                                "Are you sure you want to delete this language track?",
-                                                                                            ),
-                                                                                        )
-                                                                                    ) {
-                                                                                        const newVideoLanguages =
-                                                                                            videoLanguages.filter(
-                                                                                                (
-                                                                                                    _,
-                                                                                                    i,
-                                                                                                ) =>
-                                                                                                    i !==
-                                                                                                    idx,
-                                                                                            );
-                                                                                        setVideoLanguages(
-                                                                                            newVideoLanguages,
-                                                                                        );
-                                                                                        setActiveLanguage(
-                                                                                            0,
-                                                                                        );
-                                                                                    }
-                                                                                }}
-                                                                                className={
-                                                                                    "px-2 bg-sky-50 text-gray-500 hover:text-red-500 transition-colors border-gray-200 flex items-center cursor-pointer"
-                                                                                }
-                                                                                title={t(
-                                                                                    "Delete language",
-                                                                                )}
-                                                                            >
-                                                                                <TrashIcon className="h-3 w-3" />
-                                                                            </button>
-                                                                        )}
-                                                                    <a
-                                                                        target="_blank"
-                                                                        rel="noreferrer"
-                                                                        href={
-                                                                            lang.url
-                                                                        }
-                                                                        download={`video-${lang.code}.mp4`}
-                                                                        className="px-2 hover:bg-sky-50 transition-colors border-l border-gray-200 flex items-center cursor-pointer"
-                                                                        onClick={(
-                                                                            e,
-                                                                        ) =>
-                                                                            e.stopPropagation()
-                                                                        }
-                                                                        title={t(
-                                                                            "Download video",
-                                                                        )}
                                                                     >
-                                                                        <DownloadIcon className="h-3.5 w-3.5 text-gray-500" />
-                                                                    </a>
+                                                                        {lang.label ||
+                                                                            new Intl.DisplayNames(
+                                                                                [
+                                                                                    language,
+                                                                                ],
+                                                                                {
+                                                                                    type: "language",
+                                                                                },
+                                                                            ).of(
+                                                                                lang.code,
+                                                                            )}
+                                                                    </button>
+                                                                    <div className="flex">
+                                                                        {idx !==
+                                                                            0 &&
+                                                                            activeLanguage ===
+                                                                                idx && (
+                                                                                <button
+                                                                                    onClick={(
+                                                                                        e,
+                                                                                    ) => {
+                                                                                        e.stopPropagation();
+                                                                                        if (
+                                                                                            window.confirm(
+                                                                                                t(
+                                                                                                    "Are you sure you want to delete this language track?",
+                                                                                                ),
+                                                                                            )
+                                                                                        ) {
+                                                                                            const newVideoLanguages =
+                                                                                                videoLanguages.filter(
+                                                                                                    (
+                                                                                                        _,
+                                                                                                        i,
+                                                                                                    ) =>
+                                                                                                        i !==
+                                                                                                        idx,
+                                                                                                );
+                                                                                            setVideoLanguages(
+                                                                                                newVideoLanguages,
+                                                                                            );
+                                                                                            setActiveLanguage(
+                                                                                                0,
+                                                                                            );
+                                                                                        }
+                                                                                    }}
+                                                                                    className="px-2 bg-sky-50 text-gray-500 hover:text-red-500 transition-colors border-gray-200 flex items-center cursor-pointer"
+                                                                                    title={t(
+                                                                                        "Delete language",
+                                                                                    )}
+                                                                                >
+                                                                                    <TrashIcon className="h-3 w-3" />
+                                                                                </button>
+                                                                            )}
+                                                                        <a
+                                                                            target="_blank"
+                                                                            rel="noreferrer"
+                                                                            href={
+                                                                                lang.url
+                                                                            }
+                                                                            download={`video-${lang.code}.mp4`}
+                                                                            className="px-2 hover:bg-sky-50 transition-colors border-l border-gray-200 flex items-center cursor-pointer"
+                                                                            onClick={(
+                                                                                e,
+                                                                            ) =>
+                                                                                e.stopPropagation()
+                                                                            }
+                                                                            title={t(
+                                                                                "Download video",
+                                                                            )}
+                                                                        >
+                                                                            <DownloadIcon className="h-3.5 w-3.5 text-gray-500" />
+                                                                        </a>
+                                                                    </div>
                                                                 </div>
                                                             </div>
-                                                        </div>
-                                                    ),
-                                                )}
+                                                        ),
+                                                    )}
+                                                </div>
+                                                <button
+                                                    onClick={() =>
+                                                        setShowTranslateDialog(
+                                                            true,
+                                                        )
+                                                    }
+                                                    className="lb-outline-secondary lb-sm flex items-center gap-1 w-full"
+                                                >
+                                                    <PlusIcon className="h-4 w-4" />
+                                                    {t("Add translation")}
+                                                </button>
                                             </div>
-                                            <button
-                                                onClick={() =>
-                                                    setShowTranslateDialog(true)
-                                                }
-                                                className="lb-outline-secondary lb-sm flex items-center gap-1 w-full"
-                                            >
-                                                <PlusIcon className="h-4 w-4" />
-                                                {t("Add translation")}
-                                            </button>
-                                        </div>
+                                        )}
                                     </div>
                                 </div>
 
@@ -902,173 +1062,6 @@ function VideoPage() {
                                         </DialogHeader>
                                         <AzureVideoTranslate
                                             url={videoInformation?.videoUrl}
-                                            onComplete={async (
-                                                targetLocale,
-                                                outputUrl,
-                                                vttUrls,
-                                            ) => {
-                                                const originalVttUrl =
-                                                    vttUrls.original;
-                                                const translatedVttUrl =
-                                                    vttUrls.translated;
-
-                                                // Fetch the VTT content
-                                                try {
-                                                    const addVtt = async (
-                                                        vttUrl,
-                                                        name,
-                                                    ) => {
-                                                        if (!vttUrl) {
-                                                            return null;
-                                                        }
-                                                        const response =
-                                                            await fetch(vttUrl);
-                                                        const vttContent =
-                                                            await response.text();
-
-                                                        return {
-                                                            url: vttUrl,
-                                                            text: vttContent,
-                                                            format: "vtt",
-                                                            name,
-                                                        };
-                                                    };
-
-                                                    const newVideoLanguages = [
-                                                        ...videoLanguages,
-                                                        {
-                                                            code: targetLocale,
-                                                            label: new Intl.DisplayNames(
-                                                                [language],
-                                                                {
-                                                                    type: "language",
-                                                                },
-                                                            ).of(targetLocale),
-                                                            url: outputUrl,
-                                                        },
-                                                    ];
-
-                                                    let newTranscripts = [
-                                                        ...transcripts,
-                                                    ];
-
-                                                    // Try to add original subtitles if they don't exist
-                                                    try {
-                                                        const autoSubtitlesExist =
-                                                            transcripts.some(
-                                                                (transcript) =>
-                                                                    transcript.name ===
-                                                                    t(
-                                                                        "Original Subtitles",
-                                                                    ),
-                                                            );
-
-                                                        if (
-                                                            !autoSubtitlesExist &&
-                                                            originalVttUrl
-                                                        ) {
-                                                            const originalTranscript =
-                                                                await addVtt(
-                                                                    originalVttUrl,
-                                                                    t(
-                                                                        "Original Subtitles",
-                                                                    ),
-                                                                );
-                                                            if (
-                                                                originalTranscript
-                                                            ) {
-                                                                newTranscripts.push(
-                                                                    originalTranscript,
-                                                                );
-                                                            }
-                                                        }
-                                                    } catch (error) {
-                                                        console.error(
-                                                            "Failed to fetch original VTT content:",
-                                                            error,
-                                                        );
-                                                        // Continue with translation even if original subtitles fail
-                                                    }
-
-                                                    // Try to add translated subtitles
-                                                    try {
-                                                        if (translatedVttUrl) {
-                                                            const translatedTranscript =
-                                                                await addVtt(
-                                                                    translatedVttUrl,
-                                                                    t(
-                                                                        "{{language}} Subtitles",
-                                                                        {
-                                                                            language:
-                                                                                new Intl.DisplayNames(
-                                                                                    [
-                                                                                        language,
-                                                                                    ],
-                                                                                    {
-                                                                                        type: "language",
-                                                                                    },
-                                                                                ).of(
-                                                                                    targetLocale,
-                                                                                ),
-                                                                        },
-                                                                    ),
-                                                                );
-                                                            if (
-                                                                translatedTranscript
-                                                            ) {
-                                                                newTranscripts.push(
-                                                                    translatedTranscript,
-                                                                );
-                                                            }
-                                                        }
-                                                    } catch (error) {
-                                                        console.error(
-                                                            "Failed to fetch translated VTT content:",
-                                                            error,
-                                                        );
-                                                    }
-
-                                                    // Update state with whatever we successfully got
-                                                    setTranscripts(
-                                                        newTranscripts,
-                                                    );
-                                                    setVideoLanguages(
-                                                        newVideoLanguages,
-                                                    );
-                                                    setActiveLanguage(
-                                                        newVideoLanguages.length -
-                                                            1,
-                                                    );
-                                                    setActiveTranscript(
-                                                        newTranscripts.length -
-                                                            1,
-                                                    );
-                                                    updateUserState({
-                                                        videoInformation: {
-                                                            ...userState
-                                                                ?.transcribe
-                                                                ?.videoInformation,
-                                                            videoLanguages:
-                                                                newVideoLanguages,
-                                                        },
-                                                        transcripts:
-                                                            newTranscripts,
-                                                        activeTranscript:
-                                                            newTranscripts.length -
-                                                            1,
-                                                    });
-
-                                                    setShowTranslateDialog(
-                                                        false,
-                                                    );
-                                                } catch (error) {
-                                                    console.error(
-                                                        "Failed to fetch VTT content:",
-                                                        error,
-                                                    );
-                                                    // Optionally show an error message to the user
-                                                }
-                                            }}
                                             onQueued={(requestId) => {
                                                 setShowTranslateDialog(false);
                                             }}

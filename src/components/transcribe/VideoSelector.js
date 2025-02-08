@@ -100,11 +100,22 @@ const VideoSelector = ({ url, onSelect, onClose }) => {
                                     {t("Match confidence:")}{" "}
                                     {Math.round(result.similarity * 100)}%
                                 </p>
-                                <video
-                                    className="w-full aspect-video object-cover mb-4 rounded"
-                                    controls
-                                    src={result.videoUrl || result.url}
-                                />
+                                {result.isYouTube ? (
+                                    <iframe
+                                        className="w-full aspect-video mb-4 rounded"
+                                        src={result.videoUrl}
+                                        allowFullScreen
+                                        title="YouTube video player"
+                                        frameBorder="0"
+                                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                    />
+                                ) : (
+                                    <video
+                                        className="w-full aspect-video object-cover mb-4 rounded"
+                                        controls
+                                        src={result.videoUrl || result.url}
+                                    />
+                                )}
                                 <div className="flex justify-center gap-2 text-xs">
                                     <button
                                         className="lb-success"

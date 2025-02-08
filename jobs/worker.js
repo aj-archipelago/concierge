@@ -9,6 +9,7 @@ const queueName = "digest-build";
 const { REDIS_CONNECTION_STRING } = process.env;
 const { Logger } = require("./logger.js");
 const { DIGEST_REBUILD_INTERVAL_HOURS = 4 } = process.env;
+const requestProgressWorker = require("./request-progress-worker");
 
 const connection = new Redis(
     REDIS_CONNECTION_STRING || "redis://localhost:6379",
@@ -98,12 +99,10 @@ console.log("starting worker");
     const closeDatabaseConnection = (await import("../src/db.mjs"))
         .closeDatabaseConnection;
 
-    console.log(
-        "Connecting to database",
-        connectToDatabase,
-        closeDatabaseConnection,
-    );
     await connectToDatabase();
     console.log("Connected to database");
+
+    // run workers
+    requestProgressWorker.run();
+    worker.run();
 })();
-worker.run();

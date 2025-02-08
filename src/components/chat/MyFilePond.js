@@ -18,6 +18,7 @@ import "filepond-plugin-image-preview/dist/filepond-plugin-image-preview.css";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { hashMediaFile } from "../../utils/mediaUtils";
+import { isYoutubeUrl } from "../../utils/urlUtils";
 
 // Global upload speed tracking
 let lastBytesPerMs = null; // bytes per millisecond from last successful upload including cloud processing
@@ -241,19 +242,6 @@ function isAudioUrl(url) {
 
 function isMediaUrl(url) {
     return isImageUrl(url) || isVideoUrl(url) || isAudioUrl(url);
-}
-
-function isYoutubeUrl(url) {
-    try {
-        const urlObj = new URL(url);
-        return (
-            urlObj.hostname === "youtube.com" ||
-            urlObj.hostname === "www.youtube.com" ||
-            urlObj.hostname === "youtu.be"
-        );
-    } catch (err) {
-        return false;
-    }
 }
 
 const DOC_MIME_TYPES = DOC_EXTENSIONS.map((ext) => mime.lookup(ext));
