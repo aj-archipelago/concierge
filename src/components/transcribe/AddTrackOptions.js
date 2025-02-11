@@ -507,6 +507,7 @@ export default function TranscribeVideo({
                             handleTranscriptionTypeChange={
                                 handleTranscriptionTypeChange
                             }
+                            selectedModelOption={selectedModelOption}
                         />
                     </div>
                 )}
@@ -592,8 +593,10 @@ function TranscriptionTypeSelector({
     wordTimestamped,
     maxLineWidth,
     handleTranscriptionTypeChange,
+    selectedModelOption,
 }) {
     const { t } = useTranslation();
+    const isGemini = selectedModelOption?.toLowerCase() === "gemini";
 
     return (
         <select
@@ -613,7 +616,7 @@ function TranscriptionTypeSelector({
             onChange={handleTranscriptionTypeChange}
         >
             <option value="phraseLevel">{t("Phrase level")}</option>
-            <option value="wordLevel">{t("Word level")}</option>
+            {!isGemini && <option value="wordLevel">{t("Word level")}</option>}
             <option value="horizontal">{t("Horizontal")}</option>
             <option value="vertical">{t("Vertical")}</option>
         </select>
