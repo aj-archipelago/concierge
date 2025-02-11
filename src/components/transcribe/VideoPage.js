@@ -579,12 +579,14 @@ function VideoPage() {
 
     const updateUserState = useCallback(
         (updates) => {
-            debouncedUpdateUserState({
-                transcribe: {
-                    ...userState?.transcribe,
-                    ...updates,
-                },
-            });
+            setTimeout(() => {
+                debouncedUpdateUserState({
+                    transcribe: {
+                        ...userState?.transcribe,
+                        ...updates,
+                    },
+                });
+            }, 0);
         },
         [userState?.transcribe, debouncedUpdateUserState],
     );
