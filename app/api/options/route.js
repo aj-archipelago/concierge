@@ -5,7 +5,14 @@ export async function POST(req) {
     try {
         const body = await req.json();
 
-        const { userId, contextId, aiMemorySelfModify, aiName, aiStyle, streamingEnabled } = body;
+        const {
+            userId,
+            contextId,
+            aiMemorySelfModify,
+            aiName,
+            aiStyle,
+            streamingEnabled,
+        } = body;
 
         if (!mongoose.connection.readyState) {
             throw new Error("Database is not connected");

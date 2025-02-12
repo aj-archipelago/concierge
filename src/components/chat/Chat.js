@@ -7,7 +7,7 @@ import {
     useUpdateActiveChat,
     useGetActiveChat,
 } from "../../../app/queries/chats";
-import { useState, useContext } from "react";
+import { useContext } from "react";
 import { AuthContext } from "../../App";
 
 const ChatTopMenuDynamic = dynamic(() => import("./ChatTopMenu"), {
