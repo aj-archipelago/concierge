@@ -7,7 +7,8 @@ import {
     useUpdateActiveChat,
     useGetActiveChat,
 } from "../../../app/queries/chats";
-import { useState } from "react";
+import { useState, useContext } from "react";
+import { AuthContext } from "../../App";
 
 const ChatTopMenuDynamic = dynamic(() => import("./ChatTopMenu"), {
     loading: () => <div style={{ width: "80px", height: "20px" }}></div>,
@@ -17,7 +18,7 @@ function Chat({ viewingChat = null }) {
     const { t } = useTranslation();
     const updateActiveChat = useUpdateActiveChat();
     const { data: chat } = useGetActiveChat();
-    const [streamingEnabled, setStreamingEnabled] = useState(false);
+    const { user } = useContext(AuthContext);
     const { readOnly } = viewingChat || {};
     const publicChatOwner = viewingChat?.owner;
 
@@ -53,17 +54,6 @@ function Chat({ viewingChat = null }) {
                 <div className="flex gap-2">
                     <button
                         disabled={readOnly}
-                        className={`lb-sm lb-outline ${streamingEnabled ? "lb-primary" : ""}`}
-                        onClick={() => {
-                            setStreamingEnabled(!streamingEnabled);
-                        }}
-                    >
-                        {streamingEnabled
-                            ? t("Streaming On")
-                            : t("Streaming Off")}
-                    </button>
-                    <button
-                        disabled={readOnly}
                         className={`lb-sm lb-outline ${chat?.isPublic ? "" : "lb-primary"}`}
                         onClick={handleShareOrCopy}
                     >
@@ -89,7 +79,7 @@ function Chat({ viewingChat = null }) {
             <div className="grow overflow-auto">
                 <ChatContent
                     viewingChat={viewingChat}
-                    streamingEnabled={streamingEnabled}
+                    streamingEnabled={user.streamingEnabled}
                 />
             </div>
         </div>

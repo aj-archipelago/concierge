@@ -14,6 +14,7 @@ const UserOptions = ({ show, handleClose }) => {
     );
     const [aiName, setAiName] = useState(user.aiName || "Labeeb");
     const [aiStyle, setAiStyle] = useState(user.aiStyle || "OpenAI");
+    const [streamingEnabled, setStreamingEnabled] = useState(user.streamingEnabled || false);
     const [activeMemoryTab, setActiveMemoryTab] = useState("user");
     const [parsedMemory, setParsedMemory] = useState({
         memorySelf: "",
@@ -90,6 +91,7 @@ const UserOptions = ({ show, handleClose }) => {
             aiMemorySelfModify,
             aiName,
             aiStyle,
+            streamingEnabled,
         });
 
         const combinedMemory = JSON.stringify(parsedMemory);
@@ -170,6 +172,22 @@ const UserOptions = ({ show, handleClose }) => {
                     <option value="OpenAI">{t("OpenAI")}</option>
                     <option value="Anthropic">{t("Anthropic")}</option>
                 </select>
+
+                <h4 className="text-base font-semibold mb-2">{t("Chat Options")}</h4>
+                <div className="flex gap-2 items-center mb-4">
+                    <input
+                        type="checkbox"
+                        size="sm"
+                        id="streamingEnabled"
+                        className="accent-sky-500"
+                        checked={streamingEnabled}
+                        onChange={(e) => setStreamingEnabled(e.target.checked)}
+                        style={{ margin: "0.5rem 0" }}
+                    />
+                    <label htmlFor="streamingEnabled">
+                        {t("Enable streaming responses")}
+                    </label>
+                </div>
 
                 <h4 className="text-base font-semibold mb-2">
                     {t("AI Memory")}

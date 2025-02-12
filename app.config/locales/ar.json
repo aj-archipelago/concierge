@@ -500,6 +500,7 @@
     "{{name}}: {{language}} Translation": "{{name}}: ترجمة {{language}}",
     "Processing video...": "جاري معالجة الفيديو...",
     "Transcription type": "نوع التنسيق",
+    "Enable streaming responses": "تفعيل الاستجابات المنسية",
     "{{from}} to {{to}}": "{{from}} إلى {{to}}",
     "Video translation": "ترجمة الفيديو",
     "In progress": "قيد التنفيذ",

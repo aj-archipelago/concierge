@@ -14,7 +14,7 @@ const cortexURLs = {
 // The entire Labeeb application can be configured here
 // Note that all assets and locales are copied to the public/app and src/locales directories respectively
 // by the prebuild.js script
-export default {
+const config = {
     global: {
         siteTitle: "Labeeb",
         getLogo: (language) =>
@@ -77,3 +77,5 @@ export default {
         provider: "entra",
     },
 };
+
+export default config;

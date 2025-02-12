@@ -213,24 +213,6 @@ html[dir="ltr"] {
             height: 87px;
             background-color: $chat-secondary;
         }
-
-        // .message-list-container {
-        //   &::before {
-        //     content: '';
-        //     position: absolute;
-        //     width: 5px;
-        //     height: calc(100vh - 30px - 100px);
-        //     cursor: ew-resize;
-        //   }
-        // }
-
-        .message-container {
-            // height: calc(100vh - 194px);
-        }
-
-        // .message-list-container {
-        //   border-inline-start: 1px solid;
-        // }
     }
 
     .chat-message-container {

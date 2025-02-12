@@ -93,6 +93,7 @@ function ProgressToast({
                 subscriptionRef.current();
             }
         }, timeout);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [timeout, onError, requestId]);
 
     // Initial timeout setup
@@ -179,6 +180,7 @@ function ProgressToast({
                     toast.update(requestId, { closeButton: true });
                 });
         }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [
         data,
         error,
