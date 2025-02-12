@@ -22,6 +22,9 @@ const ChatMessages = React.memo(function ChatMessages({
     viewingReadOnlyChat,
     publicChatOwner,
     chatId,
+    streamingMessage,
+    isStreaming,
+    onStopStreaming,
 }) {
     const { user } = useContext(AuthContext);
     const { aiName } = user;
@@ -103,6 +106,8 @@ const ChatMessages = React.memo(function ChatMessages({
                         messages={processedMessages}
                         loading={loading}
                         chatId={chatId}
+                        streamingMessage={streamingMessage}
+                        isStreaming={isStreaming}
                     />
                 </div>
             </div>
@@ -115,6 +120,8 @@ const ChatMessages = React.memo(function ChatMessages({
                     container={container}
                     displayState={displayState}
                     onSend={handleSendCallback}
+                    isStreaming={isStreaming}
+                    onStopStreaming={onStopStreaming}
                 />
             </div>
         </div>

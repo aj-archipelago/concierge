@@ -36,13 +36,13 @@ const generateDigestBlockContent = async (
 
     try {
         const result = await client.query({
-            query: QUERIES.RAG_START,
+            query: QUERIES.SYS_ENTITY_START,
             variables,
         });
 
-        tool = result.data.rag_start.tool;
+        tool = result.data.sys_entity_start.tool;
         if (tool) {
-            const toolObj = JSON.parse(result.data.rag_start.tool);
+            const toolObj = JSON.parse(result.data.sys_entity_start.tool);
             toolCallbackName = toolObj?.toolCallbackName;
         }
 
@@ -67,14 +67,14 @@ const generateDigestBlockContent = async (
             try {
                 content = JSON.stringify({
                     payload: await processImageUrls(
-                        JSON.parse(result.data.rag_start.result).response,
+                        JSON.parse(result.data.sys_entity_start.result),
                         process.env.SERVER_URL,
                     ),
                     tool,
                 });
             } catch (e) {
                 logger.error(
-                    `Error while parsing rag_start result: ${e.message}`,
+                    `Error while parsing sys_entity_start result: ${e.message}`,
                     user?._id,
                     block?._id,
                 );

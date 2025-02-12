@@ -1,13 +1,21 @@
-import React, { useCallback, useContext, useMemo, useEffect } from "react";
-import { useApolloClient } from "@apollo/client";
+import React, {
+    useCallback,
+    useContext,
+    useMemo,
+    useEffect,
+    useState,
+    useRef,
+} from "react";
+import { useApolloClient, useSubscription } from "@apollo/client";
 import { useTranslation } from "react-i18next";
 import { toast } from "react-toastify";
 import { AuthContext } from "../../App.js";
 import ChatMessages from "./ChatMessages";
-import { QUERIES } from "../../graphql";
+import { QUERIES, SUBSCRIPTIONS } from "../../graphql";
 import { useGetActiveChat, useUpdateChat } from "../../../app/queries/chats";
 import { useDeleteAutogenRun } from "../../../app/queries/autogen.js";
 import { processImageUrls } from "../../utils/imageUtils";
+import Loader from "../../../app/components/loader";
 
 const contextMessageCount = 50;
 
@@ -15,11 +23,18 @@ function ChatContent({
     displayState = "full",
     container = "chatpage",
     viewingChat = null,
+    streamingEnabled = false,
 }) {
     const { t } = useTranslation();
     const client = useApolloClient();
     const { user } = useContext(AuthContext);
     const activeChat = useGetActiveChat()?.data;
+    const streamingMessageRef = useRef("");
+    const messageQueueRef = useRef([]);
+    const processingRef = useRef(false);
+    const [subscriptionId, setSubscriptionId] = useState(null);
+    const [isStreaming, setIsStreaming] = useState(false);
+    const [streamingContent, setStreamingContent] = useState("");
 
     const viewingReadOnlyChat = useMemo(
         () => displayState === "full" && viewingChat && viewingChat.readOnly,
@@ -34,6 +49,238 @@ function ChatContent({
     const isChatLoading = chat?.isChatLoading;
     const deleteAutogenRun = useDeleteAutogenRun();
 
+    // Helper to commit streaming message in a consistent way
+    const commitStreamingMessage = useCallback(async () => {
+        if (!chat?._id || !streamingMessageRef.current) return;
+
+        const baseMessages = (chat.messages || []).filter(
+            (m) => !m.isStreaming,
+        );
+        await updateChatHook.mutateAsync({
+            chatId: String(chat._id),
+            messages: [
+                ...baseMessages,
+                {
+                    payload: streamingMessageRef.current,
+                    sentTime: "just now",
+                    direction: "incoming",
+                    position: "single",
+                    sender: "labeeb",
+                    isStreaming: true,
+                },
+            ],
+            isChatLoading: false,
+        });
+    }, [chat, updateChatHook]);
+
+    const stopStreaming = useCallback(async () => {
+        if (!chat?._id) return;
+
+        if (streamingMessageRef.current) {
+            await commitStreamingMessage();
+        }
+
+        // Clear streaming state and refs
+        streamingMessageRef.current = "";
+        setStreamingContent("");
+        setSubscriptionId(null);
+        setIsStreaming(false);
+        messageQueueRef.current = [];
+        processingRef.current = false;
+    }, [chat, commitStreamingMessage]);
+
+    useSubscription(SUBSCRIPTIONS.REQUEST_PROGRESS, {
+        variables: { requestIds: [subscriptionId] },
+        skip: !subscriptionId,
+        onData: ({ data }) => {
+            if (!data?.data) return;
+
+            const progress = data.data.requestProgress?.progress;
+            const result = data.data.requestProgress?.data;
+
+            console.log("progress", progress);
+            console.log("result", result);
+
+            // Add new message to queue
+            if (result) {
+                try {
+                    const parsed = JSON.parse(result);
+                    console.log("Parsed message:", {
+                        id: parsed.id,
+                        model: parsed.model,
+                        hasContent: !!parsed?.choices?.[0]?.delta?.content,
+                        content: parsed?.choices?.[0]?.delta?.content,
+                    });
+
+                    messageQueueRef.current.push({ progress, result });
+                    // Trigger processing if not already processing
+                    if (!processingRef.current) {
+                        processMessageQueue();
+                    }
+                } catch (e) {
+                    console.log("Failed to parse message:", e);
+                    messageQueueRef.current.push({ progress, result });
+                    if (!processingRef.current) {
+                        processMessageQueue();
+                    }
+                }
+            }
+
+            // Always queue a progress=1 message to ensure completion
+            if (progress === 1) {
+                messageQueueRef.current.push({
+                    progress,
+                    result: result || null,
+                });
+                if (!processingRef.current) {
+                    processMessageQueue();
+                }
+            }
+        },
+    });
+
+    // Memoize the messages array with the streaming message
+    const messagesWithStreaming = useMemo(() => {
+        // Get all messages except any previous streaming message
+        const baseMessages = memoizedMessages.filter((m) => !m.isStreaming);
+
+        // Only add streaming message if we're actually streaming
+        if (isStreaming) {
+            return [
+                ...baseMessages,
+                {
+                    payload: streamingContent || (
+                        <div className="flex gap-4">
+                            <div className="mt-1 ms-1 mb-1 h-4">
+                                <Loader />
+                            </div>
+                        </div>
+                    ),
+                    sentTime: "just now",
+                    direction: "incoming",
+                    position: "single",
+                    sender: "labeeb",
+                    isStreaming: true,
+                },
+            ];
+        }
+        return baseMessages;
+    }, [memoizedMessages, isStreaming, streamingContent]);
+
+    // Modified streamChunkedContent to work with promises and simulate streaming
+    const streamChunkedContent = useCallback((content, resolve) => {
+        // Break into larger chunks for more efficient processing
+        const chunks = content.match(/[\s\S]{1,50}(?=\s|$)/g) || [content];
+        let currentIndex = 0;
+        let rafId = null;
+        let batchSize = 3; // Process multiple chunks per frame
+
+        // Add the content to our ref immediately
+        streamingMessageRef.current += content;
+
+        const processNextBatch = () => {
+            // If we've processed all chunks, clean up and resolve
+            if (currentIndex >= chunks.length) {
+                if (rafId) cancelAnimationFrame(rafId);
+                resolve();
+                return;
+            }
+
+            // Process a batch of chunks
+            const endIndex = Math.min(currentIndex + batchSize, chunks.length);
+            const partialContent = chunks.slice(0, endIndex).join("");
+
+            // Update the visible content
+            setStreamingContent(
+                streamingMessageRef.current.slice(
+                    0,
+                    streamingMessageRef.current.length -
+                        content.length +
+                        partialContent.length,
+                ),
+            );
+
+            currentIndex = endIndex;
+
+            // Schedule next batch with a controlled delay
+            rafId = setTimeout(() => {
+                requestAnimationFrame(processNextBatch);
+            }, 50); // Ensure at least 50ms between updates
+        };
+
+        requestAnimationFrame(processNextBatch);
+
+        // Cleanup function
+        return () => {
+            if (rafId) clearTimeout(rafId);
+        };
+    }, []);
+
+    // Process messages from the queue
+    const processMessageQueue = useCallback(async () => {
+        if (processingRef.current || messageQueueRef.current.length === 0)
+            return;
+
+        processingRef.current = true;
+        const message = messageQueueRef.current.shift();
+
+        try {
+            const { progress, result } = message;
+
+            if (result) {
+                let content;
+                try {
+                    const parsed = JSON.parse(result);
+                    if (typeof parsed === "string") {
+                        content = parsed;
+                    } else if (parsed?.choices?.[0]?.delta?.content) {
+                        content = parsed.choices[0].delta.content;
+                    } else if (parsed?.content) {
+                        content = parsed.content;
+                    } else if (parsed?.message) {
+                        content = parsed.message;
+                    }
+                } catch {
+                    content = result;
+                }
+
+                if (content) {
+                    if (content.length > 50) {
+                        await new Promise((resolve) => {
+                            streamChunkedContent(content, resolve);
+                        });
+                    } else {
+                        streamingMessageRef.current += content;
+                        setStreamingContent(streamingMessageRef.current);
+                    }
+                }
+
+                if (progress === 1 && streamingMessageRef.current) {
+                    await commitStreamingMessage();
+
+                    // Clear streaming state and refs
+                    streamingMessageRef.current = "";
+                    setStreamingContent("");
+                    setSubscriptionId(null);
+                    setIsStreaming(false);
+                }
+            }
+        } catch (e) {
+            console.error("Failed to process subscription data:", e, {
+                result: message.result,
+                resultType: typeof message.result,
+                resultLength: message.result?.length,
+                error: e.message,
+            });
+        }
+
+        processingRef.current = false;
+        // Process next message if any
+        if (messageQueueRef.current.length > 0) {
+            setTimeout(() => processMessageQueue(), 0);
+        }
+    }, [chat, commitStreamingMessage, streamChunkedContent]);
+
     const handleError = useCallback((error) => {
         toast.error(error.message);
     }, []);
@@ -41,6 +288,11 @@ function ChatContent({
     const handleSend = useCallback(
         async (text) => {
             try {
+                // Reset streaming state
+                streamingMessageRef.current = "";
+                setStreamingContent("");
+                setIsStreaming(false);
+
                 // Optimistic update for the user's message
                 const optimisticUserMessage = {
                     payload: text,
@@ -101,14 +353,33 @@ function ChatContent({
                     title: chat?.title,
                     chatId,
                     codeRequestId: codeRequestIdParam,
+                    stream: streamingEnabled,
                 };
 
                 // Perform RAG start query
                 const result = await client.query({
-                    query: QUERIES.RAG_START,
+                    query: QUERIES.SYS_ENTITY_START,
                     variables,
                 });
 
+                // If streaming is enabled, handle subscription setup
+                if (streamingEnabled) {
+                    const subscriptionId =
+                        result.data?.sys_entity_start?.result;
+                    if (subscriptionId) {
+                        // Set streaming state BEFORE setting subscription ID
+                        setStreamingContent("");
+                        setIsStreaming(true);
+                        streamingMessageRef.current = "";
+
+                        // Finally set the subscription ID which will trigger the subscription
+                        setSubscriptionId(subscriptionId);
+
+                        return; // Make sure we return here to prevent non-streaming handling
+                    }
+                }
+
+                // Non-streaming response handling
                 let resultMessage = "";
                 let tool = null;
                 let newTitle = null;
@@ -118,12 +389,14 @@ function ChatContent({
                 try {
                     let resultObj;
                     try {
-                        resultObj = JSON.parse(result.data.rag_start.result);
+                        resultObj = JSON.parse(
+                            result.data.sys_entity_start.result,
+                        );
                     } catch {
-                        resultObj = { response: result.data.rag_start.result };
+                        resultObj = result.data.sys_entity_start.result;
                     }
-                    resultMessage = resultObj?.response || resultObj;
-                    tool = result.data.rag_start.tool;
+                    resultMessage = resultObj;
+                    tool = result.data.sys_entity_start.tool;
                     if (tool) {
                         const toolObj = JSON.parse(tool);
                         toolCallbackName = toolObj?.toolCallbackName;
@@ -256,6 +529,9 @@ function ChatContent({
                     });
                 }
             } catch (error) {
+                setIsStreaming(false);
+                streamingMessageRef.current = "";
+                setStreamingContent("");
                 handleError(error);
                 // Update to include both the original user message and the error message
                 await updateChatHook.mutateAsync({
@@ -283,7 +559,6 @@ function ChatContent({
                 });
             }
         },
-        // eslint-disable-next-line react-hooks/exhaustive-deps
         [
             chat,
             updateChatHook,
@@ -293,6 +568,7 @@ function ChatContent({
             handleError,
             chatId,
             t,
+            streamingEnabled,
         ],
     );
 
@@ -319,10 +595,13 @@ function ChatContent({
             publicChatOwner={publicChatOwner}
             loading={isChatLoading}
             onSend={handleSend}
-            messages={memoizedMessages}
+            messages={messagesWithStreaming}
             container={container}
             displayState={displayState}
             chatId={chatId}
+            isStreaming={isStreaming}
+            streamingMessage={streamingContent}
+            onStopStreaming={stopStreaming}
         />
     );
 }

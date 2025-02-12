@@ -115,7 +115,7 @@ const MemoizedYouTubeEmbed = React.memo(({ url, onLoad }) => {
 });
 
 // Displays the list of messages and a message input box.
-function MessageList({ messages, bot, loading, chatId }) {
+function MessageList({ messages, bot, loading, chatId, isStreaming }) {
     const { user } = useContext(AuthContext);
     const { aiName } = user;
     const { language } = i18next;
@@ -528,6 +528,7 @@ function MessageList({ messages, bot, loading, chatId }) {
                     );
                 })}
                 {loading &&
+                    !isStreaming &&
                     renderMessage({
                         id: "loading",
                         sender: "labeeb",
