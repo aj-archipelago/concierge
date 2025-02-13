@@ -9,7 +9,6 @@ import { useGetActiveChat, useUpdateChat } from "../../../app/queries/chats";
 import { useDeleteAutogenRun } from "../../../app/queries/autogen.js";
 import { processImageUrls } from "../../utils/imageUtils";
 import { useStreamingMessages } from "../../hooks/useStreamingMessages";
-import Loader from "../../../app/components/loader";
 
 const contextMessageCount = 50;
 
