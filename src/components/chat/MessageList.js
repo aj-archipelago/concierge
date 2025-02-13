@@ -286,6 +286,11 @@ function MessageList({ messages, bot, loading, chatId, isStreaming }) {
                                 }}
                             >
                                 {message.payload}
+                                {message.isStreaming && (
+                                    <div style={{ height: "1.2em", marginTop: "0.2em" }}>
+                                        <Loader style={{ width: "0.6em", height: "0.6em" }} />
+                                    </div>
+                                )}
                             </div>
                         </div>
                     </div>

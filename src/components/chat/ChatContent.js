@@ -57,13 +57,7 @@ function ChatContent({
             return [
                 ...baseMessages,
                 {
-                    payload: streamingContent || (
-                        <div className="flex gap-4">
-                            <div className="mt-1 ms-1 mb-1 h-4">
-                                <Loader />
-                            </div>
-                        </div>
-                    ),
+                    payload: streamingContent || null,
                     sentTime: "just now",
                     direction: "incoming",
                     position: "single",
