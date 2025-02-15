@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useRef, useState, useEffect } from "react";
 import { useSubscription } from "@apollo/client";
 import { SUBSCRIPTIONS } from "../graphql";
 
@@ -6,112 +6,188 @@ export function useStreamingMessages({ chat, updateChatHook }) {
     const streamingMessageRef = useRef("");
     const messageQueueRef = useRef([]);
     const processingRef = useRef(false);
+    const accumulatedInfoRef = useRef({});
+    const updateTimeoutRef = useRef(null);
+    const pendingTitleUpdateRef = useRef(null);
+    const updatedTitleRef = useRef(null);
+    const transitionTimeoutRef = useRef(null);
     const [subscriptionId, setSubscriptionId] = useState(null);
     const [isStreaming, setIsStreaming] = useState(false);
     const [streamingContent, setStreamingContent] = useState("");
+    const [streamingTool, setStreamingTool] = useState(null);
+    const [isTitleUpdateInProgress, setTitleUpdateInProgress] = useState(false);
+    const completingMessageRef = useRef(false);
+
+    // Cleanup function for timeouts
+    useEffect(() => {
+        // Capture the ref value inside the effect
+        const timeoutRef = updateTimeoutRef;
+        const transitionRef = transitionTimeoutRef;
+        return () => {
+            if (timeoutRef.current) {
+                clearTimeout(timeoutRef.current);
+            }
+            if (transitionRef.current) {
+                clearTimeout(transitionRef.current);
+            }
+        };
+    }, []);
 
     const clearStreamingState = useCallback(() => {
+        if (updateTimeoutRef.current) {
+            clearTimeout(updateTimeoutRef.current);
+        }
+        if (transitionTimeoutRef.current) {
+            clearTimeout(transitionTimeoutRef.current);
+        }
         streamingMessageRef.current = "";
+        accumulatedInfoRef.current = {};
+        pendingTitleUpdateRef.current = null;
+        completingMessageRef.current = false;
         setStreamingContent("");
         setSubscriptionId(null);
         setIsStreaming(false);
+        setStreamingTool(null);
+        setTitleUpdateInProgress(false);
         messageQueueRef.current = [];
         processingRef.current = false;
     }, []);
 
-    // Helper to commit streaming message in a consistent way
-    const commitStreamingMessage = useCallback(async () => {
-        if (!chat?._id || !streamingMessageRef.current) return;
+    const completeMessage = useCallback(async () => {
+        if (
+            !chat?._id ||
+            !streamingMessageRef.current ||
+            completingMessageRef.current
+        )
+            return;
 
-        const baseMessages = (chat.messages || []).filter(
-            (m) => !m.isStreaming,
-        );
-        await updateChatHook.mutateAsync({
-            chatId: String(chat._id),
-            messages: [
-                ...baseMessages,
-                {
-                    payload: streamingMessageRef.current,
-                    sentTime: "just now",
-                    direction: "incoming",
-                    position: "single",
-                    sender: "labeeb",
-                    isStreaming: true,
-                },
-            ],
-            isChatLoading: false,
+        completingMessageRef.current = true;
+        const finalContent = streamingMessageRef.current; // Capture final content
+        const toolString = JSON.stringify({
+            ...accumulatedInfoRef.current,
+            citations: accumulatedInfoRef.current.citations || [],
         });
-    }, [chat, updateChatHook]);
 
-    const stopStreaming = useCallback(async () => {
-        if (!chat?._id) return;
-
-        if (streamingMessageRef.current) {
-            await commitStreamingMessage();
-        }
-
+        // Clear streaming state first
         clearStreamingState();
-    }, [chat, commitStreamingMessage, clearStreamingState]);
 
-    // Modified streamChunkedContent to work with promises and simulate streaming
-    const streamChunkedContent = useCallback((content, resolve) => {
-        // Break into larger chunks for more efficient processing
-        const chunks = content.match(/[\s\S]{1,50}(?=\s|$)/g) || [content];
-        let currentIndex = 0;
-        let rafId = null;
-        let batchSize = 3; // Process multiple chunks per frame
-
-        // Add the content to our ref immediately
-        streamingMessageRef.current += content;
-
-        const processNextBatch = () => {
-            // If we've processed all chunks, clean up and resolve
-            if (currentIndex >= chunks.length) {
-                if (rafId) cancelAnimationFrame(rafId);
-                resolve();
-                return;
-            }
-
-            // Process a batch of chunks
-            const endIndex = Math.min(currentIndex + batchSize, chunks.length);
-            const partialContent = chunks.slice(0, endIndex).join("");
-
-            // Update the visible content
-            setStreamingContent(
-                streamingMessageRef.current.slice(
-                    0,
-                    streamingMessageRef.current.length -
-                        content.length +
-                        partialContent.length,
-                ),
+        try {
+            // Find the last streaming message index, if it exists
+            const messages = chat.messages || [];
+            const lastStreamingIndex = messages.findLastIndex(
+                (m) => m.isStreaming,
             );
 
-            currentIndex = endIndex;
+            // If we found a streaming message, replace it; otherwise append
+            const updatedMessages = [...messages];
+            const newMessage = {
+                payload: finalContent,
+                tool: toolString,
+                sentTime: "just now",
+                direction: "incoming",
+                position: "single",
+                sender: "labeeb",
+                isStreaming: false,
+            };
 
-            // Schedule next batch with a controlled delay
-            rafId = setTimeout(() => {
-                requestAnimationFrame(processNextBatch);
-            }, 50); // Ensure at least 50ms between updates
-        };
+            if (lastStreamingIndex !== -1) {
+                updatedMessages[lastStreamingIndex] = newMessage;
+            } else {
+                updatedMessages.push(newMessage);
+            }
 
-        requestAnimationFrame(processNextBatch);
+            await updateChatHook.mutateAsync({
+                chatId: String(chat._id),
+                messages: updatedMessages,
+                isChatLoading: false,
+            });
+        } catch (error) {
+            console.error("Failed to complete message:", error);
+        } finally {
+            completingMessageRef.current = false;
+        }
+    }, [chat, updateChatHook, clearStreamingState]);
 
-        // Cleanup function
-        return () => {
-            if (rafId) clearTimeout(rafId);
-        };
-    }, []);
+    const stopStreaming = useCallback(async () => {
+        if (!chat?._id || !streamingMessageRef.current) return;
+        await completeMessage();
+    }, [chat, completeMessage]);
 
-    // Process messages from the queue
+    const updateStreamingContent = useCallback(
+        (newContent) => {
+            if (completingMessageRef.current) return;
+
+            streamingMessageRef.current = newContent;
+            if (updateTimeoutRef.current) {
+                clearTimeout(updateTimeoutRef.current);
+            }
+
+            // Only update if content has actually changed
+            updateTimeoutRef.current = setTimeout(() => {
+                if (
+                    !completingMessageRef.current &&
+                    streamingContent !== streamingMessageRef.current
+                ) {
+                    setStreamingContent(streamingMessageRef.current);
+                }
+            }, 16); // Approximately 60fps (1000ms/60 ≈ 16.67ms)
+        },
+        [streamingContent],
+    );
+
     const processMessageQueue = useCallback(async () => {
-        if (processingRef.current || messageQueueRef.current.length === 0)
+        if (
+            processingRef.current ||
+            messageQueueRef.current.length === 0 ||
+            completingMessageRef.current
+        )
             return;
 
         processingRef.current = true;
         const message = messageQueueRef.current.shift();
 
         try {
-            const { progress, result } = message;
+            const { progress, result, info } = message;
+
+            if (info) {
+                try {
+                    const parsedInfo =
+                        typeof info === "string" ? JSON.parse(info) : info;
+
+                    if (
+                        parsedInfo.title &&
+                        chat &&
+                        !chat.titleSetByUser &&
+                        chat.title !== parsedInfo.title &&
+                        updatedTitleRef.current !== parsedInfo.title
+                    ) {
+                        // Mark the title as updated to prevent duplicate mutations
+                        updatedTitleRef.current = parsedInfo.title;
+                        if (!isTitleUpdateInProgress) {
+                            setTitleUpdateInProgress(true);
+                            updateChatHook
+                                .mutateAsync({
+                                    chatId: String(chat._id),
+                                    title: parsedInfo.title,
+                                })
+                                .finally(() => {
+                                    setTitleUpdateInProgress(false);
+                                });
+                        }
+                    }
+
+                    accumulatedInfoRef.current = {
+                        ...accumulatedInfoRef.current,
+                        ...parsedInfo,
+                        citations: [
+                            ...(accumulatedInfoRef.current.citations || []),
+                            ...(parsedInfo.citations || []),
+                        ],
+                    };
+                } catch (e) {
+                    console.error("Failed to parse info block:", e);
+                }
+            }
 
             if (result) {
                 let content;
@@ -131,24 +207,13 @@ export function useStreamingMessages({ chat, updateChatHook }) {
                 }
 
                 if (content) {
-                    if (content.length > 50) {
-                        await new Promise((resolve) => {
-                            streamChunkedContent(content, resolve);
-                        });
-                    } else {
-                        streamingMessageRef.current += content;
-                        setStreamingContent(streamingMessageRef.current);
-                    }
+                    updateStreamingContent(
+                        streamingMessageRef.current + content,
+                    );
                 }
 
-                if (progress === 1 && streamingMessageRef.current) {
-                    await commitStreamingMessage();
-
-                    // Clear streaming state and refs
-                    streamingMessageRef.current = "";
-                    setStreamingContent("");
-                    setSubscriptionId(null);
-                    setIsStreaming(false);
+                if (progress === 1) {
+                    await completeMessage();
                 }
             }
         } catch (e) {
@@ -156,48 +221,40 @@ export function useStreamingMessages({ chat, updateChatHook }) {
         }
 
         processingRef.current = false;
-        // Process next message if any
-        if (messageQueueRef.current.length > 0) {
-            setTimeout(() => processMessageQueue(), 0);
+
+        // Schedule next message processing
+        if (
+            messageQueueRef.current.length > 0 &&
+            !completingMessageRef.current
+        ) {
+            requestAnimationFrame(() => processMessageQueue());
         }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [chat, commitStreamingMessage, streamChunkedContent]);
+    }, [
+        chat,
+        updateStreamingContent,
+        completeMessage,
+        isTitleUpdateInProgress,
+        updateChatHook,
+    ]);
 
     useSubscription(SUBSCRIPTIONS.REQUEST_PROGRESS, {
         variables: { requestIds: [subscriptionId] },
         skip: !subscriptionId,
         onData: ({ data }) => {
-            if (!data?.data) return;
+            if (!data?.data || completingMessageRef.current) return;
 
             const progress = data.data.requestProgress?.progress;
             const result = data.data.requestProgress?.data;
+            const info = data.data.requestProgress?.info;
 
-            // Add new message to queue
-            if (result) {
-                try {
-                    JSON.parse(result);
-
-                    messageQueueRef.current.push({ progress, result });
-                    // Trigger processing if not already processing
-                    if (!processingRef.current) {
-                        processMessageQueue();
-                    }
-                } catch (e) {
-                    messageQueueRef.current.push({ progress, result });
-                    if (!processingRef.current) {
-                        processMessageQueue();
-                    }
-                }
-            }
-
-            // Always queue a progress=1 message to ensure completion
-            if (progress === 1) {
+            if (result || progress === 1) {
                 messageQueueRef.current.push({
                     progress,
                     result: result || null,
+                    info,
                 });
                 if (!processingRef.current) {
-                    processMessageQueue();
+                    requestAnimationFrame(() => processMessageQueue());
                 }
             }
         },
@@ -211,5 +268,6 @@ export function useStreamingMessages({ chat, updateChatHook }) {
         setSubscriptionId,
         streamingMessageRef,
         clearStreamingState,
+        streamingTool,
     };
 }
