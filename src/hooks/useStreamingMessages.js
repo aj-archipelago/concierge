@@ -152,7 +152,11 @@ export function useStreamingMessages({ chat, updateChatHook }) {
             if (info) {
                 try {
                     const parsedInfo =
-                        typeof info === "string" ? JSON.parse(info) : info;
+                        typeof info === "string"
+                            ? JSON.parse(info)
+                            : typeof info === "object"
+                              ? { ...info }
+                              : {};
 
                     if (
                         parsedInfo.title &&
@@ -176,14 +180,25 @@ export function useStreamingMessages({ chat, updateChatHook }) {
                         }
                     }
 
-                    accumulatedInfoRef.current = {
+                    // Preserve all existing properties unless explicitly overwritten
+                    const newAccumulatedInfo = {
                         ...accumulatedInfoRef.current,
-                        ...parsedInfo,
-                        citations: [
-                            ...(accumulatedInfoRef.current.citations || []),
-                            ...(parsedInfo.citations || []),
-                        ],
                     };
+
+                    // Only update properties that are present in parsedInfo
+                    Object.entries(parsedInfo).forEach(([key, value]) => {
+                        if (value !== undefined && value !== null) {
+                            newAccumulatedInfo[key] = value;
+                        }
+                    });
+
+                    // Always preserve citations array
+                    newAccumulatedInfo.citations = [
+                        ...(accumulatedInfoRef.current.citations || []),
+                        ...(parsedInfo.citations || []),
+                    ];
+
+                    accumulatedInfoRef.current = newAccumulatedInfo;
                 } catch (e) {
                     console.error("Failed to parse info block:", e);
                 }
@@ -211,10 +226,10 @@ export function useStreamingMessages({ chat, updateChatHook }) {
                         streamingMessageRef.current + content,
                     );
                 }
+            }
 
-                if (progress === 1) {
-                    await completeMessage();
-                }
+            if (progress === 1) {
+                await completeMessage();
             }
         } catch (e) {
             console.error("Failed to process subscription data:", e);
@@ -247,7 +262,7 @@ export function useStreamingMessages({ chat, updateChatHook }) {
             const result = data.data.requestProgress?.data;
             const info = data.data.requestProgress?.info;
 
-            if (result || progress === 1) {
+            if (result || progress === 1 || info) {
                 messageQueueRef.current.push({
                     progress,
                     result: result || null,
