@@ -120,46 +120,71 @@ const MemoizedMarkdownMessage = React.memo(
         return convertMessageToMarkdown(message);
     },
     (prevProps, nextProps) => {
-        // Only re-render if the message content actually changed
-        // (not just image URLs being updated)
-        const prevUrls = new Set();
-        const nextUrls = new Set();
+        // If messages are completely identical, no need to re-render
+        if (prevProps.message === nextProps.message) {
+            return true;
+        }
 
-        // Extract image URLs from the message
-        const extractUrls = (msg) => {
-            if (typeof msg.payload === "string") {
-                const urlMatches =
-                    msg.payload.match(/!\[.*?\]\((.*?)\)/g) || [];
-                return urlMatches.map((match) => {
-                    const url = match.match(/\((.*?)\)/)[1];
-                    return url.split("?")[0]; // Remove query params for comparison
-                });
+        // If payloads are strings and identical, no need to re-render
+        if (
+            typeof prevProps.message.payload === "string" &&
+            typeof nextProps.message.payload === "string" &&
+            prevProps.message.payload === nextProps.message.payload
+        ) {
+            return true;
+        }
+
+        // For array payloads, we need to compare each item
+        if (
+            Array.isArray(prevProps.message.payload) &&
+            Array.isArray(nextProps.message.payload)
+        ) {
+            if (
+                prevProps.message.payload.length !==
+                nextProps.message.payload.length
+            ) {
+                return false;
             }
-            return [];
-        };
 
-        extractUrls(prevProps.message).forEach((url) => prevUrls.add(url));
-        extractUrls(nextProps.message).forEach((url) => nextUrls.add(url));
+            // Compare each item in the array
+            return prevProps.message.payload.every((item, index) => {
+                const nextItem = nextProps.message.payload[index];
+                try {
+                    const prevObj =
+                        typeof item === "string" ? JSON.parse(item) : item;
+                    const nextObj =
+                        typeof nextItem === "string"
+                            ? JSON.parse(nextItem)
+                            : nextItem;
 
-        // If the only changes are in URL query params, prevent re-render
-        if (prevUrls.size !== nextUrls.size) return false;
-        const baseUrlsEqual = Array.from(prevUrls).every(
-            (url, i) =>
-                url.split("?")[0] === Array.from(nextUrls)[i].split("?")[0],
-        );
+                    // For image URLs, only compare the base URL without query parameters
+                    if (
+                        prevObj.type === "image_url" &&
+                        nextObj.type === "image_url"
+                    ) {
+                        const prevUrl = new URL(
+                            prevObj.url ||
+                                prevObj.image_url?.url ||
+                                prevObj.gcs,
+                        ).pathname;
+                        const nextUrl = new URL(
+                            nextObj.url ||
+                                nextObj.image_url?.url ||
+                                nextObj.gcs,
+                        ).pathname;
+                        return prevUrl === nextUrl;
+                    }
 
-        if (!baseUrlsEqual) return false;
+                    return JSON.stringify(prevObj) === JSON.stringify(nextObj);
+                } catch (e) {
+                    // If JSON parsing fails, compare as strings
+                    return item === nextItem;
+                }
+            });
+        }
 
-        // Check if any other content changed
-        const prevContent = prevProps.message.payload.replace(
-            /!\[.*?\]\(.*?\)/g,
-            "",
-        );
-        const nextContent = nextProps.message.payload.replace(
-            /!\[.*?\]\(.*?\)/g,
-            "",
-        );
-        return prevContent === nextContent;
+        // Default to re-rendering if we can't determine equality
+        return false;
     },
 );
 

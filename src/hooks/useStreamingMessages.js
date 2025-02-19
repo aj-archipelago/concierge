@@ -159,13 +159,8 @@ export function useStreamingMessages({ chat, updateChatHook }) {
     const updateStreamingContent = useCallback(async (newContent) => {
         if (completingMessageRef.current) return;
         streamingMessageRef.current = newContent;
-
-        // Process any image URLs in the streaming content
-        const processedContent = await processImageUrls(
-            newContent,
-            window.location.origin,
-        );
-        setStreamingContent(processedContent);
+        // Don't process image URLs during streaming
+        setStreamingContent(newContent);
     }, []);
 
     const processChunkQueue = useCallback(async () => {
