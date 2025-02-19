@@ -13,6 +13,12 @@ import remarkMath from "remark-math";
 import "katex/dist/katex.min.css";
 import { visit } from "unist-util-visit";
 
+// Create a WeakMap to store stable IDs for image nodes
+const imageNodeIds = new WeakMap();
+// Add a Map to cache IDs by URL to prevent duplicates
+const imageUrlToId = new Map();
+let nextImageId = 1;
+
 function transformToCitation(content) {
     return content
         .replace(/\[doc(\d+)\]/g, ":cd_source[$1]")
@@ -57,7 +63,6 @@ function customMarkdownDirective() {
 function convertMessageToMarkdown(message) {
     const { payload, tool } = message;
     const citations = tool ? JSON.parse(tool).citations : null;
-    let imageIndex = 0; // Counter for image positions
     let componentIndex = 0; // Counter for code blocks
 
     if (typeof payload !== "string") {
@@ -92,24 +97,7 @@ function convertMessageToMarkdown(message) {
         p({ node, ...rest }) {
             return <div className="mb-1" {...rest} />;
         },
-        img({ node, alt, src, ...props }) {
-            // Use message-specific position of the image as the stable key
-            const stableKey = `${message.id}-img-${imageIndex++}`;
-            return (
-                <img
-                    key={stableKey}
-                    src={src}
-                    alt={alt || ""}
-                    className="max-h-[20%] max-w-[60%] [.docked_&]:max-w-[90%] rounded my-2 shadow-lg dark:shadow-black/30"
-                    style={{
-                        backgroundColor: "transparent",
-                        border: "none",
-                        outline: "none",
-                    }}
-                    {...props}
-                />
-            );
-        },
+        img: ChatMessageImage,
         cd_inline_emotion({ children, emotion }) {
             return (
                 <InlineEmotionDisplay emotion={emotion}>
@@ -188,5 +176,80 @@ function convertMessageToMarkdown(message) {
         />
     );
 }
+
+const ChatMessageImage = React.memo(
+    function ChatMessageImage({ node, alt, src, ...props }) {
+        // First check if we have an ID for this URL
+        let stableId = imageUrlToId.get(src);
+
+        if (!stableId) {
+            // If no URL-based ID exists, check the node map or create new ID
+            stableId = imageNodeIds.get(node);
+            if (!stableId) {
+                stableId = `img-${nextImageId++}`;
+                imageNodeIds.set(node, stableId);
+            }
+            // Cache the ID for this URL
+            imageUrlToId.set(src, stableId);
+        }
+
+        const [permanentSrc, setPermanentSrc] = React.useState(src);
+        const [isLoading, setIsLoading] = React.useState(false);
+        const imgRef = React.useRef(null);
+        const isMounted = React.useRef(true);
+
+        React.useEffect(() => {
+            isMounted.current = true;
+            return () => {
+                isMounted.current = false;
+            };
+        }, []);
+
+        React.useEffect(() => {
+            // If this is a temporary URL (e.g. from streaming), preload the permanent URL
+            if (src.includes("/temp/") || src.includes("?temp=true")) {
+                setIsLoading(true);
+                const img = new Image();
+                const permanentUrl = src
+                    .replace("/temp/", "/")
+                    .replace("?temp=true", "");
+
+                img.onload = () => {
+                    if (isMounted.current) {
+                        setPermanentSrc(permanentUrl);
+                        setIsLoading(false);
+                    }
+                };
+                img.src = permanentUrl;
+            }
+        }, [src, stableId]);
+
+        return (
+            <img
+                ref={imgRef}
+                key={stableId}
+                src={permanentSrc}
+                alt={alt || ""}
+                className="max-h-[20%] max-w-[60%] [.docked_&]:max-w-[90%] rounded my-2 shadow-lg dark:shadow-black/30"
+                style={{
+                    backgroundColor: "transparent",
+                    border: "none",
+                    outline: "none",
+                    opacity: isLoading ? 0.3 : 1,
+                    transition: "opacity 0.3s ease-in-out",
+                }}
+                {...props}
+            />
+        );
+    },
+    (prevProps, nextProps) => {
+        // Only re-render if src or alt changes, or if node is different
+        return (
+            prevProps.src === nextProps.src &&
+            prevProps.alt === nextProps.alt &&
+            prevProps.node === nextProps.node
+        );
+    },
+);
 
 export { convertMessageToMarkdown };
