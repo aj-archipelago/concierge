@@ -1,5 +1,5 @@
 import i18next from "i18next";
-import React, { useEffect, useContext, useCallback } from "react";
+import React, { useEffect, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { AiFillFilePdf, AiFillFileText, AiOutlineRobot } from "react-icons/ai";
 import { FaUserCircle } from "react-icons/fa";
@@ -15,7 +15,6 @@ import {
     isVideoUrl,
 } from "./MyFilePond";
 import CopyButton from "../CopyButton";
-import { AuthContext } from "../../App.js";
 import { useGetActiveChat, useUpdateChat } from "../../../app/queries/chats";
 import ProgressUpdate from "../editor/ProgressUpdate";
 import { useGetAutogenRun } from "../../../app/queries/autogen";
@@ -116,46 +115,64 @@ const MemoizedYouTubeEmbed = React.memo(({ url, onLoad }) => {
 });
 
 // Add this near the top of the file, after imports:
-const MemoizedMarkdownMessage = React.memo(({ message }) => {
-    return convertMessageToMarkdown(message);
-}, (prevProps, nextProps) => {
-    // Only re-render if the message content actually changed
-    // (not just image URLs being updated)
-    const prevUrls = new Set();
-    const nextUrls = new Set();
-    
-    // Extract image URLs from the message
-    const extractUrls = (msg) => {
-        if (typeof msg.payload === 'string') {
-            const urlMatches = msg.payload.match(/!\[.*?\]\((.*?)\)/g) || [];
-            return urlMatches.map(match => {
-                const url = match.match(/\((.*?)\)/)[1];
-                return url.split('?')[0]; // Remove query params for comparison
-            });
-        }
-        return [];
-    };
-    
-    extractUrls(prevProps.message).forEach(url => prevUrls.add(url));
-    extractUrls(nextProps.message).forEach(url => nextUrls.add(url));
-    
-    // If the only changes are in URL query params, prevent re-render
-    if (prevUrls.size !== nextUrls.size) return false;
-    const baseUrlsEqual = Array.from(prevUrls).every((url, i) => 
-        url.split('?')[0] === Array.from(nextUrls)[i].split('?')[0]
-    );
-    
-    if (!baseUrlsEqual) return false;
-    
-    // Check if any other content changed
-    const prevContent = prevProps.message.payload.replace(/!\[.*?\]\(.*?\)/g, '');
-    const nextContent = nextProps.message.payload.replace(/!\[.*?\]\(.*?\)/g, '');
-    return prevContent === nextContent;
-});
+const MemoizedMarkdownMessage = React.memo(
+    ({ message }) => {
+        return convertMessageToMarkdown(message);
+    },
+    (prevProps, nextProps) => {
+        // Only re-render if the message content actually changed
+        // (not just image URLs being updated)
+        const prevUrls = new Set();
+        const nextUrls = new Set();
+
+        // Extract image URLs from the message
+        const extractUrls = (msg) => {
+            if (typeof msg.payload === "string") {
+                const urlMatches =
+                    msg.payload.match(/!\[.*?\]\((.*?)\)/g) || [];
+                return urlMatches.map((match) => {
+                    const url = match.match(/\((.*?)\)/)[1];
+                    return url.split("?")[0]; // Remove query params for comparison
+                });
+            }
+            return [];
+        };
+
+        extractUrls(prevProps.message).forEach((url) => prevUrls.add(url));
+        extractUrls(nextProps.message).forEach((url) => nextUrls.add(url));
+
+        // If the only changes are in URL query params, prevent re-render
+        if (prevUrls.size !== nextUrls.size) return false;
+        const baseUrlsEqual = Array.from(prevUrls).every(
+            (url, i) =>
+                url.split("?")[0] === Array.from(nextUrls)[i].split("?")[0],
+        );
+
+        if (!baseUrlsEqual) return false;
+
+        // Check if any other content changed
+        const prevContent = prevProps.message.payload.replace(
+            /!\[.*?\]\(.*?\)/g,
+            "",
+        );
+        const nextContent = nextProps.message.payload.replace(
+            /!\[.*?\]\(.*?\)/g,
+            "",
+        );
+        return prevContent === nextContent;
+    },
+);
 
 // Displays the list of messages and a message input box.
-function MessageList({ messages, bot, loading, chatId, streamingContent, isStreaming, aiName }) {
-    const { user } = useContext(AuthContext);
+function MessageList({
+    messages,
+    bot,
+    loading,
+    chatId,
+    streamingContent,
+    isStreaming,
+    aiName,
+}) {
     const { language } = i18next;
     const { getLogo } = config.global;
     const { t } = useTranslation();
@@ -345,7 +362,9 @@ function MessageList({ messages, bot, loading, chatId, streamingContent, isStrea
                                     ref={(el) => messageRef(el, message.id)}
                                 >
                                     <React.Fragment key={`md-${message.id}`}>
-                                        <MemoizedMarkdownMessage message={message} />
+                                        <MemoizedMarkdownMessage
+                                            message={message}
+                                        />
                                     </React.Fragment>
                                 </div>
                             </div>

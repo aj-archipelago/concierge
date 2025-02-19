@@ -58,8 +58,8 @@ function customMarkdownDirective() {
 function convertMessageToMarkdown(message) {
     const { payload, tool } = message;
     const citations = tool ? JSON.parse(tool).citations : null;
-    let imageIndex = 0;  // Counter for image positions
-    let componentIndex = 0;  // Counter for code blocks
+    let imageIndex = 0; // Counter for image positions
+    let componentIndex = 0; // Counter for code blocks
 
     if (typeof payload !== "string") {
         return payload;

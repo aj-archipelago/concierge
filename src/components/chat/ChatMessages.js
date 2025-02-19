@@ -1,13 +1,9 @@
 import React, { useContext, useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import dynamic from "next/dynamic";
-import { useApolloClient } from "@apollo/client";
-import { useAddChat } from "../../../app/queries/chats";
-import { handleSaveChat } from "./SaveChat";
 import { AuthContext } from "../../App.js";
 import MessageInput from "./MessageInput";
 import MessageList from "./MessageList";
-import config from "../../../config";
 
 const ChatTopMenuDynamic = dynamic(() => import("./ChatTopMenu"));
 
@@ -26,8 +22,6 @@ const ChatMessages = React.memo(function ChatMessages({
 }) {
     const { user } = useContext(AuthContext);
     const { t } = useTranslation();
-    const client = useApolloClient();
-    const addChat = useAddChat();
     const { aiName } = user;
 
     const handleSendCallback = useCallback(
