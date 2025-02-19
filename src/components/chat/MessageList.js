@@ -163,6 +163,157 @@ const MemoizedMarkdownMessage = React.memo(
     },
 );
 
+// Create a memoized component for the static message list content
+const MessageListContent = React.memo(function MessageListContent({
+    messages,
+    renderMessage,
+    handleMessageLoad,
+    isVideoUrl,
+    isAudioUrl,
+    getExtension,
+    getFilename,
+    getYoutubeEmbedUrl,
+}) {
+    return messages.map((message, index) => {
+        const newMessage = { ...message };
+        if (!newMessage.id) {
+            newMessage.id = newMessage._id || index;
+        }
+        let display;
+        if (Array.isArray(newMessage.payload)) {
+            const arr = newMessage.payload.map((t, index2) => {
+                try {
+                    const obj = JSON.parse(t);
+                    if (obj.type === "text") {
+                        return obj.text;
+                    } else if (obj.type === "image_url") {
+                        const src = obj?.url || obj?.image_url?.url || obj?.gcs;
+                        if (isVideoUrl(src)) {
+                            const youtubeEmbedUrl = getYoutubeEmbedUrl(src);
+                            if (youtubeEmbedUrl) {
+                                return (
+                                    <MemoizedYouTubeEmbed
+                                        key={youtubeEmbedUrl}
+                                        url={youtubeEmbedUrl}
+                                        onLoad={() =>
+                                            handleMessageLoad(newMessage.id)
+                                        }
+                                    />
+                                );
+                            }
+                            return (
+                                <video
+                                    onLoadedData={() =>
+                                        handleMessageLoad(newMessage.id)
+                                    }
+                                    key={`video-${index}-${index2}`}
+                                    src={src}
+                                    className="max-h-[20%] max-w-[60%] [.docked_&]:max-w-[90%] rounded border-0 my-2 shadow-lg dark:shadow-black/30"
+                                    style={{
+                                        backgroundColor: "transparent",
+                                    }}
+                                    controls
+                                    preload="metadata"
+                                    playsInline
+                                />
+                            );
+                        } else if (isAudioUrl(src)) {
+                            return (
+                                <audio
+                                    onLoadedData={() =>
+                                        handleMessageLoad(newMessage.id)
+                                    }
+                                    key={`audio-${index}-${index2}`}
+                                    src={src}
+                                    className="max-h-[20%] max-w-[100%] [.docked_&]:max-w-[80%] rounded-md border bg-white p-1 my-2 dark:border-neutral-700 dark:bg-neutral-800 shadow-lg dark:shadow-black/30"
+                                    controls
+                                />
+                            );
+                        }
+
+                        if (getExtension(src) === ".pdf") {
+                            const filename = decodeURIComponent(
+                                getFilename(src),
+                            );
+                            return (
+                                <a
+                                    key={`pdf-${index}-${index2}`}
+                                    className="bg-neutral-100 py-2 ps-2 pe-4 m-2 shadow-md rounded-lg border flex gap-2 items-center"
+                                    onLoad={() =>
+                                        handleMessageLoad(newMessage.id)
+                                    }
+                                    href={src}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                >
+                                    <AiFillFilePdf
+                                        size={40}
+                                        className="text-red-600 dark:text-red-400"
+                                    />
+                                    {filename}
+                                </a>
+                            );
+                        }
+
+                        if (getExtension(src) === ".txt") {
+                            const filename = decodeURIComponent(
+                                getFilename(src),
+                            );
+                            return (
+                                <a
+                                    key={`txt-${index}-${index2}`}
+                                    className="bg-neutral-100 py-2 ps-2 pe-4 m-2 shadow-md rounded-lg border flex gap-2 items-center"
+                                    onLoad={() =>
+                                        handleMessageLoad(newMessage.id)
+                                    }
+                                    href={src}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                >
+                                    <AiFillFileText
+                                        size={40}
+                                        className="text-red-600 dark:text-red-400"
+                                    />
+                                    {filename}
+                                </a>
+                            );
+                        }
+
+                        return (
+                            <div key={src}>
+                                <img
+                                    onLoad={() =>
+                                        handleMessageLoad(newMessage.id)
+                                    }
+                                    src={src}
+                                    alt="uploadedimage"
+                                    className="max-h-[20%] max-w-[60%] [.docked_&]:max-w-[90%] rounded border-0 my-2 shadow-lg dark:shadow-black/30"
+                                    style={{
+                                        backgroundColor: "transparent",
+                                    }}
+                                />
+                            </div>
+                        );
+                    }
+                    return null;
+                } catch (e) {
+                    console.error("Invalid JSON:", t);
+                    return t;
+                }
+            });
+            display = <>{arr}</>;
+        } else {
+            display = newMessage.payload;
+        }
+
+        return (
+            <div key={newMessage.id}>
+                {renderMessage({ ...newMessage, payload: display })}
+            </div>
+        );
+    });
+});
+
 // Displays the list of messages and a message input box.
 function MessageList({
     messages,
@@ -445,162 +596,16 @@ function MessageList({
                         {t("Send a message to start a conversation")}
                     </div>
                 )}
-                {messages.map((message, index) => {
-                    const newMessage = { ...message };
-                    if (!newMessage.id) {
-                        newMessage.id = newMessage._id || index;
-                    }
-                    let display;
-                    if (Array.isArray(newMessage.payload)) {
-                        const arr = newMessage.payload.map((t, index2) => {
-                            try {
-                                const obj = JSON.parse(t);
-                                if (obj.type === "text") {
-                                    return obj.text;
-                                } else if (obj.type === "image_url") {
-                                    const src =
-                                        obj?.url ||
-                                        obj?.image_url?.url ||
-                                        obj?.gcs;
-                                    if (isVideoUrl(src)) {
-                                        const youtubeEmbedUrl =
-                                            getYoutubeEmbedUrl(src);
-                                        if (youtubeEmbedUrl) {
-                                            return (
-                                                <MemoizedYouTubeEmbed
-                                                    key={youtubeEmbedUrl}
-                                                    url={youtubeEmbedUrl}
-                                                    onLoad={() =>
-                                                        handleMessageLoad(
-                                                            newMessage.id,
-                                                        )
-                                                    }
-                                                />
-                                            );
-                                        }
-                                        return (
-                                            <video
-                                                onLoadedData={() =>
-                                                    handleMessageLoad(
-                                                        newMessage.id,
-                                                    )
-                                                }
-                                                key={`video-${index}-${index2}`}
-                                                src={src}
-                                                className="max-h-[20%] max-w-[60%] [.docked_&]:max-w-[90%] rounded border-0 my-2 shadow-lg dark:shadow-black/30"
-                                                style={{
-                                                    backgroundColor:
-                                                        "transparent",
-                                                }}
-                                                controls
-                                                preload="metadata"
-                                                playsInline
-                                            />
-                                        );
-                                    } else if (isAudioUrl(src)) {
-                                        return (
-                                            <audio
-                                                onLoadedData={() =>
-                                                    handleMessageLoad(
-                                                        newMessage.id,
-                                                    )
-                                                }
-                                                key={`audio-${index}-${index2}`}
-                                                src={src}
-                                                className="max-h-[20%] max-w-[100%] [.docked_&]:max-w-[80%] rounded-md border bg-white p-1 my-2 dark:border-neutral-700 dark:bg-neutral-800 shadow-lg dark:shadow-black/30"
-                                                controls
-                                            />
-                                        );
-                                    }
-
-                                    if (getExtension(src) === ".pdf") {
-                                        const filename = decodeURIComponent(
-                                            getFilename(src),
-                                        );
-                                        return (
-                                            <a
-                                                key={`pdf-${index}-${index2}`}
-                                                className="bg-neutral-100 py-2 ps-2 pe-4 m-2 shadow-md rounded-lg border flex gap-2 items-center"
-                                                onLoad={() =>
-                                                    handleMessageLoad(
-                                                        newMessage.id,
-                                                    )
-                                                }
-                                                href={src}
-                                                target="_blank"
-                                                rel="noopener noreferrer"
-                                            >
-                                                <AiFillFilePdf
-                                                    size={40}
-                                                    className="text-red-600 dark:text-red-400"
-                                                />
-                                                {filename}
-                                            </a>
-                                        );
-                                    }
-
-                                    if (getExtension(src) === ".txt") {
-                                        const filename = decodeURIComponent(
-                                            getFilename(src),
-                                        );
-                                        return (
-                                            <a
-                                                key={`txt-${index}-${index2}`}
-                                                className="bg-neutral-100 py-2 ps-2 pe-4 m-2 shadow-md rounded-lg border flex gap-2 items-center"
-                                                onLoad={() =>
-                                                    handleMessageLoad(
-                                                        newMessage.id,
-                                                    )
-                                                }
-                                                href={src}
-                                                target="_blank"
-                                                rel="noopener noreferrer"
-                                            >
-                                                <AiFillFileText
-                                                    size={40}
-                                                    className="text-red-600 dark:text-red-400"
-                                                />
-                                                {filename}
-                                            </a>
-                                        );
-                                    }
-
-                                    return (
-                                        <div key={src}>
-                                            <img
-                                                onLoad={() =>
-                                                    handleMessageLoad(
-                                                        newMessage.id,
-                                                    )
-                                                }
-                                                src={src}
-                                                alt="uploadedimage"
-                                                className="max-h-[20%] max-w-[60%] [.docked_&]:max-w-[90%] rounded border-0 my-2 shadow-lg dark:shadow-black/30"
-                                                style={{
-                                                    backgroundColor:
-                                                        "transparent",
-                                                }}
-                                            />
-                                        </div>
-                                    );
-                                }
-                                return null;
-                            } catch (e) {
-                                console.error("Invalid JSON:", t);
-                                return t;
-                            }
-                        });
-                        display = <>{arr}</>;
-                    } else {
-                        display = newMessage.payload;
-                    }
-
-                    return (
-                        <div key={newMessage.id}>
-                            {renderMessage({ ...newMessage, payload: display })}
-                        </div>
-                    );
-                })}
+                <MessageListContent
+                    messages={messages}
+                    renderMessage={renderMessage}
+                    handleMessageLoad={handleMessageLoad}
+                    isVideoUrl={isVideoUrl}
+                    isAudioUrl={isAudioUrl}
+                    getExtension={getExtension}
+                    getFilename={getFilename}
+                    getYoutubeEmbedUrl={getYoutubeEmbedUrl}
+                />
                 {isStreaming && (
                     <StreamingMessage
                         content={streamingContent}

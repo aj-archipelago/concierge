@@ -156,13 +156,19 @@ export function useStreamingMessages({ chat, updateChatHook }) {
         await completeMessage();
     }, [chat, completeMessage]);
 
-    const updateStreamingContent = useCallback((newContent) => {
+    const updateStreamingContent = useCallback(async (newContent) => {
         if (completingMessageRef.current) return;
         streamingMessageRef.current = newContent;
-        setStreamingContent(newContent);
+
+        // Process any image URLs in the streaming content
+        const processedContent = await processImageUrls(
+            newContent,
+            window.location.origin,
+        );
+        setStreamingContent(processedContent);
     }, []);
 
-    const processChunkQueue = useCallback(() => {
+    const processChunkQueue = useCallback(async () => {
         if (chunkQueueRef.current.length === 0 || completingMessageRef.current)
             return;
 
@@ -174,7 +180,7 @@ export function useStreamingMessages({ chat, updateChatHook }) {
 
         const chunk = chunkQueueRef.current.shift();
         const newContent = streamingMessageRef.current + chunk;
-        updateStreamingContent(newContent);
+        await updateStreamingContent(newContent);
         lastChunkTimeRef.current = now;
 
         if (chunkQueueRef.current.length > 0) {
@@ -281,21 +287,22 @@ export function useStreamingMessages({ chat, updateChatHook }) {
 
                     // Start processing chunks if not already processing
                     if (chunkQueueRef.current.length > 0) {
-                        requestAnimationFrame(processChunkQueue);
+                        await processChunkQueue();
                     }
                 }
             }
 
             if (progress === 1) {
                 // Wait for all chunks to be processed before completing
-                const waitForChunks = () => {
+                const waitForChunks = async () => {
                     if (chunkQueueRef.current.length > 0) {
-                        setTimeout(waitForChunks, 10);
+                        await new Promise((resolve) => setTimeout(resolve, 10));
+                        await waitForChunks();
                         return;
                     }
-                    completeMessage();
+                    await completeMessage();
                 };
-                waitForChunks();
+                await waitForChunks();
             }
         } catch (e) {
             console.error("Failed to process subscription data:", e);
@@ -308,7 +315,7 @@ export function useStreamingMessages({ chat, updateChatHook }) {
             messageQueueRef.current.length > 0 &&
             !completingMessageRef.current
         ) {
-            requestAnimationFrame(() => processMessageQueue());
+            requestAnimationFrame(async () => await processMessageQueue());
         }
     }, [
         chat,
