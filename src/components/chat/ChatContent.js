@@ -42,31 +42,8 @@ function ChatContent({
         stopStreaming,
         setIsStreaming,
         setSubscriptionId,
-        streamingMessageRef,
         clearStreamingState,
     } = useStreamingMessages({ chat, updateChatHook });
-
-    // Memoize the messages array with the streaming message
-    const messagesWithStreaming = useMemo(() => {
-        // Get all messages except any previous streaming message
-        const baseMessages = memoizedMessages.filter((m) => !m.isStreaming);
-
-        // Only add streaming message if we're actually streaming
-        if (isStreaming) {
-            return [
-                ...baseMessages,
-                {
-                    payload: streamingContent || null,
-                    sentTime: "just now",
-                    direction: "incoming",
-                    position: "single",
-                    sender: "labeeb",
-                    isStreaming: true,
-                },
-            ];
-        }
-        return baseMessages;
-    }, [memoizedMessages, isStreaming, streamingContent]);
 
     const handleError = useCallback((error) => {
         toast.error(error.message);
@@ -314,7 +291,6 @@ function ChatContent({
             } catch (error) {
                 setIsStreaming(false);
                 handleError(error);
-                // Update to include both the original user message and the error message
                 await updateChatHook.mutateAsync({
                     chatId: String(chat?._id),
                     messages: [
@@ -341,20 +317,7 @@ function ChatContent({
             }
         },
         // eslint-disable-next-line react-hooks/exhaustive-deps
-        [
-            chat,
-            updateChatHook,
-            client,
-            user,
-            memoizedMessages,
-            handleError,
-            chatId,
-            t,
-            streamingEnabled,
-            setIsStreaming,
-            streamingMessageRef,
-            setSubscriptionId,
-        ],
+        [chat, updateChatHook, client, user, memoizedMessages, handleError, t],
     );
 
     useEffect(() => {
@@ -380,12 +343,12 @@ function ChatContent({
             publicChatOwner={publicChatOwner}
             loading={isChatLoading}
             onSend={handleSend}
-            messages={messagesWithStreaming}
+            messages={memoizedMessages}
             container={container}
             displayState={displayState}
             chatId={chatId}
             isStreaming={isStreaming}
-            streamingMessage={streamingContent}
+            streamingContent={streamingContent}
             onStopStreaming={stopStreaming}
         />
     );

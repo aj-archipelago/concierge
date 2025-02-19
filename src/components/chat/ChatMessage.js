@@ -12,6 +12,7 @@ import rehypeRaw from "rehype-raw";
 import remarkMath from "remark-math";
 import "katex/dist/katex.min.css";
 import { visit } from "unist-util-visit";
+import SmartImage from "./SmartImage";
 
 function transformToCitation(content) {
     return content
@@ -56,10 +57,9 @@ function customMarkdownDirective() {
 
 function convertMessageToMarkdown(message) {
     const { payload, tool } = message;
-
     const citations = tool ? JSON.parse(tool).citations : null;
-
-    let componentIndex = 0;
+    let imageIndex = 0;  // Counter for image positions
+    let componentIndex = 0;  // Counter for code blocks
 
     if (typeof payload !== "string") {
         return payload;
@@ -93,9 +93,13 @@ function convertMessageToMarkdown(message) {
         p({ node, ...rest }) {
             return <div className="mb-1" {...rest} />;
         },
-        img({ node, alt, ...props }) {
+        img({ node, alt, src, ...props }) {
+            // Use message-specific position of the image as the stable key
+            const stableKey = `${message.id}-img-${imageIndex++}`;
             return (
-                <img
+                <SmartImage
+                    key={stableKey}
+                    src={src}
                     alt={alt || ""}
                     className="max-h-[20%] max-w-[60%] [.docked_&]:max-w-[90%] rounded my-2 shadow-lg dark:shadow-black/30"
                     style={{

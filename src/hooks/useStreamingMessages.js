@@ -1,6 +1,38 @@
 import { useCallback, useRef, useState, useEffect } from "react";
 import { useSubscription } from "@apollo/client";
 import { SUBSCRIPTIONS } from "../graphql";
+import { processImageUrls } from "../utils/imageUtils";
+
+// Add utility function for chunking text
+const chunkText = (text, maxChunkSize = 3) => {
+    if (!text || text.length <= maxChunkSize) return [text];
+
+    const chunks = [];
+    let remaining = text;
+
+    while (remaining.length > 0) {
+        // Try to break at natural boundaries like spaces, periods, or commas
+        let chunkSize = Math.min(maxChunkSize, remaining.length);
+        let chunk = remaining.slice(0, chunkSize);
+
+        // If we're in the middle of a word and there's more text, try to break at a space
+        if (
+            remaining.length > chunkSize &&
+            !remaining[chunkSize].match(/[\s.,!?]/)
+        ) {
+            const lastSpace = chunk.lastIndexOf(" ");
+            if (lastSpace > 0) {
+                chunkSize = lastSpace + 1;
+                chunk = remaining.slice(0, chunkSize);
+            }
+        }
+
+        chunks.push(chunk);
+        remaining = remaining.slice(chunkSize);
+    }
+
+    return chunks;
+};
 
 export function useStreamingMessages({ chat, updateChatHook }) {
     const streamingMessageRef = useRef("");
@@ -17,6 +49,9 @@ export function useStreamingMessages({ chat, updateChatHook }) {
     const [streamingTool, setStreamingTool] = useState(null);
     const [isTitleUpdateInProgress, setTitleUpdateInProgress] = useState(false);
     const completingMessageRef = useRef(false);
+    const chunkQueueRef = useRef([]);
+    const lastChunkTimeRef = useRef(0);
+    const CHUNK_INTERVAL = 13; // ~75fps for faster rendering
 
     // Cleanup function for timeouts
     useEffect(() => {
@@ -51,6 +86,7 @@ export function useStreamingMessages({ chat, updateChatHook }) {
         setTitleUpdateInProgress(false);
         messageQueueRef.current = [];
         processingRef.current = false;
+        chunkQueueRef.current = [];
     }, []);
 
     const completeMessage = useCallback(async () => {
@@ -63,6 +99,13 @@ export function useStreamingMessages({ chat, updateChatHook }) {
 
         completingMessageRef.current = true;
         const finalContent = streamingMessageRef.current; // Capture final content
+
+        // Process any image URLs in the final content
+        const processedContent = await processImageUrls(
+            finalContent,
+            window.location.origin,
+        );
+
         const toolString = JSON.stringify({
             ...accumulatedInfoRef.current,
             citations: accumulatedInfoRef.current.citations || [],
@@ -81,7 +124,7 @@ export function useStreamingMessages({ chat, updateChatHook }) {
             // If we found a streaming message, replace it; otherwise append
             const updatedMessages = [...messages];
             const newMessage = {
-                payload: finalContent,
+                payload: processedContent,
                 tool: toolString,
                 sentTime: "just now",
                 direction: "incoming",
@@ -113,27 +156,31 @@ export function useStreamingMessages({ chat, updateChatHook }) {
         await completeMessage();
     }, [chat, completeMessage]);
 
-    const updateStreamingContent = useCallback(
-        (newContent) => {
-            if (completingMessageRef.current) return;
+    const updateStreamingContent = useCallback((newContent) => {
+        if (completingMessageRef.current) return;
+        streamingMessageRef.current = newContent;
+        setStreamingContent(newContent);
+    }, []);
 
-            streamingMessageRef.current = newContent;
-            if (updateTimeoutRef.current) {
-                clearTimeout(updateTimeoutRef.current);
-            }
+    const processChunkQueue = useCallback(() => {
+        if (chunkQueueRef.current.length === 0 || completingMessageRef.current)
+            return;
 
-            // Only update if content has actually changed
-            updateTimeoutRef.current = setTimeout(() => {
-                if (
-                    !completingMessageRef.current &&
-                    streamingContent !== streamingMessageRef.current
-                ) {
-                    setStreamingContent(streamingMessageRef.current);
-                }
-            }, 16); // Approximately 60fps (1000ms/60 ≈ 16.67ms)
-        },
-        [streamingContent],
-    );
+        const now = performance.now();
+        if (now - lastChunkTimeRef.current < CHUNK_INTERVAL) {
+            requestAnimationFrame(processChunkQueue);
+            return;
+        }
+
+        const chunk = chunkQueueRef.current.shift();
+        const newContent = streamingMessageRef.current + chunk;
+        updateStreamingContent(newContent);
+        lastChunkTimeRef.current = now;
+
+        if (chunkQueueRef.current.length > 0) {
+            requestAnimationFrame(processChunkQueue);
+        }
+    }, [updateStreamingContent]);
 
     const processMessageQueue = useCallback(async () => {
         if (
@@ -151,6 +198,12 @@ export function useStreamingMessages({ chat, updateChatHook }) {
 
             if (info) {
                 try {
+                    // Skip processing if info starts with "ERROR:"
+                    if (typeof info === "string" && info.startsWith("ERROR:")) {
+                        console.warn("Skipping error info:", info);
+                        return;
+                    }
+
                     const parsedInfo =
                         typeof info === "string"
                             ? JSON.parse(info)
@@ -222,14 +275,27 @@ export function useStreamingMessages({ chat, updateChatHook }) {
                 }
 
                 if (content) {
-                    updateStreamingContent(
-                        streamingMessageRef.current + content,
-                    );
+                    // Break content into smaller chunks and queue them
+                    const chunks = chunkText(content);
+                    chunkQueueRef.current.push(...chunks);
+
+                    // Start processing chunks if not already processing
+                    if (chunkQueueRef.current.length > 0) {
+                        requestAnimationFrame(processChunkQueue);
+                    }
                 }
             }
 
             if (progress === 1) {
-                await completeMessage();
+                // Wait for all chunks to be processed before completing
+                const waitForChunks = () => {
+                    if (chunkQueueRef.current.length > 0) {
+                        setTimeout(waitForChunks, 10);
+                        return;
+                    }
+                    completeMessage();
+                };
+                waitForChunks();
             }
         } catch (e) {
             console.error("Failed to process subscription data:", e);
@@ -246,10 +312,10 @@ export function useStreamingMessages({ chat, updateChatHook }) {
         }
     }, [
         chat,
-        updateStreamingContent,
         completeMessage,
         isTitleUpdateInProgress,
         updateChatHook,
+        processChunkQueue,
     ]);
 
     useSubscription(SUBSCRIPTIONS.REQUEST_PROGRESS, {
