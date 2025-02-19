@@ -12,7 +12,6 @@ import rehypeRaw from "rehype-raw";
 import remarkMath from "remark-math";
 import "katex/dist/katex.min.css";
 import { visit } from "unist-util-visit";
-import SmartImage from "./SmartImage";
 
 function transformToCitation(content) {
     return content
@@ -97,7 +96,7 @@ function convertMessageToMarkdown(message) {
             // Use message-specific position of the image as the stable key
             const stableKey = `${message.id}-img-${imageIndex++}`;
             return (
-                <SmartImage
+                <img
                     key={stableKey}
                     src={src}
                     alt={alt || ""}

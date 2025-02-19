@@ -337,11 +337,26 @@ function MessageList({
     const prevMessageIdsRef = React.useRef(
         messages.map((m) => m?.id).join(","),
     );
+    const [forceScroll, setForceScroll] = React.useState(false);
+    const prevStreamingContentRef = React.useRef(streamingContent);
 
     const chat = useGetActiveChat()?.data;
     const updateChat = useUpdateChat();
     const codeRequestId = chat?.codeRequestId;
     const getAutogenRun = useGetAutogenRun(codeRequestId);
+
+    // Add effect to handle streaming content updates
+    React.useEffect(() => {
+        if (
+            isStreaming &&
+            streamingContent !== prevStreamingContentRef.current
+        ) {
+            setForceScroll(true);
+            prevStreamingContentRef.current = streamingContent;
+        } else if (!isStreaming) {
+            setForceScroll(false);
+        }
+    }, [isStreaming, streamingContent]);
 
     const setCodeRequestFinalData = useCallback(
         (data) => {
@@ -589,49 +604,51 @@ function MessageList({
     const loadComplete = messageLoadState.every((m) => m.loaded);
 
     return (
-        <>
-            <ScrollToBottom loadComplete={loadComplete}>
+        <ScrollToBottom loadComplete={loadComplete} forceScroll={forceScroll}>
+            <div className="flex flex-col">
                 {messages.length === 0 && !isStreaming && (
                     <div className="no-message-message text-gray-400">
                         {t("Send a message to start a conversation")}
                     </div>
                 )}
-                <MessageListContent
-                    messages={messages}
-                    renderMessage={renderMessage}
-                    handleMessageLoad={handleMessageLoad}
-                    isVideoUrl={isVideoUrl}
-                    isAudioUrl={isAudioUrl}
-                    getExtension={getExtension}
-                    getFilename={getFilename}
-                    getYoutubeEmbedUrl={getYoutubeEmbedUrl}
-                />
-                {isStreaming && (
-                    <StreamingMessage
-                        content={streamingContent}
-                        bot={bot}
-                        aiName={aiName}
+                <div className="flex-1 overflow-hidden">
+                    <MessageListContent
+                        messages={messages}
+                        renderMessage={renderMessage}
+                        handleMessageLoad={handleMessageLoad}
+                        isVideoUrl={isVideoUrl}
+                        isAudioUrl={isAudioUrl}
+                        getExtension={getExtension}
+                        getFilename={getFilename}
+                        getYoutubeEmbedUrl={getYoutubeEmbedUrl}
                     />
-                )}
-                {loading && !isStreaming && (
-                    <div className="flex gap-4">
-                        <div className="mt-1 ms-1 mb-1 h-4">
-                            <Loader />
-                        </div>
-                        {codeRequestId && (
-                            <div className="border pt-5 pb-3 px-7 rounded-md bg-white animate-fade-in">
-                                <ProgressUpdate
-                                    requestId={codeRequestId}
-                                    setFinalData={setCodeRequestFinalData}
-                                    initialText={"🤖 Agent coding..."}
-                                    codeAgent={true}
-                                />
+                    {isStreaming && (
+                        <StreamingMessage
+                            content={streamingContent}
+                            bot={bot}
+                            aiName={aiName}
+                        />
+                    )}
+                    {loading && !isStreaming && (
+                        <div className="flex gap-4">
+                            <div className="mt-1 ms-1 mb-1 h-4">
+                                <Loader />
                             </div>
-                        )}
-                    </div>
-                )}
-            </ScrollToBottom>
-        </>
+                            {codeRequestId && (
+                                <div className="border pt-5 pb-3 px-7 rounded-md bg-white animate-fade-in">
+                                    <ProgressUpdate
+                                        requestId={codeRequestId}
+                                        setFinalData={setCodeRequestFinalData}
+                                        initialText={"🤖 Agent coding..."}
+                                        codeAgent={true}
+                                    />
+                                </div>
+                            )}
+                        </div>
+                    )}
+                </div>
+            </div>
+        </ScrollToBottom>
     );
 }
 

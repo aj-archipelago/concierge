@@ -28,7 +28,10 @@ const StreamingContent = React.memo(function StreamingContent({
 
     useEffect(() => {
         if (contentRef.current) {
-            onContentUpdate(contentRef.current);
+            // Ensure we call onContentUpdate after the content has been rendered
+            requestAnimationFrame(() => {
+                onContentUpdate(contentRef.current);
+            });
         }
     }, [content, onContentUpdate]);
 
@@ -47,7 +50,6 @@ const StreamingMessage = React.memo(function StreamingMessage({
     bot,
     aiName,
 }) {
-    const messageRef = useRef(null);
     const contentNodeRef = useRef(null);
     const [loaderPosition, setLoaderPosition] = useState({ x: 0, y: 0 });
     const [showLoader, setShowLoader] = useState(false);
@@ -103,7 +105,11 @@ const StreamingMessage = React.memo(function StreamingMessage({
             const loaderHeight = 16;
 
             setLoaderPosition({
-                x: rect.right - contentRect.left + Math.min(fontSize * 0.25, 4),
+                x:
+                    rect.right -
+                    contentRect.left +
+                    Math.min(fontSize * 0.25, 4) +
+                    5,
                 y: textMiddle - contentRect.top - loaderHeight / 2 - 3,
             });
         }
@@ -156,20 +162,6 @@ const StreamingMessage = React.memo(function StreamingMessage({
         };
     }, []);
 
-    // Scroll into view effect
-    useEffect(() => {
-        const scrollTimeout = setTimeout(() => {
-            if (messageRef.current) {
-                messageRef.current.scrollIntoView({
-                    behavior: "smooth",
-                    block: "end",
-                });
-            }
-        }, 100);
-
-        return () => clearTimeout(scrollTimeout);
-    }, [content]);
-
     let rowHeight = "h-12 [.docked_&]:h-10";
     let basis =
         "min-w-[3rem] basis-12 [.docked_&]:basis-10 [.docked_&]:min-w-[2.5rem]";
@@ -204,10 +196,7 @@ const StreamingMessage = React.memo(function StreamingMessage({
     }, [bot, getLogo, language, basis, buttonWidthClass, rowHeight]);
 
     return (
-        <div
-            ref={messageRef}
-            className="flex bg-sky-50 ps-1 pt-1 relative group"
-        >
+        <div className="flex bg-sky-50 ps-1 pt-1 relative group">
             <div className={classNames(basis)}>{avatar}</div>
             <div
                 className={classNames(

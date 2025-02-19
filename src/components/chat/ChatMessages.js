@@ -47,17 +47,15 @@ const ChatMessages = React.memo(function ChatMessages({
                 />
             </div>
             <div className="grow overflow-auto chat-message-list flex flex-col">
-                <div className="flex-1">
-                    <MessageList
-                        messages={messages}
-                        loading={loading && !isStreaming}
-                        chatId={chatId}
-                        bot={container === "codebox" ? "code" : "chat"}
-                        streamingContent={streamingContent}
-                        isStreaming={isStreaming}
-                        aiName={aiName}
-                    />
-                </div>
+                <MessageList
+                    messages={messages}
+                    loading={loading && !isStreaming}
+                    chatId={chatId}
+                    bot={container === "codebox" ? "code" : "chat"}
+                    streamingContent={streamingContent}
+                    isStreaming={isStreaming}
+                    aiName={aiName}
+                />
             </div>
             <div>
                 <MessageInput
