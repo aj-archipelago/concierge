@@ -1,4 +1,4 @@
-import React, { useContext, useCallback, useMemo } from "react";
+import React, { useContext, useCallback, useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import dynamic from "next/dynamic";
 import { AuthContext } from "../../App.js";
@@ -23,9 +23,12 @@ const ChatMessages = React.memo(function ChatMessages({
     const { user } = useContext(AuthContext);
     const { t } = useTranslation();
     const { aiName } = user;
+    const messageListRef = useRef(null);
 
     const handleSendCallback = useCallback(
         (text) => {
+            // Reset scroll state when user sends a message
+            messageListRef.current?.scrollBottomRef?.current?.resetScrollState();
             onSend(text);
         },
         [onSend],
@@ -48,6 +51,7 @@ const ChatMessages = React.memo(function ChatMessages({
             </div>
             <div className="grow overflow-auto chat-message-list flex flex-col">
                 <MessageList
+                    ref={messageListRef}
                     messages={messages}
                     loading={loading && !isStreaming}
                     chatId={chatId}

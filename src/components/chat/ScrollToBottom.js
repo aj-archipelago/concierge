@@ -1,64 +1,86 @@
-import React, { useEffect, useRef, useCallback } from "react";
+import React, {
+    useEffect,
+    useRef,
+    useCallback,
+    useImperativeHandle,
+    forwardRef,
+} from "react";
 
-const ScrollToBottom = ({ children, loadComplete, forceScroll }) => {
+const ScrollToBottom = forwardRef(({ children, loadComplete }, ref) => {
     const containerRef = useRef(null);
-    const lastScrollTopRef = useRef(0);
-    const lastScrollHeightRef = useRef(0);
-
-    const shouldAutoScroll = useCallback(() => {
-        if (!containerRef.current) return true;
-
-        const { scrollTop, scrollHeight, clientHeight } = containerRef.current;
-        // Check if user was already at bottom before content changed
-        const wasAtBottom =
-            lastScrollTopRef.current + clientHeight >=
-            lastScrollHeightRef.current - 10;
-
-        // Update refs for next check
-        lastScrollTopRef.current = scrollTop;
-        lastScrollHeightRef.current = scrollHeight;
-
-        return wasAtBottom || forceScroll;
-    }, [forceScroll]);
+    const userHasScrolledUp = useRef(false);
+    const lastScrollTop = useRef(0);
 
     const scrollToBottom = useCallback(() => {
         if (!containerRef.current) return;
-
-        const { scrollHeight, clientHeight } = containerRef.current;
-        const maxScrollTop = scrollHeight - clientHeight;
-
-        if (maxScrollTop > 0) {
+        
+        // Use RAF to ensure we scroll after the latest render
+        requestAnimationFrame(() => {
+            const { scrollHeight, clientHeight } = containerRef.current;
             containerRef.current.scrollTo({
-                top: maxScrollTop,
+                top: scrollHeight - clientHeight,
                 behavior: "smooth",
             });
-        }
+        });
     }, []);
 
+    // Reset scroll state and scroll to bottom
+    const resetScrollState = useCallback(() => {
+        userHasScrolledUp.current = false;
+        scrollToBottom();
+    }, [scrollToBottom]);
+
+    // Expose reset function to parent
+    useImperativeHandle(
+        ref,
+        () => ({
+            resetScrollState,
+        }),
+        [resetScrollState],
+    );
+
+    // Scroll to bottom on new messages if user hasn't scrolled up
     useEffect(() => {
-        if (shouldAutoScroll()) {
-            // Use requestAnimationFrame to ensure DOM has updated
-            requestAnimationFrame(() => {
-                scrollToBottom();
-            });
+        if (!userHasScrolledUp.current && loadComplete) {
+            scrollToBottom();
         }
-    }, [children, loadComplete, shouldAutoScroll, scrollToBottom, forceScroll]);
+    }, [children, scrollToBottom, loadComplete]);
+
+    // Additional effect to ensure we scroll after all content is loaded
+    useEffect(() => {
+        if (loadComplete && !userHasScrolledUp.current) {
+            scrollToBottom();
+        }
+    }, [loadComplete, scrollToBottom]);
 
     return (
         <div
             ref={containerRef}
             className="overflow-y-auto h-full min-h-0 flex-1 scroll-smooth"
             onScroll={() => {
-                if (containerRef.current) {
-                    const { scrollTop, scrollHeight } = containerRef.current;
-                    lastScrollTopRef.current = scrollTop;
-                    lastScrollHeightRef.current = scrollHeight;
+                if (!containerRef.current) return;
+
+                const { scrollTop, scrollHeight, clientHeight } =
+                    containerRef.current;
+                const isScrollingUp = scrollTop < lastScrollTop.current;
+                lastScrollTop.current = scrollTop;
+
+                // If scrolling up and not already marked as scrolled up
+                if (isScrollingUp && !userHasScrolledUp.current) {
+                    userHasScrolledUp.current = true;
+                }
+
+                // If we reach bottom, re-enable auto-scroll
+                const isAtBottom =
+                    Math.abs(scrollTop + clientHeight - scrollHeight) < 10;
+                if (isAtBottom) {
+                    userHasScrolledUp.current = false;
                 }
             }}
         >
             {children}
         </div>
     );
-};
+});
 
 export default ScrollToBottom;
