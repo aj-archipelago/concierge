@@ -50,7 +50,7 @@ export async function POST(req) {
         const user = await getCurrentUser();
 
         // Create initial progress record
-        const item = await RequestProgress.findOneAndUpdate(
+        await RequestProgress.findOneAndUpdate(
             { requestId },
             {
                 owner: user._id,

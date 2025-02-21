@@ -54,6 +54,7 @@ const App = ({
         ) {
             setUserState(serverUserState);
         }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [serverUserState]);
 
     useEffect(() => {

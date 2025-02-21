@@ -1,4 +1,4 @@
-const { Worker, Queue } = require("bullmq");
+const { Worker } = require("bullmq");
 const Redis = require("ioredis");
 const {
     ApolloClient,
