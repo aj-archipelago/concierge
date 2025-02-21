@@ -16,8 +16,8 @@ const ScrollToBottom = forwardRef(({ children, loadComplete }, ref) => {
 
         const { scrollHeight, clientHeight } = containerRef.current;
         containerRef.current.scrollTo({
-            top: (scrollHeight - clientHeight),
-            behavior: "smooth"
+            top: scrollHeight - clientHeight,
+            behavior: "smooth",
         });
     }, []);
 

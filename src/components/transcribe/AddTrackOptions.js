@@ -571,8 +571,6 @@ function ModelSelector({
     neuralspaceEnabled,
     disabled,
 }) {
-    const { t } = useTranslation();
-
     return (
         <select
             className="lb-select text-sm"

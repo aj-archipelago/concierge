@@ -763,27 +763,33 @@ const MessageList = React.memo(
                                 aiName={aiName}
                             />
                         )}
-                        {loading && !isStreaming && renderMessage({
-                            id: "loading",
-                            sender: "labeeb",
-                            payload: (
-                                <div className="flex gap-4">
-                                    <div className="mt-1 ms-1 mb-1 h-4">
-                                        <Loader />
-                                    </div>
-                                    {codeRequestId && (
-                                        <div className="border pt-5 pb-3 px-7 rounded-md bg-white animate-fade-in">
-                                            <ProgressUpdate
-                                                requestId={codeRequestId}
-                                                setFinalData={setCodeRequestFinalData}
-                                                initialText={"🤖 Agent coding..."}
-                                                codeAgent={true}
-                                            />
+                        {loading &&
+                            !isStreaming &&
+                            renderMessage({
+                                id: "loading",
+                                sender: "labeeb",
+                                payload: (
+                                    <div className="flex gap-4">
+                                        <div className="mt-1 ms-1 mb-1 h-4">
+                                            <Loader />
                                         </div>
-                                    )}
-                                </div>
-                            ),
-                        })}
+                                        {codeRequestId && (
+                                            <div className="border pt-5 pb-3 px-7 rounded-md bg-white animate-fade-in">
+                                                <ProgressUpdate
+                                                    requestId={codeRequestId}
+                                                    setFinalData={
+                                                        setCodeRequestFinalData
+                                                    }
+                                                    initialText={
+                                                        "🤖 Agent coding..."
+                                                    }
+                                                    codeAgent={true}
+                                                />
+                                            </div>
+                                        )}
+                                    </div>
+                                ),
+                            })}
                     </div>
                 </div>
             </ScrollToBottom>
