@@ -13,14 +13,11 @@ const ScrollToBottom = forwardRef(({ children, loadComplete }, ref) => {
 
     const scrollToBottom = useCallback(() => {
         if (!containerRef.current) return;
-        
-        // Use RAF to ensure we scroll after the latest render
-        requestAnimationFrame(() => {
-            const { scrollHeight, clientHeight } = containerRef.current;
-            containerRef.current.scrollTo({
-                top: scrollHeight - clientHeight,
-                behavior: "smooth",
-            });
+
+        const { scrollHeight, clientHeight } = containerRef.current;
+        containerRef.current.scrollTo({
+            top: (scrollHeight - clientHeight),
+            behavior: "smooth"
         });
     }, []);
 
