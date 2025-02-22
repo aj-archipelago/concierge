@@ -111,9 +111,6 @@ export function useStreamingMessages({ chat, updateChatHook }) {
             citations: accumulatedInfoRef.current.citations || [],
         });
 
-        // Clear streaming state first
-        clearStreamingState();
-
         try {
             // Find the last streaming message index, if it exists
             const messages = chat.messages || [];
@@ -139,13 +136,31 @@ export function useStreamingMessages({ chat, updateChatHook }) {
                 updatedMessages.push(newMessage);
             }
 
-            await updateChatHook.mutateAsync({
+            // Update chat with both the message and codeRequestId if we have coding tool info
+            const hasCodeRequest = !!accumulatedInfoRef.current.codeRequestId;
+
+            const updatePayload = {
                 chatId: String(chat._id),
                 messages: updatedMessages,
-                isChatLoading: false,
-            });
+                isChatLoading: hasCodeRequest,
+            };
+
+            if (hasCodeRequest) {
+                updatePayload.codeRequestId =
+                    accumulatedInfoRef.current.codeRequestId;
+                updatePayload.lastCodeRequestId =
+                    accumulatedInfoRef.current.codeRequestId;
+                updatePayload.lastCodeRequestTime = new Date();
+            }
+
+            await updateChatHook.mutateAsync(updatePayload);
+
+            // Clear streaming state AFTER we've used the accumulated info
+            clearStreamingState();
         } catch (error) {
             console.error("Failed to complete message:", error);
+            // Still clear state even if there's an error
+            clearStreamingState();
         } finally {
             completingMessageRef.current = false;
         }
@@ -234,25 +249,17 @@ export function useStreamingMessages({ chat, updateChatHook }) {
                         }
                     }
 
-                    // Preserve all existing properties unless explicitly overwritten
-                    const newAccumulatedInfo = {
+                    // Store accumulated info
+                    accumulatedInfoRef.current = {
                         ...accumulatedInfoRef.current,
+                        ...parsedInfo,
                     };
 
-                    // Only update properties that are present in parsedInfo
-                    Object.entries(parsedInfo).forEach(([key, value]) => {
-                        if (value !== undefined && value !== null) {
-                            newAccumulatedInfo[key] = value;
-                        }
-                    });
-
                     // Always preserve citations array
-                    newAccumulatedInfo.citations = [
+                    accumulatedInfoRef.current.citations = [
                         ...(accumulatedInfoRef.current.citations || []),
                         ...(parsedInfo.citations || []),
                     ];
-
-                    accumulatedInfoRef.current = newAccumulatedInfo;
                 } catch (e) {
                     console.error("Failed to parse info block:", e);
                 }
