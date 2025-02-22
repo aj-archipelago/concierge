@@ -8,6 +8,7 @@ import { QUERIES } from "../../graphql";
 import { useGetActiveChat, useUpdateChat } from "../../../app/queries/chats";
 import { useDeleteAutogenRun } from "../../../app/queries/autogen.js";
 import { processImageUrls } from "../../utils/imageUtils";
+import { useStreamingMessages } from "../../hooks/useStreamingMessages";
 
 const contextMessageCount = 50;
 
@@ -15,11 +16,14 @@ function ChatContent({
     displayState = "full",
     container = "chatpage",
     viewingChat = null,
+    streamingEnabled = false,
 }) {
     const { t } = useTranslation();
     const client = useApolloClient();
     const { user } = useContext(AuthContext);
     const activeChat = useGetActiveChat()?.data;
+    const updateChatHook = useUpdateChat();
+    const deleteAutogenRun = useDeleteAutogenRun();
 
     const viewingReadOnlyChat = useMemo(
         () => displayState === "full" && viewingChat && viewingChat.readOnly,
@@ -29,10 +33,17 @@ function ChatContent({
     const chat = viewingReadOnlyChat ? viewingChat : activeChat;
     const chatId = String(chat?._id);
     const memoizedMessages = useMemo(() => chat?.messages || [], [chat]);
-    const updateChatHook = useUpdateChat();
     const publicChatOwner = viewingChat?.owner;
     const isChatLoading = chat?.isChatLoading;
-    const deleteAutogenRun = useDeleteAutogenRun();
+
+    const {
+        isStreaming,
+        streamingContent,
+        stopStreaming,
+        setIsStreaming,
+        setSubscriptionId,
+        clearStreamingState,
+    } = useStreamingMessages({ chat, updateChatHook });
 
     const handleError = useCallback((error) => {
         toast.error(error.message);
@@ -41,6 +52,9 @@ function ChatContent({
     const handleSend = useCallback(
         async (text) => {
             try {
+                // Reset streaming state
+                clearStreamingState();
+
                 // Optimistic update for the user's message
                 const optimisticUserMessage = {
                     payload: text,
@@ -101,14 +115,31 @@ function ChatContent({
                     title: chat?.title,
                     chatId,
                     codeRequestId: codeRequestIdParam,
+                    stream: streamingEnabled,
                 };
 
                 // Perform RAG start query
                 const result = await client.query({
-                    query: QUERIES.RAG_START,
+                    query: QUERIES.SYS_ENTITY_START,
                     variables,
                 });
 
+                // If streaming is enabled, handle subscription setup
+                if (streamingEnabled) {
+                    const subscriptionId =
+                        result.data?.sys_entity_start?.result;
+                    if (subscriptionId) {
+                        // Set streaming state BEFORE setting subscription ID
+                        setIsStreaming(true);
+
+                        // Finally set the subscription ID which will trigger the subscription
+                        setSubscriptionId(subscriptionId);
+
+                        return; // Make sure we return here to prevent non-streaming handling
+                    }
+                }
+
+                // Non-streaming response handling
                 let resultMessage = "";
                 let tool = null;
                 let newTitle = null;
@@ -118,12 +149,14 @@ function ChatContent({
                 try {
                     let resultObj;
                     try {
-                        resultObj = JSON.parse(result.data.rag_start.result);
+                        resultObj = JSON.parse(
+                            result.data.sys_entity_start.result,
+                        );
                     } catch {
-                        resultObj = { response: result.data.rag_start.result };
+                        resultObj = result.data.sys_entity_start.result;
                     }
-                    resultMessage = resultObj?.response || resultObj;
-                    tool = result.data.rag_start.tool;
+                    resultMessage = resultObj;
+                    tool = result.data.sys_entity_start.tool;
                     if (tool) {
                         const toolObj = JSON.parse(tool);
                         toolCallbackName = toolObj?.toolCallbackName;
@@ -256,8 +289,8 @@ function ChatContent({
                     });
                 }
             } catch (error) {
+                setIsStreaming(false);
                 handleError(error);
-                // Update to include both the original user message and the error message
                 await updateChatHook.mutateAsync({
                     chatId: String(chat?._id),
                     messages: [
@@ -284,16 +317,7 @@ function ChatContent({
             }
         },
         // eslint-disable-next-line react-hooks/exhaustive-deps
-        [
-            chat,
-            updateChatHook,
-            client,
-            user,
-            memoizedMessages,
-            handleError,
-            chatId,
-            t,
-        ],
+        [chat, updateChatHook, client, user, memoizedMessages, handleError, t],
     );
 
     useEffect(() => {
@@ -323,6 +347,9 @@ function ChatContent({
             container={container}
             displayState={displayState}
             chatId={chatId}
+            isStreaming={isStreaming}
+            streamingContent={streamingContent}
+            onStopStreaming={stopStreaming}
         />
     );
 }

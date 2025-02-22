@@ -12,8 +12,6 @@ export default function OutputSandbox({ content, height = "300px" }) {
         const setupFrame = async () => {
             try {
                 setIsLoading(true);
-                const doc =
-                    iframe.contentDocument || iframe.contentWindow.document;
 
                 // Create a base tag to handle relative URLs
                 const base = document.createElement("base");

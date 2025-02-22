@@ -310,6 +310,7 @@ export default function TranscribeVideo({
         isYouTubeVideo ? "Gemini" : "Whisper",
     );
     const [transcriptionOption, setTranscriptionOption] = useState(null);
+    // eslint-disable-next-line no-unused-vars
     const [requestId, setRequestId] = useState(null);
     const [loading, setLoading] = useState(false);
     const [currentOperation, setCurrentOperation] = useState("");
@@ -401,6 +402,7 @@ export default function TranscribeVideo({
             setError(e);
             setLoading(false);
         }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [
         url,
         language,
@@ -570,8 +572,6 @@ function ModelSelector({
     neuralspaceEnabled,
     disabled,
 }) {
-    const { t } = useTranslation();
-
     return (
         <select
             className="lb-select text-sm"

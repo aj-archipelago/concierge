@@ -62,7 +62,7 @@ export async function initializeTaxonomies() {
             // will include the same file with two paths:
             // ./filename.json and <absolute-path>/filename.json
             if (dedupedFileNames.includes(filenameOnly)) {
-                return;
+                return null;
             }
 
             const setName = filename.slice(2, -5); // Remove './' and '.json' from the file name

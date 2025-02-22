@@ -96,8 +96,6 @@ console.log("starting worker");
 
 (async () => {
     const connectToDatabase = (await import("../src/db.mjs")).connectToDatabase;
-    const closeDatabaseConnection = (await import("../src/db.mjs"))
-        .closeDatabaseConnection;
 
     await connectToDatabase();
     console.log("Connected to database");

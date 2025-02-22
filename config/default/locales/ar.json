@@ -474,5 +474,12 @@
     "View all": "عرض الكل",
     "No recent or active notifications": "لا يوجد إشعارات مفعلة",
     "View history": "عرض التاريخ",
-    "All notifications": "جميع الإشعارات"
+    "All notifications": "جميع الإشعارات",
+    "Enable streaming responses": "تفعيل الاستجابات المنسية",
+    "Memory backup": "نسخة احتياطية للذاكرة",
+    "Download memory backup": "تنزيل نسخة احتياطية للذاكرة",
+    "Upload memory from backup": "تحميل الذاكرة من النسخة الاحتياطية",
+    "Failed to read the file. Please try again.": "فشل في قراءة الملف. يرجى المحاولة مرة أخرى.",
+    "Failed to parse memory file. Please ensure it is a valid JSON file with the correct memory structure.": "فشل في تحليل ملف الذاكرة. يرجى التأكد من أنه ملف JSON صالح بهيكل الذاكرة الصحيح.",
+    "Invalid memory file format": "تنسيق ملف الذاكرة غير صالح"
 }

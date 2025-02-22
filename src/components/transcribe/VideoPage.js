@@ -465,6 +465,7 @@ function VideoPlayer({
             clearInterval(pollForYT);
             setYoutubePlayer(null);
         };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [videoUrl, isYouTube]);
 
     const handleVideoReady = () => {

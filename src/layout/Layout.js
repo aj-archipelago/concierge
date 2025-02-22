@@ -4,7 +4,6 @@ import { Bars3Icon, XMarkIcon } from "@heroicons/react/24/outline";
 import { MessageCircle } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { Fragment, useContext, useEffect, useRef, useState } from "react";
-import { useTranslation } from "react-i18next";
 import { useDispatch, useSelector } from "react-redux";
 import { Flip, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
@@ -27,7 +26,6 @@ export default function Layout({ children }) {
     const [showTos, setShowTos] = useState(false);
     const statePosition = useSelector((state) => state.chat?.chatBox?.position);
     const dispatch = useDispatch();
-    const { t } = useTranslation();
     const { user } = useContext(AuthContext);
     const pathname = usePathname();
     const { theme } = useContext(ThemeContext);

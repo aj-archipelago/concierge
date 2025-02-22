@@ -154,7 +154,7 @@ const SYS_SAVE_MEMORY = gql`
     }
 `;
 
-const RAG_START = gql`
+const SYS_ENTITY_START = gql`
     query RagStart(
         $chatHistory: [MultiMessage]!
         $dataSources: [String]
@@ -168,8 +168,9 @@ const RAG_START = gql`
         $aiStyle: String
         $title: String
         $codeRequestId: String
+        $stream: Boolean
     ) {
-        rag_start(
+        sys_entity_start(
             chatHistory: $chatHistory
             dataSources: $dataSources
             contextId: $contextId
@@ -182,6 +183,7 @@ const RAG_START = gql`
             aiStyle: $aiStyle
             title: $title
             codeRequestId: $codeRequestId
+            stream: $stream
         ) {
             result
             contextId
@@ -754,7 +756,7 @@ const QUERIES = {
     IMAGE_FLUX,
     SYS_READ_MEMORY,
     SYS_SAVE_MEMORY,
-    RAG_START,
+    SYS_ENTITY_START,
     SYS_ENTITY_CONTINUE,
     EXPAND_STORY,
     FORMAT_PARAGRAPH_TURBO,
@@ -849,7 +851,7 @@ export {
     EXPAND_STORY,
     SYS_READ_MEMORY,
     SYS_SAVE_MEMORY,
-    RAG_START,
+    SYS_ENTITY_START,
     SYS_ENTITY_CONTINUE,
     SELECT_SERVICES,
     SUMMARY,

@@ -14,7 +14,7 @@ import {
     loadingError,
 } from "../../stores/fileUploadSlice";
 import { FaFileCirclePlus } from "react-icons/fa6";
-import { IoCloseCircle } from "react-icons/io5";
+import { IoCloseCircle, IoStopCircle } from "react-icons/io5";
 import { getFilename, isDocumentUrl, isMediaUrl } from "./MyFilePond";
 import { AuthContext } from "../../App";
 import { useAddDocument } from "../../../app/queries/uploadedDocs";
@@ -34,6 +34,8 @@ function MessageInput({
     enableRag,
     placeholder,
     viewingReadOnlyChat,
+    isStreaming,
+    onStopStreaming,
 }) {
     const [inputValue, setInputValue] = useState("");
     const [urlsData, setUrlsData] = useState([]);
@@ -221,22 +223,34 @@ function MessageInput({
                     </div>
                     <div className=" pe-4 ps-3 dark:bg-zinc-100 self-stretch flex rounded-e">
                         <div className="pt-4">
-                            <button
-                                type="submit"
-                                disabled={
-                                    codeRequestId
-                                        ? false
-                                        : loading ||
-                                          inputValue === "" ||
-                                          isUploadingMedia ||
-                                          viewingReadOnlyChat
-                                }
-                                className={classNames(
-                                    "text-base rtl:rotate-180 text-emerald-600 hover:text-emerald-600 disabled:text-gray-300 active:text-gray-800 dark:bg-zinc-100",
-                                )}
-                            >
-                                <RiSendPlane2Fill />
-                            </button>
+                            {isStreaming ? (
+                                <button
+                                    type="button"
+                                    onClick={onStopStreaming}
+                                    className={classNames(
+                                        "text-base text-red-600 hover:text-red-700 active:text-red-800 dark:bg-zinc-100",
+                                    )}
+                                >
+                                    <IoStopCircle />
+                                </button>
+                            ) : (
+                                <button
+                                    type="submit"
+                                    disabled={
+                                        codeRequestId
+                                            ? false
+                                            : loading ||
+                                              inputValue === "" ||
+                                              isUploadingMedia ||
+                                              viewingReadOnlyChat
+                                    }
+                                    className={classNames(
+                                        "text-base rtl:rotate-180 text-emerald-600 hover:text-emerald-600 disabled:text-gray-300 active:text-gray-800 dark:bg-zinc-100",
+                                    )}
+                                >
+                                    <RiSendPlane2Fill />
+                                </button>
+                            )}
                         </div>
                     </div>
                 </form>

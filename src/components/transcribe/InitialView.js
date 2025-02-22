@@ -8,11 +8,10 @@ import {
     DialogTitle,
 } from "@/components/ui/dialog";
 import { TextIcon, VideoIcon } from "lucide-react";
-import { useContext, useState } from "react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import AddTrackDialog from "./AddTrackDialog";
 import VideoInput from "./VideoInput";
-import { LanguageContext } from "../../contexts/LanguageProvider";
 
 export default function InitialView({
     setAddTrackDialogOpen,
@@ -29,7 +28,6 @@ export default function InitialView({
 }) {
     const { t } = useTranslation();
     const [showVideoInput, setShowVideoInput] = useState(false);
-    const { direction } = useContext(LanguageContext);
 
     return (
         <>
