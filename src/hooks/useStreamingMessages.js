@@ -111,6 +111,11 @@ export function useStreamingMessages({ chat, updateChatHook }) {
             citations: accumulatedInfoRef.current.citations || [],
         });
 
+        const codeRequestId = accumulatedInfoRef.current.codeRequestId;
+
+        // Clear streaming state first
+        clearStreamingState();
+
         try {
             // Find the last streaming message index, if it exists
             const messages = chat.messages || [];
@@ -137,7 +142,7 @@ export function useStreamingMessages({ chat, updateChatHook }) {
             }
 
             // Update chat with both the message and codeRequestId if we have coding tool info
-            const hasCodeRequest = !!accumulatedInfoRef.current.codeRequestId;
+            const hasCodeRequest = !!codeRequestId;
 
             const updatePayload = {
                 chatId: String(chat._id),
@@ -146,21 +151,14 @@ export function useStreamingMessages({ chat, updateChatHook }) {
             };
 
             if (hasCodeRequest) {
-                updatePayload.codeRequestId =
-                    accumulatedInfoRef.current.codeRequestId;
-                updatePayload.lastCodeRequestId =
-                    accumulatedInfoRef.current.codeRequestId;
+                updatePayload.codeRequestId = codeRequestId;
+                updatePayload.lastCodeRequestId = codeRequestId;
                 updatePayload.lastCodeRequestTime = new Date();
             }
 
             await updateChatHook.mutateAsync(updatePayload);
-
-            // Clear streaming state AFTER we've used the accumulated info
-            clearStreamingState();
         } catch (error) {
             console.error("Failed to complete message:", error);
-            // Still clear state even if there's an error
-            clearStreamingState();
         } finally {
             completingMessageRef.current = false;
         }
