@@ -167,7 +167,7 @@ function MessageInput({
                     setIsUploadingMedia={setIsUploadingMedia}
                 />
             )}
-            <div className="rounded-md border dark:border-zinc-200">
+            <div className="rounded-md border dark:border-zinc-200 mt-3">
                 <form
                     onSubmit={handleFormSubmit}
                     className="flex items-center rounded-md dark:bg-zinc-100"
