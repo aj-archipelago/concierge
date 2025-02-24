@@ -209,8 +209,8 @@ export default function Layout({ children }) {
                                 ref={contentRef}
                             >
                                 <div
-                                    className={`${"grow"} bg-white dark:border-gray-200 rounded-md border p-4 lg:p-6 overflow-auto`}
-                                    style={{ height: "calc(100vh - 120px)" }}
+                                    className={`grow bg-white dark:border-gray-200 rounded-md border p-3 lg:p-4 lg:pb-3 overflow-auto`}
+                                    style={{ height: "calc(100vh - 105px)" }}
                                 >
                                     {showOptions && (
                                         <UserOptions
@@ -225,7 +225,7 @@ export default function Layout({ children }) {
                                     {children}
                                 </div>
                                 {showChatbox && (
-                                    <div className="hidden sm:block basis-[302px] h-[calc(100vh-120px)]">
+                                    <div className="hidden sm:block basis-[302px] h-[calc(100vh-105px)]">
                                         <ChatBox />
                                     </div>
                                 )}
