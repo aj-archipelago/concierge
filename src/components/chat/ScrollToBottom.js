@@ -26,10 +26,11 @@ const ScrollToBottom = forwardRef(({ children, loadComplete }, ref) => {
     // Check if we're actually at the bottom and retry if not
     const verifyScrollPosition = useCallback(() => {
         if (!containerRef.current || userHasScrolledUp.current) return;
-        
+
         const { scrollTop, scrollHeight, clientHeight } = containerRef.current;
-        const isAtBottom = Math.abs(scrollTop + clientHeight - scrollHeight) < 10;
-        
+        const isAtBottom =
+            Math.abs(scrollTop + clientHeight - scrollHeight) < 10;
+
         if (!isAtBottom && scrollAttempts.current < maxScrollAttempts) {
             // If not at bottom, try scrolling again with a slight delay
             scrollAttempts.current += 1;
@@ -87,7 +88,7 @@ const ScrollToBottom = forwardRef(({ children, loadComplete }, ref) => {
             const timeoutId = setTimeout(() => {
                 verifyScrollPosition();
             }, 300); // Longer delay to catch late DOM updates
-            
+
             return () => clearTimeout(timeoutId);
         }
     }, [loadComplete, verifyScrollPosition]);
