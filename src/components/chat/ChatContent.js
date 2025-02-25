@@ -64,13 +64,16 @@ function ChatContent({
                     position: "single",
                 };
 
+                // Use messages directly without processing
+                const userMessages = [
+                    ...(chat?.messages || []),
+                    optimisticUserMessage,
+                ];
+
                 // Show the user message immediately
                 await updateChatHook.mutateAsync({
                     chatId: String(chat?._id),
-                    messages: [
-                        ...(chat?.messages || []),
-                        optimisticUserMessage,
-                    ],
+                    messages: userMessages,
                     isChatLoading: true,
                 });
 
@@ -222,9 +225,12 @@ function ChatContent({
                     sender: "labeeb",
                 });
 
+                // Use messages directly without processing
+                const currentMessagesToUpdate = currentMessages;
+
                 await updateChatHook.mutateAsync({
                     chatId: String(chat?._id),
-                    messages: currentMessages,
+                    messages: currentMessagesToUpdate,
                     ...(newTitle && { title: newTitle }),
                     isChatLoading: !!toolCallbackName,
                     ...(toolCallbackId && { toolCallbackId }),
@@ -282,42 +288,62 @@ function ChatContent({
                         sender: "labeeb",
                     });
 
+                    // Use messages directly without processing
+                    const finalMessagesToUpdate = finalMessages;
+
                     await updateChatHook.mutateAsync({
                         chatId: String(chat?._id),
-                        messages: finalMessages,
+                        messages: finalMessagesToUpdate,
                         isChatLoading: false,
                     });
                 }
             } catch (error) {
                 setIsStreaming(false);
                 handleError(error);
+
+                // Use error messages directly without processing
+                const errorMessagesToUpdate = [
+                    ...(chat?.messages || []),
+                    {
+                        payload: text,
+                        sender: "user",
+                        sentTime: "just now",
+                        direction: "outgoing",
+                        position: "single",
+                    },
+                    {
+                        payload: t(
+                            "Something went wrong trying to respond to your request. Please try something else or start over to continue.",
+                        ),
+                        sender: "labeeb",
+                        sentTime: "just now",
+                        direction: "incoming",
+                        position: "single",
+                    },
+                ];
+
                 await updateChatHook.mutateAsync({
                     chatId: String(chat?._id),
-                    messages: [
-                        ...(chat?.messages || []),
-                        {
-                            payload: text,
-                            sender: "user",
-                            sentTime: "just now",
-                            direction: "outgoing",
-                            position: "single",
-                        },
-                        {
-                            payload: t(
-                                "Something went wrong trying to respond to your request. Please try something else or start over to continue.",
-                            ),
-                            sender: "labeeb",
-                            sentTime: "just now",
-                            direction: "incoming",
-                            position: "single",
-                        },
-                    ],
+                    messages: errorMessagesToUpdate,
                     isChatLoading: false,
                 });
             }
         },
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-        [chat, updateChatHook, client, user, memoizedMessages, handleError, t],
+        [
+            chat,
+            updateChatHook,
+            client,
+            user,
+            memoizedMessages,
+            handleError,
+            t,
+            chatId,
+            clearStreamingState,
+            deleteAutogenRun,
+            setIsStreaming,
+            setSubscriptionId,
+            streamingEnabled,
+        ],
     );
 
     useEffect(() => {

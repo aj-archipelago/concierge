@@ -31,6 +31,48 @@ const isMediaHelperConfigured = () => {
     }
 };
 
+// Create a WeakMap to store stable IDs for image nodes
+const imageNodeIds = new WeakMap();
+
+// Add a Map to cache IDs by URL to prevent duplicates
+const imageUrlToId = new Map();
+
+// Add a Map to track temporary to permanent URL mappings
+const tempToPermanentUrlMap = new Map();
+
+let nextImageId = 1;
+
+function getStableImageId(src, node = null) {
+    // Check if this is a temporary URL that has a permanent version
+    const permanentUrl = tempToPermanentUrlMap.get(src);
+    const urlToUse = permanentUrl || src;
+
+    // First check if we have an ID for this URL
+    let stableId = imageUrlToId.get(urlToUse);
+    if (!stableId) {
+        // If we have a node, try to get its ID
+        if (node && typeof node === "object") {
+            stableId = imageNodeIds.get(node);
+        }
+        // If still no ID, generate a new one
+        if (!stableId) {
+            stableId = `img-${nextImageId++}`;
+            // Only store in WeakMap if we have a valid node
+            if (node && typeof node === "object") {
+                imageNodeIds.set(node, stableId);
+            }
+        }
+        // Cache the ID for this URL
+        imageUrlToId.set(urlToUse, stableId);
+
+        // If this is a temporary URL, also store the ID for the permanent URL
+        if (permanentUrl) {
+            imageUrlToId.set(permanentUrl, stableId);
+        }
+    }
+    return stableId;
+}
+
 // Common image extensions that we want to process
 const IMAGE_EXTENSIONS = [".jpg", ".jpeg", ".png", ".webp", ".gif"];
 
@@ -49,6 +91,16 @@ function isImageUrl(url) {
         const urlLower = url.toLowerCase();
         return IMAGE_EXTENSIONS.some((ext) => urlLower.endsWith(ext));
     }
+}
+
+// Preload an image to ensure it's in the browser cache
+function preloadImage(url) {
+    return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => resolve(url);
+        img.onerror = (err) => reject(err);
+        img.src = url;
+    });
 }
 
 const MEDIA_HELPER_TIMEOUT_MS = 5000; // 5 seconds timeout
@@ -90,6 +142,10 @@ async function processImageUrls(message, serverUrl) {
         }
     }
 
+    // Create a map of replacements to apply
+    const replacements = [];
+    const preloadPromises = [];
+
     for (const { url, description, fullMatch } of matches) {
         if (isImageUrl(url)) {
             try {
@@ -114,16 +170,30 @@ async function processImageUrls(message, serverUrl) {
 
                     if (uploadResponse.ok) {
                         const data = await uploadResponse.json();
+
+                        // Store the mapping from temporary to permanent URL
+                        tempToPermanentUrlMap.set(url, data.url);
+
+                        // Preload the permanent image and track the promise
+                        preloadPromises.push(
+                            preloadImage(data.url).catch(() => {}),
+                        );
+
+                        // Store the replacement to apply
                         if (description !== null) {
                             // Replace markdown image with preserved description
-                            message = message.replace(
-                                fullMatch,
-                                `![${description}](${data.url})`,
-                            );
+                            replacements.push({
+                                original: fullMatch,
+                                replacement: `![${description}](${data.url})`,
+                            });
                         } else {
                             // Replace regular URL
-                            message = message.replace(url, data.url);
+                            replacements.push({
+                                original: url,
+                                replacement: data.url,
+                            });
                         }
+
                         console.log(
                             "Replaced temporary image URL with permanent URL:",
                             data.url,
@@ -143,9 +213,30 @@ async function processImageUrls(message, serverUrl) {
             }
         }
     }
-    return message;
+
+    // Wait for all images to preload (with a reasonable timeout)
+    if (preloadPromises.length > 0) {
+        await Promise.race([
+            Promise.all(preloadPromises),
+            new Promise((resolve) => setTimeout(resolve, 2000)),
+        ]);
+    }
+
+    // Apply all replacements
+    let processedMessage = message;
+    for (const { original, replacement } of replacements) {
+        processedMessage = processedMessage.replace(original, replacement);
+    }
+
+    return processedMessage;
 }
 
-// Export in a way that works for both CommonJS and ES modules
-module.exports = { processImageUrls };
-module.exports.default = { processImageUrls };
+export {
+    getStableImageId,
+    imageNodeIds,
+    imageUrlToId,
+    tempToPermanentUrlMap,
+    IMAGE_EXTENSIONS,
+    isImageUrl,
+    processImageUrls,
+};

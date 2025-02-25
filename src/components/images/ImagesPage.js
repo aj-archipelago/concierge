@@ -14,6 +14,7 @@ import {
     TooltipContent,
     TooltipProvider,
 } from "../../../@/components/ui/tooltip";
+import ChatImage from "./ChatImage";
 
 function ImagesPage() {
     const [prompt, setPrompt] = useState("");
@@ -417,11 +418,12 @@ function ImageTile({
 
             <div className="image-wrapper" onClick={onClick}>
                 {!expired && url && !loadError ? (
-                    <img
+                    <ChatImage
                         src={url}
                         alt={prompt}
                         onError={() => setLoadError(true)}
                         onLoad={() => setLoadError(false)}
+                        className="w-full h-full object-cover object-center"
                     />
                 ) : (
                     <div className="h-full bg-gray-50 p-4 text-sm flex items-center justify-center">
@@ -566,8 +568,8 @@ function ImageModal({ show, image, onHide }) {
         <Modal show={show} onHide={onHide} title={t("Generated image")}>
             <div className="flex flex-col gap-4 sm:flex-row sm:gap-6">
                 <div className="sm:basis-9/12">
-                    <img
-                        className="rounded-md"
+                    <ChatImage
+                        className="rounded-md w-full"
                         src={image?.url}
                         alt={image?.prompt}
                     />
