@@ -20,6 +20,24 @@ export async function getRecentChatsOfCurrentUser() {
         { _id: 1, title: 1, titleSetByUser: 1 },
     );
 
+    // For chats without a custom title, fetch the first message separately
+    // This approach avoids truncating the messages array in the main cache
+    for (const chat of recentChatsUnordered) {
+        if (!chat.title || chat.title === "New Chat" || chat.title === "") {
+            const chatWithFirstMessage = await Chat.findOne(
+                { _id: chat._id },
+                { messages: { $slice: 1 } },
+            );
+            if (
+                chatWithFirstMessage &&
+                chatWithFirstMessage.messages &&
+                chatWithFirstMessage.messages.length > 0
+            ) {
+                chat._doc.firstMessage = chatWithFirstMessage.messages[0];
+            }
+        }
+    }
+
     const recentChatsMap = recentChatsUnordered.reduce((acc, chat) => {
         acc[chat._id] = chat;
         return acc;
