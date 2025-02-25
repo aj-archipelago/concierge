@@ -24,6 +24,7 @@ import { useGetActiveChat, useUpdateChat } from "../../../app/queries/chats";
 import ProgressUpdate from "../editor/ProgressUpdate";
 import { useGetAutogenRun } from "../../../app/queries/autogen";
 import StreamingMessage from "./StreamingMessage";
+import ChatImage from "../images/ChatImage";
 
 const hasImages = (message) => {
     if (!Array.isArray(message.payload)) return false;
@@ -200,72 +201,6 @@ const MemoizedMarkdownMessage = React.memo(
     },
 );
 
-// Add this component before MessageListContent
-const PreloadedImage = React.memo(function PreloadedImage({
-    src,
-    alt,
-    className,
-    style,
-    onLoad,
-}) {
-    const [permanentSrc, setPermanentSrc] = React.useState(src);
-    const [isLoading, setIsLoading] = React.useState(true);
-    const isMounted = React.useRef(true);
-    const permanentImageLoaded = React.useRef(false);
-
-    React.useEffect(() => {
-        isMounted.current = true;
-        setIsLoading(true);
-        permanentImageLoaded.current = false;
-
-        return () => {
-            isMounted.current = false;
-        };
-    }, [src]);
-
-    React.useEffect(() => {
-        const img = new Image();
-        const targetSrc =
-            src.includes("/temp/") || src.includes("?temp=true")
-                ? src.replace("/temp/", "/").replace("?temp=true", "")
-                : src;
-
-        img.onload = () => {
-            if (isMounted.current) {
-                setPermanentSrc(targetSrc);
-                setIsLoading(false);
-                permanentImageLoaded.current = true;
-                onLoad?.();
-            }
-        };
-
-        img.src = targetSrc;
-
-        return () => {
-            img.onload = null;
-        };
-    }, [src, onLoad]);
-
-    return (
-        <img
-            src={permanentSrc}
-            alt={alt}
-            className={className}
-            style={{
-                ...style,
-                opacity: isLoading ? 0.3 : 1,
-                transition: "opacity 0.3s ease-in-out",
-            }}
-            onLoad={() => {
-                if (!isLoading && !permanentImageLoaded.current) {
-                    setIsLoading(false);
-                    onLoad?.();
-                }
-            }}
-        />
-    );
-});
-
 // Create a memoized component for the static message list content
 const MessageListContent = React.memo(function MessageListContent({
     messages,
@@ -384,13 +319,9 @@ const MessageListContent = React.memo(function MessageListContent({
 
                         return (
                             <div key={src}>
-                                <PreloadedImage
+                                <ChatImage
                                     src={src}
                                     alt="uploadedimage"
-                                    className="max-h-[20%] max-w-[60%] [.docked_&]:max-w-[90%] rounded border-0 my-2 shadow-lg dark:shadow-black/30"
-                                    style={{
-                                        backgroundColor: "transparent",
-                                    }}
                                     onLoad={() =>
                                         handleMessageLoad(newMessage.id)
                                     }
