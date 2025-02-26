@@ -40,6 +40,7 @@ export const fetchUrlSource = async (url) => {
                         videoUrl: embedUrl,
                         url: url,
                         isYouTube: true,
+                        fromExternalChannel: true,
                     },
                 ],
             };
