@@ -229,13 +229,17 @@ function EditableTranscriptSelect({
     }
 
     return (
-        <div className="mb-2">
+        <div className="">
+            <div className="flex gap-2 items-center text-sky-600 font-semibold mb-2">
+                <TextIcon className="h-4 w-4" />
+                <div className="text-sm">{t("Subtitles and transcripts")}</div>
+            </div>
             {editing ? (
                 <div className="flex gap-2">
                     <input
                         autoFocus
                         type="text"
-                        className="text-md w-[300px] font-medium rounded-md py-1.5 my-[1px] px-3 border border-gray-300"
+                        className="w-[300px] text-sm font-medium rounded-md py-1 my-[1px] px-3 border border-gray-300"
                         value={tempName}
                         onChange={(e) => setTempName(e.target.value)}
                         onKeyDown={(e) => {
@@ -266,69 +270,74 @@ function EditableTranscriptSelect({
                 </div>
             ) : (
                 <>
-                    <div className="flex gap-2 items-center text-sky-600 font-semibold mb-2">
-                        <TextIcon className="h-4 w-4" />
-                        <div className="text-sm">
-                            {t("Subtitles and transcripts")}
-                        </div>
-                    </div>
                     <div className="flex flex-col md:flex-row gap-2 justify-between ">
                         <div className="flex gap-2 grow">
-                            <Select
-                                value={activeTranscript.toString()}
-                                onValueChange={(value) =>
-                                    setActiveTranscript(parseInt(value))
-                                }
-                            >
-                                <SelectTrigger className="w-[300px] py-1 text-md font-medium text-start">
-                                    <SelectValue>
-                                        {transcripts[activeTranscript]?.name ||
-                                            `Transcript ${activeTranscript + 1}`}
-                                    </SelectValue>
-                                </SelectTrigger>
-                                <SelectContent className="overflow-hidden">
-                                    {transcripts.map((transcript, index) => (
-                                        <SelectItem
-                                            className="w-[500px] border-b last:border-b-0 border-gray-100"
-                                            key={index}
-                                            value={index.toString()}
-                                        >
-                                            <div className="flex flex-col py-2 w-full">
-                                                <div className="flex w-full items-center justify-between gap-4">
-                                                    <div className="grow ">
-                                                        {transcript.name ||
-                                                            `Transcript ${index + 1}`}
-                                                    </div>
-                                                    <span
-                                                        className={`inline-flex items-center px-2 py-0.5 text-xs font-medium rounded-md 
+                            <div>
+                                <Select
+                                    value={activeTranscript.toString()}
+                                    onValueChange={(value) =>
+                                        setActiveTranscript(parseInt(value))
+                                    }
+                                >
+                                    <SelectTrigger className="w-[300px] py-1 h-8 font-medium text-start">
+                                        <SelectValue>
+                                            {transcripts[activeTranscript]
+                                                ?.name ||
+                                                `Transcript ${activeTranscript + 1}`}
+                                        </SelectValue>
+                                    </SelectTrigger>
+                                    <SelectContent className="overflow-hidden">
+                                        {transcripts.map(
+                                            (transcript, index) => (
+                                                <SelectItem
+                                                    className="w-[500px] border-b last:border-b-0 border-gray-100"
+                                                    key={index}
+                                                    value={index.toString()}
+                                                >
+                                                    <div className="flex flex-col py-2 w-full">
+                                                        <div className="flex w-full items-center justify-between gap-4">
+                                                            <div className="grow ">
+                                                                {transcript.name ||
+                                                                    `Transcript ${index + 1}`}
+                                                            </div>
+                                                            <span
+                                                                className={`inline-flex items-center px-2 py-0.5 text-xs font-medium rounded-md 
                                                 ${transcripts[index].format === "vtt" ? "bg-green-100 text-green-800" : "bg-orange-100 text-orange-800"}`}
-                                                    >
-                                                        {transcripts[index]
-                                                            .format === "vtt"
-                                                            ? t("Subtitles")
-                                                            : t("Transcript")}
-                                                    </span>
-                                                </div>
+                                                            >
+                                                                {transcripts[
+                                                                    index
+                                                                ].format ===
+                                                                "vtt"
+                                                                    ? t(
+                                                                          "Subtitles",
+                                                                      )
+                                                                    : t(
+                                                                          "Transcript",
+                                                                      )}
+                                                            </span>
+                                                        </div>
 
-                                                <div className="flex items-center gap-2 justify-between">
-                                                    <div className="text-xs text-gray-400 flex items-center">
-                                                        <ReactTimeAgo
-                                                            date={
-                                                                transcript.timestamp
-                                                                    ? new Date(
-                                                                          transcript.timestamp,
-                                                                      ).getTime()
-                                                                    : Date.now()
-                                                            }
-                                                            locale="en-US"
-                                                        />
+                                                        <div className="flex items-center gap-2 justify-between">
+                                                            <div className="text-xs text-gray-400 flex items-center">
+                                                                <ReactTimeAgo
+                                                                    date={
+                                                                        transcript.timestamp
+                                                                            ? new Date(
+                                                                                  transcript.timestamp,
+                                                                              ).getTime()
+                                                                            : Date.now()
+                                                                    }
+                                                                    locale="en-US"
+                                                                />
+                                                            </div>
+                                                        </div>
                                                     </div>
-                                                </div>
-                                            </div>
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
+                                                </SelectItem>
+                                            ),
+                                        )}
+                                    </SelectContent>
+                                </Select>
+                            </div>
                             <div className="flex gap-2 items-center">
                                 <AddTrackButton
                                     transcripts={transcripts}
@@ -337,7 +346,7 @@ function EditableTranscriptSelect({
                                     activeTranscript={activeTranscript}
                                     trigger={
                                         <button className="flex items-center text-sky-600 hover:text-sky-700">
-                                            <PlusCircleIcon className="h-6 w-6" />
+                                            <PlusCircleIcon className="h-5 w-5" />
                                         </button>
                                     }
                                     apolloClient={apolloClient}

@@ -200,7 +200,7 @@ function TranscriptView({
     };
 
     return (
-        <div className="transcription-taxonomy-container flex flex-col gap-2 overflow-y-auto mt-6">
+        <div className="transcription-taxonomy-container flex flex-col gap-2 overflow-y-auto mt-2">
             <div className="transcription-section relative">
                 {isEditing ? (
                     <div className="border border-gray-300 rounded-md p-2.5 bg-gray-50">
