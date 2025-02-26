@@ -38,10 +38,21 @@ export function useGetActiveChats() {
             activeChats.forEach((chat) => {
                 const existingChat =
                     queryClient.getQueryData(["chat", chat._id]) || {};
-                queryClient.setQueryData(["chat", chat._id], {
-                    ...existingChat,
-                    ...chat,
-                });
+
+                // If chat has a firstMessage property but the existing chat has a full messages array,
+                // keep the existing messages and don't overwrite with the truncated version
+                const updatedChat = { ...existingChat, ...chat };
+
+                // Preserve the full messages array if it exists in the cache
+                if (
+                    chat.firstMessage &&
+                    existingChat.messages &&
+                    existingChat.messages.length > 0
+                ) {
+                    updatedChat.messages = existingChat.messages;
+                }
+
+                queryClient.setQueryData(["chat", chat._id], updatedChat);
             });
             return activeChats;
         },

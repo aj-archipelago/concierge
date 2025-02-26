@@ -87,11 +87,25 @@ export default React.forwardRef(function Sidebar(_, ref) {
             return {
                 ...item,
                 children: items.map((chat) => ({
-                    name:
-                        chat?.title && chat.title !== "New Chat"
-                            ? chat.title
-                            : (chat?.messages && chat?.messages[0]?.payload) ||
-                              t("New Chat"),
+                    name: (() => {
+                        // If there's a custom title, use it
+                        if (chat?.title && chat.title !== "New Chat") {
+                            return chat.title;
+                        }
+
+                        // If there's a firstMessage property (from backend), use it
+                        if (chat?.firstMessage?.payload) {
+                            return chat.firstMessage.payload;
+                        }
+
+                        // If there's a message in the messages array, use it
+                        if (chat?.messages && chat?.messages[0]?.payload) {
+                            return chat.messages[0].payload;
+                        }
+
+                        // Otherwise use "New Chat"
+                        return t("New Chat");
+                    })(),
                     href: chat._id ? `/chat/${chat._id}` : ``,
                     key: chat._id,
                 })),
