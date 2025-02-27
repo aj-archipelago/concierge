@@ -17,7 +17,7 @@ function CopyButton({ item, className = "absolute top-1 end-1 " }) {
     const copyFormattedText = async (text) => {
         // If text is undefined or null, use an empty string instead
         const textToCopy = text || "";
-        
+
         try {
             const html = marked(textToCopy);
             const blob = new Blob([html], { type: "text/html" });

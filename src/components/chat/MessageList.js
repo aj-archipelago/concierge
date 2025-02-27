@@ -585,7 +585,11 @@ const MessageList = React.memo(
                                     </div>
                                 )}
                                 <CopyButton
-                                    item={typeof message.payload === 'string' ? message.payload : message.text}
+                                    item={
+                                        typeof message.payload === "string"
+                                            ? message.payload
+                                            : message.text
+                                    }
                                     className="copy-button opacity-0 group-hover:opacity-60 hover:opacity-100 transition-opacity"
                                 />
                             </div>
@@ -633,7 +637,11 @@ const MessageList = React.memo(
                             className="flex ps-1 pt-1 relative group"
                         >
                             <CopyButton
-                                item={typeof message.payload === 'string' ? message.payload : ''}
+                                item={
+                                    typeof message.payload === "string"
+                                        ? message.payload
+                                        : ""
+                                }
                                 className="absolute top-3 end-3 opacity-0 group-hover:opacity-60 hover:opacity-100 transition-opacity"
                             />
                             <div className={classNames(basis, "py-0")}>
