@@ -1,5 +1,5 @@
 const pkg = require("bullmq");
-const { Worker, Queue, QueueScheduler } = pkg;
+const { Worker, Queue } = pkg;
 const {
     buildDigestsForAllUsers,
     buildDigestForSingleUser,
@@ -8,6 +8,8 @@ const Redis = require("ioredis");
 const queueName = "digest-build";
 const { REDIS_CONNECTION_STRING } = process.env;
 const { Logger } = require("./logger.js");
+const { DIGEST_REBUILD_INTERVAL_HOURS = 4 } = process.env;
+const requestProgressWorker = require("./request-progress-worker");
 
 const connection = new Redis(
     REDIS_CONNECTION_STRING || "redis://localhost:6379",
@@ -20,12 +22,11 @@ const digestBuild = new Queue(queueName, {
     connection,
 });
 
-const dailyRepeat = {
-    // 6am UTC
-    pattern: "0 6 * * *",
+const nHourlyRepeat = {
+    pattern: `0 0/${DIGEST_REBUILD_INTERVAL_HOURS} * * *`,
 };
 
-const DAILY_BUILD_JOB = "daily-build";
+const PERIODIC_BUILD_JOB = "periodic-build";
 const SINGLE_BUILD_JOB = "build-digest";
 
 (async function main() {
@@ -38,10 +39,10 @@ const SINGLE_BUILD_JOB = "build-digest";
     }
 
     await digestBuild.add(
-        DAILY_BUILD_JOB,
+        PERIODIC_BUILD_JOB,
         {}, // data
         {
-            repeat: dailyRepeat,
+            repeat: nHourlyRepeat,
         },
     );
 })();
@@ -59,7 +60,7 @@ const worker = new Worker(
 
             const logger = new Logger(job);
 
-            if (job.name === DAILY_BUILD_JOB) {
+            if (job.name === PERIODIC_BUILD_JOB) {
                 logger.log("building digests for all users");
                 await buildDigestsForAllUsers(logger, job);
             } else if (job.name === SINGLE_BUILD_JOB) {
@@ -98,12 +99,11 @@ console.log("starting worker");
     const closeDatabaseConnection = (await import("../src/db.mjs"))
         .closeDatabaseConnection;
 
-    console.log(
-        "Connecting to database",
-        connectToDatabase,
-        closeDatabaseConnection,
-    );
     await connectToDatabase();
     console.log("Connected to database");
+
+    // Add test job and run workers
+    // await requestProgressWorker.addTestJob();
+    requestProgressWorker.run();
+    worker.run();
 })();
-worker.run();

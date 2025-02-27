@@ -33,19 +33,28 @@ export const AuthContext = React.createContext({});
 
 const STATE_DEBOUNCE_TIME = 1000;
 
-const App = ({ children, language, theme, serverUrl, neuralspaceEnabled }) => {
+const App = ({
+    children,
+    language,
+    theme,
+    serverUrl,
+    graphQLPublicEndpoint,
+    neuralspaceEnabled,
+}) => {
     const { data: currentUser } = useCurrentUser();
     const { data: serverUserState } = useUserState();
     const updateUserState = useUpdateUserState();
-    const [userState, setUserState] = useState(serverUserState || {});
+    const [userState, setUserState] = useState(serverUserState);
     const debouncedUserState = useDebounce(userState, STATE_DEBOUNCE_TIME);
 
     useEffect(() => {
-        // set user state from server if it exists
-        if (!userState && serverUserState) {
+        if (
+            JSON.stringify(userState || {}) !==
+            JSON.stringify(serverUserState || {})
+        ) {
             setUserState(serverUserState);
         }
-    }, [userState, serverUserState]);
+    }, [serverUserState]);
 
     useEffect(() => {
         if (i18next.language !== language) {
@@ -56,6 +65,7 @@ const App = ({ children, language, theme, serverUrl, neuralspaceEnabled }) => {
 
     useEffect(() => {
         updateUserState.mutate(debouncedUserState);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [debouncedUserState]);
 
     if (!currentUser) {
@@ -63,15 +73,26 @@ const App = ({ children, language, theme, serverUrl, neuralspaceEnabled }) => {
     }
 
     const debouncedUpdateUserState = (value) => {
-        setUserState({
-            ...userState,
-            ...value,
-        });
+        if (typeof value === "function") {
+            setUserState((prev) => {
+                return {
+                    ...prev,
+                    ...value(prev),
+                };
+            });
+        } else {
+            setUserState({
+                ...userState,
+                ...value,
+            });
+        }
     };
 
     return (
         <ApolloNextAppProvider makeClient={() => getClient(serverUrl)}>
-            <ServerContext.Provider value={{ serverUrl, neuralspaceEnabled }}>
+            <ServerContext.Provider
+                value={{ graphQLPublicEndpoint, serverUrl, neuralspaceEnabled }}
+            >
                 <StoreProvider>
                     <ThemeProvider savedTheme={theme}>
                         <LanguageProvider savedLanguage={language}>

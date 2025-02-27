@@ -1,7 +1,7 @@
 import { useTranslation } from "react-i18next";
 import { BiNews } from "react-icons/bi";
 import { BsArrowsExpand, BsBook } from "react-icons/bs";
-import { FaEdit, FaLanguage, FaSpellCheck, FaVideo } from "react-icons/fa";
+import { FaEdit, FaLanguage, FaSpellCheck } from "react-icons/fa";
 import {
     MdOutlineListAlt,
     MdOutlineSummarize,
@@ -9,7 +9,6 @@ import {
 } from "react-icons/md";
 import config from "../../../config";
 import CopyButton from "../CopyButton";
-import TranscribePage from "../transcribe/TranscribePage";
 import ExpandStoryContent from "./ExpandStoryContent";
 import SuggestionInput from "./SuggestionInput";
 import { getTextSuggestionsComponent } from "./TextSuggestions";
@@ -158,15 +157,15 @@ const actions = {
         }),
         commitLabel: "Use Updated Version",
     },
-    transcribe: {
-        Icon: FaVideo,
-        title: "Import from media",
-        dialogClassName: "modal-narrow",
-        commitLabel: "Use Transcribed Text",
-        type: "always-available",
-        SuggestionsComponent: TranscribePage,
-        postApply: "clear-headline",
-    },
+    // transcribe: {
+    //     Icon: FaVideo,
+    //     title: "Import from media",
+    //     dialogClassName: "modal-narrow",
+    //     commitLabel: "Use Transcribed Text",
+    //     type: "always-available",
+    //     SuggestionsComponent: TranscribePage,
+    //     postApply: "clear-headline",
+    // },
     topics: {
         Icon: MdOutlineTopic,
         title: "Get topics",

@@ -138,17 +138,17 @@ const VISION = gql`
     }
 `;
 
-const RAG_READ_MEMORY = gql`
-    query RagReadMemory($contextId: String!) {
-        rag_read_memory(contextId: $contextId) {
+const SYS_READ_MEMORY = gql`
+    query SysReadMemory($contextId: String!) {
+        sys_read_memory(contextId: $contextId) {
             result
         }
     }
 `;
 
-const RAG_SAVE_MEMORY = gql`
-    query RagSaveMemory($aiMemory: String!, $contextId: String!) {
-        rag_save_memory(aiMemory: $aiMemory, contextId: $contextId) {
+const SYS_SAVE_MEMORY = gql`
+    query SysSaveMemory($aiMemory: String!, $contextId: String!) {
+        sys_save_memory(aiMemory: $aiMemory, contextId: $contextId) {
             result
         }
     }
@@ -167,6 +167,7 @@ const RAG_START = gql`
         $aiMemorySelfModify: Boolean
         $aiStyle: String
         $title: String
+        $codeRequestId: String
     ) {
         rag_start(
             chatHistory: $chatHistory
@@ -180,6 +181,7 @@ const RAG_START = gql`
             aiMemorySelfModify: $aiMemorySelfModify
             aiStyle: $aiStyle
             title: $title
+            codeRequestId: $codeRequestId
         ) {
             result
             contextId
@@ -190,8 +192,8 @@ const RAG_START = gql`
     }
 `;
 
-const RAG_GENERATOR_RESULTS = gql`
-    query RagFinish(
+const SYS_ENTITY_CONTINUE = gql`
+    query SysEntityContinue(
         $chatHistory: [MultiMessage]!
         $dataSources: [String]
         $contextId: String
@@ -201,9 +203,11 @@ const RAG_GENERATOR_RESULTS = gql`
         $semanticConfiguration: String
         $aiName: String
         $useMemory: Boolean
+        $aiStyle: String
         $chatId: String
+        $generatorPathway: String
     ) {
-        rag_generator_results(
+        sys_entity_continue(
             chatHistory: $chatHistory
             dataSources: $dataSources
             contextId: $contextId
@@ -212,8 +216,10 @@ const RAG_GENERATOR_RESULTS = gql`
             indexName: $indexName
             semanticConfiguration: $semanticConfiguration
             aiName: $aiName
+            aiStyle: $aiStyle
             useMemory: $useMemory
             chatId: $chatId
+            generatorPathway: $generatorPathway
         ) {
             result
             contextId
@@ -266,15 +272,6 @@ const COGNITIVE_DELETE = gql`
     }
 `;
 
-const CHAT_CODE = gql`
-    query ChatCode($text: String, $async: Boolean, $chatHistory: [Message]!) {
-        chat_code(text: $text, async: $async, chatHistory: $chatHistory) {
-            result
-            previousResult
-        }
-    }
-`;
-
 const EXPAND_STORY = gql`
     query ExpandStory($text: String) {
         expand_story(text: $text) {
@@ -321,6 +318,23 @@ const FORMAT_PARAGRAPH_TURBO = gql`
 const GRAMMAR = gql`
     query Grammar($text: String!, $async: Boolean) {
         grammar(text: $text, async: $async) {
+            result
+        }
+    }
+`;
+const GREETING = gql`
+    query Greeting(
+        $text: String!
+        $async: Boolean
+        $contextId: String
+        $aiName: String
+    ) {
+        greeting(
+            text: $text
+            async: $async
+            contextId: $contextId
+            aiName: $aiName
+        ) {
             result
         }
     }
@@ -409,6 +423,38 @@ const TRANSCRIBE = gql`
     }
 `;
 
+const TRANSCRIBE_GEMINI = gql`
+    query TranscribeGemini(
+        $file: String!
+        $text: String
+        $language: String
+        $wordTimestamped: Boolean
+        $maxLineCount: Int
+        $maxLineWidth: Int
+        $maxWordsPerLine: Int
+        $highlightWords: Boolean
+        $responseFormat: String
+        $async: Boolean
+        $contextId: String
+    ) {
+        transcribe_gemini(
+            file: $file
+            text: $text
+            language: $language
+            wordTimestamped: $wordTimestamped
+            maxLineCount: $maxLineCount
+            maxLineWidth: $maxLineWidth
+            maxWordsPerLine: $maxWordsPerLine
+            highlightWords: $highlightWords
+            responseFormat: $responseFormat
+            async: $async
+            contextId: $contextId
+        ) {
+            result
+        }
+    }
+`;
+
 const TRANSCRIBE_NEURALSPACE = gql`
     query TranscribeNeuralSpace(
         $file: String!
@@ -440,8 +486,18 @@ const TRANSCRIBE_NEURALSPACE = gql`
 `;
 
 const TRANSLATE_SUBTITLE = gql`
-    query TranslateSubtitle($text: String, $to: String, $async: Boolean) {
-        translate_subtitle(text: $text, to: $to, async: $async) {
+    query TranslateSubtitle(
+        $text: String
+        $to: String
+        $async: Boolean
+        $format: String
+    ) {
+        translate_subtitle(
+            text: $text
+            to: $to
+            async: $async
+            format: $format
+        ) {
             result
         }
     }
@@ -519,6 +575,7 @@ const REQUEST_PROGRESS = gql`
         requestProgress(requestIds: $requestIds) {
             data
             progress
+            info
         }
     }
 `;
@@ -611,6 +668,14 @@ const IMAGE = gql`
     }
 `;
 
+const IMAGE_FLUX = gql`
+    query ImageFlux($text: String!, $model: String, $async: Boolean) {
+        image_flux(text: $text, model: $model, async: $async) {
+            result
+        }
+    }
+`;
+
 const JIRA_STORY = gql`
     query JiraStory(
         $text: String!
@@ -624,6 +689,14 @@ const JIRA_STORY = gql`
             storyCount: $storyCount
             async: $async
         ) {
+            result
+        }
+    }
+`;
+
+const CODE_HUMAN_INPUT = gql`
+    query ($text: String, $codeRequestId: String) {
+        code_human_input(text: $text, codeRequestId: $codeRequestId) {
             result
         }
     }
@@ -649,18 +722,40 @@ const getWorkspacePromptQuery = (pathwayName) => {
     `;
 };
 
+const AZURE_VIDEO_TRANSLATE = gql`
+    query (
+        $mode: String
+        $sourcelocale: String
+        $targetlocale: String
+        $sourcevideooraudiofilepath: String
+        $stream: Boolean
+    ) {
+        azure_video_translate(
+            mode: $mode
+            sourcelocale: $sourcelocale
+            targetlocale: $targetlocale
+            sourcevideooraudiofilepath: $sourcevideooraudiofilepath
+            stream: $stream
+        ) {
+            result
+        }
+    }
+`;
+
 const QUERIES = {
+    AZURE_VIDEO_TRANSLATE,
     CHAT_PERSIST,
     CHAT_LABEEB,
     CHAT_EXTENSION,
-    CHAT_CODE,
+    CODE_HUMAN_INPUT,
     COGNITIVE_DELETE,
     COGNITIVE_INSERT,
     IMAGE,
-    RAG_READ_MEMORY,
-    RAG_SAVE_MEMORY,
+    IMAGE_FLUX,
+    SYS_READ_MEMORY,
+    SYS_SAVE_MEMORY,
     RAG_START,
-    RAG_GENERATOR_RESULTS,
+    SYS_ENTITY_CONTINUE,
     EXPAND_STORY,
     FORMAT_PARAGRAPH_TURBO,
     SELECT_SERVICES,
@@ -668,6 +763,7 @@ const QUERIES = {
     SUMMARY,
     HASHTAGS,
     HEADLINE,
+    GREETING,
     GRAMMAR,
     SPELLING,
     PARAPHRASE,
@@ -682,6 +778,7 @@ const QUERIES = {
     SUMMARIZE_TURBO,
     TRANSCRIBE,
     TRANSCRIBE_NEURALSPACE,
+    TRANSCRIBE_GEMINI,
     TRANSLATE,
     TRANSLATE_AZURE,
     TRANSLATE_CONTEXT,
@@ -702,26 +799,63 @@ const SUBSCRIPTIONS = {
     REQUEST_PROGRESS,
 };
 
+const PUT_PATHWAY = gql`
+    mutation PutPathway(
+        $name: String!
+        $pathway: PathwayInput!
+        $userId: String!
+        $secret: String!
+        $displayName: String
+        $key: String!
+    ) {
+        putPathway(
+            name: $name
+            pathway: $pathway
+            userId: $userId
+            secret: $secret
+            displayName: $displayName
+            key: $key
+        ) {
+            name
+        }
+    }
+`;
+
+const DELETE_PATHWAY = gql`
+    mutation DeletePathway(
+        $name: String!
+        $userId: String!
+        $secret: String!
+        $key: String!
+    ) {
+        deletePathway(name: $name, userId: $userId, secret: $secret, key: $key)
+    }
+`;
+
 const MUTATIONS = {
     CANCEL_REQUEST,
+    PUT_PATHWAY,
+    DELETE_PATHWAY,
 };
 
 export {
     getClient,
+    AZURE_VIDEO_TRANSLATE,
     CHAT_PERSIST,
     CHAT_LABEEB,
-    CHAT_CODE,
+    CODE_HUMAN_INPUT,
     COGNITIVE_INSERT,
     COGNITIVE_DELETE,
     EXPAND_STORY,
-    RAG_READ_MEMORY,
-    RAG_SAVE_MEMORY,
+    SYS_READ_MEMORY,
+    SYS_SAVE_MEMORY,
     RAG_START,
-    RAG_GENERATOR_RESULTS,
+    SYS_ENTITY_CONTINUE,
     SELECT_SERVICES,
     SUMMARY,
     HASHTAGS,
     HEADLINE,
+    IMAGE_FLUX,
     GRAMMAR,
     SPELLING,
     PARAPHRASE,

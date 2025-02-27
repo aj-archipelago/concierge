@@ -1,7 +1,7 @@
 import mongoose from "mongoose";
 
 // Define the Workspace schema
-const workspaceSchema = new mongoose.Schema(
+export const workspaceSchema = new mongoose.Schema(
     {
         name: {
             type: String,
@@ -27,6 +27,14 @@ const workspaceSchema = new mongoose.Schema(
         systemPrompt: {
             type: String,
             required: false,
+        },
+        published: {
+            type: Boolean,
+            default: false,
+        },
+        pathway: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "Pathway",
         },
     },
     {

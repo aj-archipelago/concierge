@@ -55,7 +55,7 @@ function customMarkdownDirective() {
 }
 
 function convertMessageToMarkdown(message) {
-    const { payload, tool, id } = message;
+    const { payload, tool } = message;
 
     const citations = tool ? JSON.parse(tool).citations : null;
 
@@ -92,6 +92,20 @@ function convertMessageToMarkdown(message) {
         },
         p({ node, ...rest }) {
             return <div className="mb-1" {...rest} />;
+        },
+        img({ node, alt, ...props }) {
+            return (
+                <img
+                    alt={alt || ""}
+                    className="max-h-[20%] max-w-[60%] [.docked_&]:max-w-[90%] rounded my-2 shadow-lg dark:shadow-black/30"
+                    style={{
+                        backgroundColor: "transparent",
+                        border: "none",
+                        outline: "none",
+                    }}
+                    {...props}
+                />
+            );
         },
         cd_inline_emotion({ children, emotion }) {
             return (
@@ -150,16 +164,23 @@ function convertMessageToMarkdown(message) {
 
     return (
         <Markdown
-            className="chat-message"
-            key={`lm-${id}`}
+            className="chat-message min-h-[1.5rem] overflow-x-auto"
+            components={{
+                ...components,
+                div: ({ node, ...props }) => (
+                    <div
+                        style={{ maxWidth: "100%", overflowWrap: "break-word" }}
+                        {...props}
+                    />
+                ),
+            }}
             remarkPlugins={[
                 directive,
                 customMarkdownDirective,
                 remarkGfm,
                 [remarkMath, { singleDollarTextMath: false }],
             ]}
-            rehypePlugins={[rehypeRaw, rehypeKatex]}
-            components={components}
+            rehypePlugins={[rehypeRaw, [rehypeKatex, { strict: false }]]}
             children={transformToCitation(modifiedPayload)}
         />
     );

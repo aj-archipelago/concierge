@@ -55,7 +55,7 @@ export default function JiraIssueCreate({ clientSecret }) {
                 />
             </div>
             <h4 className="font-semibold mb-4">
-                {t("JIRA Issues suggested by AI")}
+                {t("Jira Issues suggested by AI")}
             </h4>
             <div className="flex flex-col gap-8">
                 {tickets.map((ticket, index) => (
@@ -108,7 +108,7 @@ function JiraTicketContent({ value, token, onDelete }) {
                     <FaTrash />
                 </button>
             </div>
-            <div className="grid grid-cols-[100px_1fr] gap-2 p-4">
+            <div className="grid grid-cols-[130px_1fr] gap-2 p-4">
                 <h6 className="font-medium self-center text-sm text-gray-500">
                     {t("Title")}
                 </h6>
@@ -137,7 +137,7 @@ function JiraTicketContent({ value, token, onDelete }) {
                 </div>
                 <div>
                     <h6 className="font-medium text-sm text-gray-500">
-                        {t("Issue type")}
+                        {t("Suggested type")}
                     </h6>
                 </div>
                 <div className="text-sm">{ticket.issueType}</div>

@@ -1,16 +1,24 @@
 import i18next from "i18next";
-import React, { useEffect, useContext } from "react";
+import React, { useEffect, useContext, useCallback } from "react";
 import { useTranslation } from "react-i18next";
-import { AiFillFilePdf, AiOutlineRobot } from "react-icons/ai";
+import { AiFillFilePdf, AiFillFileText, AiOutlineRobot } from "react-icons/ai";
 import { FaUserCircle } from "react-icons/fa";
 import classNames from "../../../app/utils/class-names";
 import config from "../../../config";
 import { convertMessageToMarkdown } from "./ChatMessage";
 import ScrollToBottom from "./ScrollToBottom";
 import Loader from "../../../app/components/loader";
-import { isAudioUrl, isVideoUrl } from "./MyFilePond";
+import {
+    getExtension,
+    getFilename,
+    isAudioUrl,
+    isVideoUrl,
+} from "./MyFilePond";
 import CopyButton from "../CopyButton";
 import { AuthContext } from "../../App.js";
+import { useGetActiveChat, useUpdateChat } from "../../../app/queries/chats";
+import ProgressUpdate from "../editor/ProgressUpdate";
+import { useGetAutogenRun } from "../../../app/queries/autogen";
 
 const getLoadState = (message) => {
     const hasImage =
@@ -31,8 +39,83 @@ const getLoadState = (message) => {
     }
 };
 
+const getToolMetadata = (toolName, t) => {
+    const toolIcons = {
+        search: "🔍",
+        reasoning: "🧠",
+        image: "🖼️",
+        writing: "💻",
+        vision: "👁️",
+        default: "🛠️",
+        coding: "🤖",
+        memory: "🧠",
+    };
+
+    const normalizedToolName = toolName?.toLowerCase();
+    const icon = toolIcons[normalizedToolName] || toolIcons.default;
+    const translatedName = t(`tool.${normalizedToolName || "default"}`);
+
+    return {
+        icon,
+        translatedName,
+    };
+};
+
+const parseToolData = (toolString) => {
+    if (!toolString) return null;
+    try {
+        const toolObj = JSON.parse(toolString);
+        return {
+            avatarImage: toolObj.avatarImage,
+            toolUsed: toolObj.toolUsed,
+        };
+    } catch (e) {
+        console.error("Invalid JSON in tool:", e);
+        return null;
+    }
+};
+
+const getYoutubeEmbedUrl = (url) => {
+    try {
+        const urlObj = new URL(url);
+        if (urlObj.hostname === "youtu.be") {
+            const videoId = urlObj.pathname.slice(1);
+            return `https://www.youtube.com/embed/${videoId}`;
+        } else if (
+            urlObj.hostname === "youtube.com" ||
+            urlObj.hostname === "www.youtube.com"
+        ) {
+            const videoId = urlObj.searchParams.get("v");
+            return `https://www.youtube.com/embed/${videoId}`;
+        }
+    } catch (err) {
+        return null;
+    }
+    return null;
+};
+
+// Add memoized YouTube component
+const MemoizedYouTubeEmbed = React.memo(({ url, onLoad }) => {
+    return (
+        <iframe
+            title={`YouTube video ${url.split("/").pop()}`}
+            onLoad={onLoad}
+            src={url}
+            className="w-full max-h-[20%] max-w-[60%] [.docked_&]:max-w-[90%] rounded border-0 my-2 shadow-lg dark:shadow-black/30"
+            style={{
+                minWidth: "360px",
+                width: "640px",
+                aspectRatio: "16/9",
+                backgroundColor: "transparent",
+            }}
+            allowFullScreen
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+        />
+    );
+});
+
 // Displays the list of messages and a message input box.
-function MessageList({ messages, bot, loading }) {
+function MessageList({ messages, bot, loading, chatId }) {
     const { user } = useContext(AuthContext);
     const { aiName } = user;
     const { language } = i18next;
@@ -46,6 +129,38 @@ function MessageList({ messages, bot, loading }) {
             };
         }),
     );
+    const chat = useGetActiveChat()?.data;
+    const updateChat = useUpdateChat();
+    const codeRequestId = chat?.codeRequestId;
+    const getAutogenRun = useGetAutogenRun(codeRequestId);
+
+    const setCodeRequestFinalData = useCallback(
+        (data) => {
+            const message = {
+                payload: data,
+                sender: "labeeb",
+                sentTime: "just now",
+                direction: "incoming",
+                position: "single",
+                tool: '{"toolUsed":"coding"}',
+            };
+
+            updateChat.mutateAsync({
+                chatId,
+                codeRequestId: null,
+                isChatLoading: false,
+                messages: [...chat.messages, message],
+            });
+        },
+        [chat?.messages, chatId, updateChat],
+    );
+
+    useEffect(() => {
+        const data = getAutogenRun?.data?.data?.data;
+        if (data) {
+            setCodeRequestFinalData(data);
+        }
+    }, [getAutogenRun?.data?.data, setCodeRequestFinalData]);
 
     const messageLoadStateRef = React.useRef(messageLoadState);
 
@@ -77,21 +192,23 @@ function MessageList({ messages, bot, loading }) {
             : aiName || config?.chat?.botName;
 
     const renderMessage = (message) => {
-        let avatar = (
-            <img
-                src={getLogo(language)}
-                alt="Logo"
-                className={classNames(
-                    basis,
-                    "p-2",
-                    "w-12 [.docked_&]:w-10",
-                    rowHeight,
-                )}
-            />
-        );
+        let avatar;
+        const toolData = parseToolData(message.tool);
 
-        if (bot === "code") {
-            avatar = (
+        if (message.sender === "labeeb") {
+            avatar = toolData?.avatarImage ? (
+                <img
+                    src={toolData.avatarImage}
+                    alt="Tool Avatar"
+                    className={classNames(
+                        basis,
+                        "p-1",
+                        buttonWidthClass,
+                        rowHeight,
+                        "rounded-full object-cover",
+                    )}
+                />
+            ) : bot === "code" ? (
                 <AiOutlineRobot
                     className={classNames(
                         rowHeight,
@@ -100,29 +217,76 @@ function MessageList({ messages, bot, loading }) {
                         "text-gray-400",
                     )}
                 />
+            ) : (
+                <img
+                    src={getLogo(language)}
+                    alt="Logo"
+                    className={classNames(
+                        basis,
+                        "p-2",
+                        buttonWidthClass,
+                        rowHeight,
+                    )}
+                />
             );
-        }
 
-        if (message.sender === "labeeb") {
             return (
                 <div
                     key={message.id}
-                    className="flex bg-sky-50 ps-1 pt-1 relative [&_.copy-button]:hidden [&_.copy-button]:hover:block"
+                    className="flex bg-sky-50 ps-1 pt-1 relative group"
                 >
-                    <CopyButton
-                        item={message.text}
-                        className="absolute top-3 end-3 copy-button opacity-60 hover:opacity-100"
-                    />
+                    <div className="flex items-center gap-2 absolute top-3 end-3">
+                        {toolData?.toolUsed && (
+                            <div className="tool-badge inline-flex items-center gap-1.5 px-1.5 py-0.5 rounded-md bg-sky-50 border border-sky-100 text-xs text-sky-600 font-medium w-fit">
+                                <span className="tool-icon">
+                                    {getToolMetadata(toolData.toolUsed, t).icon}
+                                </span>
+                                <span className="tool-name">
+                                    {t("Used {{tool}} tool", {
+                                        tool: getToolMetadata(
+                                            toolData.toolUsed,
+                                            t,
+                                        ).translatedName,
+                                    })}
+                                </span>
+                            </div>
+                        )}
+                        <CopyButton
+                            item={message.text}
+                            className="copy-button opacity-0 group-hover:opacity-60 hover:opacity-100 transition-opacity"
+                        />
+                    </div>
 
                     <div className={classNames(basis)}>{avatar}</div>
                     <div
                         className={classNames(
-                            "px-1 pb-3 pt-2 [.docked_&]:px-0 [.docked_&]:py-3",
+                            "px-1 pb-3 pt-2 [.docked_&]:px-0 [.docked_&]:py-3 w-full",
                         )}
                     >
-                        <div className="font-semibold">{t(botName)}</div>
-                        <div className="chat-message-bot relative">
-                            {message.payload}
+                        <div className="flex flex-col">
+                            <div className="font-semibold">{t(botName)}</div>
+                            <div
+                                className="chat-message-bot relative break-words"
+                                ref={(el) => {
+                                    if (el) {
+                                        const images =
+                                            el.getElementsByTagName("img");
+                                        Array.from(images).forEach((img) => {
+                                            if (!img.complete) {
+                                                img.addEventListener(
+                                                    "load",
+                                                    () =>
+                                                        handleMessageLoad(
+                                                            message.id,
+                                                        ),
+                                                );
+                                            }
+                                        });
+                                    }
+                                }}
+                            >
+                                {message.payload}
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -194,7 +358,7 @@ function MessageList({ messages, bot, loading }) {
                     }
                     let display;
                     if (Array.isArray(newMessage.payload)) {
-                        const arr = newMessage.payload.map((t) => {
+                        const arr = newMessage.payload.map((t, index2) => {
                             try {
                                 const obj = JSON.parse(t);
                                 if (obj.type === "text") {
@@ -205,30 +369,52 @@ function MessageList({ messages, bot, loading }) {
                                         obj?.image_url?.url ||
                                         obj?.gcs;
                                     if (isVideoUrl(src)) {
-                                        // Display the video
+                                        // Check if it's a YouTube URL
+                                        const youtubeEmbedUrl =
+                                            getYoutubeEmbedUrl(src);
+                                        if (youtubeEmbedUrl) {
+                                            return (
+                                                <MemoizedYouTubeEmbed
+                                                    key={youtubeEmbedUrl}
+                                                    url={youtubeEmbedUrl}
+                                                    onLoad={() =>
+                                                        handleMessageLoad(
+                                                            newMessage.id,
+                                                        )
+                                                    }
+                                                />
+                                            );
+                                        }
+                                        // Regular video
                                         return (
                                             <video
-                                                onLoad={() => {
+                                                onLoadedData={() => {
                                                     handleMessageLoad(
                                                         newMessage.id,
                                                     );
                                                 }}
-                                                key={index}
+                                                key={`video-${index}-${index2}`}
                                                 src={src}
-                                                className="max-h-[20%] max-w-[60%] [.docked_&]:max-w-[90%] rounded border bg-white p-1 my-2 dark:border-neutral-700 dark:bg-neutral-800 shadow-lg dark:shadow-black/30"
+                                                className="max-h-[20%] max-w-[60%] [.docked_&]:max-w-[90%] rounded border-0 my-2 shadow-lg dark:shadow-black/30"
+                                                style={{
+                                                    backgroundColor:
+                                                        "transparent",
+                                                }}
                                                 controls
+                                                preload="metadata"
+                                                playsInline
                                             />
                                         );
                                     } else if (isAudioUrl(src)) {
                                         // Display the audio
                                         return (
                                             <audio
-                                                onLoad={() => {
+                                                onLoadedData={() => {
                                                     handleMessageLoad(
                                                         newMessage.id,
                                                     );
                                                 }}
-                                                key={index}
+                                                key={`audio-${index}-${index2}`}
                                                 src={src}
                                                 className="max-h-[20%] max-w-[100%] [.docked_&]:max-w-[80%] rounded-md border bg-white p-1 my-2 dark:border-neutral-700 dark:bg-neutral-800 shadow-lg dark:shadow-black/30"
                                                 controls
@@ -236,37 +422,57 @@ function MessageList({ messages, bot, loading }) {
                                         );
                                     }
 
-                                    if (src.endsWith(".pdf")) {
-                                        // Display the PDF icon
-                                        const filenameWithPrefix = src
-                                            .split("/")
-                                            .pop();
-                                        const filename = filenameWithPrefix
-                                            .split("_")
-                                            .slice(1)
-                                            .join("_");
+                                    if (getExtension(src) === ".pdf") {
+                                        const filename = decodeURIComponent(
+                                            getFilename(src),
+                                        );
+
                                         return (
-                                            <div
-                                                key={index}
-                                                style={{
-                                                    display: "flex",
-                                                    alignItems: "center",
-                                                    marginTop: "10px",
-                                                }}
+                                            <a
+                                                key={`pdf-${index}-${index2}`}
+                                                className="bg-neutral-100 py-2 ps-2 pe-4 m-2 shadow-md rounded-lg border flex gap-2 items-center"
                                                 onLoad={() => {
                                                     handleMessageLoad(
                                                         newMessage.id,
                                                     );
                                                 }}
+                                                href={src}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
                                             >
                                                 <AiFillFilePdf
                                                     size={40}
-                                                    style={{
-                                                        marginRight: "8px",
-                                                    }}
+                                                    className="text-red-600 dark:text-red-400"
                                                 />
-                                                <i>{filename}</i>
-                                            </div>
+                                                {filename}
+                                            </a>
+                                        );
+                                    }
+
+                                    if (getExtension(src) === ".txt") {
+                                        const filename = decodeURIComponent(
+                                            getFilename(src),
+                                        );
+
+                                        return (
+                                            <a
+                                                key={`txt-${index}-${index2}`}
+                                                className="bg-neutral-100 py-2 ps-2 pe-4 m-2 shadow-md rounded-lg border flex gap-2 items-center"
+                                                onLoad={() => {
+                                                    handleMessageLoad(
+                                                        newMessage.id,
+                                                    );
+                                                }}
+                                                href={src}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                            >
+                                                <AiFillFileText
+                                                    size={40}
+                                                    className="text-red-600 dark:text-red-400"
+                                                />
+                                                {filename}
+                                            </a>
                                         );
                                     }
 
@@ -281,7 +487,11 @@ function MessageList({ messages, bot, loading }) {
                                                 }}
                                                 src={src}
                                                 alt="uploadedimage"
-                                                className="max-h-[20%] max-w-[60%] [.docked_&]:max-w-[90%] rounded-md border bg-white p-1 my-2 dark:border-neutral-700 dark:bg-neutral-800 shadow-lg dark:shadow-black/30"
+                                                className="max-h-[20%] max-w-[60%] [.docked_&]:max-w-[90%] rounded border-0 my-2 shadow-lg dark:shadow-black/30"
+                                                style={{
+                                                    backgroundColor:
+                                                        "transparent",
+                                                }}
                                             />
                                         </div>
                                     );
@@ -322,8 +532,22 @@ function MessageList({ messages, bot, loading }) {
                         id: "loading",
                         sender: "labeeb",
                         payload: (
-                            <div className="mt-1 ms-1 mb-2">
-                                <Loader />
+                            <div className="flex gap-4">
+                                <div className="mt-1 ms-1 mb-1 h-4">
+                                    <Loader />
+                                </div>
+                                {codeRequestId && (
+                                    <div className="border pt-5 pb-3 px-7 rounded-md bg-white animate-fade-in">
+                                        <ProgressUpdate
+                                            requestId={codeRequestId}
+                                            setFinalData={
+                                                setCodeRequestFinalData
+                                            }
+                                            initialText={"🤖 Agent coding..."}
+                                            codeAgent={true}
+                                        />
+                                    </div>
+                                )}
                             </div>
                         ),
                     })}

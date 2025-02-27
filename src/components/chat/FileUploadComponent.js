@@ -4,7 +4,6 @@ import { v4 as uuidv4 } from "uuid";
 import { COGNITIVE_INSERT } from "../../graphql";
 import { useApolloClient } from "@apollo/client";
 import { useDispatch } from "react-redux";
-import { addSource } from "../../stores/docSlice";
 import {
     setFileLoading,
     clearFileLoading,
@@ -29,7 +28,6 @@ function FileUploadComponent({ text }) {
     const { serverUrl } = useContext(ServerContext);
     const addDocument = useAddDocument();
     const activeChatId = useGetActiveChatId();
-    console.log("activeChatId", activeChatId);
 
     const setLoadingState = (isLoading) => {
         setIsLoading(isLoading);
@@ -67,7 +65,6 @@ function FileUploadComponent({ text }) {
                             filename,
                             chatId: activeChatId,
                         });
-                        dispatch(addSource("mydata"));
                         setUrl(null);
                     })
                     .catch((err) => {
@@ -136,6 +133,7 @@ function FileUploadComponent({ text }) {
 
             // Handle any upload errors
             xhr.onerror = (error) => {
+                console.error(error);
                 setNewUrl({ error: t("File upload failed") });
             };
 
@@ -144,6 +142,7 @@ function FileUploadComponent({ text }) {
             xhr.send(formData);
             event.target.value = "";
         } catch (error) {
+            console.error(error);
             setNewUrl({ error: t("File upload failed") });
         }
     };

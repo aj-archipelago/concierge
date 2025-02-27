@@ -28,3 +28,6 @@ yarn-error.log*
 
 public/app/
 src/locales/
+dump.rdb
+*.code-workspace
+.cursorrules

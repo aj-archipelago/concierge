@@ -1,15 +1,15 @@
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useContext, useEffect, useState } from "react";
+import { useContext, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Modal } from "../../../@/components/ui/modal";
 import LoadingButton from "../../../src/components/editor/LoadingButton";
-import { useLLMs } from "../../queries/llms";
 import {
     useCreatePrompt,
     usePromptLibrary,
     usePromptsByIds,
 } from "../../queries/prompts";
 import classNames from "../../utils/class-names";
+import LLMSelector from "./LLMSelector"; // Add this import
 import { WorkspaceContext } from "./WorkspaceContent";
 
 export default function PromptSelectorModal({ isOpen, setIsOpen }) {
@@ -50,16 +50,9 @@ function SelectorDialog({ setIsOpen }) {
     const [title, setTitle] = useState("");
     const [text, setText] = useState("");
     const [llm, setLLM] = useState("");
-    const { data: llms } = useLLMs();
     const [addedLast, setAddedLast] = useState(null);
     const { t } = useTranslation();
     const [activeTab, setActiveTab] = useState("write_your_own");
-
-    useEffect(() => {
-        if (llms) {
-            setLLM(llms[0]?._id);
-        }
-    }, [llms]);
 
     return (
         <>
@@ -113,17 +106,7 @@ function SelectorDialog({ setIsOpen }) {
                                 placeholder={t("Enter the prompt")}
                             />
                         </div>
-                        <select
-                            value={llm}
-                            onChange={(e) => setLLM(e.target.value)}
-                            className="lb-input mb-2"
-                        >
-                            {llms?.map((llm) => (
-                                <option key={llm._id} value={llm._id}>
-                                    {llm.name}
-                                </option>
-                            ))}
-                        </select>
+                        <LLMSelector value={llm} onChange={setLLM} />
                         <div>
                             <LoadingButton
                                 loading={

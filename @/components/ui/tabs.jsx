@@ -4,19 +4,26 @@ import * as React from "react";
 import * as TabsPrimitive from "@radix-ui/react-tabs";
 
 import { cn } from "@/lib/utils";
+import { LanguageContext } from "../../../src/contexts/LanguageProvider";
 
 const Tabs = TabsPrimitive.Root;
 
-const TabsList = React.forwardRef(({ className, ...props }, ref) => (
-    <TabsPrimitive.List
-        ref={ref}
-        className={cn(
-            "inline-flex h-10 items-center justify-center rounded-md bg-gray-100 p-1 text-gray-500",
-            className,
-        )}
-        {...props}
-    />
-));
+const TabsList = React.forwardRef(({ className, ...props }, ref) => {
+    const direction = React.useContext(LanguageContext)?.direction;
+    return (
+        <TabsPrimitive.List
+            ref={ref}
+            className={cn(
+                "inline-flex h-10 items-center justify-center rounded-md bg-gray-100 p-1 text-gray-500",
+                className,
+            )}
+            style={{
+                direction,
+            }}
+            {...props}
+        />
+    );
+});
 TabsList.displayName = TabsPrimitive.List.displayName;
 
 const TabsTrigger = React.forwardRef(({ className, ...props }, ref) => (
