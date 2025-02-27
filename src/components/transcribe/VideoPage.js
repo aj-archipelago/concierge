@@ -21,6 +21,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
+import { build, parse } from "@aj-archipelago/subvibe";
 import { useApolloClient } from "@apollo/client";
 import dayjs from "dayjs";
 import {
@@ -28,18 +29,28 @@ import {
     ChevronDown,
     CopyIcon,
     DownloadIcon,
+    InfoIcon,
     MoreVertical,
     PlusCircleIcon,
     PlusIcon,
     RefreshCwIcon,
+    TextIcon,
     TrashIcon,
+    VideoIcon,
+    Volume2Icon,
 } from "lucide-react";
 import { useCallback, useContext, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { FaEdit } from "react-icons/fa";
+import { FaEdit, FaYoutube } from "react-icons/fa";
 import ReactTimeAgo from "react-time-ago";
 import classNames from "../../../app/utils/class-names";
 import { AuthContext } from "../../App";
+import { LanguageContext } from "../../contexts/LanguageProvider";
+import {
+    getYoutubeEmbedUrl,
+    getYoutubeVideoId,
+    isYoutubeUrl,
+} from "../../utils/urlUtils";
 import LoadingButton from "../editor/LoadingButton";
 import AzureVideoTranslate from "./AzureVideoTranslate";
 import TranscribeErrorBoundary from "./ErrorBoundary";
@@ -48,13 +59,6 @@ import TaxonomySelector from "./TaxonomySelector";
 import { AddTrackButton } from "./TranscriptionOptions";
 import TranscriptView from "./TranscriptView";
 import VideoInput from "./VideoInput";
-import { LanguageContext } from "../../contexts/LanguageProvider";
-import { parse, build } from "@aj-archipelago/subvibe";
-import {
-    getYoutubeEmbedUrl,
-    getYoutubeVideoId,
-    isYoutubeUrl,
-} from "../../utils/urlUtils";
 
 const isValidUrl = (url) => {
     try {
@@ -211,7 +215,7 @@ function EditableTranscriptSelect({
                 onAdd={onAdd}
                 activeTranscript={activeTranscript}
                 trigger={
-                    <button className="lb-outline-secondary flex items-center gap-1 text-xs">
+                    <button className="lb-primary flex items-center gap-1 ">
                         {t("Add subtitles or transcript")}
                     </button>
                 }
@@ -225,13 +229,17 @@ function EditableTranscriptSelect({
     }
 
     return (
-        <div className="mb-2">
+        <div className="">
+            <div className="flex gap-2 items-center text-sky-600 font-semibold mb-2">
+                <TextIcon className="h-4 w-4" />
+                <div className="text-sm">{t("Subtitles and transcripts")}</div>
+            </div>
             {editing ? (
                 <div className="flex gap-2">
                     <input
                         autoFocus
                         type="text"
-                        className="text-md w-[300px] font-medium rounded-md py-1.5 my-[1px] px-3 border border-gray-300"
+                        className="w-[300px] text-sm font-medium rounded-md py-1 my-[1px] px-3 border border-gray-300"
                         value={tempName}
                         onChange={(e) => setTempName(e.target.value)}
                         onKeyDown={(e) => {
@@ -261,130 +269,145 @@ function EditableTranscriptSelect({
                     </div>
                 </div>
             ) : (
-                <div className="flex flex-col md:flex-row gap-2 justify-between ">
-                    <div className="flex gap-2 grow">
-                        <Select
-                            value={activeTranscript.toString()}
-                            onValueChange={(value) =>
-                                setActiveTranscript(parseInt(value))
-                            }
-                        >
-                            <SelectTrigger className="w-[300px] py-1 text-md font-medium text-start">
-                                <SelectValue>
-                                    {transcripts[activeTranscript]?.name ||
-                                        `Transcript ${activeTranscript + 1}`}
-                                </SelectValue>
-                            </SelectTrigger>
-                            <SelectContent className="overflow-hidden">
-                                {transcripts.map((transcript, index) => (
-                                    <SelectItem
-                                        className="w-[500px] border-b last:border-b-0 border-gray-100"
-                                        key={index}
-                                        value={index.toString()}
-                                    >
-                                        <div className="flex flex-col py-2 w-full">
-                                            <div className="flex w-full items-center justify-between gap-4">
-                                                <div className="grow ">
-                                                    {transcript.name ||
-                                                        `Transcript ${index + 1}`}
-                                                </div>
-                                                <span
-                                                    className={`inline-flex items-center px-2 py-0.5 text-xs font-medium rounded-md 
-                                                ${transcripts[index].format === "vtt" ? "bg-green-100 text-green-800" : "bg-orange-100 text-orange-800"}`}
-                                                >
-                                                    {transcripts[index]
-                                                        .format === "vtt"
-                                                        ? t("Subtitles")
-                                                        : t("Transcript")}
-                                                </span>
-                                            </div>
-
-                                            <div className="flex items-center gap-2 justify-between">
-                                                <div className="text-xs text-gray-400 flex items-center">
-                                                    <ReactTimeAgo
-                                                        date={
-                                                            transcript.timestamp
-                                                                ? new Date(
-                                                                      transcript.timestamp,
-                                                                  ).getTime()
-                                                                : Date.now()
-                                                        }
-                                                        locale="en-US"
-                                                    />
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                        <div className="flex gap-2 items-center">
-                            <AddTrackButton
-                                transcripts={transcripts}
-                                url={url}
-                                onAdd={onAdd}
-                                activeTranscript={activeTranscript}
-                                trigger={
-                                    <button className="flex items-center text-sky-600 hover:text-sky-700">
-                                        <PlusCircleIcon className="h-6 w-6" />{" "}
-                                        {transcripts.length > 0
-                                            ? t("")
-                                            : t("Add subtitles or transcript")}
-                                    </button>
-                                }
-                                apolloClient={apolloClient}
-                                addTrackDialogOpen={addTrackDialogOpen}
-                                setAddTrackDialogOpen={setAddTrackDialogOpen}
-                                selectedTab={selectedTab}
-                                setSelectedTab={setSelectedTab}
-                            />
-                        </div>
-                    </div>
-                    {!isEditing && transcripts[activeTranscript] && (
-                        <div className="flex items-center gap-2 justify-end">
-                            {transcripts[activeTranscript].format !== "vtt" && (
-                                <button
-                                    onClick={() => setIsEditing(!isEditing)}
-                                    className="lb-outline-secondary flex items-center gap-1 text-xs"
-                                    title={t("Edit")}
+                <>
+                    <div className="flex flex-col md:flex-row gap-2 justify-between ">
+                        <div className="flex gap-2 grow">
+                            <div>
+                                <Select
+                                    value={activeTranscript.toString()}
+                                    onValueChange={(value) =>
+                                        setActiveTranscript(parseInt(value))
+                                    }
                                 >
-                                    {t("Edit")}
-                                </button>
-                            )}
-                            <TaxonomyDialog
-                                text={transcripts[activeTranscript].text}
-                            />
-                            <DownloadButton
-                                format={transcripts[activeTranscript].format}
-                                name={transcripts[activeTranscript].name}
-                                text={transcripts[activeTranscript].text}
-                            />
-                            <DropdownMenu>
-                                <DropdownMenuTrigger className="">
-                                    <MoreVertical className="h-4 w-4" />
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent>
-                                    <DropdownMenuItem
-                                        className="text-red-600 focus:text-red-600 focus:bg-red-50 text-xs"
-                                        onClick={() => {
-                                            if (
-                                                window.confirm(
-                                                    t(
-                                                        "Are you sure you want to delete this track?",
-                                                    ),
-                                                )
-                                            ) {
-                                                onDeleteTrack();
-                                            }
-                                        }}
-                                    >
-                                        {t("Delete track")}
-                                    </DropdownMenuItem>
-                                </DropdownMenuContent>
-                            </DropdownMenu>
+                                    <SelectTrigger className="w-[300px] py-1 h-8 font-medium text-start">
+                                        <SelectValue>
+                                            {transcripts[activeTranscript]
+                                                ?.name ||
+                                                `Transcript ${activeTranscript + 1}`}
+                                        </SelectValue>
+                                    </SelectTrigger>
+                                    <SelectContent className="overflow-hidden">
+                                        {transcripts.map(
+                                            (transcript, index) => (
+                                                <SelectItem
+                                                    className="w-[500px] border-b last:border-b-0 border-gray-100"
+                                                    key={index}
+                                                    value={index.toString()}
+                                                >
+                                                    <div className="flex flex-col py-2 w-full">
+                                                        <div className="flex w-full items-center justify-between gap-4">
+                                                            <div className="grow ">
+                                                                {transcript.name ||
+                                                                    `Transcript ${index + 1}`}
+                                                            </div>
+                                                            <span
+                                                                className={`inline-flex items-center px-2 py-0.5 text-xs font-medium rounded-md 
+                                                ${transcripts[index].format === "vtt" ? "bg-green-100 text-green-800" : "bg-orange-100 text-orange-800"}`}
+                                                            >
+                                                                {transcripts[
+                                                                    index
+                                                                ].format ===
+                                                                "vtt"
+                                                                    ? t(
+                                                                          "Subtitles",
+                                                                      )
+                                                                    : t(
+                                                                          "Transcript",
+                                                                      )}
+                                                            </span>
+                                                        </div>
+
+                                                        <div className="flex items-center gap-2 justify-between">
+                                                            <div className="text-xs text-gray-400 flex items-center">
+                                                                <ReactTimeAgo
+                                                                    date={
+                                                                        transcript.timestamp
+                                                                            ? new Date(
+                                                                                  transcript.timestamp,
+                                                                              ).getTime()
+                                                                            : Date.now()
+                                                                    }
+                                                                    locale="en-US"
+                                                                />
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </SelectItem>
+                                            ),
+                                        )}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                            <div className="flex gap-2 items-center">
+                                <AddTrackButton
+                                    transcripts={transcripts}
+                                    url={url}
+                                    onAdd={onAdd}
+                                    activeTranscript={activeTranscript}
+                                    trigger={
+                                        <button className="flex items-center text-sky-600 hover:text-sky-700">
+                                            <PlusCircleIcon className="h-5 w-5" />
+                                        </button>
+                                    }
+                                    apolloClient={apolloClient}
+                                    addTrackDialogOpen={addTrackDialogOpen}
+                                    setAddTrackDialogOpen={
+                                        setAddTrackDialogOpen
+                                    }
+                                    selectedTab={selectedTab}
+                                    setSelectedTab={setSelectedTab}
+                                />
+                            </div>
                         </div>
-                    )}
-                </div>
+                        {!isEditing && transcripts[activeTranscript] && (
+                            <div className="flex items-center gap-2 justify-end">
+                                {transcripts[activeTranscript].format !==
+                                    "vtt" && (
+                                    <button
+                                        onClick={() => setIsEditing(!isEditing)}
+                                        className="lb-outline-secondary flex items-center gap-1 text-xs"
+                                        title={t("Edit")}
+                                    >
+                                        {t("Edit")}
+                                    </button>
+                                )}
+                                <TaxonomyDialog
+                                    text={transcripts[activeTranscript].text}
+                                />
+                                <DownloadButton
+                                    format={
+                                        transcripts[activeTranscript].format
+                                    }
+                                    name={transcripts[activeTranscript].name}
+                                    text={transcripts[activeTranscript].text}
+                                />
+                                <DropdownMenu>
+                                    <DropdownMenuTrigger className="">
+                                        <MoreVertical className="h-4 w-4" />
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent>
+                                        <DropdownMenuItem
+                                            className="text-red-600 focus:text-red-600 focus:bg-red-50 text-xs"
+                                            onClick={() => {
+                                                if (
+                                                    window.confirm(
+                                                        t(
+                                                            "Are you sure you want to delete this track?",
+                                                        ),
+                                                    )
+                                                ) {
+                                                    onDeleteTrack();
+                                                }
+                                            }}
+                                        >
+                                            {t("Delete track")}
+                                        </DropdownMenuItem>
+                                    </DropdownMenuContent>
+                                </DropdownMenu>
+                            </div>
+                        )}
+                    </div>
+                </>
             )}
             {transcripts[activeTranscript]?.timestamp && (
                 <div className="flex items-center text-gray-400 text-xs py-1 px-3">
@@ -413,12 +436,19 @@ function VideoPlayer({
     activeLanguage,
     onTimeUpdate,
     vttUrl,
+    videoInformation,
+    copied,
+    handleCopy,
 }) {
-    const [isAudioOnly, setIsAudioOnly] = useState(false);
+    const [isAudioOnly, setIsAudioOnly] = useState(
+        videoLanguages[activeLanguage]?.url.includes(".mp3"),
+    );
     const videoRef = useRef(null);
-    const videoUrl = videoLanguages[activeLanguage]?.url;
+    const videoUrl =
+        videoInformation?.videoUrl || videoLanguages[activeLanguage]?.url;
     const isYouTube = isYoutubeUrl(videoUrl);
     const embedUrl = isYouTube ? getYoutubeEmbedUrl(videoUrl) : videoUrl;
+    const { t } = useTranslation();
 
     useEffect(() => {
         if (!videoUrl || !isYouTube) return;
@@ -481,18 +511,18 @@ function VideoPlayer({
     };
 
     return (
-        <>
+        <div className="flex flex-col gap-1">
             <div
                 className={classNames(
-                    "rounded-lg flex justify-center items-center border border-gray-200/50 bg-[#000]",
-                    isAudioOnly ? "h-[50px] w-96" : "w-full",
+                    "rounded-lg flex justify-center items-center ",
+                    isAudioOnly ? "h-[50px] w-96" : "w-full bg-[#000] border",
                 )}
             >
                 {isYouTube ? (
                     <div className="w-full relative h-[40vh] max-h-[40vh]">
                         <div
                             id="ytplayer"
-                            className="h-full rounded-lg aspect-video mx-auto"
+                            className="rounded-lg aspect-video mx-auto max-w-full h-full"
                             src={embedUrl}
                             allowFullScreen
                             title="YouTube video player"
@@ -523,7 +553,172 @@ function VideoPlayer({
                     </video>
                 )}
             </div>
-        </>
+
+            <div className="">
+                {isYoutubeUrl(videoInformation?.videoUrl) ? (
+                    <p className="text-xs text-gray-400 mb-1 ps-3">
+                        {t(
+                            "Note: Audio track translation is not supported for YouTube videos",
+                        )}
+                    </p>
+                ) : null}
+            </div>
+            <VideoInformationBox
+                videoInformation={videoInformation}
+                videoLanguages={videoLanguages}
+                activeLanguage={activeLanguage}
+                copied={copied}
+                handleCopy={handleCopy}
+            />
+        </div>
+    );
+}
+
+// New component for video information
+function VideoInformationBox({
+    videoInformation,
+    videoLanguages,
+    activeLanguage,
+    copied,
+    handleCopy,
+}) {
+    const { t } = useTranslation();
+    const currentUrl =
+        videoLanguages[activeLanguage]?.url || videoInformation?.videoUrl;
+    const [isExpanded, setIsExpanded] = useState(false);
+    const [mediaInfo, setMediaInfo] = useState(null);
+
+    useEffect(() => {
+        // For YouTube videos, we don't need to check the media type
+        if (isYoutubeUrl(currentUrl)) {
+            setMediaInfo({
+                type: "youtube",
+                icon: <FaYoutube className="h-4 w-4 text-red-500" />,
+                label: t("YouTube Video"),
+            });
+            return;
+        }
+
+        // For other media, create a temporary media element to check type
+        const isAudioURL =
+            currentUrl?.toLowerCase().includes("audio") ||
+            currentUrl?.toLowerCase().includes(".mp3");
+        const element = isAudioURL
+            ? new Audio()
+            : document.createElement("video");
+
+        element.onloadedmetadata = () => {
+            // Try to get MIME type from the currentSrc
+            let mimeType = "";
+            try {
+                const contentType = element.currentSrc
+                    .split(";")[0]
+                    .split("/")
+                    .pop();
+                // Clean up the MIME type - remove query parameters and decode URL
+                mimeType = contentType.split("?")[0].split("#")[0];
+                // Handle encoded URLs
+                mimeType = decodeURIComponent(mimeType);
+                // Extract just the extension if it's a filename
+                if (mimeType.includes(".")) {
+                    mimeType = mimeType.split(".").pop();
+                }
+                mimeType = mimeType.toUpperCase();
+            } catch (error) {
+                console.error("Error extracting MIME type:", error);
+                mimeType = isAudioURL ? "MP3" : "MP4";
+            }
+
+            if (element instanceof HTMLAudioElement || isAudioURL) {
+                setMediaInfo({
+                    type: "audio",
+                    icon: <Volume2Icon className="h-4 w-4" />,
+                    label: t("Audio File"),
+                    extension: mimeType || "MP3",
+                });
+            } else {
+                setMediaInfo({
+                    type: "video",
+                    icon: <VideoIcon className="h-4 w-4" />,
+                    label: t("Video File"),
+                    extension: mimeType || "MP4",
+                });
+            }
+        };
+
+        element.onerror = () => {
+            // Fallback if we can't determine the type
+            setMediaInfo({
+                type: "unknown",
+                icon: <VideoIcon className="h-4 w-4" />,
+                label: t("Media File"),
+                extension: t("Unknown"),
+            });
+        };
+
+        // Try to load just the metadata
+        element.preload = "metadata";
+        element.src = currentUrl;
+
+        return () => {
+            element.src = "";
+            element.remove();
+        };
+    }, [currentUrl, t]);
+
+    return (
+        <div className="p-2 border border-gray-200/50 rounded-lg">
+            <button
+                onClick={() => setIsExpanded(!isExpanded)}
+                className={classNames(
+                    "w-full flex items-center justify-between text-xs font-medium text-gray-500 hover:text-sky-700",
+                    isExpanded ? "mb-4" : "",
+                )}
+            >
+                <div className="flex items-center gap-1.5">
+                    <InfoIcon className="h-4 w-4" />
+                    {t("File Information")}
+                </div>
+                <ChevronDown
+                    className={`h-4 w-4 transition-transform ${isExpanded ? "rotate-180" : ""}`}
+                />
+            </button>
+            {isExpanded && mediaInfo && (
+                <div className="space-y-2">
+                    <div className="grid grid-cols-[40px_1fr] gap-2 items-center">
+                        <div className="text-xs text-gray-500">{t("Type")}</div>
+                        <div className="flex items-center gap-1 text-xs text-gray-600">
+                            {mediaInfo.icon}
+                            <span>{mediaInfo.label}</span>
+                            {mediaInfo.extension && (
+                                <span className="px-1.5 py-0.5 bg-gray-100 rounded text-[10px] font-medium">
+                                    {mediaInfo.extension}
+                                </span>
+                            )}
+                        </div>
+                    </div>
+                    <div className="grid grid-cols-[40px_1fr] gap-2 items-center">
+                        <div className="text-xs text-gray-500">{t("URL")}</div>
+                        <div className="w-full flex gap-2 overflow-hidden items-center py-1 px-2 rounded-md bg-gray-100">
+                            <div className="text-xs text-gray-600 truncate grow">
+                                {currentUrl}
+                            </div>
+                            <button
+                                onClick={() => handleCopy(currentUrl)}
+                                className="p-1 hover:bg-gray-100 rounded transition-colors flex-shrink-0"
+                                title={t("Copy URL")}
+                            >
+                                {copied ? (
+                                    <CheckIcon className="h-4 w-4 text-green-500" />
+                                ) : (
+                                    <CopyIcon className="h-4 w-4 text-gray-500" />
+                                )}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+        </div>
     );
 }
 
@@ -580,6 +775,8 @@ function VideoPage() {
 
     const updateUserState = useCallback(
         (updates) => {
+            console.log("updates", updates);
+            console.trace();
             setTimeout(() => {
                 debouncedUpdateUserState({
                     transcribe: {
@@ -669,9 +866,10 @@ function VideoPage() {
             setVideoLanguages(initialLanguages);
             setActiveLanguage(0);
 
+            console.log("initialLanguages", initialLanguages, videoInformation);
             updateUserState({
                 videoInformation: {
-                    ...userState?.transcribe?.videoInformation,
+                    ...videoInformation,
                     videoLanguages: initialLanguages,
                 },
             });
@@ -683,7 +881,7 @@ function VideoPage() {
         if (videoInformation) {
             updateUserState({
                 videoInformation: {
-                    ...userState?.transcribe?.videoInformation,
+                    ...videoInformation,
                     transcripts,
                 },
             });
@@ -695,7 +893,7 @@ function VideoPage() {
         if (videoInformation) {
             updateUserState({
                 videoInformation: {
-                    ...userState?.transcribe?.videoInformation,
+                    ...videoInformation,
                     videoLanguages,
                 },
             });
@@ -857,44 +1055,7 @@ function VideoPage() {
         <TranscribeErrorBoundary>
             <div>
                 <div className="flex flex-col gap-4 mb-4">
-                    <div className="flex gap-4 justify-between">
-                        <div className="min-w-0 sm:w-[calc(100%-13rem)]">
-                            <div className="w-full">
-                                {videoInformation?.videoUrl && (
-                                    <div className="flex gap-2 items-center py-1 px-2 bg-gray-100 rounded-md grow min-w-0">
-                                        <div className="text-xs text-gray-500 truncate grow">
-                                            {videoLanguages[activeLanguage]
-                                                ?.url ||
-                                                videoInformation.videoUrl}
-                                        </div>
-                                        <button
-                                            onClick={() =>
-                                                handleCopy(
-                                                    videoLanguages[
-                                                        activeLanguage
-                                                    ]?.url ||
-                                                        videoInformation.videoUrl,
-                                                )
-                                            }
-                                            className="p-1 hover:bg-gray-100 rounded transition-colors flex-shrink-0"
-                                            title="Copy URL"
-                                        >
-                                            {copied ? (
-                                                <CheckIcon className="h-4 w-4 text-green-500" />
-                                            ) : (
-                                                <CopyIcon className="h-4 w-4 text-gray-500" />
-                                            )}
-                                        </button>
-                                    </div>
-                                )}
-                            </div>
-                            {isYoutubeUrl(videoInformation?.videoUrl) ? (
-                                <p className="text-xs text-gray-400 ps-2 mt-1">
-                                    Note: Direct video translation is not
-                                    supported for YouTube videos
-                                </p>
-                            ) : null}
-                        </div>
+                    <div className="flex gap-4 justify-end">
                         <div className="flex-shrink-0 sm:w-[13rem] flex justify-end">
                             <div>
                                 <button
@@ -924,13 +1085,16 @@ function VideoPage() {
                         {isValidUrl(videoInformation?.videoUrl) ? (
                             <>
                                 <div className="flex gap-4 flex-col sm:flex-row">
-                                    <div className="sm:w-[calc(100%-13rem)]">
+                                    <div className="sm:w-[calc(100%-13rem)] flex flex-col gap-3">
                                         <VideoPlayer
                                             setYoutubePlayer={setYoutubePlayer}
                                             videoLanguages={videoLanguages}
                                             activeLanguage={activeLanguage}
                                             onTimeUpdate={setCurrentTime}
                                             vttUrl={vttUrl}
+                                            videoInformation={videoInformation}
+                                            copied={copied}
+                                            handleCopy={handleCopy}
                                         />
                                     </div>
                                     <div className="flex flex-col gap-2 sm:w-[13rem]">
@@ -938,8 +1102,9 @@ function VideoPage() {
                                             videoInformation?.videoUrl,
                                         ) ? null : (
                                             <div className="border rounded-lg border-gray-200/50 p-3 space-y-3">
-                                                <div className="text-sm font-semibold text-gray-500">
-                                                    {t("Video languages")}
+                                                <div className="text-sm text-sky-600 font-semibold text-gray-500 flex items-center gap-2">
+                                                    <Volume2Icon className="h-4 w-4" />
+                                                    {t("Audio tracks")}
                                                 </div>
                                                 <div className="flex flex-col gap-2">
                                                     {videoLanguages.map(
@@ -1046,7 +1211,7 @@ function VideoPage() {
                                                     className="lb-outline-secondary lb-sm flex items-center gap-1 w-full"
                                                 >
                                                     <PlusIcon className="h-4 w-4" />
-                                                    {t("Add translation")}
+                                                    {t("Add audio track")}
                                                 </button>
                                             </div>
                                         )}
@@ -1060,7 +1225,7 @@ function VideoPage() {
                                     <DialogContent className="max-w-3xl">
                                         <DialogHeader>
                                             <DialogTitle>
-                                                {t("Add Video Language")}
+                                                {t("Add audio track")}
                                             </DialogTitle>
                                             <DialogDescription>
                                                 {t(
@@ -1169,6 +1334,8 @@ function VideoPage() {
                         const updatedTranscripts = transcripts.filter(
                             (_, index) => index !== activeTranscript,
                         );
+
+                        console.log("updated", updatedTranscripts);
                         setTranscripts(updatedTranscripts);
                         setActiveTranscript(
                             Math.max(0, updatedTranscripts.length - 1),
@@ -1176,8 +1343,8 @@ function VideoPage() {
                         updateUserState({
                             videoInformation: {
                                 ...userState?.transcribe?.videoInformation,
+                                transcripts: updatedTranscripts,
                             },
-                            transcripts: updatedTranscripts,
                         });
                     }}
                 />

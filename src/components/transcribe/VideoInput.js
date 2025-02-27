@@ -269,10 +269,14 @@ function VideoInput({
 
         const result = await checkVideoUrl(url);
         if (result === true) {
-            setVideoInformation({
-                videoUrl: url,
-                transcriptionUrl: null,
-            });
+            if (isYoutubeUrl(url)) {
+                setShowVideoSelector(true);
+            } else {
+                setVideoInformation({
+                    videoUrl: url,
+                    transcriptionUrl: null,
+                });
+            }
         } else if (result === "Video length exceeds 60 minutes") {
             setVideoSelectorError({
                 message: t(

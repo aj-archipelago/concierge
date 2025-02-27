@@ -45,9 +45,9 @@ export default function AzureVideoTranslate({ url, onQueued }) {
         <>
             <div className="mt-2 p-2 border-t border-b rounded border-gray-200 pt-4 bg-opacity-90 bg-neutral-100 shadow">
                 <div className="flex items-end gap-3">
-                    <div>
-                        <label htmlFor="sourceLocaleSelect">
-                            {t("Source Locale")}
+                    <div className="flex flex-col gap-1">
+                        <label className="text-sm" htmlFor="sourceLocaleSelect">
+                            {t("Original")}
                         </label>
                         <select
                             id="sourceLocaleSelect"
@@ -65,9 +65,9 @@ export default function AzureVideoTranslate({ url, onQueued }) {
                         </select>
                     </div>
 
-                    <div>
-                        <label htmlFor="targetLocaleSelect">
-                            {t("Target Locale")}
+                    <div className="flex flex-col gap-1">
+                        <label className="text-sm" htmlFor="targetLocaleSelect">
+                            {t("Translate to")}
                         </label>
                         <select
                             className="lb-select"
