@@ -9,6 +9,7 @@ import { useGetActiveChat, useUpdateChat } from "../../../app/queries/chats";
 import { useDeleteAutogenRun } from "../../../app/queries/autogen.js";
 import { processImageUrls } from "../../utils/imageUtils";
 import { useStreamingMessages } from "../../hooks/useStreamingMessages";
+import { useQueryClient } from "@tanstack/react-query";
 
 const contextMessageCount = 50;
 
@@ -21,17 +22,31 @@ function ChatContent({
     const { t } = useTranslation();
     const client = useApolloClient();
     const { user } = useContext(AuthContext);
-    const activeChat = useGetActiveChat()?.data;
+    const activeChat = useGetActiveChat();
     const updateChatHook = useUpdateChat();
     const deleteAutogenRun = useDeleteAutogenRun();
+    const queryClient = useQueryClient();
 
     const viewingReadOnlyChat = useMemo(
         () => displayState === "full" && viewingChat && viewingChat.readOnly,
         [displayState, viewingChat],
     );
 
-    const chat = viewingReadOnlyChat ? viewingChat : activeChat;
+    const chat = viewingReadOnlyChat ? viewingChat : activeChat?.data;
     const chatId = String(chat?._id);
+
+    // Simple approach - if we have a chat ID but no messages, refetch once
+    useEffect(() => {
+        if (
+            chat &&
+            chat._id &&
+            (!chat.messages || chat.messages.length === 0)
+        ) {
+            queryClient.refetchQueries({ queryKey: ["chat", chat._id] });
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [chat?._id]); // Only run when the chat ID changes
+
     const memoizedMessages = useMemo(() => chat?.messages || [], [chat]);
     const publicChatOwner = viewingChat?.owner;
     const isChatLoading = chat?.isChatLoading;

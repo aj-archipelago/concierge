@@ -43,7 +43,7 @@ export function useGetActiveChats() {
                 // keep the existing messages and don't overwrite with the truncated version
                 const updatedChat = { ...existingChat, ...chat };
 
-                // Preserve the full messages array if it exists in the cache
+                // Only preserve existing messages if they exist and are not empty
                 if (
                     chat.firstMessage &&
                     existingChat.messages &&
@@ -64,8 +64,7 @@ export function useGetActiveChats() {
 }
 
 function temporaryNewChat({ messages, title }) {
-    // Generate a temporary ID for optimistic updates
-    const tempId = `temp-${Date.now()}`;
+    const tempId = `temp_${Date.now()}_${crypto.randomUUID()}`;
     return {
         _id: tempId,
         messages: messages || [],
@@ -346,6 +345,10 @@ export function useGetChatById(chatId) {
             return response.data;
         },
         enabled: !!chatId,
+        // Reduce stale time to ensure more frequent refreshes
+        staleTime: 1000 * 60, // 1 minute
+        // Add refetchOnMount to ensure fresh data when switching chats
+        refetchOnMount: true,
     });
 }
 
@@ -434,6 +437,10 @@ export function useSetActiveChatId() {
                 return setActiveChatIdApply.mutateAsync(activeChatId);
             }
             return previousData;
+        },
+        onSuccess: () => {
+            // Simply mark the queries as stale after setting the active chat ID
+            queryClient.invalidateQueries({ queryKey: ["activeChats"] });
         },
     });
 }
