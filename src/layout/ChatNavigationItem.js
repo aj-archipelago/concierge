@@ -34,8 +34,9 @@ const ChatNavigationItem = ({
             onClick={() => {
                 if (subItem.href && editingId !== subItem.key) {
                     setEditingId(null);
-                    router.push(subItem.href);
-                    setActiveChatId.mutateAsync(subItem.key);
+                    setActiveChatId.mutateAsync(subItem.key).then(() => {
+                        router.push(subItem.href);
+                    });
                 }
             }}
         >
