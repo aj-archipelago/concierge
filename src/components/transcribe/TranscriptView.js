@@ -6,6 +6,7 @@ import { FaEdit } from "react-icons/fa";
 import TextareaAutosize from "react-textarea-autosize";
 import CopyButton from "../CopyButton";
 import { parse, formatTimestamp } from "@aj-archipelago/subvibe";
+import { ThumbsDownIcon } from "lucide-react";
 
 // Simplified VTT component
 function VttSubtitles({ name, text, onSeek, currentTime, onTextChange }) {
@@ -181,6 +182,9 @@ function TranscriptView({
     onTextChange,
     isEditing,
     setIsEditing,
+    onRetranscribe,
+    isRetranscribing,
+    showRetranscribeButton = true, // New prop to control button visibility
 }) {
     const { t } = useTranslation();
     const [editableText, setEditableText] = useState(text);
@@ -252,6 +256,31 @@ function TranscriptView({
                         />
                     )}
                 </div>
+
+                {/* Only show the retranscribe button if showRetranscribeButton is true */}
+                {!isRetranscribing && showRetranscribeButton && (
+                    <div className="absolute bottom-3 end-3">
+                        <button
+                            onClick={onRetranscribe}
+                            className="group relative flex items-center gap-2 px-3 py-1.5 
+                                        text-xs font-medium bg-white text-gray-700
+                                        border border-gray-300 rounded-md transition-all duration-200
+                                        hover:bg-gray-100 hover:shadow-sm active:scale-95"
+                        >
+                            <span className="relative overflow-visible flex items-center">
+                                <span
+                                    className="absolute right-[30px] whitespace-nowrap opacity-0 
+                                                transform translate-x-2 transition-all duration-200 
+                                                group-hover:opacity-100 group-hover:translate-x-0 
+                                                text-blue-600"
+                                >
+                                    {t("Try alternative gemini transcription?")}
+                                </span>
+                                <ThumbsDownIcon className="h-3.5 w-3.5 text-gray-500 relative" />
+                            </span>
+                        </button>
+                    </div>
+                )}
             </div>
         </div>
     );

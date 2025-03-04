@@ -281,7 +281,7 @@ function ClipboardPaste({ onAdd }) {
     );
 }
 
-const getTranscribeQuery = (modelOption) => {
+export const getTranscribeQuery = (modelOption) => {
     switch (modelOption?.toLowerCase()) {
         case "neuralSpace":
             return QUERIES.TRANSCRIBE_NEURALSPACE;
@@ -470,7 +470,7 @@ export default function TranscribeVideo({
 
     return (
         <>
-            <div>
+            {/* <div>
                 <span className="flex items-center pb-2">
                     <label className="text-sm px-1 whitespace-nowrap">
                         {t("Using model")}
@@ -483,7 +483,7 @@ export default function TranscribeVideo({
                         disabled={isYouTubeVideo}
                     />
                 </span>
-            </div>
+            </div> */}
 
             <div className="options-section flex flex-col justify-between gap-2 mb-5 p-2.5 border border-gray-300 rounded-md bg-neutral-100 w-full">
                 <div className="flex flex-col">
