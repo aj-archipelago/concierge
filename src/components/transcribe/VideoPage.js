@@ -804,12 +804,6 @@ function VideoPage() {
 
     const updateUserState = useCallback(
         (updates) => {
-            console.log("updateUserState", updates, userState?.transcribe, {
-                transcribe: {
-                    ...userState?.transcribe,
-                    ...updates,
-                },
-            });
             setTimeout(() => {
                 debouncedUpdateUserState({
                     transcribe: {
@@ -899,7 +893,6 @@ function VideoPage() {
             setVideoLanguages(initialLanguages);
             setActiveLanguage(0);
 
-            console.log("initialLanguages", initialLanguages, videoInformation);
             updateUserState({
                 videoInformation: {
                     ...videoInformation,
