@@ -1223,26 +1223,36 @@ function VideoPage() {
                                             <>
                                                 {(() => {
                                                     // Use the existing isAudioUrl function to detect audio files
-                                                    const isAudioFile = videoInformation?.videoUrl 
-                                                        ? isAudioUrl(videoInformation.videoUrl)
-                                                        : false;
-                                                    
+                                                    const isAudioFile =
+                                                        videoInformation?.videoUrl
+                                                            ? isAudioUrl(
+                                                                  videoInformation.videoUrl,
+                                                              )
+                                                            : false;
+
                                                     // Only show audio tracks section for video files
                                                     if (isAudioFile) {
                                                         return null;
                                                     }
-                                                    
+
                                                     return (
                                                         <div className="border rounded-lg border-gray-200/50 p-3 space-y-3">
                                                             <div className="text-sm text-sky-600 font-semibold text-gray-500 flex items-center gap-2">
                                                                 <Volume2Icon className="h-4 w-4" />
-                                                                {t("Audio tracks")}
+                                                                {t(
+                                                                    "Audio tracks",
+                                                                )}
                                                             </div>
                                                             <div className="flex flex-col gap-2">
                                                                 {videoLanguages.map(
-                                                                    (lang, idx) => (
+                                                                    (
+                                                                        lang,
+                                                                        idx,
+                                                                    ) => (
                                                                         <div
-                                                                            key={idx}
+                                                                            key={
+                                                                                idx
+                                                                            }
                                                                             className="flex items-center"
                                                                         >
                                                                             <div className="flex w-[13rem] rounded-md border border-gray-200 overflow-hidden">
@@ -1343,7 +1353,9 @@ function VideoPage() {
                                                                 className="lb-outline-secondary lb-sm flex items-center gap-1 w-full"
                                                             >
                                                                 <PlusIcon className="h-4 w-4" />
-                                                                {t("Add audio track")}
+                                                                {t(
+                                                                    "Add audio track",
+                                                                )}
                                                             </button>
                                                         </div>
                                                     );
