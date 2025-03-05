@@ -188,9 +188,8 @@ function TranscriptView({
     showRetranscribeButton = true,
     url,
 }) {
-    const { t, i18n } = useTranslation();
+    const { t } = useTranslation();
     const [editableText, setEditableText] = useState(text);
-    const isRTL = i18n.dir() === "rtl";
 
     // Determine if we should show the retranscribe button
     const shouldShowRetranscribeButton =
