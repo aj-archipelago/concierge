@@ -101,7 +101,8 @@
         "start": "next start",
         "lint": "next lint && npx prettier --check .",
         "format": "npx prettier --write .",
-        "worker": "nodemon ./jobs/worker.js",
+        "worker": "node ./jobs/worker.js",
+        "worker:dev": "nodemon --watch ./jobs/worker.js --exec 'node ./jobs/worker.js'",
         "test": "jest"
     },
     "eslintConfig": {

@@ -1,6 +1,5 @@
 const APPROXIMATE_DURATION_SECONDS = 60;
 const PROGRESS_UPDATE_INTERVAL = 3000;
-const { processImageUrls } = require("../../src/utils/imageUtils");
 
 const generateDigestBlockContent = async (
     block,
@@ -8,6 +7,9 @@ const generateDigestBlockContent = async (
     logger,
     onProgressUpdate,
 ) => {
+    let imageUtils = await import("../../src/utils/imageUtils.js");
+    const { processImageUrls } = imageUtils;
+
     let graphql = await import("../graphql.mjs");
     const { QUERIES, getClient } = graphql;
     const { prompt } = block;
