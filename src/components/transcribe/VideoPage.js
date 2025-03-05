@@ -232,9 +232,7 @@ function EditableTranscriptSelect({
                 <div className="flex flex-col items-center justify-center p-6 space-y-4 rounded-lg border border-gray-100 bg-gray-50 w-[500px]">
                     <Loader size="default" />
                     <p className="text-gray-700 font-medium">
-                        {t(
-                            "Transcribing video... This may take a few minutes.",
-                        )}
+                        {t("Transcribing... This may take a few minutes.")}
                     </p>
                 </div>
             );
