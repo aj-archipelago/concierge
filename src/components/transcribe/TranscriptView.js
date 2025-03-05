@@ -88,7 +88,7 @@ function VttSubtitles({ name, text, onSeek, currentTime, onTextChange }) {
                             onClick={() =>
                                 handleTimestampClick(subtitle.timestamp)
                             }
-                            className="text-blue-600 hover:text-blue-800"
+                            className="text-sky-600 hover:text-sky-800"
                         >
                             {subtitle.timestamp}
                         </button>
@@ -214,7 +214,7 @@ function TranscriptView({
         <div className="transcription-taxonomy-container flex flex-col gap-2 overflow-y-auto mt-2">
             <div className="transcription-section relative">
                 {isEditing ? (
-                    <div className="border border-gray-300 rounded-md p-2.5 bg-gray-50">
+                    <div className="border border-gray-300 rounded-md p-2.5 bg-gray-50 mb-4">
                         <textarea
                             value={editableText}
                             onChange={(e) => setEditableText(e.target.value)}
@@ -236,7 +236,7 @@ function TranscriptView({
                         </div>
                     </div>
                 ) : (
-                    <div className="border border-gray-300 rounded-md py-2.5 px-2.5 bg-gray-50">
+                    <div className="border border-gray-300 rounded-md py-2.5 px-2.5 bg-gray-50 mb-4">
                         {format === "vtt" && text ? (
                             <VttSubtitles
                                 name={name}
@@ -266,28 +266,18 @@ function TranscriptView({
 
                 {/* Show retranscribe button only if shouldShowRetranscribeButton is true and not currently retranscribing */}
                 {!isRetranscribing && shouldShowRetranscribeButton && (
-                    <div className="absolute bottom-3 end-3">
-                        <button
-                            onClick={onRetranscribe}
-                            className="group relative flex items-center gap-2 px-3 py-1.5 
-                                      text-xs font-medium bg-white text-gray-700
-                                      border border-gray-300 rounded-md transition-all duration-200
-                                      hover:bg-gray-100 hover:shadow-sm active:scale-95"
-                        >
-                            <span className="relative flex items-center overflow-visible">
-                                <span
-                                    className={`absolute whitespace-nowrap opacity-0 
-                                               transition-all duration-200 text-blue-600
-                                               group-hover:opacity-100 
-                                               ${
-                                                   isRTL
-                                                       ? "right-auto left-[30px] -translate-x-2 group-hover:translate-x-0"
-                                                       : "left-auto right-[30px] translate-x-2 group-hover:translate-x-0"
-                                               }`}
-                                >
-                                    {t("Try alternative transcription?")}
-                                </span>
+                    <div className="-mt-2 mb-4 text-xs flex gap-2">
+                        <div className="text-gray-500">
+                            {t("Transcript not looking right?")}
+                        </div>
+                        <button onClick={onRetranscribe} className="">
+                            <span className="flex items-center gap-1">
                                 <RefreshCw className="h-3 w-3 text-gray-500" />
+                                <span className="text-sky-600">
+                                    {t(
+                                        "Transcribe again using an alternate model",
+                                    )}
+                                </span>
                             </span>
                         </button>
                     </div>
