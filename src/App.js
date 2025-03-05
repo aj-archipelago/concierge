@@ -18,6 +18,7 @@ import "./App.scss";
 import StoreProvider from "./StoreProvider";
 import { LanguageContext, LanguageProvider } from "./contexts/LanguageProvider";
 import { ThemeProvider } from "./contexts/ThemeProvider";
+import { AutoTranscribeProvider } from "./contexts/AutoTranscribeContext";
 import Layout from "./layout/Layout";
 import "./tailwind.css";
 
@@ -97,19 +98,21 @@ const App = ({
                 <StoreProvider>
                     <ThemeProvider savedTheme={theme}>
                         <LanguageProvider savedLanguage={language}>
-                            <React.StrictMode>
-                                <AuthContext.Provider
-                                    value={{
-                                        user: currentUser,
-                                        userState,
-                                        debouncedUpdateUserState,
-                                    }}
-                                >
-                                    <Layout>
-                                        <Body>{children}</Body>
-                                    </Layout>
-                                </AuthContext.Provider>
-                            </React.StrictMode>
+                            <AutoTranscribeProvider>
+                                <React.StrictMode>
+                                    <AuthContext.Provider
+                                        value={{
+                                            user: currentUser,
+                                            userState,
+                                            debouncedUpdateUserState,
+                                        }}
+                                    >
+                                        <Layout>
+                                            <Body>{children}</Body>
+                                        </Layout>
+                                    </AuthContext.Provider>
+                                </React.StrictMode>
+                            </AutoTranscribeProvider>
                         </LanguageProvider>
                     </ThemeProvider>
                 </StoreProvider>

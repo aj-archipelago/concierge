@@ -59,6 +59,24 @@ import TaxonomySelector from "./TaxonomySelector";
 import { AddTrackButton } from "./TranscriptionOptions";
 import TranscriptView from "./TranscriptView";
 import VideoInput from "./VideoInput";
+import { useAutoTranscribe } from "../../contexts/AutoTranscribeContext";
+import { QUERIES } from "../../graphql";
+import { useProgress } from "../../contexts/ProgressContext";
+import Loader from "../../../app/components/loader";
+
+// Add getTranscribeQuery function
+const getTranscribeQuery = (modelOption) => {
+    switch (modelOption) {
+        case "Whisper":
+            return QUERIES.TRANSCRIBE;
+        case "NeuralSpace":
+            return QUERIES.TRANSCRIBE_NEURALSPACE;
+        case "Gemini":
+            return QUERIES.TRANSCRIBE_GEMINI;
+        default:
+            return QUERIES.TRANSCRIBE;
+    }
+};
 
 const isValidUrl = (url) => {
     try {
@@ -180,6 +198,7 @@ function EditableTranscriptSelect({
     const { t } = useTranslation();
     const [editing, setEditing] = useState(false);
     const [tempName, setTempName] = useState("");
+    const { isAutoTranscribing } = useAutoTranscribe();
 
     useEffect(() => {
         if (transcripts[activeTranscript]) {
@@ -207,7 +226,21 @@ function EditableTranscriptSelect({
     };
 
     if (!transcripts.length) {
-        // return add track button
+        // Show transcribing message if auto-transcription is in progress
+        if (isAutoTranscribing) {
+            return (
+                <div className="flex flex-col items-center justify-center p-6 space-y-4 rounded-lg border border-gray-100 bg-gray-50">
+                    <Loader size="default" />
+                    <p className="text-gray-700 font-medium">
+                        {t(
+                            "Transcribing video... This may take a few minutes.",
+                        )}
+                    </p>
+                </div>
+            );
+        }
+
+        // Otherwise return add track button
         return (
             <AddTrackButton
                 transcripts={transcripts}
@@ -731,6 +764,12 @@ function VideoPage() {
     const { t } = useTranslation();
     const apolloClient = useApolloClient();
     const { userState, debouncedUpdateUserState } = useContext(AuthContext);
+    const {
+        attemptedAutoTranscribe,
+        markAttempted,
+        isAutoTranscribing,
+        setIsAutoTranscribing,
+    } = useAutoTranscribe();
     const prevUserStateRef = useRef();
     const [currentTime, setCurrentTime] = useState(0);
     const [selectedTab, setSelectedTab] = useState("transcribe");
@@ -745,6 +784,8 @@ function VideoPage() {
     const [isUploading, setIsUploading] = useState(false);
     const [youtubePlayer, setYoutubePlayer] = useState(null);
     const [isYTPlaying, setIsYTPlaying] = useState(false);
+
+    const { addProgressToast } = useProgress();
 
     // Handle VTT URL creation and cleanup
     useEffect(() => {
@@ -775,8 +816,12 @@ function VideoPage() {
 
     const updateUserState = useCallback(
         (updates) => {
-            console.log("updates", updates);
-            console.trace();
+            console.log("updateUserState", updates, userState?.transcribe, {
+                transcribe: {
+                    ...userState?.transcribe,
+                    ...updates,
+                },
+            });
             setTimeout(() => {
                 debouncedUpdateUserState({
                     transcribe: {
@@ -882,9 +927,12 @@ function VideoPage() {
             updateUserState({
                 videoInformation: {
                     ...videoInformation,
-                    transcripts,
                 },
+                transcripts,
             });
+        }
+        if (transcripts.length) {
+            markAttempted(videoInformation?.videoUrl);
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [transcripts]);
@@ -1032,6 +1080,90 @@ function VideoPage() {
             activeTranscript: index,
         });
     };
+
+    // Add function to start transcription
+    const startTranscription = useCallback(async () => {
+        const videoUrl = videoInformation?.videoUrl;
+        if (!videoUrl || !apolloClient) return;
+
+        try {
+            setIsAutoTranscribing(true);
+            const isYouTubeVideo = isYoutubeUrl(videoUrl);
+            const modelOption = isYouTubeVideo ? "Gemini" : "Whisper";
+            const _query = getTranscribeQuery(modelOption);
+
+            const { data } = await apolloClient.query({
+                query: _query,
+                variables: {
+                    file: videoUrl,
+                    language: "", // Auto-detect
+                    wordTimestamped: false,
+                    responseFormat: "vtt", // Default to VTT format
+                    async: true,
+                },
+                fetchPolicy: "network-only",
+            });
+
+            const dataResult =
+                data?.transcribe?.result ||
+                data?.transcribe_neuralspace?.result ||
+                data?.transcribe_gemini?.result;
+
+            if (dataResult) {
+                addProgressToast(
+                    dataResult,
+                    t("Transcribing") + "...",
+                    async (finalData) => {
+                        setIsAutoTranscribing(false);
+                        addSubtitleTrack({
+                            text: finalData,
+                            format: "vtt",
+                            name: t("Subtitles"),
+                        });
+                    },
+                    (error) => {
+                        // Add this error handler to reset the auto-transcribing state when cancelled
+                        console.error(
+                            "Transcription error or cancelled:",
+                            error,
+                        );
+                        setIsAutoTranscribing(false);
+                    },
+                );
+            }
+        } catch (error) {
+            console.error("Auto-transcription error:", error);
+            setIsAutoTranscribing(false);
+        }
+    }, [
+        videoInformation?.videoUrl,
+        apolloClient,
+        addSubtitleTrack,
+        t,
+        addProgressToast,
+        setIsAutoTranscribing,
+    ]);
+
+    // Replace the existing auto-transcription effect
+    useEffect(() => {
+        const videoUrl = videoInformation?.videoUrl;
+        if (
+            videoUrl &&
+            !transcripts.length &&
+            !attemptedAutoTranscribe[videoUrl]
+        ) {
+            console.log("Starting auto-transcription for:", videoUrl);
+            markAttempted(videoUrl);
+
+            startTranscription();
+        }
+    }, [
+        videoInformation?.videoUrl,
+        transcripts.length,
+        attemptedAutoTranscribe,
+        markAttempted,
+        startTranscription,
+    ]);
 
     if (!videoInformation && !transcripts?.length) {
         return (
@@ -1332,7 +1464,7 @@ function VideoPage() {
                     setIsEditing={setIsEditing}
                     onDeleteTrack={() => {
                         const updatedTranscripts = transcripts.filter(
-                            (_, index) => index !== activeTranscript,
+                            (_, index) => index !== (activeTranscript || 0),
                         );
 
                         console.log("updated", updatedTranscripts);
@@ -1343,8 +1475,8 @@ function VideoPage() {
                         updateUserState({
                             videoInformation: {
                                 ...userState?.transcribe?.videoInformation,
-                                transcripts: updatedTranscripts,
                             },
+                            transcripts: updatedTranscripts,
                         });
                     }}
                 />
