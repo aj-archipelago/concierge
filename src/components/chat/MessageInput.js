@@ -1,5 +1,5 @@
 import "highlight.js/styles/github.css";
-import { useContext, useState } from "react";
+import { useContext, useState, useEffect } from "react";
 import { RiSendPlane2Fill } from "react-icons/ri";
 import TextareaAutosize from "react-textarea-autosize";
 import classNames from "../../../app/utils/class-names";
@@ -37,23 +37,34 @@ function MessageInput({
     isStreaming,
     onStopStreaming,
 }) {
+    const activeChatId = useGetActiveChatId();
+    const activeChat = useGetActiveChat().data;
+
+    const { user, userState, debouncedUpdateUserState } =
+        useContext(AuthContext);
+    const contextId = user?.contextId;
+    const dispatch = useDispatch();
+    const client = useApolloClient();
+    const [isUploadingMedia, setIsUploadingMedia] = useState(false);
+    const addDocument = useAddDocument();
+    const codeRequestId = activeChat?.codeRequestId;
+    const apolloClient = useApolloClient();
+
+    // Update the input value when userState or activeChatId changes
+    useEffect(() => {
+        if (
+            activeChatId &&
+            userState?.chatInputs &&
+            userState.chatInputs[activeChatId]
+        ) {
+            setInputValue(userState.chatInputs[activeChatId]);
+        }
+    }, [userState, activeChatId]);
+
     const [inputValue, setInputValue] = useState("");
     const [urlsData, setUrlsData] = useState([]);
     const [files, setFiles] = useState([]);
     const [showFileUpload, setShowFileUpload] = useState(false);
-    const client = useApolloClient();
-    const { user } = useContext(AuthContext);
-    const contextId = user?.contextId;
-    const dispatch = useDispatch();
-    const [isUploadingMedia, setIsUploadingMedia] = useState(false);
-    const addDocument = useAddDocument();
-    const handleInputChange = (event) => {
-        setInputValue(event.target.value);
-    };
-    const activeChatId = useGetActiveChatId();
-    const activeChat = useGetActiveChat().data;
-    const codeRequestId = activeChat?.codeRequestId;
-    const apolloClient = useApolloClient();
 
     const prepareMessage = (inputText) => {
         return [
@@ -78,6 +89,20 @@ function MessageInput({
         ];
     };
 
+    const handleInputChange = (event) => {
+        const newValue = event.target.value;
+        setInputValue(newValue);
+
+        if (activeChatId) {
+            debouncedUpdateUserState((prevState) => ({
+                chatInputs: {
+                    ...(prevState?.chatInputs || {}),
+                    [activeChatId]: newValue,
+                },
+            }));
+        }
+    };
+
     const handleFormSubmit = (event) => {
         event.preventDefault();
         if (codeRequestId && inputValue) {
@@ -91,6 +116,14 @@ function MessageInput({
             });
 
             setInputValue("");
+            if (activeChatId) {
+                debouncedUpdateUserState((prevState) => ({
+                    chatInputs: {
+                        ...(prevState?.chatInputs || {}),
+                        [activeChatId]: "",
+                    },
+                }));
+            }
             return;
         }
         if (!loading && inputValue) {
@@ -99,6 +132,15 @@ function MessageInput({
             setInputValue("");
             setFiles([]);
             setUrlsData([]);
+
+            if (activeChatId) {
+                debouncedUpdateUserState((prevState) => ({
+                    chatInputs: {
+                        ...(prevState?.chatInputs || {}),
+                        [activeChatId]: "",
+                    },
+                }));
+            }
         }
     };
 

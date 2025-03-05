@@ -772,7 +772,7 @@ function VideoPage() {
     const [isUploading, setIsUploading] = useState(false);
     const [youtubePlayer, setYoutubePlayer] = useState(null);
     const [isYTPlaying, setIsYTPlaying] = useState(false);
-
+    const [isRetranscribing, setIsRetranscribing] = useState(false);
     const { addProgressToast } = useProgress();
 
     // Handle VTT URL creation and cleanup
@@ -1149,6 +1149,97 @@ function VideoPage() {
         attemptedAutoTranscribe,
         markAttempted,
         startTranscription,
+    ]);
+
+    // Modify the retranscription function to create a new track instead of updating existing
+    const handleRetranscribe = useCallback(async () => {
+        if (!videoInformation?.videoUrl || isRetranscribing) return;
+
+        try {
+            setIsRetranscribing(true);
+            const queryToUse = QUERIES.TRANSCRIBE_GEMINI;
+
+            // Get current transcript format
+            const currentTranscript = transcripts[activeTranscript];
+            const isFormatted =
+                currentTranscript.format !== "vtt" &&
+                currentTranscript.format !== "";
+            const isWordTimestamped =
+                currentTranscript.text.includes("<c.") ||
+                (currentTranscript.format === "vtt" &&
+                    currentTranscript.text.includes("<c "));
+
+            const { data } = await apolloClient.query({
+                query: queryToUse,
+                variables: {
+                    file: videoInformation.videoUrl,
+                    language: "", // Auto-detect
+                    wordTimestamped: isWordTimestamped,
+                    responseFormat: isFormatted
+                        ? "formatted"
+                        : currentTranscript.format,
+                    async: true,
+                },
+                fetchPolicy: "network-only",
+            });
+
+            const requestId =
+                data?.transcribe?.result || data?.transcribe_gemini?.result;
+
+            if (requestId) {
+                addProgressToast(
+                    requestId,
+                    t("Re-transcribing") + "...",
+                    async (finalData) => {
+                        if (isFormatted) {
+                            const response = await apolloClient.query({
+                                query: QUERIES.FORMAT_PARAGRAPH_TURBO,
+                                variables: {
+                                    text: finalData,
+                                    async: false,
+                                },
+                            });
+
+                            finalData =
+                                response.data?.format_paragraph_turbo?.result;
+                        }
+
+                        // Create a new transcript instead of updating the existing one
+                        const currentName =
+                            currentTranscript.name ||
+                            `Transcript ${activeTranscript + 1}`;
+                        const newName = `${currentName} (alternative)`;
+
+                        setTranscripts((prev) => [
+                            ...prev,
+                            {
+                                text: finalData,
+                                format: currentTranscript.format,
+                                name: newName,
+                                timestamp: new Date().toISOString(),
+                                isAlternative: true, // Mark as an alternative generated transcript
+                            },
+                        ]);
+
+                        // Set the active transcript to the newly created one
+                        setActiveTranscript(transcripts.length);
+                        setIsRetranscribing(false);
+                    },
+                    () => setIsRetranscribing(false),
+                );
+            }
+        } catch (error) {
+            console.error("Re-transcription error:", error);
+            setIsRetranscribing(false);
+        }
+    }, [
+        videoInformation,
+        isRetranscribing,
+        transcripts,
+        activeTranscript,
+        apolloClient,
+        t,
+        addProgressToast,
     ]);
 
     if (!videoInformation && !transcripts?.length) {
@@ -1536,6 +1627,12 @@ function VideoPage() {
                                         ),
                                     });
                                 }}
+                                onRetranscribe={handleRetranscribe}
+                                isRetranscribing={isRetranscribing}
+                                showRetranscribeButton={
+                                    !transcripts[activeTranscript].isAlternative
+                                }
+                                url={videoInformation?.videoUrl || url}
                             />
                         </>
                     )}
