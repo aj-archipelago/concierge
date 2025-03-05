@@ -37,7 +37,18 @@ function MessageInput({
     isStreaming,
     onStopStreaming,
 }) {
-    const [inputValue, setInputValue] = useState("");
+    const activeChatId = useGetActiveChatId();
+    const activeChat = useGetActiveChat().data;
+
+    const [inputValue, setInputValue] = useState(() => {
+        if (typeof window !== "undefined" && activeChatId) {
+            const savedMessage = localStorage.getItem(
+                `chat_input_${activeChatId}`,
+            );
+            return savedMessage || "";
+        }
+        return "";
+    });
     const [urlsData, setUrlsData] = useState([]);
     const [files, setFiles] = useState([]);
     const [showFileUpload, setShowFileUpload] = useState(false);
@@ -47,11 +58,6 @@ function MessageInput({
     const dispatch = useDispatch();
     const [isUploadingMedia, setIsUploadingMedia] = useState(false);
     const addDocument = useAddDocument();
-    const handleInputChange = (event) => {
-        setInputValue(event.target.value);
-    };
-    const activeChatId = useGetActiveChatId();
-    const activeChat = useGetActiveChat().data;
     const codeRequestId = activeChat?.codeRequestId;
     const apolloClient = useApolloClient();
 
@@ -78,6 +84,15 @@ function MessageInput({
         ];
     };
 
+    const handleInputChange = (event) => {
+        const newValue = event.target.value;
+        setInputValue(newValue);
+
+        if (activeChatId) {
+            localStorage.setItem(`chat_input_${activeChatId}`, newValue);
+        }
+    };
+
     const handleFormSubmit = (event) => {
         event.preventDefault();
         if (codeRequestId && inputValue) {
@@ -91,6 +106,9 @@ function MessageInput({
             });
 
             setInputValue("");
+            if (activeChatId) {
+                localStorage.removeItem(`chat_input_${activeChatId}`);
+            }
             return;
         }
         if (!loading && inputValue) {
@@ -99,6 +117,10 @@ function MessageInput({
             setInputValue("");
             setFiles([]);
             setUrlsData([]);
+
+            if (activeChatId) {
+                localStorage.removeItem(`chat_input_${activeChatId}`);
+            }
         }
     };
 
