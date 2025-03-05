@@ -480,7 +480,6 @@ function VideoPlayer({
         videoInformation?.videoUrl || videoLanguages[activeLanguage]?.url;
     const isYouTube = isYoutubeUrl(videoUrl);
     const embedUrl = isYouTube ? getYoutubeEmbedUrl(videoUrl) : videoUrl;
-    const { t } = useTranslation();
 
     useEffect(() => {
         if (!videoUrl || !isYouTube) return;
@@ -1127,6 +1126,7 @@ function VideoPage() {
         }
     }, [
         videoInformation?.videoUrl,
+        videoInformation?.transcriptionUrl,
         apolloClient,
         addSubtitleTrack,
         t,
