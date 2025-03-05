@@ -6,7 +6,8 @@ import { FaEdit } from "react-icons/fa";
 import TextareaAutosize from "react-textarea-autosize";
 import CopyButton from "../CopyButton";
 import { parse, formatTimestamp } from "@aj-archipelago/subvibe";
-import { ThumbsDownIcon } from "lucide-react";
+import { RefreshCw } from "lucide-react";
+import { isYoutubeUrl } from "../../utils/urlUtils";
 
 // Simplified VTT component
 function VttSubtitles({ name, text, onSeek, currentTime, onTextChange }) {
@@ -184,10 +185,16 @@ function TranscriptView({
     setIsEditing,
     onRetranscribe,
     isRetranscribing,
-    showRetranscribeButton = true, // New prop to control button visibility
+    showRetranscribeButton = true,
+    url,
 }) {
-    const { t } = useTranslation();
+    const { t, i18n } = useTranslation();
     const [editableText, setEditableText] = useState(text);
+    const isRTL = i18n.dir() === "rtl";
+
+    // Determine if we should show the retranscribe button
+    const shouldShowRetranscribeButton =
+        showRetranscribeButton && !isYoutubeUrl(url);
 
     useEffect(() => {
         setEditableText(text);
@@ -257,26 +264,30 @@ function TranscriptView({
                     )}
                 </div>
 
-                {/* Only show the retranscribe button if showRetranscribeButton is true */}
-                {!isRetranscribing && showRetranscribeButton && (
+                {/* Show retranscribe button only if shouldShowRetranscribeButton is true and not currently retranscribing */}
+                {!isRetranscribing && shouldShowRetranscribeButton && (
                     <div className="absolute bottom-3 end-3">
                         <button
                             onClick={onRetranscribe}
                             className="group relative flex items-center gap-2 px-3 py-1.5 
-                                        text-xs font-medium bg-white text-gray-700
-                                        border border-gray-300 rounded-md transition-all duration-200
-                                        hover:bg-gray-100 hover:shadow-sm active:scale-95"
+                                      text-xs font-medium bg-white text-gray-700
+                                      border border-gray-300 rounded-md transition-all duration-200
+                                      hover:bg-gray-100 hover:shadow-sm active:scale-95"
                         >
-                            <span className="relative overflow-visible flex items-center">
+                            <span className="relative flex items-center overflow-visible">
                                 <span
-                                    className="absolute right-[30px] whitespace-nowrap opacity-0 
-                                                transform translate-x-2 transition-all duration-200 
-                                                group-hover:opacity-100 group-hover:translate-x-0 
-                                                text-blue-600"
+                                    className={`absolute whitespace-nowrap opacity-0 
+                                               transition-all duration-200 text-blue-600
+                                               group-hover:opacity-100 
+                                               ${
+                                                   isRTL
+                                                       ? "right-auto left-[30px] -translate-x-2 group-hover:translate-x-0"
+                                                       : "left-auto right-[30px] translate-x-2 group-hover:translate-x-0"
+                                               }`}
                                 >
-                                    {t("Try alternative gemini transcription?")}
+                                    {t("Try alternative transcription?")}
                                 </span>
-                                <ThumbsDownIcon className="h-3.5 w-3.5 text-gray-500 relative" />
+                                <RefreshCw className="h-3 w-3 text-gray-500" />
                             </span>
                         </button>
                     </div>

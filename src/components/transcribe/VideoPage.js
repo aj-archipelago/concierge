@@ -1490,6 +1490,7 @@ function VideoPage() {
                                 showRetranscribeButton={
                                     !transcripts[activeTranscript].isAlternative
                                 }
+                                url={videoInformation?.videoUrl || url}
                             />
                         </>
                     )}
