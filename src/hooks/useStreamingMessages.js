@@ -4,7 +4,7 @@ import { SUBSCRIPTIONS } from "../graphql";
 import { processImageUrls } from "../utils/imageUtils";
 
 // Add utility function for chunking text
-const chunkText = (text, maxChunkSize = 3) => {
+const chunkText = (text, maxChunkSize = 9) => {
     if (!text || text.length <= maxChunkSize) return [text];
 
     const chunks = [];
@@ -51,7 +51,7 @@ export function useStreamingMessages({ chat, updateChatHook }) {
     const completingMessageRef = useRef(false);
     const chunkQueueRef = useRef([]);
     const lastChunkTimeRef = useRef(0);
-    const CHUNK_INTERVAL = 13; // ~75fps for faster rendering
+    const CHUNK_INTERVAL = 4; // ~225fps for 3x faster rendering (was 13ms)
 
     // Cleanup function for timeouts
     useEffect(() => {
