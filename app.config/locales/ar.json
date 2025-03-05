@@ -515,5 +515,8 @@
     "View all": "عرض الكل",
     "No recent or active notifications": "لا يوجد إشعارات مفعلة",
     "View history": "عرض التاريخ",
-    "All notifications": "جميع الإشعارات"
+    "All notifications": "جميع الإشعارات",
+    "Transcript not looking right?": "النص المنسوخ لا يبدو صحيحًا؟",
+    "Transcribe again using an alternate model": "تنسيق مرة أخرى باستخدام نموذج مختلف",
+    "Re-transcribing": "إعادة التنسيق"
 }

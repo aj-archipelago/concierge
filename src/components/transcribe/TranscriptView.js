@@ -6,6 +6,8 @@ import { FaEdit } from "react-icons/fa";
 import TextareaAutosize from "react-textarea-autosize";
 import CopyButton from "../CopyButton";
 import { parse, formatTimestamp } from "@aj-archipelago/subvibe";
+import { RefreshCw } from "lucide-react";
+import { isYoutubeUrl } from "../../utils/urlUtils";
 
 // Simplified VTT component
 function VttSubtitles({ name, text, onSeek, currentTime, onTextChange }) {
@@ -86,7 +88,7 @@ function VttSubtitles({ name, text, onSeek, currentTime, onTextChange }) {
                             onClick={() =>
                                 handleTimestampClick(subtitle.timestamp)
                             }
-                            className="text-blue-600 hover:text-blue-800"
+                            className="text-sky-600 hover:text-sky-800"
                         >
                             {subtitle.timestamp}
                         </button>
@@ -181,9 +183,18 @@ function TranscriptView({
     onTextChange,
     isEditing,
     setIsEditing,
+    onRetranscribe,
+    isRetranscribing,
+    showRetranscribeButton = true,
+    url,
 }) {
-    const { t } = useTranslation();
+    const { t, i18n } = useTranslation();
     const [editableText, setEditableText] = useState(text);
+    const isRTL = i18n.dir() === "rtl";
+
+    // Determine if we should show the retranscribe button
+    const shouldShowRetranscribeButton =
+        showRetranscribeButton && !isYoutubeUrl(url);
 
     useEffect(() => {
         setEditableText(text);
@@ -203,7 +214,7 @@ function TranscriptView({
         <div className="transcription-taxonomy-container flex flex-col gap-2 overflow-y-auto mt-2">
             <div className="transcription-section relative">
                 {isEditing ? (
-                    <div className="border border-gray-300 rounded-md p-2.5 bg-gray-50">
+                    <div className="border border-gray-300 rounded-md p-2.5 bg-gray-50 mb-4">
                         <textarea
                             value={editableText}
                             onChange={(e) => setEditableText(e.target.value)}
@@ -225,7 +236,7 @@ function TranscriptView({
                         </div>
                     </div>
                 ) : (
-                    <div className="border border-gray-300 rounded-md py-2.5 px-2.5 bg-gray-50">
+                    <div className="border border-gray-300 rounded-md py-2.5 px-2.5 bg-gray-50 mb-4">
                         {format === "vtt" && text ? (
                             <VttSubtitles
                                 name={name}
@@ -252,6 +263,25 @@ function TranscriptView({
                         />
                     )}
                 </div>
+
+                {/* Show retranscribe button only if shouldShowRetranscribeButton is true and not currently retranscribing */}
+                {!isRetranscribing && shouldShowRetranscribeButton && (
+                    <div className="-mt-2 mb-4 text-xs flex gap-2">
+                        <div className="text-gray-500">
+                            {t("Transcript not looking right?")}
+                        </div>
+                        <button onClick={onRetranscribe} className="">
+                            <span className="flex items-center gap-1">
+                                <RefreshCw className="h-3 w-3 text-gray-500" />
+                                <span className="text-sky-600">
+                                    {t(
+                                        "Transcribe again using an alternate model",
+                                    )}
+                                </span>
+                            </span>
+                        </button>
+                    </div>
+                )}
             </div>
         </div>
     );
