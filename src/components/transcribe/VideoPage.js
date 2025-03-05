@@ -63,6 +63,7 @@ import { useAutoTranscribe } from "../../contexts/AutoTranscribeContext";
 import { QUERIES } from "../../graphql";
 import { useProgress } from "../../contexts/ProgressContext";
 import Loader from "../../../app/components/loader";
+import { isAudioUrl } from "../chat/MyFilePond";
 
 // Add getTranscribeQuery function
 const getTranscribeQuery = (modelOption) => {
@@ -586,13 +587,7 @@ function VideoPlayer({
             </div>
 
             <div className="">
-                {isYoutubeUrl(videoInformation?.videoUrl) ? (
-                    <p className="text-xs text-gray-400 mb-1 ps-3">
-                        {t(
-                            "Note: Audio track translation is not supported for YouTube videos",
-                        )}
-                    </p>
-                ) : null}
+                {/* Note message removed as we're now properly handling YouTube vs video vs audio files */}
             </div>
             <VideoInformationBox
                 videoInformation={videoInformation}
@@ -1225,119 +1220,135 @@ function VideoPage() {
                                         {isYoutubeUrl(
                                             videoInformation?.videoUrl,
                                         ) ? null : (
-                                            <div className="border rounded-lg border-gray-200/50 p-3 space-y-3">
-                                                <div className="text-sm text-sky-600 font-semibold text-gray-500 flex items-center gap-2">
-                                                    <Volume2Icon className="h-4 w-4" />
-                                                    {t("Audio tracks")}
-                                                </div>
-                                                <div className="flex flex-col gap-2">
-                                                    {videoLanguages.map(
-                                                        (lang, idx) => (
-                                                            <div
-                                                                key={idx}
-                                                                className="flex items-center"
-                                                            >
-                                                                <div className="flex w-[13rem] rounded-md border border-gray-200 overflow-hidden">
-                                                                    <button
-                                                                        onClick={() => {
-                                                                            setActiveLanguage(
-                                                                                idx,
-                                                                            );
-                                                                        }}
-                                                                        className={`grow truncate text-start text-xs px-3 py-1.5 hover:bg-sky-100 active:bg-sky-200 transition-colors
-                                                                ${activeLanguage === idx ? "bg-sky-50 text-gray-900" : "text-gray-600"}`}
-                                                                    >
-                                                                        {lang.label ||
-                                                                            new Intl.DisplayNames(
-                                                                                [
-                                                                                    language,
-                                                                                ],
-                                                                                {
-                                                                                    type: "language",
-                                                                                },
-                                                                            ).of(
-                                                                                lang.code,
-                                                                            )}
-                                                                    </button>
-                                                                    <div className="flex">
-                                                                        {idx !==
-                                                                            0 &&
-                                                                            activeLanguage ===
-                                                                                idx && (
-                                                                                <button
-                                                                                    onClick={(
-                                                                                        e,
-                                                                                    ) => {
-                                                                                        e.stopPropagation();
-                                                                                        if (
-                                                                                            window.confirm(
-                                                                                                t(
-                                                                                                    "Are you sure you want to delete this language track?",
-                                                                                                ),
-                                                                                            )
-                                                                                        ) {
-                                                                                            const newVideoLanguages =
-                                                                                                videoLanguages.filter(
-                                                                                                    (
-                                                                                                        _,
-                                                                                                        i,
-                                                                                                    ) =>
-                                                                                                        i !==
-                                                                                                        idx,
-                                                                                                );
-                                                                                            setVideoLanguages(
-                                                                                                newVideoLanguages,
-                                                                                            );
-                                                                                            setActiveLanguage(
-                                                                                                0,
-                                                                                            );
-                                                                                        }
-                                                                                    }}
-                                                                                    className="px-2 bg-sky-50 text-gray-500 hover:text-red-500 transition-colors border-gray-200 flex items-center cursor-pointer"
-                                                                                    title={t(
-                                                                                        "Delete language",
-                                                                                    )}
-                                                                                >
-                                                                                    <TrashIcon className="h-3 w-3" />
-                                                                                </button>
-                                                                            )}
-                                                                        <a
-                                                                            target="_blank"
-                                                                            rel="noreferrer"
-                                                                            href={
-                                                                                lang.url
-                                                                            }
-                                                                            download={`video-${lang.code}.mp4`}
-                                                                            className="px-2 hover:bg-sky-50 transition-colors border-l border-gray-200 flex items-center cursor-pointer"
-                                                                            onClick={(
-                                                                                e,
-                                                                            ) =>
-                                                                                e.stopPropagation()
-                                                                            }
-                                                                            title={t(
-                                                                                "Download video",
-                                                                            )}
-                                                                        >
-                                                                            <DownloadIcon className="h-3.5 w-3.5 text-gray-500" />
-                                                                        </a>
-                                                                    </div>
-                                                                </div>
-                                                            </div>
-                                                        ),
-                                                    )}
-                                                </div>
-                                                <button
-                                                    onClick={() =>
-                                                        setShowTranslateDialog(
-                                                            true,
-                                                        )
+                                            <>
+                                                {(() => {
+                                                    // Use the existing isAudioUrl function to detect audio files
+                                                    const isAudioFile = videoInformation?.videoUrl 
+                                                        ? isAudioUrl(videoInformation.videoUrl)
+                                                        : false;
+                                                    
+                                                    // Only show audio tracks section for video files
+                                                    if (isAudioFile) {
+                                                        return null;
                                                     }
-                                                    className="lb-outline-secondary lb-sm flex items-center gap-1 w-full"
-                                                >
-                                                    <PlusIcon className="h-4 w-4" />
-                                                    {t("Add audio track")}
-                                                </button>
-                                            </div>
+                                                    
+                                                    return (
+                                                        <div className="border rounded-lg border-gray-200/50 p-3 space-y-3">
+                                                            <div className="text-sm text-sky-600 font-semibold text-gray-500 flex items-center gap-2">
+                                                                <Volume2Icon className="h-4 w-4" />
+                                                                {t("Audio tracks")}
+                                                            </div>
+                                                            <div className="flex flex-col gap-2">
+                                                                {videoLanguages.map(
+                                                                    (lang, idx) => (
+                                                                        <div
+                                                                            key={idx}
+                                                                            className="flex items-center"
+                                                                        >
+                                                                            <div className="flex w-[13rem] rounded-md border border-gray-200 overflow-hidden">
+                                                                                <button
+                                                                                    onClick={() => {
+                                                                                        setActiveLanguage(
+                                                                                            idx,
+                                                                                        );
+                                                                                    }}
+                                                                                    className={`grow truncate text-start text-xs px-3 py-1.5 hover:bg-sky-100 active:bg-sky-200 transition-colors
+                                                                            ${activeLanguage === idx ? "bg-sky-50 text-gray-900" : "text-gray-600"}`}
+                                                                                >
+                                                                                    {lang.label ||
+                                                                                        new Intl.DisplayNames(
+                                                                                            [
+                                                                                                language,
+                                                                                            ],
+                                                                                            {
+                                                                                                type: "language",
+                                                                                            },
+                                                                                        ).of(
+                                                                                            lang.code,
+                                                                                        )}
+                                                                                </button>
+                                                                                <div className="flex">
+                                                                                    {idx !==
+                                                                                        0 &&
+                                                                                        activeLanguage ===
+                                                                                            idx && (
+                                                                                            <button
+                                                                                                onClick={(
+                                                                                                    e,
+                                                                                                ) => {
+                                                                                                    e.stopPropagation();
+                                                                                                    if (
+                                                                                                        window.confirm(
+                                                                                                            t(
+                                                                                                                "Are you sure you want to delete this language track?",
+                                                                                                            ),
+                                                                                                        )
+                                                                                                    ) {
+                                                                                                        const newVideoLanguages =
+                                                                                                            videoLanguages.filter(
+                                                                                                                (
+                                                                                                                    _,
+                                                                                                                    i,
+                                                                                                                ) =>
+                                                                                                                    i !==
+                                                                                                                    idx,
+                                                                                                            );
+                                                                                                        setVideoLanguages(
+                                                                                                            newVideoLanguages,
+                                                                                                        );
+                                                                                                        setActiveLanguage(
+                                                                                                            0,
+                                                                                                        );
+                                                                                                    }
+                                                                                                }}
+                                                                                                className="px-2 bg-sky-50 text-gray-500 hover:text-red-500 transition-colors border-gray-200 flex items-center cursor-pointer"
+                                                                                                title={t(
+                                                                                                    "Delete language",
+                                                                                                )}
+                                                                                            >
+                                                                                                <TrashIcon className="h-3 w-3" />
+                                                                                            </button>
+                                                                                        )}
+                                                                                    <a
+                                                                                        target="_blank"
+                                                                                        rel="noreferrer"
+                                                                                        href={
+                                                                                            lang.url
+                                                                                        }
+                                                                                        download={`video-${lang.code}.mp4`}
+                                                                                        className="px-2 hover:bg-sky-50 transition-colors border-l border-gray-200 flex items-center cursor-pointer"
+                                                                                        onClick={(
+                                                                                            e,
+                                                                                        ) =>
+                                                                                            e.stopPropagation()
+                                                                                        }
+                                                                                        title={t(
+                                                                                            "Download video",
+                                                                                        )}
+                                                                                    >
+                                                                                        <DownloadIcon className="h-3.5 w-3.5 text-gray-500" />
+                                                                                    </a>
+                                                                                </div>
+                                                                            </div>
+                                                                        </div>
+                                                                    ),
+                                                                )}
+                                                            </div>
+                                                            <button
+                                                                onClick={() =>
+                                                                    setShowTranslateDialog(
+                                                                        true,
+                                                                    )
+                                                                }
+                                                                className="lb-outline-secondary lb-sm flex items-center gap-1 w-full"
+                                                            >
+                                                                <PlusIcon className="h-4 w-4" />
+                                                                {t("Add audio track")}
+                                                            </button>
+                                                        </div>
+                                                    );
+                                                })()}
+                                            </>
                                         )}
                                     </div>
                                 </div>
