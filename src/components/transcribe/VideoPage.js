@@ -229,7 +229,7 @@ function EditableTranscriptSelect({
         // Show transcribing message if auto-transcription is in progress
         if (isAutoTranscribing) {
             return (
-                <div className="flex flex-col items-center justify-center p-6 space-y-4 rounded-lg border border-gray-100 bg-gray-50">
+                <div className="flex flex-col items-center justify-center p-6 space-y-4 rounded-lg border border-gray-100 bg-gray-50 w-[500px]">
                     <Loader size="default" />
                     <p className="text-gray-700 font-medium">
                         {t(
@@ -1083,7 +1083,8 @@ function VideoPage() {
 
     // Add function to start transcription
     const startTranscription = useCallback(async () => {
-        const videoUrl = videoInformation?.videoUrl;
+        const videoUrl =
+            videoInformation?.transcriptionUrl || videoInformation?.videoUrl;
         if (!videoUrl || !apolloClient) return;
 
         try {
@@ -1467,7 +1468,6 @@ function VideoPage() {
                             (_, index) => index !== (activeTranscript || 0),
                         );
 
-                        console.log("updated", updatedTranscripts);
                         setTranscripts(updatedTranscripts);
                         setActiveTranscript(
                             Math.max(0, updatedTranscripts.length - 1),
