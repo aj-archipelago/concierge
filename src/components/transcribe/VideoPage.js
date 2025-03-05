@@ -1131,7 +1131,6 @@ function VideoPage() {
     useEffect(() => {
         const videoUrl = videoInformation?.videoUrl;
         if (videoUrl && !transcripts.length && !attemptedAutoTranscribe) {
-            console.log("Starting auto-transcription for:", videoUrl);
             markAttempted(videoUrl);
 
             startTranscription();
