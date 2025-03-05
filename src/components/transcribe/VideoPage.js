@@ -227,35 +227,35 @@ function EditableTranscriptSelect({
 
     if (!transcripts.length) {
         // Show transcribing message if auto-transcription is in progress
-        if (isAutoTranscribing) {
-            return (
-                <div className="flex flex-col items-center justify-center p-6 space-y-4 rounded-lg border border-gray-100 bg-gray-50 w-[500px]">
-                    <Loader size="default" />
-                    <p className="text-gray-700 font-medium">
-                        {t("Transcribing... This may take a few minutes.")}
-                    </p>
-                </div>
-            );
-        }
 
         // Otherwise return add track button
         return (
-            <AddTrackButton
-                transcripts={transcripts}
-                url={url}
-                onAdd={onAdd}
-                activeTranscript={activeTranscript}
-                trigger={
-                    <button className="lb-primary flex items-center gap-1 ">
-                        {t("Add subtitles or transcript")}
-                    </button>
-                }
-                apolloClient={apolloClient}
-                addTrackDialogOpen={addTrackDialogOpen}
-                setAddTrackDialogOpen={setAddTrackDialogOpen}
-                selectedTab={selectedTab}
-                setSelectedTab={setSelectedTab}
-            />
+            <>
+                <AddTrackButton
+                    transcripts={transcripts}
+                    url={url}
+                    onAdd={onAdd}
+                    activeTranscript={activeTranscript}
+                    trigger={
+                        <button className="lb-primary flex items-center gap-1 ">
+                            {t("Add subtitles or transcript")}
+                        </button>
+                    }
+                    apolloClient={apolloClient}
+                    addTrackDialogOpen={addTrackDialogOpen}
+                    setAddTrackDialogOpen={setAddTrackDialogOpen}
+                    selectedTab={selectedTab}
+                    setSelectedTab={setSelectedTab}
+                />
+                {isAutoTranscribing && (
+                    <div className="mt-2 flex gap-3 items-center py-2 px-3 rounded-lg border bg-gray-50 w-[500px]">
+                        <Loader size="default" />
+                        <div className="text-gray-700 text-sm">
+                            {t("Transcribing... This may take a few minutes.")}
+                        </div>
+                    </div>
+                )}
+            </>
         );
     }
 
@@ -762,12 +762,8 @@ function VideoPage() {
     const { t } = useTranslation();
     const apolloClient = useApolloClient();
     const { userState, debouncedUpdateUserState } = useContext(AuthContext);
-    const {
-        attemptedAutoTranscribe,
-        markAttempted,
-        isAutoTranscribing,
-        setIsAutoTranscribing,
-    } = useAutoTranscribe();
+    const { attemptedAutoTranscribe, markAttempted, setIsAutoTranscribing } =
+        useAutoTranscribe();
     const prevUserStateRef = useRef();
     const [currentTime, setCurrentTime] = useState(0);
     const [selectedTab, setSelectedTab] = useState("transcribe");
@@ -1111,7 +1107,7 @@ function VideoPage() {
             if (dataResult) {
                 addProgressToast(
                     dataResult,
-                    t("Transcribing") + "...",
+                    t("Auto-transcribing") + "...",
                     async (finalData) => {
                         setIsAutoTranscribing(false);
                         addSubtitleTrack({
@@ -1146,11 +1142,7 @@ function VideoPage() {
     // Replace the existing auto-transcription effect
     useEffect(() => {
         const videoUrl = videoInformation?.videoUrl;
-        if (
-            videoUrl &&
-            !transcripts.length &&
-            !attemptedAutoTranscribe[videoUrl]
-        ) {
+        if (videoUrl && !transcripts.length && !attemptedAutoTranscribe) {
             console.log("Starting auto-transcription for:", videoUrl);
             markAttempted(videoUrl);
 
@@ -1198,6 +1190,7 @@ function VideoPage() {
                                                 ),
                                             )
                                         ) {
+                                            markAttempted(false);
                                             clearVideoInformation();
                                         }
                                     }}

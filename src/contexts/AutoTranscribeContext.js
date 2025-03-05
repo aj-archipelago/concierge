@@ -10,14 +10,12 @@ const AutoTranscribeContext = createContext({
 });
 
 export function AutoTranscribeProvider({ children }) {
-    const [attemptedAutoTranscribe, setAttemptedAutoTranscribe] = useState({});
+    const [attemptedAutoTranscribe, setAttemptedAutoTranscribe] =
+        useState(false);
     const [isAutoTranscribing, setIsAutoTranscribing] = useState(false);
 
-    const markAttempted = (videoUrl) => {
-        setAttemptedAutoTranscribe((prev) => ({
-            ...prev,
-            [videoUrl]: true,
-        }));
+    const markAttempted = (value) => {
+        setAttemptedAutoTranscribe(value);
     };
 
     return (
