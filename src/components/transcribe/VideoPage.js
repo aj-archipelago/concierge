@@ -59,8 +59,25 @@ import TaxonomySelector from "./TaxonomySelector";
 import { AddTrackButton } from "./TranscriptionOptions";
 import TranscriptView from "./TranscriptView";
 import VideoInput from "./VideoInput";
+import { useAutoTranscribe } from "../../contexts/AutoTranscribeContext";
 import { QUERIES } from "../../graphql";
 import { useProgress } from "../../contexts/ProgressContext";
+import Loader from "../../../app/components/loader";
+import { isAudioUrl } from "../chat/MyFilePond";
+
+// Add getTranscribeQuery function
+const getTranscribeQuery = (modelOption) => {
+    switch (modelOption) {
+        case "Whisper":
+            return QUERIES.TRANSCRIBE;
+        case "NeuralSpace":
+            return QUERIES.TRANSCRIBE_NEURALSPACE;
+        case "Gemini":
+            return QUERIES.TRANSCRIBE_GEMINI;
+        default:
+            return QUERIES.TRANSCRIBE;
+    }
+};
 
 const isValidUrl = (url) => {
     try {
@@ -182,6 +199,7 @@ function EditableTranscriptSelect({
     const { t } = useTranslation();
     const [editing, setEditing] = useState(false);
     const [tempName, setTempName] = useState("");
+    const { isAutoTranscribing } = useAutoTranscribe();
 
     useEffect(() => {
         if (transcripts[activeTranscript]) {
@@ -209,24 +227,36 @@ function EditableTranscriptSelect({
     };
 
     if (!transcripts.length) {
-        // return add track button
+        // Show transcribing message if auto-transcription is in progress
+
+        // Otherwise return add track button
         return (
-            <AddTrackButton
-                transcripts={transcripts}
-                url={url}
-                onAdd={onAdd}
-                activeTranscript={activeTranscript}
-                trigger={
-                    <button className="lb-primary flex items-center gap-1 ">
-                        {t("Add subtitles or transcript")}
-                    </button>
-                }
-                apolloClient={apolloClient}
-                addTrackDialogOpen={addTrackDialogOpen}
-                setAddTrackDialogOpen={setAddTrackDialogOpen}
-                selectedTab={selectedTab}
-                setSelectedTab={setSelectedTab}
-            />
+            <>
+                <AddTrackButton
+                    transcripts={transcripts}
+                    url={url}
+                    onAdd={onAdd}
+                    activeTranscript={activeTranscript}
+                    trigger={
+                        <button className="lb-primary flex items-center gap-1 ">
+                            {t("Add subtitles or transcript")}
+                        </button>
+                    }
+                    apolloClient={apolloClient}
+                    addTrackDialogOpen={addTrackDialogOpen}
+                    setAddTrackDialogOpen={setAddTrackDialogOpen}
+                    selectedTab={selectedTab}
+                    setSelectedTab={setSelectedTab}
+                />
+                {isAutoTranscribing && (
+                    <div className="mt-2 flex gap-3 items-center py-2 px-3 rounded-lg border bg-gray-50 w-[500px]">
+                        <Loader size="default" />
+                        <div className="text-gray-700 text-sm">
+                            {t("Transcribing... This may take a few minutes.")}
+                        </div>
+                    </div>
+                )}
+            </>
         );
     }
 
@@ -450,7 +480,6 @@ function VideoPlayer({
         videoInformation?.videoUrl || videoLanguages[activeLanguage]?.url;
     const isYouTube = isYoutubeUrl(videoUrl);
     const embedUrl = isYouTube ? getYoutubeEmbedUrl(videoUrl) : videoUrl;
-    const { t } = useTranslation();
 
     useEffect(() => {
         if (!videoUrl || !isYouTube) return;
@@ -557,13 +586,7 @@ function VideoPlayer({
             </div>
 
             <div className="">
-                {isYoutubeUrl(videoInformation?.videoUrl) ? (
-                    <p className="text-xs text-gray-400 mb-1 ps-3">
-                        {t(
-                            "Note: Audio track translation is not supported for YouTube videos",
-                        )}
-                    </p>
-                ) : null}
+                {/* Note message removed as we're now properly handling YouTube vs video vs audio files */}
             </div>
             <VideoInformationBox
                 videoInformation={videoInformation}
@@ -733,6 +756,8 @@ function VideoPage() {
     const { t } = useTranslation();
     const apolloClient = useApolloClient();
     const { userState, debouncedUpdateUserState } = useContext(AuthContext);
+    const { attemptedAutoTranscribe, markAttempted, setIsAutoTranscribing } =
+        useAutoTranscribe();
     const prevUserStateRef = useRef();
     const [currentTime, setCurrentTime] = useState(0);
     const [selectedTab, setSelectedTab] = useState("transcribe");
@@ -779,8 +804,6 @@ function VideoPage() {
 
     const updateUserState = useCallback(
         (updates) => {
-            console.log("updates", updates);
-            console.trace();
             setTimeout(() => {
                 debouncedUpdateUserState({
                     transcribe: {
@@ -870,7 +893,6 @@ function VideoPage() {
             setVideoLanguages(initialLanguages);
             setActiveLanguage(0);
 
-            console.log("initialLanguages", initialLanguages, videoInformation);
             updateUserState({
                 videoInformation: {
                     ...videoInformation,
@@ -886,9 +908,12 @@ function VideoPage() {
             updateUserState({
                 videoInformation: {
                     ...videoInformation,
-                    transcripts,
                 },
+                transcripts,
             });
+        }
+        if (transcripts.length) {
+            markAttempted(videoInformation?.videoUrl);
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [transcripts]);
@@ -1037,6 +1062,87 @@ function VideoPage() {
         });
     };
 
+    // Add function to start transcription
+    const startTranscription = useCallback(async () => {
+        const videoUrl =
+            videoInformation?.transcriptionUrl || videoInformation?.videoUrl;
+        if (!videoUrl || !apolloClient) return;
+
+        try {
+            setIsAutoTranscribing(true);
+            const isYouTubeVideo = isYoutubeUrl(videoUrl);
+            const modelOption = isYouTubeVideo ? "Gemini" : "Whisper";
+            const _query = getTranscribeQuery(modelOption);
+
+            const { data } = await apolloClient.query({
+                query: _query,
+                variables: {
+                    file: videoUrl,
+                    language: "", // Auto-detect
+                    wordTimestamped: false,
+                    responseFormat: "vtt", // Default to VTT format
+                    async: true,
+                },
+                fetchPolicy: "network-only",
+            });
+
+            const dataResult =
+                data?.transcribe?.result ||
+                data?.transcribe_neuralspace?.result ||
+                data?.transcribe_gemini?.result;
+
+            if (dataResult) {
+                addProgressToast(
+                    dataResult,
+                    t("Auto-transcribing") + "...",
+                    async (finalData) => {
+                        setIsAutoTranscribing(false);
+                        addSubtitleTrack({
+                            text: finalData,
+                            format: "vtt",
+                            name: t("Subtitles"),
+                        });
+                    },
+                    (error) => {
+                        // Add this error handler to reset the auto-transcribing state when cancelled
+                        console.error(
+                            "Transcription error or cancelled:",
+                            error,
+                        );
+                        setIsAutoTranscribing(false);
+                    },
+                );
+            }
+        } catch (error) {
+            console.error("Auto-transcription error:", error);
+            setIsAutoTranscribing(false);
+        }
+    }, [
+        videoInformation?.videoUrl,
+        videoInformation?.transcriptionUrl,
+        apolloClient,
+        addSubtitleTrack,
+        t,
+        addProgressToast,
+        setIsAutoTranscribing,
+    ]);
+
+    // Replace the existing auto-transcription effect
+    useEffect(() => {
+        const videoUrl = videoInformation?.videoUrl;
+        if (videoUrl && !transcripts.length && !attemptedAutoTranscribe) {
+            markAttempted(videoUrl);
+
+            startTranscription();
+        }
+    }, [
+        videoInformation?.videoUrl,
+        transcripts.length,
+        attemptedAutoTranscribe,
+        markAttempted,
+        startTranscription,
+    ]);
+
     // Modify the retranscription function to create a new track instead of updating existing
     const handleRetranscribe = useCallback(async () => {
         if (!videoInformation?.videoUrl || isRetranscribing) return;
@@ -1162,6 +1268,7 @@ function VideoPage() {
                                                 ),
                                             )
                                         ) {
+                                            markAttempted(false);
                                             clearVideoInformation();
                                         }
                                     }}
@@ -1196,119 +1303,147 @@ function VideoPage() {
                                         {isYoutubeUrl(
                                             videoInformation?.videoUrl,
                                         ) ? null : (
-                                            <div className="border rounded-lg border-gray-200/50 p-3 space-y-3">
-                                                <div className="text-sm text-sky-600 font-semibold text-gray-500 flex items-center gap-2">
-                                                    <Volume2Icon className="h-4 w-4" />
-                                                    {t("Audio tracks")}
-                                                </div>
-                                                <div className="flex flex-col gap-2">
-                                                    {videoLanguages.map(
-                                                        (lang, idx) => (
-                                                            <div
-                                                                key={idx}
-                                                                className="flex items-center"
-                                                            >
-                                                                <div className="flex w-[13rem] rounded-md border border-gray-200 overflow-hidden">
-                                                                    <button
-                                                                        onClick={() => {
-                                                                            setActiveLanguage(
-                                                                                idx,
-                                                                            );
-                                                                        }}
-                                                                        className={`grow truncate text-start text-xs px-3 py-1.5 hover:bg-sky-100 active:bg-sky-200 transition-colors
-                                                                ${activeLanguage === idx ? "bg-sky-50 text-gray-900" : "text-gray-600"}`}
-                                                                    >
-                                                                        {lang.label ||
-                                                                            new Intl.DisplayNames(
-                                                                                [
-                                                                                    language,
-                                                                                ],
-                                                                                {
-                                                                                    type: "language",
-                                                                                },
-                                                                            ).of(
-                                                                                lang.code,
-                                                                            )}
-                                                                    </button>
-                                                                    <div className="flex">
-                                                                        {idx !==
-                                                                            0 &&
-                                                                            activeLanguage ===
-                                                                                idx && (
-                                                                                <button
-                                                                                    onClick={(
-                                                                                        e,
-                                                                                    ) => {
-                                                                                        e.stopPropagation();
-                                                                                        if (
-                                                                                            window.confirm(
-                                                                                                t(
-                                                                                                    "Are you sure you want to delete this language track?",
-                                                                                                ),
-                                                                                            )
-                                                                                        ) {
-                                                                                            const newVideoLanguages =
-                                                                                                videoLanguages.filter(
-                                                                                                    (
-                                                                                                        _,
-                                                                                                        i,
-                                                                                                    ) =>
-                                                                                                        i !==
-                                                                                                        idx,
-                                                                                                );
-                                                                                            setVideoLanguages(
-                                                                                                newVideoLanguages,
-                                                                                            );
-                                                                                            setActiveLanguage(
-                                                                                                0,
-                                                                                            );
-                                                                                        }
-                                                                                    }}
-                                                                                    className="px-2 bg-sky-50 text-gray-500 hover:text-red-500 transition-colors border-gray-200 flex items-center cursor-pointer"
-                                                                                    title={t(
-                                                                                        "Delete language",
-                                                                                    )}
-                                                                                >
-                                                                                    <TrashIcon className="h-3 w-3" />
-                                                                                </button>
-                                                                            )}
-                                                                        <a
-                                                                            target="_blank"
-                                                                            rel="noreferrer"
-                                                                            href={
-                                                                                lang.url
-                                                                            }
-                                                                            download={`video-${lang.code}.mp4`}
-                                                                            className="px-2 hover:bg-sky-50 transition-colors border-l border-gray-200 flex items-center cursor-pointer"
-                                                                            onClick={(
-                                                                                e,
-                                                                            ) =>
-                                                                                e.stopPropagation()
-                                                                            }
-                                                                            title={t(
-                                                                                "Download video",
-                                                                            )}
-                                                                        >
-                                                                            <DownloadIcon className="h-3.5 w-3.5 text-gray-500" />
-                                                                        </a>
-                                                                    </div>
-                                                                </div>
-                                                            </div>
-                                                        ),
-                                                    )}
-                                                </div>
-                                                <button
-                                                    onClick={() =>
-                                                        setShowTranslateDialog(
-                                                            true,
-                                                        )
+                                            <>
+                                                {(() => {
+                                                    // Use the existing isAudioUrl function to detect audio files
+                                                    const isAudioFile =
+                                                        videoInformation?.videoUrl
+                                                            ? isAudioUrl(
+                                                                  videoInformation.videoUrl,
+                                                              )
+                                                            : false;
+
+                                                    // Only show audio tracks section for video files
+                                                    if (isAudioFile) {
+                                                        return null;
                                                     }
-                                                    className="lb-outline-secondary lb-sm flex items-center gap-1 w-full"
-                                                >
-                                                    <PlusIcon className="h-4 w-4" />
-                                                    {t("Add audio track")}
-                                                </button>
-                                            </div>
+
+                                                    return (
+                                                        <div className="border rounded-lg border-gray-200/50 p-3 space-y-3">
+                                                            <div className="text-sm text-sky-600 font-semibold text-gray-500 flex items-center gap-2">
+                                                                <Volume2Icon className="h-4 w-4" />
+                                                                {t(
+                                                                    "Audio tracks",
+                                                                )}
+                                                            </div>
+                                                            <div className="flex flex-col gap-2">
+                                                                {videoLanguages.map(
+                                                                    (
+                                                                        lang,
+                                                                        idx,
+                                                                    ) => (
+                                                                        <div
+                                                                            key={
+                                                                                idx
+                                                                            }
+                                                                            className="flex items-center"
+                                                                        >
+                                                                            <div className="flex w-[13rem] rounded-md border border-gray-200 overflow-hidden">
+                                                                                <button
+                                                                                    onClick={() => {
+                                                                                        setActiveLanguage(
+                                                                                            idx,
+                                                                                        );
+                                                                                    }}
+                                                                                    className={`grow truncate text-start text-xs px-3 py-1.5 hover:bg-sky-100 active:bg-sky-200 transition-colors
+                                                                            ${activeLanguage === idx ? "bg-sky-50 text-gray-900" : "text-gray-600"}`}
+                                                                                >
+                                                                                    {lang.label ||
+                                                                                        new Intl.DisplayNames(
+                                                                                            [
+                                                                                                language,
+                                                                                            ],
+                                                                                            {
+                                                                                                type: "language",
+                                                                                            },
+                                                                                        ).of(
+                                                                                            lang.code,
+                                                                                        )}
+                                                                                </button>
+                                                                                <div className="flex">
+                                                                                    {idx !==
+                                                                                        0 &&
+                                                                                        activeLanguage ===
+                                                                                            idx && (
+                                                                                            <button
+                                                                                                onClick={(
+                                                                                                    e,
+                                                                                                ) => {
+                                                                                                    e.stopPropagation();
+                                                                                                    if (
+                                                                                                        window.confirm(
+                                                                                                            t(
+                                                                                                                "Are you sure you want to delete this language track?",
+                                                                                                            ),
+                                                                                                        )
+                                                                                                    ) {
+                                                                                                        const newVideoLanguages =
+                                                                                                            videoLanguages.filter(
+                                                                                                                (
+                                                                                                                    _,
+                                                                                                                    i,
+                                                                                                                ) =>
+                                                                                                                    i !==
+                                                                                                                    idx,
+                                                                                                            );
+                                                                                                        setVideoLanguages(
+                                                                                                            newVideoLanguages,
+                                                                                                        );
+                                                                                                        setActiveLanguage(
+                                                                                                            0,
+                                                                                                        );
+                                                                                                    }
+                                                                                                }}
+                                                                                                className="px-2 bg-sky-50 text-gray-500 hover:text-red-500 transition-colors border-gray-200 flex items-center cursor-pointer"
+                                                                                                title={t(
+                                                                                                    "Delete language",
+                                                                                                )}
+                                                                                            >
+                                                                                                <TrashIcon className="h-3 w-3" />
+                                                                                            </button>
+                                                                                        )}
+                                                                                    <a
+                                                                                        target="_blank"
+                                                                                        rel="noreferrer"
+                                                                                        href={
+                                                                                            lang.url
+                                                                                        }
+                                                                                        download={`video-${lang.code}.mp4`}
+                                                                                        className="px-2 hover:bg-sky-50 transition-colors border-l border-gray-200 flex items-center cursor-pointer"
+                                                                                        onClick={(
+                                                                                            e,
+                                                                                        ) =>
+                                                                                            e.stopPropagation()
+                                                                                        }
+                                                                                        title={t(
+                                                                                            "Download video",
+                                                                                        )}
+                                                                                    >
+                                                                                        <DownloadIcon className="h-3.5 w-3.5 text-gray-500" />
+                                                                                    </a>
+                                                                                </div>
+                                                                            </div>
+                                                                        </div>
+                                                                    ),
+                                                                )}
+                                                            </div>
+                                                            <button
+                                                                onClick={() =>
+                                                                    setShowTranslateDialog(
+                                                                        true,
+                                                                    )
+                                                                }
+                                                                className="lb-outline-secondary lb-sm flex items-center gap-1 w-full"
+                                                            >
+                                                                <PlusIcon className="h-4 w-4" />
+                                                                {t(
+                                                                    "Add audio track",
+                                                                )}
+                                                            </button>
+                                                        </div>
+                                                    );
+                                                })()}
+                                            </>
                                         )}
                                     </div>
                                 </div>
@@ -1427,10 +1562,9 @@ function VideoPage() {
                     setIsEditing={setIsEditing}
                     onDeleteTrack={() => {
                         const updatedTranscripts = transcripts.filter(
-                            (_, index) => index !== activeTranscript,
+                            (_, index) => index !== (activeTranscript || 0),
                         );
 
-                        console.log("updated", updatedTranscripts);
                         setTranscripts(updatedTranscripts);
                         setActiveTranscript(
                             Math.max(0, updatedTranscripts.length - 1),
@@ -1438,8 +1572,8 @@ function VideoPage() {
                         updateUserState({
                             videoInformation: {
                                 ...userState?.transcribe?.videoInformation,
-                                transcripts: updatedTranscripts,
                             },
+                            transcripts: updatedTranscripts,
                         });
                     }}
                 />

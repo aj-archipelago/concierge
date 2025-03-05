@@ -33,7 +33,7 @@ const VideoSelector = ({ url, onSelect, onClose }) => {
                 transcriptionUrl: ensureHttps(data?.results[0]?.url),
             });
         }
-    }, [data]);
+    }, [data, onSelect]);
 
     const ensureHttps = (url) => {
         if (url?.startsWith("http://")) {

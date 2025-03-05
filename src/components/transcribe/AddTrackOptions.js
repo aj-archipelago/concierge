@@ -10,7 +10,7 @@ import {
 import { useCallback, useContext, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { FaVideo } from "react-icons/fa";
-import { AuthContext, ServerContext } from "../../App";
+import { AuthContext } from "../../App";
 import { LanguageContext } from "../../contexts/LanguageProvider";
 import { useProgress } from "../../contexts/ProgressContext";
 import { QUERIES } from "../../graphql";
@@ -302,7 +302,6 @@ export default function TranscribeVideo({
     onClose,
 }) {
     const { t } = useTranslation();
-    const { neuralspaceEnabled } = useContext(ServerContext);
     const isYouTubeVideo = url ? isYoutubeUrl(url) : false;
 
     const [language, setLanguage] = useState("");
@@ -561,29 +560,6 @@ function FormatSelector({ loading, responseFormat, handleFormatChange }) {
             <option value="">{t("Plain Text transcript")}</option>
             <option value="formatted">{t("Formatted Transcript")}</option>
             <option value="vtt">{t("Subtitles")}</option>
-        </select>
-    );
-}
-
-function ModelSelector({
-    loading,
-    selectedModelOption,
-    setSelectedModelOption,
-    neuralspaceEnabled,
-    disabled,
-}) {
-    return (
-        <select
-            className="lb-select text-sm"
-            value={selectedModelOption}
-            onChange={(e) => setSelectedModelOption(e.target.value)}
-            disabled={loading || disabled}
-        >
-            {!disabled && <option value="Whisper">Whisper</option>}
-            <option value="Gemini">Gemini</option>
-            {neuralspaceEnabled && !disabled && (
-                <option value="NeuralSpace">NeuralSpace</option>
-            )}
         </select>
     );
 }

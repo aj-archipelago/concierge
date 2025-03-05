@@ -483,8 +483,9 @@
     "Failed to parse memory file. Please ensure it is a valid JSON file with the correct memory structure.": "فشل في تحليل ملف الذاكرة. يرجى التأكد من أنه ملف JSON صالح بهيكل الذاكرة الصحيح.",
     "Invalid memory file format": "تنسيق ملف الذاكرة غير صالح",
     "Add audio track": "إضافة صوت",
-    "Note: Audio track translation is not supported for YouTube videos": "ملاحظة: ترجمة الصوت غير مدعومة لفيديوهات YouTube",
     "Transcript not looking right?": "النص المنسوخ لا يبدو صحيحًا؟",
     "Transcribe again using an alternate model": "تنسيق مرة أخرى باستخدام نموذج مختلف",
-    "Re-transcribing": "إعادة التنسيق"
+    "Re-transcribing": "إعادة التنسيق",
+    "Transcribing... This may take a few minutes.": "جاري التنسيق... قد يستغرق هذا بضع دقائق.",
+    "Auto-transcribing": "تنسيق تلقائي"
 }

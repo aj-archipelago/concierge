@@ -518,5 +518,8 @@
     "All notifications": "جميع الإشعارات",
     "Transcript not looking right?": "النص المنسوخ لا يبدو صحيحًا؟",
     "Transcribe again using an alternate model": "تنسيق مرة أخرى باستخدام نموذج مختلف",
-    "Re-transcribing": "إعادة التنسيق"
+    "Re-transcribing": "إعادة التنسيق",
+    "Add audio track": "إضافة صوت",
+    "Transcribing... This may take a few minutes.": "جاري التنسيق... قد يستغرق هذا بضع دقائق.",
+    "Auto-transcribing": "تنسيق تلقائي"
 }

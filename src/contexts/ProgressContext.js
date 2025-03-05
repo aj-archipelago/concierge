@@ -150,7 +150,8 @@ function ProgressToast({
         if (
             result &&
             data.requestProgress.progress === 1 &&
-            !onCompleteCalledRef.current
+            !onCompleteCalledRef.current &&
+            !isCancelled
         ) {
             if (timeoutRef.current) {
                 clearTimeout(timeoutRef.current);
@@ -190,6 +191,7 @@ function ProgressToast({
         onError,
         activeToasts,
         resetTimeout,
+        isCancelled,
     ]);
 
     const handleCancel = () => {
@@ -207,6 +209,9 @@ function ProgressToast({
             setErrorMessage(t("Operation cancelled"));
             activeToasts?.delete(requestId);
             toast.update(requestId, { closeButton: true });
+
+            // Set onCompleteCalledRef to true to prevent completion callback
+            onCompleteCalledRef.current = true;
         }
     };
 
