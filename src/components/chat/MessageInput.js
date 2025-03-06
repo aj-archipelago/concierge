@@ -49,19 +49,19 @@ function MessageInput({
     const addDocument = useAddDocument();
     const codeRequestId = activeChat?.codeRequestId;
     const apolloClient = useApolloClient();
-    const isTypingRef = useRef(false);
 
-    // Update the input value when userState or activeChatId changes
+    // Only set input value on initial mount or chat change
     useEffect(() => {
         if (
             activeChatId &&
             userState?.chatInputs &&
-            userState.chatInputs[activeChatId] &&
-            !isTypingRef.current
+            userState.chatInputs[activeChatId]
         ) {
             setInputValue(userState.chatInputs[activeChatId]);
+        } else {
+            setInputValue("");
         }
-    }, [userState, activeChatId]);
+    }, [activeChatId]); // Only depend on activeChatId, not userState
 
     const [inputValue, setInputValue] = useState("");
     const [urlsData, setUrlsData] = useState([]);
@@ -93,7 +93,6 @@ function MessageInput({
 
     const handleInputChange = (event) => {
         const newValue = event.target.value;
-        isTypingRef.current = true;
         setInputValue(newValue);
 
         if (activeChatId) {
@@ -104,11 +103,6 @@ function MessageInput({
                 },
             }));
         }
-
-        // Clear typing flag after debounce delay
-        setTimeout(() => {
-            isTypingRef.current = false;
-        }, 300);
     };
 
     const handleFormSubmit = (event) => {
