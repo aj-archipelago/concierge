@@ -137,6 +137,17 @@ function ProgressToast({
             resetTimeout();
         }
 
+        // Check for error in the requestProgress data
+        if (data?.requestProgress?.error) {
+            const progressError = new Error(data.requestProgress.error);
+            onError?.(progressError);
+            setErrorMessage(
+                data.requestProgress.error || ERROR_MESSAGES.generic,
+            );
+            toast.update(requestId, { closeButton: true });
+            return;
+        }
+
         const result = data?.requestProgress?.data;
         const newProgress = Math.max(
             (data?.requestProgress?.progress || 0) * 100,
