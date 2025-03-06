@@ -749,6 +749,7 @@ function VideoInformationBox({
 
 function VideoPage() {
     const [transcripts, setTranscripts] = useState([]);
+    const transcriptsRef = useRef(transcripts);
     const [activeTranscript, setActiveTranscript] = useState(0);
     const [url, setUrl] = useState("");
     const [videoInformation, setVideoInformation] = useState();
@@ -774,6 +775,11 @@ function VideoPage() {
     const [isYTPlaying, setIsYTPlaying] = useState(false);
     const [isRetranscribing, setIsRetranscribing] = useState(false);
     const { addProgressToast } = useProgress();
+
+    // Update the ref whenever transcripts changes
+    useEffect(() => {
+        transcriptsRef.current = transcripts;
+    }, [transcripts]);
 
     // Handle VTT URL creation and cleanup
     useEffect(() => {
@@ -935,11 +941,13 @@ function VideoPage() {
             if (transcript) {
                 const { text, format, name } = transcript;
 
-                setTranscripts((prev) => {
+                // First, calculate the new transcript data outside of setState
+                // This ensures we have the data even if component unmounts
+                const calculateNewTranscripts = (prevTranscripts) => {
                     // Find existing tracks with the same name and get the highest number
                     const baseNameMatch = name.match(/(.*?)(?:\s+\((\d+)\))?$/);
                     const baseName = baseNameMatch[1];
-                    const existingNumbers = prev
+                    const existingNumbers = prevTranscripts
                         .filter((t) => t.name && t.name.startsWith(baseName))
                         .map((t) => {
                             const match = t.name.match(
@@ -950,7 +958,7 @@ function VideoPage() {
 
                     // Determine the new name with suffix if needed
                     let newName = name;
-                    if (prev.some((t) => t.name === name)) {
+                    if (prevTranscripts.some((t) => t.name === name)) {
                         const nextNumber =
                             existingNumbers.length > 0
                                 ? Math.max(...existingNumbers) + 1
@@ -958,8 +966,8 @@ function VideoPage() {
                         newName = `${baseName} (${nextNumber})`;
                     }
 
-                    const updatedTranscripts = [
-                        ...prev,
+                    return [
+                        ...prevTranscripts,
                         {
                             text,
                             format,
@@ -967,16 +975,25 @@ function VideoPage() {
                             timestamp: new Date().toISOString(),
                         },
                     ];
-                    setActiveTranscript(updatedTranscripts.length - 1);
+                };
 
-                    updateUserState({
-                        videoInformation: {
-                            ...userState?.transcribe?.videoInformation,
-                        },
-                        transcripts: updatedTranscripts,
-                    });
+                // Use the ref to get the current transcripts
+                const currentTranscripts = transcriptsRef.current || [];
+                const updatedTranscripts =
+                    calculateNewTranscripts(currentTranscripts);
+                const newActiveIndex = updatedTranscripts.length - 1;
 
-                    return updatedTranscripts;
+                // Update component state (this might not execute if component unmounts)
+                setTranscripts(updatedTranscripts);
+                setActiveTranscript(newActiveIndex);
+
+                // Always update user state regardless of component mount status
+                updateUserState({
+                    videoInformation: {
+                        ...userState?.transcribe?.videoInformation,
+                    },
+                    transcripts: updatedTranscripts,
+                    activeTranscript: newActiveIndex,
                 });
             }
             setAddTrackDialogOpen(false);
