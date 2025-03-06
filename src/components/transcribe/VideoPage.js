@@ -936,16 +936,16 @@ function VideoPage() {
     }, [transcripts]);
 
     useEffect(() => {
-        if (videoInformationRef.current) {
+        if (videoInformation) {
             updateUserState({
                 videoInformation: {
-                    ...videoInformationRef.current,
+                    ...videoInformation,
                     videoLanguages,
                 },
             });
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [videoLanguages]);
+    }, [videoLanguages, videoInformation]);
 
     const addSubtitleTrack = useCallback(
         (transcript) => {
