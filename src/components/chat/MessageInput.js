@@ -1,5 +1,5 @@
 import "highlight.js/styles/github.css";
-import { useContext, useState, useEffect, useRef } from "react";
+import { useContext, useState, useEffect } from "react";
 import { RiSendPlane2Fill } from "react-icons/ri";
 import TextareaAutosize from "react-textarea-autosize";
 import classNames from "../../../app/utils/class-names";
