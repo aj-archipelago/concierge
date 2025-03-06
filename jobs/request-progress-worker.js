@@ -60,6 +60,170 @@ const client = new ApolloClient({
     cache: new InMemoryCache(),
 });
 
+// Add a helper function for DB operations with retries
+async function retryDbOperation(operation, maxRetries = 3, retryDelay = 1000) {
+    let lastError;
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        try {
+            return await operation();
+        } catch (error) {
+            lastError = error;
+            console.warn(
+                `DB operation attempt ${attempt}/${maxRetries} failed: ${error.message}`,
+            );
+
+            // Check explicitly for MongoNotConnectedError and other connection issues
+            if (
+                error.name === "MongoNotConnectedError" ||
+                ((error.name === "MongooseError" ||
+                    error.name === "MongoError") &&
+                    error.message &&
+                    (error.message.includes("buffering") ||
+                        error.message.includes("disconnected") ||
+                        error.message.includes("timeout") ||
+                        error.message.includes("not connected") ||
+                        error.message.includes("must be connected")))
+            ) {
+                console.log(
+                    "Detected MongoDB connection issue, attempting to reconnect...",
+                );
+                // Use the global mongoose instance to check connection state
+                const mongoose = (await import("mongoose")).default;
+                if (mongoose.connection.readyState !== 1) {
+                    try {
+                        // First try to close any existing connection
+                        if (mongoose.connection.readyState !== 0) {
+                            await mongoose.connection
+                                .close()
+                                .catch((err) =>
+                                    console.warn(
+                                        "Error closing existing connection:",
+                                        err.message,
+                                    ),
+                                );
+                        }
+
+                        // Get a fresh database connection
+                        const { connectToDatabase } = await import(
+                            "../src/db.mjs"
+                        );
+                        await connectToDatabase();
+                        console.log("Successfully reconnected to MongoDB");
+
+                        // Reset the dbInitialized flag to ensure ensureDbConnection will work properly
+                        dbInitialized = mongoose.connection.readyState === 1;
+                    } catch (reconnectError) {
+                        console.error(
+                            "Failed to reconnect to MongoDB:",
+                            reconnectError.message,
+                        );
+                    }
+                }
+            }
+
+            if (attempt < maxRetries) {
+                const waitTime = Math.min(retryDelay, 30000); // Cap at 30 seconds max
+                console.log(
+                    `Waiting ${waitTime / 1000}s before retry ${attempt + 1}/${maxRetries}...`,
+                );
+                await new Promise((resolve) => setTimeout(resolve, waitTime));
+                // Increase delay for next retry (exponential backoff)
+                retryDelay *= 2;
+            }
+        }
+    }
+    throw lastError;
+}
+
+// Ensure the worker has a database connection before starting operations
+let dbInitialized = false;
+let connectionAttempts = 0;
+const MAX_CONNECTION_ATTEMPTS = 5;
+
+async function ensureDbConnection(forceReconnect = false) {
+    if (forceReconnect) {
+        dbInitialized = false;
+    }
+
+    if (!dbInitialized) {
+        try {
+            // Use the global mongoose instance directly
+            const mongoose = (await import("mongoose")).default;
+
+            // Check if already connected
+            if (mongoose.connection && mongoose.connection.readyState === 1) {
+                console.log("Already connected to MongoDB");
+                dbInitialized = true;
+                connectionAttempts = 0;
+                return;
+            }
+
+            // If previous connection exists but is disconnected, close it
+            if (mongoose.connection && mongoose.connection.readyState !== 0) {
+                console.log(
+                    "Closing existing MongoDB connection before reconnecting...",
+                );
+                await mongoose.connection
+                    .close()
+                    .catch((err) =>
+                        console.warn("Error closing connection:", err.message),
+                    );
+            }
+
+            connectionAttempts++;
+            console.log(
+                `Connecting to MongoDB (attempt ${connectionAttempts}/${MAX_CONNECTION_ATTEMPTS})...`,
+            );
+
+            const { connectToDatabase } = await import("../src/db.mjs");
+            await connectToDatabase();
+
+            // Wait a moment to ensure the connection is established
+            await new Promise((resolve) => setTimeout(resolve, 500));
+
+            // Verify the connection was successful
+            if (mongoose.connection && mongoose.connection.readyState === 1) {
+                console.log(
+                    "Worker successfully connected to MongoDB database",
+                );
+                dbInitialized = true;
+                connectionAttempts = 0;
+            } else {
+                throw new Error(
+                    `Failed to establish MongoDB connection, current state: ${mongoose.connection ? mongoose.connection.readyState : "unknown"}`,
+                );
+            }
+        } catch (error) {
+            console.error(
+                `Failed to connect to database (attempt ${connectionAttempts}/${MAX_CONNECTION_ATTEMPTS}):`,
+                error,
+            );
+
+            if (connectionAttempts >= MAX_CONNECTION_ATTEMPTS) {
+                console.error(
+                    "Maximum connection attempts reached. Giving up.",
+                );
+                throw new Error(
+                    `Failed to connect to MongoDB after ${MAX_CONNECTION_ATTEMPTS} attempts: ${error.message}`,
+                );
+            }
+
+            // Wait before next attempt with exponential backoff
+            const backoffTime = Math.min(
+                1000 * Math.pow(2, connectionAttempts),
+                30000,
+            );
+            console.log(
+                `Waiting ${backoffTime / 1000}s before next connection attempt...`,
+            );
+            await new Promise((resolve) => setTimeout(resolve, backoffTime));
+
+            // Recursive call to retry
+            return ensureDbConnection();
+        }
+    }
+}
+
 const worker = new Worker(
     "request-progress",
     async (job) => {
@@ -69,12 +233,18 @@ const worker = new Worker(
             `Starting progress tracking job ${job.id} for ${type} requestId: ${requestId}. userId: ${userId}`,
         );
 
+        // Ensure DB connection is established
+        await ensureDbConnection();
+
         const RequestProgress = (
             await import("../app/api/models/request-progress.mjs")
         ).default;
 
         // Check if already cancelled
-        const request = await RequestProgress.findOne({ requestId });
+        const request = await retryDbOperation(() =>
+            RequestProgress.findOne({ requestId }),
+        );
+
         if (request?.status === "cancelled") {
             console.log(`Job ${job.id} was cancelled`);
             return;
@@ -87,16 +257,22 @@ const worker = new Worker(
 
                 // Add a periodic check for cancellation
                 const cancellationCheckInterval = setInterval(async () => {
-                    const updatedRequest = await RequestProgress.findOne({
-                        requestId,
-                    });
-                    if (updatedRequest?.status === "cancelled") {
-                        console.log(`Job ${job.id} received cancellation`);
-                        clearTimeout(timeoutId);
-                        clearInterval(cancellationCheckInterval);
-                        subscription?.unsubscribe();
-                        resolve(); // Resolve without error since this is an expected cancellation
-                        return;
+                    try {
+                        const updatedRequest = await retryDbOperation(() =>
+                            RequestProgress.findOne({ requestId }),
+                        );
+
+                        if (updatedRequest?.status === "cancelled") {
+                            console.log(`Job ${job.id} received cancellation`);
+                            clearTimeout(timeoutId);
+                            clearInterval(cancellationCheckInterval);
+                            subscription?.unsubscribe();
+                            resolve(); // Resolve without error since this is an expected cancellation
+                            return;
+                        }
+                    } catch (error) {
+                        console.error("Error in cancellation check:", error);
+                        // Don't terminate the job on cancellation check errors
                     }
                 }, 5000);
 
@@ -108,13 +284,20 @@ const worker = new Worker(
                                 `Job ${job.id} timed out after 5 minutes of inactivity`,
                             );
                             subscription?.unsubscribe();
-                            RequestProgress.findOneAndUpdate(
-                                { requestId },
-                                {
-                                    status: "failed",
-                                    error: "Operation timed out after 5 minutes of inactivity",
-                                },
-                            ).exec();
+                            retryDbOperation(() =>
+                                RequestProgress.findOneAndUpdate(
+                                    { requestId },
+                                    {
+                                        status: "failed",
+                                        error: "Operation timed out after 5 minutes of inactivity",
+                                    },
+                                ).exec(),
+                            ).catch((err) =>
+                                console.error(
+                                    "Error updating progress on timeout:",
+                                    err,
+                                ),
+                            );
                             reject(
                                 new Error(
                                     "Operation timed out after 5 minutes of inactivity",
@@ -135,130 +318,159 @@ const worker = new Worker(
                     })
                     .subscribe({
                         async next(x) {
-                            // Check for cancellation before processing updates
-                            const currentRequest =
-                                await RequestProgress.findOne({ requestId });
-                            if (currentRequest?.status === "cancelled") {
-                                console.log(
-                                    `Job ${job.id} was cancelled during processing`,
+                            try {
+                                // Check for cancellation before processing updates
+                                const currentRequest = await retryDbOperation(
+                                    () =>
+                                        RequestProgress.findOne({ requestId }),
                                 );
-                                clearTimeout(timeoutId);
-                                clearInterval(cancellationCheckInterval);
-                                subscription.unsubscribe();
-                                resolve();
-                                return;
-                            }
 
-                            const { data } = x;
-                            // Reset idle timeout on each progress update
-                            resetIdleTimeout();
-
-                            let progress = data?.requestProgress?.progress || 0;
-
-                            // Check current progress and keep higher value
-                            const currentDoc = await RequestProgress.findOne({
-                                requestId,
-                            });
-                            if (currentDoc && progress < currentDoc.progress) {
-                                console.log(
-                                    `Job ${job.id} maintaining higher progress value ${currentDoc.progress} instead of ${progress}`,
-                                );
-                                progress = currentDoc.progress;
-                            }
-
-                            let dataObject;
-
-                            if (data?.requestProgress?.data) {
-                                try {
-                                    dataObject = JSON.parse(
-                                        JSON.parse(data?.requestProgress?.data),
-                                    );
-                                } catch (e) {
+                                if (currentRequest?.status === "cancelled") {
                                     console.log(
-                                        "Non-json data",
-                                        data?.requestProgress?.data,
+                                        `Job ${job.id} was cancelled during processing`,
                                     );
-                                    if (
-                                        data?.requestProgress?.data === "[DONE]"
-                                    ) {
-                                        // error condition
-                                        const error =
-                                            data.requestProgress.error;
-
-                                        console.error(
-                                            "Error in request progress worker",
-                                            error,
-                                        );
-
-                                        await RequestProgress.findOneAndUpdate(
-                                            {
-                                                requestId,
-                                            },
-                                            {
-                                                status: "failed",
-                                                statusText: error
-                                                    ? JSON.stringify(error)
-                                                    : "Non-JSON data received: " +
-                                                      data?.requestProgress
-                                                          ?.data,
-                                            },
-                                        );
-
-                                        resolve(dataObject);
-                                        return;
-                                    }
+                                    clearTimeout(timeoutId);
+                                    clearInterval(cancellationCheckInterval);
+                                    subscription.unsubscribe();
+                                    resolve();
+                                    return;
                                 }
-                            }
 
-                            // Update progress in database
-                            await RequestProgress.findOneAndUpdate(
-                                { requestId },
-                                {
-                                    progress,
-                                    statusText: data?.requestProgress?.info,
-                                    data: dataObject,
-                                    status: "in_progress",
-                                    metadata: job.data.metadata,
-                                },
-                            );
+                                const { data } = x;
+                                // Reset idle timeout on each progress update
+                                resetIdleTimeout();
 
-                            if (progress === 1 && dataObject) {
-                                console.log(
-                                    `Job ${job.id} reached 100% completion`,
+                                let progress =
+                                    data?.requestProgress?.progress || 0;
+
+                                // Check current progress and keep higher value
+                                const currentDoc = await retryDbOperation(() =>
+                                    RequestProgress.findOne({ requestId }),
                                 );
 
-                                // Handle video translation completion if needed
-                                if (type === "video-translate" && userId) {
+                                if (
+                                    currentDoc &&
+                                    progress < currentDoc.progress
+                                ) {
+                                    console.log(
+                                        `Job ${job.id} maintaining higher progress value ${currentDoc.progress} instead of ${progress}`,
+                                    );
+                                    progress = currentDoc.progress;
+                                }
+
+                                let dataObject;
+
+                                if (data?.requestProgress?.data) {
                                     try {
-                                        const {
-                                            handleVideoTranslationCompletion,
-                                        } = await import(
-                                            "../app/utils/video-state-handler.js"
+                                        dataObject = JSON.parse(
+                                            JSON.parse(
+                                                data?.requestProgress?.data,
+                                            ),
                                         );
-                                        await handleVideoTranslationCompletion(
-                                            userId,
-                                            dataObject,
-                                            targetLocaleLabel,
+                                    } catch (e) {
+                                        console.log(
+                                            "Non-json data",
+                                            data?.requestProgress?.data,
                                         );
-                                    } catch (error) {
-                                        console.error(
-                                            "Error handling video translation completion:",
-                                            error,
-                                        );
+                                        if (
+                                            data?.requestProgress?.data ===
+                                            "[DONE]"
+                                        ) {
+                                            // error condition
+                                            const error =
+                                                data.requestProgress.error;
+
+                                            console.error(
+                                                "Error in request progress worker",
+                                                error,
+                                            );
+
+                                            await retryDbOperation(() =>
+                                                RequestProgress.findOneAndUpdate(
+                                                    {
+                                                        requestId,
+                                                    },
+                                                    {
+                                                        status: "failed",
+                                                        statusText: error
+                                                            ? JSON.stringify(
+                                                                  error,
+                                                              )
+                                                            : "Non-JSON data received: " +
+                                                              data
+                                                                  ?.requestProgress
+                                                                  ?.data,
+                                                    },
+                                                ),
+                                            );
+
+                                            resolve(dataObject);
+                                            return;
+                                        }
                                     }
                                 }
 
-                                await RequestProgress.findOneAndUpdate(
-                                    { requestId },
-                                    { status: "completed" },
+                                // Update progress in database
+                                await retryDbOperation(() =>
+                                    RequestProgress.findOneAndUpdate(
+                                        { requestId },
+                                        {
+                                            progress,
+                                            statusText:
+                                                data?.requestProgress?.info,
+                                            data: dataObject,
+                                            status: "in_progress",
+                                            metadata: job.data.metadata,
+                                        },
+                                    ),
                                 );
 
-                                clearTimeout(timeoutId);
-                                subscription.unsubscribe();
-                                resolve(dataObject);
-                            }
+                                if (progress === 1 && dataObject) {
+                                    console.log(
+                                        `Job ${job.id} reached 100% completion`,
+                                    );
 
-                            job.updateProgress(progress);
+                                    // Handle video translation completion if needed
+                                    if (type === "video-translate" && userId) {
+                                        try {
+                                            const {
+                                                handleVideoTranslationCompletion,
+                                            } = await import(
+                                                "../app/utils/video-state-handler.js"
+                                            );
+                                            await handleVideoTranslationCompletion(
+                                                userId,
+                                                dataObject,
+                                                targetLocaleLabel,
+                                            );
+                                        } catch (error) {
+                                            console.error(
+                                                "Error handling video translation completion:",
+                                                error,
+                                            );
+                                        }
+                                    }
+
+                                    await retryDbOperation(() =>
+                                        RequestProgress.findOneAndUpdate(
+                                            { requestId },
+                                            { status: "completed" },
+                                        ),
+                                    );
+
+                                    clearTimeout(timeoutId);
+                                    subscription.unsubscribe();
+                                    resolve(dataObject);
+                                }
+
+                                job.updateProgress(progress);
+                            } catch (error) {
+                                console.error(
+                                    "Error in subscription next handler:",
+                                    error,
+                                );
+                                // Don't fail the job on a single update error
+                            }
                         },
                         async error(error) {
                             console.error(
@@ -268,10 +480,22 @@ const worker = new Worker(
                             clearTimeout(timeoutId);
                             clearInterval(cancellationCheckInterval);
                             subscription.unsubscribe();
-                            await RequestProgress.findOneAndUpdate(
-                                { requestId },
-                                { status: "failed", error: error.message },
-                            );
+                            try {
+                                await retryDbOperation(() =>
+                                    RequestProgress.findOneAndUpdate(
+                                        { requestId },
+                                        {
+                                            status: "failed",
+                                            error: error.message,
+                                        },
+                                    ),
+                                );
+                            } catch (dbError) {
+                                console.error(
+                                    "Failed to update status on error:",
+                                    dbError,
+                                );
+                            }
                             reject(error);
                         },
                     });
@@ -280,10 +504,18 @@ const worker = new Worker(
                     `Failed to setup subscription for job ${job.id}:`,
                     error,
                 );
-                RequestProgress.findOneAndUpdate(
-                    { requestId },
-                    { status: "failed", error: error.message },
-                ).exec();
+                retryDbOperation(() =>
+                    RequestProgress.findOneAndUpdate(
+                        { requestId },
+                        { status: "failed", error: error.message },
+                    ).exec(),
+                ).catch((err) =>
+                    console.error(
+                        "Error updating progress on setup failure:",
+                        err,
+                    ),
+                );
+
                 reject(error);
             }
         });
@@ -304,6 +536,26 @@ worker.on("failed", (job, error) => {
     console.error(`Job ${job.id} failed with error:`, error);
 });
 
+// Safely start the worker after ensuring database connection
+async function safelyStartWorker() {
+    try {
+        console.log("Ensuring database connection before starting worker...");
+        await ensureDbConnection();
+
+        console.log("Starting request-progress worker...");
+        worker.run();
+
+        console.log("Request-progress worker is now running");
+    } catch (error) {
+        console.error("Failed to start worker:", error);
+
+        // Try to restart after a delay if something goes wrong at startup
+        console.log("Will attempt to restart worker in 10 seconds...");
+        setTimeout(safelyStartWorker, 10000);
+    }
+}
+
+// Export the safelyStartWorker function instead of the raw worker.run
 module.exports = {
-    run: () => worker.run(),
+    run: safelyStartWorker,
 };
