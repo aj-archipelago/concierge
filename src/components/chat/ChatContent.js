@@ -7,7 +7,7 @@ import ChatMessages from "./ChatMessages";
 import { QUERIES } from "../../graphql";
 import { useGetActiveChat, useUpdateChat } from "../../../app/queries/chats";
 import { useDeleteAutogenRun } from "../../../app/queries/autogen.js";
-import { processImageUrls } from "../../utils/imageUtils";
+import { processImageUrls } from "../../utils/imageUtils.mjs";
 import { useStreamingMessages } from "../../hooks/useStreamingMessages";
 import { useQueryClient } from "@tanstack/react-query";
 
