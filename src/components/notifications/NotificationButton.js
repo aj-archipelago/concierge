@@ -165,7 +165,7 @@ export default function NotificationButton() {
                                                     />
                                                 </div>
                                                 <div className="flex flex-col overflow-hidden grow">
-                                                    <span className="font-semibold">
+                                                    <span className="font-semibold text-gray-800">
                                                         {t(
                                                             NotificationDisplayType[
                                                                 notification
@@ -175,7 +175,7 @@ export default function NotificationButton() {
                                                     </span>
                                                     {notification.metadata && (
                                                         <div
-                                                            className="text-xs text-gray-800 truncate"
+                                                            className="text-xs text-gray-600 truncate"
                                                             title={
                                                                 notification.statusText
                                                             }
