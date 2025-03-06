@@ -1,4 +1,4 @@
-import axios from "axios";
+import axios from "../../utils/axios-client";
 import { getCurrentUser } from "../utils/auth";
 
 export async function POST(req, res) {

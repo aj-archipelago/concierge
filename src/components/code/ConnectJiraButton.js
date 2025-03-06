@@ -1,6 +1,6 @@
 "use client";
 
-import axios from "axios";
+import axios from "../../../app/utils/axios-client";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
