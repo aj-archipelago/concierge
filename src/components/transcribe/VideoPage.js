@@ -760,6 +760,7 @@ function VideoInformationBox({
 function VideoPage() {
     const [transcripts, setTranscripts] = useState([]);
     const transcriptsRef = useRef(transcripts);
+    const videoInformationRef = useRef(null);
     const [activeTranscript, setActiveTranscript] = useState(0);
     const [url, setUrl] = useState("");
     const [videoInformation, setVideoInformation] = useState();
@@ -790,6 +791,10 @@ function VideoPage() {
     useEffect(() => {
         transcriptsRef.current = transcripts;
     }, [transcripts]);
+
+    useEffect(() => {
+        videoInformationRef.current = userState?.transcribe?.videoInformation;
+    }, [userState?.transcribe?.videoInformation]);
 
     // Handle VTT URL creation and cleanup
     useEffect(() => {
@@ -854,21 +859,19 @@ function VideoPage() {
                 setUrl(userState.transcribe?.url);
             }
             if (
-                userState.transcribe?.videoInformation?.videoUrl !==
+                videoInformationRef.current?.videoUrl !==
                 prevUserStateRef.current?.transcribe?.videoInformation?.videoUrl
             ) {
-                setVideoInformation(userState.transcribe?.videoInformation);
+                setVideoInformation(videoInformationRef.current);
             }
 
             if (
-                userState.transcribe?.videoInformation?.videoLanguages
-                    ?.length !==
+                videoInformationRef.current?.videoLanguages?.length !==
                 prevUserStateRef.current?.transcribe?.videoInformation
                     ?.videoLanguages?.length
             ) {
                 setVideoLanguages(
-                    userState.transcribe?.videoInformation?.videoLanguages ||
-                        [],
+                    videoInformationRef.current?.videoLanguages || [],
                 );
             }
 
@@ -911,7 +914,7 @@ function VideoPage() {
 
             updateUserState({
                 videoInformation: {
-                    ...videoInformation,
+                    ...videoInformationRef.current,
                     videoLanguages: initialLanguages,
                 },
             });
@@ -922,9 +925,7 @@ function VideoPage() {
     useEffect(() => {
         if (videoInformation) {
             updateUserState({
-                videoInformation: {
-                    ...videoInformation,
-                },
+                videoInformation: videoInformationRef.current,
                 transcripts,
             });
         }
@@ -935,10 +936,10 @@ function VideoPage() {
     }, [transcripts]);
 
     useEffect(() => {
-        if (videoInformation) {
+        if (videoInformationRef.current) {
             updateUserState({
                 videoInformation: {
-                    ...videoInformation,
+                    ...videoInformationRef.current,
                     videoLanguages,
                 },
             });
@@ -999,16 +1000,14 @@ function VideoPage() {
 
                 // Always update user state regardless of component mount status
                 updateUserState({
-                    videoInformation: {
-                        ...userState?.transcribe?.videoInformation,
-                    },
+                    videoInformation: videoInformationRef.current,
                     transcripts: updatedTranscripts,
                     activeTranscript: newActiveIndex,
                 });
             }
             setAddTrackDialogOpen(false);
         },
-        [updateUserState, userState?.transcribe?.videoInformation],
+        [updateUserState],
     );
 
     const handleSeek = useCallback(
@@ -1600,7 +1599,7 @@ function VideoPage() {
                         setActiveTranscript(newActiveIndex);
                         updateUserState({
                             videoInformation: {
-                                ...userState?.transcribe?.videoInformation,
+                                ...videoInformationRef.current,
                                 activeTranscript: newActiveIndex,
                             },
                             transcripts: updatedTranscripts,
@@ -1634,10 +1633,8 @@ function VideoPage() {
 
                                     // Update user state with new transcripts
                                     updateUserState({
-                                        videoInformation: {
-                                            ...userState?.transcribe
-                                                ?.videoInformation,
-                                        },
+                                        videoInformation:
+                                            videoInformationRef.current,
                                         transcripts: transcripts.map(
                                             (transcript, index) =>
                                                 index === activeTranscript
