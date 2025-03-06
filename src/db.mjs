@@ -7,11 +7,11 @@ const { MONGO_URI, MONGO_ENCRYPTION_KEY, MONGO_DATAKEY_UUID } = process.env;
 
 // Default connection options - using only supported options
 const DEFAULT_CONNECTION_OPTIONS = {
-    serverSelectionTimeoutMS: 30000,  // Increase server selection timeout
-    socketTimeoutMS: 45000,          // Increase socket timeout
-    connectTimeoutMS: 30000,         // Increase connection timeout
-    maxPoolSize: 10,                 // Control the maximum number of connections in the pool
-    bufferCommands: false            // Prevent buffering commands when disconnected
+    serverSelectionTimeoutMS: 30000, // Increase server selection timeout
+    socketTimeoutMS: 45000, // Increase socket timeout
+    connectTimeoutMS: 30000, // Increase connection timeout
+    maxPoolSize: 10, // Control the maximum number of connections in the pool
+    bufferCommands: false, // Prevent buffering commands when disconnected
 };
 
 export async function connectToDatabase() {
@@ -261,7 +261,7 @@ export async function connectToDatabase() {
         ...DEFAULT_CONNECTION_OPTIONS,
         autoEncryption: autoEncryptionOptions,
     };
-    
+
     await mongoose.connect(MONGO_URI, encryptionConnectionOptions);
 }
 

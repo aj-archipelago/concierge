@@ -68,47 +68,65 @@ async function retryDbOperation(operation, maxRetries = 3, retryDelay = 1000) {
             return await operation();
         } catch (error) {
             lastError = error;
-            console.warn(`DB operation attempt ${attempt}/${maxRetries} failed: ${error.message}`);
-            
+            console.warn(
+                `DB operation attempt ${attempt}/${maxRetries} failed: ${error.message}`,
+            );
+
             // Check explicitly for MongoNotConnectedError and other connection issues
-            if (error.name === 'MongoNotConnectedError' || 
-                (error.name === 'MongooseError' || error.name === 'MongoError') && 
-                error.message && 
-                (error.message.includes('buffering') || 
-                 error.message.includes('disconnected') ||
-                 error.message.includes('timeout') ||
-                 error.message.includes('not connected') ||
-                 error.message.includes('must be connected'))) {
-                
-                console.log('Detected MongoDB connection issue, attempting to reconnect...');
+            if (
+                error.name === "MongoNotConnectedError" ||
+                ((error.name === "MongooseError" ||
+                    error.name === "MongoError") &&
+                    error.message &&
+                    (error.message.includes("buffering") ||
+                        error.message.includes("disconnected") ||
+                        error.message.includes("timeout") ||
+                        error.message.includes("not connected") ||
+                        error.message.includes("must be connected")))
+            ) {
+                console.log(
+                    "Detected MongoDB connection issue, attempting to reconnect...",
+                );
                 // Use the global mongoose instance to check connection state
-                const mongoose = (await import('mongoose')).default;
+                const mongoose = (await import("mongoose")).default;
                 if (mongoose.connection.readyState !== 1) {
                     try {
                         // First try to close any existing connection
                         if (mongoose.connection.readyState !== 0) {
-                            await mongoose.connection.close().catch(err => 
-                                console.warn('Error closing existing connection:', err.message)
-                            );
+                            await mongoose.connection
+                                .close()
+                                .catch((err) =>
+                                    console.warn(
+                                        "Error closing existing connection:",
+                                        err.message,
+                                    ),
+                                );
                         }
-                        
+
                         // Get a fresh database connection
-                        const { connectToDatabase } = await import("../src/db.mjs");
+                        const { connectToDatabase } = await import(
+                            "../src/db.mjs"
+                        );
                         await connectToDatabase();
-                        console.log('Successfully reconnected to MongoDB');
-                        
+                        console.log("Successfully reconnected to MongoDB");
+
                         // Reset the dbInitialized flag to ensure ensureDbConnection will work properly
                         dbInitialized = mongoose.connection.readyState === 1;
                     } catch (reconnectError) {
-                        console.error('Failed to reconnect to MongoDB:', reconnectError.message);
+                        console.error(
+                            "Failed to reconnect to MongoDB:",
+                            reconnectError.message,
+                        );
                     }
                 }
             }
-            
+
             if (attempt < maxRetries) {
                 const waitTime = Math.min(retryDelay, 30000); // Cap at 30 seconds max
-                console.log(`Waiting ${waitTime/1000}s before retry ${attempt+1}/${maxRetries}...`);
-                await new Promise(resolve => setTimeout(resolve, waitTime));
+                console.log(
+                    `Waiting ${waitTime / 1000}s before retry ${attempt + 1}/${maxRetries}...`,
+                );
+                await new Promise((resolve) => setTimeout(resolve, waitTime));
                 // Increase delay for next retry (exponential backoff)
                 retryDelay *= 2;
             }
@@ -126,58 +144,80 @@ async function ensureDbConnection(forceReconnect = false) {
     if (forceReconnect) {
         dbInitialized = false;
     }
-    
+
     if (!dbInitialized) {
         try {
             // Use the global mongoose instance directly
-            const mongoose = (await import('mongoose')).default;
-            
+            const mongoose = (await import("mongoose")).default;
+
             // Check if already connected
             if (mongoose.connection && mongoose.connection.readyState === 1) {
-                console.log('Already connected to MongoDB');
+                console.log("Already connected to MongoDB");
                 dbInitialized = true;
                 connectionAttempts = 0;
                 return;
             }
-            
+
             // If previous connection exists but is disconnected, close it
             if (mongoose.connection && mongoose.connection.readyState !== 0) {
-                console.log('Closing existing MongoDB connection before reconnecting...');
-                await mongoose.connection.close().catch(err => 
-                    console.warn('Error closing connection:', err.message)
+                console.log(
+                    "Closing existing MongoDB connection before reconnecting...",
                 );
+                await mongoose.connection
+                    .close()
+                    .catch((err) =>
+                        console.warn("Error closing connection:", err.message),
+                    );
             }
-            
+
             connectionAttempts++;
-            console.log(`Connecting to MongoDB (attempt ${connectionAttempts}/${MAX_CONNECTION_ATTEMPTS})...`);
-            
+            console.log(
+                `Connecting to MongoDB (attempt ${connectionAttempts}/${MAX_CONNECTION_ATTEMPTS})...`,
+            );
+
             const { connectToDatabase } = await import("../src/db.mjs");
             await connectToDatabase();
-            
+
             // Wait a moment to ensure the connection is established
-            await new Promise(resolve => setTimeout(resolve, 500));
-            
+            await new Promise((resolve) => setTimeout(resolve, 500));
+
             // Verify the connection was successful
             if (mongoose.connection && mongoose.connection.readyState === 1) {
-                console.log("Worker successfully connected to MongoDB database");
+                console.log(
+                    "Worker successfully connected to MongoDB database",
+                );
                 dbInitialized = true;
                 connectionAttempts = 0;
             } else {
-                throw new Error(`Failed to establish MongoDB connection, current state: ${mongoose.connection ? mongoose.connection.readyState : 'unknown'}`);
+                throw new Error(
+                    `Failed to establish MongoDB connection, current state: ${mongoose.connection ? mongoose.connection.readyState : "unknown"}`,
+                );
             }
         } catch (error) {
-            console.error(`Failed to connect to database (attempt ${connectionAttempts}/${MAX_CONNECTION_ATTEMPTS}):`, error);
-            
+            console.error(
+                `Failed to connect to database (attempt ${connectionAttempts}/${MAX_CONNECTION_ATTEMPTS}):`,
+                error,
+            );
+
             if (connectionAttempts >= MAX_CONNECTION_ATTEMPTS) {
-                console.error('Maximum connection attempts reached. Giving up.');
-                throw new Error(`Failed to connect to MongoDB after ${MAX_CONNECTION_ATTEMPTS} attempts: ${error.message}`);
+                console.error(
+                    "Maximum connection attempts reached. Giving up.",
+                );
+                throw new Error(
+                    `Failed to connect to MongoDB after ${MAX_CONNECTION_ATTEMPTS} attempts: ${error.message}`,
+                );
             }
-            
+
             // Wait before next attempt with exponential backoff
-            const backoffTime = Math.min(1000 * Math.pow(2, connectionAttempts), 30000);
-            console.log(`Waiting ${backoffTime/1000}s before next connection attempt...`);
-            await new Promise(resolve => setTimeout(resolve, backoffTime));
-            
+            const backoffTime = Math.min(
+                1000 * Math.pow(2, connectionAttempts),
+                30000,
+            );
+            console.log(
+                `Waiting ${backoffTime / 1000}s before next connection attempt...`,
+            );
+            await new Promise((resolve) => setTimeout(resolve, backoffTime));
+
             // Recursive call to retry
             return ensureDbConnection();
         }
@@ -201,10 +241,10 @@ const worker = new Worker(
         ).default;
 
         // Check if already cancelled
-        const request = await retryDbOperation(() => 
-            RequestProgress.findOne({ requestId })
+        const request = await retryDbOperation(() =>
+            RequestProgress.findOne({ requestId }),
         );
-        
+
         if (request?.status === "cancelled") {
             console.log(`Job ${job.id} was cancelled`);
             return;
@@ -218,10 +258,10 @@ const worker = new Worker(
                 // Add a periodic check for cancellation
                 const cancellationCheckInterval = setInterval(async () => {
                     try {
-                        const updatedRequest = await retryDbOperation(() => 
-                            RequestProgress.findOne({ requestId })
+                        const updatedRequest = await retryDbOperation(() =>
+                            RequestProgress.findOne({ requestId }),
                         );
-                        
+
                         if (updatedRequest?.status === "cancelled") {
                             console.log(`Job ${job.id} received cancellation`);
                             clearTimeout(timeoutId);
@@ -251,8 +291,13 @@ const worker = new Worker(
                                         status: "failed",
                                         error: "Operation timed out after 5 minutes of inactivity",
                                     },
-                                ).exec()
-                            ).catch(err => console.error("Error updating progress on timeout:", err));
+                                ).exec(),
+                            ).catch((err) =>
+                                console.error(
+                                    "Error updating progress on timeout:",
+                                    err,
+                                ),
+                            );
                             reject(
                                 new Error(
                                     "Operation timed out after 5 minutes of inactivity",
@@ -275,10 +320,11 @@ const worker = new Worker(
                         async next(x) {
                             try {
                                 // Check for cancellation before processing updates
-                                const currentRequest = await retryDbOperation(() => 
-                                    RequestProgress.findOne({ requestId })
+                                const currentRequest = await retryDbOperation(
+                                    () =>
+                                        RequestProgress.findOne({ requestId }),
                                 );
-                                
+
                                 if (currentRequest?.status === "cancelled") {
                                     console.log(
                                         `Job ${job.id} was cancelled during processing`,
@@ -294,14 +340,18 @@ const worker = new Worker(
                                 // Reset idle timeout on each progress update
                                 resetIdleTimeout();
 
-                                let progress = data?.requestProgress?.progress || 0;
+                                let progress =
+                                    data?.requestProgress?.progress || 0;
 
                                 // Check current progress and keep higher value
-                                const currentDoc = await retryDbOperation(() => 
-                                    RequestProgress.findOne({ requestId })
+                                const currentDoc = await retryDbOperation(() =>
+                                    RequestProgress.findOne({ requestId }),
                                 );
-                                
-                                if (currentDoc && progress < currentDoc.progress) {
+
+                                if (
+                                    currentDoc &&
+                                    progress < currentDoc.progress
+                                ) {
                                     console.log(
                                         `Job ${job.id} maintaining higher progress value ${currentDoc.progress} instead of ${progress}`,
                                     );
@@ -313,7 +363,9 @@ const worker = new Worker(
                                 if (data?.requestProgress?.data) {
                                     try {
                                         dataObject = JSON.parse(
-                                            JSON.parse(data?.requestProgress?.data),
+                                            JSON.parse(
+                                                data?.requestProgress?.data,
+                                            ),
                                         );
                                     } catch (e) {
                                         console.log(
@@ -321,7 +373,8 @@ const worker = new Worker(
                                             data?.requestProgress?.data,
                                         );
                                         if (
-                                            data?.requestProgress?.data === "[DONE]"
+                                            data?.requestProgress?.data ===
+                                            "[DONE]"
                                         ) {
                                             // error condition
                                             const error =
@@ -332,7 +385,7 @@ const worker = new Worker(
                                                 error,
                                             );
 
-                                            await retryDbOperation(() => 
+                                            await retryDbOperation(() =>
                                                 RequestProgress.findOneAndUpdate(
                                                     {
                                                         requestId,
@@ -340,12 +393,15 @@ const worker = new Worker(
                                                     {
                                                         status: "failed",
                                                         statusText: error
-                                                            ? JSON.stringify(error)
+                                                            ? JSON.stringify(
+                                                                  error,
+                                                              )
                                                             : "Non-JSON data received: " +
-                                                              data?.requestProgress
+                                                              data
+                                                                  ?.requestProgress
                                                                   ?.data,
                                                     },
-                                                )
+                                                ),
                                             );
 
                                             resolve(dataObject);
@@ -355,17 +411,18 @@ const worker = new Worker(
                                 }
 
                                 // Update progress in database
-                                await retryDbOperation(() => 
+                                await retryDbOperation(() =>
                                     RequestProgress.findOneAndUpdate(
                                         { requestId },
                                         {
                                             progress,
-                                            statusText: data?.requestProgress?.info,
+                                            statusText:
+                                                data?.requestProgress?.info,
                                             data: dataObject,
                                             status: "in_progress",
                                             metadata: job.data.metadata,
                                         },
-                                    )
+                                    ),
                                 );
 
                                 if (progress === 1 && dataObject) {
@@ -394,11 +451,11 @@ const worker = new Worker(
                                         }
                                     }
 
-                                    await retryDbOperation(() => 
+                                    await retryDbOperation(() =>
                                         RequestProgress.findOneAndUpdate(
                                             { requestId },
                                             { status: "completed" },
-                                        )
+                                        ),
                                     );
 
                                     clearTimeout(timeoutId);
@@ -408,7 +465,10 @@ const worker = new Worker(
 
                                 job.updateProgress(progress);
                             } catch (error) {
-                                console.error("Error in subscription next handler:", error);
+                                console.error(
+                                    "Error in subscription next handler:",
+                                    error,
+                                );
                                 // Don't fail the job on a single update error
                             }
                         },
@@ -421,30 +481,41 @@ const worker = new Worker(
                             clearInterval(cancellationCheckInterval);
                             subscription.unsubscribe();
                             try {
-                                await retryDbOperation(() => 
+                                await retryDbOperation(() =>
                                     RequestProgress.findOneAndUpdate(
                                         { requestId },
-                                        { status: "failed", error: error.message },
-                                    )
+                                        {
+                                            status: "failed",
+                                            error: error.message,
+                                        },
+                                    ),
                                 );
                             } catch (dbError) {
-                                console.error("Failed to update status on error:", dbError);
+                                console.error(
+                                    "Failed to update status on error:",
+                                    dbError,
+                                );
                             }
                             reject(error);
-                        }
+                        },
                     });
             } catch (error) {
                 console.error(
                     `Failed to setup subscription for job ${job.id}:`,
                     error,
                 );
-                retryDbOperation(() => 
+                retryDbOperation(() =>
                     RequestProgress.findOneAndUpdate(
                         { requestId },
                         { status: "failed", error: error.message },
-                    ).exec()
-                ).catch(err => console.error("Error updating progress on setup failure:", err));
-                
+                    ).exec(),
+                ).catch((err) =>
+                    console.error(
+                        "Error updating progress on setup failure:",
+                        err,
+                    ),
+                );
+
                 reject(error);
             }
         });
@@ -468,23 +539,23 @@ worker.on("failed", (job, error) => {
 // Safely start the worker after ensuring database connection
 async function safelyStartWorker() {
     try {
-        console.log('Ensuring database connection before starting worker...');
+        console.log("Ensuring database connection before starting worker...");
         await ensureDbConnection();
-        
-        console.log('Starting request-progress worker...');
+
+        console.log("Starting request-progress worker...");
         worker.run();
-        
-        console.log('Request-progress worker is now running');
+
+        console.log("Request-progress worker is now running");
     } catch (error) {
-        console.error('Failed to start worker:', error);
-        
+        console.error("Failed to start worker:", error);
+
         // Try to restart after a delay if something goes wrong at startup
-        console.log('Will attempt to restart worker in 10 seconds...');
+        console.log("Will attempt to restart worker in 10 seconds...");
         setTimeout(safelyStartWorker, 10000);
     }
 }
 
 // Export the safelyStartWorker function instead of the raw worker.run
 module.exports = {
-    run: safelyStartWorker
+    run: safelyStartWorker,
 };

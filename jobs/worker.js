@@ -97,41 +97,58 @@ async function ensureDbConnection(forceReconnect = false) {
     if (forceReconnect) {
         dbInitialized = false;
     }
-    
+
     if (!dbInitialized) {
         try {
             connectionAttempts++;
-            console.log(`Connecting to database (attempt ${connectionAttempts}/${MAX_CONNECTION_ATTEMPTS})...`);
-            
-            const connectToDatabase = (await import("../src/db.mjs")).connectToDatabase;
+            console.log(
+                `Connecting to database (attempt ${connectionAttempts}/${MAX_CONNECTION_ATTEMPTS})...`,
+            );
+
+            const connectToDatabase = (await import("../src/db.mjs"))
+                .connectToDatabase;
             await connectToDatabase();
-            
+
             // Give the connection a moment to fully establish
-            await new Promise(resolve => setTimeout(resolve, 500));
-            
+            await new Promise((resolve) => setTimeout(resolve, 500));
+
             // Get mongoose to check connection state
-            const mongoose = (await import('mongoose')).default;
-            
+            const mongoose = (await import("mongoose")).default;
+
             if (mongoose.connection && mongoose.connection.readyState === 1) {
                 console.log("Successfully connected to MongoDB database");
                 dbInitialized = true;
                 connectionAttempts = 0;
             } else {
-                throw new Error(`Failed to establish MongoDB connection, current state: ${mongoose.connection ? mongoose.connection.readyState : 'unknown'}`);
+                throw new Error(
+                    `Failed to establish MongoDB connection, current state: ${mongoose.connection ? mongoose.connection.readyState : "unknown"}`,
+                );
             }
         } catch (error) {
-            console.error(`Failed to connect to database (attempt ${connectionAttempts}/${MAX_CONNECTION_ATTEMPTS}):`, error);
-            
+            console.error(
+                `Failed to connect to database (attempt ${connectionAttempts}/${MAX_CONNECTION_ATTEMPTS}):`,
+                error,
+            );
+
             if (connectionAttempts >= MAX_CONNECTION_ATTEMPTS) {
-                console.error('Maximum connection attempts reached. Giving up.');
-                throw new Error(`Failed to connect to MongoDB after ${MAX_CONNECTION_ATTEMPTS} attempts: ${error.message}`);
+                console.error(
+                    "Maximum connection attempts reached. Giving up.",
+                );
+                throw new Error(
+                    `Failed to connect to MongoDB after ${MAX_CONNECTION_ATTEMPTS} attempts: ${error.message}`,
+                );
             }
-            
+
             // Wait before next attempt with exponential backoff
-            const backoffTime = Math.min(1000 * Math.pow(2, connectionAttempts), 30000);
-            console.log(`Waiting ${backoffTime/1000}s before next connection attempt...`);
-            await new Promise(resolve => setTimeout(resolve, backoffTime));
-            
+            const backoffTime = Math.min(
+                1000 * Math.pow(2, connectionAttempts),
+                30000,
+            );
+            console.log(
+                `Waiting ${backoffTime / 1000}s before next connection attempt...`,
+            );
+            await new Promise((resolve) => setTimeout(resolve, backoffTime));
+
             // Recursive call to retry
             return ensureDbConnection();
         }
@@ -140,50 +157,51 @@ async function ensureDbConnection(forceReconnect = false) {
 
 // Graceful shutdown handler
 const cleanupAndExit = async () => {
-    console.log('Shutting down workers...');
-    
+    console.log("Shutting down workers...");
+
     try {
         // Stop processing new jobs
         await worker.close();
-        console.log('Digest worker stopped');
-        
+        console.log("Digest worker stopped");
+
         // Close database connection
         if (dbInitialized) {
-            const closeDatabaseConnection = (await import("../src/db.mjs")).closeDatabaseConnection;
+            const closeDatabaseConnection = (await import("../src/db.mjs"))
+                .closeDatabaseConnection;
             await closeDatabaseConnection();
-            console.log('Database connection closed');
+            console.log("Database connection closed");
         }
-        
-        console.log('Cleanup completed, exiting');
+
+        console.log("Cleanup completed, exiting");
         process.exit(0);
     } catch (error) {
-        console.error('Error during shutdown:', error);
+        console.error("Error during shutdown:", error);
         process.exit(1);
     }
 };
 
 // Register shutdown handlers
-process.on('SIGTERM', cleanupAndExit);
-process.on('SIGINT', cleanupAndExit);
+process.on("SIGTERM", cleanupAndExit);
+process.on("SIGINT", cleanupAndExit);
 
 // Safely start all workers after ensuring database connection
 async function startWorkers() {
     try {
         // Initialize database connection
-        console.log('Initializing connection to database...');
+        console.log("Initializing connection to database...");
         await ensureDbConnection();
-        
+
         // Start workers
-        console.log('Starting workers...');
+        console.log("Starting workers...");
         await requestProgressWorker.run();
         worker.run();
-        
-        console.log('All workers are running');
+
+        console.log("All workers are running");
     } catch (error) {
-        console.error('Failed to initialize:', error);
-        
+        console.error("Failed to initialize:", error);
+
         // Try to restart after a delay
-        console.log('Will attempt to restart workers in 15 seconds...');
+        console.log("Will attempt to restart workers in 15 seconds...");
         setTimeout(startWorkers, 15000);
     }
 }
