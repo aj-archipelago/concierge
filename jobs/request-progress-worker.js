@@ -68,20 +68,47 @@ async function retryDbOperation(operation, maxRetries = 3, retryDelay = 1000) {
             return await operation();
         } catch (error) {
             lastError = error;
-            console.warn(`DB operation attempt ${attempt}/${maxRetries} failed:`, error.message);
+            console.warn(`DB operation attempt ${attempt}/${maxRetries} failed: ${error.message}`);
             
-            // Check if MongoDB is not connected and try to reconnect
-            if ((error.name === 'MongooseError' || error.name === 'MongoError') && 
+            // Check explicitly for MongoNotConnectedError and other connection issues
+            if (error.name === 'MongoNotConnectedError' || 
+                (error.name === 'MongooseError' || error.name === 'MongoError') && 
                 error.message && 
                 (error.message.includes('buffering') || 
                  error.message.includes('disconnected') ||
-                 error.message.includes('timeout'))) {
+                 error.message.includes('timeout') ||
+                 error.message.includes('not connected') ||
+                 error.message.includes('must be connected'))) {
+                
                 console.log('Detected MongoDB connection issue, attempting to reconnect...');
-                await ensureDbConnection(true); // Force reconnection
+                // Use the global mongoose instance to check connection state
+                const mongoose = (await import('mongoose')).default;
+                if (mongoose.connection.readyState !== 1) {
+                    try {
+                        // First try to close any existing connection
+                        if (mongoose.connection.readyState !== 0) {
+                            await mongoose.connection.close().catch(err => 
+                                console.warn('Error closing existing connection:', err.message)
+                            );
+                        }
+                        
+                        // Get a fresh database connection
+                        const { connectToDatabase } = await import("../src/db.mjs");
+                        await connectToDatabase();
+                        console.log('Successfully reconnected to MongoDB');
+                        
+                        // Reset the dbInitialized flag to ensure ensureDbConnection will work properly
+                        dbInitialized = mongoose.connection.readyState === 1;
+                    } catch (reconnectError) {
+                        console.error('Failed to reconnect to MongoDB:', reconnectError.message);
+                    }
+                }
             }
             
             if (attempt < maxRetries) {
-                await new Promise(resolve => setTimeout(resolve, retryDelay));
+                const waitTime = Math.min(retryDelay, 30000); // Cap at 30 seconds max
+                console.log(`Waiting ${waitTime/1000}s before retry ${attempt+1}/${maxRetries}...`);
+                await new Promise(resolve => setTimeout(resolve, waitTime));
                 // Increase delay for next retry (exponential backoff)
                 retryDelay *= 2;
             }
@@ -102,9 +129,8 @@ async function ensureDbConnection(forceReconnect = false) {
     
     if (!dbInitialized) {
         try {
-            // Import without using default to handle both ESM and CJS
-            const mongooseModule = await import('mongoose');
-            const mongoose = mongooseModule.default || mongooseModule;
+            // Use the global mongoose instance directly
+            const mongoose = (await import('mongoose')).default;
             
             // Check if already connected
             if (mongoose.connection && mongoose.connection.readyState === 1) {
@@ -117,7 +143,9 @@ async function ensureDbConnection(forceReconnect = false) {
             // If previous connection exists but is disconnected, close it
             if (mongoose.connection && mongoose.connection.readyState !== 0) {
                 console.log('Closing existing MongoDB connection before reconnecting...');
-                await mongoose.connection.close();
+                await mongoose.connection.close().catch(err => 
+                    console.warn('Error closing connection:', err.message)
+                );
             }
             
             connectionAttempts++;
@@ -126,13 +154,16 @@ async function ensureDbConnection(forceReconnect = false) {
             const { connectToDatabase } = await import("../src/db.mjs");
             await connectToDatabase();
             
+            // Wait a moment to ensure the connection is established
+            await new Promise(resolve => setTimeout(resolve, 500));
+            
             // Verify the connection was successful
             if (mongoose.connection && mongoose.connection.readyState === 1) {
                 console.log("Worker successfully connected to MongoDB database");
                 dbInitialized = true;
                 connectionAttempts = 0;
             } else {
-                throw new Error('Failed to establish MongoDB connection even though no errors were thrown');
+                throw new Error(`Failed to establish MongoDB connection, current state: ${mongoose.connection ? mongoose.connection.readyState : 'unknown'}`);
             }
         } catch (error) {
             console.error(`Failed to connect to database (attempt ${connectionAttempts}/${MAX_CONNECTION_ATTEMPTS}):`, error);
@@ -434,6 +465,26 @@ worker.on("failed", (job, error) => {
     console.error(`Job ${job.id} failed with error:`, error);
 });
 
+// Safely start the worker after ensuring database connection
+async function safelyStartWorker() {
+    try {
+        console.log('Ensuring database connection before starting worker...');
+        await ensureDbConnection();
+        
+        console.log('Starting request-progress worker...');
+        worker.run();
+        
+        console.log('Request-progress worker is now running');
+    } catch (error) {
+        console.error('Failed to start worker:', error);
+        
+        // Try to restart after a delay if something goes wrong at startup
+        console.log('Will attempt to restart worker in 10 seconds...');
+        setTimeout(safelyStartWorker, 10000);
+    }
+}
+
+// Export the safelyStartWorker function instead of the raw worker.run
 module.exports = {
-    run: () => worker.run(),
+    run: safelyStartWorker
 };

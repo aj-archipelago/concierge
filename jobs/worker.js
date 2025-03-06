@@ -89,11 +89,58 @@ worker.on("failed", (job, error) => {
 
 // Shared database connection management
 let dbInitialized = false;
+let connectionAttempts = 0;
+const MAX_CONNECTION_ATTEMPTS = 5;
+
+// Ensure we have a database connection
+async function ensureDbConnection(forceReconnect = false) {
+    if (forceReconnect) {
+        dbInitialized = false;
+    }
+    
+    if (!dbInitialized) {
+        try {
+            connectionAttempts++;
+            console.log(`Connecting to database (attempt ${connectionAttempts}/${MAX_CONNECTION_ATTEMPTS})...`);
+            
+            const connectToDatabase = (await import("../src/db.mjs")).connectToDatabase;
+            await connectToDatabase();
+            
+            // Give the connection a moment to fully establish
+            await new Promise(resolve => setTimeout(resolve, 500));
+            
+            // Get mongoose to check connection state
+            const mongoose = (await import('mongoose')).default;
+            
+            if (mongoose.connection && mongoose.connection.readyState === 1) {
+                console.log("Successfully connected to MongoDB database");
+                dbInitialized = true;
+                connectionAttempts = 0;
+            } else {
+                throw new Error(`Failed to establish MongoDB connection, current state: ${mongoose.connection ? mongoose.connection.readyState : 'unknown'}`);
+            }
+        } catch (error) {
+            console.error(`Failed to connect to database (attempt ${connectionAttempts}/${MAX_CONNECTION_ATTEMPTS}):`, error);
+            
+            if (connectionAttempts >= MAX_CONNECTION_ATTEMPTS) {
+                console.error('Maximum connection attempts reached. Giving up.');
+                throw new Error(`Failed to connect to MongoDB after ${MAX_CONNECTION_ATTEMPTS} attempts: ${error.message}`);
+            }
+            
+            // Wait before next attempt with exponential backoff
+            const backoffTime = Math.min(1000 * Math.pow(2, connectionAttempts), 30000);
+            console.log(`Waiting ${backoffTime/1000}s before next connection attempt...`);
+            await new Promise(resolve => setTimeout(resolve, backoffTime));
+            
+            // Recursive call to retry
+            return ensureDbConnection();
+        }
+    }
+}
 
 // Graceful shutdown handler
 const cleanupAndExit = async () => {
     console.log('Shutting down workers...');
-    const closeDatabaseConnection = (await import("../src/db.mjs")).closeDatabaseConnection;
     
     try {
         // Stop processing new jobs
@@ -102,6 +149,7 @@ const cleanupAndExit = async () => {
         
         // Close database connection
         if (dbInitialized) {
+            const closeDatabaseConnection = (await import("../src/db.mjs")).closeDatabaseConnection;
             await closeDatabaseConnection();
             console.log('Database connection closed');
         }
@@ -118,23 +166,27 @@ const cleanupAndExit = async () => {
 process.on('SIGTERM', cleanupAndExit);
 process.on('SIGINT', cleanupAndExit);
 
-(async () => {
+// Safely start all workers after ensuring database connection
+async function startWorkers() {
     try {
-        const connectToDatabase = (await import("../src/db.mjs")).connectToDatabase;
-        
         // Initialize database connection
-        console.log('Connecting to database...');
-        await connectToDatabase();
-        dbInitialized = true;
-        console.log("Connected to database");
+        console.log('Initializing connection to database...');
+        await ensureDbConnection();
         
         // Start workers
         console.log('Starting workers...');
-        requestProgressWorker.run();
+        await requestProgressWorker.run();
         worker.run();
-        console.log('Workers are running');
+        
+        console.log('All workers are running');
     } catch (error) {
         console.error('Failed to initialize:', error);
-        process.exit(1);
+        
+        // Try to restart after a delay
+        console.log('Will attempt to restart workers in 15 seconds...');
+        setTimeout(startWorkers, 15000);
     }
-})();
+}
+
+// Start the workers
+startWorkers();
