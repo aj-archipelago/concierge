@@ -17,7 +17,14 @@ import FilePondPluginImagePreview from "filepond-plugin-image-preview";
 import "filepond-plugin-image-preview/dist/filepond-plugin-image-preview.css";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { hashMediaFile } from "../../utils/mediaUtils";
+import {
+    hashMediaFile,
+    DOC_MIME_TYPES,
+    ACCEPTED_FILE_TYPES,
+    isMediaUrl,
+    getFilename,
+    getVideoDuration
+} from "../../utils/mediaUtils";
 import { isYoutubeUrl } from "../../utils/urlUtils";
 
 // Global upload speed tracking
@@ -104,202 +111,6 @@ function RemoteUrlInputUI({
             </button>
         </div>
     );
-}
-
-const DOC_EXTENSIONS = [
-    ".json",
-    ".csv",
-    ".md",
-    ".xml",
-    ".js",
-    ".html",
-    ".css",
-    ".docx",
-    ".xlsx",
-    ".xls",
-    ".doc",
-];
-
-const IMAGE_EXTENSIONS = [
-    ".jpg",
-    ".jpeg",
-    ".png",
-    ".webp",
-    ".heic",
-    ".heif",
-    ".pdf",
-    ".txt",
-];
-
-const VIDEO_EXTENSIONS = [
-    ".mp4",
-    ".mpeg",
-    ".mov",
-    ".avi",
-    ".flv",
-    ".mpg",
-    ".mov",
-    ".webm",
-    ".wmv",
-    ".3gp",
-];
-
-const AUDIO_EXTENSIONS = [".wav", ".mp3", ".m4a", ".aac", ".ogg", ".flac"];
-
-function isDocumentUrl(url) {
-    const urlExt = getExtension(url);
-    return DOC_EXTENSIONS.includes(urlExt);
-}
-
-function getYoutubeVideoId(url) {
-    try {
-        const urlObj = new URL(url);
-        // Handle youtu.be URLs
-        if (urlObj.hostname === "youtu.be") {
-            return urlObj.pathname.substring(1).split("?")[0];
-        }
-        // Handle youtube.com URLs
-        if (
-            urlObj.hostname === "youtube.com" ||
-            urlObj.hostname === "www.youtube.com"
-        ) {
-            return urlObj.searchParams.get("v");
-        }
-        return null;
-    } catch (err) {
-        return null;
-    }
-}
-
-// Extracts the filename from a URL
-export function getFilename(url) {
-    try {
-        // Special handling for YouTube URLs
-        if (isYoutubeUrl(url)) {
-            const videoId = getYoutubeVideoId(url);
-            return videoId ? `youtube-video-${videoId}` : "youtube-video";
-        }
-
-        // Create a URL object to handle parsing
-        const urlObject = new URL(url);
-
-        // Get the pathname and remove leading/trailing slashes
-        const path = urlObject.pathname.replace(/^\/|\/$/g, "");
-
-        // Get the last part of the path (filename)
-        const fullFilename = path.split("/").pop() || "";
-
-        // Decode the filename to handle URL encoding
-        const decodedFilename = decodeURIComponent(fullFilename);
-
-        // Split by underscore and remove the first part if it exists
-        const parts = decodedFilename.split("_");
-        const relevantParts = parts.length > 1 ? parts.slice(1) : parts;
-
-        // Join the parts back together
-        return relevantParts.join("_");
-    } catch (error) {
-        console.error("Error parsing URL:", error);
-        return "";
-    }
-}
-
-export function getExtension(url) {
-    try {
-        const parsedUrl = new URL(url);
-        const pathname = parsedUrl.pathname;
-        return "." + pathname.split(".").pop().toLowerCase();
-    } catch (error) {
-        return "." + url.split(".").pop().split(/[?#]/)[0].toLowerCase();
-    }
-}
-
-function isImageUrl(url) {
-    const urlExt = getExtension(url);
-    const mimeType = mime.contentType(urlExt);
-    return (
-        IMAGE_EXTENSIONS.includes(urlExt) &&
-        (mimeType.startsWith("image/") ||
-            mimeType === "application/pdf" ||
-            mimeType.startsWith("text/plain"))
-    );
-}
-
-function isVideoUrl(url) {
-    if (isYoutubeUrl(url)) {
-        return true;
-    }
-    const urlExt = getExtension(url);
-    const mimeType = mime.contentType(urlExt);
-    return VIDEO_EXTENSIONS.includes(urlExt) && mimeType.startsWith("video/");
-}
-
-function isAudioUrl(url) {
-    const urlExt = getExtension(url);
-    const mimeType = mime.contentType(urlExt);
-    return AUDIO_EXTENSIONS.includes(urlExt) && mimeType.startsWith("audio/");
-}
-
-function isMediaUrl(url) {
-    return isImageUrl(url) || isVideoUrl(url) || isAudioUrl(url);
-}
-
-const DOC_MIME_TYPES = DOC_EXTENSIONS.map((ext) => mime.lookup(ext));
-const MEDIA_MIME_TYPES = [
-    // Images
-    "image/png",
-    "image/jpeg",
-    "image/webp",
-    "image/heic",
-    "image/heif",
-    // Videos
-    "video/mp4",
-    "video/mpeg",
-    "video/mov",
-    "video/quicktime",
-    "video/avi",
-    "video/x-flv",
-    "video/mpg",
-    "video/webm",
-    "video/wmv",
-    "video/3gpp",
-    "video/m4v",
-    "video/youtube",
-    // Audio
-    "audio/wav",
-    "audio/mpeg",
-    "audio/aac",
-    "audio/ogg",
-    "audio/flac",
-    "audio/m4a",
-    "audio/mp3",
-    "audio/mp4",
-    "audio/x-m4a", // Common browser MIME type for .m4a files
-    // PDF
-    "application/pdf",
-    // Text
-    "text/plain",
-];
-
-const ACCEPTED_FILE_TYPES = [...DOC_MIME_TYPES, ...MEDIA_MIME_TYPES];
-
-// Add this helper function to check video duration
-function getVideoDuration(file) {
-    return new Promise((resolve, reject) => {
-        const video = document.createElement("video");
-        video.preload = "metadata";
-
-        video.onloadedmetadata = function () {
-            window.URL.revokeObjectURL(video.src);
-            resolve(video.duration);
-        };
-
-        video.onerror = function () {
-            reject("Error loading video file");
-        };
-
-        video.src = URL.createObjectURL(file);
-    });
 }
 
 // Our app
@@ -798,5 +609,3 @@ function MyFilePond({ addUrl, files, setFiles, setIsUploadingMedia }) {
 }
 
 export default MyFilePond;
-
-export { isAudioUrl, isDocumentUrl, isImageUrl, isMediaUrl, isVideoUrl };

@@ -15,7 +15,7 @@ import {
 } from "../../stores/fileUploadSlice";
 import { FaFileCirclePlus } from "react-icons/fa6";
 import { IoCloseCircle, IoStopCircle } from "react-icons/io5";
-import { getFilename, isDocumentUrl, isMediaUrl } from "./MyFilePond";
+import { getFilename, isDocumentUrl, isMediaUrl } from "../../utils/mediaUtils";
 import { AuthContext } from "../../App";
 import { useAddDocument } from "../../../app/queries/uploadedDocs";
 import {

@@ -18,7 +18,7 @@ import {
     getFilename,
     isAudioUrl,
     isVideoUrl,
-} from "./MyFilePond";
+} from "../../utils/mediaUtils";
 import CopyButton from "../CopyButton";
 import { useGetActiveChat, useUpdateChat } from "../../../app/queries/chats";
 import ProgressUpdate from "../editor/ProgressUpdate";
