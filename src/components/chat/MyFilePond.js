@@ -23,7 +23,7 @@ import {
     ACCEPTED_FILE_TYPES,
     isMediaUrl,
     getFilename,
-    getVideoDuration
+    getVideoDuration,
 } from "../../utils/mediaUtils";
 import { isYoutubeUrl } from "../../utils/urlUtils";
 
