@@ -61,6 +61,7 @@ function MessageInput({
         } else {
             setInputValue("");
         }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [activeChatId]); // Only depend on activeChatId, not userState
 
     const [inputValue, setInputValue] = useState("");
