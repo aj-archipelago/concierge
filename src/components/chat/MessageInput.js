@@ -50,7 +50,7 @@ function MessageInput({
     const codeRequestId = activeChat?.codeRequestId;
     const apolloClient = useApolloClient();
 
-    // Update the input value when userState or activeChatId changes
+    // Only set input value on initial mount or chat change
     useEffect(() => {
         if (
             activeChatId &&
@@ -58,8 +58,11 @@ function MessageInput({
             userState.chatInputs[activeChatId]
         ) {
             setInputValue(userState.chatInputs[activeChatId]);
+        } else {
+            setInputValue("");
         }
-    }, [userState, activeChatId]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [activeChatId]); // Only depend on activeChatId, not userState
 
     const [inputValue, setInputValue] = useState("");
     const [urlsData, setUrlsData] = useState([]);
