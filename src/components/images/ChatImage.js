@@ -4,7 +4,7 @@ import React, { useEffect, useRef } from "react";
 import {
     getStableImageId,
     tempToPermanentUrlMap,
-} from "../../utils/imageUtils";
+} from "../../utils/imageUtils.mjs";
 
 const ChatImage = React.memo(
     function ChatImage({

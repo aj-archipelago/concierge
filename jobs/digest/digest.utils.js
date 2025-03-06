@@ -7,7 +7,7 @@ const generateDigestBlockContent = async (
     logger,
     onProgressUpdate,
 ) => {
-    let imageUtils = await import("../../src/utils/imageUtils.js");
+    let imageUtils = await import("../../src/utils/imageUtils.mjs");
     const { processImageUrls } = imageUtils;
 
     let graphql = await import("../graphql.mjs");

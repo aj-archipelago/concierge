@@ -1,7 +1,7 @@
 import { useCallback, useRef, useState, useEffect } from "react";
 import { useSubscription } from "@apollo/client";
 import { SUBSCRIPTIONS } from "../graphql";
-import { processImageUrls } from "../utils/imageUtils";
+import { processImageUrls } from "../utils/imageUtils.mjs";
 
 // Add utility function for chunking text
 const chunkText = (text, maxChunkSize = 9) => {
