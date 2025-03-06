@@ -82,25 +82,59 @@ worker.on("completed", (job) => {
     logger.log("job completed");
 });
 
-worker.on("failed", (job, err) => {
+worker.on("failed", (job, error) => {
     const logger = new Logger(job);
-    logger.log("job failed", err.message);
+    logger.log("job failed with error: " + error.message);
 });
 
-worker.on("error", (err) => {
-    const logger = new Logger();
-    logger.log("worker error", err.message);
-});
+// Shared database connection management
+let dbInitialized = false;
 
-console.log("starting worker");
+// Graceful shutdown handler
+const cleanupAndExit = async () => {
+    console.log('Shutting down workers...');
+    const closeDatabaseConnection = (await import("../src/db.mjs")).closeDatabaseConnection;
+    
+    try {
+        // Stop processing new jobs
+        await worker.close();
+        console.log('Digest worker stopped');
+        
+        // Close database connection
+        if (dbInitialized) {
+            await closeDatabaseConnection();
+            console.log('Database connection closed');
+        }
+        
+        console.log('Cleanup completed, exiting');
+        process.exit(0);
+    } catch (error) {
+        console.error('Error during shutdown:', error);
+        process.exit(1);
+    }
+};
+
+// Register shutdown handlers
+process.on('SIGTERM', cleanupAndExit);
+process.on('SIGINT', cleanupAndExit);
 
 (async () => {
-    const connectToDatabase = (await import("../src/db.mjs")).connectToDatabase;
-
-    await connectToDatabase();
-    console.log("Connected to database");
-
-    // run workers
-    requestProgressWorker.run();
-    worker.run();
+    try {
+        const connectToDatabase = (await import("../src/db.mjs")).connectToDatabase;
+        
+        // Initialize database connection
+        console.log('Connecting to database...');
+        await connectToDatabase();
+        dbInitialized = true;
+        console.log("Connected to database");
+        
+        // Start workers
+        console.log('Starting workers...');
+        requestProgressWorker.run();
+        worker.run();
+        console.log('Workers are running');
+    } catch (error) {
+        console.error('Failed to initialize:', error);
+        process.exit(1);
+    }
 })();
