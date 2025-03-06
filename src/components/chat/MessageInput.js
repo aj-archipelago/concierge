@@ -1,5 +1,5 @@
 import "highlight.js/styles/github.css";
-import { useContext, useState, useEffect } from "react";
+import { useContext, useState, useEffect, useRef } from "react";
 import { RiSendPlane2Fill } from "react-icons/ri";
 import TextareaAutosize from "react-textarea-autosize";
 import classNames from "../../../app/utils/class-names";
@@ -49,13 +49,15 @@ function MessageInput({
     const addDocument = useAddDocument();
     const codeRequestId = activeChat?.codeRequestId;
     const apolloClient = useApolloClient();
+    const isTypingRef = useRef(false);
 
     // Update the input value when userState or activeChatId changes
     useEffect(() => {
         if (
             activeChatId &&
             userState?.chatInputs &&
-            userState.chatInputs[activeChatId]
+            userState.chatInputs[activeChatId] &&
+            !isTypingRef.current
         ) {
             setInputValue(userState.chatInputs[activeChatId]);
         }
@@ -91,6 +93,7 @@ function MessageInput({
 
     const handleInputChange = (event) => {
         const newValue = event.target.value;
+        isTypingRef.current = true;
         setInputValue(newValue);
 
         if (activeChatId) {
@@ -101,6 +104,11 @@ function MessageInput({
                 },
             }));
         }
+
+        // Clear typing flag after debounce delay
+        setTimeout(() => {
+            isTypingRef.current = false;
+        }, 300);
     };
 
     const handleFormSubmit = (event) => {
