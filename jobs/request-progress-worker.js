@@ -18,6 +18,7 @@ const REQUEST_PROGRESS_SUBSCRIPTION = gql`
             progress
             data
             info
+            error
         }
     }
 `;
@@ -372,42 +373,31 @@ const worker = new Worker(
                                             "Non-json data",
                                             data?.requestProgress?.data,
                                         );
-                                        if (
-                                            data?.requestProgress?.data ===
-                                            "[DONE]"
-                                        ) {
-                                            // error condition
-                                            const error =
-                                                data.requestProgress.error;
-
-                                            console.error(
-                                                "Error in request progress worker",
-                                                error,
-                                            );
-
-                                            await retryDbOperation(() =>
-                                                RequestProgress.findOneAndUpdate(
-                                                    {
-                                                        requestId,
-                                                    },
-                                                    {
-                                                        status: "failed",
-                                                        statusText: error
-                                                            ? JSON.stringify(
-                                                                  error,
-                                                              )
-                                                            : "Non-JSON data received: " +
-                                                              data
-                                                                  ?.requestProgress
-                                                                  ?.data,
-                                                    },
-                                                ),
-                                            );
-
-                                            resolve(dataObject);
-                                            return;
-                                        }
                                     }
+                                }
+
+                                // Check for error field directly
+                                if (data?.requestProgress?.error) {
+                                    const error = data.requestProgress.error;
+                                    console.error(
+                                        "Error in request progress worker",
+                                        error,
+                                    );
+
+                                    await retryDbOperation(() =>
+                                        RequestProgress.findOneAndUpdate(
+                                            {
+                                                requestId,
+                                            },
+                                            {
+                                                status: "failed",
+                                                statusText: error,
+                                            },
+                                        ),
+                                    );
+
+                                    resolve(dataObject);
+                                    return;
                                 }
 
                                 // Update progress in database
@@ -425,42 +415,77 @@ const worker = new Worker(
                                     ),
                                 );
 
-                                if (progress === 1 && dataObject) {
+                                if (progress === 1) {
                                     console.log(
                                         `Job ${job.id} reached 100% completion`,
                                     );
 
-                                    // Handle video translation completion if needed
-                                    if (type === "video-translate" && userId) {
-                                        try {
-                                            const {
-                                                handleVideoTranslationCompletion,
-                                            } = await import(
-                                                "../app/utils/video-state-handler.js"
-                                            );
-                                            await handleVideoTranslationCompletion(
-                                                userId,
-                                                dataObject,
-                                                targetLocaleLabel,
-                                            );
-                                        } catch (error) {
-                                            console.error(
-                                                "Error handling video translation completion:",
-                                                error,
-                                            );
-                                        }
-                                    }
+                                    // If there's an error at 100%, mark as failed
+                                    if (data?.requestProgress?.error) {
+                                        console.error(
+                                            "Error at 100% completion:",
+                                            data.requestProgress.error,
+                                        );
 
-                                    await retryDbOperation(() =>
-                                        RequestProgress.findOneAndUpdate(
-                                            { requestId },
-                                            { status: "completed" },
-                                        ),
-                                    );
+                                        await retryDbOperation(() =>
+                                            RequestProgress.findOneAndUpdate(
+                                                { requestId },
+                                                {
+                                                    status: "failed",
+                                                    statusText:
+                                                        data.requestProgress
+                                                            .error,
+                                                },
+                                            ),
+                                        );
+                                    }
+                                    // If we have data, mark as completed with data
+                                    else if (dataObject) {
+                                        // Handle video translation completion if needed
+                                        if (
+                                            type === "video-translate" &&
+                                            userId
+                                        ) {
+                                            try {
+                                                const {
+                                                    handleVideoTranslationCompletion,
+                                                } = await import(
+                                                    "../app/utils/video-state-handler.js"
+                                                );
+                                                await handleVideoTranslationCompletion(
+                                                    userId,
+                                                    dataObject,
+                                                    targetLocaleLabel,
+                                                );
+                                            } catch (error) {
+                                                console.error(
+                                                    "Error handling video translation completion:",
+                                                    error,
+                                                );
+                                            }
+                                        }
+
+                                        await retryDbOperation(() =>
+                                            RequestProgress.findOneAndUpdate(
+                                                { requestId },
+                                                { status: "completed" },
+                                            ),
+                                        );
+                                    }
+                                    // Just mark as completed if we only have progress = 1
+                                    else {
+                                        await retryDbOperation(() =>
+                                            RequestProgress.findOneAndUpdate(
+                                                { requestId },
+                                                { status: "completed" },
+                                            ),
+                                        );
+                                    }
 
                                     clearTimeout(timeoutId);
                                     subscription.unsubscribe();
                                     resolve(dataObject);
+                                    return;
                                 }
 
                                 job.updateProgress(progress);
@@ -486,7 +511,9 @@ const worker = new Worker(
                                         { requestId },
                                         {
                                             status: "failed",
-                                            error: error.message,
+                                            statusText:
+                                                error.message ||
+                                                error.toString(),
                                         },
                                     ),
                                 );

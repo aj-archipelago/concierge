@@ -224,7 +224,7 @@ function EditableTranscriptSelect({
         ) {
             setActiveTranscript(0);
         }
-    }, [activeTranscript, transcripts]);
+    }, [activeTranscript, transcripts, setActiveTranscript]);
 
     const handleCancel = () => {
         setEditing(false);
@@ -1195,7 +1195,9 @@ function VideoPage() {
                     wordTimestamped: isWordTimestamped,
                     responseFormat: isFormatted
                         ? "formatted"
-                        : currentTranscript.format,
+                        : currentTranscript.format === ""
+                          ? "text"
+                          : currentTranscript.format,
                     async: true,
                 },
                 fetchPolicy: "network-only",
