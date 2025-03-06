@@ -216,6 +216,16 @@ function EditableTranscriptSelect({
         onNameChange(tempName);
     };
 
+    useEffect(() => {
+        if (
+            transcripts &&
+            transcripts.length > 0 &&
+            !transcripts[activeTranscript]
+        ) {
+            setActiveTranscript(0);
+        }
+    }, [activeTranscript, transcripts]);
+
     const handleCancel = () => {
         setEditing(false);
         if (transcripts[activeTranscript]) {
@@ -1583,12 +1593,15 @@ function VideoPage() {
                         );
 
                         setTranscripts(updatedTranscripts);
-                        setActiveTranscript(
-                            Math.max(0, updatedTranscripts.length - 1),
+                        const newActiveIndex = Math.max(
+                            0,
+                            activeTranscript - 1,
                         );
+                        setActiveTranscript(newActiveIndex);
                         updateUserState({
                             videoInformation: {
                                 ...userState?.transcribe?.videoInformation,
+                                activeTranscript: newActiveIndex,
                             },
                             transcripts: updatedTranscripts,
                         });
