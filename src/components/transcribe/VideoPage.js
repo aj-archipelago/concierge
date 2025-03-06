@@ -473,11 +473,11 @@ function VideoPlayer({
     handleCopy,
 }) {
     const [isAudioOnly, setIsAudioOnly] = useState(
-        videoLanguages[activeLanguage]?.url.includes(".mp3"),
+        videoLanguages[activeLanguage]?.url?.includes(".mp3"),
     );
     const videoRef = useRef(null);
     const videoUrl =
-        videoInformation?.videoUrl || videoLanguages[activeLanguage]?.url;
+        videoLanguages[activeLanguage]?.url || videoInformation?.videoUrl;
     const isYouTube = isYoutubeUrl(videoUrl);
     const embedUrl = isYouTube ? getYoutubeEmbedUrl(videoUrl) : videoUrl;
 
