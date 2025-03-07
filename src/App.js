@@ -43,24 +43,32 @@ const App = ({
     neuralspaceEnabled,
 }) => {
     const { data: currentUser } = useCurrentUser();
-    const { data: serverUserState, refetch: refetchServerUserState } =
-        useUserState();
+    const {
+        data: serverUserState,
+        isLoading,
+        refetch: refetchServerUserState,
+    } = useUserState();
     const updateUserState = useUpdateUserState();
     const [userState, setUserState] = useState(null);
     const debouncedUserState = useDebounce(userState, STATE_DEBOUNCE_TIME);
+    const [refetchCalled, setRefetchCalled] = useState(false);
 
     const refetchUserState = () => {
-        setUserState(null);
+        setRefetchCalled(true);
         refetchServerUserState();
     };
 
     useEffect(() => {
         // set user state from server if it exists, but only if there's no client
         // state yet
-        if (!userState && serverUserState) {
+        if (
+            (!userState || refetchCalled) &&
+            JSON.stringify(serverUserState) !== JSON.stringify(userState)
+        ) {
             setUserState(serverUserState);
+            setRefetchCalled(false);
         }
-    }, [userState, serverUserState]);
+    }, [userState, serverUserState, refetchCalled]);
 
     useEffect(() => {
         if (i18next.language !== language) {
