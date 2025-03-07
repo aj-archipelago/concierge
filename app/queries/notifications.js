@@ -5,6 +5,8 @@ import {
     useInfiniteQuery,
 } from "@tanstack/react-query";
 import axios from "../utils/axios-client";
+import { useContext } from "react";
+import { AuthContext } from "../../src/App";
 
 export function useNotifications(showDismissed = false) {
     const queryClient = useQueryClient();
@@ -12,6 +14,7 @@ export function useNotifications(showDismissed = false) {
         "notifications",
         showDismissed,
     ]);
+    const { refetchUserState } = useContext(AuthContext);
 
     const invalidateNotifications = () => {
         queryClient.invalidateQueries({ queryKey: ["notifications"] });
@@ -38,7 +41,7 @@ export function useNotifications(showDismissed = false) {
 
                 if (newlyCompleted) {
                     // Refetch user state when a notification completes
-                    queryClient.invalidateQueries({ queryKey: ["userState"] });
+                    refetchUserState();
                 }
             }
 
