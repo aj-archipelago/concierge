@@ -5,7 +5,10 @@ import {
     useUserState,
     useUpdateUserState,
 } from "../../app/queries/users";
-import { LanguageProvider, LanguageContext } from "../contexts/LanguageProvider";
+import {
+    LanguageProvider,
+    LanguageContext,
+} from "../contexts/LanguageProvider";
 import { AuthContext } from "../App";
 
 // Create a mock language context before mocking
@@ -343,24 +346,27 @@ describe("App Component", () => {
         it("should call refetch and set refetchCalled when refetchUserState is called", async () => {
             // Mock the refetch function
             const mockRefetch = jest.fn();
-            
+
             // Setup server state
             const serverState = { preferences: { theme: "light" } };
             useUserState.mockReturnValue({
                 data: serverState,
                 refetch: mockRefetch,
             });
-            
+
             // Create a container to store the captured context value
             let capturedContextValue = null;
-            
+
             // Mock the AuthContext.Provider to capture its value
             const originalProvider = AuthContext.Provider;
             AuthContext.Provider = ({ value, children }) => {
                 capturedContextValue = value;
-                return React.createElement(originalProvider, { value, children });
+                return React.createElement(originalProvider, {
+                    value,
+                    children,
+                });
             };
-            
+
             // Render the component
             const { rerender } = render(
                 <LanguageProvider>
@@ -372,30 +378,30 @@ describe("App Component", () => {
                     >
                         Test Content
                     </App>
-                </LanguageProvider>
+                </LanguageProvider>,
             );
-            
+
             // Store the initial userState
             const initialUserState = capturedContextValue.userState;
-            
+
             // Clear previous calls
             mockRefetch.mockClear();
-            
+
             // Call refetchUserState directly
             act(() => {
                 capturedContextValue.refetchUserState();
             });
-            
+
             // Verify the refetch function was called
             expect(mockRefetch).toHaveBeenCalled();
-            
+
             // Update the server state to simulate a successful refetch
             const updatedServerState = { preferences: { theme: "dark" } };
             useUserState.mockReturnValue({
                 data: updatedServerState,
                 refetch: mockRefetch,
             });
-            
+
             // Re-render to trigger the useEffect that depends on serverUserState
             rerender(
                 <LanguageProvider>
@@ -407,15 +413,19 @@ describe("App Component", () => {
                     >
                         Test Content
                     </App>
-                </LanguageProvider>
+                </LanguageProvider>,
             );
-            
+
             // Wait for the userState to be updated with the new server state
             await waitFor(() => {
-                expect(capturedContextValue.userState).not.toEqual(initialUserState);
-                expect(capturedContextValue.userState).toEqual(updatedServerState);
+                expect(capturedContextValue.userState).not.toEqual(
+                    initialUserState,
+                );
+                expect(capturedContextValue.userState).toEqual(
+                    updatedServerState,
+                );
             });
-            
+
             // Restore the original provider
             AuthContext.Provider = originalProvider;
         });
