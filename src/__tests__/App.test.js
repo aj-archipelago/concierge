@@ -134,7 +134,9 @@ jest.mock("i18next", () => ({
 }));
 
 // Import App after all mocks are set up
+// eslint-disable-next-line import/first
 import { useDebounce } from "@uidotdev/usehooks";
+// eslint-disable-next-line import/first
 import App from "../App";
 
 // Mock process.env
@@ -318,6 +320,7 @@ describe("App Component", () => {
             userStateValue = updatedState;
 
             // Trigger useEffect that watches debouncedUserState
+            // eslint-disable-next-line testing-library/no-unnecessary-act
             act(() => {
                 // Force re-render by updating a prop
                 render(
