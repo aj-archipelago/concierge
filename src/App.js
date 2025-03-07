@@ -43,11 +43,8 @@ const App = ({
     neuralspaceEnabled,
 }) => {
     const { data: currentUser } = useCurrentUser();
-    const {
-        data: serverUserState,
-        isLoading,
-        refetch: refetchServerUserState,
-    } = useUserState();
+    const { data: serverUserState, refetch: refetchServerUserState } =
+        useUserState();
     const updateUserState = useUpdateUserState();
     const [userState, setUserState] = useState(null);
     const debouncedUserState = useDebounce(userState, STATE_DEBOUNCE_TIME);

@@ -1,15 +1,15 @@
-import React, { useContext } from "react";
-import { render, act, waitFor } from "@testing-library/react";
+import { act, render, waitFor } from "@testing-library/react";
+import React from "react";
 import {
     useCurrentUser,
-    useUserState,
     useUpdateUserState,
+    useUserState,
 } from "../../app/queries/users";
-import {
-    LanguageProvider,
-    LanguageContext,
-} from "../contexts/LanguageProvider";
 import { AuthContext } from "../App";
+import {
+    LanguageContext,
+    LanguageProvider,
+} from "../contexts/LanguageProvider";
 
 // Create a mock language context before mocking
 const mockLanguageContext = {
@@ -134,8 +134,8 @@ jest.mock("i18next", () => ({
 }));
 
 // Import App after all mocks are set up
-import App from "../App";
 import { useDebounce } from "@uidotdev/usehooks";
+import App from "../App";
 
 // Mock process.env
 process.env.NEXT_PUBLIC_AMPLITUDE_API_KEY = "test-api-key";
@@ -387,10 +387,8 @@ describe("App Component", () => {
             // Clear previous calls
             mockRefetch.mockClear();
 
-            // Call refetchUserState directly
-            act(() => {
-                capturedContextValue.refetchUserState();
-            });
+            // Call refetchUserState directly - no need for act() here
+            capturedContextValue.refetchUserState();
 
             // Verify the refetch function was called
             expect(mockRefetch).toHaveBeenCalled();
@@ -416,15 +414,15 @@ describe("App Component", () => {
                 </LanguageProvider>,
             );
 
-            // Wait for the userState to be updated with the new server state
+            // First, wait for the userState to be different from the initial state
             await waitFor(() => {
                 expect(capturedContextValue.userState).not.toEqual(
                     initialUserState,
                 );
-                expect(capturedContextValue.userState).toEqual(
-                    updatedServerState,
-                );
             });
+
+            // Then, verify it matches the updated server state
+            expect(capturedContextValue.userState).toEqual(updatedServerState);
 
             // Restore the original provider
             AuthContext.Provider = originalProvider;
