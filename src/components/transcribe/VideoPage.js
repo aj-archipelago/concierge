@@ -63,7 +63,7 @@ import { useAutoTranscribe } from "../../contexts/AutoTranscribeContext";
 import { QUERIES } from "../../graphql";
 import { useProgress } from "../../contexts/ProgressContext";
 import Loader from "../../../app/components/loader";
-import { isAudioUrl } from "../chat/MyFilePond";
+import { isAudioUrl } from "../../utils/mediaUtils";
 
 // Add getTranscribeQuery function
 const getTranscribeQuery = (modelOption) => {

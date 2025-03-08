@@ -11,7 +11,13 @@ import { useTranslation } from "react-i18next";
 import config from "../../../config";
 import { ServerContext } from "../../App";
 import { LanguageContext } from "../../contexts/LanguageProvider";
-import { getVideoDuration, hashMediaFile } from "../../utils/mediaUtils";
+import {
+    getVideoDuration,
+    hashMediaFile,
+    VIDEO_EXTENSIONS,
+    AUDIO_EXTENSIONS,
+    MEDIA_MIME_TYPES,
+} from "../../utils/mediaUtils";
 import { isYoutubeUrl } from "../../utils/urlUtils";
 import VideoSelector from "./VideoSelector";
 
@@ -179,9 +185,13 @@ function VideoInput({
             // Continue with upload even if hash check fails
         }
 
-        // Add file type validation
-        const supportedVideoTypes = ["video/mp4", "video/webm", "video/ogg"];
-        const supportedAudioTypes = ["audio/mpeg", "audio/wav", "audio/ogg"];
+        // Add file type validation using the imported MIME types
+        const supportedVideoTypes = MEDIA_MIME_TYPES.filter((type) =>
+            type.startsWith("video/"),
+        );
+        const supportedAudioTypes = MEDIA_MIME_TYPES.filter((type) =>
+            type.startsWith("audio/"),
+        );
 
         const isSupported = [
             ...supportedVideoTypes,
@@ -295,7 +305,7 @@ function VideoInput({
                     <div className="flex items-center gap-2 text-sm text-gray-500">
                         <Loader2Icon className="w-4 h-4 animate-spin" />
                         <span>
-                            {t("Processing video...")}{" "}
+                            {t("Processing media...")}{" "}
                             {Math.round(uploadProgress)}%
                         </span>
                     </div>
@@ -449,8 +459,17 @@ function VideoInput({
                                         {t("or drag and drop here")}
                                     </p>
                                     <p className="text-xs text-gray-400">
-                                        {t("Supported formats")}: MP4, WebM,
-                                        OGG, MP3, WAV
+                                        {t("Supported formats")}:{" "}
+                                        {[
+                                            ...VIDEO_EXTENSIONS,
+                                            ...AUDIO_EXTENSIONS,
+                                        ]
+                                            .map((ext) =>
+                                                ext
+                                                    .toUpperCase()
+                                                    .replace(".", ""),
+                                            )
+                                            .join(", ")}
                                         <br />
                                         {t("Maximum file size")}: 500MB
                                     </p>
