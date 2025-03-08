@@ -43,6 +43,13 @@ const ProgressUpdate = ({
 
         const curInfo = data?.requestProgress?.info;
 
+        // Check for error in the requestProgress data
+        if (data?.requestProgress?.error) {
+            // Handle the error by setting an error message in the UI
+            setInfo(`Error: ${data.requestProgress.error}`);
+            return;
+        }
+
         if (result) {
             let finalData = result;
             try {

@@ -494,6 +494,7 @@ const REQUEST_PROGRESS = gql`
             data
             progress
             info
+            error
         }
     }
 `;
