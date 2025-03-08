@@ -43,20 +43,29 @@ const App = ({
     neuralspaceEnabled,
 }) => {
     const { data: currentUser } = useCurrentUser();
-    const { data: serverUserState } = useUserState();
+    const { data: serverUserState, refetch: refetchServerUserState } =
+        useUserState();
     const updateUserState = useUpdateUserState();
-    const [userState, setUserState] = useState(serverUserState);
+    const [userState, setUserState] = useState(null);
     const debouncedUserState = useDebounce(userState, STATE_DEBOUNCE_TIME);
+    const [refetchCalled, setRefetchCalled] = useState(false);
+
+    const refetchUserState = () => {
+        setRefetchCalled(true);
+        refetchServerUserState();
+    };
 
     useEffect(() => {
+        // set user state from server if it exists, but only if there's no client
+        // state yet
         if (
-            JSON.stringify(userState || {}) !==
-            JSON.stringify(serverUserState || {})
+            (!userState || refetchCalled) &&
+            JSON.stringify(serverUserState) !== JSON.stringify(userState)
         ) {
             setUserState(serverUserState);
+            setRefetchCalled(false);
         }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [serverUserState]);
+    }, [userState, serverUserState, refetchCalled]);
 
     useEffect(() => {
         if (i18next.language !== language) {
@@ -104,6 +113,7 @@ const App = ({
                                         value={{
                                             user: currentUser,
                                             userState,
+                                            refetchUserState,
                                             debouncedUpdateUserState,
                                         }}
                                     >
