@@ -19,7 +19,7 @@ const ScrollToBottom = forwardRef(({ children, loadComplete }, ref) => {
         const { scrollHeight, clientHeight } = containerRef.current;
         containerRef.current.scrollTo({
             top: scrollHeight - clientHeight,
-            behavior: "smooth",
+            behavior: "auto",
         });
     }, []);
 
@@ -96,7 +96,7 @@ const ScrollToBottom = forwardRef(({ children, loadComplete }, ref) => {
     return (
         <div
             ref={containerRef}
-            className="overflow-y-auto h-full min-h-0 flex-1 scroll-smooth"
+            className="overflow-y-auto h-full min-h-0 flex-1"
             onScroll={() => {
                 if (!containerRef.current) return;
 
