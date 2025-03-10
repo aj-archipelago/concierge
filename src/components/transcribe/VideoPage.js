@@ -25,6 +25,7 @@ import { build, parse } from "@aj-archipelago/subvibe";
 import { useApolloClient } from "@apollo/client";
 import dayjs from "dayjs";
 import {
+    AlertTriangle,
     CheckIcon,
     ChevronDown,
     CopyIcon,
@@ -490,9 +491,14 @@ function VideoPlayer({
         videoLanguages[activeLanguage]?.url || videoInformation?.videoUrl;
     const isYouTube = isYoutubeUrl(videoUrl);
     const embedUrl = isYouTube ? getYoutubeEmbedUrl(videoUrl) : videoUrl;
+    const [videoError, setVideoError] = useState(false);
+    const { t } = useTranslation();
 
     useEffect(() => {
         if (!videoUrl || !isYouTube) return;
+
+        // Reset error state when URL changes
+        setVideoError(false);
 
         // Check if script already exists
         if (!document.getElementById("youtube-iframe-api")) {
@@ -515,6 +521,9 @@ function VideoPlayer({
                 events: {
                     onReady: (event) => {
                         setYoutubePlayer(event.target);
+                    },
+                    onError: () => {
+                        setVideoError(true);
                     },
                 },
             });
@@ -551,15 +560,36 @@ function VideoPlayer({
         }
     };
 
+    const handleVideoError = () => {
+        setVideoError(true);
+    };
+
+    // Reset error state when URL changes
+    useEffect(() => {
+        setVideoError(false);
+    }, [videoUrl]);
+
     return (
         <div className="flex flex-col gap-1">
             <div
                 className={classNames(
-                    "rounded-lg flex justify-center items-center ",
+                    "rounded-lg flex justify-center items-center overflow-hidden",
                     isAudioOnly ? "h-[50px] w-96" : "w-full bg-[#000] border",
                 )}
             >
-                {isYouTube ? (
+                {videoError ? (
+                    <div className="w-full p-6 bg-gray-50">
+                        <div className="text-gray-600 font-medium mb-2 flex items-center gap-2">
+                            <AlertTriangle className="h-4 w-4" />
+                            {t("Video Unavailable")}
+                        </div>
+                        <p className="text-sm text-gray-500">
+                            {t(
+                                "The video URL cannot be accessed. It may have expired or been deleted.",
+                            )}
+                        </p>
+                    </div>
+                ) : isYouTube ? (
                     <div className="w-full relative h-[40vh] max-h-[40vh]">
                         <div
                             id="ytplayer"
@@ -577,6 +607,7 @@ function VideoPlayer({
                         src={videoUrl}
                         controls
                         onLoadedData={handleVideoReady}
+                        onError={handleVideoError}
                         onTimeUpdate={() =>
                             onTimeUpdate(videoRef.current?.currentTime)
                         }
