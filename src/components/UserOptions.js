@@ -291,8 +291,8 @@ const UserOptions = ({ show, handleClose }) => {
                         <p>{t("Loading memory...")}</p>
                     ) : (
                         <>
-                            <div className="flex justify-between items-center mb-2">
-                                <div className="flex gap-2 items-center">
+                            <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-2 space-y-2 md:space-y-0">
+                                <div className="flex flex-wrap gap-2 items-center">
                                     <button
                                         className="lb-outline-danger"
                                         onClick={handleClearMemory}
@@ -323,7 +323,7 @@ const UserOptions = ({ show, handleClose }) => {
                                         className="hidden"
                                     />
                                 </div>
-                                <div className="text-sm text-gray-500 flex gap-2 items-center">
+                                <div className="text-sm text-gray-500 flex flex-wrap gap-2 items-center">
                                     <span>
                                         {t("Memory size: {{size}} characters", {
                                             size: JSON.stringify(parsedMemory)
