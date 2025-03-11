@@ -337,11 +337,32 @@ export function useGetActiveChatId() {
 }
 
 export function useGetChatById(chatId) {
+    const queryClient = useQueryClient();
+
     return useQuery({
         queryKey: ["chat", chatId],
         queryFn: async () => {
             if (!chatId) throw new Error("chatId is required");
+
+            // Track this query with a timestamp to identify outdated responses
+            const requestTimestamp = Date.now();
+            queryClient.setQueryData(
+                ["chatRequestTimestamp", chatId],
+                requestTimestamp,
+            );
+
             const response = await axios.get(`/api/chats/${String(chatId)}`);
+
+            // Check if this response is still the most recent one
+            const currentTimestamp =
+                queryClient.getQueryData(["chatRequestTimestamp", chatId]) || 0;
+            if (requestTimestamp < currentTimestamp) {
+                // Return the current data instead of the outdated response
+                return (
+                    queryClient.getQueryData(["chat", chatId]) || response.data
+                );
+            }
+
             return response.data;
         },
         enabled: !!chatId,
@@ -453,16 +474,32 @@ export function useUpdateChat() {
             if (!chatId) {
                 throw new Error("chatId is required");
             }
+
+            // Track this mutation with a timestamp
+            const requestTimestamp = Date.now();
+            queryClient.setQueryData(
+                ["chatRequestTimestamp", chatId],
+                requestTimestamp,
+            );
+
             const response = await axios.put(
                 `/api/chats/${String(chatId)}`,
                 updateData,
             );
-            return response.data;
+
+            return { data: response.data, timestamp: requestTimestamp };
         },
         onMutate: async ({ chatId, ...updateData }) => {
             await queryClient.cancelQueries({ queryKey: ["chat", chatId] });
             await queryClient.cancelQueries({ queryKey: ["chats"] });
             await queryClient.cancelQueries({ queryKey: ["activeChats"] });
+
+            // Track this mutation with a timestamp
+            const requestTimestamp = Date.now();
+            queryClient.setQueryData(
+                ["chatRequestTimestamp", chatId],
+                requestTimestamp,
+            );
 
             const previousChat = queryClient.getQueryData(["chat", chatId]);
             const expectedChatData = { ...previousChat, ...updateData };
@@ -489,7 +526,7 @@ export function useUpdateChat() {
                     ) || [],
             );
 
-            return { previousChat };
+            return { previousChat, timestamp: requestTimestamp };
         },
         onError: (err, variables, context) => {
             if (context?.previousChat) {
@@ -499,7 +536,20 @@ export function useUpdateChat() {
                 );
             }
         },
-        onSuccess: (updatedChat, { chatId }) => {
+        onSuccess: (result, { chatId }) => {
+            const { data: updatedChat, timestamp } = result;
+
+            // Check if this response is still the most recent one
+            const currentTimestamp =
+                queryClient.getQueryData(["chatRequestTimestamp", chatId]) || 0;
+            if (timestamp < currentTimestamp) {
+                console.log(
+                    "[useUpdateChat:onSuccess] Ignoring outdated response for",
+                    chatId,
+                );
+                return;
+            }
+
             queryClient.setQueryData(["chat", chatId], updatedChat);
             queryClient.invalidateQueries({ queryKey: ["chats"] });
             queryClient.invalidateQueries({ queryKey: ["activeChats"] });
