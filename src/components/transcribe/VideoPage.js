@@ -95,8 +95,10 @@ function TaxonomyDialog({ text }) {
 
     return (
         <Dialog>
-            <DialogTrigger className="lb-outline-secondary flex items-center gap-1 text-xs">
-                {t("Hashtags and Topics")}
+            <DialogTrigger className="lb-outline-secondary flex items-center gap-1 text-xs overflow-hidden">
+                <div className="truncate w-full">
+                    {t("Hashtags and Topics")}
+                </div>
             </DialogTrigger>
             <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
                 <DialogHeader>
@@ -313,16 +315,16 @@ function EditableTranscriptSelect({
                 </div>
             ) : (
                 <>
-                    <div className="flex flex-col md:flex-row gap-2 justify-between ">
+                    <div className="flex flex-col-reverse md:flex-row gap-2 justify-between ">
                         <div className="flex gap-2 grow">
-                            <div>
+                            <div className="grow sm:grow-0 ">
                                 <Select
                                     value={activeTranscript.toString()}
                                     onValueChange={(value) =>
                                         setActiveTranscript(parseInt(value))
                                     }
                                 >
-                                    <SelectTrigger className="w-[300px] py-1 h-8 font-medium text-start">
+                                    <SelectTrigger className="w-full sm:w-[300px] py-1 h-8 font-medium text-start">
                                         <SelectValue>
                                             {transcripts[activeTranscript]
                                                 ?.name ||
@@ -403,50 +405,64 @@ function EditableTranscriptSelect({
                             </div>
                         </div>
                         {!isEditing && transcripts[activeTranscript] && (
-                            <div className="flex items-center gap-2 justify-end">
-                                {transcripts[activeTranscript].format !==
-                                    "vtt" && (
-                                    <button
-                                        onClick={() => setIsEditing(!isEditing)}
-                                        className="lb-outline-secondary flex items-center gap-1 text-xs"
-                                        title={t("Edit")}
-                                    >
-                                        {t("Edit")}
-                                    </button>
-                                )}
-                                <TaxonomyDialog
-                                    text={transcripts[activeTranscript].text}
-                                />
-                                <DownloadButton
-                                    format={
-                                        transcripts[activeTranscript].format
-                                    }
-                                    name={transcripts[activeTranscript].name}
-                                    text={transcripts[activeTranscript].text}
-                                />
-                                <DropdownMenu>
-                                    <DropdownMenuTrigger className="">
-                                        <MoreVertical className="h-4 w-4" />
-                                    </DropdownMenuTrigger>
-                                    <DropdownMenuContent>
-                                        <DropdownMenuItem
-                                            className="text-red-600 focus:text-red-600 focus:bg-red-50 text-xs"
-                                            onClick={() => {
-                                                if (
-                                                    window.confirm(
-                                                        t(
-                                                            "Are you sure you want to delete this track?",
-                                                        ),
-                                                    )
-                                                ) {
-                                                    onDeleteTrack();
-                                                }
-                                            }}
+                            <div className="flex flex-col sm:flex-row items-center gap-2 justify-end p-2 sm:p-0 bg-neutral-100 sm:bg-transparent">
+                                <div className=" w-full sm:w-auto flex gap-2 justify-end">
+                                    {transcripts[activeTranscript].format !==
+                                        "vtt" && (
+                                        <button
+                                            onClick={() =>
+                                                setIsEditing(!isEditing)
+                                            }
+                                            className="lb-outline-secondary flex items-center gap-1 text-xs"
+                                            title={t("Edit")}
                                         >
-                                            {t("Delete track")}
-                                        </DropdownMenuItem>
-                                    </DropdownMenuContent>
-                                </DropdownMenu>
+                                            {t("Edit")}
+                                        </button>
+                                    )}
+                                    <TaxonomyDialog
+                                        text={
+                                            transcripts[activeTranscript].text
+                                        }
+                                    />
+                                </div>
+                                <div className="w-full sm:w-auto flex gap-2 justify-end">
+                                    <DownloadButton
+                                        format={
+                                            transcripts[activeTranscript].format
+                                        }
+                                        name={
+                                            transcripts[activeTranscript].name
+                                        }
+                                        text={
+                                            transcripts[activeTranscript].text
+                                        }
+                                    />
+                                    <DropdownMenu>
+                                        <DropdownMenuTrigger className="">
+                                            <MoreVertical className="h-4 w-4" />
+                                        </DropdownMenuTrigger>
+                                        <DropdownMenuContent>
+                                            {/* add Edit and taxonomy options here */}
+
+                                            <DropdownMenuItem
+                                                className="text-red-600 focus:text-red-600 focus:bg-red-50 text-xs"
+                                                onClick={() => {
+                                                    if (
+                                                        window.confirm(
+                                                            t(
+                                                                "Are you sure you want to delete this track?",
+                                                            ),
+                                                        )
+                                                    ) {
+                                                        onDeleteTrack();
+                                                    }
+                                                }}
+                                            >
+                                                {t("Delete track")}
+                                            </DropdownMenuItem>
+                                        </DropdownMenuContent>
+                                    </DropdownMenu>
+                                </div>
                             </div>
                         )}
                     </div>
@@ -1385,7 +1401,132 @@ function VideoPage() {
                                                                     "Audio tracks",
                                                                 )}
                                                             </div>
-                                                            <div className="flex flex-col gap-2">
+
+                                                            {/* Mobile Select View */}
+                                                            <div className="sm:hidden">
+                                                                <Select
+                                                                    value={activeLanguage.toString()}
+                                                                    onValueChange={(
+                                                                        value,
+                                                                    ) =>
+                                                                        setActiveLanguage(
+                                                                            parseInt(
+                                                                                value,
+                                                                            ),
+                                                                        )
+                                                                    }
+                                                                >
+                                                                    <SelectTrigger className="w-full text-xs">
+                                                                        <SelectValue>
+                                                                            {videoLanguages[
+                                                                                activeLanguage
+                                                                            ]
+                                                                                ?.label ||
+                                                                                new Intl.DisplayNames(
+                                                                                    [
+                                                                                        language,
+                                                                                    ],
+                                                                                    {
+                                                                                        type: "language",
+                                                                                    },
+                                                                                ).of(
+                                                                                    videoLanguages[
+                                                                                        activeLanguage
+                                                                                    ]
+                                                                                        ?.code ||
+                                                                                        "en",
+                                                                                )}
+                                                                        </SelectValue>
+                                                                    </SelectTrigger>
+                                                                    <SelectContent>
+                                                                        {videoLanguages.map(
+                                                                            (
+                                                                                lang,
+                                                                                idx,
+                                                                            ) => (
+                                                                                <SelectItem
+                                                                                    key={
+                                                                                        idx
+                                                                                    }
+                                                                                    value={idx.toString()}
+                                                                                    className="text-xs"
+                                                                                >
+                                                                                    <div className="flex items-center justify-between w-full">
+                                                                                        <span>
+                                                                                            {lang.label ||
+                                                                                                new Intl.DisplayNames(
+                                                                                                    [
+                                                                                                        language,
+                                                                                                    ],
+                                                                                                    {
+                                                                                                        type: "language",
+                                                                                                    },
+                                                                                                ).of(
+                                                                                                    lang.code,
+                                                                                                )}
+                                                                                        </span>
+                                                                                        <div className="flex items-center gap-2">
+                                                                                            {idx !==
+                                                                                                0 && (
+                                                                                                <button
+                                                                                                    onClick={(
+                                                                                                        e,
+                                                                                                    ) => {
+                                                                                                        e.stopPropagation();
+                                                                                                        if (
+                                                                                                            window.confirm(
+                                                                                                                t(
+                                                                                                                    "Are you sure you want to delete this language track?",
+                                                                                                                ),
+                                                                                                            )
+                                                                                                        ) {
+                                                                                                            const newVideoLanguages =
+                                                                                                                videoLanguages.filter(
+                                                                                                                    (
+                                                                                                                        _,
+                                                                                                                        i,
+                                                                                                                    ) =>
+                                                                                                                        i !==
+                                                                                                                        idx,
+                                                                                                                );
+                                                                                                            setVideoLanguages(
+                                                                                                                newVideoLanguages,
+                                                                                                            );
+                                                                                                            setActiveLanguage(
+                                                                                                                0,
+                                                                                                            );
+                                                                                                        }
+                                                                                                    }}
+                                                                                                    className="text-gray-500 hover:text-red-500 transition-colors"
+                                                                                                >
+                                                                                                    <TrashIcon className="h-3 w-3" />
+                                                                                                </button>
+                                                                                            )}
+                                                                                            <a
+                                                                                                href={
+                                                                                                    lang.url
+                                                                                                }
+                                                                                                download={`video-${lang.code}.mp4`}
+                                                                                                onClick={(
+                                                                                                    e,
+                                                                                                ) =>
+                                                                                                    e.stopPropagation()
+                                                                                                }
+                                                                                                className="text-gray-500"
+                                                                                            >
+                                                                                                <DownloadIcon className="h-3.5 w-3.5" />
+                                                                                            </a>
+                                                                                        </div>
+                                                                                    </div>
+                                                                                </SelectItem>
+                                                                            ),
+                                                                        )}
+                                                                    </SelectContent>
+                                                                </Select>
+                                                            </div>
+
+                                                            {/* Desktop List View */}
+                                                            <div className="hidden sm:flex sm:flex-col sm:gap-2">
                                                                 {videoLanguages.map(
                                                                     (
                                                                         lang,
@@ -1486,6 +1627,7 @@ function VideoPage() {
                                                                     ),
                                                                 )}
                                                             </div>
+
                                                             <button
                                                                 onClick={() =>
                                                                     setShowTranslateDialog(

@@ -107,7 +107,7 @@ function TranslationOptions({
 
     return (
         <div>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-col sm:flex-row items-center gap-2">
                 <div className="mb-3 basis-2/3">
                     <h3 className="text-sm mb-1">{t("From")}</h3>
                     <Select
