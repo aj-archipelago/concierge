@@ -400,11 +400,11 @@ function VideoInput({
 
                     <div className="flex justify-center w-full">
                         <div className="flex items-center my-4">
-                            <div className="w-64 border-t border-gray-300"></div>
+                            <div className="w-16 border-t border-gray-300"></div>
                             <span className="px-4 text-sm text-gray-500">
                                 {t("OR")}
                             </span>
-                            <div className="flex-1 border-t border-gray-300 w-64"></div>
+                            <div className="flex-1 border-t border-gray-300 w-16"></div>
                         </div>
                     </div>
 
@@ -433,7 +433,7 @@ function VideoInput({
                                     handleFileUpload(event);
                                 }}
                             >
-                                <div className="text-center w-96">
+                                <div className="text-center max-w-96">
                                     <label className="lb-outline-secondary text-sm flex gap-2 items-center cursor-pointer justify-center w-64 mx-auto mb-3">
                                         <input
                                             type="file"

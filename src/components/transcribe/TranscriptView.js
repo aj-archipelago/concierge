@@ -76,7 +76,7 @@ function VttSubtitles({ name, text, onSeek, currentTime, onTextChange }) {
     return (
         <div
             ref={containerRef}
-            className="grid grid-cols-[auto,1fr] gap-x-4 gap-y-2 overflow-y-auto max-h-[500px] text-sm"
+            className="grid sm:grid-cols-[auto,1fr] gap-x-4 gap-y-2 overflow-y-auto max-h-[500px] text-sm"
         >
             {subtitles.map((subtitle, index) => (
                 <React.Fragment key={`${name}-${index}`}>
@@ -265,14 +265,14 @@ function TranscriptView({
 
                 {/* Show retranscribe button only if shouldShowRetranscribeButton is true and not currently retranscribing */}
                 {!isRetranscribing && shouldShowRetranscribeButton && (
-                    <div className="-mt-2 mb-4 text-xs flex gap-2">
+                    <div className="-mt-2 mb-4 text-xs flex flex-col sm:flex-row gap-1 sm:gap-2">
                         <div className="text-gray-500">
                             {t("Transcript not looking right?")}
                         </div>
                         <button onClick={onRetranscribe} className="">
-                            <span className="flex items-center gap-1">
+                            <span className="flex gap-1">
                                 <RefreshCw className="h-3 w-3 text-gray-500" />
-                                <span className="text-sky-600">
+                                <span className="text-sky-600 text-start">
                                     {t(
                                         "Transcribe again using an alternate model",
                                     )}

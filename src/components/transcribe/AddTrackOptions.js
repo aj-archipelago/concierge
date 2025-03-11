@@ -49,7 +49,9 @@ export function AddTrackOptions({
 
     return (
         <Tabs defaultValue={defaultTab || visibleOptions[0]} className="w-full">
-            <TabsList className={`grid w-full ${gridCols} mb-4`}>
+            <TabsList
+                className={`grid w-full grid-cols-2 sm:${gridCols} mb-4 h-auto`}
+            >
                 {options.includes("transcribe") && (
                     <TabsTrigger value="transcribe">
                         <VideoIcon className="h-4 w-4 me-2" />
