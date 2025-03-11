@@ -1432,7 +1432,9 @@ function VideoPage() {
                                                                                 ).of(
                                                                                     videoLanguages[
                                                                                         activeLanguage
-                                                                                    ]?.code || "en",
+                                                                                    ]
+                                                                                        ?.code ||
+                                                                                        "en",
                                                                                 )}
                                                                         </SelectValue>
                                                                     </SelectTrigger>
