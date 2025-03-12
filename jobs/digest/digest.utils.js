@@ -75,7 +75,7 @@ const generateDigestBlockContent = async (
                     tool,
                 });
             } catch (e) {
-                logger.error(
+                logger.log(
                     `Error while parsing sys_entity_start result: ${e.message}`,
                     user?._id,
                     block?._id,
