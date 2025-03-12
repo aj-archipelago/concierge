@@ -89,7 +89,7 @@ const ChatNavigationItem = ({
                         </>
                     ) : (
                         <>
-                            <div className="basis-3">
+                            <div className="basis-3 hidden sm:block">
                                 <EditIcon
                                     className="h-3 w-3 text-gray-400 hover:text-gray-600 cursor-pointer invisible group-hover:visible"
                                     onClick={(e) => {
@@ -106,7 +106,7 @@ const ChatNavigationItem = ({
                     )}
                 </div>
                 {editingId !== subItem.key && (
-                    <div className="basis-3 text-end">
+                    <div className="basis-3 text-end hidden sm:block">
                         <TrashIcon
                             className="h-3 w-3 text-gray-400 hover:text-gray-600 cursor-pointer invisible group-hover:visible hover:text-red-600"
                             aria-hidden="true"

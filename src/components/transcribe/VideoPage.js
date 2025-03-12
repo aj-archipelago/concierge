@@ -89,27 +89,6 @@ const isValidUrl = (url) => {
     }
 };
 
-// New TaxonomyDialog component
-function TaxonomyDialog({ text }) {
-    const { t } = useTranslation();
-
-    return (
-        <Dialog>
-            <DialogTrigger className="lb-outline-secondary flex items-center gap-1 text-xs overflow-hidden">
-                <div className="truncate w-full">
-                    {t("Hashtags and Topics")}
-                </div>
-            </DialogTrigger>
-            <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
-                <DialogHeader>
-                    <DialogTitle>{t("Select Taxonomy")}</DialogTitle>
-                </DialogHeader>
-                <TaxonomySelector text={text} />
-            </DialogContent>
-        </Dialog>
-    );
-}
-
 // New DownloadButton component
 function DownloadButton({ format, name, text }) {
     const { t } = useTranslation();
@@ -142,7 +121,7 @@ function DownloadButton({ format, name, text }) {
 
     return (
         <DropdownMenu>
-            <DropdownMenuTrigger className="lb-outline-secondary flex items-center gap-1 text-xs">
+            <DropdownMenuTrigger className="hidden sm:flex lb-outline-secondary items-center gap-1 text-xs">
                 <div className="flex items-center gap-2 pe-1">
                     <DownloadIcon className="h-4 w-4" />
                     {t("Download")}
@@ -203,6 +182,7 @@ function EditableTranscriptSelect({
     const [editing, setEditing] = useState(false);
     const [tempName, setTempName] = useState("");
     const { isAutoTranscribing } = useAutoTranscribe();
+    const [taxonomyDialogOpen, setTaxonomyDialogOpen] = useState(false);
 
     useEffect(() => {
         if (transcripts[activeTranscript]) {
@@ -315,8 +295,8 @@ function EditableTranscriptSelect({
                 </div>
             ) : (
                 <>
-                    <div className="flex flex-col-reverse md:flex-row gap-2 justify-between ">
-                        <div className="flex gap-2 grow">
+                    <div className="flex flex-row sm:flex-col-reverse md:flex-row gap-2 justify-between ">
+                        <div className="flex gap-2 items-center">
                             <div className="grow sm:grow-0 ">
                                 <Select
                                     value={activeTranscript.toString()}
@@ -405,7 +385,7 @@ function EditableTranscriptSelect({
                             </div>
                         </div>
                         {!isEditing && transcripts[activeTranscript] && (
-                            <div className="flex flex-col sm:flex-row items-center gap-2 justify-end p-2 sm:p-0 bg-neutral-100 sm:bg-transparent">
+                            <div className="flex flex-col sm:flex-row items-center gap-2 justify-end">
                                 <div className=" w-full sm:w-auto flex gap-2 justify-end">
                                     {transcripts[activeTranscript].format !==
                                         "vtt" && (
@@ -413,17 +393,42 @@ function EditableTranscriptSelect({
                                             onClick={() =>
                                                 setIsEditing(!isEditing)
                                             }
-                                            className="lb-outline-secondary flex items-center gap-1 text-xs"
+                                            className="hidden sm:flex lb-outline-secondary items-center gap-1 text-xs"
                                             title={t("Edit")}
                                         >
                                             {t("Edit")}
                                         </button>
                                     )}
-                                    <TaxonomyDialog
-                                        text={
-                                            transcripts[activeTranscript].text
-                                        }
-                                    />
+                                    {/* Show the button only on desktop */}
+                                    <Dialog
+                                        open={taxonomyDialogOpen}
+                                        onOpenChange={setTaxonomyDialogOpen}
+                                    >
+                                        <DialogTrigger asChild>
+                                            <button
+                                                className="hidden sm:flex lb-outline-secondary items-center gap-1 text-xs overflow-hidden"
+                                                title={t("Hashtags and Topics")}
+                                            >
+                                                <div className="truncate w-full">
+                                                    {t("Hashtags and Topics")}
+                                                </div>
+                                            </button>
+                                        </DialogTrigger>
+                                        <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
+                                            <DialogHeader>
+                                                <DialogTitle>
+                                                    {t("Select Taxonomy")}
+                                                </DialogTitle>
+                                            </DialogHeader>
+                                            <TaxonomySelector
+                                                text={
+                                                    transcripts[
+                                                        activeTranscript
+                                                    ].text
+                                                }
+                                            />
+                                        </DialogContent>
+                                    </Dialog>
                                 </div>
                                 <div className="w-full sm:w-auto flex gap-2 justify-end">
                                     <DownloadButton
@@ -442,8 +447,173 @@ function EditableTranscriptSelect({
                                             <MoreVertical className="h-4 w-4" />
                                         </DropdownMenuTrigger>
                                         <DropdownMenuContent>
-                                            {/* add Edit and taxonomy options here */}
+                                            {transcripts[activeTranscript]
+                                                .format !== "vtt" && (
+                                                <DropdownMenuItem
+                                                    className="text-xs"
+                                                    onClick={() =>
+                                                        setIsEditing(!isEditing)
+                                                    }
+                                                >
+                                                    {t("Edit")}
+                                                </DropdownMenuItem>
+                                            )}
+                                            {/* Show the menu item only on mobile */}
+                                            <DropdownMenuItem
+                                                className="sm:hidden text-xs"
+                                                onClick={() => {
+                                                    setTimeout(() => {
+                                                        setTaxonomyDialogOpen(
+                                                            true,
+                                                        );
+                                                    }, 100);
+                                                }}
+                                            >
+                                                {t("Hashtags and Topics")}
+                                            </DropdownMenuItem>
+                                            {/* Download options for mobile */}
+                                            {transcripts[activeTranscript]
+                                                .format === "srt" ||
+                                            transcripts[activeTranscript]
+                                                .format === "vtt" ? (
+                                                <>
+                                                    <DropdownMenuItem
+                                                        className="sm:hidden text-xs"
+                                                        onClick={() => {
+                                                            let downloadText =
+                                                                transcripts[
+                                                                    activeTranscript
+                                                                ].text;
+                                                            const parsed =
+                                                                parse(
+                                                                    downloadText,
+                                                                );
+                                                            downloadText =
+                                                                build(
+                                                                    parsed.cues,
+                                                                    "srt",
+                                                                );
 
+                                                            const element =
+                                                                document.createElement(
+                                                                    "a",
+                                                                );
+                                                            const file =
+                                                                new Blob(
+                                                                    [
+                                                                        downloadText,
+                                                                    ],
+                                                                    {
+                                                                        type: "text/plain",
+                                                                    },
+                                                                );
+                                                            element.href =
+                                                                URL.createObjectURL(
+                                                                    file,
+                                                                );
+                                                            element.download = `${transcripts[activeTranscript].name}.srt`;
+                                                            element.style.display =
+                                                                "none";
+                                                            document.body.appendChild(
+                                                                element,
+                                                            );
+                                                            element.click();
+                                                            setTimeout(() => {
+                                                                document.body.removeChild(
+                                                                    element,
+                                                                );
+                                                                URL.revokeObjectURL(
+                                                                    element.href,
+                                                                );
+                                                            }, 100);
+                                                        }}
+                                                    >
+                                                        {t("Download SRT")}
+                                                    </DropdownMenuItem>
+                                                    <DropdownMenuItem
+                                                        className="sm:hidden text-xs"
+                                                        onClick={() => {
+                                                            const element =
+                                                                document.createElement(
+                                                                    "a",
+                                                                );
+                                                            const file =
+                                                                new Blob(
+                                                                    [
+                                                                        transcripts[
+                                                                            activeTranscript
+                                                                        ].text,
+                                                                    ],
+                                                                    {
+                                                                        type: "text/plain",
+                                                                    },
+                                                                );
+                                                            element.href =
+                                                                URL.createObjectURL(
+                                                                    file,
+                                                                );
+                                                            element.download = `${transcripts[activeTranscript].name}.vtt`;
+                                                            element.style.display =
+                                                                "none";
+                                                            document.body.appendChild(
+                                                                element,
+                                                            );
+                                                            element.click();
+                                                            setTimeout(() => {
+                                                                document.body.removeChild(
+                                                                    element,
+                                                                );
+                                                                URL.revokeObjectURL(
+                                                                    element.href,
+                                                                );
+                                                            }, 100);
+                                                        }}
+                                                    >
+                                                        {t("Download VTT")}
+                                                    </DropdownMenuItem>
+                                                </>
+                                            ) : (
+                                                <DropdownMenuItem
+                                                    className="sm:hidden text-xs"
+                                                    onClick={() => {
+                                                        const element =
+                                                            document.createElement(
+                                                                "a",
+                                                            );
+                                                        const file = new Blob(
+                                                            [
+                                                                transcripts[
+                                                                    activeTranscript
+                                                                ].text,
+                                                            ],
+                                                            {
+                                                                type: "text/plain",
+                                                            },
+                                                        );
+                                                        element.href =
+                                                            URL.createObjectURL(
+                                                                file,
+                                                            );
+                                                        element.download = `${transcripts[activeTranscript].name}.txt`;
+                                                        element.style.display =
+                                                            "none";
+                                                        document.body.appendChild(
+                                                            element,
+                                                        );
+                                                        element.click();
+                                                        setTimeout(() => {
+                                                            document.body.removeChild(
+                                                                element,
+                                                            );
+                                                            URL.revokeObjectURL(
+                                                                element.href,
+                                                            );
+                                                        }, 100);
+                                                    }}
+                                                >
+                                                    {t("Download .txt")}
+                                                </DropdownMenuItem>
+                                            )}
                                             <DropdownMenuItem
                                                 className="text-red-600 focus:text-red-600 focus:bg-red-50 text-xs"
                                                 onClick={() => {

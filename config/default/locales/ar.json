@@ -487,5 +487,7 @@
     "Transcribe again using an alternate model": "تنسيق مرة أخرى باستخدام نموذج مختلف",
     "Re-transcribing": "إعادة التنسيق",
     "Transcribing... This may take a few minutes.": "جاري التنسيق... قد يستغرق هذا بضع دقائق.",
-    "Auto-transcribing": "تنسيق تلقائي"
+    "Auto-transcribing": "تنسيق تلقائي",
+    "Edit title": "تعديل العنوان",
+    "Delete chat": "حذف الدردشة"
 }

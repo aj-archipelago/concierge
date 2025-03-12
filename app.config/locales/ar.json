@@ -521,5 +521,7 @@
     "Re-transcribing": "إعادة التنسيق",
     "Add audio track": "إضافة صوت",
     "Transcribing... This may take a few minutes.": "جاري التنسيق... قد يستغرق هذا بضع دقائق.",
-    "Auto-transcribing": "تنسيق تلقائي"
+    "Auto-transcribing": "تنسيق تلقائي",
+    "Edit title": "تعديل العنوان",
+    "Delete chat": "حذف الدردشة"
 }
