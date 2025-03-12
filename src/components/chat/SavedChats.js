@@ -261,8 +261,11 @@ function SavedChats({ displayState }) {
                                                 </DropdownMenuItem>
                                                 <DropdownMenuItem
                                                     className="text-sm"
-                                                    onClick={() => {
-                                                        handleDelete(chat._id);
+                                                    onClick={(e) => {
+                                                        handleDelete(
+                                                            chat._id,
+                                                            e,
+                                                        );
                                                     }}
                                                 >
                                                     {t("Delete chat")}
