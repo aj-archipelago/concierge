@@ -69,7 +69,7 @@ const generateDigestBlockContent = async (
             try {
                 content = JSON.stringify({
                     payload: await processImageUrls(
-                        JSON.parse(result.data.sys_entity_start.result),
+                        result.data.sys_entity_start.result,
                         process.env.SERVER_URL,
                     ),
                     tool,
