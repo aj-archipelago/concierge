@@ -34,12 +34,16 @@ const ChatNavigationItem = ({
             onClick={() => {
                 if (subItem.href && editingId !== subItem.key) {
                     setEditingId(null);
-                    setActiveChatId.mutateAsync(subItem.key)
+                    setActiveChatId
+                        .mutateAsync(subItem.key)
                         .then(() => {
                             router.push(subItem.href);
                         })
                         .catch((error) => {
-                            console.error("Error setting active chat ID:", error);
+                            console.error(
+                                "Error setting active chat ID:",
+                                error,
+                            );
                         });
                 }
             }}
