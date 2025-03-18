@@ -34,7 +34,11 @@ const MAX_VIDEO_DURATION = 3600; // 60 minutes in seconds
 
 export const checkDuration = async (duration) => {
     if (duration > MAX_VIDEO_DURATION) {
-        return { warning: true, message: "Video is longer than 60 minutes and may be very slow to process. For best results, use videos shorter than 60 minutes." };
+        return {
+            warning: true,
+            message:
+                "Video is longer than 60 minutes and may be very slow to process. For best results, use videos shorter than 60 minutes.",
+        };
     }
     return { warning: false };
 };
@@ -154,7 +158,7 @@ function VideoInput({
         try {
             const duration = await getVideoDuration(file);
             const durationCheck = await checkDuration(duration);
-            
+
             if (durationCheck.warning) {
                 setDurationWarning({ message: t(durationCheck.message), file });
                 setFileUploading(false);
@@ -171,7 +175,7 @@ function VideoInput({
 
         await processFileUpload(file);
     };
-    
+
     const processFileUpload = async (file) => {
         setFileUploading(true);
         const fileHash = await hashMediaFile(file);
@@ -301,7 +305,7 @@ function VideoInput({
                     transcriptionUrl: null,
                 });
             }
-        } else if (typeof result === 'object' && result.warning) {
+        } else if (typeof result === "object" && result.warning) {
             setDurationWarning({ message: result.message, url });
         } else {
             setShowVideoSelector(true);
@@ -312,15 +316,17 @@ function VideoInput({
         <div className="flex flex-col gap-2 mb-5">
             {durationWarning ? (
                 <div className="border border-amber-300 dark:border-amber-700/50 bg-amber-50 dark:bg-gray-900/95 p-4 rounded-md mb-4">
-                    <p className="text-amber-800 dark:text-amber-300 mb-3">{durationWarning.message}</p>
+                    <p className="text-amber-800 dark:text-amber-300 mb-3">
+                        {durationWarning.message}
+                    </p>
                     <div className="flex gap-2 mt-3">
-                        <button 
+                        <button
                             className="lb-outline-secondary text-sm px-3 py-1.5"
                             onClick={() => setDurationWarning(null)}
                         >
                             {t("Cancel")}
                         </button>
-                        <button 
+                        <button
                             className="lb-warning text-sm"
                             onClick={() => {
                                 if (durationWarning.file) {
@@ -328,7 +334,9 @@ function VideoInput({
                                 } else if (durationWarning.url) {
                                     setVideoInformation({
                                         videoUrl: durationWarning.url,
-                                        transcriptionUrl: durationWarning.transcriptionUrl || null,
+                                        transcriptionUrl:
+                                            durationWarning.transcriptionUrl ||
+                                            null,
                                     });
                                 }
                                 setDurationWarning(null);
@@ -369,8 +377,15 @@ function VideoInput({
                                     });
                                     setShowVideoSelector(false);
                                     setVideoSelectorError(null);
-                                } else if (typeof result === 'object' && result.warning) {
-                                    setDurationWarning({ message: result.message, url: v.videoUrl, transcriptionUrl: v.transcriptionUrl });
+                                } else if (
+                                    typeof result === "object" &&
+                                    result.warning
+                                ) {
+                                    setDurationWarning({
+                                        message: result.message,
+                                        url: v.videoUrl,
+                                        transcriptionUrl: v.transcriptionUrl,
+                                    });
                                     setShowVideoSelector(false);
                                 } else {
                                     setVideoSelectorError({
