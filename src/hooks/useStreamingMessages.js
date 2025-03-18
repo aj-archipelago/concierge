@@ -2,6 +2,7 @@ import { useCallback, useRef, useState, useEffect } from "react";
 import { useSubscription } from "@apollo/client";
 import { SUBSCRIPTIONS } from "../graphql";
 import { processImageUrls } from "../utils/imageUtils.mjs";
+import { toast } from "react-toastify";
 
 // Add utility function for chunking text
 const chunkText = (text, maxChunkSize = 9) => {
@@ -159,15 +160,30 @@ export function useStreamingMessages({ chat, updateChatHook }) {
             await updateChatHook.mutateAsync(updatePayload);
         } catch (error) {
             console.error("Failed to complete message:", error);
+            toast.error("Failed to complete message");
+            await updateChatHook.mutateAsync({
+                chatId: String(chat?._id),
+                isChatLoading: false,
+            });
         } finally {
             completingMessageRef.current = false;
         }
     }, [chat, updateChatHook, clearStreamingState]);
 
     const stopStreaming = useCallback(async () => {
-        if (!chat?._id || !streamingMessageRef.current) return;
-        await completeMessage();
-    }, [chat, completeMessage]);
+        if (chat?._id) {
+            // If there's streaming content, complete the message
+            if (streamingMessageRef.current) {
+                await completeMessage();
+            }
+
+            // Always ensure isChatLoading is set to false when stopping
+            await updateChatHook.mutateAsync({
+                chatId: String(chat?._id),
+                isChatLoading: false,
+            });
+        }
+    }, [chat, completeMessage, updateChatHook]);
 
     const updateStreamingContent = useCallback(async (newContent) => {
         if (completingMessageRef.current) return;
@@ -212,12 +228,6 @@ export function useStreamingMessages({ chat, updateChatHook }) {
 
             if (info) {
                 try {
-                    // Skip processing if info starts with "ERROR:"
-                    if (typeof info === "string" && info.startsWith("ERROR:")) {
-                        console.warn("Skipping error info:", info);
-                        return;
-                    }
-
                     const parsedInfo =
                         typeof info === "string"
                             ? JSON.parse(info)
@@ -306,6 +316,15 @@ export function useStreamingMessages({ chat, updateChatHook }) {
             }
         } catch (e) {
             console.error("Failed to process subscription data:", e);
+            toast.error("Failed to process response data");
+
+            if (chat?._id) {
+                await updateChatHook.mutateAsync({
+                    chatId: String(chat._id),
+                    isChatLoading: false,
+                });
+            }
+            clearStreamingState();
         }
 
         processingRef.current = false;
@@ -323,6 +342,7 @@ export function useStreamingMessages({ chat, updateChatHook }) {
         isTitleUpdateInProgress,
         updateChatHook,
         processChunkQueue,
+        clearStreamingState,
     ]);
 
     useSubscription(SUBSCRIPTIONS.REQUEST_PROGRESS, {
@@ -334,6 +354,20 @@ export function useStreamingMessages({ chat, updateChatHook }) {
             const progress = data.data.requestProgress?.progress;
             const result = data.data.requestProgress?.data;
             const info = data.data.requestProgress?.info;
+            const error = data.data.requestProgress?.error;
+
+            if (error) {
+                toast.error(error);
+                // Clear loading and streaming state when error is detected
+                if (chat?._id) {
+                    updateChatHook.mutateAsync({
+                        chatId: String(chat._id),
+                        isChatLoading: false,
+                    });
+                }
+                clearStreamingState();
+                return;
+            }
 
             if (result || progress === 1 || info) {
                 messageQueueRef.current.push({
