@@ -144,7 +144,10 @@ function JiraTicketContent({ value, token, onDelete }) {
             </div>
 
             <div className="p-4">
-                <CreateStorySection token={token} ticket={ticket} />
+                <CreateStorySection
+                    token={token}
+                    ticket={{ ...ticket, title, description }}
+                />
             </div>
         </div>
     );
