@@ -110,7 +110,7 @@ export const checkVideoUrl = async (url) => {
         if (duration > 0) {
             // Only check duration if we got a valid duration
             const durationCheck = await checkDuration(duration);
-            if (durationCheck.warning) {
+            if (durationCheck?.warning) {
                 return durationCheck;
             }
         }
@@ -159,7 +159,7 @@ function VideoInput({
             const duration = await getVideoDuration(file);
             const durationCheck = await checkDuration(duration);
 
-            if (durationCheck.warning) {
+            if (durationCheck?.warning) {
                 setDurationWarning({ message: t(durationCheck.message), file });
                 setFileUploading(false);
                 return;
