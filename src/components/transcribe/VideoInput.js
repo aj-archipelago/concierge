@@ -34,9 +34,13 @@ const MAX_VIDEO_DURATION = 3600; // 60 minutes in seconds
 
 export const checkDuration = async (duration) => {
     if (duration > MAX_VIDEO_DURATION) {
-        throw new Error("Video length exceeds 60 minutes");
+        return {
+            warning: true,
+            message:
+                "Video is longer than 60 minutes and may be very slow to process. For best results, use videos shorter than 60 minutes.",
+        };
     }
-    return true;
+    return { warning: false };
 };
 
 export const isCloudStorageUrl = (url) => {
@@ -105,7 +109,10 @@ export const checkVideoUrl = async (url) => {
         const duration = await durationPromise;
         if (duration > 0) {
             // Only check duration if we got a valid duration
-            await checkDuration(duration);
+            const durationCheck = await checkDuration(duration);
+            if (durationCheck?.warning) {
+                return durationCheck;
+            }
         }
         return true;
     } catch (error) {
@@ -134,6 +141,7 @@ function VideoInput({
     const { serverUrl } = useContext(ServerContext);
     const [uploadProgress, setUploadProgress] = useState(0);
     const { direction } = useContext(LanguageContext);
+    const [durationWarning, setDurationWarning] = useState(null);
 
     // Function to handle file upload and post it to the API
     const handleFileUpload = async (event) => {
@@ -141,6 +149,7 @@ function VideoInput({
         setFileUploadError(null);
         setUploadProgress(0);
         setUrl("");
+        setDurationWarning(null);
         onUploadStart?.(); // Notify parent that upload is starting
 
         const file = event.target.files[0];
@@ -148,18 +157,27 @@ function VideoInput({
         // Check file duration
         try {
             const duration = await getVideoDuration(file);
-            await checkDuration(duration);
+            const durationCheck = await checkDuration(duration);
+
+            if (durationCheck?.warning) {
+                setDurationWarning({ message: t(durationCheck.message), file });
+                setFileUploading(false);
+                return;
+            }
         } catch (error) {
             console.error("Error checking video duration:", error);
             setFileUploading(false);
             setFileUploadError({
-                message: t(
-                    "Video length exceeds 60 minutes. Please upload a shorter video.",
-                ),
+                message: t("Error checking video duration."),
             });
             return;
         }
 
+        await processFileUpload(file);
+    };
+
+    const processFileUpload = async (file) => {
+        setFileUploading(true);
         const fileHash = await hashMediaFile(file);
 
         // Check if file with same hash exists
@@ -287,12 +305,8 @@ function VideoInput({
                     transcriptionUrl: null,
                 });
             }
-        } else if (result === "Video length exceeds 60 minutes") {
-            setVideoSelectorError({
-                message: t(
-                    "Video length exceeds 60 minutes. Please use a shorter video.",
-                ),
-            });
+        } else if (typeof result === "object" && result.warning) {
+            setDurationWarning({ message: result.message, url });
         } else {
             setShowVideoSelector(true);
         }
@@ -300,7 +314,39 @@ function VideoInput({
 
     return (
         <div className="flex flex-col gap-2 mb-5">
-            {fileUploading ? (
+            {durationWarning ? (
+                <div className="border border-amber-300 dark:border-amber-700/50 bg-amber-50 dark:bg-gray-900/95 p-4 rounded-md mb-4">
+                    <p className="text-amber-800 dark:text-amber-300 mb-3">
+                        {durationWarning.message}
+                    </p>
+                    <div className="flex gap-2 mt-3">
+                        <button
+                            className="lb-outline-secondary text-sm px-3 py-1.5"
+                            onClick={() => setDurationWarning(null)}
+                        >
+                            {t("Cancel")}
+                        </button>
+                        <button
+                            className="lb-warning text-sm"
+                            onClick={() => {
+                                if (durationWarning.file) {
+                                    processFileUpload(durationWarning.file);
+                                } else if (durationWarning.url) {
+                                    setVideoInformation({
+                                        videoUrl: durationWarning.url,
+                                        transcriptionUrl:
+                                            durationWarning.transcriptionUrl ||
+                                            null,
+                                    });
+                                }
+                                setDurationWarning(null);
+                            }}
+                        >
+                            {t("Continue anyway")}
+                        </button>
+                    </div>
+                </div>
+            ) : fileUploading ? (
                 <div className="flex flex-col items-center justify-center gap-4 py-8">
                     <div className="flex items-center gap-2 text-sm text-gray-500">
                         <Loader2Icon className="w-4 h-4 animate-spin" />
@@ -313,7 +359,7 @@ function VideoInput({
             ) : showVideoSelector ? (
                 <>
                     {videoSelectorError && (
-                        <p className="text-red-500 text-sm">
+                        <p className="text-red-600 dark:text-red-400 text-sm mb-2">
                             {videoSelectorError.message}
                         </p>
                     )}
@@ -332,13 +378,15 @@ function VideoInput({
                                     setShowVideoSelector(false);
                                     setVideoSelectorError(null);
                                 } else if (
-                                    result === "Video length exceeds 60 minutes"
+                                    typeof result === "object" &&
+                                    result.warning
                                 ) {
-                                    setVideoSelectorError({
-                                        message: t(
-                                            "Video length exceeds 60 minutes. Please use a shorter video.",
-                                        ),
+                                    setDurationWarning({
+                                        message: result.message,
+                                        url: v.videoUrl,
+                                        transcriptionUrl: v.transcriptionUrl,
                                     });
+                                    setShowVideoSelector(false);
                                 } else {
                                     setVideoSelectorError({
                                         message: t(
@@ -476,7 +524,7 @@ function VideoInput({
                                 </div>
                             </div>
                             {fileUploadError && (
-                                <p className="text-red-500 text-sm">
+                                <p className="text-red-600 dark:text-red-400 text-sm mt-2">
                                     {fileUploadError.message}
                                 </p>
                             )}
