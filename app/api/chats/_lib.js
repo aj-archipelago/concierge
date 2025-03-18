@@ -150,6 +150,20 @@ export async function updateChat(data) {
 }
 
 export async function getChatById(chatId) {
+    // Handle temporary chat IDs from client-side optimistic updates
+    if (chatId && typeof chatId === "string" && chatId.startsWith("temp_")) {
+        // Return a minimal temporary chat object
+        return {
+            _id: chatId,
+            title: "",
+            messages: [],
+            isPublic: false,
+            readOnly: false,
+            isChatLoading: false,
+            isTemporary: true,
+        };
+    }
+
     if (!chatId || !Types.ObjectId.isValid(chatId)) {
         console.error("Invalid chatId: ", chatId);
         return null;
@@ -203,6 +217,17 @@ export async function getChatById(chatId) {
 
 export async function setActiveChatId(activeChatId) {
     if (!activeChatId) throw new Error("activeChatId is required");
+
+    // Handle temporary chat IDs from client-side optimistic updates
+    if (typeof activeChatId === "string" && activeChatId.startsWith("temp_")) {
+        // Return a successful response without making database changes
+        // The real chat ID will be set after the server creates the actual chat
+        return {
+            recentChatIds: [],
+            activeChatId: activeChatId,
+        };
+    }
+
     if (!mongoose.Types.ObjectId.isValid(activeChatId)) {
         throw new Error("Invalid activeChatId");
     }
