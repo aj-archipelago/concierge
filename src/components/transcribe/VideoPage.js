@@ -242,7 +242,7 @@ function EditableTranscriptSelect({
                     setSelectedTab={setSelectedTab}
                 />
                 {isAutoTranscribing && (
-                    <div className="mt-2 flex gap-3 items-center py-2 px-3 rounded-lg border bg-gray-50 w-[500px]">
+                    <div className="mt-2 flex gap-3 items-center py-2 px-3 rounded-lg border bg-gray-50 w-full max-w-[500px]">
                         <Loader size="default" />
                         <div className="text-gray-700 text-sm">
                             {t("Transcribing... This may take a few minutes.")}

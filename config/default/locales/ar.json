@@ -489,5 +489,14 @@
     "Transcribing... This may take a few minutes.": "جاري التنسيق... قد يستغرق هذا بضع دقائق.",
     "Auto-transcribing": "تنسيق تلقائي",
     "Edit title": "تعديل العنوان",
-    "Delete chat": "حذف الدردشة"
+    "Delete chat": "حذف الدردشة",
+    "Video is longer than 60 minutes and may be very slow to process. For best results, use videos shorter than 60 minutes.": "الفيديو أطول من 60 دقيقة وقد يكون بطيءًا جدًا للمعالجة. لأفضل النتائج، استخدم فيديوهات أقصر من 60 دقيقة.",
+    "Continue anyway": "استمر بأي حال",
+    "Audio tracks": "صوت",
+    "File Information": "معلومات الملف",
+    "Audio File": "ملف صوتي",
+    "Video File": "ملف فيديو",
+    "Media File": "ملف وسائط",
+    "Type": "النوع",
+    "URL": "الرابط"
 }
