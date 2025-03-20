@@ -5,12 +5,28 @@ import {
 import { gql } from "@apollo/client";
 import { GraphQLWsLink } from "@apollo/client/link/subscriptions";
 import { createClient } from "graphql-ws";
-import { split, HttpLink } from "@apollo/client";
+import { split, HttpLink, from } from "@apollo/client";
+import { onError } from "@apollo/client/link/error";
 import { getMainDefinition } from "@apollo/client/utilities";
 import config from "../config";
 
 const CORTEX_GRAPHQL_API_URL =
     process.env.CORTEX_GRAPHQL_API_URL || "http://localhost:4000/graphql";
+
+// Add a function to trigger reauth, similar to axios-client.js
+function triggerReauth() {
+    if (typeof window !== "undefined") {
+        if (window.location.search.indexOf("reauth=true") !== -1) {
+            return;
+        }
+
+        window.location.href =
+            window.location.pathname +
+            window.location.search +
+            (window.location.search ? "&" : "?") +
+            "reauth=true";
+    }
+}
 
 const getClient = (serverUrl) => {
     let graphqlEndpoint;
@@ -30,6 +46,27 @@ const getClient = (serverUrl) => {
         }),
     );
 
+    // Add error handling link for authentication errors
+    const errorLink = onError(({ networkError, graphQLErrors }) => {
+        // Handle 401 Unauthorized errors
+        if (networkError && networkError.statusCode === 401) {
+            triggerReauth();
+        }
+
+        // Handle GraphQL errors that might indicate auth issues
+        if (graphQLErrors) {
+            graphQLErrors.forEach(({ message, extensions }) => {
+                if (
+                    extensions?.code === "UNAUTHENTICATED" ||
+                    message?.toLowerCase().includes("unauthorized") ||
+                    message?.toLowerCase().includes("authentication")
+                ) {
+                    triggerReauth();
+                }
+            });
+        }
+    });
+
     // The split function takes three parameters:
     //
     // * A function that's called for each operation to execute
@@ -47,8 +84,11 @@ const getClient = (serverUrl) => {
         httpLink,
     );
 
+    // Combine the error link with the split link
+    const link = from([errorLink, splitLink]);
+
     const client = new ApolloClient({
-        link: splitLink,
+        link,
         cache: new InMemoryCache(),
     });
 

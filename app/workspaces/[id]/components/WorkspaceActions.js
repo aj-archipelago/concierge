@@ -7,7 +7,7 @@ import {
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import axios from "axios";
+import axios from "../../../utils/axios-client";
 import { useRouter } from "next/navigation";
 import { useContext, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";

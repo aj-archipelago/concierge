@@ -1,4 +1,4 @@
-import axios from "axios";
+import axios from "../../../app/utils/axios-client";
 const URLS = {
     aja: "https://wordpress.aljazeera.net",
     aje: "https://wordpress.aljazeera.com",

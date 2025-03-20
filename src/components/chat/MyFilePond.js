@@ -1,4 +1,4 @@
-import axios from "axios";
+import axios from "../../../app/utils/axios-client";
 import FilePondPluginFileValidateType from "filepond-plugin-file-validate-type";
 import mime from "mime-types";
 import { FilePond, registerPlugin } from "react-filepond";

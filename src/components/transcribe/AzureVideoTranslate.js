@@ -1,4 +1,4 @@
-import axios from "axios";
+import axios from "../../../app/utils/axios-client";
 import { LanguagesIcon } from "lucide-react";
 import { useContext, useState } from "react";
 import { useTranslation } from "react-i18next";

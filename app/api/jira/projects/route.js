@@ -1,4 +1,4 @@
-import axios from "axios";
+import axios from "../../../utils/axios-client";
 const getJiraRestUrl = (siteId) =>
     `https://api.atlassian.com/ex/jira/${siteId}/rest/api/3/project`;
 
