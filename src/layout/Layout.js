@@ -40,23 +40,23 @@ export default function Layout({ children }) {
     useEffect(() => {
         setSidebarOpen(false);
     }, [pathname]);
-    
+
     // Add viewport height fix for mobile browsers
     useEffect(() => {
         // Function to update the viewport height CSS variable
         const setViewportHeight = () => {
             const vh = window.innerHeight * 0.01;
-            document.documentElement.style.setProperty('--vh', `${vh}px`);
+            document.documentElement.style.setProperty("--vh", `${vh}px`);
         };
-        
+
         // Set the viewport height initially
         setViewportHeight();
-        
+
         // Update the viewport height on resize
-        window.addEventListener('resize', setViewportHeight);
-        
+        window.addEventListener("resize", setViewportHeight);
+
         // Clean up the event listener
-        return () => window.removeEventListener('resize', setViewportHeight);
+        return () => window.removeEventListener("resize", setViewportHeight);
     }, []);
 
     return (
@@ -228,8 +228,8 @@ export default function Layout({ children }) {
                             >
                                 <div
                                     className={`grow bg-white dark:border-gray-200 rounded-md border p-3 lg:p-4 lg:pb-3 overflow-auto`}
-                                    style={{ 
-                                        height: "calc((var(--vh, 1vh) * 100) - 105px)"
+                                    style={{
+                                        height: "calc((var(--vh, 1vh) * 100) - 105px)",
                                     }}
                                 >
                                     {showOptions && (
@@ -245,7 +245,12 @@ export default function Layout({ children }) {
                                     {children}
                                 </div>
                                 {showChatbox && (
-                                    <div className="hidden sm:block basis-[302px] h-[calc(100vh-105px)]" style={{ height: "calc((var(--vh, 1vh) * 100) - 105px)" }}>
+                                    <div
+                                        className="hidden sm:block basis-[302px] h-[calc(100vh-105px)]"
+                                        style={{
+                                            height: "calc((var(--vh, 1vh) * 100) - 105px)",
+                                        }}
+                                    >
                                         <ChatBox />
                                     </div>
                                 )}
