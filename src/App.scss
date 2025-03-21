@@ -192,6 +192,16 @@ button:focus:not(:focus-visible),
 body {
     font-family: $font-family-sans-serif;
     scrollbar-color: "rgba(209, 213, 219, 0.5) rgba(209, 213, 219, 0.125)";
+    height: 100%;
+    overflow-y: auto;
+    overscroll-behavior-y: none;
+    -webkit-overflow-scrolling: touch;
+    touch-action: manipulation;
+}
+
+html {
+    height: 100%;
+    height: -webkit-fill-available;
 }
 
 div {
