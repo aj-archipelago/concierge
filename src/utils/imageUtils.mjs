@@ -1,7 +1,6 @@
-import config from "../../config";
-
 // Support both CommonJS and ES modules
-const getConfig = () => {
+const getConfig = async () => {
+    const { default: config } = await import("../../config/index.js");
     return config;
 };
 
