@@ -108,6 +108,9 @@ function MessageInput({
 
     const handleFormSubmit = (event) => {
         event.preventDefault();
+        if (isUploadingMedia) {
+            return; // Prevent submission if a file is uploading
+        }
         if (codeRequestId && inputValue) {
             apolloClient.query({
                 query: CODE_HUMAN_INPUT,

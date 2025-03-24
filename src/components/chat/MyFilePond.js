@@ -317,7 +317,6 @@ function MyFilePond({ addUrl, files, setFiles, setIsUploadingMedia }) {
 
                                 const isRemote = !(file instanceof File);
                                 if (isRemote) {
-                                    setIsUploadingMedia(false);
                                     load(file.source);
                                     return;
                                 }
@@ -326,7 +325,6 @@ function MyFilePond({ addUrl, files, setFiles, setIsUploadingMedia }) {
                                 if (file.type === "application/pdf") {
                                     const MAX_PDF_SIZE = 50 * 1024 * 1024;
                                     if (file.size > MAX_PDF_SIZE) {
-                                        setIsUploadingMedia(false);
                                         error(
                                             "PDF files must be less than 50MB",
                                         );
@@ -340,7 +338,6 @@ function MyFilePond({ addUrl, files, setFiles, setIsUploadingMedia }) {
                                         const duration =
                                             await getVideoDuration(file);
                                         if (duration > 3600) {
-                                            setIsUploadingMedia(false);
                                             error(
                                                 "Video must be less than 60 minutes long",
                                             );
@@ -351,7 +348,6 @@ function MyFilePond({ addUrl, files, setFiles, setIsUploadingMedia }) {
                                             "Error checking video duration:",
                                             err,
                                         );
-                                        setIsUploadingMedia(false);
                                         error(
                                             "Could not verify video duration",
                                         );
@@ -389,14 +385,12 @@ function MyFilePond({ addUrl, files, setFiles, setIsUploadingMedia }) {
                                                     body: "Media file upload failed: Missing required storage URLs",
                                                     type: "error",
                                                 });
-                                                setIsUploadingMedia(false);
                                                 return;
                                             }
                                         }
                                         progress(true, file.size, file.size);
                                         load(response.data);
                                         addUrl(response.data);
-                                        setIsUploadingMedia(false);
                                         return;
                                     }
                                 } catch (err) {
@@ -406,7 +400,6 @@ function MyFilePond({ addUrl, files, setFiles, setIsUploadingMedia }) {
                                             err,
                                         );
                                     }
-                                    setIsUploadingMedia(false);
                                 }
 
                                 // If we get here, we need to upload the file
@@ -577,23 +570,30 @@ function MyFilePond({ addUrl, files, setFiles, setIsUploadingMedia }) {
                             },
                         }}
                         onprocessfile={(error, file) => {
-                            setTimeout(() => {
-                                if (error) {
-                                    console.error("Error:", error);
+                            if (error) {
+                                console.error("Error:", error);
+                                setIsUploadingMedia(false);
+                            } else {
+                                const filetype = file.file.type;
+                                // For document files, wait 10 seconds for indexing
+                                if (DOC_MIME_TYPES.includes(filetype)) {
+                                    // Remove the file from FilePond after processing
+                                    setFiles((oldFiles) =>
+                                        oldFiles.filter(
+                                            (f) =>
+                                                f.serverId !==
+                                                file.serverId,
+                                        ),
+                                    );
+                                    // Wait 10 seconds for indexing
+                                    setTimeout(() => {
+                                        setIsUploadingMedia(false);
+                                    }, 10000);
                                 } else {
-                                    const filetype = file.file.type;
-                                    //only doc files should be timed as rag ll pick them
-                                    if (DOC_MIME_TYPES.includes(filetype)) {
-                                        setFiles((oldFiles) =>
-                                            oldFiles.filter(
-                                                (f) =>
-                                                    f.serverId !==
-                                                    file.serverId,
-                                            ),
-                                        );
-                                    }
+                                    // For non-document files, set isUploadingMedia to false immediately
+                                    setIsUploadingMedia(false);
                                 }
-                            }, 10000);
+                            }
                         }}
                         name="files" /* sets the file input name, it's filepond by default */
                         labelIdle={labelIdle}
