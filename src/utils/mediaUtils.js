@@ -15,7 +15,6 @@ async function getXXHashInstance() {
 // File type definitions
 export const DOC_EXTENSIONS = [
     ".json",
-    ".csv",
     ".md",
     ".xml",
     ".js",
@@ -36,6 +35,7 @@ export const IMAGE_EXTENSIONS = [
     ".heif",
     ".pdf",
     ".txt",
+    ".csv",
 ];
 
 export const VIDEO_EXTENSIONS = [
@@ -95,6 +95,7 @@ export const MEDIA_MIME_TYPES = [
     "application/pdf",
     // Text
     "text/plain",
+    "text/csv",
 ];
 
 export const ACCEPTED_FILE_TYPES = [...DOC_MIME_TYPES, ...MEDIA_MIME_TYPES];
@@ -119,7 +120,7 @@ export function isImageUrl(url) {
         IMAGE_EXTENSIONS.includes(urlExt) &&
         (mimeType.startsWith("image/") ||
             mimeType === "application/pdf" ||
-            mimeType.startsWith("text/plain"))
+            mimeType.startsWith("text/"))
     );
 }
 

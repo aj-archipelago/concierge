@@ -269,37 +269,15 @@ const MessageListContent = React.memo(function MessageListContent({
                             );
                         }
 
-                        if (getExtension(src) === ".pdf") {
-                            const filename = decodeURIComponent(
-                                getFilename(src),
-                            );
-                            return (
-                                <a
-                                    key={`pdf-${index}-${index2}`}
-                                    className="bg-neutral-100 py-2 ps-2 pe-4 m-2 shadow-md rounded-lg border flex gap-2 items-center"
-                                    onLoad={() =>
-                                        handleMessageLoad(newMessage.id)
-                                    }
-                                    href={src}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                >
-                                    <AiFillFilePdf
-                                        size={40}
-                                        className="text-red-600 dark:text-red-400"
-                                    />
-                                    {filename}
-                                </a>
-                            );
-                        }
+                        const filename = decodeURIComponent(getFilename(src));
+                        const ext = getExtension(src);
 
-                        if (getExtension(src) === ".txt") {
-                            const filename = decodeURIComponent(
-                                getFilename(src),
-                            );
+                        if ([".pdf", ".txt", ".csv"].includes(ext)) {
+                            const Icon =
+                                ext === ".pdf" ? AiFillFilePdf : AiFillFileText;
                             return (
                                 <a
-                                    key={`txt-${index}-${index2}`}
+                                    key={`file-${index}-${index2}`}
                                     className="bg-neutral-100 py-2 ps-2 pe-4 m-2 shadow-md rounded-lg border flex gap-2 items-center"
                                     onLoad={() =>
                                         handleMessageLoad(newMessage.id)
@@ -308,7 +286,7 @@ const MessageListContent = React.memo(function MessageListContent({
                                     target="_blank"
                                     rel="noopener noreferrer"
                                 >
-                                    <AiFillFileText
+                                    <Icon
                                         size={40}
                                         className="text-red-600 dark:text-red-400"
                                     />
