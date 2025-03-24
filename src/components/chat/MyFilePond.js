@@ -580,9 +580,7 @@ function MyFilePond({ addUrl, files, setFiles, setIsUploadingMedia }) {
                                     // Remove the file from FilePond after processing
                                     setFiles((oldFiles) =>
                                         oldFiles.filter(
-                                            (f) =>
-                                                f.serverId !==
-                                                file.serverId,
+                                            (f) => f.serverId !== file.serverId,
                                         ),
                                     );
                                     // Wait 10 seconds for indexing
