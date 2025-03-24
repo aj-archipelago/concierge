@@ -1,28 +1,27 @@
-import config from "../../config";
-
 // Support both CommonJS and ES modules
-const getConfig = () => {
+const getConfig = async () => {
+    const { default: config } = await import("../../config/index.js");
     return config;
 };
 
 // Get media helper URL in both frontend and worker contexts
-const getMediaHelperUrl = (serverUrl) => {
+const getMediaHelperUrl = async (serverUrl) => {
     // Try worker environment first
     if (process.env.CORTEX_MEDIA_API_URL) {
         return process.env.CORTEX_MEDIA_API_URL;
     }
     // Fallback to frontend config
-    const config = getConfig();
+    const config = await getConfig();
     return config.endpoints.mediaHelper(serverUrl);
 };
 
 // Skip image processing if no media helper is configured
-const isMediaHelperConfigured = () => {
+const isMediaHelperConfigured = async () => {
     try {
         return (
             process.env.CORTEX_MEDIA_API_URL ||
-            (getConfig()?.endpoints?.mediaHelper &&
-                typeof getConfig().endpoints.mediaHelper === "function")
+            ((await getConfig())?.endpoints?.mediaHelper &&
+                typeof (await getConfig()).endpoints.mediaHelper === "function")
         );
     } catch (error) {
         console.error("Error checking if media helper is configured:", error);
@@ -113,7 +112,7 @@ const MEDIA_HELPER_TIMEOUT_MS = 5000; // 5 seconds timeout
  * @returns {Promise<string>} The message with temporary URLs replaced with permanent ones
  */
 async function processImageUrls(message, serverUrl) {
-    if (typeof message !== "string" || !isMediaHelperConfigured()) {
+    if (typeof message !== "string" || !(await isMediaHelperConfigured())) {
         return message;
     }
 
@@ -149,7 +148,7 @@ async function processImageUrls(message, serverUrl) {
         if (isImageUrl(url)) {
             try {
                 // Create URL object from base media helper URL
-                const baseUrl = new URL(getMediaHelperUrl(serverUrl));
+                const baseUrl = new URL(await getMediaHelperUrl(serverUrl));
                 // Add fetch parameter to existing parameters
                 baseUrl.searchParams.append("fetch", url);
                 const mediaHelperUrl = baseUrl.toString();
