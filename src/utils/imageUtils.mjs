@@ -1,10 +1,8 @@
+import config from "../../config";
+
 // Support both CommonJS and ES modules
 const getConfig = () => {
-    try {
-        return require("../../config").default;
-    } catch {
-        return require("../../config");
-    }
+    return config;
 };
 
 // Get media helper URL in both frontend and worker contexts
@@ -27,6 +25,7 @@ const isMediaHelperConfigured = () => {
                 typeof getConfig().endpoints.mediaHelper === "function")
         );
     } catch (error) {
+        console.error("Error checking if media helper is configured:", error);
         return false;
     }
 };
