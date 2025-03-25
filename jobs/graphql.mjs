@@ -115,7 +115,7 @@ const SYS_SAVE_MEMORY = gql`
     }
 `;
 
-const RAG_START = gql`
+const SYS_ENTITY_START = gql`
     query RagStart(
         $chatHistory: [MultiMessage]!
         $dataSources: [String]
@@ -129,7 +129,7 @@ const RAG_START = gql`
         $title: String
         $aiStyle: String
     ) {
-        rag_start(
+        sys_entity_start(
             chatHistory: $chatHistory
             dataSources: $dataSources
             contextId: $contextId
@@ -493,6 +493,8 @@ const REQUEST_PROGRESS = gql`
         requestProgress(requestIds: $requestIds) {
             data
             progress
+            info
+            error
         }
     }
 `;
@@ -631,7 +633,7 @@ const QUERIES = {
     COGNITIVE_INSERT,
     IMAGE,
     SYS_SAVE_MEMORY,
-    RAG_START,
+    SYS_ENTITY_START,
     SYS_ENTITY_CONTINUE,
     EXPAND_STORY,
     FORMAT_PARAGRAPH_TURBO,
@@ -687,7 +689,7 @@ export {
     COGNITIVE_DELETE,
     EXPAND_STORY,
     SYS_SAVE_MEMORY,
-    RAG_START,
+    SYS_ENTITY_START,
     SYS_ENTITY_CONTINUE,
     SELECT_SERVICES,
     SUMMARY,

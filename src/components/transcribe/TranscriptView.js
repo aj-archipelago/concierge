@@ -5,58 +5,21 @@ import { useTranslation } from "react-i18next";
 import { FaEdit } from "react-icons/fa";
 import TextareaAutosize from "react-textarea-autosize";
 import CopyButton from "../CopyButton";
+import { parse, formatTimestamp } from "@aj-archipelago/subvibe";
+import { RefreshCw } from "lucide-react";
+import { isYoutubeUrl } from "../../utils/urlUtils";
 
 // Simplified VTT component
 function VttSubtitles({ name, text, onSeek, currentTime, onTextChange }) {
     const containerRef = useRef(null);
-    const lines = text.split("\n");
-    const subtitles = [];
-    let currentSubtitle = {};
+    const parsed = parse(text);
 
-    let isInSubtitle = false;
-    let isHeader = true;
-    lines.forEach((line) => {
-        line = line.trim();
-
-        // Handle header
-        if (isHeader) {
-            if (line === "WEBVTT") {
-                return;
-            }
-            if (!line) {
-                isHeader = false;
-                return;
-            }
-            return;
-        }
-
-        // Skip empty lines and numeric identifiers
-        if (!line || /^\d+$/.test(line)) {
-            return;
-        }
-
-        const timestampMatch = line.match(
-            /(\d{2}:\d{2}:\d{2}\.\d{3}) --> (\d{2}:\d{2}:\d{2}\.\d{3})/,
-        );
-        if (timestampMatch) {
-            if (currentSubtitle.timestamp) {
-                subtitles.push(currentSubtitle);
-            }
-            currentSubtitle = {
-                timestamp: timestampMatch[1],
-                endTimestamp: timestampMatch[2],
-                text: "",
-            };
-            isInSubtitle = true;
-        } else if (isInSubtitle && currentSubtitle.timestamp) {
-            currentSubtitle.text = (currentSubtitle.text + " " + line).trim();
-        }
+    const subtitles = parsed.cues;
+    subtitles.forEach((subtitle) => {
+        // Replace the integer startTime/endTime with formatted strings for UI display
+        subtitle.timestamp = formatTimestamp(subtitle.startTime);
+        subtitle.endTimestamp = formatTimestamp(subtitle.endTime);
     });
-
-    // Add the last subtitle if it exists
-    if (currentSubtitle.timestamp) {
-        subtitles.push(currentSubtitle);
-    }
 
     // Add effect to handle scrolling when currentTime changes
     useEffect(() => {
@@ -113,7 +76,7 @@ function VttSubtitles({ name, text, onSeek, currentTime, onTextChange }) {
     return (
         <div
             ref={containerRef}
-            className="grid grid-cols-[auto,1fr] gap-x-4 gap-y-2 overflow-y-auto max-h-[500px] text-sm"
+            className="grid sm:grid-cols-[auto,1fr] gap-x-4 gap-y-2 overflow-y-auto max-h-[500px] text-sm"
         >
             {subtitles.map((subtitle, index) => (
                 <React.Fragment key={`${name}-${index}`}>
@@ -125,7 +88,7 @@ function VttSubtitles({ name, text, onSeek, currentTime, onTextChange }) {
                             onClick={() =>
                                 handleTimestampClick(subtitle.timestamp)
                             }
-                            className="text-blue-600 hover:text-blue-800"
+                            className="text-sky-600 hover:text-sky-800"
                         >
                             {subtitle.timestamp}
                         </button>
@@ -220,9 +183,17 @@ function TranscriptView({
     onTextChange,
     isEditing,
     setIsEditing,
+    onRetranscribe,
+    isRetranscribing,
+    showRetranscribeButton = true,
+    url,
 }) {
     const { t } = useTranslation();
     const [editableText, setEditableText] = useState(text);
+
+    // Determine if we should show the retranscribe button
+    const shouldShowRetranscribeButton =
+        showRetranscribeButton && !isYoutubeUrl(url);
 
     useEffect(() => {
         setEditableText(text);
@@ -239,10 +210,10 @@ function TranscriptView({
     };
 
     return (
-        <div className="transcription-taxonomy-container flex flex-col gap-2 overflow-y-auto mt-6">
+        <div className="transcription-taxonomy-container flex flex-col gap-2 overflow-y-auto mt-2">
             <div className="transcription-section relative">
                 {isEditing ? (
-                    <div className="border border-gray-300 rounded-md p-2.5 bg-gray-50">
+                    <div className="border border-gray-300 rounded-md p-2.5 bg-gray-50 mb-4">
                         <textarea
                             value={editableText}
                             onChange={(e) => setEditableText(e.target.value)}
@@ -264,7 +235,7 @@ function TranscriptView({
                         </div>
                     </div>
                 ) : (
-                    <div className="border border-gray-300 rounded-md py-2.5 px-2.5 bg-gray-50">
+                    <div className="border border-gray-300 rounded-md py-2.5 px-2.5 bg-gray-50 mb-4">
                         {format === "vtt" && text ? (
                             <VttSubtitles
                                 name={name}
@@ -291,6 +262,25 @@ function TranscriptView({
                         />
                     )}
                 </div>
+
+                {/* Show retranscribe button only if shouldShowRetranscribeButton is true and not currently retranscribing */}
+                {!isRetranscribing && shouldShowRetranscribeButton && (
+                    <div className="-mt-2 mb-4 text-xs flex flex-col sm:flex-row gap-1 sm:gap-2">
+                        <div className="text-gray-500">
+                            {t("Transcript not looking right?")}
+                        </div>
+                        <button onClick={onRetranscribe} className="">
+                            <span className="flex gap-1">
+                                <RefreshCw className="h-3 w-3 text-gray-500" />
+                                <span className="text-sky-600 text-start">
+                                    {t(
+                                        "Transcribe again using an alternate model",
+                                    )}
+                                </span>
+                            </span>
+                        </button>
+                    </div>
+                )}
             </div>
         </div>
     );

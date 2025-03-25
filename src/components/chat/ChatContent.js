@@ -7,7 +7,9 @@ import ChatMessages from "./ChatMessages";
 import { QUERIES } from "../../graphql";
 import { useGetActiveChat, useUpdateChat } from "../../../app/queries/chats";
 import { useDeleteAutogenRun } from "../../../app/queries/autogen.js";
-import { processImageUrls } from "../../utils/imageUtils";
+import { processImageUrls } from "../../utils/imageUtils.mjs";
+import { useStreamingMessages } from "../../hooks/useStreamingMessages";
+import { useQueryClient } from "@tanstack/react-query";
 
 const contextMessageCount = 50;
 
@@ -15,24 +17,48 @@ function ChatContent({
     displayState = "full",
     container = "chatpage",
     viewingChat = null,
+    streamingEnabled = false,
 }) {
     const { t } = useTranslation();
     const client = useApolloClient();
     const { user } = useContext(AuthContext);
-    const activeChat = useGetActiveChat()?.data;
+    const activeChat = useGetActiveChat();
+    const updateChatHook = useUpdateChat();
+    const deleteAutogenRun = useDeleteAutogenRun();
+    const queryClient = useQueryClient();
 
     const viewingReadOnlyChat = useMemo(
         () => displayState === "full" && viewingChat && viewingChat.readOnly,
         [displayState, viewingChat],
     );
 
-    const chat = viewingReadOnlyChat ? viewingChat : activeChat;
+    const chat = viewingReadOnlyChat ? viewingChat : activeChat?.data;
     const chatId = String(chat?._id);
+
+    // Simple approach - if we have a chat ID but no messages, refetch once
+    useEffect(() => {
+        if (
+            chat &&
+            chat._id &&
+            (!chat.messages || chat.messages.length === 0)
+        ) {
+            queryClient.refetchQueries({ queryKey: ["chat", chat._id] });
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [chat?._id]); // Only run when the chat ID changes
+
     const memoizedMessages = useMemo(() => chat?.messages || [], [chat]);
-    const updateChatHook = useUpdateChat();
     const publicChatOwner = viewingChat?.owner;
     const isChatLoading = chat?.isChatLoading;
-    const deleteAutogenRun = useDeleteAutogenRun();
+
+    const {
+        isStreaming,
+        streamingContent,
+        stopStreaming,
+        setIsStreaming,
+        setSubscriptionId,
+        clearStreamingState,
+    } = useStreamingMessages({ chat, updateChatHook });
 
     const handleError = useCallback((error) => {
         toast.error(error.message);
@@ -41,6 +67,9 @@ function ChatContent({
     const handleSend = useCallback(
         async (text) => {
             try {
+                // Reset streaming state
+                clearStreamingState();
+
                 // Optimistic update for the user's message
                 const optimisticUserMessage = {
                     payload: text,
@@ -50,13 +79,16 @@ function ChatContent({
                     position: "single",
                 };
 
+                // Use messages directly without processing
+                const userMessages = [
+                    ...(chat?.messages || []),
+                    optimisticUserMessage,
+                ];
+
                 // Show the user message immediately
                 await updateChatHook.mutateAsync({
                     chatId: String(chat?._id),
-                    messages: [
-                        ...(chat?.messages || []),
-                        optimisticUserMessage,
-                    ],
+                    messages: userMessages,
                     isChatLoading: true,
                 });
 
@@ -101,14 +133,31 @@ function ChatContent({
                     title: chat?.title,
                     chatId,
                     codeRequestId: codeRequestIdParam,
+                    stream: streamingEnabled,
                 };
 
                 // Perform RAG start query
                 const result = await client.query({
-                    query: QUERIES.RAG_START,
+                    query: QUERIES.SYS_ENTITY_START,
                     variables,
                 });
 
+                // If streaming is enabled, handle subscription setup
+                if (streamingEnabled) {
+                    const subscriptionId =
+                        result.data?.sys_entity_start?.result;
+                    if (subscriptionId) {
+                        // Set streaming state BEFORE setting subscription ID
+                        setIsStreaming(true);
+
+                        // Finally set the subscription ID which will trigger the subscription
+                        setSubscriptionId(subscriptionId);
+
+                        return; // Make sure we return here to prevent non-streaming handling
+                    }
+                }
+
+                // Non-streaming response handling
                 let resultMessage = "";
                 let tool = null;
                 let newTitle = null;
@@ -118,12 +167,14 @@ function ChatContent({
                 try {
                     let resultObj;
                     try {
-                        resultObj = JSON.parse(result.data.rag_start.result);
+                        resultObj = JSON.parse(
+                            result.data.sys_entity_start.result,
+                        );
                     } catch {
-                        resultObj = { response: result.data.rag_start.result };
+                        resultObj = result.data.sys_entity_start.result;
                     }
-                    resultMessage = resultObj?.response || resultObj;
-                    tool = result.data.rag_start.tool;
+                    resultMessage = resultObj;
+                    tool = result.data.sys_entity_start.tool;
                     if (tool) {
                         const toolObj = JSON.parse(tool);
                         toolCallbackName = toolObj?.toolCallbackName;
@@ -189,9 +240,12 @@ function ChatContent({
                     sender: "labeeb",
                 });
 
+                // Use messages directly without processing
+                const currentMessagesToUpdate = currentMessages;
+
                 await updateChatHook.mutateAsync({
                     chatId: String(chat?._id),
-                    messages: currentMessages,
+                    messages: currentMessagesToUpdate,
                     ...(newTitle && { title: newTitle }),
                     isChatLoading: !!toolCallbackName,
                     ...(toolCallbackId && { toolCallbackId }),
@@ -249,41 +303,47 @@ function ChatContent({
                         sender: "labeeb",
                     });
 
+                    // Use messages directly without processing
+                    const finalMessagesToUpdate = finalMessages;
+
                     await updateChatHook.mutateAsync({
                         chatId: String(chat?._id),
-                        messages: finalMessages,
+                        messages: finalMessagesToUpdate,
                         isChatLoading: false,
                     });
                 }
             } catch (error) {
+                setIsStreaming(false);
                 handleError(error);
-                // Update to include both the original user message and the error message
+
+                // Use error messages directly without processing
+                const errorMessagesToUpdate = [
+                    ...(chat?.messages || []),
+                    {
+                        payload: text,
+                        sender: "user",
+                        sentTime: "just now",
+                        direction: "outgoing",
+                        position: "single",
+                    },
+                    {
+                        payload: t(
+                            "Something went wrong trying to respond to your request. Please try something else or start over to continue.",
+                        ),
+                        sender: "labeeb",
+                        sentTime: "just now",
+                        direction: "incoming",
+                        position: "single",
+                    },
+                ];
+
                 await updateChatHook.mutateAsync({
                     chatId: String(chat?._id),
-                    messages: [
-                        ...(chat?.messages || []),
-                        {
-                            payload: text,
-                            sender: "user",
-                            sentTime: "just now",
-                            direction: "outgoing",
-                            position: "single",
-                        },
-                        {
-                            payload: t(
-                                "Something went wrong trying to respond to your request. Please try something else or start over to continue.",
-                            ),
-                            sender: "labeeb",
-                            sentTime: "just now",
-                            direction: "incoming",
-                            position: "single",
-                        },
-                    ],
+                    messages: errorMessagesToUpdate,
                     isChatLoading: false,
                 });
             }
         },
-        // eslint-disable-next-line react-hooks/exhaustive-deps
         [
             chat,
             updateChatHook,
@@ -291,8 +351,13 @@ function ChatContent({
             user,
             memoizedMessages,
             handleError,
-            chatId,
             t,
+            chatId,
+            clearStreamingState,
+            deleteAutogenRun,
+            setIsStreaming,
+            setSubscriptionId,
+            streamingEnabled,
         ],
     );
 
@@ -323,6 +388,9 @@ function ChatContent({
             container={container}
             displayState={displayState}
             chatId={chatId}
+            isStreaming={isStreaming}
+            streamingContent={streamingContent}
+            onStopStreaming={stopStreaming}
         />
     );
 }

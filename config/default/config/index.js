@@ -19,7 +19,7 @@ const LLM_IDENTIFIERS = {
     claude35sonnet: "claude35sonnet",
     claude3opus: "claude3opus",
     o1: "o1",
-    o1mini: "o1mini",
+    o3mini: "o3mini",
 };
 
 // eslint-disable-next-line import/no-anonymous-default-export
@@ -42,13 +42,14 @@ export default {
                 name: "GPT 3.5 Turbo",
                 cortexPathwayName: "run_gpt35turbo",
                 cortexModelName: "oai-gpturbo",
-                isDefault: true,
+                isDefault: false,
             },
             {
                 identifier: LLM_IDENTIFIERS.gpt4o,
                 name: "GPT 4o",
                 cortexPathwayName: "run_gpt4_o",
                 cortexModelName: "oai-gpt4o",
+                isDefault: true,
             },
             {
                 identifier: LLM_IDENTIFIERS.gpt4omini,
@@ -93,10 +94,10 @@ export default {
                 cortexModelName: "oai-o1",
             },
             {
-                identifier: LLM_IDENTIFIERS.o1mini,
-                name: "o1 Mini",
-                cortexPathwayName: "run_o1_mini",
-                cortexModelName: "oai-o1-mini",
+                identifier: LLM_IDENTIFIERS.o3mini,
+                name: "o3 Mini",
+                cortexPathwayName: "run_o3_mini",
+                cortexModelName: "oai-o3-mini",
             },
         ],
     },

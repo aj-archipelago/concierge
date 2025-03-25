@@ -1,8 +1,14 @@
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { PlusIcon } from "@heroicons/react/24/outline";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
 import i18next from "i18next";
-import { EditIcon, TrashIcon, XIcon } from "lucide-react";
+import { EditIcon, MoreVertical, TrashIcon, XIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -194,7 +200,7 @@ function SavedChats({ displayState }) {
                                     className={classNames(
                                         editingId === chat._id
                                             ? "flex"
-                                            : "hidden group-hover:flex",
+                                            : "hidden sm:group-hover:flex",
                                         "items-center gap-1 -mt-5 -me-2",
                                     )}
                                 >
@@ -234,6 +240,40 @@ function SavedChats({ displayState }) {
                                         <TrashIcon className="h-3 w-3 flex-shrink-0" />
                                     </button>
                                 </div>
+                                {editingId !== chat._id && (
+                                    <div className="block sm:hidden -me-2 -mt-2">
+                                        <DropdownMenu>
+                                            <DropdownMenuTrigger className="">
+                                                <MoreVertical className="h-3 w-3 text-gray-400" />
+                                            </DropdownMenuTrigger>
+                                            <DropdownMenuContent>
+                                                {/* add Edit and taxonomy options here */}
+                                                <DropdownMenuItem
+                                                    className="text-sm"
+                                                    onClick={() => {
+                                                        setEditingId(chat._id);
+                                                        setEditedName(
+                                                            chat.title,
+                                                        );
+                                                    }}
+                                                >
+                                                    {t("Edit title")}
+                                                </DropdownMenuItem>
+                                                <DropdownMenuItem
+                                                    className="text-sm"
+                                                    onClick={(e) => {
+                                                        handleDelete(
+                                                            chat._id,
+                                                            e,
+                                                        );
+                                                    }}
+                                                >
+                                                    {t("Delete chat")}
+                                                </DropdownMenuItem>
+                                            </DropdownMenuContent>
+                                        </DropdownMenu>
+                                    </div>
+                                )}
                             </div>
                             <div className="flex justify-between items-center pb-2 overflow-hidden text-start w-full">
                                 <ul className="w-full">

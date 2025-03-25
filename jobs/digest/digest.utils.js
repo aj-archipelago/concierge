@@ -1,6 +1,5 @@
 const APPROXIMATE_DURATION_SECONDS = 60;
 const PROGRESS_UPDATE_INTERVAL = 3000;
-const { processImageUrls } = require("../../src/utils/imageUtils");
 
 const generateDigestBlockContent = async (
     block,
@@ -8,6 +7,9 @@ const generateDigestBlockContent = async (
     logger,
     onProgressUpdate,
 ) => {
+    let imageUtils = await import("../../src/utils/imageUtils.mjs");
+    const { processImageUrls } = imageUtils;
+
     let graphql = await import("../graphql.mjs");
     const { QUERIES, getClient } = graphql;
     const { prompt } = block;
@@ -36,13 +38,13 @@ const generateDigestBlockContent = async (
 
     try {
         const result = await client.query({
-            query: QUERIES.RAG_START,
+            query: QUERIES.SYS_ENTITY_START,
             variables,
         });
 
-        tool = result.data.rag_start.tool;
+        tool = result.data.sys_entity_start.tool;
         if (tool) {
-            const toolObj = JSON.parse(result.data.rag_start.tool);
+            const toolObj = JSON.parse(result.data.sys_entity_start.tool);
             toolCallbackName = toolObj?.toolCallbackName;
         }
 
@@ -67,14 +69,14 @@ const generateDigestBlockContent = async (
             try {
                 content = JSON.stringify({
                     payload: await processImageUrls(
-                        JSON.parse(result.data.rag_start.result).response,
+                        result.data.sys_entity_start.result,
                         process.env.SERVER_URL,
                     ),
                     tool,
                 });
             } catch (e) {
-                logger.error(
-                    `Error while parsing rag_start result: ${e.message}`,
+                logger.log(
+                    `Error while parsing sys_entity_start result: ${e.message}`,
                     user?._id,
                     block?._id,
                 );

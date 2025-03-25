@@ -7,20 +7,17 @@ import {
     UploadIcon,
     VideoIcon,
 } from "lucide-react";
-import { useCallback, useContext, useRef, useState } from "react";
+import { useCallback, useContext, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { FaVideo } from "react-icons/fa";
-import { AuthContext, ServerContext } from "../../App";
+import { AuthContext } from "../../App";
+import { LanguageContext } from "../../contexts/LanguageProvider";
 import { useProgress } from "../../contexts/ProgressContext";
 import { QUERIES } from "../../graphql";
+import { isYoutubeUrl } from "../../utils/urlUtils";
 import LoadingButton from "../editor/LoadingButton";
 import TranslationOptions from "./TranslationOptions";
-import {
-    convertSrtToVtt,
-    detectSubtitleFormat,
-    normalizeVtt,
-} from "./transcribe.utils";
-import { LanguageContext } from "../../contexts/LanguageProvider";
+import { parse, build } from "@aj-archipelago/subvibe";
 
 export function AddTrackOptions({
     url,
@@ -52,7 +49,9 @@ export function AddTrackOptions({
 
     return (
         <Tabs defaultValue={defaultTab || visibleOptions[0]} className="w-full">
-            <TabsList className={`grid w-full ${gridCols} mb-4`}>
+            <TabsList
+                className={`grid w-full grid-cols-2 sm:${gridCols} mb-4 h-auto`}
+            >
                 {options.includes("transcribe") && (
                     <TabsTrigger value="transcribe">
                         <VideoIcon className="h-4 w-4 me-2" />
@@ -179,13 +178,11 @@ function SubtitleUpload({ onAdd }) {
         reader.onload = async (e) => {
             let text = e.target.result;
 
+            const parsed = parse(text);
+
             if (fileExtension === "srt") {
-                console.log(
-                    "fileExtension",
-                    fileExtension,
-                    convertSrtToVtt(text),
-                );
-                text = convertSrtToVtt(text);
+                // Convert SRT to VTT format
+                text = build(parsed.cues, "vtt");
             }
 
             onAdd({
@@ -238,17 +235,20 @@ function ClipboardPaste({ onAdd }) {
         if (!text.trim()) return;
 
         // Detect if the pasted text is in a subtitle format
-        const format = detectSubtitleFormat(text);
+        const parsed = parse(text);
+        const format = parsed?.type;
+        const cues = parsed?.cues;
+
         let processedText = text;
         let outputFormat = "";
         let name = t("Pasted Transcript");
 
         if (format === "srt") {
-            processedText = convertSrtToVtt(text);
+            processedText = build(cues, "vtt");
             outputFormat = "vtt";
             name = t("Pasted Subtitles");
         } else if (format === "vtt") {
-            processedText = normalizeVtt(text);
+            processedText = build(cues, "vtt");
             outputFormat = "vtt";
             name = t("Pasted Subtitles");
         }
@@ -283,6 +283,19 @@ function ClipboardPaste({ onAdd }) {
     );
 }
 
+export const getTranscribeQuery = (modelOption) => {
+    switch (modelOption?.toLowerCase()) {
+        case "neuralSpace":
+            return QUERIES.TRANSCRIBE_NEURALSPACE;
+        case "gemini":
+            return QUERIES.TRANSCRIBE_GEMINI;
+        case "whisper":
+            return QUERIES.TRANSCRIBE;
+        default:
+            return QUERIES.TRANSCRIBE;
+    }
+};
+
 export default function TranscribeVideo({
     url,
     onAdd,
@@ -291,12 +304,14 @@ export default function TranscribeVideo({
     onClose,
 }) {
     const { t } = useTranslation();
-    const { neuralspaceEnabled } = useContext(ServerContext);
+    const isYouTubeVideo = url ? isYoutubeUrl(url) : false;
 
-    // Move state variables from Video.js
     const [language, setLanguage] = useState("");
-    const [selectedModelOption, setSelectedModelOption] = useState("Whisper");
+    const [selectedModelOption, setSelectedModelOption] = useState(
+        isYouTubeVideo ? "Gemini" : "Whisper",
+    );
     const [transcriptionOption, setTranscriptionOption] = useState(null);
+    // eslint-disable-next-line no-unused-vars
     const [requestId, setRequestId] = useState(null);
     const [loading, setLoading] = useState(false);
     const [currentOperation, setCurrentOperation] = useState("");
@@ -313,99 +328,99 @@ export default function TranscribeVideo({
         highlightWords,
     } = transcriptionOption ?? {};
 
-    // Move handleSubmit from Video.js
-    const handleSubmit = useCallback(
-        async () => {
-            if (!url || loading) return;
+    // Update model if URL changes and it's a YouTube video
+    useEffect(() => {
+        if (isYouTubeVideo) {
+            setSelectedModelOption("Gemini");
+        }
+    }, [url, isYouTubeVideo]);
 
-            setCurrentOperation(t("Transcribing"));
-            try {
-                setLoading(true);
+    const handleSubmit = useCallback(async () => {
+        if (!url || loading) return;
 
-                const _query =
-                    selectedModelOption === "NeuralSpace"
-                        ? QUERIES.TRANSCRIBE_NEURALSPACE
-                        : QUERIES.TRANSCRIBE;
+        setCurrentOperation(t("Transcribing"));
+        try {
+            setLoading(true);
 
-                const { data } = await apolloClient.query({
-                    query: _query,
-                    variables: {
-                        file: url,
-                        language,
-                        wordTimestamped,
-                        responseFormat:
-                            responseFormat !== "formatted"
-                                ? responseFormat
-                                : null,
-                        maxLineCount,
-                        maxLineWidth,
-                        maxWordsPerLine,
-                        highlightWords,
-                        async: true,
-                    },
-                    fetchPolicy: "network-only",
-                });
+            const _query = getTranscribeQuery(selectedModelOption);
 
-                const dataResult =
-                    data?.transcribe?.result ||
-                    data?.transcribe_neuralspace?.result;
+            const { data } = await apolloClient.query({
+                query: _query,
+                variables: {
+                    file: url,
+                    language,
+                    wordTimestamped,
+                    responseFormat:
+                        responseFormat !== "formatted" ? responseFormat : null,
+                    maxLineCount,
+                    maxLineWidth,
+                    maxWordsPerLine,
+                    highlightWords,
+                    async: true,
+                },
+                fetchPolicy: "network-only",
+            });
 
-                if (dataResult) {
-                    setRequestId(dataResult);
-                    addProgressToast(
-                        dataResult,
-                        t("Transcribing") + "...",
-                        async (finalData) => {
-                            if (responseFormat === "formatted") {
-                                const response = await apolloClient.query({
-                                    query: QUERIES.FORMAT_PARAGRAPH_TURBO,
-                                    variables: {
-                                        text: finalData,
-                                        async: false,
-                                    },
-                                });
+            const dataResult =
+                data?.transcribe?.result ||
+                data?.transcribe_neuralspace?.result ||
+                data?.transcribe_gemini?.result;
 
-                                finalData =
-                                    response.data?.format_paragraph_turbo
-                                        ?.result;
-                            }
-                            setLoading(false);
-                            onAdd({
-                                text: finalData,
-                                format: responseFormat,
-                                name:
-                                    responseFormat === "vtt"
-                                        ? t("Subtitles")
-                                        : t("Transcript"),
+            if (dataResult) {
+                setRequestId(dataResult);
+                addProgressToast(
+                    dataResult,
+                    t("Transcribing") + "...",
+                    async (finalData) => {
+                        if (responseFormat === "formatted") {
+                            const response = await apolloClient.query({
+                                query: QUERIES.FORMAT_PARAGRAPH_TURBO,
+                                variables: {
+                                    text: finalData,
+                                    async: false,
+                                },
                             });
-                            setRequestId(null);
-                        },
-                    );
-                    onClose?.();
-                }
-            } catch (e) {
-                console.error("Transcription error:", e);
-                setError(e);
-                setLoading(false);
+
+                            finalData =
+                                response.data?.format_paragraph_turbo?.result;
+                        }
+                        setLoading(false);
+                        onAdd({
+                            text: finalData,
+                            format: responseFormat,
+                            name:
+                                responseFormat === "vtt"
+                                    ? t("Subtitles")
+                                    : t("Transcript"),
+                        });
+                        setRequestId(null);
+                    },
+                );
+                onClose?.();
             }
-        },
+        } catch (e) {
+            console.error("Transcription error:", e);
+            setError(e);
+            setLoading(false);
+        }
         // eslint-disable-next-line react-hooks/exhaustive-deps
-        [
-            url,
-            language,
-            wordTimestamped,
-            responseFormat,
-            maxLineCount,
-            maxLineWidth,
-            maxWordsPerLine,
-            highlightWords,
-            loading,
-            async,
-            addProgressToast,
-            t,
-            onClose,
-        ],
-    );
+    }, [
+        url,
+        language,
+        wordTimestamped,
+        responseFormat,
+        maxLineCount,
+        maxLineWidth,
+        maxWordsPerLine,
+        highlightWords,
+        loading,
+        async,
+        addProgressToast,
+        t,
+        onClose,
+        apolloClient,
+        selectedModelOption,
+    ]);
 
     // Add logging for select changes
     const handleFormatChange = (e) => {
@@ -456,16 +471,20 @@ export default function TranscribeVideo({
 
     return (
         <>
-            {neuralspaceEnabled && (
+            {/* <div>
                 <span className="flex items-center pb-2">
-                    <label className="text-sm px-1">{t("Using model")}</label>
+                    <label className="text-sm px-1 whitespace-nowrap">
+                        {t("Using model")}
+                    </label>
                     <ModelSelector
                         loading={loading}
                         selectedModelOption={selectedModelOption}
                         setSelectedModelOption={setSelectedModelOption}
+                        neuralspaceEnabled={neuralspaceEnabled}
+                        disabled={isYouTubeVideo}
                     />
                 </span>
-            )}
+            </div> */}
 
             <div className="options-section flex flex-col justify-between gap-2 mb-5 p-2.5 border border-gray-300 rounded-md bg-neutral-100 w-full">
                 <div className="flex flex-col">
@@ -482,7 +501,7 @@ export default function TranscribeVideo({
                 {responseFormat === "vtt" && (
                     <div className={`flex flex-col`}>
                         <h5 className="font-semibold text-xs text-gray-400 mb-1">
-                            Transcription type
+                            {t("Transcription type")}
                         </h5>
                         <TranscriptionTypeSelector
                             loading={loading}
@@ -491,6 +510,7 @@ export default function TranscribeVideo({
                             handleTranscriptionTypeChange={
                                 handleTranscriptionTypeChange
                             }
+                            selectedModelOption={selectedModelOption}
                         />
                     </div>
                 )}
@@ -507,6 +527,12 @@ export default function TranscribeVideo({
                     />
                 </div>
             </div>
+
+            {error && (
+                <div className="text-red-500 text-sm mb-2">
+                    {t("Error")}: {error.message}
+                </div>
+            )}
 
             <div className="">
                 <LoadingButton
@@ -540,31 +566,15 @@ function FormatSelector({ loading, responseFormat, handleFormatChange }) {
     );
 }
 
-function ModelSelector({
-    loading,
-    selectedModelOption,
-    setSelectedModelOption,
-}) {
-    return (
-        <select
-            className="lb-select ml-2 w-auto flex-shrink-0"
-            disabled={loading}
-            value={selectedModelOption}
-            onChange={(e) => setSelectedModelOption(e.target.value)}
-        >
-            <option value="Whisper">Whisper</option>
-            <option value="NeuralSpace">NeuralSpace</option>
-        </select>
-    );
-}
-
 function TranscriptionTypeSelector({
     loading,
     wordTimestamped,
     maxLineWidth,
     handleTranscriptionTypeChange,
+    selectedModelOption,
 }) {
     const { t } = useTranslation();
+    const isGemini = selectedModelOption?.toLowerCase() === "gemini";
 
     return (
         <select
@@ -584,7 +594,7 @@ function TranscriptionTypeSelector({
             onChange={handleTranscriptionTypeChange}
         >
             <option value="phraseLevel">{t("Phrase level")}</option>
-            <option value="wordLevel">{t("Word level")}</option>
+            {!isGemini && <option value="wordLevel">{t("Word level")}</option>}
             <option value="horizontal">{t("Horizontal")}</option>
             <option value="vertical">{t("Vertical")}</option>
         </select>

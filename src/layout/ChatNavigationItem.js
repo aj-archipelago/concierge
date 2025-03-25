@@ -34,8 +34,17 @@ const ChatNavigationItem = ({
             onClick={() => {
                 if (subItem.href && editingId !== subItem.key) {
                     setEditingId(null);
-                    router.push(subItem.href);
-                    setActiveChatId.mutateAsync(subItem.key);
+                    setActiveChatId
+                        .mutateAsync(subItem.key)
+                        .then(() => {
+                            router.push(subItem.href);
+                        })
+                        .catch((error) => {
+                            console.error(
+                                "Error setting active chat ID:",
+                                error,
+                            );
+                        });
                 }
             }}
         >
@@ -87,7 +96,7 @@ const ChatNavigationItem = ({
                         </>
                     ) : (
                         <>
-                            <div className="basis-3">
+                            <div className="basis-3 hidden sm:block">
                                 <EditIcon
                                     className="h-3 w-3 text-gray-400 hover:text-gray-600 cursor-pointer invisible group-hover:visible"
                                     onClick={(e) => {
@@ -104,7 +113,7 @@ const ChatNavigationItem = ({
                     )}
                 </div>
                 {editingId !== subItem.key && (
-                    <div className="basis-3 text-end">
+                    <div className="basis-3 text-end hidden sm:block">
                         <TrashIcon
                             className="h-3 w-3 text-gray-400 hover:text-gray-600 cursor-pointer invisible group-hover:visible hover:text-red-600"
                             aria-hidden="true"

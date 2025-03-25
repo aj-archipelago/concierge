@@ -1,65 +1,53 @@
-import { useApolloClient } from "@apollo/client";
+import axios from "../../../app/utils/axios-client";
 import { LanguagesIcon } from "lucide-react";
 import { useContext, useState } from "react";
-import { useProgress } from "../../contexts/ProgressContext";
-import { AZURE_VIDEO_TRANSLATE } from "../../graphql";
-import { LOCALES } from "../../utils/constants";
 import { useTranslation } from "react-i18next";
+import { toast } from "react-toastify";
 import { LanguageContext } from "../../contexts/LanguageProvider";
+import { useNotificationsContext } from "../../contexts/NotificationContext";
+import { LOCALES } from "../../utils/constants";
+import { useNotifications } from "../../../app/queries/notifications";
 
-export default function AzureVideoTranslate({ url, onQueued, onComplete }) {
-    const apolloClient = useApolloClient();
+export default function AzureVideoTranslate({ url, onQueued }) {
     const [sourceLocale, setSourceLocale] = useState("en-US");
     const [targetLocale, setTargetLocale] = useState("ar-QA");
-    const { addProgressToast } = useProgress();
     const { t } = useTranslation();
     const { language } = useContext(LanguageContext);
+    const { openNotifications } = useNotificationsContext();
+    const { invalidateNotifications } = useNotifications();
 
-    async function setFinalDataPre(data) {
-        if (data === "[DONE]") {
-            console.log("[DONE] received");
-            throw new Error(
-                "There was an unknown error returned by the translation service. Please try again.",
-            );
-        }
-
-        // Parse the data - handle both single and double JSON stringified cases
+    const handleSubmit = async () => {
         try {
-            data = JSON.parse(data);
-            // Check if it's still a string and potentially another JSON
-            if (typeof data === "string") {
-                data = JSON.parse(data);
-            }
-        } catch (e) {
-            console.error("Error parsing JSON response:", e);
-            throw new Error("Failed to parse translation service response");
-        }
-
-        try {
-            const defaultSubtitlesUrl = data.outputVideoSubtitleWebVttFileUrl;
-            const targetVideoUrl =
-                data.targetLocales[targetLocale].outputVideoFileUrl;
-            const targetSubtitlesUrl =
-                data.targetLocales[targetLocale]
-                    .outputVideoSubtitleWebVttFileUrl;
-
-            onComplete?.(targetLocale, targetVideoUrl, {
-                original: defaultSubtitlesUrl,
-                translated: targetSubtitlesUrl,
+            const { data } = await axios.post("/api/azure-video-translate", {
+                sourceLocale,
+                targetLocale,
+                targetLocaleLabel: new Intl.DisplayNames([language], {
+                    type: "language",
+                }).of(targetLocale),
+                url,
             });
-        } catch (e) {
-            console.error(e);
-            throw e;
+
+            const requestId = data;
+
+            // Invalidate notifications to trigger a refetch
+            invalidateNotifications();
+            // Open notifications panel
+            openNotifications();
+
+            onQueued?.(requestId);
+        } catch (error) {
+            console.error("Error translating video:", error);
+            toast.error("Error queuing video translation");
         }
-    }
+    };
 
     return (
         <>
             <div className="mt-2 p-2 border-t border-b rounded border-gray-200 pt-4 bg-opacity-90 bg-neutral-100 shadow">
                 <div className="flex items-end gap-3">
-                    <div>
-                        <label htmlFor="sourceLocaleSelect">
-                            {t("Source Locale")}
+                    <div className="flex flex-col gap-1">
+                        <label className="text-sm" htmlFor="sourceLocaleSelect">
+                            {t("Original")}
                         </label>
                         <select
                             id="sourceLocaleSelect"
@@ -77,9 +65,9 @@ export default function AzureVideoTranslate({ url, onQueued, onComplete }) {
                         </select>
                     </div>
 
-                    <div>
-                        <label htmlFor="targetLocaleSelect">
-                            {t("Target Locale")}
+                    <div className="flex flex-col gap-1">
+                        <label className="text-sm" htmlFor="targetLocaleSelect">
+                            {t("Translate to")}
                         </label>
                         <select
                             className="lb-select"
@@ -104,34 +92,7 @@ export default function AzureVideoTranslate({ url, onQueued, onComplete }) {
                 <button
                     disabled={!url}
                     className="lb-primary"
-                    onClick={async () => {
-                        const { data } = await apolloClient.query(
-                            {
-                                query: AZURE_VIDEO_TRANSLATE,
-                                variables: {
-                                    mode: "uploadvideooraudiofileandcreatetranslation",
-                                    sourcelocale: sourceLocale,
-                                    targetlocale: targetLocale,
-                                    sourcevideooraudiofilepath: url,
-                                    stream: true,
-                                },
-                            },
-                            { fetchPolicy: "no-cache" },
-                        );
-                        const requestId = data.azure_video_translate.result;
-                        addProgressToast(
-                            requestId,
-                            t("Translating video to {{locale}}", {
-                                locale: new Intl.DisplayNames([language], {
-                                    type: "language",
-                                }).of(targetLocale),
-                            }),
-                            setFinalDataPre,
-                            () => {},
-                            60 * 1000, // consider it failed if no heartbeats are received
-                        );
-                        onQueued?.(requestId);
-                    }}
+                    onClick={handleSubmit}
                 >
                     <LanguagesIcon className="w-4 h-4 me-1" />
                     {t("Translate Video")}

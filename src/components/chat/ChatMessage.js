@@ -12,6 +12,7 @@ import rehypeRaw from "rehype-raw";
 import remarkMath from "remark-math";
 import "katex/dist/katex.min.css";
 import { visit } from "unist-util-visit";
+import ChatImage from "../images/ChatImage";
 
 function transformToCitation(content) {
     return content
@@ -56,10 +57,8 @@ function customMarkdownDirective() {
 
 function convertMessageToMarkdown(message) {
     const { payload, tool } = message;
-
     const citations = tool ? JSON.parse(tool).citations : null;
-
-    let componentIndex = 0;
+    let componentIndex = 0; // Counter for code blocks
 
     if (typeof payload !== "string") {
         return payload;
@@ -93,6 +92,7 @@ function convertMessageToMarkdown(message) {
         p({ node, ...rest }) {
             return <div className="mb-1" {...rest} />;
         },
+        img: ChatImage,
         cd_inline_emotion({ children, emotion }) {
             return (
                 <InlineEmotionDisplay emotion={emotion}>

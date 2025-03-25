@@ -20,6 +20,24 @@ export async function getRecentChatsOfCurrentUser() {
         { _id: 1, title: 1, titleSetByUser: 1 },
     );
 
+    // For chats without a custom title, fetch the first message separately
+    // This approach avoids truncating the messages array in the main cache
+    for (const chat of recentChatsUnordered) {
+        if (!chat.title || chat.title === "New Chat" || chat.title === "") {
+            const chatWithFirstMessage = await Chat.findOne(
+                { _id: chat._id },
+                { messages: { $slice: 1 } },
+            );
+            if (
+                chatWithFirstMessage &&
+                chatWithFirstMessage.messages &&
+                chatWithFirstMessage.messages.length > 0
+            ) {
+                chat._doc.firstMessage = chatWithFirstMessage.messages[0];
+            }
+        }
+    }
+
     const recentChatsMap = recentChatsUnordered.reduce((acc, chat) => {
         acc[chat._id] = chat;
         return acc;
@@ -132,6 +150,20 @@ export async function updateChat(data) {
 }
 
 export async function getChatById(chatId) {
+    // Handle temporary chat IDs from client-side optimistic updates
+    if (chatId && typeof chatId === "string" && chatId.startsWith("temp_")) {
+        // Return a minimal temporary chat object
+        return {
+            _id: chatId,
+            title: "",
+            messages: [],
+            isPublic: false,
+            readOnly: false,
+            isChatLoading: false,
+            isTemporary: true,
+        };
+    }
+
     if (!chatId || !Types.ObjectId.isValid(chatId)) {
         console.error("Invalid chatId: ", chatId);
         return null;
@@ -185,6 +217,17 @@ export async function getChatById(chatId) {
 
 export async function setActiveChatId(activeChatId) {
     if (!activeChatId) throw new Error("activeChatId is required");
+
+    // Handle temporary chat IDs from client-side optimistic updates
+    if (typeof activeChatId === "string" && activeChatId.startsWith("temp_")) {
+        // Return a successful response without making database changes
+        // The real chat ID will be set after the server creates the actual chat
+        return {
+            recentChatIds: [],
+            activeChatId: activeChatId,
+        };
+    }
+
     if (!mongoose.Types.ObjectId.isValid(activeChatId)) {
         throw new Error("Invalid activeChatId");
     }

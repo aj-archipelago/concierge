@@ -18,6 +18,7 @@ import "./App.scss";
 import StoreProvider from "./StoreProvider";
 import { LanguageContext, LanguageProvider } from "./contexts/LanguageProvider";
 import { ThemeProvider } from "./contexts/ThemeProvider";
+import { AutoTranscribeProvider } from "./contexts/AutoTranscribeContext";
 import Layout from "./layout/Layout";
 import "./tailwind.css";
 
@@ -42,17 +43,29 @@ const App = ({
     neuralspaceEnabled,
 }) => {
     const { data: currentUser } = useCurrentUser();
-    const { data: serverUserState } = useUserState();
+    const { data: serverUserState, refetch: refetchServerUserState } =
+        useUserState();
     const updateUserState = useUpdateUserState();
-    const [userState, setUserState] = useState(serverUserState);
+    const [userState, setUserState] = useState(null);
     const debouncedUserState = useDebounce(userState, STATE_DEBOUNCE_TIME);
+    const [refetchCalled, setRefetchCalled] = useState(false);
+
+    const refetchUserState = () => {
+        setRefetchCalled(true);
+        refetchServerUserState();
+    };
 
     useEffect(() => {
-        // set user state from server if it exists
-        if (!userState && serverUserState) {
+        // set user state from server if it exists, but only if there's no client
+        // state yet
+        if (
+            (!userState || refetchCalled) &&
+            JSON.stringify(serverUserState) !== JSON.stringify(userState)
+        ) {
             setUserState(serverUserState);
+            setRefetchCalled(false);
         }
-    }, [userState, serverUserState]);
+    }, [userState, serverUserState, refetchCalled]);
 
     useEffect(() => {
         if (i18next.language !== language) {
@@ -94,19 +107,22 @@ const App = ({
                 <StoreProvider>
                     <ThemeProvider savedTheme={theme}>
                         <LanguageProvider savedLanguage={language}>
-                            <React.StrictMode>
-                                <AuthContext.Provider
-                                    value={{
-                                        user: currentUser,
-                                        userState,
-                                        debouncedUpdateUserState,
-                                    }}
-                                >
-                                    <Layout>
-                                        <Body>{children}</Body>
-                                    </Layout>
-                                </AuthContext.Provider>
-                            </React.StrictMode>
+                            <AutoTranscribeProvider>
+                                <React.StrictMode>
+                                    <AuthContext.Provider
+                                        value={{
+                                            user: currentUser,
+                                            userState,
+                                            refetchUserState,
+                                            debouncedUpdateUserState,
+                                        }}
+                                    >
+                                        <Layout>
+                                            <Body>{children}</Body>
+                                        </Layout>
+                                    </AuthContext.Provider>
+                                </React.StrictMode>
+                            </AutoTranscribeProvider>
                         </LanguageProvider>
                     </ThemeProvider>
                 </StoreProvider>

@@ -8,7 +8,7 @@ function TranslatePage() {
     const { userState, debouncedUpdateUserState } = useContext(AuthContext);
 
     const [inputText, setInputText] = useState("");
-    const [translatedText, setTranslatedText] = useState(null);
+    const [translatedText, setTranslatedText] = useState("");
     const [translationLanguage, setTranslationLanguage] = useState("en");
     const [translationStrategy, setTranslationStrategy] = useState("translate");
 

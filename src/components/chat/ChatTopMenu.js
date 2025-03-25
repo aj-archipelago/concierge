@@ -86,7 +86,7 @@ function ChatTopMenu({ displayState = "full" }) {
             {!docs || docs?.length === 0 ? (
                 <>
                     <span className="text-gray-400">
-                        {displayStateFull && t("No active files")}
+                        {displayStateFull && t("No indexed files")}
                     </span>
                 </>
             ) : (
@@ -95,7 +95,7 @@ function ChatTopMenu({ displayState = "full" }) {
                     <Popover.Button className="flex gap-0 focus:outline-none items-center rounded-md underline hover:text-sky-500 active:text-sky-700">
                         <MdOutlineSdStorage />
                         {displayStateFull
-                            ? t("Files active in this conversation")
+                            ? t("Files indexed in this conversation")
                             : t("Files")}{" "}
                         ({docs?.length})
                         {currentlyIndexing && (

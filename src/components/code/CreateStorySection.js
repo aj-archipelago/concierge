@@ -1,6 +1,6 @@
 "use client";
 
-import axios from "axios";
+import axios from "../../../app/utils/axios-client";
 import { useEffect, useState } from "react";
 import LoadingButton from "../editor/LoadingButton";
 import { basePath } from "../../utils/constants";

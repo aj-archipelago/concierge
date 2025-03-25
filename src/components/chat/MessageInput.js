@@ -1,5 +1,5 @@
 import "highlight.js/styles/github.css";
-import { useContext, useState } from "react";
+import { useContext, useState, useEffect } from "react";
 import { RiSendPlane2Fill } from "react-icons/ri";
 import TextareaAutosize from "react-textarea-autosize";
 import classNames from "../../../app/utils/class-names";
@@ -14,8 +14,8 @@ import {
     loadingError,
 } from "../../stores/fileUploadSlice";
 import { FaFileCirclePlus } from "react-icons/fa6";
-import { IoCloseCircle } from "react-icons/io5";
-import { getFilename, isDocumentUrl, isMediaUrl } from "./MyFilePond";
+import { IoCloseCircle, IoStopCircle } from "react-icons/io5";
+import { getFilename, isDocumentUrl, isMediaUrl } from "../../utils/mediaUtils";
 import { AuthContext } from "../../App";
 import { useAddDocument } from "../../../app/queries/uploadedDocs";
 import {
@@ -34,24 +34,40 @@ function MessageInput({
     enableRag,
     placeholder,
     viewingReadOnlyChat,
+    isStreaming,
+    onStopStreaming,
 }) {
+    const activeChatId = useGetActiveChatId();
+    const activeChat = useGetActiveChat().data;
+
+    const { user, userState, debouncedUpdateUserState } =
+        useContext(AuthContext);
+    const contextId = user?.contextId;
+    const dispatch = useDispatch();
+    const client = useApolloClient();
+    const [isUploadingMedia, setIsUploadingMedia] = useState(false);
+    const addDocument = useAddDocument();
+    const codeRequestId = activeChat?.codeRequestId;
+    const apolloClient = useApolloClient();
+
+    // Only set input value on initial mount or chat change
+    useEffect(() => {
+        if (
+            activeChatId &&
+            userState?.chatInputs &&
+            userState.chatInputs[activeChatId]
+        ) {
+            setInputValue(userState.chatInputs[activeChatId]);
+        } else {
+            setInputValue("");
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [activeChatId]); // Only depend on activeChatId, not userState
+
     const [inputValue, setInputValue] = useState("");
     const [urlsData, setUrlsData] = useState([]);
     const [files, setFiles] = useState([]);
     const [showFileUpload, setShowFileUpload] = useState(false);
-    const client = useApolloClient();
-    const { user } = useContext(AuthContext);
-    const contextId = user?.contextId;
-    const dispatch = useDispatch();
-    const [isUploadingMedia, setIsUploadingMedia] = useState(false);
-    const addDocument = useAddDocument();
-    const handleInputChange = (event) => {
-        setInputValue(event.target.value);
-    };
-    const activeChatId = useGetActiveChatId();
-    const activeChat = useGetActiveChat().data;
-    const codeRequestId = activeChat?.codeRequestId;
-    const apolloClient = useApolloClient();
 
     const prepareMessage = (inputText) => {
         return [
@@ -76,8 +92,25 @@ function MessageInput({
         ];
     };
 
+    const handleInputChange = (event) => {
+        const newValue = event.target.value;
+        setInputValue(newValue);
+
+        if (activeChatId) {
+            debouncedUpdateUserState((prevState) => ({
+                chatInputs: {
+                    ...(prevState?.chatInputs || {}),
+                    [activeChatId]: newValue,
+                },
+            }));
+        }
+    };
+
     const handleFormSubmit = (event) => {
         event.preventDefault();
+        if (isUploadingMedia) {
+            return; // Prevent submission if a file is uploading
+        }
         if (codeRequestId && inputValue) {
             apolloClient.query({
                 query: CODE_HUMAN_INPUT,
@@ -89,6 +122,14 @@ function MessageInput({
             });
 
             setInputValue("");
+            if (activeChatId) {
+                debouncedUpdateUserState((prevState) => ({
+                    chatInputs: {
+                        ...(prevState?.chatInputs || {}),
+                        [activeChatId]: "",
+                    },
+                }));
+            }
             return;
         }
         if (!loading && inputValue) {
@@ -97,6 +138,15 @@ function MessageInput({
             setInputValue("");
             setFiles([]);
             setUrlsData([]);
+
+            if (activeChatId) {
+                debouncedUpdateUserState((prevState) => ({
+                    chatInputs: {
+                        ...(prevState?.chatInputs || {}),
+                        [activeChatId]: "",
+                    },
+                }));
+            }
         }
     };
 
@@ -165,7 +215,7 @@ function MessageInput({
                     setIsUploadingMedia={setIsUploadingMedia}
                 />
             )}
-            <div className="rounded-md border dark:border-zinc-200">
+            <div className="rounded-md border dark:border-zinc-200 mt-3">
                 <form
                     onSubmit={handleFormSubmit}
                     className="flex items-center rounded-md dark:bg-zinc-100"
@@ -201,6 +251,16 @@ function MessageInput({
                                 onKeyDown={(e) => {
                                     if (e.key === "Enter" && !e.shiftKey) {
                                         e.preventDefault();
+                                        // Immediately check upload state again to prevent race conditions
+                                        if (
+                                            isUploadingMedia ||
+                                            loading ||
+                                            inputValue === "" ||
+                                            viewingReadOnlyChat
+                                        ) {
+                                            // Preventing submission during inappropriate times
+                                            return;
+                                        }
                                         handleFormSubmit(e);
                                     }
                                 }}
@@ -221,22 +281,34 @@ function MessageInput({
                     </div>
                     <div className=" pe-4 ps-3 dark:bg-zinc-100 self-stretch flex rounded-e">
                         <div className="pt-4">
-                            <button
-                                type="submit"
-                                disabled={
-                                    codeRequestId
-                                        ? false
-                                        : loading ||
-                                          inputValue === "" ||
-                                          isUploadingMedia ||
-                                          viewingReadOnlyChat
-                                }
-                                className={classNames(
-                                    "text-base rtl:rotate-180 text-emerald-600 hover:text-emerald-600 disabled:text-gray-300 active:text-gray-800 dark:bg-zinc-100",
-                                )}
-                            >
-                                <RiSendPlane2Fill />
-                            </button>
+                            {isStreaming || loading ? (
+                                <button
+                                    type="button"
+                                    onClick={onStopStreaming}
+                                    className={classNames(
+                                        "text-base text-red-600 hover:text-red-700 active:text-red-800 dark:bg-zinc-100",
+                                    )}
+                                >
+                                    <IoStopCircle />
+                                </button>
+                            ) : (
+                                <button
+                                    type="submit"
+                                    disabled={
+                                        codeRequestId
+                                            ? false
+                                            : loading ||
+                                              inputValue === "" ||
+                                              isUploadingMedia ||
+                                              viewingReadOnlyChat
+                                    }
+                                    className={classNames(
+                                        "text-base rtl:rotate-180 text-emerald-600 hover:text-emerald-600 disabled:text-gray-300 active:text-gray-800 dark:bg-zinc-100",
+                                    )}
+                                >
+                                    <RiSendPlane2Fill />
+                                </button>
+                            )}
                         </div>
                     </div>
                 </form>
