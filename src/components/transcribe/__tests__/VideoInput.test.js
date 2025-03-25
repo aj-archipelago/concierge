@@ -269,7 +269,8 @@ describe("checkVideoUrl", () => {
         );
         expect(result).toEqual({
             warning: true,
-            message: "Video is longer than 60 minutes and may be very slow to process. For best results, use videos shorter than 60 minutes."
+            message:
+                "Video is longer than 60 minutes and may be very slow to process. For best results, use videos shorter than 60 minutes.",
         });
     });
 
