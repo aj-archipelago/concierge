@@ -390,8 +390,10 @@ describe("App Component", () => {
             // Clear previous calls
             mockRefetch.mockClear();
 
-            // Call refetchUserState directly - no need for act() here
-            capturedContextValue.refetchUserState();
+            // Call refetchUserState wrapped in act() to handle state updates
+            await act(async () => {
+                capturedContextValue.refetchUserState();
+            });
 
             // Verify the refetch function was called
             expect(mockRefetch).toHaveBeenCalled();

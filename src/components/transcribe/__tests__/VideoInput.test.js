@@ -267,7 +267,10 @@ describe("checkVideoUrl", () => {
         const result = await checkVideoUrl(
             "https://example.com/long-video.mp4",
         );
-        expect(result).toBe("Video length exceeds 60 minutes");
+        expect(result).toEqual({
+            warning: true,
+            message: "Video is longer than 60 minutes and may be very slow to process. For best results, use videos shorter than 60 minutes."
+        });
     });
 
     it("should handle CORS errors for cloud storage URLs", async () => {
