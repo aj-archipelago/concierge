@@ -285,6 +285,7 @@ const worker = new Worker(
                                 `Job ${job.id} timed out after 5 minutes of inactivity`,
                             );
                             subscription?.unsubscribe();
+                            clearInterval(cancellationCheckInterval);
                             retryDbOperation(() =>
                                 RequestProgress.findOneAndUpdate(
                                     { requestId },
@@ -483,6 +484,7 @@ const worker = new Worker(
                                     }
 
                                     clearTimeout(timeoutId);
+                                    clearInterval(cancellationCheckInterval);
                                     subscription.unsubscribe();
                                     resolve(dataObject);
                                     return;
