@@ -42,13 +42,14 @@ export default {
                 name: "GPT 3.5 Turbo",
                 cortexPathwayName: "run_gpt35turbo",
                 cortexModelName: "oai-gpturbo",
-                isDefault: true,
+                isDefault: false,
             },
             {
                 identifier: LLM_IDENTIFIERS.gpt4o,
                 name: "GPT 4o",
                 cortexPathwayName: "run_gpt4_o",
                 cortexModelName: "oai-gpt4o",
+                isDefault: true,
             },
             {
                 identifier: LLM_IDENTIFIERS.gpt4omini,
