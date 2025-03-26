@@ -37,6 +37,8 @@ const chunkText = (text, maxChunkSize = 9) => {
 
 export function useStreamingMessages({ chat, updateChatHook }) {
     const streamingMessageRef = useRef("");
+    const ephemeralContentRef = useRef(""); // Track ephemeral content separately
+    const hasReceivedPersistentRef = useRef(false); // Track if we've received non-ephemeral content
     const messageQueueRef = useRef([]);
     const processingRef = useRef(false);
     const accumulatedInfoRef = useRef({});
@@ -77,6 +79,8 @@ export function useStreamingMessages({ chat, updateChatHook }) {
             clearTimeout(transitionTimeoutRef.current);
         }
         streamingMessageRef.current = "";
+        ephemeralContentRef.current = ""; // Clear ephemeral content
+        hasReceivedPersistentRef.current = false; // Reset persistent content flag
         accumulatedInfoRef.current = {};
         pendingTitleUpdateRef.current = null;
         completingMessageRef.current = false;
@@ -99,7 +103,7 @@ export function useStreamingMessages({ chat, updateChatHook }) {
             return;
 
         completingMessageRef.current = true;
-        const finalContent = streamingMessageRef.current; // Capture final content
+        const finalContent = streamingMessageRef.current; // Only persistent content is saved
 
         // Process any image URLs in the final content
         const processedContent = await processImageUrls(
@@ -185,11 +189,23 @@ export function useStreamingMessages({ chat, updateChatHook }) {
         }
     }, [chat, completeMessage, updateChatHook]);
 
-    const updateStreamingContent = useCallback(async (newContent) => {
+    const updateStreamingContent = useCallback(async (newContent, isEphemeral = false) => {
         if (completingMessageRef.current) return;
-        streamingMessageRef.current = newContent;
-        // Don't process image URLs during streaming
-        setStreamingContent(newContent);
+        
+        if (isEphemeral) {
+            // For ephemeral content, we're already getting the accumulated content
+            // from processChunkQueue
+            ephemeralContentRef.current = newContent;
+            // Set the display content as the combination of persistent + ephemeral
+            setStreamingContent(streamingMessageRef.current + ephemeralContentRef.current);
+        } else {
+            // This is persistent content - save it and mark that we've received some
+            streamingMessageRef.current = newContent;
+            hasReceivedPersistentRef.current = true;
+            // Clear ephemeral when new persistent comes in
+            ephemeralContentRef.current = "";
+            setStreamingContent(newContent);
+        }
     }, []);
 
     const processChunkQueue = useCallback(async () => {
@@ -203,8 +219,16 @@ export function useStreamingMessages({ chat, updateChatHook }) {
         }
 
         const chunk = chunkQueueRef.current.shift();
-        const newContent = streamingMessageRef.current + chunk;
-        await updateStreamingContent(newContent);
+        if (chunk.isEphemeral) {
+            // For ephemeral chunks, accumulate the ephemeral content
+            const newEphemeralContent = ephemeralContentRef.current + chunk.text;
+            await updateStreamingContent(newEphemeralContent, true);
+        } else {
+            // For persistent chunks, update the streaming message
+            const newPersistentContent = streamingMessageRef.current + chunk.text;
+            await updateStreamingContent(newPersistentContent, false);
+        }
+        
         lastChunkTimeRef.current = now;
 
         if (chunkQueueRef.current.length > 0) {
@@ -225,6 +249,7 @@ export function useStreamingMessages({ chat, updateChatHook }) {
 
         try {
             const { progress, result, info } = message;
+            let isEphemeral = false;
 
             if (info) {
                 try {
@@ -232,8 +257,11 @@ export function useStreamingMessages({ chat, updateChatHook }) {
                         typeof info === "string"
                             ? JSON.parse(info)
                             : typeof info === "object"
-                              ? { ...info }
-                              : {};
+                            ? { ...info }
+                            : {};
+                    
+                    // Check if the content is ephemeral
+                    isEphemeral = !!parsedInfo.ephemeral;
 
                     if (
                         parsedInfo.title &&
@@ -293,7 +321,11 @@ export function useStreamingMessages({ chat, updateChatHook }) {
                 if (content) {
                     // Break content into smaller chunks and queue them
                     const chunks = chunkText(content);
-                    chunkQueueRef.current.push(...chunks);
+                    // Add each chunk with its ephemeral flag
+                    chunkQueueRef.current.push(...chunks.map(chunk => ({ 
+                        text: chunk,
+                        isEphemeral
+                    })));
 
                     // Start processing chunks if not already processing
                     if (chunkQueueRef.current.length > 0) {
