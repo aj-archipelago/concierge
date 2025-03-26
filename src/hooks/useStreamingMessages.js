@@ -189,24 +189,29 @@ export function useStreamingMessages({ chat, updateChatHook }) {
         }
     }, [chat, completeMessage, updateChatHook]);
 
-    const updateStreamingContent = useCallback(async (newContent, isEphemeral = false) => {
-        if (completingMessageRef.current) return;
-        
-        if (isEphemeral) {
-            // For ephemeral content, we're already getting the accumulated content
-            // from processChunkQueue
-            ephemeralContentRef.current = newContent;
-            // Set the display content as the combination of persistent + ephemeral
-            setStreamingContent(streamingMessageRef.current + ephemeralContentRef.current);
-        } else {
-            // This is persistent content - save it and mark that we've received some
-            streamingMessageRef.current = newContent;
-            hasReceivedPersistentRef.current = true;
-            // Clear ephemeral when new persistent comes in
-            ephemeralContentRef.current = "";
-            setStreamingContent(newContent);
-        }
-    }, []);
+    const updateStreamingContent = useCallback(
+        async (newContent, isEphemeral = false) => {
+            if (completingMessageRef.current) return;
+
+            if (isEphemeral) {
+                // For ephemeral content, we're already getting the accumulated content
+                // from processChunkQueue
+                ephemeralContentRef.current = newContent;
+                // Set the display content as the combination of persistent + ephemeral
+                setStreamingContent(
+                    streamingMessageRef.current + ephemeralContentRef.current,
+                );
+            } else {
+                // This is persistent content - save it and mark that we've received some
+                streamingMessageRef.current = newContent;
+                hasReceivedPersistentRef.current = true;
+                // Clear ephemeral when new persistent comes in
+                ephemeralContentRef.current = "";
+                setStreamingContent(newContent);
+            }
+        },
+        [],
+    );
 
     const processChunkQueue = useCallback(async () => {
         if (chunkQueueRef.current.length === 0 || completingMessageRef.current)
@@ -221,14 +226,16 @@ export function useStreamingMessages({ chat, updateChatHook }) {
         const chunk = chunkQueueRef.current.shift();
         if (chunk.isEphemeral) {
             // For ephemeral chunks, accumulate the ephemeral content
-            const newEphemeralContent = ephemeralContentRef.current + chunk.text;
+            const newEphemeralContent =
+                ephemeralContentRef.current + chunk.text;
             await updateStreamingContent(newEphemeralContent, true);
         } else {
             // For persistent chunks, update the streaming message
-            const newPersistentContent = streamingMessageRef.current + chunk.text;
+            const newPersistentContent =
+                streamingMessageRef.current + chunk.text;
             await updateStreamingContent(newPersistentContent, false);
         }
-        
+
         lastChunkTimeRef.current = now;
 
         if (chunkQueueRef.current.length > 0) {
@@ -257,9 +264,9 @@ export function useStreamingMessages({ chat, updateChatHook }) {
                         typeof info === "string"
                             ? JSON.parse(info)
                             : typeof info === "object"
-                            ? { ...info }
-                            : {};
-                    
+                              ? { ...info }
+                              : {};
+
                     // Check if the content is ephemeral
                     isEphemeral = !!parsedInfo.ephemeral;
 
@@ -322,10 +329,12 @@ export function useStreamingMessages({ chat, updateChatHook }) {
                     // Break content into smaller chunks and queue them
                     const chunks = chunkText(content);
                     // Add each chunk with its ephemeral flag
-                    chunkQueueRef.current.push(...chunks.map(chunk => ({ 
-                        text: chunk,
-                        isEphemeral
-                    })));
+                    chunkQueueRef.current.push(
+                        ...chunks.map((chunk) => ({
+                            text: chunk,
+                            isEphemeral,
+                        })),
+                    );
 
                     // Start processing chunks if not already processing
                     if (chunkQueueRef.current.length > 0) {
