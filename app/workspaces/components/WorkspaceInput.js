@@ -32,6 +32,11 @@ export default function WorkspaceInput({ onRun, onRunMany }) {
     const updateWorkspaceState = useUpdateWorkspaceState();
     const updateWorkspace = useUpdateWorkspace();
     const promptIds = workspace?.prompts || [];
+    const textRef = useRef(text);
+
+    useEffect(() => {
+        textRef.current = text;
+    }, [text]);
 
     const handleEdit = (prompt) => {
         setSelectedPrompt(prompt);
@@ -41,7 +46,7 @@ export default function WorkspaceInput({ onRun, onRunMany }) {
     const timeoutRef = useRef(null);
 
     useEffect(() => {
-        if (workspaceState?.inputText) {
+        if (workspaceState?.inputText && !textRef.current) {
             setText(workspaceState.inputText);
         }
     }, [workspaceState]);
