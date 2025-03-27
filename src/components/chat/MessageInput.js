@@ -280,6 +280,8 @@ function MessageInput({
                                                 item.type,
                                             )
                                         ) {
+                                            if (item.type.startsWith("text/"))
+                                                continue;
                                             e.preventDefault(); // Prevent default paste behavior
                                             const file = item.getAsFile();
                                             if (file) {
