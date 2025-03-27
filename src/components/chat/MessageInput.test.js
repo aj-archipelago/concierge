@@ -374,7 +374,9 @@ describe("MessageInput", () => {
             spy.mockRestore();
 
             // Simulate what the browser would do with the text part
-            fireEvent.change(input, { target: { value: "Initial text Test pasted text" } });
+            fireEvent.change(input, {
+                target: { value: "Initial text Test pasted text" },
+            });
 
             // Verify that FilePond is visible (for the image part)
             expect(screen.getByTestId("filepond-mock")).toBeInTheDocument();
@@ -449,7 +451,6 @@ describe("MessageInput", () => {
     });
 
     describe("File upload functionality", () => {
-
         it("should not show file upload button when enableRag is false", () => {
             renderMessageInput({ enableRag: false });
             expect(
@@ -533,11 +534,11 @@ describe("MessageInput", () => {
         it("should disable send button when loading", () => {
             // When loading, the stop button should be visible and enabled
             renderMessageInput({ loading: true });
-            
+
             // Verify stop button is visible
             const stopButton = screen.getByRole("button", { type: "button" });
             expect(stopButton).toBeInTheDocument();
-            
+
             // Verify it's enabled (not disabled)
             expect(stopButton).not.toBeDisabled();
         });
@@ -550,11 +551,14 @@ describe("MessageInput", () => {
 
         it("should call onStopStreaming when stop button is clicked during streaming", () => {
             const mockOnStopStreaming = jest.fn();
-            renderMessageInput({ isStreaming: true, onStopStreaming: mockOnStopStreaming });
-            
+            renderMessageInput({
+                isStreaming: true,
+                onStopStreaming: mockOnStopStreaming,
+            });
+
             const stopButton = screen.getByRole("button", { type: "button" });
             fireEvent.click(stopButton);
-            
+
             expect(mockOnStopStreaming).toHaveBeenCalled();
         });
 
@@ -563,12 +567,12 @@ describe("MessageInput", () => {
             // Test with loading: true to verify stop button works during loading
             renderMessageInput({
                 loading: true,
-                onStopStreaming: mockOnStopStreaming
+                onStopStreaming: mockOnStopStreaming,
             });
-            
+
             const stopButton = screen.getByRole("button", { type: "button" });
             fireEvent.click(stopButton);
-            
+
             expect(mockOnStopStreaming).toHaveBeenCalled();
         });
     });
@@ -582,69 +586,82 @@ describe("MessageInput", () => {
                 "https://www.youtube.com/embed/dQw4w9WgXcQ",
                 "https://m.youtube.com/watch?v=dQw4w9WgXcQ",
                 "https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=123s",
-                "https://www.youtube.com/shorts/dQw4w9WgXcQ"
+                "https://www.youtube.com/shorts/dQw4w9WgXcQ",
             ];
-            
+
             // Mock isYoutubeUrl for specific URL checks
-            const isYoutubeUrlMock = jest.fn().mockImplementation(url => {
+            const isYoutubeUrlMock = jest.fn().mockImplementation((url) => {
                 return youtubeUrls.includes(url);
             });
-            
+
             // Apply the mock to the actual function
-            jest.spyOn(require("../../utils/urlUtils"), "isYoutubeUrl")
-                .mockImplementation(isYoutubeUrlMock);
-            
+            jest.spyOn(
+                require("../../utils/urlUtils"),
+                "isYoutubeUrl",
+            ).mockImplementation(isYoutubeUrlMock);
+
             // Mock setUrlsData state updating function to track what URLs are added
             const setUrlsDataMock = jest.fn();
-            jest.spyOn(React, "useState").mockImplementationOnce(() => [[], setUrlsDataMock]);
-            
+            jest.spyOn(React, "useState").mockImplementationOnce(() => [
+                [],
+                setUrlsDataMock,
+            ]);
+
             const mockAddUrl = jest.fn();
-            
+
             renderMessageInput({
                 enableRag: true,
                 initialShowFileUpload: false, // Start with file upload hidden
-                onSend: mockAddUrl
+                onSend: mockAddUrl,
             });
-            
+
             // First, click the file upload button to show FilePond
             const fileButton = screen.getByTestId("file-plus-icon");
             fireEvent.click(fileButton);
-            
+
             // Simulate user pasting each YouTube URL format
             for (const youtubeUrl of youtubeUrls) {
                 // Get the input field and paste a URL
                 const input = screen.getByPlaceholderText("Send a message");
-                
+
                 // Replace the current input value with our YouTube URL
                 fireEvent.change(input, { target: { value: youtubeUrl } });
-                
+
                 // Use the submit button to submit the form
-                const submitButton = screen.getByRole("button", { type: "submit" });
+                const submitButton = screen.getByRole("button", {
+                    type: "submit",
+                });
                 fireEvent.click(submitButton);
-                
+
                 // Verify the input was cleared (meaning the form was processed)
                 expect(input.value).toBe("");
             }
-            
+
             // Verify onSend was called for each YouTube URL
             expect(mockAddUrl).toHaveBeenCalledTimes(youtubeUrls.length);
-            
+
             // Each call should have sent the URL as part of the message
             for (let i = 0; i < youtubeUrls.length; i++) {
                 // Check that each YouTube URL was included in one of the calls
                 const calls = mockAddUrl.mock.calls;
-                
+
                 // Look for the URL in any of the calls
-                const urlFound = calls.some(call => {
+                const urlFound = calls.some((call) => {
                     const param = call[0];
                     // Could be directly the URL string or part of a message structure
-                    return param === youtubeUrls[i] || 
-                           (typeof param === 'string' && param.includes(youtubeUrls[i])) ||
-                           (Array.isArray(param) && param.some(item => 
-                               (typeof item === 'string' && item.includes(youtubeUrls[i]))
-                           ));
+                    return (
+                        param === youtubeUrls[i] ||
+                        (typeof param === "string" &&
+                            param.includes(youtubeUrls[i])) ||
+                        (Array.isArray(param) &&
+                            param.some(
+                                (item) =>
+                                    typeof item === "string" &&
+                                    item.includes(youtubeUrls[i]),
+                            ))
+                    );
                 });
-                
+
                 expect(urlFound).toBe(true);
             }
         });
@@ -709,7 +726,7 @@ describe("MessageInput", () => {
             // Mock isMediaUrl to return true
             jest.spyOn(
                 require("../../utils/mediaUtils"),
-                "isMediaUrl"
+                "isMediaUrl",
             ).mockImplementation(() => true);
 
             fireEvent.change(input, {
