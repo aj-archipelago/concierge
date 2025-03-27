@@ -100,8 +100,10 @@ function Name({ workspace, user }) {
     }, [showCopiedMessage]);
 
     useEffect(() => {
-        setSlug(stringcase.spinalcase(name));
-    }, [name]);
+        if (editing) {
+            setSlug(stringcase.spinalcase(name));
+        }
+    }, [name, editing]);
 
     const updateWorkspace = useMutation({
         queryKey: ["workspace", workspace?._id],

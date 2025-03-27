@@ -3,8 +3,7 @@ import FilePondPluginFileValidateType from "filepond-plugin-file-validate-type";
 import mime from "mime-types";
 import { FilePond, registerPlugin } from "react-filepond";
 import { AiOutlineClose } from "react-icons/ai";
-import { FaYoutube } from "react-icons/fa";
-import { IoIosVideocam } from "react-icons/io";
+import { FaLink } from "react-icons/fa";
 
 // Import FilePond styles
 import "filepond/dist/filepond.min.css";
@@ -61,14 +60,11 @@ function RemoteUrlInputUI({
                     className="flex items-center justify-center"
                     onClick={() => setShowInputUI(!showInputUI)}
                 >
-                    <span className="inline-block px-2">
-                        <FaYoutube />
+                    <span className="inline-block px-1">
+                        <FaLink />
                     </span>
-                    <span className="underline">
-                        {t("Add Remote Media Url")}
-                    </span>
-                    <span className="inline-block px-2">
-                        <IoIosVideocam />
+                    <span className="underline px-1">
+                        {t("Add File from Url")}
                     </span>
                 </button>
             </div>
@@ -116,10 +112,28 @@ function RemoteUrlInputUI({
 // Our app
 function MyFilePond({ addUrl, files, setFiles, setIsUploadingMedia }) {
     const pondRef = useRef(null);
+    const processedFilesRef = useRef(new Set());
     const serverUrl = "/media-helper?useGoogle=true";
     const [inputUrl, setInputUrl] = useState("");
     const [showInputUI, setShowInputUI] = useState(false);
     const { t } = useTranslation();
+
+    // Add effect to automatically process files when added
+    useEffect(() => {
+        if (files && files.length > 0 && pondRef.current) {
+            // Process only the most recently added file if it hasn't been processed yet
+            const lastFile = files[files.length - 1];
+            // Skip processing for YouTube URLs
+            if (
+                lastFile &&
+                !processedFilesRef.current.has(lastFile.id) &&
+                !isYoutubeUrl(lastFile.source?.url)
+            ) {
+                processedFilesRef.current.add(lastFile.id);
+                pondRef.current.processFile(lastFile);
+            }
+        }
+    }, [files]);
 
     const [processingLabel, setProcessingLabel] = useState(
         t("Checking file..."),
@@ -135,7 +149,7 @@ function MyFilePond({ addUrl, files, setFiles, setIsUploadingMedia }) {
             return;
         }
 
-        // If it's a YouTube URL, simulate an instant upload through FilePond's API
+        // If it's a YouTube URL, handle it separately without going through FilePond
         if (isYoutubeUrl(inputUrl)) {
             const youtubeResponse = {
                 url: inputUrl,
@@ -154,10 +168,11 @@ function MyFilePond({ addUrl, files, setFiles, setIsUploadingMedia }) {
             // Pass the response to your existing chat logic
             addUrl(youtubeResponse);
 
-            // Create a pre-loaded file object
+            // Add to FilePond UI with an id to prevent processing
             setFiles((prevFiles) => [
                 ...prevFiles,
                 {
+                    id: `youtube-${Date.now()}`, // Add a unique id
                     source: youtubeResponse,
                     options: {
                         type: "limbo",
@@ -210,7 +225,7 @@ function MyFilePond({ addUrl, files, setFiles, setIsUploadingMedia }) {
 
     return (
         <>
-            <div className="flex items-center justify-center pb-2 h-8">
+            <div className="flex items-center justify-center pb-1 mt-0 h-12">
                 <RemoteUrlInputUI
                     inputUrl={inputUrl}
                     setInputUrl={setInputUrl}
@@ -219,7 +234,7 @@ function MyFilePond({ addUrl, files, setFiles, setIsUploadingMedia }) {
                     setShowInputUI={setShowInputUI}
                 />
             </div>
-            <div className="flex">
+            <div className="flex mt-0 mb-0">
                 <div className="flex-grow w-full">
                     <FilePond
                         ref={pondRef}
@@ -413,7 +428,7 @@ function MyFilePond({ addUrl, files, setFiles, setIsUploadingMedia }) {
 
                                 let cloudProgressInterval;
                                 request.upload.onprogress = (e) => {
-                                    console.log(e);
+                                    //console.log(e);
                                     if (e.lengthComputable) {
                                         totalBytes = e.total; // Store total bytes for later use
                                         // First 50% is actual upload progress

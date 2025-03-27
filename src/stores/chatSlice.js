@@ -131,10 +131,10 @@ export const chatSlice = createSlice({
             }
         },
     },
-    extraReducers: {
-        [toggleAJArticles]: (state) => {
+    extraReducers: (builder) => {
+        builder.addCase(toggleAJArticles, (state) => {
             state.includeAJArticles = !state.includeAJArticles;
-        },
+        });
     },
 });
 

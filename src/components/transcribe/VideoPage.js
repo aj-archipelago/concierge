@@ -203,7 +203,8 @@ function EditableTranscriptSelect({
         if (
             transcripts &&
             transcripts.length > 0 &&
-            !transcripts[activeTranscript]
+            (activeTranscript >= transcripts.length ||
+                !transcripts[activeTranscript])
         ) {
             setActiveTranscript(0);
         }
@@ -1104,11 +1105,29 @@ function VideoPage() {
                 userState.transcribe?.activeTranscript !==
                     prevUserStateRef.current?.transcribe?.activeTranscript
             ) {
-                setActiveTranscript(userState.transcribe.activeTranscript);
+                const transcriptsArray =
+                    userState.transcribe?.transcripts || [];
+                const requestedIndex = userState.transcribe.activeTranscript;
+
+                // Ensure the index is valid
+                if (
+                    requestedIndex < transcriptsArray.length &&
+                    transcriptsArray[requestedIndex]
+                ) {
+                    setActiveTranscript(requestedIndex);
+                } else if (transcriptsArray.length > 0) {
+                    // If invalid but we have transcripts, set to first one
+                    setActiveTranscript(0);
+                    // Update stored state as well
+                    updateUserState({
+                        activeTranscript: 0,
+                    });
+                }
             }
 
             prevUserStateRef.current = userState;
         }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [userState]);
 
     useEffect(() => {
@@ -1299,9 +1318,12 @@ function VideoPage() {
     }, [youtubePlayer, handleYTStateChange]);
 
     const handleActiveTranscriptChange = (index) => {
-        setActiveTranscript(index);
+        // Ensure index is valid or default to 0
+        const validIndex = index >= 0 && index < transcripts.length ? index : 0;
+
+        setActiveTranscript(validIndex);
         updateUserState({
-            activeTranscript: index,
+            activeTranscript: validIndex,
         });
     };
 

@@ -28,7 +28,7 @@ export const makeStore = () => {
             translate: translateReducer,
             doc: docReducer,
             mainPaneIndexer: mainPaneIndexerReducer,
+            fileUpload: fileUploadReducer,
         },
-        fileUpload: fileUploadReducer,
     });
 };
