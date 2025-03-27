@@ -125,6 +125,10 @@ export function isImageUrl(url) {
 }
 
 export function isVideoUrl(url) {
+    // Check if it's a YouTube URL first
+    if (isYoutubeUrl(url)) {
+        return true;
+    }
     const urlExt = getExtension(url);
     const mimeType = mime.contentType(urlExt);
     return VIDEO_EXTENSIONS.includes(urlExt) && mimeType.startsWith("video/");

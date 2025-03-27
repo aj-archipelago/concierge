@@ -1127,6 +1127,7 @@ function VideoPage() {
 
             prevUserStateRef.current = userState;
         }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [userState]);
 
     useEffect(() => {

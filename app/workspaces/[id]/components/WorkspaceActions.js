@@ -103,7 +103,7 @@ function Name({ workspace, user }) {
         if (editing) {
             setSlug(stringcase.spinalcase(name));
         }
-    }, [name]);
+    }, [name, editing]);
 
     const updateWorkspace = useMutation({
         queryKey: ["workspace", workspace?._id],
