@@ -4,7 +4,6 @@ import mime from "mime-types";
 import { FilePond, registerPlugin } from "react-filepond";
 import { AiOutlineClose } from "react-icons/ai";
 import { FaLink } from "react-icons/fa";
-import { IoIosVideocam } from "react-icons/io";
 
 // Import FilePond styles
 import "filepond/dist/filepond.min.css";
