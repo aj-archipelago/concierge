@@ -31,3 +31,52 @@ Object.defineProperty(window, "matchMedia", {
         dispatchEvent: jest.fn(),
     })),
 });
+
+// Mock require.context for webpack compatibility in jest
+require.context = (base = ".", scanSubDirectories = false, regularExpression = /\.js$/) => {
+    const fs = require("fs");
+    const path = require("path");
+    
+    const files = {};
+    
+    function readDirectory(directory) {
+        fs.readdirSync(directory).forEach((file) => {
+            const fullPath = path.resolve(directory, file);
+            
+            if (fs.statSync(fullPath).isDirectory()) {
+                if (scanSubDirectories) {
+                    readDirectory(fullPath);
+                }
+                return;
+            }
+            
+            if (!regularExpression.test(fullPath)) {
+                return;
+            }
+            
+            files[fullPath] = true;
+        });
+    }
+    
+    try {
+        readDirectory(path.resolve(__dirname, base));
+    } catch (error) {
+        // Just return an empty context if the directory doesn't exist
+    }
+    
+    const keys = Object.keys(files);
+    const context = function(file) {
+        // Simple handling for taxonomy-sets
+        if (file.includes('taxonomy-sets')) {
+            return [];
+        }
+        // Return empty object as default
+        return {};
+    };
+    
+    context.keys = () => keys;
+    context.resolve = (key) => key;
+    context.id = base;
+    
+    return context;
+};

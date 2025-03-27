@@ -1,3 +1,4 @@
+import React from "react";
 import "highlight.js/styles/github.css";
 import { useContext, useState, useEffect } from "react";
 import { RiSendPlane2Fill } from "react-icons/ri";
@@ -234,6 +235,8 @@ function MessageInput({
                                         setShowFileUpload(!showFileUpload)
                                     }
                                     className="text-gray-500 group flex items-center text-base font-medium hover:text-gray-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/75 cursor-pointer"
+                                    role="button"
+                                    aria-label="file upload"
                                 />
                             ) : (
                                 <IoCloseCircle
@@ -241,6 +244,8 @@ function MessageInput({
                                         setShowFileUpload(!showFileUpload)
                                     }
                                     className="text-gray-500 group flex items-center text-base font-medium hover:text-gray-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/75 cursor-pointer"
+                                    role="button"
+                                    aria-label="close"
                                 />
                             )}
                         </div>
@@ -254,6 +259,7 @@ function MessageInput({
                                     enableRag ? "px-1" : "px-3 rounded-s",
                                 )}
                                 rows={1}
+                                disabled={viewingReadOnlyChat}
                                 onKeyDown={(e) => {
                                     if (e.key === "Enter" && !e.shiftKey) {
                                         e.preventDefault();

@@ -28,8 +28,8 @@ describe("LLM Initialization", () => {
         // Create an LLM without identifier
         const llmWithoutIdentifier = await LLM.create({
             name: "Test LLM",
-            cortexModelName: "azure-turbo-chat",
-            cortexPathwayName: "run_gpt35turbo",
+            cortexModelName: "oai-gpt4o",
+            cortexPathwayName: "run_gpt4_o.js",
             isDefault: false,
             identifier: null,
         });
@@ -37,7 +37,7 @@ describe("LLM Initialization", () => {
         await seed();
 
         const updatedLLM = await LLM.findById(llmWithoutIdentifier._id);
-        expect(updatedLLM.identifier).toBe("gpt35turbo");
+        expect(updatedLLM.identifier).toBe("gpt4o");
     });
 
     test("should upsert LLMs from config", async () => {
@@ -49,7 +49,7 @@ describe("LLM Initialization", () => {
         // Verify default LLM exists
         const defaultLLM = await LLM.findOne({ isDefault: true });
         expect(defaultLLM).toBeTruthy();
-        expect(defaultLLM.identifier).toBe("gpt35turbo");
+        expect(defaultLLM.identifier).toBe("gpt4o");
     });
 
     test("should handle LLMs missing from config", async () => {
