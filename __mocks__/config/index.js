@@ -1,9 +1,9 @@
 const taxonomySets = [
     {
-        setName: 'news',
+        setName: "news",
         topics: [],
-        tags: []
-    }
+        tags: [],
+    },
 ];
 
 const LLM_IDENTIFIERS = {
@@ -22,7 +22,8 @@ const LLM_IDENTIFIERS = {
 module.exports = {
     global: {
         siteTitle: "Labeeb",
-        getLogo: (language) => `/app/assets/labeeb-logo-${language === "ar" ? "ar" : "en"}.png`,
+        getLogo: (language) =>
+            `/app/assets/labeeb-logo-${language === "ar" ? "ar" : "en"}.png`,
         getTosContent: async () => "",
         getSidebarLogo: () => "/app/assets/sidebar-logo.png",
         getPublicGraphQLEndpoint: (graphQLEndpoint) => graphQLEndpoint,
@@ -69,4 +70,4 @@ module.exports = {
     auth: {
         provider: "entra",
     },
-}; 
+};

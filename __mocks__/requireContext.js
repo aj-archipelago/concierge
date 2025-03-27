@@ -5,7 +5,7 @@ function requireContext(
 ) {
     function Module(file) {
         // Special handling for taxonomy sets
-        if (file.includes('taxonomy-sets')) {
+        if (file.includes("taxonomy-sets")) {
             return [];
         }
         return {};

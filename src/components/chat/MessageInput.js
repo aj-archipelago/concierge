@@ -314,15 +314,17 @@ function MessageInput({
                                                 ]);
                                             }
                                         } else if (item.type === "text/plain") {
-                                            // Handle text separately if we also have images
+                                            // Capture current value of hasImageFile in a closure
+                                            const currentHasImageFile =
+                                                hasImageFile;
                                             item.getAsString((text) => {
-                                                if (!hasImageFile) {
+                                                if (!currentHasImageFile) {
                                                     setInputValue(text);
                                                 }
                                             });
                                         }
                                     }
-                                    
+
                                     // Prevent default only if we handled an image file
                                     if (hasImageFile) {
                                         e.preventDefault();

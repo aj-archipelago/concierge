@@ -1,147 +1,160 @@
-import React from 'react';
-import { render, screen, fireEvent, act } from '@testing-library/react';
-import '@testing-library/jest-dom';
-import MessageInput from './MessageInput';
-import { AuthContext } from '../../App';
-import { Provider } from 'react-redux';
-import { configureStore } from '@reduxjs/toolkit';
-import fileUploadReducer from '../../stores/fileUploadSlice';
-import { ApolloClient, InMemoryCache, ApolloProvider } from '@apollo/client';
+import React from "react";
+import { render, screen, fireEvent, act } from "@testing-library/react";
+import "@testing-library/jest-dom";
+import MessageInput from "./MessageInput";
+import { AuthContext } from "../../App";
+import { Provider } from "react-redux";
+import { configureStore } from "@reduxjs/toolkit";
+import fileUploadReducer from "../../stores/fileUploadSlice";
+import { ApolloClient, InMemoryCache, ApolloProvider } from "@apollo/client";
 
 // Mock the @uidotdev/usehooks module
-jest.mock('@uidotdev/usehooks', () => ({
+jest.mock("@uidotdev/usehooks", () => ({
     useDebounce: (value) => value,
 }));
 
 // Mock the config module
-jest.mock('config', () => ({
+jest.mock("config", () => ({
     default: {
         chat: {
-            botName: 'Test Bot',
+            botName: "Test Bot",
         },
     },
 }));
 
 // Directly mock Tos.js since it's importing config which leads to taxonomySets
-jest.mock('../../components/Tos', () => ({
+jest.mock("../../components/Tos", () => ({
     __esModule: true,
-    default: () => <div>Mock Tos</div>
+    default: () => <div>Mock Tos</div>,
 }));
 
 // Mock the Layout component to avoid the require.context in Sidebar
-jest.mock('../../layout/Layout', () => ({
+jest.mock("../../layout/Layout", () => ({
     __esModule: true,
-    default: ({ children }) => <div>{children}</div>
+    default: ({ children }) => <div>{children}</div>,
 }));
 
 // Mock the DynamicFilePond component
-jest.mock('./MyFilePond', () => {
-    const MockFilePond = ({ addUrl, files, setFiles }) => (
-        <div data-testid="filepond-mock">
-            <button
-                data-testid="add-url-button"
-                onClick={() => addUrl({
-                    url: 'https://example.com/doc.pdf',
-                    type: 'application/pdf'
-                })}
-            >
-                Add URL
-            </button>
-            {files && files.map((file, index) => (
-                <div key={index} data-testid={`file-${index}`}>{file.source.name}</div>
-            ))}
-        </div>
-    );
-    return MockFilePond;
-}, { virtual: true });
+jest.mock(
+    "./MyFilePond",
+    () => {
+        const MockFilePond = ({ addUrl, files, setFiles }) => (
+            <div data-testid="filepond-mock">
+                <button
+                    data-testid="add-url-button"
+                    onClick={() =>
+                        addUrl({
+                            url: "https://example.com/doc.pdf",
+                            type: "application/pdf",
+                        })
+                    }
+                >
+                    Add URL
+                </button>
+                {files &&
+                    files.map((file, index) => (
+                        <div key={index} data-testid={`file-${index}`}>
+                            {file.source.name}
+                        </div>
+                    ))}
+            </div>
+        );
+        return MockFilePond;
+    },
+    { virtual: true },
+);
 
 // Mock the dynamic import to properly return the component
-jest.mock('next/dynamic', () => () => {
+jest.mock("next/dynamic", () => () => {
     const MockComponent = (props) => {
-        const DynamicComponent = require('./MyFilePond');
+        const DynamicComponent = require("./MyFilePond");
         return <DynamicComponent {...props} />;
     };
-    MockComponent.displayName = 'DynamicFilepond';
+    MockComponent.displayName = "DynamicFilepond";
     return MockComponent;
 });
 
 // Mock the required hooks
-jest.mock('../../../app/queries/chats', () => ({
-    useGetActiveChat: () => ({ data: { _id: 'test-chat-id', codeRequestId: null } }),
-    useGetActiveChatId: () => 'test-chat-id',
+jest.mock("../../../app/queries/chats", () => ({
+    useGetActiveChat: () => ({
+        data: { _id: "test-chat-id", codeRequestId: null },
+    }),
+    useGetActiveChatId: () => "test-chat-id",
 }));
 
-jest.mock('../../../app/queries/uploadedDocs', () => ({
+jest.mock("../../../app/queries/uploadedDocs", () => ({
     useAddDocument: () => ({
         mutateAsync: jest.fn(),
     }),
 }));
 
 // Mock the required icons
-jest.mock('react-icons/ri', () => ({
+jest.mock("react-icons/ri", () => ({
     RiSendPlane2Fill: () => <div data-testid="send-icon">Send Icon</div>,
 }));
 
-jest.mock('react-icons/fa6', () => ({
-    FaFileCirclePlus: () => <div data-testid="file-plus-icon">File Plus Icon</div>,
+jest.mock("react-icons/fa6", () => ({
+    FaFileCirclePlus: () => (
+        <div data-testid="file-plus-icon">File Plus Icon</div>
+    ),
 }));
 
-jest.mock('react-icons/io5', () => ({
+jest.mock("react-icons/io5", () => ({
     IoCloseCircle: () => <div data-testid="close-icon">Close Icon</div>,
     IoStopCircle: () => <div data-testid="stop-icon">Stop Icon</div>,
 }));
 
 // Mock the graphql queries
-jest.mock('../../graphql', () => ({
-    COGNITIVE_INSERT: 'COGNITIVE_INSERT',
-    CODE_HUMAN_INPUT: 'CODE_HUMAN_INPUT',
+jest.mock("../../graphql", () => ({
+    COGNITIVE_INSERT: "COGNITIVE_INSERT",
+    CODE_HUMAN_INPUT: "CODE_HUMAN_INPUT",
     QUERIES: {
-        SYS_ENTITY_START: 'SYS_ENTITY_START',
+        SYS_ENTITY_START: "SYS_ENTITY_START",
     },
 }));
 
 // Mock the mediaUtils
-jest.mock('../../utils/mediaUtils', () => ({
+jest.mock("../../utils/mediaUtils", () => ({
     getFilename: jest.fn(),
     isDocumentUrl: jest.fn(),
     isMediaUrl: jest.fn(),
-    ACCEPTED_FILE_TYPES: ['image/png', 'image/jpeg', 'image/gif'],
+    ACCEPTED_FILE_TYPES: ["image/png", "image/jpeg", "image/gif"],
 }));
 
 // Mock the components that use ESM modules
-jest.mock('../chat/ChatMessage', () => ({
+jest.mock("../chat/ChatMessage", () => ({
     __esModule: true,
     default: () => <div>Mock Chat Message</div>,
 }));
 
-jest.mock('../chat/MessageList', () => ({
+jest.mock("../chat/MessageList", () => ({
     __esModule: true,
     default: () => <div>Mock Message List</div>,
 }));
 
-jest.mock('../chat/ChatMessages', () => ({
+jest.mock("../chat/ChatMessages", () => ({
     __esModule: true,
     default: () => <div>Mock Chat Messages</div>,
 }));
 
-jest.mock('../chat/ChatContent', () => ({
+jest.mock("../chat/ChatContent", () => ({
     __esModule: true,
     default: () => <div>Mock Chat Content</div>,
 }));
 
-jest.mock('../chat/ChatBox', () => ({
+jest.mock("../chat/ChatBox", () => ({
     __esModule: true,
     default: () => <div>Mock Chat Box</div>,
 }));
 
-describe('MessageInput', () => {
+describe("MessageInput", () => {
     const mockOnSend = jest.fn();
     const mockOnStopStreaming = jest.fn();
     const mockDebouncedUpdateUserState = jest.fn();
     const mockUser = {
-        contextId: 'test-context-id',
-        aiName: 'Test AI',
-        aiStyle: 'default',
+        contextId: "test-context-id",
+        aiName: "Test AI",
+        aiStyle: "default",
         aiMemorySelfModify: false,
     };
 
@@ -157,10 +170,10 @@ describe('MessageInput', () => {
         cache: new InMemoryCache(),
         defaultOptions: {
             watchQuery: {
-                fetchPolicy: 'no-cache',
+                fetchPolicy: "no-cache",
             },
             query: {
-                fetchPolicy: 'no-cache',
+                fetchPolicy: "no-cache",
             },
         },
     });
@@ -169,11 +182,14 @@ describe('MessageInput', () => {
         return render(
             <ApolloProvider client={client}>
                 <Provider store={store}>
-                    <AuthContext.Provider value={{ 
-                        user: mockUser,
-                        userState: {},
-                        debouncedUpdateUserState: mockDebouncedUpdateUserState
-                    }}>
+                    <AuthContext.Provider
+                        value={{
+                            user: mockUser,
+                            userState: {},
+                            debouncedUpdateUserState:
+                                mockDebouncedUpdateUserState,
+                        }}
+                    >
                         <MessageInput
                             onSend={mockOnSend}
                             loading={false}
@@ -186,7 +202,7 @@ describe('MessageInput', () => {
                         />
                     </AuthContext.Provider>
                 </Provider>
-            </ApolloProvider>
+            </ApolloProvider>,
         );
     };
 
@@ -195,36 +211,41 @@ describe('MessageInput', () => {
         mockDebouncedUpdateUserState.mockClear();
     });
 
-    describe('Chat input state persistence', () => {
-        it('should update user state when input changes', () => {
+    describe("Chat input state persistence", () => {
+        it("should update user state when input changes", () => {
             renderMessageInput();
-            const input = screen.getByPlaceholderText('Send a message');
-            
-            fireEvent.change(input, { target: { value: 'Test message' } });
-            
-            expect(mockDebouncedUpdateUserState).toHaveBeenCalledWith(expect.any(Function));
+            const input = screen.getByPlaceholderText("Send a message");
+
+            fireEvent.change(input, { target: { value: "Test message" } });
+
+            expect(mockDebouncedUpdateUserState).toHaveBeenCalledWith(
+                expect.any(Function),
+            );
             const updateFn = mockDebouncedUpdateUserState.mock.calls[0][0];
             expect(updateFn({ chatInputs: {} })).toEqual({
                 chatInputs: {
-                    'test-chat-id': 'Test message'
-                }
+                    "test-chat-id": "Test message",
+                },
             });
         });
 
-        it('should initialize input value from user state', () => {
-            const savedInput = 'Saved message';
+        it("should initialize input value from user state", () => {
+            const savedInput = "Saved message";
             render(
                 <ApolloProvider client={client}>
                     <Provider store={store}>
-                        <AuthContext.Provider value={{ 
-                            user: mockUser,
-                            userState: {
-                                chatInputs: {
-                                    'test-chat-id': savedInput
-                                }
-                            },
-                            debouncedUpdateUserState: mockDebouncedUpdateUserState
-                        }}>
+                        <AuthContext.Provider
+                            value={{
+                                user: mockUser,
+                                userState: {
+                                    chatInputs: {
+                                        "test-chat-id": savedInput,
+                                    },
+                                },
+                                debouncedUpdateUserState:
+                                    mockDebouncedUpdateUserState,
+                            }}
+                        >
                             <MessageInput
                                 onSend={mockOnSend}
                                 loading={false}
@@ -236,342 +257,377 @@ describe('MessageInput', () => {
                             />
                         </AuthContext.Provider>
                     </Provider>
-                </ApolloProvider>
+                </ApolloProvider>,
             );
-            
-            const input = screen.getByPlaceholderText('Send a message');
+
+            const input = screen.getByPlaceholderText("Send a message");
             expect(input.value).toBe(savedInput);
         });
     });
 
-    describe('Pasting functionality', () => {
-        it('should handle pasting plain text', () => {
+    describe("Pasting functionality", () => {
+        it("should handle pasting plain text", () => {
             renderMessageInput();
-            const input = screen.getByPlaceholderText('Send a message');
-            
+            const input = screen.getByPlaceholderText("Send a message");
+
             // Simulate pasting plain text
             const pasteEvent = {
                 clipboardData: {
                     items: [
                         {
-                            type: 'text/plain',
-                            getAsString: (callback) => callback('Test pasted text'),
+                            type: "text/plain",
+                            getAsString: (callback) =>
+                                callback("Test pasted text"),
                         },
                     ],
                 },
             };
-            
+
             fireEvent.paste(input, pasteEvent);
-            
-            expect(input.value).toBe('Test pasted text');
+
+            expect(input.value).toBe("Test pasted text");
         });
 
-        it('should handle pasting image data', () => {
+        it("should handle pasting image data", () => {
             renderMessageInput();
-            const input = screen.getByPlaceholderText('Send a message');
-            
+            const input = screen.getByPlaceholderText("Send a message");
+
             // Create a mock file
-            const mockFile = new File(['test-image-data'], 'test.png', { type: 'image/png' });
-            
+            const mockFile = new File(["test-image-data"], "test.png", {
+                type: "image/png",
+            });
+
             // Simulate pasting image data
             const pasteEvent = {
                 clipboardData: {
                     items: [
                         {
-                            kind: 'file',
-                            type: 'image/png',
+                            kind: "file",
+                            type: "image/png",
                             getAsFile: () => mockFile,
                         },
                     ],
                 },
                 preventDefault: jest.fn(),
             };
-            
+
             // First click the file button to show FilePond
-            const fileButton = screen.getByTestId('file-plus-icon');
+            const fileButton = screen.getByTestId("file-plus-icon");
             fireEvent.click(fileButton);
-            
+
             fireEvent.paste(input, pasteEvent);
-            
+
             // Checking if file upload is visible - if our mocking worked, this should exist
-            expect(screen.getByTestId('filepond-mock')).toBeInTheDocument();
+            expect(screen.getByTestId("filepond-mock")).toBeInTheDocument();
         });
 
-        it('should handle pasting multiple items', () => {
+        it("should handle pasting multiple items", () => {
             renderMessageInput();
-            const input = screen.getByPlaceholderText('Send a message');
-            
+            const input = screen.getByPlaceholderText("Send a message");
+
             // Create a mock file
-            const mockFile = new File(['test-image-data'], 'test.png', { type: 'image/png' });
-            
+            const mockFile = new File(["test-image-data"], "test.png", {
+                type: "image/png",
+            });
+
             // Simulate pasting both text and image
             const pasteEvent = {
                 clipboardData: {
                     items: [
                         {
-                            type: 'text/plain',
-                            getAsString: (callback) => callback('Test pasted text'),
+                            type: "text/plain",
+                            getAsString: (callback) =>
+                                callback("Test pasted text"),
                         },
                         {
-                            kind: 'file',
-                            type: 'image/png',
+                            kind: "file",
+                            type: "image/png",
                             getAsFile: () => mockFile,
                         },
                     ],
                 },
                 preventDefault: jest.fn(),
             };
-            
+
             // First click the file button to show FilePond
-            const fileButton = screen.getByTestId('file-plus-icon');
+            const fileButton = screen.getByTestId("file-plus-icon");
             fireEvent.click(fileButton);
-            
+
             fireEvent.paste(input, pasteEvent);
-            
+
             // Check if both text and FilePond are handled
-            expect(input.value).toBe('Test pasted text');
-            expect(screen.getByTestId('filepond-mock')).toBeInTheDocument();
+            expect(input.value).toBe("Test pasted text");
+            expect(screen.getByTestId("filepond-mock")).toBeInTheDocument();
         });
     });
 
-    describe('Form submission', () => {
-        it('should submit form with text input', () => {
+    describe("Form submission", () => {
+        it("should submit form with text input", () => {
             renderMessageInput({ isStreaming: false });
-            const input = screen.getByPlaceholderText('Send a message');
-            const submitButton = screen.getByRole('button', { name: /send/i });
-            
-            fireEvent.change(input, { target: { value: 'Test message' } });
+            const input = screen.getByPlaceholderText("Send a message");
+            const submitButton = screen.getByRole("button", { name: /send/i });
+
+            fireEvent.change(input, { target: { value: "Test message" } });
             fireEvent.click(submitButton);
-            
-            expect(mockOnSend).toHaveBeenCalledWith('Test message');
-            expect(input.value).toBe('');
+
+            expect(mockOnSend).toHaveBeenCalledWith("Test message");
+            expect(input.value).toBe("");
         });
 
-        it('should not submit when loading', () => {
+        it("should not submit when loading", () => {
             renderMessageInput({ loading: true, isStreaming: false });
-            const input = screen.getByPlaceholderText('Send a message');
-            const stopButton = screen.getByRole('button', { name: /stop/i });
-            
-            fireEvent.change(input, { target: { value: 'Test message' } });
+            const input = screen.getByPlaceholderText("Send a message");
+            const stopButton = screen.getByRole("button", { name: /stop/i });
+
+            fireEvent.change(input, { target: { value: "Test message" } });
             fireEvent.click(stopButton);
-            
+
             expect(mockOnSend).not.toHaveBeenCalled();
         });
 
-        it('should not submit when input is empty', () => {
+        it("should not submit when input is empty", () => {
             renderMessageInput();
-            const submitButton = screen.getByRole('button', { name: /send/i });
-            
+            const submitButton = screen.getByRole("button", { name: /send/i });
+
             fireEvent.click(submitButton);
-            
+
             expect(mockOnSend).not.toHaveBeenCalled();
         });
 
-        it('should handle Enter key submission', () => {
+        it("should handle Enter key submission", () => {
             renderMessageInput();
-            const input = screen.getByPlaceholderText('Send a message');
-            
-            fireEvent.change(input, { target: { value: 'Test message' } });
-            fireEvent.keyDown(input, { key: 'Enter', shiftKey: false });
-            
-            expect(mockOnSend).toHaveBeenCalledWith('Test message');
-            expect(input.value).toBe('');
+            const input = screen.getByPlaceholderText("Send a message");
+
+            fireEvent.change(input, { target: { value: "Test message" } });
+            fireEvent.keyDown(input, { key: "Enter", shiftKey: false });
+
+            expect(mockOnSend).toHaveBeenCalledWith("Test message");
+            expect(input.value).toBe("");
         });
 
-        it('should not submit on Enter when loading', () => {
+        it("should not submit on Enter when loading", () => {
             renderMessageInput({ loading: true });
-            const input = screen.getByPlaceholderText('Send a message');
-            
-            fireEvent.change(input, { target: { value: 'Test message' } });
-            fireEvent.keyDown(input, { key: 'Enter', shiftKey: false });
-            
+            const input = screen.getByPlaceholderText("Send a message");
+
+            fireEvent.change(input, { target: { value: "Test message" } });
+            fireEvent.keyDown(input, { key: "Enter", shiftKey: false });
+
             expect(mockOnSend).not.toHaveBeenCalled();
         });
 
-        it('should allow newline with Shift+Enter', () => {
+        it("should allow newline with Shift+Enter", () => {
             renderMessageInput();
-            const input = screen.getByPlaceholderText('Send a message');
-            
-            fireEvent.keyDown(input, { key: 'Enter', shiftKey: true });
-            
+            const input = screen.getByPlaceholderText("Send a message");
+
+            fireEvent.keyDown(input, { key: "Enter", shiftKey: true });
+
             expect(mockOnSend).not.toHaveBeenCalled();
         });
     });
 
-    describe('File upload functionality', () => {
-        it('should toggle file upload visibility', () => {
+    describe("File upload functionality", () => {
+        it("should toggle file upload visibility", () => {
             // Skip this test for now since the implementation details of the component
             // with state and useEffect make it difficult to test with just the testing library
             // We already test the core functionality in other tests
         });
 
-        it('should not show file upload button when enableRag is false', () => {
+        it("should not show file upload button when enableRag is false", () => {
             renderMessageInput({ enableRag: false });
-            expect(screen.queryByTestId('file-plus-icon')).not.toBeInTheDocument();
+            expect(
+                screen.queryByTestId("file-plus-icon"),
+            ).not.toBeInTheDocument();
         });
 
-        it('should handle file upload through FilePond', () => {
+        it("should handle file upload through FilePond", () => {
             // Render with FilePond visible
-            renderMessageInput({ enableRag: true, initialShowFileUpload: true });
-            
+            renderMessageInput({
+                enableRag: true,
+                initialShowFileUpload: true,
+            });
+
             // Verify FilePond is visible
-            expect(screen.getByTestId('filepond-mock')).toBeInTheDocument();
-            
+            expect(screen.getByTestId("filepond-mock")).toBeInTheDocument();
+
             // Create a mock file
-            const mockFile = new File(['test-image-data'], 'test.png', { type: 'image/png' });
+            const mockFile = new File(["test-image-data"], "test.png", {
+                type: "image/png",
+            });
             const pondFile = {
                 source: mockFile,
                 options: {
-                    type: 'local',
-                    file: mockFile
-                }
+                    type: "local",
+                    file: mockFile,
+                },
             };
-            
+
             // Manually set files to test the rendering
             act(() => {
-                screen.getByTestId('filepond-mock').dispatchEvent(
-                    new CustomEvent('onaddfile', { 
-                        detail: { file: pondFile } 
-                    })
+                screen.getByTestId("filepond-mock").dispatchEvent(
+                    new CustomEvent("onaddfile", {
+                        detail: { file: pondFile },
+                    }),
                 );
             });
         });
     });
 
-    describe('Input state management', () => {
-        it('should update input value on change', () => {
+    describe("Input state management", () => {
+        it("should update input value on change", () => {
             renderMessageInput();
-            const input = screen.getByPlaceholderText('Send a message');
-            
-            fireEvent.change(input, { target: { value: 'New message' } });
-            expect(input.value).toBe('New message');
+            const input = screen.getByPlaceholderText("Send a message");
+
+            fireEvent.change(input, { target: { value: "New message" } });
+            expect(input.value).toBe("New message");
         });
 
-        it('should clear input after submission', () => {
+        it("should clear input after submission", () => {
             renderMessageInput();
-            const input = screen.getByPlaceholderText('Send a message');
-            
-            fireEvent.change(input, { target: { value: 'Test message' } });
-            fireEvent.keyDown(input, { key: 'Enter', shiftKey: false });
-            
-            expect(input.value).toBe('');
+            const input = screen.getByPlaceholderText("Send a message");
+
+            fireEvent.change(input, { target: { value: "Test message" } });
+            fireEvent.keyDown(input, { key: "Enter", shiftKey: false });
+
+            expect(input.value).toBe("");
         });
 
-        it('should maintain input value when loading', () => {
+        it("should maintain input value when loading", () => {
             renderMessageInput({ loading: true });
-            const input = screen.getByPlaceholderText('Send a message');
-            
-            fireEvent.change(input, { target: { value: 'Test message' } });
-            expect(input.value).toBe('Test message');
+            const input = screen.getByPlaceholderText("Send a message");
+
+            fireEvent.change(input, { target: { value: "Test message" } });
+            expect(input.value).toBe("Test message");
         });
     });
 
-    describe('Button states', () => {
-        it('should show stop button when streaming', () => {
+    describe("Button states", () => {
+        it("should show stop button when streaming", () => {
             renderMessageInput({ isStreaming: true });
-            expect(screen.getByRole('button', { name: /stop/i })).toBeInTheDocument();
-            expect(screen.queryByRole('button', { name: /send/i })).not.toBeInTheDocument();
+            expect(
+                screen.getByRole("button", { name: /stop/i }),
+            ).toBeInTheDocument();
+            expect(
+                screen.queryByRole("button", { name: /send/i }),
+            ).not.toBeInTheDocument();
         });
 
-        it('should show send button when not streaming', () => {
+        it("should show send button when not streaming", () => {
             renderMessageInput({ isStreaming: false });
-            expect(screen.getByRole('button', { name: /send/i })).toBeInTheDocument();
-            expect(screen.queryByRole('button', { name: /stop/i })).not.toBeInTheDocument();
+            expect(
+                screen.getByRole("button", { name: /send/i }),
+            ).toBeInTheDocument();
+            expect(
+                screen.queryByRole("button", { name: /stop/i }),
+            ).not.toBeInTheDocument();
         });
 
-        it('should disable send button when loading', () => {
+        it("should disable send button when loading", () => {
             renderMessageInput({ loading: true, isStreaming: false });
-            const stopButton = screen.getByRole('button', { name: /stop/i });
+            const stopButton = screen.getByRole("button", { name: /stop/i });
             expect(stopButton).toBeDisabled();
         });
 
-        it('should disable send button when input is empty', () => {
+        it("should disable send button when input is empty", () => {
             renderMessageInput({ isStreaming: false });
-            const sendButton = screen.getByRole('button', { name: /send/i });
+            const sendButton = screen.getByRole("button", { name: /send/i });
             expect(sendButton).toBeDisabled();
         });
     });
 
-    describe('URL handling', () => {
-        it('should handle document URLs', async () => {
+    describe("URL handling", () => {
+        it("should handle document URLs", async () => {
             // Mock isDocumentUrl to return true
-            jest.spyOn(require('../../utils/mediaUtils'), 'isDocumentUrl')
-                .mockImplementation(() => true);
-            
+            jest.spyOn(
+                require("../../utils/mediaUtils"),
+                "isDocumentUrl",
+            ).mockImplementation(() => true);
+
             // Mock the Apollo client query
             const mockQuery = jest.fn().mockResolvedValue({});
             const mockClient = {
-                query: mockQuery
+                query: mockQuery,
             };
-            
+
             // Mock useApolloClient hook
-            const useApolloClient = jest.spyOn(require('@apollo/client'), 'useApolloClient');
+            const useApolloClient = jest.spyOn(
+                require("@apollo/client"),
+                "useApolloClient",
+            );
             useApolloClient.mockReturnValue(mockClient);
-            
+
             // Mock getFilename to return a simple filename
-            jest.spyOn(require('../../utils/mediaUtils'), 'getFilename')
-                .mockImplementation(() => 'doc.pdf');
-            
+            jest.spyOn(
+                require("../../utils/mediaUtils"),
+                "getFilename",
+            ).mockImplementation(() => "doc.pdf");
+
             // Render with FilePond already visible
-            renderMessageInput({ enableRag: true, initialShowFileUpload: true });
-            
+            renderMessageInput({
+                enableRag: true,
+                initialShowFileUpload: true,
+            });
+
             // Verify FilePond is visible
-            expect(screen.getByTestId('filepond-mock')).toBeInTheDocument();
-            
+            expect(screen.getByTestId("filepond-mock")).toBeInTheDocument();
+
             // Click the add URL button in the mocked FilePond component
-            const addUrlButton = screen.getByTestId('add-url-button');
+            const addUrlButton = screen.getByTestId("add-url-button");
             fireEvent.click(addUrlButton);
-            
+
             // Verify that the document was processed
             expect(mockQuery).toHaveBeenCalledWith(
                 expect.objectContaining({
-                    query: 'COGNITIVE_INSERT',
+                    query: "COGNITIVE_INSERT",
                     variables: expect.objectContaining({
-                        file: 'https://example.com/doc.pdf',
+                        file: "https://example.com/doc.pdf",
                         privateData: true,
-                        contextId: 'test-context-id',
-                        chatId: 'test-chat-id'
-                    })
-                })
+                        contextId: "test-context-id",
+                        chatId: "test-chat-id",
+                    }),
+                }),
             );
         });
 
-        it('should handle media URLs', async () => {
+        it("should handle media URLs", async () => {
             renderMessageInput();
-            const input = screen.getByPlaceholderText('Send a message');
-            
+            const input = screen.getByPlaceholderText("Send a message");
+
             // Mock isMediaUrl to return true
-            jest.spyOn(require('../../utils/mediaUtils'), 'isMediaUrl')
-                .mockImplementation(() => true);
-            
-            fireEvent.change(input, { target: { value: 'https://example.com/image.jpg' } });
-            
+            jest.spyOn(
+                require("../../utils/mediaUtils"),
+                "isMediaUrl",
+            ).mockImplementation(() => true);
+
+            fireEvent.change(input, {
+                target: { value: "https://example.com/image.jpg" },
+            });
+
             // Wait for the next tick to allow state updates
-            await new Promise(resolve => setTimeout(resolve, 0));
-            
+            await new Promise((resolve) => setTimeout(resolve, 0));
+
             // Verify that the media was added to urlsData
-            const sendButton = screen.getByRole('button', { name: /send/i });
+            const sendButton = screen.getByRole("button", { name: /send/i });
             expect(sendButton).not.toBeDisabled();
         });
     });
 
-    describe('Read-only mode', () => {
-        it('should disable input in read-only mode', () => {
+    describe("Read-only mode", () => {
+        it("should disable input in read-only mode", () => {
             renderMessageInput({ viewingReadOnlyChat: true });
-            const input = screen.getByPlaceholderText('Send a message');
-            const submitButton = screen.getByRole('button', { name: /send/i });
-            
+            const input = screen.getByPlaceholderText("Send a message");
+            const submitButton = screen.getByRole("button", { name: /send/i });
+
             expect(input).toBeDisabled();
             expect(submitButton).toBeDisabled();
         });
 
-        it('should not allow form submission in read-only mode', () => {
+        it("should not allow form submission in read-only mode", () => {
             renderMessageInput({ viewingReadOnlyChat: true });
-            const input = screen.getByPlaceholderText('Send a message');
-            
-            fireEvent.change(input, { target: { value: 'Test message' } });
-            fireEvent.keyDown(input, { key: 'Enter', shiftKey: false });
-            
+            const input = screen.getByPlaceholderText("Send a message");
+
+            fireEvent.change(input, { target: { value: "Test message" } });
+            fireEvent.keyDown(input, { key: "Enter", shiftKey: false });
+
             expect(mockOnSend).not.toHaveBeenCalled();
         });
     });
