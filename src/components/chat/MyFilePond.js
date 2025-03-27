@@ -3,7 +3,7 @@ import FilePondPluginFileValidateType from "filepond-plugin-file-validate-type";
 import mime from "mime-types";
 import { FilePond, registerPlugin } from "react-filepond";
 import { AiOutlineClose } from "react-icons/ai";
-import { FaYoutube } from "react-icons/fa";
+import { FaLink } from "react-icons/fa";
 import { IoIosVideocam } from "react-icons/io";
 
 // Import FilePond styles
@@ -61,14 +61,11 @@ function RemoteUrlInputUI({
                     className="flex items-center justify-center"
                     onClick={() => setShowInputUI(!showInputUI)}
                 >
-                    <span className="inline-block px-2">
-                        <FaYoutube />
+                    <span className="inline-block px-1">
+                        <FaLink />
                     </span>
-                    <span className="underline">
-                        {t("Add Remote Media Url")}
-                    </span>
-                    <span className="inline-block px-2">
-                        <IoIosVideocam />
+                    <span className="underline px-1">
+                        {t("Add File from Url")}
                     </span>
                 </button>
             </div>
@@ -210,7 +207,7 @@ function MyFilePond({ addUrl, files, setFiles, setIsUploadingMedia }) {
 
     return (
         <>
-            <div className="flex items-center justify-center pb-2 h-8">
+            <div className="flex items-center justify-center pb-1 mt-0 h-12">
                 <RemoteUrlInputUI
                     inputUrl={inputUrl}
                     setInputUrl={setInputUrl}
@@ -219,7 +216,7 @@ function MyFilePond({ addUrl, files, setFiles, setIsUploadingMedia }) {
                     setShowInputUI={setShowInputUI}
                 />
             </div>
-            <div className="flex">
+            <div className="flex mt-0 mb-0">
                 <div className="flex-grow w-full">
                     <FilePond
                         ref={pondRef}
