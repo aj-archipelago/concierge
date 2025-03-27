@@ -278,16 +278,17 @@ function MessageInput({
                                 }}
                                 onPaste={async (e) => {
                                     const items = e.clipboardData.items;
+
+                                    // First check if we have any file types
                                     for (let i = 0; i < items.length; i++) {
                                         const item = items[i];
-                                        // Check if the item type is in our accepted types
+                                        // Check if this is a file type (not just text content)
                                         if (
+                                            item.kind === "file" &&
                                             ACCEPTED_FILE_TYPES.includes(
                                                 item.type,
                                             )
                                         ) {
-                                            if (item.type.startsWith("text/"))
-                                                continue;
                                             e.preventDefault(); // Prevent default paste behavior
                                             const file = item.getAsFile();
                                             if (file) {
@@ -311,6 +312,9 @@ function MessageInput({
                                             }
                                         }
                                     }
+                                    
+                                    // If we don't have a file, let the default paste behavior handle the text
+                                    return;
                                 }}
                                 placeholder={
                                     codeRequestId
