@@ -112,10 +112,28 @@ function RemoteUrlInputUI({
 // Our app
 function MyFilePond({ addUrl, files, setFiles, setIsUploadingMedia }) {
     const pondRef = useRef(null);
+    const processedFilesRef = useRef(new Set());
     const serverUrl = "/media-helper?useGoogle=true";
     const [inputUrl, setInputUrl] = useState("");
     const [showInputUI, setShowInputUI] = useState(false);
     const { t } = useTranslation();
+
+    // Add effect to automatically process files when added
+    useEffect(() => {
+        if (files && files.length > 0 && pondRef.current) {
+            // Process only the most recently added file if it hasn't been processed yet
+            const lastFile = files[files.length - 1];
+            // Skip processing for YouTube URLs
+            if (
+                lastFile &&
+                !processedFilesRef.current.has(lastFile.id) &&
+                !isYoutubeUrl(lastFile.source?.url)
+            ) {
+                processedFilesRef.current.add(lastFile.id);
+                pondRef.current.processFile(lastFile);
+            }
+        }
+    }, [files]);
 
     const [processingLabel, setProcessingLabel] = useState(
         t("Checking file..."),
@@ -131,7 +149,7 @@ function MyFilePond({ addUrl, files, setFiles, setIsUploadingMedia }) {
             return;
         }
 
-        // If it's a YouTube URL, simulate an instant upload through FilePond's API
+        // If it's a YouTube URL, handle it separately without going through FilePond
         if (isYoutubeUrl(inputUrl)) {
             const youtubeResponse = {
                 url: inputUrl,
@@ -150,10 +168,11 @@ function MyFilePond({ addUrl, files, setFiles, setIsUploadingMedia }) {
             // Pass the response to your existing chat logic
             addUrl(youtubeResponse);
 
-            // Create a pre-loaded file object
+            // Add to FilePond UI with an id to prevent processing
             setFiles((prevFiles) => [
                 ...prevFiles,
                 {
+                    id: `youtube-${Date.now()}`, // Add a unique id
                     source: youtubeResponse,
                     options: {
                         type: "limbo",
@@ -409,7 +428,7 @@ function MyFilePond({ addUrl, files, setFiles, setIsUploadingMedia }) {
 
                                 let cloudProgressInterval;
                                 request.upload.onprogress = (e) => {
-                                    console.log(e);
+                                    //console.log(e);
                                     if (e.lengthComputable) {
                                         totalBytes = e.total; // Store total bytes for later use
                                         // First 50% is actual upload progress
