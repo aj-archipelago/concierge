@@ -124,7 +124,11 @@ function MyFilePond({ addUrl, files, setFiles, setIsUploadingMedia }) {
             // Process only the most recently added file if it hasn't been processed yet
             const lastFile = files[files.length - 1];
             // Skip processing for YouTube URLs
-            if (lastFile && !processedFilesRef.current.has(lastFile.id) && !isYoutubeUrl(lastFile.source?.url)) {
+            if (
+                lastFile &&
+                !processedFilesRef.current.has(lastFile.id) &&
+                !isYoutubeUrl(lastFile.source?.url)
+            ) {
                 processedFilesRef.current.add(lastFile.id);
                 pondRef.current.processFile(lastFile);
             }

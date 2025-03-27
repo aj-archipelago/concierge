@@ -15,7 +15,12 @@ import {
 } from "../../stores/fileUploadSlice";
 import { FaFileCirclePlus } from "react-icons/fa6";
 import { IoCloseCircle, IoStopCircle } from "react-icons/io5";
-import { getFilename, isDocumentUrl, isMediaUrl, ACCEPTED_FILE_TYPES } from "../../utils/mediaUtils";
+import {
+    getFilename,
+    isDocumentUrl,
+    isMediaUrl,
+    ACCEPTED_FILE_TYPES,
+} from "../../utils/mediaUtils";
 import { AuthContext } from "../../App";
 import { useAddDocument } from "../../../app/queries/uploadedDocs";
 import {
@@ -270,7 +275,11 @@ function MessageInput({
                                     for (let i = 0; i < items.length; i++) {
                                         const item = items[i];
                                         // Check if the item type is in our accepted types
-                                        if (ACCEPTED_FILE_TYPES.includes(item.type)) {
+                                        if (
+                                            ACCEPTED_FILE_TYPES.includes(
+                                                item.type,
+                                            )
+                                        ) {
                                             e.preventDefault(); // Prevent default paste behavior
                                             const file = item.getAsFile();
                                             if (file) {
@@ -282,11 +291,14 @@ function MessageInput({
                                                 const pondFile = {
                                                     source: file,
                                                     options: {
-                                                        type: 'local',
+                                                        type: "local",
                                                         file: file,
-                                                    }
+                                                    },
                                                 };
-                                                setFiles(prevFiles => [...prevFiles, pondFile]);
+                                                setFiles((prevFiles) => [
+                                                    ...prevFiles,
+                                                    pondFile,
+                                                ]);
                                                 return;
                                             }
                                         }
