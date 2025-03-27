@@ -313,16 +313,8 @@ function MessageInput({
                                                     pondFile,
                                                 ]);
                                             }
-                                        } else if (item.type === "text/plain") {
-                                            // Capture current value of hasImageFile in a closure
-                                            const currentHasImageFile =
-                                                hasImageFile;
-                                            item.getAsString((text) => {
-                                                if (!currentHasImageFile) {
-                                                    setInputValue(text);
-                                                }
-                                            });
                                         }
+                                        // Let browser handle text paste naturally - no need for custom logic
                                     }
 
                                     // Prevent default only if we handled an image file
@@ -351,7 +343,6 @@ function MessageInput({
                                 <button
                                     type="button"
                                     onClick={onStopStreaming}
-                                    disabled={loading}
                                     className={classNames(
                                         "text-base text-red-600 hover:text-red-700 active:text-red-800 dark:bg-zinc-100",
                                     )}
