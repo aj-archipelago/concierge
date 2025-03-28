@@ -169,8 +169,6 @@ function MessageInput({
 
                 dispatch(setFileLoading());
 
-                console.log("Cognitive insert", activeChatId);
-
                 client
                     .query({
                         query: COGNITIVE_INSERT,
@@ -221,6 +219,7 @@ function MessageInput({
                     files={files}
                     setFiles={setFiles}
                     setIsUploadingMedia={setIsUploadingMedia}
+                    setUrlsData={setUrlsData}
                 />
             )}
             <div className="rounded-md border dark:border-zinc-200 mt-3">

@@ -110,7 +110,13 @@ function RemoteUrlInputUI({
 }
 
 // Our app
-function MyFilePond({ addUrl, files, setFiles, setIsUploadingMedia }) {
+function MyFilePond({
+    addUrl,
+    files,
+    setFiles,
+    setIsUploadingMedia,
+    setUrlsData,
+}) {
     const pondRef = useRef(null);
     const processedFilesRef = useRef(new Set());
     const serverUrl = "/media-helper?useGoogle=true";
@@ -121,17 +127,17 @@ function MyFilePond({ addUrl, files, setFiles, setIsUploadingMedia }) {
     // Add effect to automatically process files when added
     useEffect(() => {
         if (files && files.length > 0 && pondRef.current) {
-            // Process only the most recently added file if it hasn't been processed yet
-            const lastFile = files[files.length - 1];
-            // Skip processing for YouTube URLs
-            if (
-                lastFile &&
-                !processedFilesRef.current.has(lastFile.id) &&
-                !isYoutubeUrl(lastFile.source?.url)
-            ) {
-                processedFilesRef.current.add(lastFile.id);
-                pondRef.current.processFile(lastFile);
-            }
+            // Process all files that haven't been processed yet
+            files.forEach((file) => {
+                if (
+                    file &&
+                    !processedFilesRef.current.has(file.id) &&
+                    !isYoutubeUrl(file.source?.url)
+                ) {
+                    processedFilesRef.current.add(file.id);
+                    pondRef.current.processFile(file);
+                }
+            });
         }
     }, [files]);
 
@@ -239,7 +245,118 @@ function MyFilePond({ addUrl, files, setFiles, setIsUploadingMedia }) {
                     <FilePond
                         ref={pondRef}
                         files={files}
-                        onupdatefiles={setFiles}
+                        onupdatefiles={(fileItems) => {
+                            // Only handle removal logic when files are actually removed
+                            if (files.length > fileItems.length) {
+                                // Find the removed file by looking at filenames of remaining files
+                                const existingFilenames = new Set(
+                                    fileItems
+                                        .map((f) => {
+                                            // Get filename from multiple possible locations
+                                            if (f.file && f.file.name)
+                                                return f.file.name;
+                                            if (f.filename) return f.filename;
+                                            if (f.source && f.source.filename)
+                                                return f.source.filename;
+                                            if (f.source instanceof File)
+                                                return f.source.name;
+                                            return null;
+                                        })
+                                        .filter(Boolean),
+                                );
+
+                                // Find which files are no longer in the list
+                                const removedFiles = files.filter((f) => {
+                                    // Extract filename from file object
+                                    let filename = null;
+                                    if (f.file && f.file.name)
+                                        filename = f.file.name;
+                                    else if (f.filename) filename = f.filename;
+                                    else if (f.source && f.source.filename)
+                                        filename = f.source.filename;
+                                    else if (f.source instanceof File)
+                                        filename = f.source.name;
+
+                                    // If we found a filename, check if it's still in the fileset
+                                    return (
+                                        filename &&
+                                        !existingFilenames.has(filename)
+                                    );
+                                });
+
+                                if (removedFiles.length > 0 && setUrlsData) {
+                                    // Get sources of removed files
+                                    const removedFileSources = removedFiles
+                                        .map((f) => f.source)
+                                        .filter(Boolean);
+
+                                    // Remove matching entries from urlsData
+                                    if (removedFileSources.length > 0) {
+                                        setUrlsData((prevUrls) => {
+                                            const filteredUrls =
+                                                prevUrls.filter((item) => {
+                                                    // Check if any removed file matches this item
+                                                    const isRemoved =
+                                                        removedFileSources.some(
+                                                            (source) => {
+                                                                // For File objects, match by filename
+                                                                if (
+                                                                    source instanceof
+                                                                    File
+                                                                ) {
+                                                                    return (
+                                                                        item.filename ===
+                                                                        source.name
+                                                                    );
+                                                                }
+
+                                                                // For objects with filename property
+                                                                if (
+                                                                    source.filename &&
+                                                                    item.filename
+                                                                ) {
+                                                                    return (
+                                                                        source.filename ===
+                                                                        item.filename
+                                                                    );
+                                                                }
+
+                                                                // For URL objects
+                                                                const sourceUrl =
+                                                                    source.url;
+                                                                const sourceGcs =
+                                                                    source.gcs;
+
+                                                                return (
+                                                                    (sourceUrl &&
+                                                                        item.url &&
+                                                                        sourceUrl ===
+                                                                            item.url) ||
+                                                                    (sourceGcs &&
+                                                                        item.gcs &&
+                                                                        sourceGcs ===
+                                                                            item.gcs)
+                                                                );
+                                                            },
+                                                        );
+
+                                                    return !isRemoved;
+                                                });
+
+                                            return filteredUrls;
+                                        });
+                                    }
+                                }
+                            }
+
+                            // Update files state
+                            setFiles(fileItems);
+
+                            // If all files are removed, reset upload state
+                            if (fileItems.length === 0) {
+                                setIsUploadingMedia(false);
+                            }
+                        }}
                         allowFileTypeValidation={true}
                         {...labels}
                         acceptedFileTypes={ACCEPTED_FILE_TYPES}
@@ -428,7 +545,6 @@ function MyFilePond({ addUrl, files, setFiles, setIsUploadingMedia }) {
 
                                 let cloudProgressInterval;
                                 request.upload.onprogress = (e) => {
-                                    //console.log(e);
                                     if (e.lengthComputable) {
                                         totalBytes = e.total; // Store total bytes for later use
                                         // First 50% is actual upload progress
@@ -612,7 +728,8 @@ function MyFilePond({ addUrl, files, setFiles, setIsUploadingMedia }) {
                         labelIdle={labelIdle}
                         // allowProcess={false}
                         credits={false}
-                        allowRevert={false}
+                        allowRevert={true}
+                        allowRemove={true}
                         allowReplace={false}
                     />
                 </div>
