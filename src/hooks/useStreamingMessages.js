@@ -97,13 +97,18 @@ export function useStreamingMessages({ chat, updateChatHook }) {
     const completeMessage = useCallback(async () => {
         if (
             !chat?._id ||
-            !streamingMessageRef.current ||
+            (!streamingMessageRef.current && !ephemeralContentRef.current) ||
             completingMessageRef.current
         )
             return;
 
         completingMessageRef.current = true;
-        const finalContent = streamingMessageRef.current; // Only persistent content is saved
+        
+        // If we have no persistent content but do have ephemeral content, use the ephemeral content
+        let finalContent = streamingMessageRef.current;
+        if (!hasReceivedPersistentRef.current && ephemeralContentRef.current) {
+            finalContent = ephemeralContentRef.current;
+        }
 
         // Process any image URLs in the final content
         const processedContent = await processImageUrls(

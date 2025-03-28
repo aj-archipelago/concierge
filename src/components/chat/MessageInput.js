@@ -268,10 +268,12 @@ function MessageInput({
                                         e.preventDefault();
                                         // Immediately check upload state again to prevent race conditions
                                         if (
-                                            isUploadingMedia ||
-                                            loading ||
-                                            inputValue === "" ||
-                                            viewingReadOnlyChat
+                                            codeRequestId
+                                                ? false
+                                                : isUploadingMedia ||
+                                                  loading ||
+                                                  inputValue === "" ||
+                                                  viewingReadOnlyChat
                                         ) {
                                             // Preventing submission during inappropriate times
                                             return;
@@ -339,7 +341,7 @@ function MessageInput({
                     </div>
                     <div className=" pe-4 ps-3 dark:bg-zinc-100 self-stretch flex rounded-e">
                         <div className="pt-4">
-                            {isStreaming || loading ? (
+                            {(isStreaming || loading) && !codeRequestId ? (
                                 <button
                                     type="button"
                                     onClick={onStopStreaming}
