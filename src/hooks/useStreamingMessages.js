@@ -103,7 +103,7 @@ export function useStreamingMessages({ chat, updateChatHook }) {
             return;
 
         completingMessageRef.current = true;
-        
+
         // If we have no persistent content but do have ephemeral content, use the ephemeral content
         let finalContent = streamingMessageRef.current;
         if (!hasReceivedPersistentRef.current && ephemeralContentRef.current) {
