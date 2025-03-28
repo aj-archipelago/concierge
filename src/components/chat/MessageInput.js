@@ -169,8 +169,6 @@ function MessageInput({
 
                 dispatch(setFileLoading());
 
-                console.log("Cognitive insert", activeChatId);
-
                 client
                     .query({
                         query: COGNITIVE_INSERT,
