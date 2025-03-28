@@ -29,7 +29,7 @@ describe("LLM Initialization", () => {
         const llmWithoutIdentifier = await LLM.create({
             name: "Test LLM",
             cortexModelName: "oai-gpt4o",
-            cortexPathwayName: "run_gpt4_o.js",
+            cortexPathwayName: "run_gpt4_o",
             isDefault: false,
             identifier: null,
         });
