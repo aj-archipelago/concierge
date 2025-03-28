@@ -1,3 +1,4 @@
+import React from "react";
 import "highlight.js/styles/github.css";
 import { useContext, useState, useEffect } from "react";
 import { RiSendPlane2Fill } from "react-icons/ri";
@@ -41,6 +42,7 @@ function MessageInput({
     viewingReadOnlyChat,
     isStreaming,
     onStopStreaming,
+    initialShowFileUpload = false,
 }) {
     const activeChatId = useGetActiveChatId();
     const activeChat = useGetActiveChat().data;
@@ -72,7 +74,7 @@ function MessageInput({
     const [inputValue, setInputValue] = useState("");
     const [urlsData, setUrlsData] = useState([]);
     const [files, setFiles] = useState([]);
-    const [showFileUpload, setShowFileUpload] = useState(false);
+    const [showFileUpload, setShowFileUpload] = useState(initialShowFileUpload);
 
     const prepareMessage = (inputText) => {
         return [
@@ -230,17 +232,23 @@ function MessageInput({
                         <div className="rounded-s pt-4 [.docked_&]:pt-3.5 ps-4 pe-3 dark:bg-zinc-100 self-stretch flex">
                             {!showFileUpload ? (
                                 <FaFileCirclePlus
-                                    onClick={() =>
-                                        setShowFileUpload(!showFileUpload)
-                                    }
+                                    onClick={() => {
+                                        setShowFileUpload(true);
+                                    }}
                                     className="text-gray-500 group flex items-center text-base font-medium hover:text-gray-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/75 cursor-pointer"
+                                    role="button"
+                                    aria-label="file upload"
+                                    data-testid="file-upload-button"
                                 />
                             ) : (
                                 <IoCloseCircle
-                                    onClick={() =>
-                                        setShowFileUpload(!showFileUpload)
-                                    }
+                                    onClick={() => {
+                                        setShowFileUpload(false);
+                                    }}
                                     className="text-gray-500 group flex items-center text-base font-medium hover:text-gray-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/75 cursor-pointer"
+                                    role="button"
+                                    aria-label="close"
+                                    data-testid="close-button"
                                 />
                             )}
                         </div>
@@ -254,6 +262,7 @@ function MessageInput({
                                     enableRag ? "px-1" : "px-3 rounded-s",
                                 )}
                                 rows={1}
+                                disabled={viewingReadOnlyChat}
                                 onKeyDown={(e) => {
                                     if (e.key === "Enter" && !e.shiftKey) {
                                         e.preventDefault();
@@ -274,17 +283,19 @@ function MessageInput({
                                 }}
                                 onPaste={async (e) => {
                                     const items = e.clipboardData.items;
+                                    let hasImageFile = false;
+
+                                    // First check if we have any file types
                                     for (let i = 0; i < items.length; i++) {
                                         const item = items[i];
-                                        // Check if the item type is in our accepted types
+                                        // Check if this is a file type (not just text content)
                                         if (
+                                            item.kind === "file" &&
                                             ACCEPTED_FILE_TYPES.includes(
                                                 item.type,
                                             )
                                         ) {
-                                            if (item.type.startsWith("text/"))
-                                                continue;
-                                            e.preventDefault(); // Prevent default paste behavior
+                                            hasImageFile = true;
                                             const file = item.getAsFile();
                                             if (file) {
                                                 // Show FilePond if it's not already visible
@@ -303,9 +314,14 @@ function MessageInput({
                                                     ...prevFiles,
                                                     pondFile,
                                                 ]);
-                                                return;
                                             }
                                         }
+                                        // Let browser handle text paste naturally - no need for custom logic
+                                    }
+
+                                    // Prevent default only if we handled an image file
+                                    if (hasImageFile) {
+                                        e.preventDefault();
                                     }
                                 }}
                                 placeholder={
