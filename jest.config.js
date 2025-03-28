@@ -32,6 +32,9 @@ const projects = process.env.CI
                   "^config/(.*)$": "<rootDir>/__mocks__/config/$1",
                   "^./config/(.*)$": "<rootDir>/__mocks__/config/$1",
               },
+              transformIgnorePatterns: [
+                  "/node_modules/(?!(react-markdown|vfile|unist-.*|unified|bail|is-plain-obj|trough|remark-.*|mdast-util-.*|micromark.*|decode-named-character-reference|character-entities|property-information|hast-util-whitespace|space-separated-tokens|comma-separated-tokens|rehype-.*|hastscript|web-namespaces|zwitch|html-void-elements)/)",
+              ],
           },
       ]
     : [
@@ -70,6 +73,9 @@ const projects = process.env.CI
                   "^config/(.*)$": "<rootDir>/__mocks__/config/$1",
                   "^./config/(.*)$": "<rootDir>/__mocks__/config/$1",
               },
+              transformIgnorePatterns: [
+                  "/node_modules/(?!(react-markdown|vfile|unist-.*|unified|bail|is-plain-obj|trough|remark-.*|mdast-util-.*|micromark.*|decode-named-character-reference|character-entities|property-information|hast-util-whitespace|space-separated-tokens|comma-separated-tokens|rehype-.*|hastscript|web-namespaces|zwitch|html-void-elements)/)",
+              ],
           },
           {
               displayName: "node",
@@ -103,6 +109,9 @@ const projects = process.env.CI
                   "^config/(.*)$": "<rootDir>/__mocks__/config/$1",
                   "^./config/(.*)$": "<rootDir>/__mocks__/config/$1",
               },
+              transformIgnorePatterns: [
+                  "/node_modules/(?!(react-markdown|vfile|unist-.*|unified|bail|is-plain-obj|trough|remark-.*|mdast-util-.*|micromark.*|decode-named-character-reference|character-entities|property-information|hast-util-whitespace|space-separated-tokens|comma-separated-tokens|rehype-.*|hastscript|web-namespaces|zwitch|html-void-elements)/)",
+              ],
           },
       ];
 
@@ -110,7 +119,9 @@ module.exports = {
     watchPathIgnorePatterns: ["\\.next"],
     modulePathIgnorePatterns: ["<rootDir>/.next", "<rootDir>/.next/standalone"],
     testPathIgnorePatterns: ["<rootDir>/.next", "<rootDir>/.next/standalone"],
-    transformIgnorePatterns: ["node_modules", "\\.next"],
+    transformIgnorePatterns: [
+        "/node_modules/(?!(react-markdown|vfile|unist-.*|unified|bail|is-plain-obj|trough|remark-.*|mdast-util-.*|micromark.*|decode-named-character-reference|character-entities|property-information|hast-util-whitespace|space-separated-tokens|comma-separated-tokens|rehype-.*|hastscript|web-namespaces|zwitch|html-void-elements)/)",
+    ],
     haste: {
         forceNodeFilesystemAPI: true,
         enableSymlinks: false,
