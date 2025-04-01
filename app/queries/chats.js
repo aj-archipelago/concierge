@@ -459,10 +459,6 @@ export function useSetActiveChatId() {
             }
             return previousData;
         },
-        onSuccess: () => {
-            // Simply mark the queries as stale after setting the active chat ID
-            queryClient.invalidateQueries({ queryKey: ["activeChats"] });
-        },
     });
 }
 
