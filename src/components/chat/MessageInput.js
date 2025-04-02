@@ -295,21 +295,41 @@ function MessageInput({
                                         const type = item.type;
                                         const kind = item.kind;
 
-                                        if (kind === "file" && ACCEPTED_FILE_TYPES.includes(type)) {
+                                        if (
+                                            kind === "file" &&
+                                            ACCEPTED_FILE_TYPES.includes(type)
+                                        ) {
                                             const file = item.getAsFile();
                                             if (file) {
                                                 hasFile = true;
-                                                const pondFile = { source: file, options: { type: "local", file: file } };
+                                                const pondFile = {
+                                                    source: file,
+                                                    options: {
+                                                        type: "local",
+                                                        file: file,
+                                                    },
+                                                };
                                                 filesToAdd.push(pondFile);
                                             }
-                                        }
-                                        else if (kind === "string" && type.match(/^text\/plain/)) {
+                                        } else if (
+                                            kind === "string" &&
+                                            type.match(/^text\/plain/)
+                                        ) {
                                             hasText = true;
-                                            textPromises.push(new Promise(resolve => item.getAsString(resolve)));
-                                        }
-                                        else if (kind === "string" && type.match(/^text\/html/)) {
+                                            textPromises.push(
+                                                new Promise((resolve) =>
+                                                    item.getAsString(resolve),
+                                                ),
+                                            );
+                                        } else if (
+                                            kind === "string" &&
+                                            type.match(/^text\/html/)
+                                        ) {
                                             hasHtml = true;
-                                            htmlPromise = new Promise(resolve => item.getAsString(resolve));
+                                            htmlPromise = new Promise(
+                                                (resolve) =>
+                                                    item.getAsString(resolve),
+                                            );
                                         }
                                     }
 
@@ -322,12 +342,15 @@ function MessageInput({
                                             try {
                                                 htmlContent = await htmlPromise;
                                             } catch (err) {
-                                                console.error("Error reading HTML from clipboard:", err);
+                                                console.error(
+                                                    "Error reading HTML from clipboard:",
+                                                    err,
+                                                );
                                                 htmlContent = null; // Proceed without HTML if reading fails
                                             }
                                         }
 
-                                        // --- Decision Logic --- 
+                                        // --- Decision Logic ---
                                         let addTheText = false;
                                         let addTheFiles = false;
 
@@ -335,7 +358,11 @@ function MessageInput({
                                             if (hasFile) {
                                                 // Ambiguous case: Text + File found
                                                 // Check HTML for clues
-                                                const htmlHasImageTag = htmlContent && htmlContent.toLowerCase().includes("<img");
+                                                const htmlHasImageTag =
+                                                    htmlContent &&
+                                                    htmlContent
+                                                        .toLowerCase()
+                                                        .includes("<img");
                                                 if (htmlHasImageTag) {
                                                     // HTML has <img> tag -> Assume Genuine Mixed Paste
                                                     addTheText = true;
@@ -357,10 +384,14 @@ function MessageInput({
 
                                         // Execute actions based on decisions
                                         if (addTheText) {
-                                            const texts = await Promise.all(textPromises);
-                                            const pastedText = texts.join('');
+                                            const texts =
+                                                await Promise.all(textPromises);
+                                            const pastedText = texts.join("");
                                             if (pastedText) {
-                                                setInputValue(prevValue => prevValue + pastedText);
+                                                setInputValue(
+                                                    (prevValue) =>
+                                                        prevValue + pastedText,
+                                                );
                                             }
                                         }
 
@@ -368,7 +399,10 @@ function MessageInput({
                                             if (!showFileUpload) {
                                                 setShowFileUpload(true);
                                             }
-                                            setFiles((prevFiles) => [...prevFiles, ...filesToAdd]);
+                                            setFiles((prevFiles) => [
+                                                ...prevFiles,
+                                                ...filesToAdd,
+                                            ]);
                                         }
                                     }
                                     // Else: Neither text nor handled files found, let browser handle default paste
@@ -427,4 +461,3 @@ function MessageInput({
 }
 
 export default MessageInput;
-
