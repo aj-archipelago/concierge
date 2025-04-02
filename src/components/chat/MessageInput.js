@@ -282,46 +282,96 @@ function MessageInput({
                                 }}
                                 onPaste={async (e) => {
                                     const items = e.clipboardData.items;
-                                    let hasImageFile = false;
+                                    let hasText = false;
+                                    let hasFile = false;
+                                    let hasHtml = false;
+                                    const textPromises = [];
+                                    const filesToAdd = [];
+                                    let htmlPromise = null;
 
-                                    // First check if we have any file types
+                                    // First pass: Check for presence and collect data/promises
                                     for (let i = 0; i < items.length; i++) {
                                         const item = items[i];
-                                        // Check if this is a file type (not just text content)
-                                        if (
-                                            item.kind === "file" &&
-                                            ACCEPTED_FILE_TYPES.includes(
-                                                item.type,
-                                            )
-                                        ) {
-                                            hasImageFile = true;
+                                        const type = item.type;
+                                        const kind = item.kind;
+
+                                        if (kind === "file" && ACCEPTED_FILE_TYPES.includes(type)) {
                                             const file = item.getAsFile();
                                             if (file) {
-                                                // Show FilePond if it's not already visible
-                                                if (!showFileUpload) {
-                                                    setShowFileUpload(true);
-                                                }
-                                                // Create a FilePond file object
-                                                const pondFile = {
-                                                    source: file,
-                                                    options: {
-                                                        type: "local",
-                                                        file: file,
-                                                    },
-                                                };
-                                                setFiles((prevFiles) => [
-                                                    ...prevFiles,
-                                                    pondFile,
-                                                ]);
+                                                hasFile = true;
+                                                const pondFile = { source: file, options: { type: "local", file: file } };
+                                                filesToAdd.push(pondFile);
                                             }
                                         }
-                                        // Let browser handle text paste naturally - no need for custom logic
+                                        else if (kind === "string" && type.match(/^text\/plain/)) {
+                                            hasText = true;
+                                            textPromises.push(new Promise(resolve => item.getAsString(resolve)));
+                                        }
+                                        else if (kind === "string" && type.match(/^text\/html/)) {
+                                            hasHtml = true;
+                                            htmlPromise = new Promise(resolve => item.getAsString(resolve));
+                                        }
                                     }
 
-                                    // Prevent default only if we handled an image file
-                                    if (hasImageFile) {
+                                    // If we have something to handle, prevent default paste
+                                    if (hasText || hasFile) {
                                         e.preventDefault();
+
+                                        let htmlContent = null;
+                                        if (hasHtml && htmlPromise) {
+                                            try {
+                                                htmlContent = await htmlPromise;
+                                            } catch (err) {
+                                                console.error("Error reading HTML from clipboard:", err);
+                                                htmlContent = null; // Proceed without HTML if reading fails
+                                            }
+                                        }
+
+                                        // --- Decision Logic --- 
+                                        let addTheText = false;
+                                        let addTheFiles = false;
+
+                                        if (hasText) {
+                                            if (hasFile) {
+                                                // Ambiguous case: Text + File found
+                                                // Check HTML for clues
+                                                const htmlHasImageTag = htmlContent && htmlContent.toLowerCase().includes("<img");
+                                                if (htmlHasImageTag) {
+                                                    // HTML has <img> tag -> Assume Genuine Mixed Paste
+                                                    addTheText = true;
+                                                    addTheFiles = true;
+                                                } else {
+                                                    // No <img> tag in HTML (or no HTML) -> Assume Text-Only paste with spurious image
+                                                    addTheText = true;
+                                                    addTheFiles = false; // Ignore the file
+                                                }
+                                            } else {
+                                                // Text only, no file -> Simple Text Paste
+                                                addTheText = true;
+                                            }
+                                        } else if (hasFile) {
+                                            // File only, no text -> Simple File Paste
+                                            addTheFiles = true;
+                                        }
+                                        // --- End Decision Logic ---
+
+                                        // Execute actions based on decisions
+                                        if (addTheText) {
+                                            const texts = await Promise.all(textPromises);
+                                            const pastedText = texts.join('');
+                                            if (pastedText) {
+                                                setInputValue(prevValue => prevValue + pastedText);
+                                            }
+                                        }
+
+                                        if (addTheFiles) {
+                                            if (!showFileUpload) {
+                                                setShowFileUpload(true);
+                                            }
+                                            setFiles((prevFiles) => [...prevFiles, ...filesToAdd]);
+                                        }
                                     }
+                                    // Else: Neither text nor handled files found, let browser handle default paste
                                 }}
                                 placeholder={
                                     codeRequestId
@@ -377,3 +427,4 @@ function MessageInput({
 }
 
 export default MessageInput;
+
