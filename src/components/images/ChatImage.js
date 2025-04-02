@@ -11,7 +11,7 @@ const ChatImage = React.memo(
         node,
         src,
         alt = "",
-        className = "max-h-[20%] max-w-[60%] [.docked_&]:max-w-[90%] rounded my-2 shadow-lg dark:shadow-black/30",
+        className = "min-w-[240px] max-w-[80%] [.docked_&]:max-w-[90%] rounded my-2 shadow-lg dark:shadow-black/30",
         style = {},
         onLoad,
         ...props

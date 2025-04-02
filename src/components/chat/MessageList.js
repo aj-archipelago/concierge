@@ -114,10 +114,10 @@ const MemoizedYouTubeEmbed = React.memo(({ url, onLoad }) => {
             title={`YouTube video ${url.split("/").pop()}`}
             onLoad={onLoad}
             src={url}
-            className="w-full max-h-[20%] max-w-[60%] [.docked_&]:max-w-[90%] rounded border-0 my-2 shadow-lg dark:shadow-black/30"
+            className="w-full rounded border-0 my-2 shadow-lg dark:shadow-black/30"
             style={{
-                minWidth: "360px",
-                width: "640px",
+                width: "100%",
+                maxWidth: "640px",
                 aspectRatio: "16/9",
                 backgroundColor: "transparent",
             }}
