@@ -327,7 +327,11 @@ describe("MessageInput", () => {
             const input = screen.getByPlaceholderText("Send a message");
             const spy = jest.spyOn(Event.prototype, "preventDefault");
 
-            const textItem = createMockDataTransferItem('string', 'text/plain', 'Pasted text');
+            const textItem = createMockDataTransferItem(
+                "string",
+                "text/plain",
+                "Pasted text",
+            );
             const clipboardData = createMockClipboardEventData([textItem]);
 
             // Trigger paste event
