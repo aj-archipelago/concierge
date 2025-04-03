@@ -1392,7 +1392,120 @@ function VideoPage() {
         setIsAutoTranscribing,
     ]);
 
-    // Replace the existing auto-transcription effect
+    // Fetch YouTube subtitles (expects VTT string from backend)
+    const fetchSubtitles = useCallback(
+        async (videoUrl, setIsLoading) => {
+            if (!isYoutubeUrl(videoUrl)) return false;
+
+            setIsLoading(true);
+            let success = false;
+
+            // --- Check if YT transcript already exists (for refresh handling) ---
+            try {
+                const videoId = getYoutubeVideoId(videoUrl);
+                if (videoId && transcriptsRef.current?.length > 0) {
+                    const existingTrack = transcriptsRef.current.find(
+                        (t) => t.source === "youtube" && t.videoId === videoId,
+                    );
+                    if (existingTrack) {
+                        setIsLoading(false);
+                        return true;
+                    }
+                }
+            } catch (e) {
+                // Error getting video ID, proceed with fetch attempt cautiously
+                console.warn("Could not check for existing YT track:", e);
+            }
+            // --- End check ---
+
+            try {
+                // Fetch available languages first
+                let targetLanguageName = "Subtitles";
+                let targetLanguageCode = "";
+                try {
+                    const languagesResponse = await fetch(
+                        `/api/youtube-subtitles?url=${encodeURIComponent(videoUrl)}&action=languages`,
+                    );
+                    if (languagesResponse.ok) {
+                        const languages = await languagesResponse.json();
+                        if (languages && languages.length > 0) {
+                            targetLanguageCode = languages[0].languageCode;
+                            targetLanguageName =
+                                languages[0].languageName || targetLanguageName;
+                        } else {
+                            console.warn(
+                                "VideoPage: No subtitle languages reported by API.",
+                            );
+                        }
+                    } else {
+                        console.warn(
+                            "VideoPage: Could not fetch languages list.",
+                            await languagesResponse.text(),
+                        );
+                    }
+                } catch (langError) {
+                    console.error(
+                        "VideoPage: Error fetching languages:",
+                        langError,
+                    );
+                }
+
+                // Fetch the VTT string
+                const subtitlesResponse = await fetch(
+                    `/api/youtube-subtitles?url=${encodeURIComponent(videoUrl)}&language=${targetLanguageCode}`,
+                );
+
+                if (!subtitlesResponse.ok) {
+                    const errorData = await subtitlesResponse
+                        .json()
+                        .catch(() => ({ error: "Failed to parse error JSON" }));
+                    console.error(
+                        `VideoPage: Failed to fetch VTT for language ${targetLanguageCode}:`,
+                        subtitlesResponse.status,
+                        errorData,
+                    );
+                } else {
+                    const data = await subtitlesResponse.json();
+
+                    // Check if we got a valid VTT string
+                    if (
+                        data.vttString &&
+                        typeof data.vttString === "string" &&
+                        data.vttString.startsWith("WEBVTT")
+                    ) {
+                        const youtubeTrack = {
+                            name: `YouTube ${data.languageName || targetLanguageName}`,
+                            text: data.vttString,
+                            format: "vtt",
+                            timestamp: new Date().toISOString(),
+                            source: "youtube",
+                            videoId: data.videoId,
+                        };
+
+                        addSubtitleTrack(youtubeTrack);
+                        success = true;
+                    } else {
+                        console.warn(
+                            `VideoPage: Received invalid or empty VTT string for language ${targetLanguageCode}. Response:`,
+                            data,
+                        );
+                    }
+                }
+            } catch (error) {
+                console.error(
+                    "VideoPage: Error during fetchSubtitles process:",
+                    error,
+                );
+                success = false;
+            } finally {
+                setIsLoading(false);
+            }
+            return success;
+        },
+        [addSubtitleTrack],
+    );
+
+    // Effect to trigger initial processing (YT subtitles or transcription)
     useEffect(() => {
         const videoUrl = videoInformation?.videoUrl;
         if (videoUrl && !transcripts.length && !attemptedAutoTranscribe) {

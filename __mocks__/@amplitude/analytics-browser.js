@@ -9,8 +9,8 @@ const amplitude = {
         track: jest.fn(),
         identify: jest.fn(),
         setUserId: jest.fn(),
-        reset: jest.fn()
-    })
+        reset: jest.fn(),
+    }),
 };
 
-module.exports = amplitude; 
+module.exports = amplitude;
