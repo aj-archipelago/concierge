@@ -1,5 +1,12 @@
 const { TextEncoder, TextDecoder } = require("util");
 
+// Suppress ReactDOMTestUtils.act deprecation warning
+const originalError = console.error;
+console.error = (...args) => {
+    if (args[0]?.includes('ReactDOMTestUtils.act')) return;
+    originalError.call(console, ...args);
+};
+
 // Define text encoder/decoder globals first
 global.TextEncoder = TextEncoder;
 global.TextDecoder = TextDecoder;
