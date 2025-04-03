@@ -282,130 +282,59 @@ function MessageInput({
                                 }}
                                 onPaste={async (e) => {
                                     const items = e.clipboardData.items;
-                                    let hasText = false;
                                     let hasFile = false;
-                                    let hasHtml = false;
-                                    const textPromises = [];
-                                    const filesToAdd = [];
-                                    let htmlPromise = null;
+                                    let hasText = false;
 
-                                    // First pass: Check for presence and collect data/promises
+                                    // First check for text content
                                     for (let i = 0; i < items.length; i++) {
                                         const item = items[i];
-                                        const type = item.type;
-                                        const kind = item.kind;
-
                                         if (
-                                            kind === "file" &&
-                                            ACCEPTED_FILE_TYPES.includes(type)
-                                        ) {
-                                            const file = item.getAsFile();
-                                            if (file) {
-                                                hasFile = true;
-                                                const pondFile = {
-                                                    source: file,
-                                                    options: {
-                                                        type: "local",
-                                                        file: file,
-                                                    },
-                                                };
-                                                filesToAdd.push(pondFile);
-                                            }
-                                        } else if (
-                                            kind === "string" &&
-                                            type.match(/^text\/plain/)
+                                            item.kind === "string" &&
+                                            (item.type === "text/plain" ||
+                                                item.type === "text/html" ||
+                                                item.type === "text/rtf")
                                         ) {
                                             hasText = true;
-                                            textPromises.push(
-                                                new Promise((resolve) =>
-                                                    item.getAsString(resolve),
-                                                ),
-                                            );
-                                        } else if (
-                                            kind === "string" &&
-                                            type.match(/^text\/html/)
-                                        ) {
-                                            hasHtml = true;
-                                            htmlPromise = new Promise(
-                                                (resolve) =>
-                                                    item.getAsString(resolve),
-                                            );
+                                            break;
                                         }
                                     }
 
-                                    // If we have something to handle, prevent default paste
-                                    if (hasText || hasFile) {
-                                        e.preventDefault();
-
-                                        let htmlContent = null;
-                                        if (hasHtml && htmlPromise) {
-                                            try {
-                                                htmlContent = await htmlPromise;
-                                            } catch (err) {
-                                                console.error(
-                                                    "Error reading HTML from clipboard:",
-                                                    err,
-                                                );
-                                                htmlContent = null; // Proceed without HTML if reading fails
-                                            }
-                                        }
-
-                                        // --- Decision Logic ---
-                                        let addTheText = false;
-                                        let addTheFiles = false;
-
-                                        if (hasText) {
-                                            if (hasFile) {
-                                                // Ambiguous case: Text + File found
-                                                // Check HTML for clues
-                                                const htmlHasImageTag =
-                                                    htmlContent &&
-                                                    htmlContent
-                                                        .toLowerCase()
-                                                        .includes("<img");
-                                                if (htmlHasImageTag) {
-                                                    // HTML has <img> tag -> Assume Genuine Mixed Paste
-                                                    addTheText = true;
-                                                    addTheFiles = true;
-                                                } else {
-                                                    // No <img> tag in HTML (or no HTML) -> Assume Text-Only paste with spurious image
-                                                    addTheText = true;
-                                                    addTheFiles = false; // Ignore the file
+                                    // Only check for files if we don't have text
+                                    if (!hasText) {
+                                        for (let i = 0; i < items.length; i++) {
+                                            const item = items[i];
+                                            if (
+                                                item.kind === "file" &&
+                                                ACCEPTED_FILE_TYPES.includes(
+                                                    item.type,
+                                                )
+                                            ) {
+                                                hasFile = true;
+                                                const file = item.getAsFile();
+                                                if (file) {
+                                                    if (!showFileUpload) {
+                                                        setShowFileUpload(true);
+                                                    }
+                                                    const pondFile = {
+                                                        source: file,
+                                                        options: {
+                                                            type: "local",
+                                                            file: file,
+                                                        },
+                                                    };
+                                                    setFiles((prevFiles) => [
+                                                        ...prevFiles,
+                                                        pondFile,
+                                                    ]);
                                                 }
-                                            } else {
-                                                // Text only, no file -> Simple Text Paste
-                                                addTheText = true;
                                             }
-                                        } else if (hasFile) {
-                                            // File only, no text -> Simple File Paste
-                                            addTheFiles = true;
-                                        }
-                                        // --- End Decision Logic ---
-
-                                        // Execute actions based on decisions
-                                        if (addTheText) {
-                                            const texts =
-                                                await Promise.all(textPromises);
-                                            const pastedText = texts.join("");
-                                            if (pastedText) {
-                                                setInputValue(
-                                                    (prevValue) =>
-                                                        prevValue + pastedText,
-                                                );
-                                            }
-                                        }
-
-                                        if (addTheFiles) {
-                                            if (!showFileUpload) {
-                                                setShowFileUpload(true);
-                                            }
-                                            setFiles((prevFiles) => [
-                                                ...prevFiles,
-                                                ...filesToAdd,
-                                            ]);
                                         }
                                     }
-                                    // Else: Neither text nor handled files found, let browser handle default paste
+
+                                    // Prevent default only if we handled a file and there's no text
+                                    if (hasFile && !hasText) {
+                                        e.preventDefault();
+                                    }
                                 }}
                                 placeholder={
                                     codeRequestId
