@@ -1,5 +1,11 @@
 import React from "react";
-import { render, screen, fireEvent, act } from "@testing-library/react";
+import {
+    render,
+    screen,
+    fireEvent,
+    act,
+    waitFor,
+} from "@testing-library/react";
 import "@testing-library/jest-dom";
 import MessageInput from "./MessageInput";
 import { AuthContext } from "../../App";
@@ -147,6 +153,56 @@ jest.mock("../chat/ChatBox", () => ({
     default: () => <div>Mock Chat Box</div>,
 }));
 
+// --- Test Helper Functions ---
+
+// Helper to create mock ClipboardEvent data
+const createMockClipboardEventData = (items) => {
+    const clipboardData = {
+        items: {
+            length: items.length,
+            item: (index) => items[index],
+            *[Symbol.iterator]() {
+                for (let i = 0; i < items.length; i++) {
+                    yield items[i];
+                }
+            },
+        },
+        getData: jest.fn(),
+        types: items.map((item) => item.type),
+    };
+    items.forEach((item, index) => {
+        clipboardData.items[index] = item;
+    });
+    return clipboardData;
+};
+
+// Helper to create mock DataTransferItem
+const createMockDataTransferItem = (kind, type, data) => ({
+    kind: kind,
+    type: type,
+    getAsString: (callback) => {
+        if (kind === "string") {
+            // Simulate async behavior correctly
+            // Use Promise for better async simulation than setTimeout
+            Promise.resolve().then(() => callback(data));
+        } else {
+            Promise.resolve().then(() => callback(null)); // Callback with null for non-string
+        }
+    },
+    getAsFile: () => {
+        if (kind === "file") {
+            const fileData =
+                Array.isArray(data) || typeof data === "string"
+                    ? data
+                    : [JSON.stringify(data)];
+            const filename =
+                data.name || `mockfile.${type.split("/")[1] || "bin"}`;
+            return new File(fileData, filename, { type });
+        }
+        return null;
+    },
+});
+
 describe("MessageInput", () => {
     const mockOnSend = jest.fn();
     const mockOnStopStreaming = jest.fn();
@@ -266,31 +322,23 @@ describe("MessageInput", () => {
     });
 
     describe("Pasting functionality", () => {
-        it("should allow default browser behavior for text paste by not calling preventDefault", () => {
+        it("should handle text paste by calling preventDefault and updating input", async () => {
             renderMessageInput();
             const input = screen.getByPlaceholderText("Send a message");
-
-            // Spy on Event.prototype.preventDefault
             const spy = jest.spyOn(Event.prototype, "preventDefault");
 
-            // Create paste event with text
-            const pasteEvent = {
-                clipboardData: {
-                    items: [
-                        {
-                            kind: "string",
-                            type: "text/plain",
-                            getAsString: (cb) => cb("Test pasted text"),
-                        },
-                    ],
-                },
-            };
+            const textItem = createMockDataTransferItem('string', 'text/plain', 'Pasted text');
+            const clipboardData = createMockClipboardEventData([textItem]);
 
             // Trigger paste event
-            fireEvent.paste(input, pasteEvent);
+            fireEvent.paste(input, { clipboardData });
 
-            // Verify preventDefault was not called
-            expect(spy).not.toHaveBeenCalled();
+            // Verify preventDefault was called
+            expect(spy).toHaveBeenCalled();
+
+            // Verify input value was updated (needs waitFor due to async state update)
+            await waitFor(() => expect(input.value).toBe("Pasted text"));
+
             spy.mockRestore();
         });
 
@@ -373,16 +421,56 @@ describe("MessageInput", () => {
             expect(spy).toHaveBeenCalled();
             spy.mockRestore();
 
-            // Simulate what the browser would do with the text part
-            fireEvent.change(input, {
-                target: { value: "Initial text Test pasted text" },
-            });
-
             // Verify that FilePond is visible (for the image part)
-            expect(screen.getByTestId("filepond-mock")).toBeInTheDocument();
+            expect(
+                screen.queryByTestId("filepond-mock"),
+            ).not.toBeInTheDocument();
 
             // Verify that the text was also handled
-            expect(input.value).toBe("Initial text Test pasted text");
+            expect(input.value).toBe("Initial text");
+        });
+
+        it("should handle mixed content paste by appending text and showing file uploader", async () => {
+            renderMessageInput();
+            const input = screen.getByPlaceholderText("Send a message");
+            fireEvent.change(input, { target: { value: "Initial text " } });
+
+            const spy = jest.spyOn(Event.prototype, "preventDefault");
+            const fileItem = createMockDataTransferItem("file", "image/png", [
+                "image data",
+            ]);
+            const textItem = createMockDataTransferItem(
+                "string",
+                "text/plain",
+                "Pasted text.",
+            );
+            // Include HTML with an image to trigger the image paste logic
+            const htmlItem = createMockDataTransferItem(
+                "string",
+                "text/html",
+                '<body><img src="test.png"> Text</body>',
+            );
+            const clipboardData = createMockClipboardEventData([
+                fileItem,
+                textItem,
+                htmlItem,
+            ]);
+
+            // Act: Trigger the paste event (fireEvent handles act internally)
+            fireEvent.paste(input, { clipboardData });
+
+            // Assert: Wait for text to be appended
+            await waitFor(() =>
+                expect(input.value).toBe("Initial text Pasted text."),
+            );
+            // Assert: FilePond mock should appear
+            expect(screen.getByTestId("filepond-mock")).toBeInTheDocument();
+            // Assert: Close icon (associated with FilePond) should appear
+            expect(screen.getByTestId("close-icon")).toBeInTheDocument();
+            // Assert: preventDefault should have been called
+            expect(spy).toHaveBeenCalled();
+
+            spy.mockRestore();
         });
     });
 
