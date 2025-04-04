@@ -20,6 +20,8 @@ const LLM_IDENTIFIERS = {
     claude3opus: "claude3opus",
     o1: "o1",
     o3mini: "o3mini",
+    gemini20flash: "gemini20flash",
+    gemini25pro: "gemini25pro",
 };
 
 // eslint-disable-next-line import/no-anonymous-default-export
@@ -64,28 +66,10 @@ export default {
                 cortexModelName: "oai-gpt4",
             },
             {
-                identifier: LLM_IDENTIFIERS.gpt432k,
-                name: "GPT 4.0 32k",
-                cortexPathwayName: "run_gpt4_32",
-                cortexModelName: "oai-gpt4-32",
-            },
-            {
-                identifier: LLM_IDENTIFIERS.claude3haiku,
-                name: "Claude 3 Haiku",
-                cortexPathwayName: "run_claude3_haiku",
-                cortexModelName: "claude-3-haiku-vertex",
-            },
-            {
                 identifier: LLM_IDENTIFIERS.claude35sonnet,
                 name: "Claude 3.5 Sonnet",
                 cortexPathwayName: "run_claude35_sonnet",
                 cortexModelName: "claude-35-sonnet-vertex",
-            },
-            {
-                identifier: LLM_IDENTIFIERS.claude3opus,
-                name: "Claude 3 Opus",
-                cortexPathwayName: "run_claude3_opus",
-                cortexModelName: "claude-3-opus-vertex",
             },
             {
                 identifier: LLM_IDENTIFIERS.o1,
@@ -98,6 +82,18 @@ export default {
                 name: "o3 Mini",
                 cortexPathwayName: "run_o3_mini",
                 cortexModelName: "oai-o3-mini",
+            },
+            {
+                identifier: LLM_IDENTIFIERS.gemini20flash,
+                name: "Gemini 2.0 Flash",
+                cortexPathwayName: "run_gemini_20_flash",
+                cortexModelName: "gemini-flash-20-vision",
+            },
+            {
+                identifier: LLM_IDENTIFIERS.gemini25pro,
+                name: "Gemini 2.5 Pro",
+                cortexPathwayName: "run_gemini_25_pro",
+                cortexModelName: "gemini-pro-25-vision",
             },
         ],
     },
