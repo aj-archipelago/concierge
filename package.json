@@ -4,7 +4,7 @@
     "private": true,
     "dependencies": {
         "@aj-archipelago/subvibe": "^1.0.10",
-        "@amplitude/analytics-browser": "^2.3.2",
+        "@amplitude/analytics-browser": "^2.13.0",
         "@apollo/client": "^3.10.4",
         "@apollo/experimental-nextjs-app-support": "^0.11.0",
         "@headlessui/react": "^1.7.18",

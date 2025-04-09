@@ -25,9 +25,14 @@ import "./tailwind.css";
 const { NEXT_PUBLIC_AMPLITUDE_API_KEY } = process.env;
 
 if (typeof document !== "undefined") {
-    amplitude.init(NEXT_PUBLIC_AMPLITUDE_API_KEY, {
-        defaultTracking: true,
-    });
+    try {
+        amplitude.init(NEXT_PUBLIC_AMPLITUDE_API_KEY, {
+            defaultTracking: true,
+        });
+        console.log('Amplitude initialized successfully');
+    } catch (error) {
+        console.error('Failed to initialize Amplitude:', error);
+    }
 }
 
 export const AuthContext = React.createContext({});
