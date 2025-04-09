@@ -26,19 +26,25 @@ const { NEXT_PUBLIC_AMPLITUDE_API_KEY } = process.env;
 
 if (typeof document !== "undefined") {
     try {
-        console.log('Initializing Amplitude with API key:', NEXT_PUBLIC_AMPLITUDE_API_KEY ? 'present' : 'missing');
+        console.log(
+            "Initializing Amplitude with API key:",
+            NEXT_PUBLIC_AMPLITUDE_API_KEY ? "present" : "missing",
+        );
         amplitude.init(NEXT_PUBLIC_AMPLITUDE_API_KEY, {
             defaultTracking: true,
-            logLevel: amplitude.Types.LogLevel.Debug
+            logLevel: amplitude.Types.LogLevel.Debug,
         });
-        console.log('Amplitude initialized successfully');
-        
+        console.log("Amplitude initialized successfully");
+
         // Test event to verify tracking
-        amplitude.track('Test Event', { timestamp: new Date().toISOString() })
-            .then(() => console.log('Test event sent successfully'))
-            .catch(error => console.error('Failed to send test event:', error));
+        amplitude
+            .track("Test Event", { timestamp: new Date().toISOString() })
+            .then(() => console.log("Test event sent successfully"))
+            .catch((error) =>
+                console.error("Failed to send test event:", error),
+            );
     } catch (error) {
-        console.error('Failed to initialize Amplitude:', error);
+        console.error("Failed to initialize Amplitude:", error);
     }
 }
 
