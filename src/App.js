@@ -29,9 +29,9 @@ if (typeof document !== "undefined") {
         amplitude.init(NEXT_PUBLIC_AMPLITUDE_API_KEY, {
             defaultTracking: true,
         });
-        console.log('Amplitude initialized successfully');
+        console.log("Amplitude initialized successfully");
     } catch (error) {
-        console.error('Failed to initialize Amplitude:', error);
+        console.error("Failed to initialize Amplitude:", error);
     }
 }
 
