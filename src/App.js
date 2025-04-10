@@ -3,6 +3,7 @@ import { ApolloNextAppProvider } from "@apollo/experimental-nextjs-app-support";
 import React, { useContext, useEffect, useState } from "react";
 import { getClient } from "./graphql";
 import "./i18n";
+import { usePathname } from "next/navigation";
 
 import * as amplitude from "@amplitude/analytics-browser";
 import { useDebounce } from "@uidotdev/usehooks";
@@ -32,17 +33,13 @@ if (typeof document !== "undefined") {
         );
         amplitude.init(NEXT_PUBLIC_AMPLITUDE_API_KEY, {
             defaultTracking: true,
-            logLevel: amplitude.Types.LogLevel.Debug,
+            logLevel: amplitude.Types.LogLevel.Warn,
         });
         console.log("Amplitude initialized successfully");
 
         // Test event to verify tracking
-        amplitude
-            .track("Test Event", { timestamp: new Date().toISOString() })
-            .then(() => console.log("Test event sent successfully"))
-            .catch((error) =>
-                console.error("Failed to send test event:", error),
-            );
+        amplitude.track("Test Event", { timestamp: new Date().toISOString() });
+        console.log("Test event sent successfully");
     } catch (error) {
         console.error("Failed to initialize Amplitude:", error);
     }
@@ -60,6 +57,7 @@ const App = ({
     graphQLPublicEndpoint,
     neuralspaceEnabled,
 }) => {
+    const pathname = usePathname();
     const { data: currentUser } = useCurrentUser();
     const { data: serverUserState, refetch: refetchServerUserState } =
         useUserState();
@@ -96,6 +94,15 @@ const App = ({
         updateUserState.mutate(debouncedUserState);
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [debouncedUserState]);
+
+    useEffect(() => {
+        if (pathname) {
+            amplitude.track("Page View", {
+                path: pathname,
+                page: pathname.split("/")[1] || "home", // Get the top-level route
+            });
+        }
+    }, [pathname]);
 
     if (!currentUser) {
         return null;
