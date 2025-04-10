@@ -95,15 +95,6 @@ const App = ({
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [debouncedUserState]);
 
-    useEffect(() => {
-        if (pathname) {
-            amplitude.track("Page View", {
-                path: pathname,
-                page: pathname.split("/")[1] || "home", // Get the top-level route
-            });
-        }
-    }, [pathname]);
-
     if (!currentUser) {
         return null;
     }
