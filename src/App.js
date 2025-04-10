@@ -22,7 +22,7 @@ import { AutoTranscribeProvider } from "./contexts/AutoTranscribeContext";
 import Layout from "./layout/Layout";
 import "./tailwind.css";
 
-const { NEXT_PUBLIC_AMPLITUDE_API_KEY } = process.env;
+const NEXT_PUBLIC_AMPLITUDE_API_KEY = process.env.NEXT_PUBLIC_AMPLITUDE_API_KEY;
 
 if (typeof document !== "undefined") {
     try {
