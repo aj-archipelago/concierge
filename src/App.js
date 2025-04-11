@@ -3,7 +3,6 @@ import { ApolloNextAppProvider } from "@apollo/experimental-nextjs-app-support";
 import React, { useContext, useEffect, useState } from "react";
 import { getClient } from "./graphql";
 import "./i18n";
-import { usePathname } from "next/navigation";
 
 import * as amplitude from "@amplitude/analytics-browser";
 import { useDebounce } from "@uidotdev/usehooks";
@@ -57,7 +56,6 @@ const App = ({
     graphQLPublicEndpoint,
     neuralspaceEnabled,
 }) => {
-    const pathname = usePathname();
     const { data: currentUser } = useCurrentUser();
     const { data: serverUserState, refetch: refetchServerUserState } =
         useUserState();
