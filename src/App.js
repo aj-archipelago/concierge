@@ -22,12 +22,26 @@ import { AutoTranscribeProvider } from "./contexts/AutoTranscribeContext";
 import Layout from "./layout/Layout";
 import "./tailwind.css";
 
-const { NEXT_PUBLIC_AMPLITUDE_API_KEY } = process.env;
+const NEXT_PUBLIC_AMPLITUDE_API_KEY = process.env.NEXT_PUBLIC_AMPLITUDE_API_KEY;
 
 if (typeof document !== "undefined") {
-    amplitude.init(NEXT_PUBLIC_AMPLITUDE_API_KEY, {
-        defaultTracking: true,
-    });
+    try {
+        console.log(
+            "Initializing Amplitude with API key:",
+            NEXT_PUBLIC_AMPLITUDE_API_KEY ? "present" : "missing",
+        );
+        amplitude.init(NEXT_PUBLIC_AMPLITUDE_API_KEY, {
+            defaultTracking: true,
+            logLevel: amplitude.Types.LogLevel.Warn,
+        });
+        console.log("Amplitude initialized successfully");
+
+        // Test event to verify tracking
+        amplitude.track("Test Event", { timestamp: new Date().toISOString() });
+        console.log("Test event sent successfully");
+    } catch (error) {
+        console.error("Failed to initialize Amplitude:", error);
+    }
 }
 
 export const AuthContext = React.createContext({});

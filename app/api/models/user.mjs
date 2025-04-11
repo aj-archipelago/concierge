@@ -82,9 +82,6 @@ userSchema.virtual("initials").get(function () {
         .join("");
 });
 
-// add index on userId
-userSchema.index({ userId: 1 });
-
 // Create the User model from the schema
 const User = mongoose.models.User || mongoose.model("User", userSchema);
 

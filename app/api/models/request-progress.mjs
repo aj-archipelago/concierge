@@ -49,7 +49,6 @@ const requestProgressSchema = new mongoose.Schema(
     },
 );
 
-requestProgressSchema.index({ requestId: 1 });
 requestProgressSchema.index({ createdAt: -1 });
 requestProgressSchema.index({ owner: 1 });
 

@@ -1392,7 +1392,7 @@ function VideoPage() {
         setIsAutoTranscribing,
     ]);
 
-    // Replace the existing auto-transcription effect
+    // Effect to trigger initial processing (YT subtitles or transcription)
     useEffect(() => {
         const videoUrl = videoInformation?.videoUrl;
         if (videoUrl && !transcripts.length && !attemptedAutoTranscribe) {

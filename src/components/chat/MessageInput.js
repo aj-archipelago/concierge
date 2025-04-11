@@ -282,44 +282,57 @@ function MessageInput({
                                 }}
                                 onPaste={async (e) => {
                                     const items = e.clipboardData.items;
-                                    let hasImageFile = false;
+                                    let hasFile = false;
+                                    let hasText = false;
 
-                                    // First check if we have any file types
+                                    // First check for text content
                                     for (let i = 0; i < items.length; i++) {
                                         const item = items[i];
-                                        // Check if this is a file type (not just text content)
                                         if (
-                                            item.kind === "file" &&
-                                            ACCEPTED_FILE_TYPES.includes(
-                                                item.type,
-                                            )
+                                            item.kind === "string" &&
+                                            (item.type === "text/plain" ||
+                                                item.type === "text/html" ||
+                                                item.type === "text/rtf")
                                         ) {
-                                            hasImageFile = true;
-                                            const file = item.getAsFile();
-                                            if (file) {
-                                                // Show FilePond if it's not already visible
-                                                if (!showFileUpload) {
-                                                    setShowFileUpload(true);
-                                                }
-                                                // Create a FilePond file object
-                                                const pondFile = {
-                                                    source: file,
-                                                    options: {
-                                                        type: "local",
-                                                        file: file,
-                                                    },
-                                                };
-                                                setFiles((prevFiles) => [
-                                                    ...prevFiles,
-                                                    pondFile,
-                                                ]);
-                                            }
+                                            hasText = true;
+                                            break;
                                         }
-                                        // Let browser handle text paste naturally - no need for custom logic
                                     }
 
-                                    // Prevent default only if we handled an image file
-                                    if (hasImageFile) {
+                                    // Only check for files if we don't have text
+                                    if (!hasText) {
+                                        for (let i = 0; i < items.length; i++) {
+                                            const item = items[i];
+                                            if (
+                                                item.kind === "file" &&
+                                                ACCEPTED_FILE_TYPES.includes(
+                                                    item.type,
+                                                )
+                                            ) {
+                                                hasFile = true;
+                                                const file = item.getAsFile();
+                                                if (file) {
+                                                    if (!showFileUpload) {
+                                                        setShowFileUpload(true);
+                                                    }
+                                                    const pondFile = {
+                                                        source: file,
+                                                        options: {
+                                                            type: "local",
+                                                            file: file,
+                                                        },
+                                                    };
+                                                    setFiles((prevFiles) => [
+                                                        ...prevFiles,
+                                                        pondFile,
+                                                    ]);
+                                                }
+                                            }
+                                        }
+                                    }
+
+                                    // Prevent default only if we handled a file and there's no text
+                                    if (hasFile && !hasText) {
                                         e.preventDefault();
                                     }
                                 }}

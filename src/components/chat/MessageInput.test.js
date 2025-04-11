@@ -7,6 +7,7 @@ import { Provider } from "react-redux";
 import { configureStore } from "@reduxjs/toolkit";
 import fileUploadReducer from "../../stores/fileUploadSlice";
 import { ApolloClient, InMemoryCache, ApolloProvider } from "@apollo/client";
+import userEvent from "@testing-library/user-event";
 
 // Mock the @uidotdev/usehooks module
 jest.mock("@uidotdev/usehooks", () => ({
@@ -266,35 +267,35 @@ describe("MessageInput", () => {
     });
 
     describe("Pasting functionality", () => {
-        it("should allow default browser behavior for text paste by not calling preventDefault", () => {
+        it("should handle text paste via default", async () => {
             renderMessageInput();
             const input = screen.getByPlaceholderText("Send a message");
-
-            // Spy on Event.prototype.preventDefault
             const spy = jest.spyOn(Event.prototype, "preventDefault");
 
-            // Create paste event with text
-            const pasteEvent = {
-                clipboardData: {
-                    items: [
-                        {
-                            kind: "string",
-                            type: "text/plain",
-                            getAsString: (cb) => cb("Test pasted text"),
-                        },
-                    ],
-                },
+            // Create clipboard data structure
+            const clipboardData = {
+                items: [
+                    {
+                        kind: "string",
+                        type: "text/plain",
+                        getAsString: (callback) => callback("Pasted text"),
+                    },
+                ],
             };
 
-            // Trigger paste event
-            fireEvent.paste(input, pasteEvent);
+            // Trigger paste event using userEvent with clipboardData
+            await userEvent.paste(input, "Pasted text", { clipboardData });
 
             // Verify preventDefault was not called
             expect(spy).not.toHaveBeenCalled();
+
+            // Verify input value was updated
+            expect(input.value).toBe("Pasted text");
+
             spy.mockRestore();
         });
 
-        it("should process image paste by showing FilePond and preparing for upload and calling preventDefault", () => {
+        it("should process image paste by showing FilePond and preparing for upload and calling preventDefault", async () => {
             renderMessageInput();
             const input = screen.getByPlaceholderText("Send a message");
 
@@ -306,21 +307,19 @@ describe("MessageInput", () => {
             // Spy on Event.prototype.preventDefault
             const spy = jest.spyOn(Event.prototype, "preventDefault");
 
-            // Create paste event with file (do not pass custom preventDefault)
-            const pasteEvent = {
-                clipboardData: {
-                    items: [
-                        {
-                            kind: "file",
-                            type: "image/png",
-                            getAsFile: () => mockFile,
-                        },
-                    ],
-                },
+            // Create clipboard data structure
+            const clipboardData = {
+                items: [
+                    {
+                        kind: "file",
+                        type: "image/png",
+                        getAsFile: () => mockFile,
+                    },
+                ],
             };
 
-            // Trigger paste event
-            fireEvent.paste(input, pasteEvent);
+            // Trigger paste event using userEvent with clipboardData
+            await userEvent.paste(input, "", { clipboardData });
 
             // Verify that preventDefault was called
             expect(spy).toHaveBeenCalled();
@@ -333,7 +332,7 @@ describe("MessageInput", () => {
             expect(screen.getByTestId("close-icon")).toBeInTheDocument();
         });
 
-        it("should handle mixed content paste by processing both text and image and calling preventDefault", () => {
+        it("should handle mixed content paste by processing text via default", async () => {
             renderMessageInput();
             const input = screen.getByPlaceholderText("Send a message");
 
@@ -345,44 +344,84 @@ describe("MessageInput", () => {
             // Spy on Event.prototype.preventDefault
             const spy = jest.spyOn(Event.prototype, "preventDefault");
 
-            // Create paste event with both image and text (do not pass a custom preventDefault)
-            const pasteEvent = {
-                clipboardData: {
-                    items: [
-                        {
-                            kind: "file",
-                            type: "image/png",
-                            getAsFile: () => mockFile,
-                        },
-                        {
-                            kind: "string",
-                            type: "text/plain",
-                            getAsString: (cb) => cb("Test pasted text"),
-                        },
-                    ],
-                },
+            // Create clipboard data structure with both image and text
+            const clipboardData = {
+                items: [
+                    {
+                        kind: "file",
+                        type: "image/png",
+                        getAsFile: () => mockFile,
+                    },
+                    {
+                        kind: "string",
+                        type: "text/plain",
+                        getAsString: (callback) => callback("Test pasted text"),
+                    },
+                ],
             };
 
             // Set initial input value
             fireEvent.change(input, { target: { value: "Initial text" } });
 
-            // Trigger paste event
-            fireEvent.paste(input, pasteEvent);
+            // Trigger paste event using userEvent with clipboardData
+            await userEvent.paste(input, "Test pasted text", { clipboardData });
 
-            // Verify that preventDefault was called
-            expect(spy).toHaveBeenCalled();
+            // Verify that preventDefault was not called
+            expect(spy).not.toHaveBeenCalled();
             spy.mockRestore();
 
-            // Simulate what the browser would do with the text part
-            fireEvent.change(input, {
-                target: { value: "Initial text Test pasted text" },
-            });
-
             // Verify that FilePond is visible (for the image part)
-            expect(screen.getByTestId("filepond-mock")).toBeInTheDocument();
+            expect(
+                screen.queryByTestId("filepond-mock"),
+            ).not.toBeInTheDocument();
+        });
 
-            // Verify that the text was also handled
-            expect(input.value).toBe("Initial text Test pasted text");
+        it("should handle mixed content paste by appending text", async () => {
+            renderMessageInput();
+            const input = screen.getByPlaceholderText("Send a message");
+            fireEvent.change(input, { target: { value: "Initial text " } });
+
+            const spy = jest.spyOn(Event.prototype, "preventDefault");
+
+            // Create clipboard data structure with file, text, and HTML
+            const clipboardData = {
+                items: [
+                    {
+                        kind: "file",
+                        type: "image/png",
+                        getAsFile: () =>
+                            new File(["image data"], "test.png", {
+                                type: "image/png",
+                            }),
+                    },
+                    {
+                        kind: "string",
+                        type: "text/plain",
+                        getAsString: (callback) => callback("Pasted text."),
+                    },
+                    {
+                        kind: "string",
+                        type: "text/html",
+                        getAsString: (callback) =>
+                            callback('<body><img src="test.png"> Text</body>'),
+                    },
+                ],
+            };
+
+            // Trigger paste event using userEvent with clipboardData
+            await userEvent.paste(input, "Pasted text.", { clipboardData });
+
+            expect(input.value).toBe("Initial text Pasted text.");
+            // Assert: FilePond mock should not appear
+            expect(
+                screen.queryByTestId("filepond-mock"),
+            ).not.toBeInTheDocument();
+            // Assert: Close icon (associated with FilePond) should not appear
+            expect(screen.queryByTestId("close-icon")).not.toBeInTheDocument();
+            // Assert: preventDefault should not have been called
+            expect(spy).not.toHaveBeenCalled();
+
+            spy.mockRestore();
         });
     });
 
