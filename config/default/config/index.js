@@ -14,6 +14,8 @@ const LLM_IDENTIFIERS = {
     gpt4o: "gpt4o",
     gpt4omini: "gpt4omini",
     gpt4: "gpt4",
+    gpt41: "gpt41",
+    gpt41nano: "gpt41nano",
     gpt432k: "gpt432k",
     claude3haiku: "claude3haiku",
     claude35sonnet: "claude35sonnet",
