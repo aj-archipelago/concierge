@@ -161,7 +161,7 @@ function ChatContent({
 
                 // Perform RAG start query
                 const result = await client.query({
-                    query: QUERIES.SYS_ENTITY_START,
+                    query: QUERIES.SYS_ENTITY_AGENT,
                     variables,
                     fetchPolicy: "network-only",
                 });
@@ -169,7 +169,7 @@ function ChatContent({
                 // If streaming is enabled, handle subscription setup
                 if (streamingEnabled) {
                     const subscriptionId =
-                        result.data?.sys_entity_start?.result;
+                        result.data?.sys_entity_agent?.result;
                     if (subscriptionId) {
                         // Set streaming state BEFORE setting subscription ID
                         setIsStreaming(true);
@@ -192,13 +192,13 @@ function ChatContent({
                     let resultObj;
                     try {
                         resultObj = JSON.parse(
-                            result.data.sys_entity_start.result,
+                            result.data.sys_entity_agent.result,
                         );
                     } catch {
-                        resultObj = result.data.sys_entity_start.result;
+                        resultObj = result.data.sys_entity_agent.result;
                     }
                     resultMessage = resultObj;
-                    tool = result.data.sys_entity_start.tool;
+                    tool = result.data.sys_entity_agent.tool;
                     if (tool) {
                         const toolObj = JSON.parse(tool);
                         toolCallbackName = toolObj?.toolCallbackName;

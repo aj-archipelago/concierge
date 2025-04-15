@@ -160,7 +160,7 @@ const CODE_HUMAN_INPUT = gql`
     }
 `;
 
-const SYS_ENTITY_START = gql`
+const SYS_ENTITY_AGENT = gql`
     query RagStart(
         $chatHistory: [MultiMessage]!
         $dataSources: [String]
@@ -174,7 +174,7 @@ const SYS_ENTITY_START = gql`
         $title: String
         $aiStyle: String
     ) {
-        sys_entity_start(
+        sys_entity_agent(
             chatHistory: $chatHistory
             dataSources: $dataSources
             contextId: $contextId
@@ -725,7 +725,7 @@ const QUERIES = {
     COGNITIVE_INSERT,
     IMAGE,
     SYS_SAVE_MEMORY,
-    SYS_ENTITY_START,
+    SYS_ENTITY_AGENT,
     SYS_ENTITY_CONTINUE,
     EXPAND_STORY,
     FORMAT_PARAGRAPH_TURBO,
@@ -783,7 +783,7 @@ export {
     COGNITIVE_DELETE,
     EXPAND_STORY,
     SYS_SAVE_MEMORY,
-    SYS_ENTITY_START,
+    SYS_ENTITY_AGENT,
     SYS_ENTITY_CONTINUE,
     SELECT_SERVICES,
     SUMMARY,

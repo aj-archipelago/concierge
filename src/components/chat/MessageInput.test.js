@@ -110,7 +110,7 @@ jest.mock("../../graphql", () => ({
     COGNITIVE_INSERT: "COGNITIVE_INSERT",
     CODE_HUMAN_INPUT: "CODE_HUMAN_INPUT",
     QUERIES: {
-        SYS_ENTITY_START: "SYS_ENTITY_START",
+        SYS_ENTITY_AGENT: "SYS_ENTITY_AGENT",
     },
 }));
 
