@@ -66,6 +66,18 @@ export default {
                 cortexModelName: "oai-gpt4",
             },
             {
+                identifier: LLM_IDENTIFIERS.gpt41,
+                name: "GPT 4.1",
+                cortexPathwayName: "run_gpt41",
+                cortexModelName: "oai-gpt41",
+            },
+            {
+                identifier: LLM_IDENTIFIERS.gpt41nano,
+                name: "GPT 4.1 Nano",
+                cortexPathwayName: "run_gpt41_nano",
+                cortexModelName: "oai-gpt41-nano",
+            },
+            {
                 identifier: LLM_IDENTIFIERS.claude35sonnet,
                 name: "Claude 3.5 Sonnet",
                 cortexPathwayName: "run_claude35_sonnet",
