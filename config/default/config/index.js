@@ -15,6 +15,7 @@ const LLM_IDENTIFIERS = {
     gpt4omini: "gpt4omini",
     gpt4: "gpt4",
     gpt41: "gpt41",
+    gpt41mini: "gpt41mini",
     gpt41nano: "gpt41nano",
     gpt432k: "gpt432k",
     claude3haiku: "claude3haiku",
@@ -72,6 +73,12 @@ export default {
                 name: "GPT 4.1",
                 cortexPathwayName: "run_gpt41",
                 cortexModelName: "oai-gpt41",
+            },
+            {
+                identifier: LLM_IDENTIFIERS.gpt41mini,
+                name: "GPT 4.1 Mini",
+                cortexPathwayName: "run_gpt41_mini",
+                cortexModelName: "oai-gpt41-mini",
             },
             {
                 identifier: LLM_IDENTIFIERS.gpt41nano,
