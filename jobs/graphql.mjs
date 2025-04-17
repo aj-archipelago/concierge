@@ -4,20 +4,57 @@ const CORTEX_GRAPHQL_API_URL =
     process.env.CORTEX_GRAPHQL_API_URL || "http://localhost:4000/graphql";
 
 const getClient = async (serverUrl) => {
-    // const config = await import("../config/index.js").default;
     const apollo = await import("@apollo/client/index.js");
-
-    const { ApolloClient, InMemoryCache } = apollo;
+    const { ApolloClient, InMemoryCache, split, HttpLink } = apollo;
+    const { GraphQLWsLink } = await import(
+        "@apollo/client/link/subscriptions/index.js"
+    );
+    const { createClient } = await import("graphql-ws");
+    const { getMainDefinition } = await import(
+        "@apollo/client/utilities/index.js"
+    );
+    const WebSocket = await import("ws");
 
     let graphqlEndpoint;
     if (serverUrl) {
-        // graphqlEndpoint = config.endpoints.graphql(serverUrl);
+        graphqlEndpoint = serverUrl;
     } else {
         graphqlEndpoint = CORTEX_GRAPHQL_API_URL;
     }
 
-    const client = new ApolloClient({
+    const httpLink = new HttpLink({
         uri: graphqlEndpoint,
+    });
+
+    const wsLink = new GraphQLWsLink(
+        createClient({
+            url: graphqlEndpoint.replace("http", "ws"),
+            webSocketImpl: WebSocket.default,
+            connectionParams: {},
+            on: {
+                connected: () => console.log("GraphQL WebSocket connected"),
+                error: (error) =>
+                    console.error("GraphQL WebSocket error:", error),
+                closed: () => console.log("GraphQL WebSocket closed"),
+            },
+        }),
+    );
+
+    // Split requests between WebSocket and HTTP
+    const splitLink = split(
+        ({ query }) => {
+            const definition = getMainDefinition(query);
+            return (
+                definition.kind === "OperationDefinition" &&
+                definition.operation === "subscription"
+            );
+        },
+        wsLink,
+        httpLink,
+    );
+
+    const client = new ApolloClient({
+        link: splitLink,
         cache: new InMemoryCache(),
     });
 
@@ -110,6 +147,14 @@ const VISION = gql`
 const SYS_SAVE_MEMORY = gql`
     query SysSaveMemory($aiMemory: String!, $contextId: String!) {
         sys_save_memory(aiMemory: $aiMemory, contextId: $contextId) {
+            result
+        }
+    }
+`;
+
+const CODE_HUMAN_INPUT = gql`
+    query ($text: String, $codeRequestId: String) {
+        code_human_input(text: $text, codeRequestId: $codeRequestId) {
             result
         }
     }
@@ -386,26 +431,52 @@ const TRANSCRIBE = gql`
 const TRANSCRIBE_NEURALSPACE = gql`
     query TranscribeNeuralSpace(
         $file: String!
-        $text: String
         $language: String
         $wordTimestamped: Boolean
+        $responseFormat: String
         $maxLineCount: Int
         $maxLineWidth: Int
         $maxWordsPerLine: Int
         $highlightWords: Boolean
-        $responseFormat: String
         $async: Boolean
     ) {
         transcribe_neuralspace(
             file: $file
-            text: $text
             language: $language
             wordTimestamped: $wordTimestamped
+            responseFormat: $responseFormat
             maxLineCount: $maxLineCount
             maxLineWidth: $maxLineWidth
             maxWordsPerLine: $maxWordsPerLine
             highlightWords: $highlightWords
+            async: $async
+        ) {
+            result
+        }
+    }
+`;
+
+const TRANSCRIBE_GEMINI = gql`
+    query TranscribeGemini(
+        $file: String!
+        $language: String
+        $wordTimestamped: Boolean
+        $responseFormat: String
+        $maxLineCount: Int
+        $maxLineWidth: Int
+        $maxWordsPerLine: Int
+        $highlightWords: Boolean
+        $async: Boolean
+    ) {
+        transcribe_gemini(
+            file: $file
+            language: $language
+            wordTimestamped: $wordTimestamped
             responseFormat: $responseFormat
+            maxLineCount: $maxLineCount
+            maxLineWidth: $maxLineWidth
+            maxWordsPerLine: $maxWordsPerLine
+            highlightWords: $highlightWords
             async: $async
         ) {
             result
@@ -489,7 +560,7 @@ const ENTITIES = gql`
 `;
 
 const REQUEST_PROGRESS = gql`
-    subscription RequestProgress($requestIds: [String!]) {
+    subscription Task($requestIds: [String!]) {
         requestProgress(requestIds: $requestIds) {
             data
             progress
@@ -605,6 +676,26 @@ const JIRA_STORY = gql`
     }
 `;
 
+const AZURE_VIDEO_TRANSLATE = gql`
+    query (
+        $mode: String
+        $sourcelocale: String
+        $targetlocale: String
+        $sourcevideooraudiofilepath: String
+        $stream: Boolean
+    ) {
+        azure_video_translate(
+            mode: $mode
+            sourcelocale: $sourcelocale
+            targetlocale: $targetlocale
+            sourcevideooraudiofilepath: $sourcevideooraudiofilepath
+            stream: $stream
+        ) {
+            result
+        }
+    }
+`;
+
 const getWorkspacePromptQuery = (pathwayName) => {
     return gql`
         query ${pathwayName}(
@@ -626,6 +717,7 @@ const getWorkspacePromptQuery = (pathwayName) => {
 };
 
 const QUERIES = {
+    AZURE_VIDEO_TRANSLATE,
     CHAT_PERSIST,
     CHAT_LABEEB,
     CHAT_EXTENSION,
@@ -657,6 +749,7 @@ const QUERIES = {
     SUMMARIZE_TURBO,
     TRANSCRIBE,
     TRANSCRIBE_NEURALSPACE,
+    TRANSCRIBE_GEMINI,
     TRANSLATE,
     TRANSLATE_AZURE,
     TRANSLATE_CONTEXT,
@@ -682,6 +775,7 @@ const MUTATIONS = {
 };
 
 export {
+    AZURE_VIDEO_TRANSLATE,
     getClient,
     CHAT_PERSIST,
     CHAT_LABEEB,
@@ -719,4 +813,9 @@ export {
     REMOVE_CONTENT,
     JIRA_STORY,
     VISION,
+    TRANSCRIBE,
+    TRANSCRIBE_NEURALSPACE,
+    TRANSCRIBE_GEMINI,
+    FORMAT_PARAGRAPH_TURBO,
+    CODE_HUMAN_INPUT,
 };

@@ -1,18 +1,16 @@
 import i18next from "i18next";
 import React, {
-    useEffect,
     useCallback,
-    useRef,
+    useEffect,
     useImperativeHandle,
+    useRef,
 } from "react";
 import { useTranslation } from "react-i18next";
-import { AiFillFilePdf, AiFillFileText, AiOutlineRobot } from "react-icons/ai";
+import { AiFillFilePdf, AiFillFileText } from "react-icons/ai";
 import { FaUserCircle } from "react-icons/fa";
+import Loader from "../../../app/components/loader";
 import classNames from "../../../app/utils/class-names";
 import config from "../../../config";
-import { convertMessageToMarkdown } from "./ChatMessage";
-import ScrollToBottom from "./ScrollToBottom";
-import Loader from "../../../app/components/loader";
 import {
     getExtension,
     getFilename,
@@ -20,11 +18,10 @@ import {
     isVideoUrl,
 } from "../../utils/mediaUtils";
 import CopyButton from "../CopyButton";
-import { useGetActiveChat, useUpdateChat } from "../../../app/queries/chats";
-import ProgressUpdate from "../editor/ProgressUpdate";
-import { useGetAutogenRun } from "../../../app/queries/autogen";
-import StreamingMessage from "./StreamingMessage";
 import ChatImage from "../images/ChatImage";
+import BotMessage from "./BotMessage";
+import ScrollToBottom from "./ScrollToBottom";
+import StreamingMessage from "./StreamingMessage";
 
 const hasImages = (message) => {
     if (!Array.isArray(message.payload)) return false;
@@ -50,28 +47,6 @@ const countImages = (message) => {
             return count;
         }
     }, 0);
-};
-
-const getToolMetadata = (toolName, t) => {
-    const toolIcons = {
-        search: "🔍",
-        reasoning: "🧠",
-        image: "🖼️",
-        writing: "💻",
-        vision: "👁️",
-        default: "🛠️",
-        coding: "🤖",
-        memory: "🧠",
-    };
-
-    const normalizedToolName = toolName?.toLowerCase();
-    const icon = toolIcons[normalizedToolName] || toolIcons.default;
-    const translatedName = t(`tool.${normalizedToolName || "default"}`);
-
-    return {
-        icon,
-        translatedName,
-    };
 };
 
 const parseToolData = (toolString) => {
@@ -128,78 +103,6 @@ const MemoizedYouTubeEmbed = React.memo(({ url, onLoad }) => {
 });
 
 // Add this near the top of the file, after imports:
-const MemoizedMarkdownMessage = React.memo(
-    ({ message }) => {
-        return convertMessageToMarkdown(message);
-    },
-    (prevProps, nextProps) => {
-        // If messages are completely identical, no need to re-render
-        if (prevProps.message === nextProps.message) {
-            return true;
-        }
-
-        // If payloads are strings and identical, no need to re-render
-        if (
-            typeof prevProps.message.payload === "string" &&
-            typeof nextProps.message.payload === "string" &&
-            prevProps.message.payload === nextProps.message.payload
-        ) {
-            return true;
-        }
-
-        // For array payloads, we need to compare each item
-        if (
-            Array.isArray(prevProps.message.payload) &&
-            Array.isArray(nextProps.message.payload)
-        ) {
-            if (
-                prevProps.message.payload.length !==
-                nextProps.message.payload.length
-            ) {
-                return false;
-            }
-
-            // Compare each item in the array
-            return prevProps.message.payload.every((item, index) => {
-                const nextItem = nextProps.message.payload[index];
-                try {
-                    const prevObj =
-                        typeof item === "string" ? JSON.parse(item) : item;
-                    const nextObj =
-                        typeof nextItem === "string"
-                            ? JSON.parse(nextItem)
-                            : nextItem;
-
-                    // For image URLs, only compare the base URL without query parameters
-                    if (
-                        prevObj.type === "image_url" &&
-                        nextObj.type === "image_url"
-                    ) {
-                        const prevUrl = new URL(
-                            prevObj.url ||
-                                prevObj.image_url?.url ||
-                                prevObj.gcs,
-                        ).pathname;
-                        const nextUrl = new URL(
-                            nextObj.url ||
-                                nextObj.image_url?.url ||
-                                nextObj.gcs,
-                        ).pathname;
-                        return prevUrl === nextUrl;
-                    }
-
-                    return JSON.stringify(prevObj) === JSON.stringify(nextObj);
-                } catch (e) {
-                    // If JSON parsing fails, compare as strings
-                    return item === nextItem;
-                }
-            });
-        }
-
-        // Default to re-rendering if we can't determine equality
-        return false;
-    },
-);
 
 // Create a memoized component for the static message list content
 const MessageListContent = React.memo(function MessageListContent({
@@ -319,7 +222,7 @@ const MessageListContent = React.memo(function MessageListContent({
         }
 
         return (
-            <div key={newMessage.id}>
+            <div key={newMessage.id} id={`message-${newMessage.id}`}>
                 {renderMessage({ ...newMessage, payload: display })}
             </div>
         );
@@ -370,11 +273,6 @@ const MessageList = React.memo(
         const prevStreamingContentRef = React.useRef(streamingContent);
         const prevChatIdRef = React.useRef(chatId);
 
-        const chat = useGetActiveChat()?.data;
-        const updateChat = useUpdateChat();
-        const codeRequestId = chat?.codeRequestId;
-        const getAutogenRun = useGetAutogenRun(codeRequestId);
-
         // Reset scroll when switching chats
         useEffect(() => {
             if (chatId !== prevChatIdRef.current) {
@@ -387,36 +285,6 @@ const MessageList = React.memo(
         React.useEffect(() => {
             prevStreamingContentRef.current = streamingContent;
         }, [streamingContent]);
-
-        const setCodeRequestFinalData = useCallback(
-            (data) => {
-                const message = {
-                    payload: data,
-                    sender: "labeeb",
-                    sentTime: "just now",
-                    direction: "incoming",
-                    position: "single",
-                    tool: '{"toolUsed":"coding"}',
-                };
-
-                updateChat.mutateAsync({
-                    chatId,
-                    codeRequestId: null,
-                    isChatLoading: false,
-                    messages: chat?.messages
-                        ? [...chat.messages, message]
-                        : [message],
-                });
-            },
-            [chatId, updateChat, chat?.messages],
-        );
-
-        useEffect(() => {
-            const data = getAutogenRun?.data?.data?.data;
-            if (data) {
-                setCodeRequestFinalData(data);
-            }
-        }, [getAutogenRun?.data?.data, setCodeRequestFinalData]);
 
         useEffect(() => {
             const newMessageIds = messages.map((m) => m?.id).join(",");
@@ -498,108 +366,25 @@ const MessageList = React.memo(
 
         const renderMessage = useCallback(
             (message) => {
-                let avatar;
                 const toolData = parseToolData(message.tool);
 
                 if (message.sender === "labeeb") {
-                    avatar = toolData?.avatarImage ? (
-                        <img
-                            src={toolData.avatarImage}
-                            alt="Tool Avatar"
-                            className={classNames(
-                                basis,
-                                "p-1",
-                                buttonWidthClass,
-                                rowHeight,
-                                "rounded-full object-cover",
-                            )}
-                        />
-                    ) : bot === "code" ? (
-                        <AiOutlineRobot
-                            className={classNames(
-                                rowHeight,
-                                buttonWidthClass,
-                                "px-3",
-                                "text-gray-400",
-                            )}
-                        />
-                    ) : (
-                        <img
-                            src={getLogo(language)}
-                            alt="Logo"
-                            className={classNames(
-                                basis,
-                                "p-2",
-                                buttonWidthClass,
-                                rowHeight,
-                            )}
-                        />
-                    );
-
                     return (
-                        <div
-                            key={message.id}
-                            className="flex bg-sky-50 ps-1 pt-1 relative group"
-                        >
-                            <div className="flex items-center gap-2 absolute top-3 end-3">
-                                {toolData?.toolUsed && (
-                                    <div className="tool-badge inline-flex items-center gap-1.5 px-1.5 py-0.5 rounded-md bg-sky-50 border border-sky-100 text-xs text-sky-600 font-medium w-fit">
-                                        <span className="tool-icon">
-                                            {
-                                                getToolMetadata(
-                                                    toolData.toolUsed,
-                                                    t,
-                                                ).icon
-                                            }
-                                        </span>
-                                        <span className="tool-name">
-                                            {t("Used {{tool}} tool", {
-                                                tool: getToolMetadata(
-                                                    toolData.toolUsed,
-                                                    t,
-                                                ).translatedName,
-                                            })}
-                                        </span>
-                                    </div>
-                                )}
-                                <CopyButton
-                                    item={
-                                        typeof message.payload === "string"
-                                            ? message.payload
-                                            : message.text
-                                    }
-                                    className="copy-button opacity-0 group-hover:opacity-60 hover:opacity-100 transition-opacity"
-                                />
-                            </div>
-
-                            <div className={classNames(basis)}>{avatar}</div>
-                            <div
-                                className={classNames(
-                                    "px-1 pb-3 pt-2 [.docked_&]:px-0 [.docked_&]:py-3 w-full",
-                                )}
-                            >
-                                <div className="flex flex-col">
-                                    <div className="font-semibold">
-                                        {t(botName)}
-                                    </div>
-                                    <div
-                                        className="chat-message-bot relative break-words"
-                                        ref={(el) => messageRef(el, message.id)}
-                                    >
-                                        <React.Fragment
-                                            key={`md-${message.id}`}
-                                        >
-                                            <MemoizedMarkdownMessage
-                                                message={message}
-                                            />
-                                        </React.Fragment>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
+                        <BotMessage
+                            message={message}
+                            toolData={toolData}
+                            bot={bot}
+                            basis={basis}
+                            buttonWidthClass={buttonWidthClass}
+                            rowHeight={rowHeight}
+                            getLogo={getLogo}
+                            language={language}
+                            botName={botName}
+                            messageRef={messageRef}
+                        />
                     );
                 } else {
-                    avatar = (
+                    const avatar = (
                         <FaUserCircle
                             className={classNames(
                                 rowHeight,
@@ -682,7 +467,6 @@ const MessageList = React.memo(
                         )}
                         {loading &&
                             !isStreaming &&
-                            !codeRequestId &&
                             renderMessage({
                                 id: "loading",
                                 sender: "labeeb",
@@ -694,16 +478,6 @@ const MessageList = React.memo(
                                     </div>
                                 ),
                             })}
-                        {loading && !isStreaming && codeRequestId && (
-                            <div className="border pt-5 pb-3 px-7 rounded-md bg-white animate-fade-in">
-                                <ProgressUpdate
-                                    requestId={codeRequestId}
-                                    setFinalData={setCodeRequestFinalData}
-                                    initialText={"🤖 Agent coding..."}
-                                    codeAgent={true}
-                                />
-                            </div>
-                        )}
                     </div>
                 </div>
             </ScrollToBottom>

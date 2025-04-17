@@ -6,12 +6,11 @@ import { useInView } from "react-intersection-observer";
 import TimeAgo from "react-time-ago";
 import stringcase from "stringcase";
 import {
-    useDeleteNotification,
-    useInfiniteNotifications,
-    useCancelRequest,
+    useDeleteTask,
+    useInfiniteTasks,
+    useCancelTask,
 } from "../../app/queries/notifications";
 import {
-    NotificationDisplayType,
     StatusIndicator,
     getStatusColorClass,
 } from "../../src/components/notifications/NotificationButton";
@@ -25,17 +24,64 @@ import {
     AlertDialogHeader,
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { getTaskDisplayName } from "../../src/utils/task-loader.mjs";
+
+const StatusText = ({ text, id, t }) => {
+    const [isExpanded, setIsExpanded] = useState(false);
+
+    if (!text) return null;
+
+    text = text?.trim();
+
+    const toggleExpanded = (e) => {
+        e.stopPropagation();
+        setIsExpanded((prev) => !prev);
+    };
+
+    return (
+        <div>
+            <pre className="my-1 p-2 text-xs border bg-gray-50 rounded-md relative whitespace-pre-wrap font-sans max-h-[150px] overflow-y-auto">
+                {isExpanded || (text?.length || 0) <= 150 ? (
+                    text?.trim()
+                ) : (
+                    <>
+                        {text?.substring(0, 150)}...
+                        <div className="mt-1">
+                            <button
+                                onClick={toggleExpanded}
+                                className="text-sky-600 hover:text-sky-800 font-medium text-xs"
+                            >
+                                {t("Show more")}
+                            </button>
+                        </div>
+                    </>
+                )}
+                {isExpanded && text?.length > 150 && (
+                    <div className="mt-1">
+                        <button
+                            onClick={toggleExpanded}
+                            className="text-sky-600 hover:text-sky-800 font-medium text-xs"
+                        >
+                            {t("Show less")}
+                        </button>
+                    </div>
+                )}
+            </pre>
+        </div>
+    );
+};
 
 export default function NotificationsPage() {
     const { t } = useTranslation();
     const { ref, inView } = useInView();
 
     const { data, fetchNextPage, hasNextPage, isFetchingNextPage, status } =
-        useInfiniteNotifications();
+        useInfiniteTasks();
 
-    const deleteNotification = useDeleteNotification();
+    const deleteNotification = useDeleteTask();
     const [cancelRequestId, setCancelRequestId] = useState(null);
-    const cancelRequest = useCancelRequest();
+    const cancelRequest = useCancelTask();
+    const [notificationTypes, setNotificationTypes] = useState({});
 
     useEffect(() => {
         if (inView && hasNextPage) {
@@ -43,18 +89,36 @@ export default function NotificationsPage() {
         }
     }, [inView, hasNextPage, fetchNextPage]);
 
-    const handleDelete = (requestId) => {
+    useEffect(() => {
+        // Load all notification types for displayed notifications
+        const loadTypes = async () => {
+            const types = {};
+            for (const notification of data?.pages.flatMap(
+                (page) => page.requests,
+            ) ?? []) {
+                if (!types[notification.type]) {
+                    types[notification.type] = await getTaskDisplayName(
+                        notification.type,
+                    );
+                }
+            }
+            setNotificationTypes(types);
+        };
+        loadTypes();
+    }, [data]);
+
+    const handleDelete = (_id) => {
         if (
             window.confirm(
                 t("Are you sure you want to delete this notification?"),
             )
         ) {
-            deleteNotification.mutate(requestId);
+            deleteNotification.mutate(_id);
         }
     };
 
-    const handleCancelRequest = (requestId) => {
-        setCancelRequestId(requestId);
+    const handleCancelRequest = (_id) => {
+        setCancelRequestId(_id);
     };
 
     const confirmCancel = useCallback(async () => {
@@ -65,6 +129,10 @@ export default function NotificationsPage() {
     }, [cancelRequestId, cancelRequest]);
 
     const notifications = data?.pages.flatMap((page) => page.requests) ?? [];
+
+    const displayType = (type) => {
+        return notificationTypes[type] || type;
+    };
 
     return (
         <div className="p-2">
@@ -84,7 +152,7 @@ export default function NotificationsPage() {
                     <>
                         {notifications.map((notification) => (
                             <div
-                                key={notification.requestId}
+                                key={notification._id}
                                 className="space-y-2 bg-gray-100 p-3 rounded-md"
                             >
                                 <div className="flex gap-3">
@@ -96,11 +164,7 @@ export default function NotificationsPage() {
                                     <div className="flex flex-col grow overflow-hidden">
                                         <div className="flex justify-between items-start">
                                             <span className="font-semibold">
-                                                {t(
-                                                    NotificationDisplayType[
-                                                        notification.type
-                                                    ],
-                                                )}
+                                                {displayType(notification.type)}
                                             </span>
                                             <div className="flex gap-2">
                                                 {notification.status ===
@@ -108,7 +172,7 @@ export default function NotificationsPage() {
                                                     <button
                                                         onClick={() =>
                                                             handleCancelRequest(
-                                                                notification.requestId,
+                                                                notification._id,
                                                             )
                                                         }
                                                         className="p-1 rounded flex items-center gap-1 text-sm text-gray-500 hover:text-red-500"
@@ -126,7 +190,7 @@ export default function NotificationsPage() {
                                                     <button
                                                         onClick={() =>
                                                             handleDelete(
-                                                                notification.requestId,
+                                                                notification._id,
                                                             )
                                                         }
                                                         className="p-1 rounded flex items-center gap-1 text-sm text-gray-500 hover:text-red-500"
@@ -148,15 +212,6 @@ export default function NotificationsPage() {
                                             </span>
                                         )}
                                         <span
-                                            className={`text-sm ${notification.status === "failed" ? "text-red-500" : "text-gray-500"}`}
-                                        >
-                                            {notification.statusText ||
-                                                (notification.status ===
-                                                "failed"
-                                                    ? t("Request failed")
-                                                    : "")}
-                                        </span>
-                                        <span
                                             className={`text-sm font-semibold ${getStatusColorClass(notification.status)}`}
                                         >
                                             {t(
@@ -165,6 +220,18 @@ export default function NotificationsPage() {
                                                 ),
                                             )}
                                         </span>
+
+                                        <StatusText
+                                            text={
+                                                notification.statusText ||
+                                                (notification.status ===
+                                                "failed"
+                                                    ? t("Request failed")
+                                                    : "")
+                                            }
+                                            id={notification._id}
+                                            t={t}
+                                        />
 
                                         {notification.status ===
                                             "in_progress" && (

@@ -9,7 +9,8 @@ const queueName = "digest-build";
 const { REDIS_CONNECTION_STRING } = process.env;
 const { Logger } = require("./logger.js");
 const { DIGEST_REBUILD_INTERVAL_HOURS = 4 } = process.env;
-const requestProgressWorker = require("./request-progress-worker");
+const cortexRequestWorker = require("./cortex-request-worker.js");
+require("dotenv").config();
 
 const connection = new Redis(
     REDIS_CONNECTION_STRING || "redis://localhost:6379",
@@ -193,7 +194,7 @@ async function startWorkers() {
 
         // Start workers
         console.log("Starting workers...");
-        await requestProgressWorker.run();
+        await cortexRequestWorker.run();
         worker.run();
 
         console.log("All workers are running");

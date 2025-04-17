@@ -1,33 +1,29 @@
-import React from "react";
-import "highlight.js/styles/github.css";
-import { useContext, useState, useEffect } from "react";
-import { RiSendPlane2Fill } from "react-icons/ri";
-import TextareaAutosize from "react-textarea-autosize";
-import classNames from "../../../app/utils/class-names";
-import dynamic from "next/dynamic";
-import { v4 as uuidv4 } from "uuid";
 import { useApolloClient } from "@apollo/client";
-import { COGNITIVE_INSERT, CODE_HUMAN_INPUT } from "../../graphql";
-import { useDispatch } from "react-redux";
-import {
-    setFileLoading,
-    clearFileLoading,
-    loadingError,
-} from "../../stores/fileUploadSlice";
+import "highlight.js/styles/github.css";
+import dynamic from "next/dynamic";
+import { useContext, useEffect, useState } from "react";
 import { FaFileCirclePlus } from "react-icons/fa6";
 import { IoCloseCircle, IoStopCircle } from "react-icons/io5";
+import { RiSendPlane2Fill } from "react-icons/ri";
+import { useDispatch } from "react-redux";
+import TextareaAutosize from "react-textarea-autosize";
+import { v4 as uuidv4 } from "uuid";
+import { useGetActiveChatId } from "../../../app/queries/chats";
+import { useAddDocument } from "../../../app/queries/uploadedDocs";
+import classNames from "../../../app/utils/class-names";
+import { AuthContext } from "../../App";
+import { COGNITIVE_INSERT } from "../../graphql";
 import {
+    clearFileLoading,
+    loadingError,
+    setFileLoading,
+} from "../../stores/fileUploadSlice";
+import {
+    ACCEPTED_FILE_TYPES,
     getFilename,
     isDocumentUrl,
     isMediaUrl,
-    ACCEPTED_FILE_TYPES,
 } from "../../utils/mediaUtils";
-import { AuthContext } from "../../App";
-import { useAddDocument } from "../../../app/queries/uploadedDocs";
-import {
-    useGetActiveChat,
-    useGetActiveChatId,
-} from "../../../app/queries/chats";
 
 const DynamicFilepond = dynamic(() => import("./MyFilePond"), {
     ssr: false,
@@ -45,7 +41,6 @@ function MessageInput({
     initialShowFileUpload = false,
 }) {
     const activeChatId = useGetActiveChatId();
-    const activeChat = useGetActiveChat().data;
 
     const { user, userState, debouncedUpdateUserState } =
         useContext(AuthContext);
@@ -54,8 +49,6 @@ function MessageInput({
     const client = useApolloClient();
     const [isUploadingMedia, setIsUploadingMedia] = useState(false);
     const addDocument = useAddDocument();
-    const codeRequestId = activeChat?.codeRequestId;
-    const apolloClient = useApolloClient();
 
     // Only set input value on initial mount or chat change
     useEffect(() => {
@@ -118,27 +111,7 @@ function MessageInput({
         if (isUploadingMedia) {
             return; // Prevent submission if a file is uploading
         }
-        if (codeRequestId && inputValue) {
-            apolloClient.query({
-                query: CODE_HUMAN_INPUT,
-                variables: {
-                    codeRequestId,
-                    text: inputValue,
-                },
-                fetchPolicy: "network-only",
-            });
 
-            setInputValue("");
-            if (activeChatId) {
-                debouncedUpdateUserState((prevState) => ({
-                    chatInputs: {
-                        ...(prevState?.chatInputs || {}),
-                        [activeChatId]: "",
-                    },
-                }));
-            }
-            return;
-        }
         if (!loading && inputValue) {
             const message = prepareMessage(inputValue);
             onSend(urlsData && urlsData.length > 0 ? message : inputValue);
@@ -267,12 +240,10 @@ function MessageInput({
                                         e.preventDefault();
                                         // Immediately check upload state again to prevent race conditions
                                         if (
-                                            codeRequestId
-                                                ? false
-                                                : isUploadingMedia ||
-                                                  loading ||
-                                                  inputValue === "" ||
-                                                  viewingReadOnlyChat
+                                            isUploadingMedia ||
+                                            loading ||
+                                            inputValue === "" ||
+                                            viewingReadOnlyChat
                                         ) {
                                             // Preventing submission during inappropriate times
                                             return;
@@ -336,11 +307,7 @@ function MessageInput({
                                         e.preventDefault();
                                     }
                                 }}
-                                placeholder={
-                                    codeRequestId
-                                        ? "Send a message to active coding agent 🤖"
-                                        : placeholder || "Send a message"
-                                }
+                                placeholder={placeholder || "Send a message"}
                                 value={inputValue}
                                 onChange={handleInputChange}
                                 autoComplete="on"
@@ -353,7 +320,7 @@ function MessageInput({
                     </div>
                     <div className=" pe-4 ps-3 dark:bg-zinc-100 self-stretch flex rounded-e">
                         <div className="pt-4">
-                            {(isStreaming || loading) && !codeRequestId ? (
+                            {isStreaming || loading ? (
                                 <button
                                     type="button"
                                     onClick={onStopStreaming}
@@ -367,12 +334,10 @@ function MessageInput({
                                 <button
                                     type="submit"
                                     disabled={
-                                        codeRequestId
-                                            ? false
-                                            : loading ||
-                                              inputValue === "" ||
-                                              isUploadingMedia ||
-                                              viewingReadOnlyChat
+                                        loading ||
+                                        inputValue === "" ||
+                                        isUploadingMedia ||
+                                        viewingReadOnlyChat
                                     }
                                     className={classNames(
                                         "text-base rtl:rotate-180 text-emerald-600 hover:text-emerald-600 disabled:text-gray-300 active:text-gray-800 dark:bg-zinc-100",

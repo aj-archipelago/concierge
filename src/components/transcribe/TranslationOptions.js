@@ -1,11 +1,3 @@
-import { useApolloClient } from "@apollo/client";
-import { LanguageIcon } from "@heroicons/react/24/outline";
-import { useCallback, useState } from "react";
-import { useTranslation } from "react-i18next";
-import { QUERIES } from "../../graphql";
-import LoadingButton from "../editor/LoadingButton";
-import { useProgress } from "../../contexts/ProgressContext";
-import dayjs from "dayjs";
 import {
     Select,
     SelectContent,
@@ -13,6 +5,13 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
+import { LanguageIcon } from "@heroicons/react/24/outline";
+import dayjs from "dayjs";
+import { useCallback, useState } from "react";
+import { useTranslation } from "react-i18next";
+import { useRunTask } from "../../../app/queries/notifications";
+import { useNotificationsContext } from "../../contexts/NotificationContext";
+import LoadingButton from "../editor/LoadingButton";
 
 function TranslationOptions({
     transcripts = [],
@@ -23,87 +22,57 @@ function TranslationOptions({
 }) {
     const { t } = useTranslation();
     const [loading, setLoading] = useState(false);
-    const apolloClient = useApolloClient();
     const [
         transcriptionTranslationLanguage,
         setTranscriptionTranslationLanguage,
     ] = useState("Arabic");
-    const [requestId, setRequestId] = useState(null);
     const [selectedTranscript, setSelectedTranscript] = useState(
         transcripts[activeTranscript],
     );
-    const { addProgressToast } = useProgress();
+    const { openNotifications } = useNotificationsContext();
+    const runTask = useRunTask();
 
     const fetchTranslate = useCallback(
         async (text, language) => {
             try {
                 setLoading(true);
-                const { data } = await apolloClient.query({
-                    query: QUERIES.TRANSLATE_SUBTITLE,
-                    variables: {
-                        text,
-                        to: language,
-                        async,
-                        format: selectedTranscript?.format,
-                    },
-                    fetchPolicy: "network-only",
-                });
-                const result =
-                    data?.translate_subtitle?.result ||
-                    data?.translate_gpt4?.result;
 
-                if (result) {
-                    if (async) {
-                        setRequestId(result);
-                        addProgressToast(
-                            result,
-                            t("Translating") +
-                                " " +
-                                selectedTranscript?.name +
-                                " " +
-                                t("to") +
-                                " " +
-                                transcriptionTranslationLanguage +
-                                "...",
-                            async (finalData) => {
-                                setLoading(false);
-                                setFinalData(finalData);
-                            },
-                        );
-                        onClose();
-                    } else {
-                        setFinalData(result);
-                    }
+                const taskData = {
+                    type: "subtitle-translate",
+                    text,
+                    to: language,
+                    format: selectedTranscript?.format,
+                    name: t("{{name}}: {{language}} Translation", {
+                        name: selectedTranscript?.name,
+                        language: transcriptionTranslationLanguage,
+                    }),
+                    source: "video_page",
+                };
+
+                const data = await runTask.mutateAsync(taskData);
+
+                if (data.taskId) {
+                    // Open notifications panel to show progress
+                    openNotifications();
+
+                    // Close the dialog since the job is now queued
+                    onClose?.();
                 }
             } catch (e) {
-                console.error(e);
+                console.error("Translation error:", e);
             } finally {
                 setLoading(false);
             }
         },
-        // eslint-disable-next-line react-hooks/exhaustive-deps
         [
-            apolloClient,
-            async,
-            addProgressToast,
+            selectedTranscript,
+            transcriptionTranslationLanguage,
             t,
             onClose,
-            transcriptionTranslationLanguage,
-            selectedTranscript,
+            openNotifications,
+            runTask,
         ],
     );
-
-    const setFinalData = (finalData) => {
-        onAdd({
-            text: finalData,
-            name: t("{{name}}: {{language}} Translation", {
-                name: selectedTranscript?.name,
-                language: transcriptionTranslationLanguage,
-            }),
-            format: selectedTranscript?.format,
-        });
-        setRequestId(null);
-    };
 
     return (
         <div>
@@ -206,7 +175,7 @@ function TranslationOptions({
 
             <LoadingButton
                 className="lb-primary"
-                loading={loading || requestId}
+                loading={loading}
                 onClick={() => {
                     fetchTranslate(
                         selectedTranscript?.text,

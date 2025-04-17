@@ -1,26 +1,23 @@
-import { NextResponse } from "next/server";
 import { Queue } from "bullmq";
-import Redis from "ioredis";
-import RequestProgress from "../models/request-progress.mjs";
+import { NextResponse } from "next/server";
+import { getClient } from "../../../jobs/graphql.mjs";
+import { loadTaskDefinition } from "../../../src/utils/task-loader.mjs";
+import Task from "../models/task.mjs";
 import { getCurrentUser } from "../utils/auth";
+import { getRedisConnection } from "../utils/redis";
 
-const connection = new Redis(
-    process.env.REDIS_CONNECTION_STRING || "redis://localhost:6379",
-    {
-        maxRetriesPerRequest: null,
-    },
-);
-
-const requestProgressQueue = new Queue("request-progress", { connection });
+const requestProgressQueue = new Queue("task", {
+    connection: getRedisConnection(),
+});
 
 export async function POST(req) {
     try {
-        const { requestId } = await req.json();
+        const { _id } = await req.json();
         const user = await getCurrentUser();
 
         // Find the request and verify ownership
-        const request = await RequestProgress.findOne({
-            requestId,
+        const request = await Task.findOne({
+            _id,
             owner: user._id,
         });
 
@@ -31,19 +28,25 @@ export async function POST(req) {
             );
         }
 
+        // Load the task handler for this request type
+        const taskHandler = await loadTaskDefinition(request.type);
+        const client = await getClient();
+
+        // Call the handler's cancelRequest method
+        if (taskHandler.cancelRequest) {
+            await taskHandler.cancelRequest(_id, client);
+        }
+
         // Get active jobs for this request
         const jobs = await requestProgressQueue.getJobs(["waiting"]);
-        const job = jobs.find((job) => job.data.requestId === requestId);
+        const job = jobs.find((job) => job.data.taskId === _id);
 
         if (job) {
             await job.remove();
         }
 
         // Update request status
-        await RequestProgress.findOneAndUpdate(
-            { requestId },
-            { status: "cancelled" },
-        );
+        await Task.findOneAndUpdate({ _id }, { status: "cancelled" });
 
         return NextResponse.json({ success: true });
     } catch (error) {

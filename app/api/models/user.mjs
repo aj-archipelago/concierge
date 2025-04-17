@@ -83,6 +83,6 @@ userSchema.virtual("initials").get(function () {
 });
 
 // Create the User model from the schema
-const User = mongoose.models.User || mongoose.model("User", userSchema);
+const User = mongoose.models?.User || mongoose.model("User", userSchema);
 
 export default User;

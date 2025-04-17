@@ -1,9 +1,6 @@
 import mongoose from "mongoose";
 
-// RequestProgress is deprecated. This model is used to migrate the tasks
-// to the new Task model. When all users are migrated in production,
-// the RequestProgress model can be deleted.
-const requestProgressSchema = new mongoose.Schema(
+const taskSchema = new mongoose.Schema(
     {
         // Cortex request ID
         cortexRequestId: {
@@ -42,6 +39,17 @@ const requestProgressSchema = new mongoose.Schema(
             type: mongoose.Schema.Types.Mixed,
             default: null,
         },
+        invokedFrom: {
+            source: {
+                type: String,
+                enum: ["unknown", "chat", "video_page"],
+                default: "unknown",
+            },
+            chatId: {
+                type: mongoose.Schema.Types.ObjectId,
+                ref: "Chat",
+            },
+        },
         dismissed: {
             type: Boolean,
             default: false,
@@ -52,15 +60,13 @@ const requestProgressSchema = new mongoose.Schema(
     },
 );
 
-requestProgressSchema.index({ cortexRequestId: 1 });
-requestProgressSchema.index({ createdAt: -1 });
-requestProgressSchema.index({ owner: 1 });
+taskSchema.index({ cortexRequestId: 1 });
+taskSchema.index({ createdAt: -1 });
+taskSchema.index({ owner: 1 });
 
-const RequestProgress =
-    mongoose.models?.RequestProgress ||
-    mongoose.model("RequestProgress", requestProgressSchema);
+const Task = mongoose.models?.Task || mongoose.model("Task", taskSchema);
 
 // Add a function to sync indexes when needed
-RequestProgress.syncIndexes?.();
+Task.syncIndexes?.();
 
-export default RequestProgress;
+export default Task;

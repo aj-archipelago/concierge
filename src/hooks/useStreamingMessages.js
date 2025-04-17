@@ -160,12 +160,6 @@ export function useStreamingMessages({ chat, updateChatHook }) {
                 isChatLoading: hasCodeRequest,
             };
 
-            if (hasCodeRequest) {
-                updatePayload.codeRequestId = codeRequestId;
-                updatePayload.lastCodeRequestId = codeRequestId;
-                updatePayload.lastCodeRequestTime = new Date();
-            }
-
             await updateChatHook.mutateAsync(updatePayload);
         } catch (error) {
             console.error("Failed to complete message:", error);

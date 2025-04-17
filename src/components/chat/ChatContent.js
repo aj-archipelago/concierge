@@ -1,4 +1,10 @@
-import React, { useCallback, useContext, useMemo, useEffect } from "react";
+import React, {
+    useCallback,
+    useContext,
+    useMemo,
+    useEffect,
+    useRef,
+} from "react";
 import { useApolloClient } from "@apollo/client";
 import { useTranslation } from "react-i18next";
 import { toast } from "react-toastify";
@@ -6,10 +12,10 @@ import { AuthContext } from "../../App.js";
 import ChatMessages from "./ChatMessages";
 import { QUERIES } from "../../graphql";
 import { useGetActiveChat, useUpdateChat } from "../../../app/queries/chats";
-import { useDeleteAutogenRun } from "../../../app/queries/autogen.js";
 import { processImageUrls } from "../../utils/imageUtils.mjs";
 import { useStreamingMessages } from "../../hooks/useStreamingMessages";
 import { useQueryClient } from "@tanstack/react-query";
+import { useRunTask } from "../../../app/queries/notifications";
 
 const contextMessageCount = 50;
 
@@ -24,9 +30,8 @@ function ChatContent({
     const { user } = useContext(AuthContext);
     const activeChat = useGetActiveChat();
     const updateChatHook = useUpdateChat();
-    const deleteAutogenRun = useDeleteAutogenRun();
     const queryClient = useQueryClient();
-
+    const runTask = useRunTask();
     const viewingReadOnlyChat = useMemo(
         () => displayState === "full" && viewingChat && viewingChat.readOnly,
         [displayState, viewingChat],
@@ -64,6 +69,28 @@ function ChatContent({
         toast.error(error.message);
     }, []);
 
+    const getMessagePayload = useCallback(
+        (message) => {
+            if (message.taskId) {
+                const notification = queryClient.getQueryData([
+                    "tasks",
+                    message.taskId,
+                ]);
+                if (notification) {
+                    return `Status: ${notification.status}
+                Progress: ${notification.progress || 0}
+                Type: ${notification.type}
+                Original Message: ${message.payload}`;
+                }
+            }
+            return message.payload;
+        },
+        [queryClient],
+    );
+
+    // Add a ref to track which code requests have been processed
+    const processedCodeRequestIds = useRef(new Set());
+
     const handleSend = useCallback(
         async (text) => {
             try {
@@ -88,7 +115,10 @@ function ChatContent({
                 // Show the user message immediately
                 await updateChatHook.mutateAsync({
                     chatId: String(chat?._id),
-                    messages: userMessages,
+                    messages: userMessages.map((m) => ({
+                        ...m,
+                        payload: getMessagePayload(m),
+                    })),
                     isChatLoading: true,
                 });
 
@@ -107,22 +137,16 @@ function ChatContent({
                     })
                     .map((m) =>
                         m.sender === "labeeb"
-                            ? { role: "assistant", content: m.payload }
+                            ? {
+                                  role: "assistant",
+                                  content: getMessagePayload(m),
+                              }
                             : { role: "user", content: m.payload },
                     );
 
                 conversation.push({ role: "user", content: text });
 
                 const { contextId, aiMemorySelfModify, aiName, aiStyle } = user;
-
-                const codeRequestIdParam =
-                    new Date() - new Date(chat?.lastCodeRequestTime) <
-                    30 * 60 * 1000
-                        ? chat?.lastCodeRequestId
-                        : "";
-                if (codeRequestIdParam) {
-                    await deleteAutogenRun.mutateAsync(codeRequestIdParam);
-                }
 
                 const variables = {
                     chatHistory: conversation,
@@ -132,7 +156,6 @@ function ChatContent({
                     aiStyle,
                     title: chat?.title,
                     chatId,
-                    codeRequestId: codeRequestIdParam,
                     stream: streamingEnabled,
                 };
 
@@ -243,17 +266,33 @@ function ChatContent({
                 // Use messages directly without processing
                 const currentMessagesToUpdate = currentMessages;
 
+                // Create a task if codeRequestId is present in the tool
+                if (
+                    codeRequestId &&
+                    !processedCodeRequestIds.current.has(codeRequestId)
+                ) {
+                    // Mark this codeRequestId as processed
+                    processedCodeRequestIds.current.add(codeRequestId);
+
+                    // Create the task first
+                    await runTask.mutateAsync({
+                        type: "coding",
+                        codeRequestId: codeRequestId,
+                        chatId: String(chat?._id),
+                        source: "chat",
+                    });
+                }
+
+                // Update the chat (never setting codeRequestId field)
                 await updateChatHook.mutateAsync({
                     chatId: String(chat?._id),
-                    messages: currentMessagesToUpdate,
+                    messages: currentMessagesToUpdate?.map((m) => ({
+                        ...m,
+                        payload: getMessagePayload(m),
+                    })),
                     ...(newTitle && { title: newTitle }),
-                    isChatLoading: !!toolCallbackName,
+                    isChatLoading: !!toolCallbackName && !codeRequestId,
                     ...(toolCallbackId && { toolCallbackId }),
-                    ...(codeRequestId && {
-                        codeRequestId,
-                        lastCodeRequestId: codeRequestId,
-                        lastCodeRequestTime: new Date(),
-                    }),
                 });
 
                 if (toolCallbackName && toolCallbackName !== "coding") {
@@ -308,7 +347,10 @@ function ChatContent({
 
                     await updateChatHook.mutateAsync({
                         chatId: String(chat?._id),
-                        messages: finalMessagesToUpdate,
+                        messages: finalMessagesToUpdate?.map((m) => ({
+                            ...m,
+                            payload: getMessagePayload(m),
+                        })),
                         isChatLoading: false,
                     });
                 }
@@ -339,7 +381,10 @@ function ChatContent({
 
                 await updateChatHook.mutateAsync({
                     chatId: String(chat?._id),
-                    messages: errorMessagesToUpdate,
+                    messages: errorMessagesToUpdate?.map((m) => ({
+                        ...m,
+                        payload: getMessagePayload(m),
+                    })),
                     isChatLoading: false,
                 });
             }
@@ -354,10 +399,11 @@ function ChatContent({
             t,
             chatId,
             clearStreamingState,
-            deleteAutogenRun,
             setIsStreaming,
             setSubscriptionId,
             streamingEnabled,
+            runTask,
+            getMessagePayload,
         ],
     );
 
@@ -366,17 +412,70 @@ function ChatContent({
         if (
             chat?.isChatLoading &&
             !chat?.toolCallbackName &&
-            !chat?.codeRequestId &&
             !chat?.toolCallbackId
         ) {
             updateChatHook.mutateAsync({
                 chatId: String(chat._id),
-                messages: chat.messages || [],
+                messages:
+                    chat.messages ||
+                    []?.map((m) => ({
+                        ...m,
+                        payload: getMessagePayload(m),
+                    })),
                 isChatLoading: false,
             });
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
+
+    // Update the streaming effect with guardrails
+    useEffect(() => {
+        const checkForCodeRequestInLatestMessage = async () => {
+            // Only proceed if we were streaming but now it's stopped and we have messages
+            if (!isStreaming && chat?.messages?.length > 0) {
+                try {
+                    // Get the latest message
+                    const latestMessage =
+                        chat.messages[chat.messages.length - 1];
+
+                    // Skip if it's not from the assistant or doesn't have a tool
+                    if (
+                        latestMessage.sender !== "labeeb" ||
+                        !latestMessage.tool
+                    ) {
+                        return;
+                    }
+
+                    // Parse the tool JSON
+                    const tool = JSON.parse(latestMessage.tool);
+
+                    // Check if there's a codeRequestId and we haven't processed it yet
+                    if (
+                        tool?.codeRequestId &&
+                        !processedCodeRequestIds.current.has(tool.codeRequestId)
+                    ) {
+                        // Mark this codeRequestId as processed
+                        processedCodeRequestIds.current.add(tool.codeRequestId);
+
+                        // Create the task - the server will handle adding the progress message
+                        await runTask.mutateAsync({
+                            type: "coding",
+                            codeRequestId: tool.codeRequestId,
+                            chatId: String(chat._id),
+                            source: "chat",
+                        });
+                    }
+                } catch (error) {
+                    console.error(
+                        "Error checking latest message for code request:",
+                        error,
+                    );
+                }
+            }
+        };
+
+        checkForCodeRequestInLatestMessage();
+    }, [isStreaming, chat, runTask, updateChatHook]);
 
     return (
         <ChatMessages

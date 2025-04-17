@@ -1858,7 +1858,7 @@ function VideoPage() {
                                         </DialogHeader>
                                         <AzureVideoTranslate
                                             url={videoInformation?.videoUrl}
-                                            onQueued={(requestId) => {
+                                            onQueued={() => {
                                                 setShowTranslateDialog(false);
                                             }}
                                         />

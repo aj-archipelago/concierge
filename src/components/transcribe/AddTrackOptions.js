@@ -1,6 +1,7 @@
 "use client";
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { build, parse } from "@aj-archipelago/subvibe";
 import {
     ClipboardIcon,
     LanguagesIcon,
@@ -12,12 +13,12 @@ import { useTranslation } from "react-i18next";
 import { FaVideo } from "react-icons/fa";
 import { AuthContext } from "../../App";
 import { LanguageContext } from "../../contexts/LanguageProvider";
-import { useProgress } from "../../contexts/ProgressContext";
+import { useNotificationsContext } from "../../contexts/NotificationContext";
 import { QUERIES } from "../../graphql";
 import { isYoutubeUrl } from "../../utils/urlUtils";
 import LoadingButton from "../editor/LoadingButton";
 import TranslationOptions from "./TranslationOptions";
-import { parse, build } from "@aj-archipelago/subvibe";
+import { useRunTask } from "../../../app/queries/notifications";
 
 export function AddTrackOptions({
     url,
@@ -311,13 +312,12 @@ export default function TranscribeVideo({
         isYouTubeVideo ? "Gemini" : "Whisper",
     );
     const [transcriptionOption, setTranscriptionOption] = useState(null);
-    // eslint-disable-next-line no-unused-vars
-    const [requestId, setRequestId] = useState(null);
     const [loading, setLoading] = useState(false);
     const [currentOperation, setCurrentOperation] = useState("");
     const [error, setError] = useState(null);
     const { debouncedUpdateUserState } = useContext(AuthContext);
-    const { addProgressToast } = useProgress();
+    const { openNotifications } = useNotificationsContext();
+    const runTask = useRunTask();
 
     const {
         responseFormat = "vtt",
@@ -342,68 +342,36 @@ export default function TranscribeVideo({
         try {
             setLoading(true);
 
-            const _query = getTranscribeQuery(selectedModelOption);
-
-            const { data } = await apolloClient.query({
-                query: _query,
-                variables: {
-                    file: url,
-                    language,
-                    wordTimestamped,
-                    responseFormat:
-                        responseFormat !== "formatted" ? responseFormat : null,
-                    maxLineCount,
-                    maxLineWidth,
-                    maxWordsPerLine,
-                    highlightWords,
-                    async: true,
-                },
-                fetchPolicy: "network-only",
+            // Fix: Use mutateAsync on the runTask object
+            const { taskId } = await runTask.mutateAsync({
+                type: "transcribe",
+                url,
+                language,
+                wordTimestamped,
+                responseFormat,
+                maxLineCount,
+                maxLineWidth,
+                maxWordsPerLine,
+                highlightWords,
+                modelOption: selectedModelOption,
+                source: "video_page",
             });
 
-            const dataResult =
-                data?.transcribe?.result ||
-                data?.transcribe_neuralspace?.result ||
-                data?.transcribe_gemini?.result;
+            if (taskId) {
+                // Open notifications panel to show progress
+                openNotifications();
 
-            if (dataResult) {
-                setRequestId(dataResult);
-                addProgressToast(
-                    dataResult,
-                    t("Transcribing") + "...",
-                    async (finalData) => {
-                        if (responseFormat === "formatted") {
-                            const response = await apolloClient.query({
-                                query: QUERIES.FORMAT_PARAGRAPH_TURBO,
-                                variables: {
-                                    text: finalData,
-                                    async: false,
-                                },
-                            });
-
-                            finalData =
-                                response.data?.format_paragraph_turbo?.result;
-                        }
-                        setLoading(false);
-                        onAdd({
-                            text: finalData,
-                            format: responseFormat,
-                            name:
-                                responseFormat === "vtt"
-                                    ? t("Subtitles")
-                                    : t("Transcript"),
-                        });
-                        setRequestId(null);
-                    },
-                );
+                // Close the dialog since the job is now queued
                 onClose?.();
             }
+
+            // Reset loading state
+            setLoading(false);
         } catch (e) {
             console.error("Transcription error:", e);
             setError(e);
             setLoading(false);
         }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [
         url,
         language,
@@ -414,12 +382,11 @@ export default function TranscribeVideo({
         maxWordsPerLine,
         highlightWords,
         loading,
-        async,
-        addProgressToast,
         t,
         onClose,
-        apolloClient,
         selectedModelOption,
+        runTask,
+        openNotifications,
     ]);
 
     // Add logging for select changes
