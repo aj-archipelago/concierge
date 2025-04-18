@@ -1,11 +1,13 @@
 const { Worker } = require("bullmq");
 
+let worker;
+
 import("../app/api/utils/redis.mjs").then((module) => {
     console.log("module", module);
     const { getRedisConnection } = module;
     const connection = getRedisConnection();
     // Ensure the worker has a database connection before starting operations
-    const worker = new Worker(
+    worker = new Worker(
         "task",
         async (job) => {
             console.log(`Worker processing job ${job.id}`);
