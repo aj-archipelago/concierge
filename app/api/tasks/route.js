@@ -29,6 +29,7 @@ async function migrateTasks(userId) {
  */
 async function addProgressMessageToChat(chatId, taskId, user) {
     try {
+        // First, fetch the entire chat document
         const chat = await Chat.findOne({ _id: chatId, userId: user._id });
 
         if (chat) {
@@ -47,14 +48,18 @@ async function addProgressMessageToChat(chatId, taskId, user) {
                 isServerGenerated: true,
             };
 
-            // Add the message to the chat
-            chat.messages.push(progressMessage);
+            // Create a new messages array with all existing messages plus the new one
+            const messages = [...(chat.messages || []), progressMessage];
 
-            // Set isChatLoading to false since progress is handled by the task status
-            chat.isChatLoading = false;
+            // Replace the entire messages array in one operation
+            await Chat.findOneAndUpdate(
+                { _id: chatId, userId: user._id },
+                {
+                    messages: messages,
+                    isChatLoading: false,
+                },
+            );
 
-            // Save the updated chat
-            await chat.save();
             console.log(
                 `Added progress message to chat ${chatId} for task ${taskId}`,
             );
