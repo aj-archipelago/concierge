@@ -4,7 +4,7 @@ import { getClient } from "../../../jobs/graphql.mjs";
 import { loadTaskDefinition } from "../../../src/utils/task-loader.mjs";
 import Task from "../models/task.mjs";
 import { getCurrentUser } from "../utils/auth";
-import { getRedisConnection } from "../utils/redis";
+import { getRedisConnection } from "../utils/redis.mjs";
 
 const requestProgressQueue = new Queue("task", {
     connection: getRedisConnection(),

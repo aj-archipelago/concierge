@@ -1,6 +1,6 @@
 import { Queue } from "bullmq";
 import Task from "../models/task.mjs";
-import { getRedisConnection } from "./redis";
+import { getRedisConnection } from "./redis.mjs";
 
 const requestProgressQueue = new Queue("task", {
     connection: getRedisConnection(),
@@ -33,7 +33,7 @@ async function createBackgroundTask({
 
     if (synchronous) {
         // Import and execute task directly
-        const { executeTask } = await import("./task-executor");
+        const { executeTask } = await import("./task-executor.mjs");
         const result = await executeTask(jobData);
         return {
             taskId: requestProgress._id,
