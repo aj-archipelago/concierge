@@ -22,7 +22,7 @@ export default async function AdminLayout({ children }) {
                 </div>
             </nav>
 
-            <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8 overflow-auto">
+            <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
                 {children}
             </main>
         </div>
