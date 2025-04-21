@@ -24,7 +24,8 @@ import "./tailwind.css";
 
 const NEXT_PUBLIC_AMPLITUDE_API_KEY = process.env.NEXT_PUBLIC_AMPLITUDE_API_KEY;
 
-if (typeof document !== "undefined") {
+// Skip Amplitude initialization in test environment
+if (typeof document !== "undefined" && process.env.NODE_ENV !== "test") {
     try {
         console.log(
             "Initializing Amplitude with API key:",

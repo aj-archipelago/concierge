@@ -1,3 +1,4 @@
+import React from "react";
 import { useApolloClient } from "@apollo/client";
 import "highlight.js/styles/github.css";
 import dynamic from "next/dynamic";

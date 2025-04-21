@@ -272,3 +272,70 @@ This will start:
 2. For development of specific components:
     - Web app only: `npm run next:dev`
     - Worker only: `npm run worker:dev`
+
+# Admin Section
+
+The Concierge application includes a comprehensive admin section that provides administrative tools and monitoring capabilities. This section is only accessible to users with the admin role.
+
+## Access Control
+
+The admin section is protected by role-based access control:
+
+- Only users with the `admin` role can access the admin section
+- Unauthorized users are automatically redirected to the home page
+- Admin users cannot modify their own role to prevent accidental self-demotion
+
+## Available Features
+
+### 1. User Management
+
+The user management interface allows administrators to:
+
+- View all users in the system
+- Search users by name or username
+- Modify user roles (between 'user' and 'admin')
+- Paginate through user listings
+- View user details including:
+    - Name
+    - Username
+    - Current role
+    - Account status
+
+### 2. Queue Monitoring
+
+The queue monitoring dashboard provides real-time insights into the background task processing system:
+
+- View statistics for different queues
+- Monitor active jobs with progress tracking
+- View failed jobs with error details
+- Perform queue management actions
+- Real-time updates (refreshes every 5 seconds)
+
+Key metrics displayed:
+
+- Active jobs count
+- Failed jobs count
+- Job progress
+- Error messages
+- Timestamps
+
+## Development
+
+### Adding New Admin Features
+
+To add new admin features:
+
+1. Create new components in the `app/admin` directory
+2. Add new routes in the `app/api` directory with proper admin role checks
+3. Update the `AdminNav` component to include new navigation items
+4. Implement proper access control using the `getCurrentUser` utility
+
+### Security Considerations
+
+When developing admin features:
+
+- Always verify admin role using `getCurrentUser()`
+- Implement proper error handling
+- Use appropriate HTTP status codes for unauthorized access
+- Validate all user inputs
+- Log important administrative actions
