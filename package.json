@@ -95,7 +95,8 @@
         "xxhash-wasm": "^1.1.0"
     },
     "scripts": {
-        "dev": "node ./scripts/prebuild.js && next dev",
+        "dev": "concurrently \"npm run next:dev\" \"npm run worker:dev\"",
+        "next:dev": "npm run prebuild && next dev",
         "prebuild": "node ./scripts/prebuild.js",
         "build": "next build",
         "start": "next start",
@@ -130,6 +131,7 @@
         "@tailwindcss/forms": "^0.5.7",
         "autoprefixer": "^10.4.16",
         "babel-jest": "^29.7.0",
+        "concurrently": "^9.1.2",
         "customize-cra": "^1.0.0",
         "jest": "^29.7.0",
         "jest-environment-jsdom": "^29.7.0",

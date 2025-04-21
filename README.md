@@ -227,3 +227,48 @@ function YourComponent() {
 5. **Clean Up Resources**: Release any resources in the completion handler
 
 The task system in Concierge provides a flexible way to handle background processing while maintaining a responsive user experience.
+
+## Development Setup
+
+### Prerequisites
+
+- Node.js (version specified in package.json)
+- npm
+- Redis (required for BullMQ task processing)
+
+### Installation
+
+1. Clone the repository
+2. Install dependencies:
+
+```bash
+npm install
+```
+
+### Development Scripts
+
+The project includes several npm scripts for development:
+
+- `npm run dev`: Runs both the Next.js development server and the worker process concurrently
+- `npm run next:dev`: Runs only the Next.js development server
+- `npm run worker:dev`: Runs only the worker process with hot reloading using nodemon
+- `npm run lint`: Runs ESLint and Prettier checks
+- `npm run format`: Formats code using Prettier
+- `npm test`: Runs Jest tests
+
+### Running the Application
+
+1. Start the development servers:
+
+```bash
+npm run dev
+```
+
+This will start:
+
+- Next.js dev server at http://localhost:3000
+- Worker process for background task processing
+
+2. For development of specific components:
+    - Web app only: `npm run next:dev`
+    - Worker only: `npm run worker:dev`
