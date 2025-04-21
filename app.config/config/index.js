@@ -73,9 +73,9 @@ const config = {
     transcribe: {
         fetchUrlSource,
     },
-    // auth: {
-    //     provider: "entra",
-    // },
+    auth: {
+        provider: "entra",
+    },
 };
 
 export default config;
