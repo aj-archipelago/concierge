@@ -3,7 +3,6 @@ const { Worker } = require("bullmq");
 let worker;
 
 import("../app/api/utils/redis.mjs").then((module) => {
-    console.log("module", module);
     const { getRedisConnection } = module;
     const connection = getRedisConnection();
     // Ensure the worker has a database connection before starting operations
