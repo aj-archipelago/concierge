@@ -39,6 +39,8 @@ import {
 } from "@/components/ui/pagination";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
+import { Progress } from "../../../@/components/ui/progress";
+import { Clock, Cpu, Activity, Pause } from "lucide-react";
 
 const QUEUE_NAMES = ["task", "digest-build"];
 
@@ -137,6 +139,61 @@ function formatTimestamp(timestamp) {
         hour: "2-digit",
         minute: "2-digit",
     });
+}
+
+function formatWorkerAge(ageInSeconds) {
+    if (ageInSeconds < 60) {
+        return `${Math.floor(ageInSeconds)}s`;
+    } else if (ageInSeconds < 3600) {
+        return `${Math.floor(ageInSeconds / 60)}m`;
+    } else if (ageInSeconds < 86400) {
+        return `${Math.floor(ageInSeconds / 3600)}h`;
+    } else {
+        return `${Math.floor(ageInSeconds / 86400)}d`;
+    }
+}
+
+function WorkerStatus({ worker }) {
+    const [showDebug, setShowDebug] = useState(false);
+
+    return (
+        <div className="p-4 bg-background rounded-lg border">
+            <div className="flex justify-between items-start mb-2">
+                <div className="text-sm font-semibold truncate flex-1">
+                    {worker.name} ({worker.id})
+                </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2 mt-4 text-sm">
+                <div className="flex items-center gap-2 text-muted-foreground">
+                    <Cpu className="h-4 w-4" />
+                    <span>Address: {worker.addr}</span>
+                </div>
+                <div className="flex items-center gap-2 text-muted-foreground">
+                    <Clock className="h-4 w-4" />
+                    <span>Age: {formatWorkerAge(parseInt(worker.age))}</span>
+                </div>
+            </div>
+
+            <div className="mt-4">
+                <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowDebug(!showDebug)}
+                >
+                    {showDebug ? "Hide Debug Info" : "Show Debug Info"}
+                </Button>
+
+                {showDebug && (
+                    <div className="mt-2 bg-gray-50 p-2 rounded-md">
+                        <pre className="text-xs whitespace-pre-wrap">
+                            {JSON.stringify(worker.debug, null, 2)}
+                        </pre>
+                    </div>
+                )}
+            </div>
+        </div>
+    );
 }
 
 export default function QueuesPage() {
@@ -238,6 +295,34 @@ export default function QueuesPage() {
                                                     {queueStats.counts.failed}
                                                 </div>
                                             </div>
+                                        </div>
+                                    )}
+                                </CardContent>
+                            </Card>
+
+                            {/* Add Worker Status Card */}
+                            <Card>
+                                <CardHeader>
+                                    <CardTitle>Workers</CardTitle>
+                                    <CardDescription>
+                                        Active queue workers and their status
+                                    </CardDescription>
+                                </CardHeader>
+                                <CardContent>
+                                    {queueStats?.workers?.length > 0 ? (
+                                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                            {queueStats.workers.map(
+                                                (worker) => (
+                                                    <WorkerStatus
+                                                        key={worker.id}
+                                                        worker={worker}
+                                                    />
+                                                ),
+                                            )}
+                                        </div>
+                                    ) : (
+                                        <div className="text-center text-muted-foreground py-4">
+                                            No active workers found
                                         </div>
                                     )}
                                 </CardContent>

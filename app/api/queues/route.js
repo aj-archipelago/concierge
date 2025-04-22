@@ -11,6 +11,20 @@ const QUEUES = {
     }),
 };
 
+// Add this function to get worker info
+async function getWorkerInfo(queue) {
+    const workers = await queue.getWorkers();
+
+    return workers.map((worker) => ({
+        id: worker.id,
+        name: worker.name,
+        addr: worker.addr,
+        age: worker.age,
+        flags: worker.flags,
+        debug: worker,
+    }));
+}
+
 export async function GET(req) {
     try {
         const searchParams = req.nextUrl.searchParams;
@@ -91,7 +105,10 @@ export async function GET(req) {
                 );
             }
 
-            const jobCounts = await queue.getJobCounts();
+            const [jobCounts, workers] = await Promise.all([
+                queue.getJobCounts(),
+                getWorkerInfo(queue),
+            ]);
 
             // Get jobs based on status filter
             let jobs = [];
@@ -174,6 +191,7 @@ export async function GET(req) {
             return NextResponse.json({
                 name: queueName,
                 counts: jobCounts,
+                workers,
                 jobs: formattedJobs,
                 pagination: {
                     currentPage: page,
