@@ -1,6 +1,7 @@
 import { Queue } from "bullmq";
 import { NextResponse } from "next/server";
 import { getRedisConnection } from "../utils/redis.mjs";
+import User from "../models/user.mjs";
 
 // Define the queues we want to monitor
 const QUEUES = {
@@ -16,6 +17,10 @@ export async function GET(req) {
         const queueName = searchParams.get("queue");
         const jobId = searchParams.get("jobId");
         const action = searchParams.get("action");
+        const page = parseInt(searchParams.get("page") || "1");
+        const pageSize = parseInt(searchParams.get("pageSize") || "10");
+        const status = searchParams.get("status");
+        const search = searchParams.get("search");
 
         // If a specific job ID is provided, return job details
         if (jobId && queueName) {
@@ -86,51 +91,96 @@ export async function GET(req) {
                 );
             }
 
-            const [
-                jobCounts,
-                waiting,
-                active,
-                completed,
-                failed,
-                delayed,
-                paused,
-            ] = await Promise.all([
-                queue.getJobCounts(),
-                queue.getWaiting(),
-                queue.getActive(),
-                queue.getCompleted(),
-                queue.getFailed(),
-                queue.getDelayed(),
-                queue.isPaused(),
-            ]);
+            const jobCounts = await queue.getJobCounts();
+
+            // Get jobs based on status filter
+            let jobs = [];
+            if (!status || status === "all") {
+                const [waiting, active, completed, failed] = await Promise.all([
+                    queue.getWaiting(),
+                    queue.getActive(),
+                    queue.getCompleted(),
+                    queue.getFailed(),
+                ]);
+                jobs = [...waiting, ...active, ...completed, ...failed];
+            } else {
+                switch (status) {
+                    case "waiting":
+                        jobs = await queue.getWaiting();
+                        break;
+                    case "active":
+                        jobs = await queue.getActive();
+                        break;
+                    case "completed":
+                        jobs = await queue.getCompleted();
+                        break;
+                    case "failed":
+                        jobs = await queue.getFailed();
+                        break;
+                }
+            }
+
+            // Apply search filter if provided
+            if (search) {
+                jobs = jobs.filter(
+                    (job) =>
+                        job.id.includes(search) ||
+                        job.name.toLowerCase().includes(search.toLowerCase()),
+                );
+            }
+
+            // Apply pagination
+            const totalItems = jobs.length;
+            const start = (page - 1) * pageSize;
+            const end = start + pageSize;
+            const paginatedJobs = jobs.slice(start, end);
+
+            // Map jobs to consistent format, but first get unique users
+            const uniqueUserIds = [
+                ...new Set(
+                    paginatedJobs
+                        .map((job) => job.data?.userId)
+                        .filter(Boolean),
+                ),
+            ];
+
+            const users =
+                uniqueUserIds.length > 0
+                    ? await User.find({ _id: { $in: uniqueUserIds } })
+                    : [];
+
+            // Create a map for quick user lookups
+            const userMap = users.reduce((acc, user) => {
+                acc[user._id] = user;
+                return acc;
+            }, {});
+
+            const formattedJobs = await Promise.all(
+                paginatedJobs.map(async (job) => ({
+                    id: job.id,
+                    name: job.name,
+                    status: await job.getState(),
+                    data: job.data,
+                    progress: job.progress || 0,
+                    timestamp: job.timestamp,
+                    failedReason: job.failedReason,
+                    returnvalue: job.returnvalue,
+                    username: job.data?.userId
+                        ? userMap[job.data.userId]?.username
+                        : null,
+                })),
+            );
 
             return NextResponse.json({
                 name: queueName,
                 counts: jobCounts,
-                waiting: waiting.map((job) => ({
-                    id: job.id,
-                    name: job.name,
-                    timestamp: job.timestamp,
-                })),
-                active: active.map((job) => ({
-                    id: job.id,
-                    name: job.name,
-                    progress: job.progress,
-                    timestamp: job.timestamp,
-                })),
-                failed: failed.map((job) => ({
-                    id: job.id,
-                    name: job.name,
-                    failedReason: job.failedReason,
-                    timestamp: job.timestamp,
-                })),
-                delayed: delayed.map((job) => ({
-                    id: job.id,
-                    name: job.name,
-                    delay: job.delay,
-                    timestamp: job.timestamp,
-                })),
-                isPaused: paused,
+                jobs: formattedJobs,
+                pagination: {
+                    currentPage: page,
+                    totalPages: Math.ceil(totalItems / pageSize),
+                    pageSize,
+                    totalItems,
+                },
             });
         }
 
