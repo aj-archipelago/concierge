@@ -74,7 +74,7 @@ const config = {
         fetchUrlSource,
     },
     auth: {
-        provider: "entra",
+        provider: process.env.NODE_ENV === "production" ? "entra" : "",
     },
 };
 
