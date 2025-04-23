@@ -73,9 +73,9 @@ const config = {
     transcribe: {
         fetchUrlSource,
     },
-    // auth: {
-    //     provider: "entra",
-    // },
+    auth: {
+        provider: process.env.NODE_ENV === "production" ? "entra" : "",
+    },
 };
 
 export default config;
