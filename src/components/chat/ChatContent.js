@@ -140,6 +140,7 @@ function ChatContent({
                 const result = await client.query({
                     query: QUERIES.SYS_ENTITY_START,
                     variables,
+                    fetchPolicy: 'network-only'
                 });
 
                 // If streaming is enabled, handle subscription setup
@@ -263,6 +264,7 @@ function ChatContent({
                             ...variables,
                             generatorPathway: toolCallbackName,
                         },
+                        fetchPolicy: 'network-only'
                     });
                     const { result, tool } =
                         searchResult.data.sys_entity_continue;
