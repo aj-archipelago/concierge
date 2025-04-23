@@ -201,7 +201,7 @@ class CortexRequestTracker {
                 return JSON.parse(data);
             } catch (singleError) {
                 // Use raw data
-                return data;
+                return { message: data };
             }
         }
     }

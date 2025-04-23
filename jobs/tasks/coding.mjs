@@ -41,7 +41,9 @@ class CodingTask extends BaseTask {
             metadata,
         });
 
-        const { chatId } = metadata;
+        const task = await Task.findById(taskId);
+        const { chatId } = task.invokedFrom;
+
         if (!chatId) {
             console.error("[CodingTask] Missing chatId in metadata");
             throw new Error("Chat ID is required in metadata");
@@ -70,7 +72,8 @@ class CodingTask extends BaseTask {
         const isLastMessage = taskMessageIndex === chat.messages.length - 1;
 
         // Update the message in the messages array in memory first
-        chat.messages[taskMessageIndex].payload = dataObject;
+        chat.messages[taskMessageIndex].payload =
+            dataObject?.message || JSON.stringify(dataObject);
         chat.messages[taskMessageIndex].tool = '{"toolUsed":"coding"}';
 
         // Then save the entire chat object with modified messages

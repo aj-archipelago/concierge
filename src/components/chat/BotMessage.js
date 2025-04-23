@@ -294,7 +294,7 @@ const TaskPlaceholder = ({ message }) => {
             {!isInProgress && (
                 <div className="chat-message-bot">
                     {convertMessageToMarkdown({
-                        payload: data,
+                        payload: data?.message || JSON.stringify(data),
                     })}
                 </div>
             )}
