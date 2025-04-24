@@ -209,3 +209,8 @@ async function startWorkers() {
 
 // Start the workers
 startWorkers();
+
+module.exports = {
+    run: startWorkers,
+    ensureDbConnection,
+};
