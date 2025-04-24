@@ -53,6 +53,8 @@ export const StatusIndicator = ({ status }) => {
         return <BanIcon className="h-4 w-4 text-red-500" />;
     } else if (status === "pending") {
         return <Clock className="h-4 w-4 text-yellow-500" />;
+    } else if (status === "abandoned") {
+        return <BanIcon className="h-4 w-4 text-red-500" />;
     } else {
         return "Unknown";
     }
@@ -69,6 +71,8 @@ export const getStatusColorClass = (status) => {
             return "text-sky-500";
         case "pending":
             return "text-yellow-500";
+        case "abandoned":
+            return "text-red-500";
         default:
             return "text-gray-500";
     }
@@ -414,7 +418,9 @@ export default function NotificationButton() {
                                                         notification.status ===
                                                             "failed" ||
                                                         notification.status ===
-                                                            "cancelled") && (
+                                                            "cancelled" ||
+                                                        notification.status ===
+                                                            "abandoned") && (
                                                         <button
                                                             onClick={() =>
                                                                 handleDismiss(

@@ -67,9 +67,15 @@ class CodingTask extends BaseTask {
 
         // Find the index of the task message
         const taskMessageIndex = chat.messages.findIndex(
-            (msg) => msg.taskId === taskId,
+            (msg) => msg.taskId?.toString() === taskId.toString(),
         );
         const isLastMessage = taskMessageIndex === chat.messages.length - 1;
+
+        console.log("[CodingTask] Updating message in chat", {
+            taskMessageIndex,
+            isLastMessage,
+            dataObject,
+        });
 
         // Update the message in the messages array in memory first
         chat.messages[taskMessageIndex].payload =

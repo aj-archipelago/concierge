@@ -27,6 +27,7 @@ const taskSchema = new mongoose.Schema(
                 "completed",
                 "failed",
                 "cancelled",
+                "abandoned",
             ],
             default: "pending",
         },
@@ -49,6 +50,10 @@ const taskSchema = new mongoose.Schema(
                 type: mongoose.Schema.Types.ObjectId,
                 ref: "Chat",
             },
+        },
+        lastHeartbeat: {
+            type: Date,
+            default: null,
         },
         dismissed: {
             type: Boolean,

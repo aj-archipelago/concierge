@@ -78,6 +78,7 @@ class CortexRequestTracker {
             this.resolve = resolve;
             this.reject = reject;
         });
+        this.setupHeartbeat();
     }
 
     resetIdleTimeout() {
@@ -276,17 +277,12 @@ class CortexRequestTracker {
         const handler = await loadTaskDefinition(type);
 
         if (handler.handleCompletion) {
-            try {
-                return await handler.handleCompletion(
-                    this.job.data.taskId,
-                    dataObject,
-                    { ...metadata, userId },
-                    this.client,
-                );
-            } catch (error) {
-                console.error(`Error in ${type} completion handler:`, error);
-                return dataObject;
-            }
+            return await handler.handleCompletion(
+                this.job.data.taskId,
+                dataObject,
+                { ...metadata, userId },
+                this.client,
+            );
         }
         return dataObject;
     }
@@ -306,6 +302,7 @@ class CortexRequestTracker {
             ...(data && { data }),
             ...(status === "completed" && { progress: 1 }),
             ...(progress !== null && { progress }),
+            lastHeartbeat: new Date(),
         };
         await retryDbOperation(() =>
             this.Task.findOneAndUpdate({ _id: this.job.data.taskId }, update, {
@@ -340,21 +337,31 @@ class CortexRequestTracker {
                     this.progressUpdateReceived = true;
                     this.resetIdleTimeout();
 
-                    const { data } = x;
-                    const { shouldResolve, dataObject } =
-                        await this.handleProgressUpdate(
-                            data,
-                            this.job.data.taskId,
+                    try {
+                        const { data } = x;
+                        const { shouldResolve, dataObject } =
+                            await this.handleProgressUpdate(
+                                data,
+                                this.job.data.taskId,
+                            );
+
+                        console.log(`[DEBUG] Should resolve: ${shouldResolve}`);
+
+                        if (shouldResolve) {
+                            this.cleanup();
+                            console.log(
+                                `[DEBUG] Resolving promise with data: ${dataObject}`,
+                            );
+                            this.resolve(dataObject);
+                        }
+                    } catch (error) {
+                        console.error("Error handling progress update:", error);
+                        await this.updateRequestStatus(
+                            "failed",
+                            `Failed to process progress update: ${error.message}`,
                         );
-
-                    console.log(`[DEBUG] Should resolve: ${shouldResolve}`);
-
-                    if (shouldResolve) {
                         this.cleanup();
-                        console.log(
-                            `[DEBUG] Resolving promise with data: ${dataObject}`,
-                        );
-                        this.resolve(dataObject);
+                        this.reject(error);
                     }
                 },
                 error: async (error) => {
@@ -388,6 +395,24 @@ class CortexRequestTracker {
                     this.resolve();
                 },
             });
+    }
+
+    setupHeartbeat() {
+        const interval = setInterval(async () => {
+            try {
+                await retryDbOperation(() =>
+                    this.Task.findOneAndUpdate(
+                        { _id: this.job.data.taskId },
+                        { lastHeartbeat: new Date() },
+                    ),
+                );
+            } catch (error) {
+                console.error("Error updating heartbeat:", error);
+            }
+        }, 5000); // 5 seconds
+
+        this.intervals.add(interval);
+        return interval;
     }
 }
 

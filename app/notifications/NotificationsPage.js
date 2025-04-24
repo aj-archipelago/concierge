@@ -1,4 +1,5 @@
 "use client";
+
 import { TrashIcon, XIcon } from "lucide-react";
 import { useEffect, useState, useCallback } from "react";
 import { useTranslation } from "react-i18next";
@@ -186,7 +187,9 @@ export default function NotificationsPage() {
                                                     notification.status ===
                                                         "failed" ||
                                                     notification.status ===
-                                                        "cancelled") && (
+                                                        "cancelled" ||
+                                                    notification.status ===
+                                                        "abandoned") && (
                                                     <button
                                                         onClick={() =>
                                                             handleDelete(

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "../utils/auth";
 import { createBackgroundTask } from "../utils/tasks";
+import { checkAndUpdateAbandonedTask } from "../utils/task-utils";
 
 import RequestProgress from "../models/request-progress.mjs";
 import Task from "../models/task.mjs";
@@ -111,10 +112,15 @@ export async function GET(request) {
             .skip((page - 1) * limit)
             .limit(limit);
 
+        // Check each task for abandoned status
+        const updatedRequests = await Promise.all(
+            requests.map((task) => checkAndUpdateAbandonedTask(task)),
+        );
+
         const total = await Task.countDocuments(query);
 
         return NextResponse.json({
-            requests,
+            requests: updatedRequests,
             hasMore: total > page * limit,
         });
     } catch (error) {
