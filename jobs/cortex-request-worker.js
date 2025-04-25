@@ -1,5 +1,4 @@
 const { Worker } = require("bullmq");
-const { ensureDbConnection } = require("./worker.js");
 
 let worker;
 
@@ -12,6 +11,7 @@ import("../app/api/utils/redis.mjs").then((module) => {
         "task",
         async (job) => {
             console.log(`Worker processing job ${job.id}`);
+            const { ensureDbConnection } = require("./worker.js");
             await ensureDbConnection();
 
             const { executeTask } = await import(

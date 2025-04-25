@@ -146,6 +146,7 @@ const TaskPlaceholder = ({ message }) => {
             case "completed":
                 return "bg-green-100 text-green-800 border-green-200";
             case "failed":
+            case "abandoned":
             case "cancelled":
                 return "bg-red-100 text-red-800 border-red-200";
             case "in_progress":
@@ -210,7 +211,9 @@ const TaskPlaceholder = ({ message }) => {
                                 <CheckCircle className="w-4 h-4" />
                             </span>
                         )}
-                        {(status === "failed" || status === "cancelled") && (
+                        {(status === "failed" ||
+                            status === "cancelled" ||
+                            status === "abandoned") && (
                             <span className="text-red-500">
                                 <XCircle className="w-4 h-4" />
                             </span>
