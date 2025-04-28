@@ -1,5 +1,12 @@
 import { useEffect } from "react";
 import { useLLMs } from "../../queries/llms";
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select";
 
 export default function LLMSelector({ value, onChange }) {
     const { data: llms, isLoading } = useLLMs();
@@ -18,16 +25,17 @@ export default function LLMSelector({ value, onChange }) {
     if (isLoading) return null;
 
     return (
-        <select
-            value={value}
-            onChange={(e) => onChange(e.target.value)}
-            className="lb-input mb-2"
-        >
-            {llms?.map((llm) => (
-                <option key={llm._id} value={llm._id}>
-                    {llm.name}
-                </option>
-            ))}
-        </select>
+        <Select value={value} onValueChange={onChange}>
+            <SelectTrigger>
+                <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+                {llms?.map((llm) => (
+                    <SelectItem key={llm._id} value={llm._id}>
+                        {llm.name}
+                    </SelectItem>
+                ))}
+            </SelectContent>
+        </Select>
     );
 }

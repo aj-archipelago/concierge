@@ -210,3 +210,22 @@ export function useUpdateWorkspaceState() {
 
     return mutation;
 }
+
+export function useWorkspaceSuggestions(id, model) {
+    const query = useQuery({
+        queryKey: ["workspaceSuggestions", id, model],
+        queryFn: async () => {
+            if (!model) return [];
+            const { data } = await axios.post(
+                `/api/workspaces/${id}/ui/suggestions`,
+                {
+                    model,
+                },
+            );
+            return data.suggestions || [];
+        },
+        enabled: !!id && !!model,
+    });
+
+    return query;
+}
