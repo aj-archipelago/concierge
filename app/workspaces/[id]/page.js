@@ -8,7 +8,7 @@ import WorkspaceContent from "../components/WorkspaceContent";
 import WorkspaceActions from "./components/WorkspaceActions";
 import { getWorkspace } from "../../api/workspaces/[id]/db";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import WorkspaceUI from "./components/WorkspaceUI";
+import WorkspaceApplet from "./components/WorkspaceApplet";
 
 export default async function Page({ params }) {
     const id = params.id;
@@ -38,7 +38,7 @@ export default async function Page({ params }) {
                             <WorkspaceContent idOrSlug={id} user={user} />
                         </TabsContent>
                         <TabsContent value="ui">
-                            <WorkspaceUI />
+                            <WorkspaceApplet />
                         </TabsContent>
                     </Tabs>
                 </div>

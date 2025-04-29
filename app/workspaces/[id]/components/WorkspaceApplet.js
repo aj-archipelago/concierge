@@ -1,23 +1,36 @@
 "use client";
 import { useState, useEffect } from "react";
+import ReactMarkdown from "react-markdown";
 import LLMSelector from "../../components/LLMSelector";
 import { RiSendPlane2Fill, RiRefreshLine } from "react-icons/ri";
 import TextareaAutosize from "react-textarea-autosize";
 import { useParams } from "next/navigation";
-import { useWorkspaceSuggestions } from "../../../queries/workspaces";
+import {
+    useWorkspaceSuggestions,
+    useWorkspaceApplet,
+    useUpdateWorkspaceApplet,
+} from "../../../queries/workspaces";
 
-export default function WorkspaceUI() {
+export default function WorkspaceApplet() {
     const { id } = useParams();
     const [selectedLLM, setSelectedLLM] = useState("");
     const [messages, setMessages] = useState([]);
     const [inputMessage, setInputMessage] = useState("");
     const suggestionsMutation = useWorkspaceSuggestions(id, selectedLLM);
+    const appletQuery = useWorkspaceApplet(id);
+    const updateApplet = useUpdateWorkspaceApplet();
 
     useEffect(() => {
         if (selectedLLM) {
             suggestionsMutation.mutate();
         }
     }, [selectedLLM]);
+
+    useEffect(() => {
+        if (appletQuery.data?.messages) {
+            setMessages(appletQuery.data.messages);
+        }
+    }, [appletQuery.data]);
 
     const handleSendMessage = () => {
         if (!inputMessage.trim()) return;
@@ -28,8 +41,15 @@ export default function WorkspaceUI() {
             timestamp: new Date().toISOString(),
         };
 
-        setMessages((prev) => [...prev, newMessage]);
+        const updatedMessages = [...messages, newMessage];
+        setMessages(updatedMessages);
         setInputMessage("");
+
+        // Save messages to applet
+        updateApplet.mutate({
+            id,
+            data: { messages: updatedMessages },
+        });
     };
 
     return (
@@ -96,7 +116,9 @@ export default function WorkspaceUI() {
                                     <span className="font-bold">
                                         {message.role}:{" "}
                                     </span>
-                                    {message.content}
+                                    <ReactMarkdown className="prose dark:prose-invert text-sm">
+                                        {message.content}
+                                    </ReactMarkdown>
                                 </div>
                             ))}
                         </div>
