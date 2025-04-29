@@ -1,7 +1,7 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import LLMSelector from "../../components/LLMSelector";
-import { RiSendPlane2Fill } from "react-icons/ri";
+import { RiSendPlane2Fill, RiRefreshLine } from "react-icons/ri";
 import TextareaAutosize from "react-textarea-autosize";
 import { useParams } from "next/navigation";
 import { useWorkspaceSuggestions } from "../../../queries/workspaces";
@@ -11,7 +11,13 @@ export default function WorkspaceUI() {
     const [selectedLLM, setSelectedLLM] = useState("");
     const [messages, setMessages] = useState([]);
     const [inputMessage, setInputMessage] = useState("");
-    const { data: suggestions = [] } = useWorkspaceSuggestions(id, selectedLLM);
+    const suggestionsMutation = useWorkspaceSuggestions(id, selectedLLM);
+
+    useEffect(() => {
+        if (selectedLLM) {
+            suggestionsMutation.mutate();
+        }
+    }, [selectedLLM]);
 
     const handleSendMessage = () => {
         if (!inputMessage.trim()) return;
@@ -97,53 +103,59 @@ export default function WorkspaceUI() {
                     ) : null}
 
                     {/* Suggestions section */}
-                    {suggestions.length > 0 && !messages.length && (
+                    {selectedLLM && (
                         <div className="mb-4">
-                            <p className="text-sm text-gray-600 mb-2">
-                                Suggested prompts:
-                            </p>
-                            <div className="flex gap-2 overflow-auto">
-                                {suggestions.map((suggestion, index) => (
-                                    <>
-                                        <button
-                                            key={index}
-                                            onClick={() =>
-                                                setInputMessage(suggestion)
-                                            }
-                                            className="text-left p-2 bg-gray-100 rounded-md text-sm text-gray-700 hover:bg-gray-200 w-64 shrink-0"
-                                        >
-                                            {suggestion}
-                                        </button>
-                                        <button
-                                            key={index}
-                                            onClick={() =>
-                                                setInputMessage(suggestion)
-                                            }
-                                            className="text-left p-2 bg-gray-100 rounded-md text-sm text-gray-700 hover:bg-gray-200 w-64 shrink-0"
-                                        >
-                                            {suggestion}
-                                        </button>
-                                        <button
-                                            key={index}
-                                            onClick={() =>
-                                                setInputMessage(suggestion)
-                                            }
-                                            className="text-left p-2 bg-gray-100 rounded-md text-sm text-gray-700 hover:bg-gray-200 w-64 shrink-0"
-                                        >
-                                            {suggestion}
-                                        </button>
-                                        <button
-                                            key={index}
-                                            onClick={() =>
-                                                setInputMessage(suggestion)
-                                            }
-                                            className="text-left p-2 bg-gray-100 rounded-md text-sm text-gray-700 hover:bg-gray-200 w-64 shrink-0"
-                                        >
-                                            {suggestion}
-                                        </button>
-                                    </>
-                                ))}
+                            <div className="flex justify-between items-center mb-2">
+                                {suggestionsMutation.data?.length > 0 && (
+                                    <p className="text-sm text-gray-600 font-semibold">
+                                        Suggested prompts:
+                                    </p>
+                                )}
+                                <button
+                                    onClick={() => suggestionsMutation.mutate()}
+                                    disabled={suggestionsMutation.isPending}
+                                    className="p-1 hover:bg-gray-100 rounded-full text-gray-500 hover:text-gray-700 disabled:opacity-50 flex gap-2 items-center"
+                                    title="Refresh suggestions"
+                                >
+                                    {suggestionsMutation.isPending && (
+                                        <span className="ps-2 text-sm">
+                                            Loading suggestions...
+                                        </span>
+                                    )}
+                                    <RiRefreshLine
+                                        className={`w-4 h-4 ${suggestionsMutation.isPending ? "animate-spin" : ""}`}
+                                    />
+                                </button>
                             </div>
+                            {suggestionsMutation.data?.length > 0 &&
+                                !messages.length && (
+                                    <div className="flex gap-2 overflow-auto">
+                                        {suggestionsMutation.data.map(
+                                            (suggestion, index) => (
+                                                <button
+                                                    key={index}
+                                                    onClick={() =>
+                                                        setInputMessage(
+                                                            suggestion.ux_description,
+                                                        )
+                                                    }
+                                                    className="text-left p-2 bg-gray-100 rounded-md text-sm text-gray-700 hover:bg-gray-200 w-96 shrink-0 flex items-start"
+                                                >
+                                                    <div>
+                                                        <p className="font-bold">
+                                                            {suggestion.name}
+                                                        </p>
+                                                        <pre className=" max-h-40 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-400 scrollbar-track-gray-100 font-sans whitespace-pre-wrap text-sm text-gray-500">
+                                                            {
+                                                                suggestion.ux_description
+                                                            }
+                                                        </pre>
+                                                    </div>
+                                                </button>
+                                            ),
+                                        )}
+                                    </div>
+                                )}
                         </div>
                     )}
 
@@ -153,7 +165,7 @@ export default function WorkspaceUI() {
                             <div className="relative grow">
                                 <div className="flex items-center">
                                     <TextareaAutosize
-                                        className="w-full border-0 outline-none focus:shadow-none [.docked_&]:text-sm focus:ring-0 py-3 resize-none dark:bg-zinc-100 px-3 rounded-s"
+                                        className="w-full border-0 outline-none focus:shadow-none text-sm focus:ring-0 py-3 resize-none dark:bg-zinc-100 px-3 rounded-s max-h-24 overflow-y-auto"
                                         rows={1}
                                         value={inputMessage}
                                         onChange={(e) =>

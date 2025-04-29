@@ -212,9 +212,10 @@ export function useUpdateWorkspaceState() {
 }
 
 export function useWorkspaceSuggestions(id, model) {
-    const query = useQuery({
-        queryKey: ["workspaceSuggestions", id, model],
-        queryFn: async () => {
+    const queryClient = useQueryClient();
+
+    const mutation = useMutation({
+        mutationFn: async () => {
             if (!model) return [];
             const { data } = await axios.post(
                 `/api/workspaces/${id}/ui/suggestions`,
@@ -224,8 +225,7 @@ export function useWorkspaceSuggestions(id, model) {
             );
             return data.suggestions || [];
         },
-        enabled: !!id && !!model,
     });
 
-    return query;
+    return mutation;
 }
