@@ -16,13 +16,27 @@ export default function WorkspaceApplet() {
     const [selectedLLM, setSelectedLLM] = useState("");
     const [messages, setMessages] = useState([]);
     const [inputMessage, setInputMessage] = useState("");
+    const [previewHtml, setPreviewHtml] = useState(null);
     const suggestionsMutation = useWorkspaceSuggestions(id, selectedLLM);
     const appletQuery = useWorkspaceApplet(id);
     const updateApplet = useUpdateWorkspaceApplet();
 
     useEffect(() => {
-        if (selectedLLM) {
-            suggestionsMutation.mutate();
+        if (selectedLLM && !appletQuery.data?.suggestions?.length) {
+            // Only generate suggestions if they don't exist yet
+            suggestionsMutation.mutate(undefined, {
+                onSuccess: (data) => {
+                    updateApplet.mutate({
+                        id,
+                        data: {
+                            suggestions: data.map((suggestion) => ({
+                                name: suggestion.name,
+                                uxDescription: suggestion.ux_description,
+                            })),
+                        },
+                    });
+                },
+            });
         }
     }, [selectedLLM]);
 
@@ -32,7 +46,7 @@ export default function WorkspaceApplet() {
         }
     }, [appletQuery.data]);
 
-    const handleSendMessage = () => {
+    const handleSendMessage = async () => {
         if (!inputMessage.trim()) return;
 
         const newMessage = {
@@ -50,43 +64,106 @@ export default function WorkspaceApplet() {
             id,
             data: { messages: updatedMessages },
         });
+
+        // Call the AI endpoint
+        try {
+            const response = await fetch(`/api/workspaces/${id}/applet/chat`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({ messages: updatedMessages }),
+            });
+
+            const aiResponse = await response.json();
+            const aiMessage = {
+                content: aiResponse.message,
+                role: "assistant",
+                timestamp: new Date().toISOString(),
+            };
+
+            // Check if the message is HTML code (enclosed in backticks)
+            if (
+                aiResponse.message.startsWith("`") &&
+                aiResponse.message.endsWith("`")
+            ) {
+                // Extract HTML code from between backticks
+                const htmlCode = aiResponse.message.slice(1, -1);
+                setPreviewHtml(htmlCode);
+                // Use a placeholder in chat for HTML responses
+                aiMessage.content =
+                    "HTML code generated. Check the preview pane →";
+            } else {
+                // For text messages, keep the existing preview HTML
+                aiMessage.content = aiResponse.message;
+            }
+
+            const finalMessages = [...updatedMessages, aiMessage];
+            setMessages(finalMessages);
+            updateApplet.mutate({
+                id,
+                data: { messages: finalMessages },
+            });
+        } catch (error) {
+            console.error("Error calling AI endpoint:", error);
+        }
+    };
+
+    const handleRefreshSuggestions = () => {
+        suggestionsMutation.mutate(undefined, {
+            onSuccess: (data) => {
+                updateApplet.mutate({
+                    id,
+                    data: {
+                        suggestions: data.map((suggestion) => ({
+                            name: suggestion.name,
+                            uxDescription: suggestion.ux_description,
+                        })),
+                    },
+                });
+            },
+        });
     };
 
     return (
-        <div className="flex flex-col h-screen">
+        <div className="flex flex-col h-full overflow-auto">
             {/* Header with instructions */}
-            <div className="bg-gray-50 border-b p-4 mb-4">
-                <p className="text-gray-600 mb-2">
-                    This section allows you to generate a UI for this workspace.
-                    Describe your desired UI in natural language, and see the
-                    results appear in real-time. The UI will have access to
-                    prompts defined in this workspace.
-                </p>
-                <div className="bg-sky-50 border border-sky-200 rounded-lg p-3">
-                    <h2 className="font-semibold text-sky-800 mb-1">
-                        How to use
-                    </h2>
-                    <ul className="text-sky-700 text-sm list-disc list-inside ps-2">
-                        <li>Select an AI model from the dropdown below</li>
-                        <li>
-                            Describe the UI you want to create in natural
-                            language
-                        </li>
-                        <li>
-                            The AI will generate HTML/CSS code based on your
-                            description
-                        </li>
-                        <li>
-                            Preview the results in real-time on the right panel
-                        </li>
-                        <li>
-                            Iterate and refine your design through conversation
-                        </li>
-                    </ul>
+            {messages && messages.length === 0 && (
+                <div className="bg-gray-50 border-b p-4 mb-4">
+                    <p className="text-gray-600 mb-2">
+                        This section allows you to generate a UI for this
+                        workspace. Describe your desired UI in natural language,
+                        and see the results appear in real-time. The UI will
+                        have access to prompts defined in this workspace.
+                    </p>
+                    <div className="bg-sky-50 border border-sky-200 rounded-lg p-3">
+                        <h2 className="font-semibold text-sky-800 mb-1">
+                            How to use
+                        </h2>
+                        <ul className="text-sky-700 text-sm list-disc list-inside ps-2">
+                            <li>Select an AI model from the dropdown below</li>
+                            <li>
+                                Describe the UI you want to create in natural
+                                language
+                            </li>
+                            <li>
+                                The AI will generate HTML/CSS code based on your
+                                description
+                            </li>
+                            <li>
+                                Preview the results in real-time on the right
+                                panel
+                            </li>
+                            <li>
+                                Iterate and refine your design through
+                                conversation
+                            </li>
+                        </ul>
+                    </div>
                 </div>
-            </div>
+            )}
 
-            <div className="flex flex-1 gap-4 px-4">
+            <div className="flex flex-1 gap-4 overflow-auto">
                 {/* Left pane - Chat Interface */}
                 <div className="w-1/2 flex flex-col">
                     {/* Model selector and Clear button in one line */}
@@ -102,9 +179,21 @@ export default function WorkspaceApplet() {
                         {messages && messages.length > 0 && (
                             <button
                                 className="lb-outline-secondary"
-                                onClick={() => setMessages([])}
+                                onClick={() => {
+                                    if (
+                                        window.confirm(
+                                            "Are you sure you want to clear the chat?",
+                                        )
+                                    ) {
+                                        setMessages([]);
+                                        updateApplet.mutate({
+                                            id,
+                                            data: { messages: [] },
+                                        });
+                                    }
+                                }}
                             >
-                                Clear
+                                Clear chat
                             </button>
                         )}
                     </div>
@@ -125,16 +214,16 @@ export default function WorkspaceApplet() {
                     ) : null}
 
                     {/* Suggestions section */}
-                    {selectedLLM && (
+                    {selectedLLM && !messages.length && (
                         <div className="mb-4">
                             <div className="flex justify-between items-center mb-2">
-                                {suggestionsMutation.data?.length > 0 && (
+                                {appletQuery.data?.suggestions?.length > 0 && (
                                     <p className="text-sm text-gray-600 font-semibold">
                                         Suggested prompts:
                                     </p>
                                 )}
                                 <button
-                                    onClick={() => suggestionsMutation.mutate()}
+                                    onClick={handleRefreshSuggestions}
                                     disabled={suggestionsMutation.isPending}
                                     className="p-1 hover:bg-gray-100 rounded-full text-gray-500 hover:text-gray-700 disabled:opacity-50 flex gap-2 items-center"
                                     title="Refresh suggestions"
@@ -149,35 +238,34 @@ export default function WorkspaceApplet() {
                                     />
                                 </button>
                             </div>
-                            {suggestionsMutation.data?.length > 0 &&
-                                !messages.length && (
-                                    <div className="flex gap-2 overflow-auto">
-                                        {suggestionsMutation.data.map(
-                                            (suggestion, index) => (
-                                                <button
-                                                    key={index}
-                                                    onClick={() =>
-                                                        setInputMessage(
-                                                            suggestion.ux_description,
-                                                        )
-                                                    }
-                                                    className="text-left p-2 bg-gray-100 rounded-md text-sm text-gray-700 hover:bg-gray-200 w-96 shrink-0 flex items-start"
-                                                >
-                                                    <div>
-                                                        <p className="font-bold">
-                                                            {suggestion.name}
-                                                        </p>
-                                                        <pre className=" max-h-40 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-400 scrollbar-track-gray-100 font-sans whitespace-pre-wrap text-sm text-gray-500">
-                                                            {
-                                                                suggestion.ux_description
-                                                            }
-                                                        </pre>
-                                                    </div>
-                                                </button>
-                                            ),
-                                        )}
-                                    </div>
-                                )}
+                            {appletQuery.data?.suggestions?.length > 0 && (
+                                <div className="flex gap-2 overflow-auto">
+                                    {appletQuery.data.suggestions.map(
+                                        (suggestion, index) => (
+                                            <button
+                                                key={index}
+                                                onClick={() =>
+                                                    setInputMessage(
+                                                        suggestion.uxDescription,
+                                                    )
+                                                }
+                                                className="text-left p-2 bg-gray-100 rounded-md text-sm text-gray-700 hover:bg-gray-200 w-96 shrink-0 flex items-start"
+                                            >
+                                                <div>
+                                                    <p className="font-bold">
+                                                        {suggestion.name}
+                                                    </p>
+                                                    <pre className="max-h-40 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-400 scrollbar-track-gray-100 hover:scrollbar-thumb-gray-500 font-sans whitespace-pre-wrap text-sm text-gray-500">
+                                                        {
+                                                            suggestion.uxDescription
+                                                        }
+                                                    </pre>
+                                                </div>
+                                            </button>
+                                        ),
+                                    )}
+                                </div>
+                            )}
                         </div>
                     )}
 
@@ -234,9 +322,17 @@ export default function WorkspaceApplet() {
                 {/* Right pane - HTML Preview */}
                 <div className="w-1/2">
                     <div className="h-full border rounded-lg p-4">
-                        <div className="text-gray-500">
-                            HTML preview will appear here...
-                        </div>
+                        {previewHtml ? (
+                            <div
+                                dangerouslySetInnerHTML={{
+                                    __html: previewHtml,
+                                }}
+                            />
+                        ) : (
+                            <div className="text-gray-500">
+                                HTML preview will appear here...
+                            </div>
+                        )}
                     </div>
                 </div>
             </div>

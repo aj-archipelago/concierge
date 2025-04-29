@@ -29,7 +29,10 @@ export default async function Page({ params }) {
             <div className="flex flex-col h-full">
                 <WorkspaceActions idOrSlug={id} user={user} />
                 <div className="h-full overflow-auto">
-                    <Tabs defaultValue="prompts" className="w-full">
+                    <Tabs
+                        defaultValue="prompts"
+                        className="w-full flex flex-col gap-2 h-full overflow-auto"
+                    >
                         <TabsList className="w-full justify-start">
                             <TabsTrigger value="prompts">Prompts</TabsTrigger>
                             <TabsTrigger value="ui">UI</TabsTrigger>
@@ -37,7 +40,7 @@ export default async function Page({ params }) {
                         <TabsContent value="prompts">
                             <WorkspaceContent idOrSlug={id} user={user} />
                         </TabsContent>
-                        <TabsContent value="ui">
+                        <TabsContent value="ui" className="grow overflow-auto">
                             <WorkspaceApplet />
                         </TabsContent>
                     </Tabs>

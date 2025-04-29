@@ -30,7 +30,7 @@ export const appletSchema = new mongoose.Schema(
                     type: String,
                     required: true,
                 },
-                description: {
+                uxDescription: {
                     type: String,
                     required: true,
                 },
