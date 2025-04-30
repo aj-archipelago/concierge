@@ -28,7 +28,7 @@ import { LanguageContext } from "../contexts/LanguageProvider";
 import ChatNavigationItem from "./ChatNavigationItem";
 import { cn } from "@/lib/utils";
 
-const navigation = [
+export const navigation = [
     {
         name: "Home",
         icon: NewspaperIcon,
@@ -38,13 +38,24 @@ const navigation = [
     { name: "Translate", icon: GlobeAltIcon, href: "/translate" },
     { name: "Video", icon: VideoIcon, href: "/video" },
     { name: "Write", icon: PencilSquareIcon, href: "/write" },
-    { name: "Workspaces", icon: MdOutlineWorkspaces, href: "/workspaces" },
+    {
+        name: "Workspaces",
+        icon: MdOutlineWorkspaces,
+        href: "/workspaces",
+        collapsed: true,
+    },
     { name: "Images", icon: PhotoIcon, href: "/images" },
     { name: "Jira", icon: CodeBracketIcon, href: "/code/jira" },
 ];
 
+export const shouldForceCollapse = (pathname) => {
+    return navigation.some(
+        (item) => item.collapsed && pathname?.startsWith(item.href),
+    );
+};
+
 export default React.forwardRef(function Sidebar(
-    { isCollapsed, onToggleCollapse },
+    { isCollapsed: propIsCollapsed, onToggleCollapse },
     ref,
 ) {
     const pathname = usePathname();
@@ -58,6 +69,8 @@ export default React.forwardRef(function Sidebar(
     const deleteChat = useDeleteChat();
     const setActiveChatId = useSetActiveChatId();
     const addChat = useAddChat();
+
+    const isCollapsed = propIsCollapsed || shouldForceCollapse(pathname);
 
     const handleNewChat = async () => {
         try {
@@ -129,6 +142,7 @@ export default React.forwardRef(function Sidebar(
                     onClick={onToggleCollapse}
                     className={cn(
                         "bg-white border border-gray-200 rounded-full p-1 hidden lg:block shadow-sm hover:bg-gray-50",
+                        shouldForceCollapse(pathname) && "lg:hidden",
                         isCollapsed
                             ? "mx-auto mt-4 group-hover:mt-0 group-hover:absolute group-hover:-right-3 group-hover:top-5"
                             : "absolute -right-3 top-5",
@@ -145,7 +159,7 @@ export default React.forwardRef(function Sidebar(
             <div className="flex h-16 shrink-0 items-center gap-2">
                 <Link className="flex items-center gap-2" href="/">
                     <img
-                        className={classNames(
+                        className={cn(
                             "w-auto h-12",
                             isCollapsed ? "hidden group-hover:block" : "block",
                         )}

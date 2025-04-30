@@ -20,6 +20,7 @@ import Footer from "./Footer";
 import ProfileDropdown from "./ProfileDropdown";
 import Sidebar from "./Sidebar";
 import { cn } from "@/lib/utils";
+import { shouldForceCollapse } from "./Sidebar";
 
 export default function Layout({ children }) {
     const [showOptions, setShowOptions] = useState(false);
@@ -60,6 +61,15 @@ export default function Layout({ children }) {
         // Clean up the event listener
         return () => window.removeEventListener("resize", setViewportHeight);
     }, []);
+
+    // Update toggle handler to use the helper function
+    const handleToggleCollapse = () => {
+        if (!shouldForceCollapse(pathname)) {
+            setSidebarCollapsed(!sidebarCollapsed);
+        }
+    };
+
+    const isCollapsed = shouldForceCollapse(pathname) || sidebarCollapsed;
 
     return (
         <>
@@ -148,22 +158,20 @@ export default function Layout({ children }) {
                 <div
                     className={cn(
                         "hidden lg:fixed lg:inset-y-0 lg:z-[60] lg:flex lg:flex-col transition-all duration-300",
-                        sidebarCollapsed ? "lg:w-16" : "lg:w-56",
+                        isCollapsed ? "lg:w-16" : "lg:w-56",
                     )}
                 >
                     <Sidebar
                         ref={contentRef}
-                        isCollapsed={sidebarCollapsed}
-                        onToggleCollapse={() =>
-                            setSidebarCollapsed(!sidebarCollapsed)
-                        }
+                        isCollapsed={isCollapsed}
+                        onToggleCollapse={handleToggleCollapse}
                     />
                 </div>
 
                 <div
                     className={cn(
                         "transition-all duration-300",
-                        sidebarCollapsed ? "lg:ps-16" : "lg:ps-56",
+                        isCollapsed ? "lg:ps-16" : "lg:ps-56",
                     )}
                 >
                     <div className="sticky top-0 z-40 flex h-12 shrink-0 items-center gap-x-4 border-b border-gray-200 bg-white px-2 shadow-sm sm:gap-x-6 sm:px-3 lg:px-4">
