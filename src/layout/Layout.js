@@ -19,10 +19,12 @@ import { setChatBoxPosition } from "../stores/chatSlice";
 import Footer from "./Footer";
 import ProfileDropdown from "./ProfileDropdown";
 import Sidebar from "./Sidebar";
+import { cn } from "@/lib/utils";
 
 export default function Layout({ children }) {
     const [showOptions, setShowOptions] = useState(false);
     const [sidebarOpen, setSidebarOpen] = useState(false);
+    const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
     const [showTos, setShowTos] = useState(false);
     const statePosition = useSelector((state) => state.chat?.chatBox?.position);
     const dispatch = useDispatch();
@@ -143,12 +145,21 @@ export default function Layout({ children }) {
                 </Transition.Root>
 
                 {/* Static sidebar for desktop */}
-                <div className="hidden lg:fixed lg:inset-y-0 lg:z-50 lg:flex lg:w-56 lg:flex-col">
-                    {/* Sidebar component, swap this element with another sidebar if you like */}
-                    <Sidebar ref={contentRef} />
+                <div className={cn(
+                    "hidden lg:fixed lg:inset-y-0 lg:z-[60] lg:flex lg:flex-col transition-all duration-300",
+                    sidebarCollapsed ? "lg:w-16" : "lg:w-56"
+                )}>
+                    <Sidebar 
+                        ref={contentRef} 
+                        isCollapsed={sidebarCollapsed} 
+                        onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)} 
+                    />
                 </div>
 
-                <div className="lg:ps-56 overflow-hidden">
+                <div className={cn(
+                    "transition-all duration-300",
+                    sidebarCollapsed ? "lg:ps-16" : "lg:ps-56"
+                )}>
                     <div className="sticky top-0 z-40 flex h-12 shrink-0 items-center gap-x-4 border-b border-gray-200 bg-white px-2 shadow-sm sm:gap-x-6 sm:px-3 lg:px-4">
                         <button
                             type="button"

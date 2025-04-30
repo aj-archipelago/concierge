@@ -6,6 +6,8 @@ import {
     PencilSquareIcon,
     PhotoIcon,
     PlusIcon,
+    ChevronLeftIcon,
+    ChevronRightIcon,
 } from "@heroicons/react/24/outline";
 import { HelpCircle, VideoIcon } from "lucide-react";
 import Link from "next/link";
@@ -24,6 +26,7 @@ import config from "../../config";
 import SendFeedbackModal from "../components/help/SendFeedbackModal";
 import { LanguageContext } from "../contexts/LanguageProvider";
 import ChatNavigationItem from "./ChatNavigationItem";
+import { cn } from "@/lib/utils";
 
 const navigation = [
     {
@@ -40,7 +43,7 @@ const navigation = [
     { name: "Jira", icon: CodeBracketIcon, href: "/code/jira" },
 ];
 
-export default React.forwardRef(function Sidebar(_, ref) {
+export default React.forwardRef(function Sidebar({ isCollapsed, onToggleCollapse }, ref) {
     const pathname = usePathname();
     const router = useRouter();
     const { getLogo, getSidebarLogo } = config.global;
@@ -110,21 +113,42 @@ export default React.forwardRef(function Sidebar(_, ref) {
     });
 
     return (
-        <div className="flex grow flex-col gap-y-5 overflow-y-auto border-r border-gray-200 bg-white px-5">
+        <div className="flex grow flex-col gap-y-5 overflow-y-auto border-r border-gray-200 bg-white px-5 relative z-[70]">
+            <div className="relative">
+                <button
+                    onClick={onToggleCollapse}
+                    className={
+                        cn(
+                            "bg-white border border-gray-200 rounded-full p-1 hidden lg:block shadow-sm hover:bg-gray-50",
+                            isCollapsed ? "mx-auto mt-4" : "absolute -right-3 top-5"
+                        )
+                    }
+                >
+                    {isCollapsed ? (
+                        <ChevronRightIcon className="h-4 w-4 text-gray-400" />
+                    ) : (
+                        <ChevronLeftIcon className="h-4 w-4 text-gray-400" />
+                    )}
+                </button>
+            </div>
+
             <div className="flex h-16 shrink-0 items-center gap-2">
                 <Link className="flex items-center gap-2" href="/">
                     <img
-                        className="h-12 w-auto"
+                        className={classNames(
+                            "w-auto",
+                            isCollapsed ? "hidden" : "h-12"
+                        )}
                         src={getLogo(language)}
                         alt="Your Company"
                     />
-                    {getSidebarLogo(language)}
+                    {!isCollapsed && getSidebarLogo(language)}
                 </Link>
             </div>
             <nav className="flex flex-1 flex-col">
                 <ul className="flex flex-1 flex-col gap-y-4">
                     <li className="grow">
-                        <ul className="-mx-2 space-y-1 max-h-[calc(100vh-155px)] overflow-y-auto overflow-x-hidden ">
+                        <ul className="-mx-2 space-y-1 max-h-[calc(100vh-155px)] overflow-y-auto overflow-x-hidden">
                             {updatedNavigation.map((item) => (
                                 <li
                                     key={item.name}
@@ -151,11 +175,13 @@ export default React.forwardRef(function Sidebar(_, ref) {
                                                 className="h-6 w-6 shrink-0 text-gray-400"
                                                 aria-hidden="true"
                                             />
-                                            <span className="select-none">
-                                                {t(item.name)}
-                                            </span>
+                                            {!isCollapsed && (
+                                                <span className="select-none">
+                                                    {t(item.name)}
+                                                </span>
+                                            )}
                                         </div>
-                                        {item.name === "Chat" && (
+                                        {!isCollapsed && item.name === "Chat" && (
                                             <PlusIcon
                                                 className="h-6 w-6 ml-auto p-1 rounded-full bg-blue-100 text-blue-600 hover:bg-blue-200 hover:text-blue-800 cursor-pointer"
                                                 onClick={(e) => {
@@ -165,7 +191,7 @@ export default React.forwardRef(function Sidebar(_, ref) {
                                             />
                                         )}
                                     </div>
-                                    {item.children?.length > 0 && (
+                                    {!isCollapsed && item.children?.length > 0 && (
                                         <ul className="mt-1 px-1">
                                             {item.children.map(
                                                 (subItem, index) =>
@@ -228,7 +254,7 @@ export default React.forwardRef(function Sidebar(_, ref) {
                                                                     title={t(
                                                                         subItem.name ||
                                                                             "",
-                                                                    )} // Add this line for tooltip
+                                                                    )}
                                                                 >
                                                                     {t(
                                                                         subItem.name ||
@@ -247,7 +273,7 @@ export default React.forwardRef(function Sidebar(_, ref) {
                     </li>
                     <li>
                         <div className="py-3 bg-gray-50 -mx-5 px-5 text-gray-700">
-                            <SendFeedbackButton ref={ref} />
+                            <SendFeedbackButton ref={ref} isCollapsed={isCollapsed} />
                         </div>
                     </li>
                 </ul>
@@ -257,7 +283,7 @@ export default React.forwardRef(function Sidebar(_, ref) {
 });
 
 const SendFeedbackButton = React.forwardRef(
-    function SendFeedbackButton(_, ref) {
+    function SendFeedbackButton({ isCollapsed }, ref) {
         const [show, setShow] = useState(false);
         const { t } = useTranslation();
 
@@ -275,9 +301,9 @@ const SendFeedbackButton = React.forwardRef(
                     onClick={handleClick}
                 >
                     <HelpCircle className="h-6 w-6 shrink-0 text-gray-400" />
-                    {t("Send feedback")}
+                    {!isCollapsed && t("Send feedback")}
                 </button>
             </>
         );
-    },
+    }
 );
