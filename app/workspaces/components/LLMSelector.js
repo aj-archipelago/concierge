@@ -8,13 +8,20 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 
-export default function LLMSelector({ value, onChange, defaultModelIdentifier }) {
+export default function LLMSelector({
+    value,
+    onChange,
+    defaultModelIdentifier,
+}) {
     const { data: llms, isLoading } = useLLMs();
 
     useEffect(() => {
         if (llms && llms.length > 0 && !value) {
-            const defaultLLM = llms.find((llm) => 
-                defaultModelIdentifier ? llm.identifier === defaultModelIdentifier : llm.isDefault);
+            const defaultLLM = llms.find((llm) =>
+                defaultModelIdentifier
+                    ? llm.identifier === defaultModelIdentifier
+                    : llm.isDefault,
+            );
             if (defaultLLM) {
                 onChange(defaultLLM._id);
             } else {

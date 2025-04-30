@@ -6,11 +6,11 @@ import LLM from "../../../../models/llm";
 export async function POST(request, { params }) {
     try {
         const { messages, model, currentHtml } = await request.json();
-        
+
         if (!model) {
             return NextResponse.json(
                 { error: "Model ID is required" },
-                { status: 400 }
+                { status: 400 },
             );
         }
 
@@ -28,7 +28,7 @@ export async function POST(request, { params }) {
 
         // Prepare the conversation history for the AI
         const conversationHistory = messages
-            .map(msg => `${msg.role}: ${msg.content}`)
+            .map((msg) => `${msg.role}: ${msg.content}`)
             .join("\n");
 
         // Call the AI with the conversation history
@@ -47,7 +47,7 @@ export async function POST(request, { params }) {
                 3. Return the complete HTML with your modifications
                 
                 Current HTML being modified:
-                ${currentHtml || 'No existing HTML provided - creating new component'}
+                ${currentHtml || "No existing HTML provided - creating new component"}
 
                 When creating UI components, follow these styling guidelines:
                 - Use clean, semantic HTML with descriptive class names
@@ -60,8 +60,8 @@ export async function POST(request, { params }) {
                   - Use consistent padding (20px for containers, 8-12px for smaller elements)
                   - Add margin between buttons and other elements for proper spacing
                 
-                Keep your HTML responses simple and use vanilla CSS for styling and inline JavaScript for interactivity. Focus on creating clean, responsive, and accessible components. When responding with HTML, include both the HTML code and the CSS in a <style> tag, along with any necessary inline JavaScript in <script> tags or event handlers. Do not include additional text or comments.`
-            }
+                Keep your HTML responses simple and use vanilla CSS for styling and inline JavaScript for interactivity. Focus on creating clean, responsive, and accessible components. When responding with HTML, include both the HTML code and the CSS in a <style> tag, along with any necessary inline JavaScript in <script> tags or event handlers. Do not include additional text or comments.`,
+            },
         });
 
         // Extract the AI's response
@@ -69,13 +69,13 @@ export async function POST(request, { params }) {
 
         // Return the response in the expected format
         return NextResponse.json({
-            message: aiResponse
+            message: aiResponse,
         });
     } catch (error) {
         console.error("Error in chat endpoint:", error);
         return NextResponse.json(
             { error: "Failed to process chat message" },
-            { status: 500 }
+            { status: 500 },
         );
     }
 }

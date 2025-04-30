@@ -145,21 +145,27 @@ export default function Layout({ children }) {
                 </Transition.Root>
 
                 {/* Static sidebar for desktop */}
-                <div className={cn(
-                    "hidden lg:fixed lg:inset-y-0 lg:z-[60] lg:flex lg:flex-col transition-all duration-300",
-                    sidebarCollapsed ? "lg:w-16" : "lg:w-56"
-                )}>
-                    <Sidebar 
-                        ref={contentRef} 
-                        isCollapsed={sidebarCollapsed} 
-                        onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)} 
+                <div
+                    className={cn(
+                        "hidden lg:fixed lg:inset-y-0 lg:z-[60] lg:flex lg:flex-col transition-all duration-300",
+                        sidebarCollapsed ? "lg:w-16" : "lg:w-56",
+                    )}
+                >
+                    <Sidebar
+                        ref={contentRef}
+                        isCollapsed={sidebarCollapsed}
+                        onToggleCollapse={() =>
+                            setSidebarCollapsed(!sidebarCollapsed)
+                        }
                     />
                 </div>
 
-                <div className={cn(
-                    "transition-all duration-300",
-                    sidebarCollapsed ? "lg:ps-16" : "lg:ps-56"
-                )}>
+                <div
+                    className={cn(
+                        "transition-all duration-300",
+                        sidebarCollapsed ? "lg:ps-16" : "lg:ps-56",
+                    )}
+                >
                     <div className="sticky top-0 z-40 flex h-12 shrink-0 items-center gap-x-4 border-b border-gray-200 bg-white px-2 shadow-sm sm:gap-x-6 sm:px-3 lg:px-4">
                         <button
                             type="button"

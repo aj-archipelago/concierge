@@ -56,34 +56,47 @@ export async function PUT(request, { params }) {
             // Use $push with $cond to only add new version if different from last
             updateObj.$push = {
                 htmlVersions: {
-                    $each: [{
-                        content: body.html,
-                        timestamp: currentDate
-                    }],
+                    $each: [
+                        {
+                            content: body.html,
+                            timestamp: currentDate,
+                        },
+                    ],
                     $cond: {
                         if: {
                             $or: [
                                 { $eq: [{ $size: "$htmlVersions" }, 0] },
-                                { $ne: [{ $arrayElemAt: ["$htmlVersions.content", -1] }, body.html] }
-                            ]
-                        }
-                    }
-                }
+                                {
+                                    $ne: [
+                                        {
+                                            $arrayElemAt: [
+                                                "$htmlVersions.content",
+                                                -1,
+                                            ],
+                                        },
+                                        body.html,
+                                    ],
+                                },
+                            ],
+                        },
+                    },
+                },
             };
         }
         if (body.messages !== undefined) updateObj.messages = body.messages;
-        if (body.suggestions !== undefined) updateObj.suggestions = body.suggestions;
+        if (body.suggestions !== undefined)
+            updateObj.suggestions = body.suggestions;
         if (body.name !== undefined) updateObj.name = body.name;
 
         // Use findOneAndUpdate with atomic operations
         const updatedApplet = await Applet.findOneAndUpdate(
             { _id: workspace.applet },
             updateObj,
-            { 
+            {
                 new: true, // Return the updated document
                 upsert: true, // Create if doesn't exist
-                runValidators: true // Run model validators
-            }
+                runValidators: true, // Run model validators
+            },
         );
 
         return NextResponse.json(updatedApplet);
