@@ -9,6 +9,7 @@ import {
     useWorkspaceSuggestions,
     useWorkspaceApplet,
     useUpdateWorkspaceApplet,
+    useWorkspaceChat,
 } from "../../../queries/workspaces";
 
 export default function WorkspaceApplet() {
@@ -17,12 +18,16 @@ export default function WorkspaceApplet() {
     const [messages, setMessages] = useState([]);
     const [inputMessage, setInputMessage] = useState("");
     const [previewHtml, setPreviewHtml] = useState(null);
+    const [htmlVersions, setHtmlVersions] = useState([]);
+    const [activeVersionIndex, setActiveVersionIndex] = useState(-1);
+    const [isLoading, setIsLoading] = useState(false);
     const suggestionsMutation = useWorkspaceSuggestions(id, selectedLLM);
     const appletQuery = useWorkspaceApplet(id);
     const updateApplet = useUpdateWorkspaceApplet();
+    const chatMutation = useWorkspaceChat(id);
 
     useEffect(() => {
-        if (selectedLLM && !appletQuery.data?.suggestions?.length) {
+        if (selectedLLM && !appletQuery.data?.suggestions?.length && !appletQuery.isLoading) {
             // Only generate suggestions if they don't exist yet
             suggestionsMutation.mutate(undefined, {
                 onSuccess: (data) => {
@@ -41,13 +46,18 @@ export default function WorkspaceApplet() {
     }, [selectedLLM]);
 
     useEffect(() => {
-        if (appletQuery.data?.messages) {
-            setMessages(appletQuery.data.messages);
+        if (appletQuery.data) {
+            setMessages(appletQuery.data.messages || []);
+            if (appletQuery.data.htmlVersions?.length > 0) {
+                setHtmlVersions(appletQuery.data.htmlVersions.map(v => v.content));
+                setActiveVersionIndex(appletQuery.data.htmlVersions.length - 1);
+                setPreviewHtml(appletQuery.data.htmlVersions[appletQuery.data.htmlVersions.length - 1].content);
+            }
         }
     }, [appletQuery.data]);
 
     const handleSendMessage = async () => {
-        if (!inputMessage.trim()) return;
+        if (!inputMessage.trim() || !selectedLLM) return;
 
         const newMessage = {
             content: inputMessage,
@@ -58,6 +68,7 @@ export default function WorkspaceApplet() {
         const updatedMessages = [...messages, newMessage];
         setMessages(updatedMessages);
         setInputMessage("");
+        setIsLoading(true);
 
         // Save messages to applet
         updateApplet.mutate({
@@ -65,37 +76,49 @@ export default function WorkspaceApplet() {
             data: { messages: updatedMessages },
         });
 
-        // Call the AI endpoint
         try {
-            const response = await fetch(`/api/workspaces/${id}/applet/chat`, {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                },
-                body: JSON.stringify({ messages: updatedMessages }),
+            const response = await chatMutation.mutateAsync({
+                messages: updatedMessages,
+                model: selectedLLM,
+                currentHtml: previewHtml
             });
 
-            const aiResponse = await response.json();
             const aiMessage = {
-                content: aiResponse.message,
+                content: response.message,
                 role: "assistant",
                 timestamp: new Date().toISOString(),
             };
 
             // Check if the message is HTML code (enclosed in backticks)
             if (
-                aiResponse.message.startsWith("`") &&
-                aiResponse.message.endsWith("`")
+                response.message.startsWith("`") &&
+                response.message.endsWith("`")
             ) {
-                // Extract HTML code from between backticks
-                const htmlCode = aiResponse.message.slice(1, -1);
+                // Remove backticks and potential language specifier from start and end
+                const htmlCode = response.message.replace(/^`+\s*html?\s*|`+$/g, '');
                 setPreviewHtml(htmlCode);
-                // Use a placeholder in chat for HTML responses
-                aiMessage.content =
-                    "HTML code generated. Check the preview pane →";
+                // Add new version to history
+                const newVersions = [...htmlVersions, htmlCode];
+                setHtmlVersions(newVersions);
+                setActiveVersionIndex(newVersions.length - 1);
+
+                // Update the applet with new HTML version
+                updateApplet.mutate({
+                    id,
+                    data: {
+                        html: htmlCode,
+                        messages: updatedMessages
+                    },
+                });
+
+                aiMessage.content = "HTML code generated. Check the preview pane →";
             } else {
                 // For text messages, keep the existing preview HTML
-                aiMessage.content = aiResponse.message;
+                aiMessage.content = response.message;
+                // If the message contains backticks but isn't fully wrapped, strip them
+                if (response.message.includes("`")) {
+                    aiMessage.content = response.message.replace(/`/g, "");
+                }
             }
 
             const finalMessages = [...updatedMessages, aiMessage];
@@ -106,6 +129,8 @@ export default function WorkspaceApplet() {
             });
         } catch (error) {
             console.error("Error calling AI endpoint:", error);
+        } finally {
+            setIsLoading(false);
         }
     };
 
@@ -163,7 +188,7 @@ export default function WorkspaceApplet() {
                 </div>
             )}
 
-            <div className="flex flex-1 gap-4 overflow-auto">
+            <div className="flex flex-1 gap-4 min-h-96 overflow-auto bg-gray-100 p-4">
                 {/* Left pane - Chat Interface */}
                 <div className="w-1/2 flex flex-col">
                     {/* Model selector and Clear button in one line */}
@@ -171,6 +196,7 @@ export default function WorkspaceApplet() {
                         <div className="flex items-center gap-2 flex-1">
                             <div className="w-48">
                                 <LLMSelector
+                                    defaultModelIdentifier={"o3mini"}
                                     value={selectedLLM}
                                     onChange={setSelectedLLM}
                                 />
@@ -199,15 +225,49 @@ export default function WorkspaceApplet() {
                     </div>
 
                     {messages && messages.length > 0 ? (
-                        <div className="flex-1 overflow-auto mb-4 border rounded-lg p-4">
+                        <div className="flex-1 overflow-auto border rounded-lg p-4 bg-white scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent hover:scrollbar-thumb-gray-400">
                             {messages.map((message, index) => (
-                                <div key={index} className="mb-2">
-                                    <span className="font-bold">
-                                        {message.role}:{" "}
-                                    </span>
-                                    <ReactMarkdown className="prose dark:prose-invert text-sm">
-                                        {message.content}
-                                    </ReactMarkdown>
+                                <div
+                                    key={index}
+                                    className={`mb-4 ${message.role === 'user'
+                                            ? 'flex justify-end'
+                                            : 'flex justify-start'
+                                        }`}
+                                >
+                                    <div
+                                        className={`max-w-[80%] rounded-lg p-3 ${message.role === 'user'
+                                                ? 'bg-sky-100 text-sky-900'
+                                                : 'bg-gray-100 text-gray-900'
+                                            } ${message.content === "HTML code generated. Check the preview pane →" ? 'cursor-pointer hover:bg-gray-200' : ''}`}
+                                        onClick={() => {
+                                            if (message.content === "HTML code generated. Check the preview pane →") {
+                                                // Find the corresponding HTML version
+                                                // Each HTML message corresponds to a version, so we can count backwards
+                                                let htmlMessageCount = 0;
+                                                for (let i = messages.length - 1; i >= 0; i--) {
+                                                    if (messages[i].content === "HTML code generated. Check the preview pane →") {
+                                                        if (i === index) {
+                                                            setActiveVersionIndex(htmlVersions.length - 1 - htmlMessageCount);
+                                                            break;
+                                                        }
+                                                        htmlMessageCount++;
+                                                    }
+                                                }
+                                            }
+                                        }}
+                                    >
+                                        <div className="text-xs text-gray-600 mb-1 capitalize">
+                                            {message.role === 'user' ? 'You' : 'Assistant'}
+                                        </div>
+                                        <ReactMarkdown
+                                            className="prose dark:prose-invert text-sm break-words"
+                                            components={{
+                                                p: ({ children }) => <p className="m-0">{children}</p>
+                                            }}
+                                        >
+                                            {message.content}
+                                        </ReactMarkdown>
+                                    </div>
                                 </div>
                             ))}
                         </div>
@@ -255,7 +315,7 @@ export default function WorkspaceApplet() {
                                                     <p className="font-bold">
                                                         {suggestion.name}
                                                     </p>
-                                                    <pre className="max-h-40 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-400 scrollbar-track-gray-100 hover:scrollbar-thumb-gray-500 font-sans whitespace-pre-wrap text-sm text-gray-500">
+                                                    <pre className="max-h-40 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100 hover:scrollbar-thumb-gray-400 font-sans whitespace-pre-wrap text-sm text-gray-500">
                                                         {
                                                             suggestion.uxDescription
                                                         }
@@ -300,18 +360,23 @@ export default function WorkspaceApplet() {
                                         autoCorrect="on"
                                         spellCheck="true"
                                         inputMode="text"
+                                        disabled={isLoading}
                                     />
                                 </div>
                             </div>
-                            <div className="pe-4 ps-3 dark:bg-zinc-100 self-stretch flex rounded-e">
-                                <div className="pt-4">
+                            <div className="px-3 bg-white self-stretch flex items-center rounded-e">
+                                <div>
                                     <button
                                         type="submit"
-                                        disabled={!inputMessage.trim()}
+                                        disabled={!inputMessage.trim() || isLoading}
                                         onClick={handleSendMessage}
-                                        className="text-base rtl:rotate-180 text-emerald-600 hover:text-emerald-600 disabled:text-gray-300 active:text-gray-800 dark:bg-zinc-100"
+                                        className="text-base rtl:rotate-180 text-emerald-500 hover:text-emerald-600 disabled:text-gray-300 active:text-gray-800 dark:bg-zinc-100 flex items-center justify-center"
                                     >
-                                        <RiSendPlane2Fill />
+                                        {isLoading ? (
+                                            <div className="w-4 h-4 border-2 border-sky-600 border-t-transparent rounded-full animate-spin" />
+                                        ) : (
+                                            <RiSendPlane2Fill />
+                                        )}
                                     </button>
                                 </div>
                             </div>
@@ -320,14 +385,40 @@ export default function WorkspaceApplet() {
                 </div>
 
                 {/* Right pane - HTML Preview */}
-                <div className="w-1/2">
-                    <div className="h-full border rounded-lg p-4">
-                        {previewHtml ? (
-                            <div
-                                dangerouslySetInnerHTML={{
-                                    __html: previewHtml,
-                                }}
-                            />
+                <div className="w-1/2 flex flex-col">
+                    {htmlVersions.length > 0 && (
+                        <div className="flex justify-between items-center mb-4">
+                            <button
+                                onClick={() => setActiveVersionIndex(prev => Math.max(0, prev - 1))}
+                                disabled={activeVersionIndex <= 0}
+                                className="p-2 rounded hover:bg-gray-100 disabled:opacity-50"
+                            >
+                                ← Previous Version
+                            </button>
+                            <span className="text-sm text-gray-600">
+                                Version {activeVersionIndex + 1} of {htmlVersions.length}
+                            </span>
+                            <button
+                                onClick={() => setActiveVersionIndex(prev => Math.min(htmlVersions.length - 1, prev + 1))}
+                                disabled={activeVersionIndex >= htmlVersions.length - 1}
+                                className="p-2 rounded hover:bg-gray-100 disabled:opacity-50"
+                            >
+                                Next Version →
+                            </button>
+                        </div>
+                    )}
+                    <div className="border rounded-lg shadow-md bg-white mb-4 grow overflow-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent hover:scrollbar-thumb-gray-400">
+                        {htmlVersions.length > 0 ? (
+                            <div className="flex flex-col h-full">
+
+                                <div className="flex-1 p-4">
+                                    <div
+                                        dangerouslySetInnerHTML={{
+                                            __html: htmlVersions[activeVersionIndex],
+                                        }}
+                                    />
+                                </div>
+                            </div>
                         ) : (
                             <div className="text-gray-500">
                                 HTML preview will appear here...

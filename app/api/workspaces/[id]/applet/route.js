@@ -46,30 +46,49 @@ export async function PUT(request, { params }) {
                 { status: 404 },
             );
         }
-        let applet = await Applet.findById(workspace.applet);
-        if (!applet) {
-            // If no applet, create one
-            applet = await Applet.create({
-                owner: workspace.owner,
-                html: "",
-                messages: [],
-                suggestions: [],
-                name: `${workspace.name} Applet`,
-            });
-            workspace.applet = applet._id;
-            await workspace.save();
+
+        // Prepare update object
+        const updateObj = {};
+        const currentDate = new Date();
+
+        if (body.html !== undefined) {
+            updateObj.html = body.html;
+            // Use $push with $cond to only add new version if different from last
+            updateObj.$push = {
+                htmlVersions: {
+                    $each: [{
+                        content: body.html,
+                        timestamp: currentDate
+                    }],
+                    $cond: {
+                        if: {
+                            $or: [
+                                { $eq: [{ $size: "$htmlVersions" }, 0] },
+                                { $ne: [{ $arrayElemAt: ["$htmlVersions.content", -1] }, body.html] }
+                            ]
+                        }
+                    }
+                }
+            };
         }
+        if (body.messages !== undefined) updateObj.messages = body.messages;
+        if (body.suggestions !== undefined) updateObj.suggestions = body.suggestions;
+        if (body.name !== undefined) updateObj.name = body.name;
 
-        // Only update fields provided in body
-        if (body.html !== undefined) applet.html = body.html;
-        if (body.messages !== undefined) applet.messages = body.messages;
-        if (body.suggestions !== undefined)
-            applet.suggestions = body.suggestions;
-        if (body.name !== undefined) applet.name = body.name;
+        // Use findOneAndUpdate with atomic operations
+        const updatedApplet = await Applet.findOneAndUpdate(
+            { _id: workspace.applet },
+            updateObj,
+            { 
+                new: true, // Return the updated document
+                upsert: true, // Create if doesn't exist
+                runValidators: true // Run model validators
+            }
+        );
 
-        await applet.save();
-        return NextResponse.json(applet);
+        return NextResponse.json(updatedApplet);
     } catch (error) {
+        console.error(error);
         return NextResponse.json(
             { error: "Failed to update applet" },
             { status: 500 },

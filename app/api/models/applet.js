@@ -12,6 +12,16 @@ export const appletSchema = new mongoose.Schema(
             type: String,
             required: false,
         },
+        htmlVersions: [{
+            content: {
+                type: String,
+                required: true,
+            },
+            timestamp: {
+                type: Date,
+                default: Date.now,
+            }
+        }],
         messages: [
             {
                 role: {

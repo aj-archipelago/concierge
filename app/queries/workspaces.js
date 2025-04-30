@@ -262,3 +262,20 @@ export function useUpdateWorkspaceApplet() {
 
     return mutation;
 }
+
+export function useWorkspaceChat(id) {
+    const queryClient = useQueryClient();
+
+    const mutation = useMutation({
+        mutationFn: async ({ messages, model, currentHtml }) => {
+            const { data } = await axios.post(`/api/workspaces/${id}/applet/chat`, {
+                messages,
+                model,
+                currentHtml
+            });
+            return data;
+        },
+    });
+
+    return mutation;
+}
