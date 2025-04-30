@@ -113,14 +113,18 @@ export default React.forwardRef(function Sidebar({ isCollapsed, onToggleCollapse
     });
 
     return (
-        <div className="flex grow flex-col gap-y-5 overflow-y-auto border-r border-gray-200 bg-white px-5 relative z-[70]">
+        <div className={cn(
+            "flex grow flex-col gap-y-5 overflow-y-auto border-r border-gray-200 bg-white px-5 relative z-[70]",
+            isCollapsed && "group hover:w-56 w-16 transition-[width] duration-200",
+            !isCollapsed && "w-56"
+        )}>
             <div className="relative">
                 <button
                     onClick={onToggleCollapse}
                     className={
                         cn(
                             "bg-white border border-gray-200 rounded-full p-1 hidden lg:block shadow-sm hover:bg-gray-50",
-                            isCollapsed ? "mx-auto mt-4" : "absolute -right-3 top-5"
+                            isCollapsed ? "mx-auto mt-4 group-hover:mt-0 group-hover:absolute group-hover:-right-3 group-hover:top-5" : "absolute -right-3 top-5"
                         )
                     }
                 >
@@ -136,13 +140,18 @@ export default React.forwardRef(function Sidebar({ isCollapsed, onToggleCollapse
                 <Link className="flex items-center gap-2" href="/">
                     <img
                         className={classNames(
-                            "w-auto",
-                            isCollapsed ? "hidden" : "h-12"
+                            "w-auto h-12",
+                            isCollapsed ? "hidden group-hover:block" : "block"
                         )}
                         src={getLogo(language)}
                         alt="Your Company"
                     />
-                    {!isCollapsed && getSidebarLogo(language)}
+                    <div className={cn(
+                        "transition-all",
+                        isCollapsed ? "hidden group-hover:block" : ""
+                    )}>
+                        {getSidebarLogo(language)}
+                    </div>
                 </Link>
             </div>
             <nav className="flex flex-1 flex-col">
@@ -175,15 +184,19 @@ export default React.forwardRef(function Sidebar({ isCollapsed, onToggleCollapse
                                                 className="h-6 w-6 shrink-0 text-gray-400"
                                                 aria-hidden="true"
                                             />
-                                            {!isCollapsed && (
-                                                <span className="select-none">
-                                                    {t(item.name)}
-                                                </span>
-                                            )}
+                                            <span className={cn(
+                                                "select-none",
+                                                isCollapsed ? "hidden group-hover:inline" : "inline"
+                                            )}>
+                                                {t(item.name)}
+                                            </span>
                                         </div>
-                                        {!isCollapsed && item.name === "Chat" && (
+                                        {item.name === "Chat" && (
                                             <PlusIcon
-                                                className="h-6 w-6 ml-auto p-1 rounded-full bg-blue-100 text-blue-600 hover:bg-blue-200 hover:text-blue-800 cursor-pointer"
+                                                className={cn(
+                                                    "h-6 w-6 ml-auto p-1 rounded-full bg-blue-100 text-blue-600 hover:bg-blue-200 hover:text-blue-800 cursor-pointer",
+                                                    isCollapsed ? "hidden group-hover:inline" : "inline"
+                                                )}
                                                 onClick={(e) => {
                                                     e.stopPropagation();
                                                     handleNewChat();
@@ -191,8 +204,11 @@ export default React.forwardRef(function Sidebar({ isCollapsed, onToggleCollapse
                                             />
                                         )}
                                     </div>
-                                    {!isCollapsed && item.children?.length > 0 && (
-                                        <ul className="mt-1 px-1">
+                                    {item.children?.length > 0 && (
+                                        <ul className={cn(
+                                            "mt-1 px-1",
+                                            isCollapsed ? "hidden group-hover:block" : "block"
+                                        )}>
                                             {item.children.map(
                                                 (subItem, index) =>
                                                     item.name === "Chat" ? (
