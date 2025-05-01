@@ -17,8 +17,11 @@ const ChatMessages = React.memo(function ChatMessages({
     publicChatOwner,
     chatId,
     streamingContent,
+    ephemeralContent,
     isStreaming,
     onStopStreaming,
+    thinkingDuration,
+    isThinking,
 }) {
     const { user } = useContext(AuthContext);
     const { t } = useTranslation();
@@ -59,6 +62,9 @@ const ChatMessages = React.memo(function ChatMessages({
                     streamingContent={streamingContent}
                     isStreaming={isStreaming}
                     aiName={aiName}
+                    ephemeralContent={ephemeralContent}
+                    thinkingDuration={thinkingDuration}
+                    isThinking={isThinking}
                 />
             </div>
             <div>

@@ -23,7 +23,6 @@ function ChatContent({
     displayState = "full",
     container = "chatpage",
     viewingChat = null,
-    streamingEnabled = false,
 }) {
     const { t } = useTranslation();
     const client = useApolloClient();
@@ -59,15 +58,14 @@ function ChatContent({
     const {
         isStreaming,
         streamingContent,
+        ephemeralContent,
         stopStreaming,
         setIsStreaming,
         setSubscriptionId,
         clearStreamingState,
+        thinkingDuration,
+        isThinking,
     } = useStreamingMessages({ chat, updateChatHook });
-
-    const handleError = useCallback((error) => {
-        toast.error(error.message);
-    }, []);
 
     const getMessagePayload = useCallback(
         (message) => {
@@ -94,7 +92,7 @@ function ChatContent({
     const handleSend = useCallback(
         async (text) => {
             try {
-                // Reset streaming state
+                // Reset streaming state (important before sending)
                 clearStreamingState();
 
                 // Optimistic update for the user's message
@@ -156,7 +154,7 @@ function ChatContent({
                     aiStyle,
                     title: chat?.title,
                     chatId,
-                    stream: streamingEnabled,
+                    stream: true,
                 };
 
                 // Perform RAG start query
@@ -166,19 +164,15 @@ function ChatContent({
                     fetchPolicy: "network-only",
                 });
 
-                // If streaming is enabled, handle subscription setup
-                if (streamingEnabled) {
-                    const subscriptionId =
-                        result.data?.sys_entity_agent?.result;
-                    if (subscriptionId) {
-                        // Set streaming state BEFORE setting subscription ID
-                        setIsStreaming(true);
+                const subscriptionId = result.data?.sys_entity_agent?.result;
+                if (subscriptionId) {
+                    // Set streaming state BEFORE setting subscription ID
+                    setIsStreaming(true);
 
-                        // Finally set the subscription ID which will trigger the subscription
-                        setSubscriptionId(subscriptionId);
+                    // Finally set the subscription ID which will trigger the subscription
+                    setSubscriptionId(subscriptionId);
 
-                        return; // Make sure we return here to prevent non-streaming handling
-                    }
+                    return; // Make sure we return here to prevent non-streaming handling
                 }
 
                 // Non-streaming response handling
@@ -357,55 +351,23 @@ function ChatContent({
                     });
                 }
             } catch (error) {
-                setIsStreaming(false);
-                handleError(error);
-
-                // Use error messages directly without processing
-                const errorMessagesToUpdate = [
-                    ...(chat?.messages || []),
-                    {
-                        payload: text,
-                        sender: "user",
-                        sentTime: "just now",
-                        direction: "outgoing",
-                        position: "single",
-                    },
-                    {
-                        payload: t(
-                            "Something went wrong trying to respond to your request. Please try something else or start over to continue.",
-                        ),
-                        sender: "labeeb",
-                        sentTime: "just now",
-                        direction: "incoming",
-                        position: "single",
-                    },
-                ];
-
-                await updateChatHook.mutateAsync({
-                    chatId: String(chat?._id),
-                    messages: errorMessagesToUpdate?.map((m) => ({
-                        ...m,
-                        payload: getMessagePayload(m),
-                    })),
-                    isChatLoading: false,
-                });
+                console.error("Error in handleSend:", error);
+                toast.error(t("Error sending message"));
             }
         },
         [
             chat,
-            updateChatHook,
-            client,
-            user,
-            memoizedMessages,
-            handleError,
-            t,
             chatId,
+            getMessagePayload,
+            client,
             clearStreamingState,
+            memoizedMessages,
+            runTask,
+            t,
+            updateChatHook,
+            user,
             setIsStreaming,
             setSubscriptionId,
-            streamingEnabled,
-            runTask,
-            getMessagePayload,
         ],
     );
 
@@ -491,7 +453,10 @@ function ChatContent({
             chatId={chatId}
             isStreaming={isStreaming}
             streamingContent={streamingContent}
+            ephemeralContent={ephemeralContent}
             onStopStreaming={stopStreaming}
+            thinkingDuration={thinkingDuration}
+            isThinking={isThinking}
         />
     );
 }

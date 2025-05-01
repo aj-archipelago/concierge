@@ -49,12 +49,16 @@ export function useStreamingMessages({ chat, updateChatHook }) {
     const [subscriptionId, setSubscriptionId] = useState(null);
     const [isStreaming, setIsStreaming] = useState(false);
     const [streamingContent, setStreamingContent] = useState("");
+    const [ephemeralContent, setEphemeralContent] = useState(""); // Add state for ephemeral content
     const [streamingTool, setStreamingTool] = useState(null);
     const [isTitleUpdateInProgress, setTitleUpdateInProgress] = useState(false);
+    const [thinkingDuration, setThinkingDuration] = useState(0); // Add thinking duration state
+    const [isThinking, setIsThinking] = useState(false);
     const completingMessageRef = useRef(false);
     const chunkQueueRef = useRef([]);
     const lastChunkTimeRef = useRef(0);
     const CHUNK_INTERVAL = 4; // ~225fps for 3x faster rendering (was 13ms)
+    const startTimeRef = useRef(null); // Track when streaming started
 
     // Cleanup function for timeouts
     useEffect(() => {
@@ -71,6 +75,27 @@ export function useStreamingMessages({ chat, updateChatHook }) {
         };
     }, []);
 
+    // Record the start time when streaming begins and update thinking duration
+    useEffect(() => {
+        if (isStreaming && startTimeRef.current === null) {
+            startTimeRef.current = Date.now();
+            setThinkingDuration(0);
+            setIsThinking(true);
+        }
+    }, [isStreaming]);
+
+    // Update thinking duration while streaming
+    useEffect(() => {
+        if (isStreaming && startTimeRef.current && isThinking) {
+            const interval = setInterval(() => {
+                setThinkingDuration(
+                    Math.floor((Date.now() - startTimeRef.current) / 1000),
+                );
+            }, 1000);
+            return () => clearInterval(interval);
+        }
+    }, [isStreaming, isThinking]);
+
     const clearStreamingState = useCallback(() => {
         if (updateTimeoutRef.current) {
             clearTimeout(updateTimeoutRef.current);
@@ -85,13 +110,17 @@ export function useStreamingMessages({ chat, updateChatHook }) {
         pendingTitleUpdateRef.current = null;
         completingMessageRef.current = false;
         setStreamingContent("");
+        setEphemeralContent("");
         setSubscriptionId(null);
         setIsStreaming(false);
         setStreamingTool(null);
         setTitleUpdateInProgress(false);
+        setThinkingDuration(0); // Reset thinking duration
+        setIsThinking(false);
         messageQueueRef.current = [];
         processingRef.current = false;
         chunkQueueRef.current = [];
+        startTimeRef.current = null; // Reset start time
     }, []);
 
     const completeMessage = useCallback(async () => {
@@ -123,6 +152,8 @@ export function useStreamingMessages({ chat, updateChatHook }) {
 
         const codeRequestId = accumulatedInfoRef.current.codeRequestId;
 
+        const finalEphemeralContent = ephemeralContentRef.current;
+
         // Clear streaming state first
         clearStreamingState();
 
@@ -143,6 +174,8 @@ export function useStreamingMessages({ chat, updateChatHook }) {
                 position: "single",
                 sender: "labeeb",
                 isStreaming: false,
+                ephemeralContent: finalEphemeralContent || "",
+                thinkingDuration: thinkingDuration,
             };
 
             if (lastStreamingIndex !== -1) {
@@ -171,7 +204,7 @@ export function useStreamingMessages({ chat, updateChatHook }) {
         } finally {
             completingMessageRef.current = false;
         }
-    }, [chat, updateChatHook, clearStreamingState]);
+    }, [chat, updateChatHook, clearStreamingState, thinkingDuration]);
 
     const stopStreaming = useCallback(async () => {
         if (chat?._id) {
@@ -193,19 +226,14 @@ export function useStreamingMessages({ chat, updateChatHook }) {
             if (completingMessageRef.current) return;
 
             if (isEphemeral) {
-                // For ephemeral content, we're already getting the accumulated content
-                // from processChunkQueue
+                // For ephemeral content, update the ephemeral content state
                 ephemeralContentRef.current = newContent;
-                // Set the display content as the combination of persistent + ephemeral
-                setStreamingContent(
-                    streamingMessageRef.current + ephemeralContentRef.current,
-                );
+                setEphemeralContent(newContent);
             } else {
                 // This is persistent content - save it and mark that we've received some
+                setIsThinking(false);
                 streamingMessageRef.current = newContent;
                 hasReceivedPersistentRef.current = true;
-                // Clear ephemeral when new persistent comes in
-                ephemeralContentRef.current = "";
                 setStreamingContent(newContent);
             }
         },
@@ -425,11 +453,14 @@ export function useStreamingMessages({ chat, updateChatHook }) {
     return {
         isStreaming,
         streamingContent,
+        ephemeralContent,
         stopStreaming,
         setIsStreaming,
         setSubscriptionId,
         streamingMessageRef,
         clearStreamingState,
         streamingTool,
+        thinkingDuration,
+        isThinking,
     };
 }

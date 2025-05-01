@@ -48,6 +48,14 @@ const messageSchema = new mongoose.Schema(
             type: Boolean,
             default: false,
         },
+        ephemeralContent: {
+            type: String,
+            default: null,
+        },
+        thinkingDuration: {
+            type: Number,
+            default: 0,
+        },
     },
     {
         timestamps: true,

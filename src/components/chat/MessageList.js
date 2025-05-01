@@ -241,6 +241,9 @@ const MessageList = React.memo(
             isStreaming,
             aiName,
             onSend,
+            ephemeralContent,
+            thinkingDuration,
+            isThinking,
         },
         ref,
     ) {
@@ -461,8 +464,11 @@ const MessageList = React.memo(
                         {isStreaming && (
                             <StreamingMessage
                                 content={streamingContent}
+                                ephemeralContent={ephemeralContent}
                                 bot={bot}
                                 aiName={aiName}
+                                thinkingDuration={thinkingDuration}
+                                isThinking={isThinking}
                             />
                         )}
                         {loading &&

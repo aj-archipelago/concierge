@@ -7,8 +7,6 @@ import {
     useUpdateActiveChat,
     useGetActiveChat,
 } from "../../../app/queries/chats";
-import { useContext } from "react";
-import { AuthContext } from "../../App";
 
 const ChatTopMenuDynamic = dynamic(() => import("./ChatTopMenu"), {
     loading: () => <div style={{ width: "80px", height: "20px" }}></div>,
@@ -18,7 +16,6 @@ function Chat({ viewingChat = null }) {
     const { t } = useTranslation();
     const updateActiveChat = useUpdateActiveChat();
     const { data: chat } = useGetActiveChat();
-    const { user } = useContext(AuthContext);
     const { readOnly } = viewingChat || {};
     const publicChatOwner = viewingChat?.owner;
 
@@ -77,10 +74,7 @@ function Chat({ viewingChat = null }) {
                 </div>
             </div>
             <div className="grow overflow-auto">
-                <ChatContent
-                    viewingChat={viewingChat}
-                    streamingEnabled={user.streamingEnabled}
-                />
+                <ChatContent viewingChat={viewingChat} />
             </div>
         </div>
     );

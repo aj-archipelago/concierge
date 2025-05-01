@@ -305,6 +305,50 @@ const TaskPlaceholder = ({ message }) => {
     );
 };
 
+export const EphemeralContent = React.memo(
+    ({ content, duration, isThinking }) => {
+        const [expanded, setExpanded] = useState(true);
+
+        return (
+            <div className="mb-2 ephemeral-content-wrapper">
+                <div
+                    className="relative flex items-center gap-2 cursor-pointer font-semibold text-xs"
+                    onClick={() => setExpanded(!expanded)}
+                >
+                    <span
+                        className={`inline-block ${isThinking ? "text-transparent bg-gradient-to-r from-gray-900 via-gray-600 to-gray-900 dark:from-gray-100 dark:via-gray-400 dark:to-gray-100 bg-clip-text animate-shimmer bg-[length:200%_100%]" : "text-gray-900 [.dark_&]:text-gray-100"} font-semibold me-1`}
+                    >
+                        {isThinking
+                            ? `Thinking... ${duration}s`
+                            : `Thought for ${duration}s`}
+                    </span>
+                    <svg
+                        className={`h-4 w-4 text-gray-500 transition-transform ${expanded ? "rotate-180" : ""}`}
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                    >
+                        <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M19 9l-7 7-7-7"
+                        />
+                    </svg>
+                </div>
+                {expanded && (
+                    <div className="text-gray-600 mt-1 ps-3 border-s-2 border-gray-400 bg-gray-100 py-2 px-3 rounded-r-md text-[12px]">
+                        {convertMessageToMarkdown({
+                            payload: content,
+                            sender: "labeeb",
+                        })}
+                    </div>
+                )}
+            </div>
+        );
+    },
+);
+
 const BotMessage = ({
     message,
     toolData,
@@ -315,7 +359,7 @@ const BotMessage = ({
     getLogo,
     language,
     botName,
-    messageRef,
+    messageRef = () => {},
 }) => {
     const { t } = useTranslation();
 
@@ -354,19 +398,6 @@ const BotMessage = ({
             className="flex bg-sky-50 ps-1 pt-1 relative group"
         >
             <div className="flex items-center gap-2 absolute top-3 end-3">
-                {toolData?.toolUsed && (
-                    <div className="tool-badge inline-flex items-center gap-1.5 px-1.5 py-0.5 rounded-md bg-sky-50 border border-sky-100 text-xs text-sky-600 font-medium w-fit">
-                        <span className="tool-icon">
-                            {getToolMetadata(toolData.toolUsed, t).icon}
-                        </span>
-                        <span className="tool-name">
-                            {t("Used {{tool}} tool", {
-                                tool: getToolMetadata(toolData.toolUsed, t)
-                                    .translatedName,
-                            })}
-                        </span>
-                    </div>
-                )}
                 <CopyButton
                     item={
                         typeof message.payload === "string"
@@ -385,6 +416,13 @@ const BotMessage = ({
             >
                 <div className="flex flex-col">
                     <div className="font-semibold">{t(botName)}</div>
+                    {message.ephemeralContent && (
+                        <EphemeralContent
+                            content={message.ephemeralContent}
+                            duration={message.thinkingDuration ?? 0}
+                            isThinking={message.isStreaming}
+                        />
+                    )}
                     <div
                         className="chat-message-bot relative break-words"
                         ref={(el) => messageRef(el, message.id)}
@@ -401,28 +439,6 @@ const BotMessage = ({
             </div>
         </div>
     );
-};
-
-const getToolMetadata = (toolName, t) => {
-    const toolIcons = {
-        search: "🔍",
-        reasoning: "🧠",
-        image: "🖼️",
-        writing: "💻",
-        vision: "👁️",
-        default: "🛠️",
-        coding: "🤖",
-        memory: "🧠",
-    };
-
-    const normalizedToolName = toolName?.toLowerCase();
-    const icon = toolIcons[normalizedToolName] || toolIcons.default;
-    const translatedName = t(`tool.${normalizedToolName || "default"}`);
-
-    return {
-        icon,
-        translatedName,
-    };
 };
 
 export default React.memo(BotMessage);
