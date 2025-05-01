@@ -5,7 +5,7 @@ import LLM from "../../../../models/llm";
 
 export async function POST(request, { params }) {
     try {
-        const { messages, model, currentHtml } = await request.json();
+        const { messages, model, currentHtml, restEndpoint } = await request.json();
 
         if (!model) {
             return NextResponse.json(
@@ -49,6 +49,33 @@ export async function POST(request, { params }) {
                 Current HTML being modified:
                 ${currentHtml || "No existing HTML provided - creating new component"}
 
+                ${restEndpoint ? `You have access to a REST endpoint at ${restEndpoint} that can be used for LLM processing.
+                When generating HTML components that need LLM capabilities (e.g. translation, text analysis, etc), 
+                you should include the necessary JavaScript to make POST requests to this endpoint.
+                
+                The endpoint expects:
+                - prompt: The text to be processed
+                - systemPrompt: (optional) Specific instructions for the LLM
+
+                The endpoint returns a JSON response with a 'message' field containing the LLM's output.
+                
+                Example usage in generated HTML:
+                \`\`\`javascript
+                async function processWithLLM(text) {
+                    const response = await fetch('${restEndpoint}', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            prompt: text,
+                            model: currentModel, // Assume this is available in the component's scope
+                            systemPrompt: 'Translate to Spanish' // Example instruction
+                        })
+                    });
+                    const data = await response.json();
+                    return data.message;
+                }
+                \`\`\`` : ''}
+
                 When creating UI components, follow these styling guidelines:
                 - Use clean, semantic HTML with descriptive class names
                 - Include a <style> tag with your CSS rules
@@ -58,9 +85,7 @@ export async function POST(request, { params }) {
                   - Use box-shadow: 0 0.0625em 0.125em rgba(0, 0, 0, 0.05) for subtle shadows
                   - Use box-shadow: 0 0.25em 0.375em rgba(0, 0, 0, 0.1) for more prominent elements
                   - Use consistent padding (1.25em for containers, 0.5em to 0.75em for smaller elements)
-                  - Add margin of 0.75em between buttons and other elements for proper spacing
-                
-                Keep your HTML responses simple and use vanilla CSS for styling and inline JavaScript for interactivity. Focus on creating clean, responsive, and accessible components. When responding with HTML, include both the HTML code and the CSS in a <style> tag, along with any necessary inline JavaScript in <script> tags or event handlers. Do not include additional text or comments.`,
+                  - Add margin of 0.75em between buttons and other elements for proper spacing`,
             },
         });
 

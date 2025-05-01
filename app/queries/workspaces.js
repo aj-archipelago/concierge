@@ -274,6 +274,7 @@ export function useWorkspaceChat(id) {
                     messages,
                     model,
                     currentHtml,
+                    restEndpoint: `/api/workspaces/${id}/applet/prompt`,
                 },
             );
             return data;
