@@ -6,14 +6,30 @@ import { seed } from "./instrumentation";
 import config from "./config/index";
 
 let mongoServer;
+let originalConsole;
 
 beforeAll(async () => {
+    // Mock console methods
+    originalConsole = {
+        log: console.log,
+        warn: console.warn,
+        error: console.error,
+    };
+    console.log = jest.fn();
+    console.warn = jest.fn();
+    console.error = jest.fn();
+
     mongoServer = await MongoMemoryServer.create();
     const mongoUri = mongoServer.getUri();
     await mongoose.connect(mongoUri);
 });
 
 afterAll(async () => {
+    // Restore console methods
+    console.log = originalConsole.log;
+    console.warn = originalConsole.warn;
+    console.error = originalConsole.error;
+
     await mongoose.disconnect();
     await mongoServer.stop();
 });
