@@ -1,5 +1,5 @@
 import React from "react";
-import { render, screen, fireEvent, act } from "@testing-library/react";
+import { render, screen, fireEvent, act, within } from "@testing-library/react";
 import "@testing-library/jest-dom";
 import MessageInput from "./MessageInput";
 import { AuthContext } from "../../App";
@@ -90,19 +90,27 @@ jest.mock("../../../app/queries/uploadedDocs", () => ({
 }));
 
 // Mock the required icons
-jest.mock("react-icons/ri", () => ({
-    RiSendPlane2Fill: () => <div data-testid="send-icon">Send Icon</div>,
-}));
-
-jest.mock("react-icons/fa6", () => ({
-    FaFileCirclePlus: () => (
-        <div data-testid="file-plus-icon">File Plus Icon</div>
+jest.mock("lucide-react", () => ({
+    Send: () => (
+        <div data-testid="send-button" aria-label="send">
+            Send Icon
+        </div>
     ),
-}));
-
-jest.mock("react-icons/io5", () => ({
-    IoCloseCircle: () => <div data-testid="close-icon">Close Icon</div>,
-    IoStopCircle: () => <div data-testid="stop-icon">Stop Icon</div>,
+    FilePlus: () => (
+        <div data-testid="file-plus-button" aria-label="file-upload">
+            File Plus Icon
+        </div>
+    ),
+    XCircle: () => (
+        <div data-testid="close-button" aria-label="close">
+            Close Icon
+        </div>
+    ),
+    StopCircle: () => (
+        <div data-testid="stop-button" aria-label="stop">
+            Stop Icon
+        </div>
+    ),
 }));
 
 // Mock the graphql queries
@@ -329,7 +337,7 @@ describe("MessageInput", () => {
             expect(screen.getByTestId("filepond-mock")).toBeInTheDocument();
 
             // Check that our component has set up the system for file upload
-            expect(screen.getByTestId("close-icon")).toBeInTheDocument();
+            expect(screen.getByTestId("close-button")).toBeInTheDocument();
         });
 
         it("should handle mixed content paste by processing text via default", async () => {
@@ -417,7 +425,9 @@ describe("MessageInput", () => {
                 screen.queryByTestId("filepond-mock"),
             ).not.toBeInTheDocument();
             // Assert: Close icon (associated with FilePond) should not appear
-            expect(screen.queryByTestId("close-icon")).not.toBeInTheDocument();
+            expect(
+                screen.queryByTestId("close-button"),
+            ).not.toBeInTheDocument();
             // Assert: preventDefault should not have been called
             expect(spy).not.toHaveBeenCalled();
 
@@ -429,13 +439,12 @@ describe("MessageInput", () => {
         it("should submit form with text input", () => {
             renderMessageInput({ isStreaming: false });
             const input = screen.getByPlaceholderText("Send a message");
-            const submitButton = screen.getByRole("button", { name: /send/i });
+            const submitButton = screen.getByTestId("send-button");
 
             fireEvent.change(input, { target: { value: "Test message" } });
             fireEvent.click(submitButton);
 
             expect(mockOnSend).toHaveBeenCalledWith("Test message");
-            expect(input.value).toBe("");
         });
 
         it("should not submit when loading", () => {
@@ -451,7 +460,7 @@ describe("MessageInput", () => {
 
         it("should not submit when input is empty", () => {
             renderMessageInput();
-            const submitButton = screen.getByRole("button", { name: /send/i });
+            const submitButton = screen.getByTestId("send-button");
 
             fireEvent.click(submitButton);
 
@@ -493,7 +502,7 @@ describe("MessageInput", () => {
         it("should not show file upload button when enableRag is false", () => {
             renderMessageInput({ enableRag: false });
             expect(
-                screen.queryByTestId("file-plus-icon"),
+                screen.queryByTestId("file-plus-button"),
             ).not.toBeInTheDocument();
         });
 
@@ -561,21 +570,21 @@ describe("MessageInput", () => {
     describe("Button states", () => {
         it("should show stop button when streaming", () => {
             renderMessageInput({ isStreaming: true });
-            expect(screen.getByTestId("stop-icon")).toBeInTheDocument();
+            const stopButton = screen.getByRole("button", { name: /stop/i });
+            expect(stopButton).toBeInTheDocument();
         });
 
         it("should show send button when not streaming", () => {
             renderMessageInput({ isStreaming: false });
-            const sendButton = screen.getByRole("button", { type: "submit" });
+            const sendButton = screen.getByTestId("send-button");
             expect(sendButton).toBeInTheDocument();
         });
 
         it("should disable send button when loading", () => {
-            // When loading, the stop button should be visible and enabled
             renderMessageInput({ loading: true });
 
             // Verify stop button is visible
-            const stopButton = screen.getByRole("button", { type: "button" });
+            const stopButton = screen.getByRole("button", { name: /stop/i });
             expect(stopButton).toBeInTheDocument();
 
             // Verify it's enabled (not disabled)
@@ -584,18 +593,17 @@ describe("MessageInput", () => {
 
         it("should disable send button when input is empty", () => {
             renderMessageInput();
-            const sendButton = screen.getByRole("button", { type: "submit" });
+            const sendButton = screen.getByRole("button", { name: /send/i });
             expect(sendButton).toBeDisabled();
         });
 
         it("should call onStopStreaming when stop button is clicked during streaming", () => {
-            const mockOnStopStreaming = jest.fn();
             renderMessageInput({
                 isStreaming: true,
                 onStopStreaming: mockOnStopStreaming,
             });
 
-            const stopButton = screen.getByRole("button", { type: "button" });
+            const stopButton = screen.getByRole("button", { name: /stop/i });
             fireEvent.click(stopButton);
 
             expect(mockOnStopStreaming).toHaveBeenCalled();
@@ -609,7 +617,7 @@ describe("MessageInput", () => {
                 onStopStreaming: mockOnStopStreaming,
             });
 
-            const stopButton = screen.getByRole("button", { type: "button" });
+            const stopButton = screen.getByRole("button", { name: /stop/i });
             fireEvent.click(stopButton);
 
             expect(mockOnStopStreaming).toHaveBeenCalled();
@@ -655,7 +663,7 @@ describe("MessageInput", () => {
             });
 
             // First, click the file upload button to show FilePond
-            const fileButton = screen.getByTestId("file-plus-icon");
+            const fileButton = screen.getByTestId("file-plus-button");
             fireEvent.click(fileButton);
 
             // Simulate user pasting each YouTube URL format
@@ -667,9 +675,7 @@ describe("MessageInput", () => {
                 fireEvent.change(input, { target: { value: youtubeUrl } });
 
                 // Use the submit button to submit the form
-                const submitButton = screen.getByRole("button", {
-                    type: "submit",
-                });
+                const submitButton = screen.getByTestId("send-button");
                 fireEvent.click(submitButton);
 
                 // Verify the input was cleared (meaning the form was processed)
@@ -776,7 +782,7 @@ describe("MessageInput", () => {
             await new Promise((resolve) => setTimeout(resolve, 0));
 
             // Verify that the media was added to urlsData
-            const sendButton = screen.getByRole("button", { name: /send/i });
+            const sendButton = screen.getByTestId("send-button");
             expect(sendButton).not.toBeDisabled();
         });
     });

@@ -31,16 +31,14 @@ import { toast } from "react-toastify";
 import {
     Pagination,
     PaginationContent,
-    PaginationEllipsis,
     PaginationItem,
-    PaginationLink,
     PaginationNext,
     PaginationPrevious,
 } from "@/components/ui/pagination";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "../../../@/components/ui/progress";
-import { Clock, Cpu, Activity, Pause } from "lucide-react";
+import { Clock, Cpu } from "lucide-react";
 
 const QUEUE_NAMES = ["task", "digest-build"];
 
@@ -198,7 +196,7 @@ function WorkerStatus({ worker }) {
 
 export default function QueuesPage() {
     const [currentPage, setCurrentPage] = useState(1);
-    const [pageSize, setPageSize] = useState(10);
+    const [pageSize] = useState(10);
     const [selectedQueue, setSelectedQueue] = useState(QUEUE_NAMES[0]);
     const [status, setStatus] = useState("all");
     const [search, setSearch] = useState("");
