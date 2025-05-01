@@ -99,6 +99,9 @@ async function ensureDbConnection(forceReconnect = false) {
         dbInitialized = false;
     }
 
+    // Get mongoose to check connection state
+    const mongoose = (await import("mongoose")).default;
+
     if (
         !dbInitialized ||
         !mongoose.connection ||
@@ -116,9 +119,6 @@ async function ensureDbConnection(forceReconnect = false) {
 
             // Give the connection a moment to fully establish
             await new Promise((resolve) => setTimeout(resolve, 500));
-
-            // Get mongoose to check connection state
-            const mongoose = (await import("mongoose")).default;
 
             if (mongoose.connection && mongoose.connection.readyState === 1) {
                 console.log("Successfully connected to MongoDB database");
