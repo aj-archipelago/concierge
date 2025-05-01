@@ -4,10 +4,10 @@ import React, {
     useEffect,
     useImperativeHandle,
     useRef,
+    useContext,
 } from "react";
 import { useTranslation } from "react-i18next";
-import { AiFillFilePdf, AiFillFileText } from "react-icons/ai";
-import { FaUserCircle } from "react-icons/fa";
+import { FileImage, FileText, UserCircle } from "lucide-react";
 import Loader from "../../../app/components/loader";
 import classNames from "../../../app/utils/class-names";
 import config from "../../../config";
@@ -19,6 +19,7 @@ import {
 } from "../../utils/mediaUtils";
 import CopyButton from "../CopyButton";
 import ChatImage from "../images/ChatImage";
+import { AuthContext } from "../../App";
 import BotMessage from "./BotMessage";
 import ScrollToBottom from "./ScrollToBottom";
 import StreamingMessage from "./StreamingMessage";
@@ -102,8 +103,6 @@ const MemoizedYouTubeEmbed = React.memo(({ url, onLoad }) => {
     );
 });
 
-// Add this near the top of the file, after imports:
-
 // Create a memoized component for the static message list content
 const MessageListContent = React.memo(function MessageListContent({
     messages,
@@ -176,8 +175,7 @@ const MessageListContent = React.memo(function MessageListContent({
                         const ext = getExtension(src);
 
                         if ([".pdf", ".txt", ".csv"].includes(ext)) {
-                            const Icon =
-                                ext === ".pdf" ? AiFillFilePdf : AiFillFileText;
+                            const Icon = ext === ".pdf" ? FileImage : FileText;
                             return (
                                 <a
                                     key={`file-${index}-${index2}`}
@@ -189,10 +187,7 @@ const MessageListContent = React.memo(function MessageListContent({
                                     target="_blank"
                                     rel="noopener noreferrer"
                                 >
-                                    <Icon
-                                        size={40}
-                                        className="text-red-600 dark:text-red-400"
-                                    />
+                                    <Icon className="w-6 h-6 text-red-500" />
                                     {filename}
                                 </a>
                             );
@@ -239,8 +234,12 @@ const MessageList = React.memo(
             chatId,
             streamingContent,
             isStreaming,
-            aiName,
             onSend,
+            ephemeralContent,
+            thinkingDuration,
+            isThinking,
+            selectedEntityId,
+            entities,
         },
         ref,
     ) {
@@ -248,6 +247,8 @@ const MessageList = React.memo(
         const { getLogo } = config.global;
         const { t } = useTranslation();
         const scrollBottomRef = useRef(null);
+        const { user } = useContext(AuthContext);
+        const defaultAiName = user?.aiName;
 
         // Forward scrollBottomRef to parent
         useImperativeHandle(
@@ -318,7 +319,7 @@ const MessageList = React.memo(
         const botName =
             bot === "code"
                 ? config?.code?.botName
-                : aiName || config?.chat?.botName;
+                : defaultAiName || config?.chat?.botName;
 
         const handleMessageLoad = useCallback((messageId) => {
             setMessageLoadState((prev) =>
@@ -381,11 +382,13 @@ const MessageList = React.memo(
                             language={language}
                             botName={botName}
                             messageRef={messageRef}
+                            selectedEntityId={selectedEntityId}
+                            entities={entities}
                         />
                     );
                 } else {
                     const avatar = (
-                        <FaUserCircle
+                        <UserCircle
                             className={classNames(
                                 rowHeight,
                                 buttonWidthClass,
@@ -407,9 +410,7 @@ const MessageList = React.memo(
                                 }
                                 className="absolute top-3 end-3 opacity-0 group-hover:opacity-60 hover:opacity-100 transition-opacity"
                             />
-                            <div className={classNames(basis, "py-0")}>
-                                {avatar}
-                            </div>
+                            <div className={classNames(basis)}>{avatar}</div>
                             <div
                                 className={classNames(
                                     "px-1 pb-3 pt-2 [.docked_&]:px-0 [.docked_&]:py-3",
@@ -424,7 +425,6 @@ const MessageList = React.memo(
                     );
                 }
             },
-            // eslint-disable-next-line react-hooks/exhaustive-deps
             [
                 basis,
                 bot,
@@ -434,6 +434,9 @@ const MessageList = React.memo(
                 messageRef,
                 rowHeight,
                 t,
+                botName,
+                selectedEntityId,
+                entities,
             ],
         );
 
@@ -461,8 +464,12 @@ const MessageList = React.memo(
                         {isStreaming && (
                             <StreamingMessage
                                 content={streamingContent}
+                                ephemeralContent={ephemeralContent}
                                 bot={bot}
-                                aiName={aiName}
+                                thinkingDuration={thinkingDuration}
+                                isThinking={isThinking}
+                                selectedEntityId={selectedEntityId}
+                                entities={entities}
                             />
                         )}
                         {loading &&
@@ -470,6 +477,7 @@ const MessageList = React.memo(
                             renderMessage({
                                 id: "loading",
                                 sender: "labeeb",
+                                entityId: selectedEntityId,
                                 payload: (
                                     <div className="flex gap-4">
                                         <div className="mt-1 ms-1 mb-1 h-4">

@@ -3,9 +3,7 @@ import { useApolloClient } from "@apollo/client";
 import "highlight.js/styles/github.css";
 import dynamic from "next/dynamic";
 import { useContext, useEffect, useState } from "react";
-import { FaFileCirclePlus } from "react-icons/fa6";
-import { IoCloseCircle, IoStopCircle } from "react-icons/io5";
-import { RiSendPlane2Fill } from "react-icons/ri";
+import { FilePlus, XCircle, StopCircle, Send } from "lucide-react";
 import { useDispatch } from "react-redux";
 import TextareaAutosize from "react-textarea-autosize";
 import { v4 as uuidv4 } from "uuid";
@@ -202,27 +200,25 @@ function MessageInput({
                     className="flex items-center rounded-md dark:bg-zinc-100"
                 >
                     {enableRag && (
-                        <div className="rounded-s pt-4 [.docked_&]:pt-3.5 ps-4 pe-3 dark:bg-zinc-100 self-stretch flex">
+                        <div className="flex items-center self-stretch px-3 py-2">
                             {!showFileUpload ? (
-                                <FaFileCirclePlus
+                                <button
                                     onClick={() => {
                                         setShowFileUpload(true);
                                     }}
-                                    className="text-gray-500 group flex items-center text-base font-medium hover:text-gray-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/75 cursor-pointer"
-                                    role="button"
-                                    aria-label="file upload"
-                                    data-testid="file-upload-button"
-                                />
+                                    className="hover:bg-gray-100 rounded-full p-1.5 flex items-center justify-center"
+                                >
+                                    <FilePlus className="w-5 h-5 text-gray-500" />
+                                </button>
                             ) : (
-                                <IoCloseCircle
+                                <button
                                     onClick={() => {
                                         setShowFileUpload(false);
                                     }}
-                                    className="text-gray-500 group flex items-center text-base font-medium hover:text-gray-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/75 cursor-pointer"
-                                    role="button"
-                                    aria-label="close"
-                                    data-testid="close-button"
-                                />
+                                    className="hover:bg-gray-100 rounded-full p-1.5 flex items-center justify-center"
+                                >
+                                    <XCircle className="w-5 h-5 text-gray-500" />
+                                </button>
                             )}
                         </div>
                     )}
@@ -329,7 +325,7 @@ function MessageInput({
                                         "text-base text-red-600 hover:text-red-700 active:text-red-800 dark:bg-zinc-100",
                                     )}
                                 >
-                                    <IoStopCircle />
+                                    <StopCircle className="w-5 h-5 text-red-500" />
                                 </button>
                             ) : (
                                 <button
@@ -344,7 +340,7 @@ function MessageInput({
                                         "text-base rtl:rotate-180 text-emerald-600 hover:text-emerald-600 disabled:text-gray-300 active:text-gray-800 dark:bg-zinc-100",
                                     )}
                                 >
-                                    <RiSendPlane2Fill />
+                                    <Send className="w-5 h-5 text-gray-400" />
                                 </button>
                             )}
                         </div>

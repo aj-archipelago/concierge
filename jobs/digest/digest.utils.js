@@ -38,13 +38,13 @@ const generateDigestBlockContent = async (
 
     try {
         const result = await client.query({
-            query: QUERIES.SYS_ENTITY_START,
+            query: QUERIES.SYS_ENTITY_AGENT,
             variables,
         });
 
-        tool = result.data.sys_entity_start.tool;
+        tool = result.data.sys_entity_agent.tool;
         if (tool) {
-            const toolObj = JSON.parse(result.data.sys_entity_start.tool);
+            const toolObj = JSON.parse(result.data.sys_entity_agent.tool);
             toolCallbackName = toolObj?.toolCallbackName;
         }
 
@@ -69,14 +69,14 @@ const generateDigestBlockContent = async (
             try {
                 content = JSON.stringify({
                     payload: await processImageUrls(
-                        result.data.sys_entity_start.result,
+                        result.data.sys_entity_agent.result,
                         process.env.SERVER_URL,
                     ),
                     tool,
                 });
             } catch (e) {
                 logger.log(
-                    `Error while parsing sys_entity_start result: ${e.message}`,
+                    `Error while parsing sys_entity_agent result: ${e.message}`,
                     user?._id,
                     block?._id,
                 );

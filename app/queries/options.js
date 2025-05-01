@@ -11,7 +11,6 @@ export function useUpdateAiOptions() {
             aiMemorySelfModify,
             aiName,
             aiStyle,
-            streamingEnabled,
         }) => {
             // persist it to user options in the database
             const response = await axios.post(`/api/options`, {
@@ -20,7 +19,6 @@ export function useUpdateAiOptions() {
                 aiMemorySelfModify,
                 aiName,
                 aiStyle,
-                streamingEnabled,
             });
             return response.data;
         },
@@ -30,7 +28,6 @@ export function useUpdateAiOptions() {
             aiMemorySelfModify,
             aiName,
             aiStyle,
-            streamingEnabled,
         }) => {
             await queryClient.cancelQueries({ queryKey: ["currentUser"] });
             const previousUser = await queryClient.getQueryData([
@@ -44,7 +41,6 @@ export function useUpdateAiOptions() {
                     aiMemorySelfModify,
                     aiName,
                     aiStyle,
-                    streamingEnabled,
                 };
             });
 

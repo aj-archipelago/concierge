@@ -23,12 +23,13 @@ function ChatContent({
     displayState = "full",
     container = "chatpage",
     viewingChat = null,
-    streamingEnabled = false,
+    selectedEntityId: selectedEntityIdFromProp,
+    entities,
 }) {
     const { t } = useTranslation();
     const client = useApolloClient();
     const { user } = useContext(AuthContext);
-    const activeChat = useGetActiveChat();
+    const activeChatHookData = useGetActiveChat();
     const updateChatHook = useUpdateChat();
     const queryClient = useQueryClient();
     const runTask = useRunTask();
@@ -37,7 +38,7 @@ function ChatContent({
         [displayState, viewingChat],
     );
 
-    const chat = viewingReadOnlyChat ? viewingChat : activeChat?.data;
+    const chat = viewingReadOnlyChat ? viewingChat : activeChatHookData?.data;
     const chatId = String(chat?._id);
 
     // Simple approach - if we have a chat ID but no messages, refetch once
@@ -59,11 +60,18 @@ function ChatContent({
     const {
         isStreaming,
         streamingContent,
+        ephemeralContent,
         stopStreaming,
         setIsStreaming,
         setSubscriptionId,
         clearStreamingState,
-    } = useStreamingMessages({ chat, updateChatHook });
+        thinkingDuration,
+        isThinking,
+    } = useStreamingMessages({
+        chat,
+        updateChatHook,
+        currentEntityId: selectedEntityIdFromProp,
+    });
 
     const handleError = useCallback((error) => {
         toast.error(error.message);
@@ -77,10 +85,7 @@ function ChatContent({
                     message.taskId,
                 ]);
                 if (notification) {
-                    return `Status: ${notification.status}
-                Progress: ${notification.progress || 0}
-                Type: ${notification.type}
-                Original Message: ${message.payload}`;
+                    return `Status: ${notification.status}\n                Progress: ${notification.progress || 0}\n                Type: ${notification.type}\n                Original Message: ${message.payload}`;
                 }
             }
             return message.payload;
@@ -94,7 +99,7 @@ function ChatContent({
     const handleSend = useCallback(
         async (text) => {
             try {
-                // Reset streaming state
+                // Reset streaming state (important before sending)
                 clearStreamingState();
 
                 // Optimistic update for the user's message
@@ -120,6 +125,7 @@ function ChatContent({
                         payload: getMessagePayload(m),
                     })),
                     isChatLoading: true,
+                    selectedEntityId: selectedEntityIdFromProp,
                 });
 
                 // Prepare conversation history
@@ -148,37 +154,38 @@ function ChatContent({
 
                 const { contextId, aiMemorySelfModify, aiName, aiStyle } = user;
 
+                // Use entity ID directly from the prop
+                const currentSelectedEntityId = selectedEntityIdFromProp || "";
+
                 const variables = {
                     chatHistory: conversation,
                     contextId,
-                    aiName,
+                    // Use entity ID as aiName if available, else fallback to default
+                    aiName: currentSelectedEntityId || aiName,
                     aiMemorySelfModify,
                     aiStyle,
                     title: chat?.title,
                     chatId,
-                    stream: streamingEnabled,
+                    stream: true,
+                    entityId: currentSelectedEntityId,
                 };
 
                 // Perform RAG start query
                 const result = await client.query({
-                    query: QUERIES.SYS_ENTITY_START,
+                    query: QUERIES.SYS_ENTITY_AGENT,
                     variables,
                     fetchPolicy: "network-only",
                 });
 
-                // If streaming is enabled, handle subscription setup
-                if (streamingEnabled) {
-                    const subscriptionId =
-                        result.data?.sys_entity_start?.result;
-                    if (subscriptionId) {
-                        // Set streaming state BEFORE setting subscription ID
-                        setIsStreaming(true);
+                const subscriptionId = result.data?.sys_entity_agent?.result;
+                if (subscriptionId) {
+                    // Set streaming state BEFORE setting subscription ID
+                    setIsStreaming(true);
 
-                        // Finally set the subscription ID which will trigger the subscription
-                        setSubscriptionId(subscriptionId);
+                    // Finally set the subscription ID which will trigger the subscription
+                    setSubscriptionId(subscriptionId);
 
-                        return; // Make sure we return here to prevent non-streaming handling
-                    }
+                    return; // Make sure we return here to prevent non-streaming handling
                 }
 
                 // Non-streaming response handling
@@ -192,13 +199,13 @@ function ChatContent({
                     let resultObj;
                     try {
                         resultObj = JSON.parse(
-                            result.data.sys_entity_start.result,
+                            result.data.sys_entity_agent.result,
                         );
                     } catch {
-                        resultObj = result.data.sys_entity_start.result;
+                        resultObj = result.data.sys_entity_agent.result;
                     }
                     resultMessage = resultObj;
-                    tool = result.data.sys_entity_start.tool;
+                    tool = result.data.sys_entity_agent.tool;
                     if (tool) {
                         const toolObj = JSON.parse(tool);
                         toolCallbackName = toolObj?.toolCallbackName;
@@ -262,6 +269,7 @@ function ChatContent({
                     direction: "incoming",
                     position: "single",
                     sender: "labeeb",
+                    entityId: currentSelectedEntityId,
                 });
 
                 // Use messages directly without processing
@@ -294,6 +302,7 @@ function ChatContent({
                     ...(newTitle && { title: newTitle }),
                     isChatLoading: !!toolCallbackName && !codeRequestId,
                     ...(toolCallbackId && { toolCallbackId }),
+                    selectedEntityId: currentSelectedEntityId,
                 });
 
                 if (toolCallbackName && toolCallbackName !== "coding") {
@@ -354,6 +363,7 @@ function ChatContent({
                             payload: getMessagePayload(m),
                         })),
                         isChatLoading: false,
+                        selectedEntityId: currentSelectedEntityId,
                     });
                 }
             } catch (error) {
@@ -388,24 +398,25 @@ function ChatContent({
                         payload: getMessagePayload(m),
                     })),
                     isChatLoading: false,
+                    selectedEntityId: selectedEntityIdFromProp,
                 });
             }
         },
         [
             chat,
-            updateChatHook,
+            chatId,
+            getMessagePayload,
             client,
-            user,
-            memoizedMessages,
+            updateChatHook,
             handleError,
             t,
-            chatId,
             clearStreamingState,
+            memoizedMessages,
+            runTask,
             setIsStreaming,
             setSubscriptionId,
-            streamingEnabled,
-            runTask,
-            getMessagePayload,
+            selectedEntityIdFromProp,
+            user,
         ],
     );
 
@@ -425,6 +436,7 @@ function ChatContent({
                         payload: getMessagePayload(m),
                     })),
                 isChatLoading: false,
+                selectedEntityId: selectedEntityIdFromProp,
             });
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -491,7 +503,12 @@ function ChatContent({
             chatId={chatId}
             isStreaming={isStreaming}
             streamingContent={streamingContent}
+            ephemeralContent={ephemeralContent}
             onStopStreaming={stopStreaming}
+            thinkingDuration={thinkingDuration}
+            isThinking={isThinking}
+            selectedEntityId={selectedEntityIdFromProp}
+            entities={entities}
         />
     );
 }

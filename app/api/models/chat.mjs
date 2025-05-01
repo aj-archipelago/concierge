@@ -39,6 +39,10 @@ const messageSchema = new mongoose.Schema(
             type: String,
             required: true,
         },
+        entityId: {
+            type: String,
+            default: null,
+        },
         taskId: {
             type: mongoose.Schema.Types.ObjectId,
             ref: "Task",
@@ -47,6 +51,14 @@ const messageSchema = new mongoose.Schema(
         isServerGenerated: {
             type: Boolean,
             default: false,
+        },
+        ephemeralContent: {
+            type: String,
+            default: null,
+        },
+        thinkingDuration: {
+            type: Number,
+            default: 0,
         },
     },
     {
@@ -86,6 +98,10 @@ const chatSchema = new mongoose.Schema(
         isChatLoading: {
             type: Boolean,
             default: false,
+        },
+        selectedEntityId: {
+            type: String,
+            default: "",
         },
     },
     {

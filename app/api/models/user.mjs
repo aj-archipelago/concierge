@@ -42,11 +42,6 @@ const userSchema = new mongoose.Schema(
             required: true,
             default: "OpenAI",
         },
-        streamingEnabled: {
-            type: Boolean,
-            required: true,
-            default: false,
-        },
         uploadedDocs: {
             type: [uploadedDocsSchema],
             required: false,

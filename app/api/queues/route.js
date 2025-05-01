@@ -134,6 +134,9 @@ export async function GET(req) {
                     case "failed":
                         jobs = await queue.getFailed();
                         break;
+                    default:
+                        jobs = [];
+                        break;
                 }
             }
 

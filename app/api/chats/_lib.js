@@ -193,6 +193,7 @@ export async function getChatById(chatId) {
         isChatLoading,
         codeRequestId,
         titleSetByUser,
+        selectedEntityId,
     } = chat;
     const result = {
         _id,
@@ -203,6 +204,7 @@ export async function getChatById(chatId) {
         isChatLoading,
         codeRequestId,
         titleSetByUser,
+        selectedEntityId,
     };
 
     if (isReadOnly) {

@@ -6,7 +6,6 @@ import { NextResponse } from "next/server";
 import { getCurrentUser } from "../utils/auth";
 import fs from "fs";
 import path from "path";
-import mongoose from "mongoose";
 
 // Mock mongoose
 jest.mock("mongoose", () => ({
@@ -137,35 +136,6 @@ const createMockRequest = (method) => {
     };
 
     return mockRequest;
-};
-
-// Function to create mock params based on the route path
-const createMockParams = (routePath) => {
-    const params = {};
-
-    // Extract dynamic segments from the route path
-    const dynamicSegments = routePath.match(/\[([^\]]+)\]/g) || [];
-
-    for (const segment of dynamicSegments) {
-        const paramName = segment.replace(/[\[\]]/g, "");
-        params[paramName] =
-            "mock" + paramName.charAt(0).toUpperCase() + paramName.slice(1);
-    }
-
-    return params;
-};
-
-// Function to determine the HTTP method from the file content
-const determineHttpMethod = (content) => {
-    const methods = ["GET", "POST", "PUT", "PATCH", "DELETE"];
-
-    for (const method of methods) {
-        if (content.includes(`export async function ${method}`)) {
-            return method;
-        }
-    }
-
-    return "GET"; // Default to GET if no method is found
 };
 
 describe("Admin API Protection", () => {

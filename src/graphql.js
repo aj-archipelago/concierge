@@ -194,7 +194,7 @@ const SYS_SAVE_MEMORY = gql`
     }
 `;
 
-const SYS_ENTITY_START = gql`
+const SYS_ENTITY_AGENT = gql`
     query RagStart(
         $chatHistory: [MultiMessage]!
         $dataSources: [String]
@@ -209,8 +209,9 @@ const SYS_ENTITY_START = gql`
         $title: String
         $codeRequestId: String
         $stream: Boolean
+        $entityId: String
     ) {
-        sys_entity_start(
+        sys_entity_agent(
             chatHistory: $chatHistory
             dataSources: $dataSources
             contextId: $contextId
@@ -224,6 +225,7 @@ const SYS_ENTITY_START = gql`
             title: $title
             codeRequestId: $codeRequestId
             stream: $stream
+            entityId: $entityId
         ) {
             result
             contextId
@@ -785,6 +787,14 @@ const AZURE_VIDEO_TRANSLATE = gql`
     }
 `;
 
+const SYS_GET_ENTITIES = gql`
+    query Sys_get_entities {
+        sys_get_entities {
+            result
+        }
+    }
+`;
+
 const QUERIES = {
     AZURE_VIDEO_TRANSLATE,
     CHAT_PERSIST,
@@ -797,8 +807,9 @@ const QUERIES = {
     IMAGE_FLUX,
     SYS_READ_MEMORY,
     SYS_SAVE_MEMORY,
-    SYS_ENTITY_START,
+    SYS_ENTITY_AGENT,
     SYS_ENTITY_CONTINUE,
+    SYS_GET_ENTITIES,
     EXPAND_STORY,
     FORMAT_PARAGRAPH_TURBO,
     SELECT_SERVICES,
@@ -892,8 +903,9 @@ export {
     EXPAND_STORY,
     SYS_READ_MEMORY,
     SYS_SAVE_MEMORY,
-    SYS_ENTITY_START,
+    SYS_ENTITY_AGENT,
     SYS_ENTITY_CONTINUE,
+    SYS_GET_ENTITIES,
     SELECT_SERVICES,
     SUMMARY,
     HASHTAGS,

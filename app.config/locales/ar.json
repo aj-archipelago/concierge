@@ -1,5 +1,6 @@
 {
     "Labeeb": "لبيب",
+    "Tony": "توني",
     "Al Jazeera's AI Assistant": "مساعد آلة الذكاء الاصطناعي لجريدة الجزيرة",
     "Translate": "ترجمة",
     "Transcribe": "تفريغ",
@@ -506,7 +507,6 @@
     "Failed to read the file. Please try again.": "فشل في قراءة الملف. يرجى المحاولة مرة أخرى.",
     "Failed to parse memory file. Please ensure it is a valid JSON file with the correct memory structure.": "فشل في تحليل ملف الذاكرة. يرجى التأكد من أنه ملف JSON صالح بهيكل الذاكرة الصحيح.",
     "Invalid memory file format": "تنسيق ملف الذاكرة غير صالح",
-    "Enable streaming responses": "تفعيل الاستجابات المنسية",
     "{{from}} to {{to}}": "{{from}} إلى {{to}}",
     "Video translation": "ترجمة الفيديو",
     "In progress": "قيد التنفيذ",
