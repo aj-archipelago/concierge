@@ -1,16 +1,19 @@
 "use client";
-import { useState, useEffect } from "react";
-import ReactMarkdown from "react-markdown";
-import LLMSelector from "../../components/LLMSelector";
-import { RiSendPlane2Fill, RiRefreshLine } from "react-icons/ri";
-import TextareaAutosize from "react-textarea-autosize";
+import { cn } from "@/lib/utils";
+import { LanguageContext } from "@/src/contexts/LanguageProvider";
+import { ArrowLeftIcon, ArrowRightIcon, TrashIcon } from "lucide-react";
 import { useParams } from "next/navigation";
+import { useContext, useEffect, useState } from "react";
+import { RiRefreshLine, RiSendPlane2Fill } from "react-icons/ri";
+import ReactMarkdown from "react-markdown";
+import TextareaAutosize from "react-textarea-autosize";
 import {
-    useWorkspaceSuggestions,
-    useWorkspaceApplet,
     useUpdateWorkspaceApplet,
+    useWorkspaceApplet,
     useWorkspaceChat,
+    useWorkspaceSuggestions,
 } from "../../../queries/workspaces";
+import LLMSelector from "../../components/LLMSelector";
 
 export default function WorkspaceApplet() {
     const { id } = useParams();
@@ -25,6 +28,7 @@ export default function WorkspaceApplet() {
     const appletQuery = useWorkspaceApplet(id);
     const updateApplet = useUpdateWorkspaceApplet();
     const chatMutation = useWorkspaceChat(id);
+    const { direction } = useContext(LanguageContext);
 
     useEffect(() => {
         if (
@@ -104,11 +108,12 @@ export default function WorkspaceApplet() {
                 response.message.startsWith("`") &&
                 response.message.endsWith("`")
             ) {
-                // Remove backticks and potential language specifier from start and end
-                const htmlCode = response.message.replace(
-                    /^`+\s*html?\s*|`+$/g,
-                    "",
-                );
+                // Remove backticks, html prefix, and any whitespace around them more thoroughly
+                const htmlCode = response.message
+                    .replace(/^`+\s*html\s*/, "") // Remove backticks and html prefix only at start
+                    .replace(/^`+/, "") // Remove any remaining backticks at start
+                    .replace(/`+$/, "") // Remove backticks at end
+                    .replace(/``+/g, ""); // Remove any remaining double/triple backticks
                 setPreviewHtml(htmlCode);
                 // Add new version to history
                 const newVersions = [...htmlVersions, htmlCode];
@@ -167,7 +172,7 @@ export default function WorkspaceApplet() {
     return (
         <div className="flex flex-col h-full overflow-auto">
             {/* Header with instructions */}
-            {messages && messages.length === 0 && (
+            {/* {messages && messages.length === 0 && (
                 <div className="bg-gray-50 border-b p-4 mb-4">
                     <p className="text-gray-600 mb-2">
                         This section allows you to generate a UI for this
@@ -175,81 +180,115 @@ export default function WorkspaceApplet() {
                         and see the results appear in real-time. The UI will
                         have access to prompts defined in this workspace.
                     </p>
-                    <div className="bg-sky-50 border border-sky-200 rounded-lg p-3">
-                        <h2 className="font-semibold text-sky-800 mb-1">
-                            How to use
-                        </h2>
-                        <ul className="text-sky-700 text-sm list-disc list-inside ps-2">
-                            <li>Select an AI model from the dropdown below</li>
-                            <li>
-                                Describe the UI you want to create in natural
-                                language
-                            </li>
-                            <li>
-                                The AI will generate HTML/CSS code based on your
-                                description
-                            </li>
-                            <li>
-                                Preview the results in real-time on the right
-                                panel
-                            </li>
-                            <li>
-                                Iterate and refine your design through
-                                conversation
-                            </li>
-                        </ul>
-                    </div>
                 </div>
-            )}
+            )} */}
 
-            <div className="flex flex-1 flex-col justify-between gap-4 h-full overflow-auto bg-gray-100 p-4">
+            <div className="flex justify-between gap-4 h-full overflow-auto bg-gray-100 p-4">
                 <div className="flex flex-col grow overflow-auto">
                     {htmlVersions.length > 0 && (
-                        <div className="flex justify-between items-center mb-4">
-                            <button
-                                onClick={() =>
-                                    setActiveVersionIndex((prev) =>
-                                        Math.max(0, prev - 1),
-                                    )
-                                }
-                                disabled={activeVersionIndex <= 0}
-                                className="p-2 rounded hover:bg-gray-100 disabled:opacity-50"
-                            >
-                                ← Previous Version
-                            </button>
-                            <span className="text-sm text-gray-600">
-                                Version {activeVersionIndex + 1} of{" "}
-                                {htmlVersions.length}
-                            </span>
-                            <button
-                                onClick={() =>
-                                    setActiveVersionIndex((prev) =>
-                                        Math.min(
-                                            htmlVersions.length - 1,
-                                            prev + 1,
-                                        ),
-                                    )
-                                }
-                                disabled={
-                                    activeVersionIndex >=
-                                    htmlVersions.length - 1
-                                }
-                                className="p-2 rounded hover:bg-gray-100 disabled:opacity-50"
-                            >
-                                Next Version →
-                            </button>
+                        <div className="flex justify-between items-center mb-2">
+                            <div className="flex items-center gap-2">
+                                <button
+                                    className={cn(
+                                        "lb-outline-secondary",
+                                        "bg-white",
+                                    )}
+                                    onClick={() =>
+                                        setActiveVersionIndex((prev) =>
+                                            Math.max(0, prev - 1),
+                                        )
+                                    }
+                                    disabled={activeVersionIndex <= 0}
+                                >
+                                    {direction === "rtl" ? (
+                                        <ArrowRightIcon className="w-4 h-4" />
+                                    ) : (
+                                        <ArrowLeftIcon className="w-4 h-4" />
+                                    )}
+                                </button>
+                                <button
+                                    className={cn(
+                                        "lb-outline-secondary ",
+                                        "bg-white",
+                                    )}
+                                    onClick={() =>
+                                        setActiveVersionIndex((prev) =>
+                                            Math.min(
+                                                htmlVersions.length - 1,
+                                                prev + 1,
+                                            ),
+                                        )
+                                    }
+                                    disabled={
+                                        activeVersionIndex >=
+                                        htmlVersions.length - 1
+                                    }
+                                >
+                                    {direction === "rtl" ? (
+                                        <ArrowLeftIcon className="w-4 h-4" />
+                                    ) : (
+                                        <ArrowRightIcon className="w-4 h-4" />
+                                    )}
+                                </button>
+                                <span className="text-sm text-gray-600">
+                                    Version {activeVersionIndex + 1} of{" "}
+                                    {htmlVersions.length}
+                                </span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <button
+                                    className="lb-outline-secondary bg-white"
+                                    onClick={() => {
+                                        if (
+                                            window.confirm(
+                                                "Are you sure you want to delete this version?",
+                                            )
+                                        ) {
+                                            setHtmlVersions((prev) => {
+                                                const newVersions = prev.filter(
+                                                    (_, index) =>
+                                                        index !==
+                                                        activeVersionIndex,
+                                                );
+                                                updateApplet.mutate({
+                                                    id,
+                                                    data: {
+                                                        htmlVersions:
+                                                            newVersions,
+                                                    },
+                                                });
+                                                setPreviewHtml(
+                                                    newVersions[
+                                                        newVersions.length - 1
+                                                    ],
+                                                );
+                                                setActiveVersionIndex(
+                                                    Math.max(
+                                                        0,
+                                                        activeVersionIndex - 1,
+                                                    ),
+                                                );
+                                                return newVersions;
+                                            });
+                                        }
+                                    }}
+                                >
+                                    <TrashIcon className="w-4 h-4" />
+                                </button>
+                            </div>
                         </div>
                     )}
                     {htmlVersions.length > 0 ? (
-                        <div className="border rounded-lg shadow-md bg-white mb-4 grow overflow-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent hover:scrollbar-thumb-gray-400">
+                        <div className="border rounded-md shadow-md bg-white mb-4 grow overflow-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent hover:scrollbar-thumb-gray-400">
                             <div className="flex flex-col h-full">
                                 <div className="flex-1 p-4">
-                                    <div
-                                        dangerouslySetInnerHTML={{
-                                            __html: htmlVersions[
-                                                activeVersionIndex
-                                            ],
-                                        }}
+                                    <iframe
+                                        srcDoc={htmlVersions[
+                                            activeVersionIndex
+                                        ]?.replace(/`/g, "")}
+                                        className="w-full h-full border-0"
+                                        sandbox="allow-scripts"
+                                        title="Preview"
                                     />
                                 </div>
                             </div>
@@ -257,7 +296,7 @@ export default function WorkspaceApplet() {
                     ) : null}
                 </div>
 
-                <div className="flex flex-col h-[10rem]">
+                <div className="flex flex-col w-[25rem]">
                     {/* Model selector and Clear button in one line */}
                     <div className="mb-4 flex items-center justify-between gap-4">
                         <div className="flex items-center gap-2 flex-1">
@@ -271,7 +310,7 @@ export default function WorkspaceApplet() {
                         </div>
                         {messages && messages.length > 0 && (
                             <button
-                                className="lb-outline-secondary"
+                                className="lb-outline-secondary lb-sm"
                                 onClick={() => {
                                     if (
                                         window.confirm(
@@ -292,7 +331,7 @@ export default function WorkspaceApplet() {
                     </div>
 
                     {messages && messages.length > 0 ? (
-                        <div className="flex-1 overflow-auto border rounded-lg p-4 bg-white scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent hover:scrollbar-thumb-gray-400">
+                        <div className="flex-1 overflow-auto border rounded-md p-4 bg-white scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent hover:scrollbar-thumb-gray-400">
                             {messages.map((message, index) => (
                                 <div
                                     key={index}
@@ -303,7 +342,7 @@ export default function WorkspaceApplet() {
                                     }`}
                                 >
                                     <div
-                                        className={`max-w-[80%] rounded-lg p-3 ${
+                                        className={`max-w-[80%] rounded-md p-3 ${
                                             message.role === "user"
                                                 ? "bg-sky-100 text-sky-900"
                                                 : "bg-gray-100 text-gray-900"
@@ -364,7 +403,7 @@ export default function WorkspaceApplet() {
 
                     {/* Suggestions section */}
                     {selectedLLM && !messages.length && (
-                        <div className="mb-4">
+                        <div className="mb-4  bg-white rounded-md p-3 border grow">
                             <div className="flex justify-between items-center mb-2">
                                 {appletQuery.data?.suggestions?.length > 0 && (
                                     <p className="text-sm text-gray-600 font-semibold">

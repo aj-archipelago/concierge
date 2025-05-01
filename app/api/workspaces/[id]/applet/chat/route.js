@@ -54,11 +54,11 @@ export async function POST(request, { params }) {
                 - Include a <style> tag with your CSS rules
                 - Style guidelines:
                   - Use white background (background-color: #ffffff) with dark text (color: #1f2937 for primary, #4b5563 for secondary)
-                  - Apply border-radius: 6px for rounded corners on containers, buttons, and inputs
-                  - Use box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05) for subtle shadows
-                  - Use box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1) for more prominent elements
-                  - Use consistent padding (20px for containers, 8-12px for smaller elements)
-                  - Add margin between buttons and other elements for proper spacing
+                  - Apply border-radius: 0.375em for rounded corners on containers, buttons, and inputs
+                  - Use box-shadow: 0 0.0625em 0.125em rgba(0, 0, 0, 0.05) for subtle shadows
+                  - Use box-shadow: 0 0.25em 0.375em rgba(0, 0, 0, 0.1) for more prominent elements
+                  - Use consistent padding (1.25em for containers, 0.5em to 0.75em for smaller elements)
+                  - Add margin of 0.75em between buttons and other elements for proper spacing
                 
                 Keep your HTML responses simple and use vanilla CSS for styling and inline JavaScript for interactivity. Focus on creating clean, responsive, and accessible components. When responding with HTML, include both the HTML code and the CSS in a <style> tag, along with any necessary inline JavaScript in <script> tags or event handlers. Do not include additional text or comments.`,
             },

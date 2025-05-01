@@ -51,9 +51,15 @@ export async function PUT(request, { params }) {
         const updateObj = {};
         const currentDate = new Date();
 
-        if (body.html !== undefined) {
+        if (body.htmlVersions !== undefined) {
+            // Direct update of htmlVersions array when provided
+            updateObj.htmlVersions = body.htmlVersions.map((content) => ({
+                content,
+                timestamp: currentDate,
+            }));
+        } else if (body.html !== undefined) {
+            // Existing logic for adding new versions
             updateObj.html = body.html;
-            // Use $push with $cond to only add new version if different from last
             updateObj.$push = {
                 htmlVersions: {
                     $each: [
@@ -93,9 +99,9 @@ export async function PUT(request, { params }) {
             { _id: workspace.applet },
             updateObj,
             {
-                new: true, // Return the updated document
-                upsert: true, // Create if doesn't exist
-                runValidators: true, // Run model validators
+                new: true,
+                upsert: true,
+                runValidators: true,
             },
         );
 
