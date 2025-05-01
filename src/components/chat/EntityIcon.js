@@ -10,12 +10,15 @@ const EntityIcon = ({ entity, size = "small" }) => {
     const textColorClass = entity?.textColorClass || "text-white";
 
     // Determine classes based on size
-    // Small: Fixed size w-5 h-5
-    // Large: Fixed size w-12 h-12 (like original logo container) WITHOUT p-2 padding
+    // xs: Extra small for dropdown items
+    // small: Fixed size w-5 h-5
+    // large: Fixed size w-12 h-12 (like original logo container) WITHOUT p-2 padding
     const sizeClasses =
         size === "large"
-            ? "w-8 h-8 text-xl mt-2 mx-auto" //
-            : "w-5 h-5 text-lg"; // Default fixed size for top bar
+            ? "w-8 h-8 text-xl mt-2 mx-auto"
+            : size === "small"
+              ? "w-5 h-5 text-lg"
+              : "w-4 h-4 text-sm"; // xs size
 
     return (
         // Remove w-full h-full, apply sizeClasses directly

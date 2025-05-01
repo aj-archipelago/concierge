@@ -18,6 +18,8 @@ import {
 } from "@/components/ui/select";
 import { useQuery } from "@apollo/client";
 import { SYS_GET_ENTITIES } from "../../graphql";
+import EntityIcon from "./EntityIcon";
+import { User, Share, Trash2 } from "lucide-react";
 
 const ChatTopMenuDynamic = dynamic(() => import("./ChatTopMenu"), {
     loading: () => <div style={{ width: "80px", height: "20px" }}></div>,
@@ -52,17 +54,19 @@ function Chat({ viewingChat = null }) {
     });
 
     // Find default entity ID
-    const defaultEntity = aliasedEntities.find(e => e.isDefault);
+    const defaultEntity = aliasedEntities.find((e) => e.isDefault);
     const defaultEntityId = defaultEntity?.id || "";
 
     // Sync local state with fetched chat data
     useEffect(() => {
         const entityIdFromChat = chat?.selectedEntityId || "";
         // If no entityId or entity doesn't exist, use default entity
-        const newEntityId = entityIdFromChat && aliasedEntities.some(e => e.id === entityIdFromChat)
-            ? entityIdFromChat
-            : defaultEntityId;
-            
+        const newEntityId =
+            entityIdFromChat &&
+            aliasedEntities.some((e) => e.id === entityIdFromChat)
+                ? entityIdFromChat
+                : defaultEntityId;
+
         if (newEntityId !== selectedEntityId) {
             setSelectedEntityId(newEntityId);
         }
@@ -119,7 +123,12 @@ function Chat({ viewingChat = null }) {
                             className={`w-auto text-sm h-7 lb-outline ${readOnly ? "cursor-not-allowed opacity-50" : ""}`}
                             aria-label={t("Select Speaker")}
                         >
-                            <SelectValue placeholder={t("Select Speaker")} />
+                            <div className="flex items-center gap-2">
+                                <User className="w-4 h-4 text-gray-500" />
+                                <SelectValue
+                                    placeholder={t("Select Speaker")}
+                                />
+                            </div>
                         </SelectTrigger>
                         <SelectContent>
                             {aliasedEntities.map((entity) => (
@@ -128,21 +137,30 @@ function Chat({ viewingChat = null }) {
                                     key={entity.id}
                                     value={entity.id}
                                 >
-                                    {t(entity.name)}
+                                    <div className="flex items-center gap-2">
+                                        <EntityIcon entity={entity} size="xs" />
+                                        {t(entity.name)}
+                                    </div>
                                 </SelectItem>
                             ))}
                         </SelectContent>
                     </Select>
                     <button
                         disabled={readOnly}
-                        className={`lb-sm lb-outline ${chat?.isPublic ? "" : "lb-primary"}`}
+                        className={`lb-sm lb-outline ${chat?.isPublic ? "" : "lb-primary"} flex items-center gap-2`}
                         onClick={handleShareOrCopy}
+                        title={
+                            chat?.isPublic ? t("Copy Share URL") : t("Share")
+                        }
                     >
-                        {chat?.isPublic ? t("Copy Share URL") : t("Share")}
+                        <Share className="w-4 h-4" />
+                        <span className="hidden sm:inline">
+                            {chat?.isPublic ? t("Copy Share URL") : t("Share")}
+                        </span>
                     </button>
                     <button
                         disabled={readOnly}
-                        className="lb-outline-secondary lb-sm"
+                        className="lb-outline-secondary lb-sm flex items-center gap-2"
                         size="sm"
                         onClick={() => {
                             if (window.confirm(t("Are you sure?"))) {
@@ -155,8 +173,12 @@ function Chat({ viewingChat = null }) {
                                 }
                             }
                         }}
+                        title={t("Clear this chat")}
                     >
-                        {t("Clear this chat")}
+                        <Trash2 className="w-4 h-4" />
+                        <span className="hidden sm:inline">
+                            {t("Clear this chat")}
+                        </span>
                     </button>
                 </div>
             </div>

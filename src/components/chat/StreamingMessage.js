@@ -6,7 +6,6 @@ import React, {
     useMemo,
 } from "react";
 import { convertMessageToMarkdown } from "./ChatMessage";
-import { AiOutlineRobot } from "react-icons/ai";
 import classNames from "../../../app/utils/class-names";
 import config from "../../../config";
 import { useTranslation } from "react-i18next";
@@ -16,6 +15,7 @@ import { EphemeralContent } from "./BotMessage";
 import EntityIcon from "./EntityIcon";
 import { AuthContext } from "../../App";
 import { useContext } from "react";
+import { Bot } from "lucide-react";
 
 // Memoize the content component to prevent re-renders when only the loader position changes
 const StreamingContent = React.memo(function StreamingContent({
@@ -209,7 +209,7 @@ const StreamingMessage = React.memo(function StreamingMessage({
         return currentEntity ? (
             <EntityIcon entity={currentEntity} size="large" />
         ) : bot === "code" ? (
-            <AiOutlineRobot
+            <Bot
                 className={classNames(
                     rowHeight,
                     buttonWidthClass,

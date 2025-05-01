@@ -1,7 +1,6 @@
-import { CheckCircle, XCircle } from "lucide-react";
+import { CheckCircle, XCircle, Bot } from "lucide-react";
 import React, { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { AiOutlineRobot } from "react-icons/ai";
 import { useTask, useCancelTask } from "../../../app/queries/notifications";
 import classNames from "../../../app/utils/class-names";
 import { getTaskDisplayName } from "../../utils/task-loader.mjs";
@@ -396,7 +395,7 @@ const BotMessage = ({
             )}
         />
     ) : bot === "code" ? (
-        <AiOutlineRobot
+        <Bot
             className={classNames(
                 rowHeight,
                 buttonWidthClass,

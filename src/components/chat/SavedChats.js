@@ -8,11 +8,16 @@ import { PlusIcon } from "@heroicons/react/24/outline";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
 import i18next from "i18next";
-import { EditIcon, MoreVertical, TrashIcon, XIcon } from "lucide-react";
+import {
+    EditIcon,
+    MoreVertical,
+    TrashIcon,
+    XIcon,
+    UserCircle,
+} from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { FaUserCircle } from "react-icons/fa";
 import { useInView } from "react-intersection-observer";
 import Loader from "../../../app/components/loader";
 import {
@@ -296,12 +301,7 @@ function SavedChats({ displayState }) {
                                             >
                                                 <div className="basis-[1rem] flex items-center gap-1">
                                                     {m?.sender === "user" ? (
-                                                        <FaUserCircle
-                                                            className={classNames(
-                                                                "w-4 h-4",
-                                                                "text-gray-300",
-                                                            )}
-                                                        />
+                                                        <UserCircle className="w-4 h-4 text-gray-300" />
                                                     ) : (
                                                         <img
                                                             src={getLogo(

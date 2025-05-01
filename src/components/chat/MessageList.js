@@ -7,8 +7,7 @@ import React, {
     useContext,
 } from "react";
 import { useTranslation } from "react-i18next";
-import { AiFillFilePdf, AiFillFileText } from "react-icons/ai";
-import { FaUserCircle } from "react-icons/fa";
+import { FileImage, FileText, UserCircle } from "lucide-react";
 import Loader from "../../../app/components/loader";
 import classNames from "../../../app/utils/class-names";
 import config from "../../../config";
@@ -176,8 +175,7 @@ const MessageListContent = React.memo(function MessageListContent({
                         const ext = getExtension(src);
 
                         if ([".pdf", ".txt", ".csv"].includes(ext)) {
-                            const Icon =
-                                ext === ".pdf" ? AiFillFilePdf : AiFillFileText;
+                            const Icon = ext === ".pdf" ? FileImage : FileText;
                             return (
                                 <a
                                     key={`file-${index}-${index2}`}
@@ -189,10 +187,7 @@ const MessageListContent = React.memo(function MessageListContent({
                                     target="_blank"
                                     rel="noopener noreferrer"
                                 >
-                                    <Icon
-                                        size={40}
-                                        className="text-red-600 dark:text-red-400"
-                                    />
+                                    <Icon className="w-6 h-6 text-red-500" />
                                     {filename}
                                 </a>
                             );
@@ -393,7 +388,7 @@ const MessageList = React.memo(
                     );
                 } else {
                     const avatar = (
-                        <FaUserCircle
+                        <UserCircle
                             className={classNames(
                                 rowHeight,
                                 buttonWidthClass,
