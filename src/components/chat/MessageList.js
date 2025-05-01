@@ -4,6 +4,7 @@ import React, {
     useEffect,
     useImperativeHandle,
     useRef,
+    useContext,
 } from "react";
 import { useTranslation } from "react-i18next";
 import { AiFillFilePdf, AiFillFileText } from "react-icons/ai";
@@ -19,6 +20,8 @@ import {
 } from "../../utils/mediaUtils";
 import CopyButton from "../CopyButton";
 import ChatImage from "../images/ChatImage";
+import { predefinedEntities } from "../../config/entities";
+import { AuthContext } from "../../App";
 import BotMessage from "./BotMessage";
 import ScrollToBottom from "./ScrollToBottom";
 import StreamingMessage from "./StreamingMessage";
@@ -101,8 +104,6 @@ const MemoizedYouTubeEmbed = React.memo(({ url, onLoad }) => {
         />
     );
 });
-
-// Add this near the top of the file, after imports:
 
 // Create a memoized component for the static message list content
 const MessageListContent = React.memo(function MessageListContent({
@@ -239,11 +240,11 @@ const MessageList = React.memo(
             chatId,
             streamingContent,
             isStreaming,
-            aiName,
             onSend,
             ephemeralContent,
             thinkingDuration,
             isThinking,
+            selectedEntityId,
         },
         ref,
     ) {
@@ -251,6 +252,8 @@ const MessageList = React.memo(
         const { getLogo } = config.global;
         const { t } = useTranslation();
         const scrollBottomRef = useRef(null);
+        const { user } = useContext(AuthContext);
+        const defaultAiName = user?.aiName;
 
         // Forward scrollBottomRef to parent
         useImperativeHandle(
@@ -321,7 +324,7 @@ const MessageList = React.memo(
         const botName =
             bot === "code"
                 ? config?.code?.botName
-                : aiName || config?.chat?.botName;
+                : defaultAiName || config?.chat?.botName;
 
         const handleMessageLoad = useCallback((messageId) => {
             setMessageLoadState((prev) =>
@@ -384,6 +387,7 @@ const MessageList = React.memo(
                             language={language}
                             botName={botName}
                             messageRef={messageRef}
+                            selectedEntityId={selectedEntityId}
                         />
                     );
                 } else {
@@ -410,9 +414,7 @@ const MessageList = React.memo(
                                 }
                                 className="absolute top-3 end-3 opacity-0 group-hover:opacity-60 hover:opacity-100 transition-opacity"
                             />
-                            <div className={classNames(basis, "py-0")}>
-                                {avatar}
-                            </div>
+                            <div className={classNames(basis)}>{avatar}</div>
                             <div
                                 className={classNames(
                                     "px-1 pb-3 pt-2 [.docked_&]:px-0 [.docked_&]:py-3",
@@ -427,7 +429,6 @@ const MessageList = React.memo(
                     );
                 }
             },
-            // eslint-disable-next-line react-hooks/exhaustive-deps
             [
                 basis,
                 bot,
@@ -437,6 +438,8 @@ const MessageList = React.memo(
                 messageRef,
                 rowHeight,
                 t,
+                botName,
+                selectedEntityId,
             ],
         );
 
@@ -466,9 +469,9 @@ const MessageList = React.memo(
                                 content={streamingContent}
                                 ephemeralContent={ephemeralContent}
                                 bot={bot}
-                                aiName={aiName}
                                 thinkingDuration={thinkingDuration}
                                 isThinking={isThinking}
+                                selectedEntityId={selectedEntityId}
                             />
                         )}
                         {loading &&
@@ -476,6 +479,7 @@ const MessageList = React.memo(
                             renderMessage({
                                 id: "loading",
                                 sender: "labeeb",
+                                entityId: selectedEntityId,
                                 payload: (
                                     <div className="flex gap-4">
                                         <div className="mt-1 ms-1 mb-1 h-4">

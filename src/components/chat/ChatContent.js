@@ -23,11 +23,12 @@ function ChatContent({
     displayState = "full",
     container = "chatpage",
     viewingChat = null,
+    selectedEntityId: selectedEntityIdFromProp,
 }) {
     const { t } = useTranslation();
     const client = useApolloClient();
     const { user } = useContext(AuthContext);
-    const activeChat = useGetActiveChat();
+    const activeChatHookData = useGetActiveChat();
     const updateChatHook = useUpdateChat();
     const queryClient = useQueryClient();
     const runTask = useRunTask();
@@ -36,7 +37,7 @@ function ChatContent({
         [displayState, viewingChat],
     );
 
-    const chat = viewingReadOnlyChat ? viewingChat : activeChat?.data;
+    const chat = viewingReadOnlyChat ? viewingChat : activeChatHookData?.data;
     const chatId = String(chat?._id);
 
     // Simple approach - if we have a chat ID but no messages, refetch once
@@ -65,7 +66,11 @@ function ChatContent({
         clearStreamingState,
         thinkingDuration,
         isThinking,
-    } = useStreamingMessages({ chat, updateChatHook });
+    } = useStreamingMessages({
+        chat,
+        updateChatHook,
+        currentEntityId: selectedEntityIdFromProp,
+    });
 
     const handleError = useCallback((error) => {
         toast.error(error.message);
@@ -79,10 +84,7 @@ function ChatContent({
                     message.taskId,
                 ]);
                 if (notification) {
-                    return `Status: ${notification.status}
-                Progress: ${notification.progress || 0}
-                Type: ${notification.type}
-                Original Message: ${message.payload}`;
+                    return `Status: ${notification.status}\n                Progress: ${notification.progress || 0}\n                Type: ${notification.type}\n                Original Message: ${message.payload}`;
                 }
             }
             return message.payload;
@@ -122,6 +124,7 @@ function ChatContent({
                         payload: getMessagePayload(m),
                     })),
                     isChatLoading: true,
+                    selectedEntityId: selectedEntityIdFromProp,
                 });
 
                 // Prepare conversation history
@@ -150,15 +153,20 @@ function ChatContent({
 
                 const { contextId, aiMemorySelfModify, aiName, aiStyle } = user;
 
+                // Use entity ID directly from the prop
+                const currentSelectedEntityId = selectedEntityIdFromProp || "";
+
                 const variables = {
                     chatHistory: conversation,
                     contextId,
-                    aiName,
+                    // Use entity ID as aiName if available, else fallback to default
+                    aiName: currentSelectedEntityId || user.aiName,
                     aiMemorySelfModify,
                     aiStyle,
                     title: chat?.title,
                     chatId,
                     stream: true,
+                    entityId: currentSelectedEntityId,
                 };
 
                 // Perform RAG start query
@@ -260,6 +268,7 @@ function ChatContent({
                     direction: "incoming",
                     position: "single",
                     sender: "labeeb",
+                    entityId: currentSelectedEntityId,
                 });
 
                 // Use messages directly without processing
@@ -292,6 +301,7 @@ function ChatContent({
                     ...(newTitle && { title: newTitle }),
                     isChatLoading: !!toolCallbackName && !codeRequestId,
                     ...(toolCallbackId && { toolCallbackId }),
+                    selectedEntityId: currentSelectedEntityId,
                 });
 
                 if (toolCallbackName && toolCallbackName !== "coding") {
@@ -352,6 +362,7 @@ function ChatContent({
                             payload: getMessagePayload(m),
                         })),
                         isChatLoading: false,
+                        selectedEntityId: currentSelectedEntityId,
                     });
                 }
             } catch (error) {
@@ -386,6 +397,7 @@ function ChatContent({
                         payload: getMessagePayload(m),
                     })),
                     isChatLoading: false,
+                    selectedEntityId: selectedEntityIdFromProp,
                 });
             }
         },
@@ -394,6 +406,9 @@ function ChatContent({
             chatId,
             getMessagePayload,
             client,
+            updateChatHook,
+            handleError,
+            t,
             clearStreamingState,
             memoizedMessages,
             runTask,
@@ -403,6 +418,7 @@ function ChatContent({
             setIsStreaming,
             setSubscriptionId,
             handleError,
+            selectedEntityIdFromProp,
         ],
     );
 
@@ -422,6 +438,7 @@ function ChatContent({
                         payload: getMessagePayload(m),
                     })),
                 isChatLoading: false,
+                selectedEntityId: selectedEntityIdFromProp,
             });
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -492,6 +509,7 @@ function ChatContent({
             onStopStreaming={stopStreaming}
             thinkingDuration={thinkingDuration}
             isThinking={isThinking}
+            selectedEntityId={selectedEntityIdFromProp}
         />
     );
 }

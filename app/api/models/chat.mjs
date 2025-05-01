@@ -39,6 +39,10 @@ const messageSchema = new mongoose.Schema(
             type: String,
             required: true,
         },
+        entityId: {
+            type: String,
+            default: null,
+        },
         taskId: {
             type: mongoose.Schema.Types.ObjectId,
             ref: "Task",
@@ -94,6 +98,10 @@ const chatSchema = new mongoose.Schema(
         isChatLoading: {
             type: Boolean,
             default: false,
+        },
+        selectedEntityId: {
+            type: String,
+            default: "",
         },
     },
     {

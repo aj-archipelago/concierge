@@ -173,6 +173,7 @@ const SYS_ENTITY_AGENT = gql`
         $aiMemorySelfModify: Boolean
         $title: String
         $aiStyle: String
+        $entityId: String
     ) {
         sys_entity_agent(
             chatHistory: $chatHistory
@@ -186,6 +187,7 @@ const SYS_ENTITY_AGENT = gql`
             aiMemorySelfModify: $aiMemorySelfModify
             title: $title
             aiStyle: $aiStyle
+            entityId: $entityId
         ) {
             result
             contextId

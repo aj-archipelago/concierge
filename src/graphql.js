@@ -209,6 +209,7 @@ const SYS_ENTITY_AGENT = gql`
         $title: String
         $codeRequestId: String
         $stream: Boolean
+        $entityId: String
     ) {
         sys_entity_agent(
             chatHistory: $chatHistory
@@ -224,6 +225,7 @@ const SYS_ENTITY_AGENT = gql`
             title: $title
             codeRequestId: $codeRequestId
             stream: $stream
+            entityId: $entityId
         ) {
             result
             contextId

@@ -7,6 +7,8 @@ import classNames from "../../../app/utils/class-names";
 import { getTaskDisplayName } from "../../utils/task-loader.mjs";
 import CopyButton from "../CopyButton";
 import { convertMessageToMarkdown } from "./ChatMessage";
+import { predefinedEntities } from "../../config/entities";
+import EntityIcon from "./EntityIcon";
 
 const MemoizedMarkdownMessage = React.memo(
     ({ message }) => {
@@ -360,10 +362,33 @@ const BotMessage = ({
     language,
     botName,
     messageRef = () => {},
+    selectedEntityId,
 }) => {
     const { t } = useTranslation();
 
-    const avatar = toolData?.avatarImage ? (
+    // Determine the entity ID to use
+    const isLoader = message.id === "loading";
+    // For the loader, use the selectedEntityId from props.
+    // For actual messages, strictly use the entityId stored on the message.
+    // Default to empty string if neither is present.
+    const entityIdToUse = isLoader
+        ? selectedEntityId || ""
+        : message.entityId || "";
+
+    const currentEntity = entityIdToUse
+        ? predefinedEntities.find((e) => e.id === entityIdToUse)
+        : null;
+
+    const displayName = currentEntity ? currentEntity.name : botName;
+
+    const avatar = currentEntity ? (
+        <EntityIcon
+            letter={currentEntity.letter}
+            bgColorClass={currentEntity.bgColor}
+            textColorClass={currentEntity.textColor}
+            size="large"
+        />
+    ) : toolData?.avatarImage ? (
         <img
             src={toolData.avatarImage}
             alt="Tool Avatar"
@@ -415,7 +440,7 @@ const BotMessage = ({
                 )}
             >
                 <div className="flex flex-col">
-                    <div className="font-semibold">{t(botName)}</div>
+                    <div className="font-semibold">{t(displayName)}</div>
                     {message.ephemeralContent && (
                         <EphemeralContent
                             content={message.ephemeralContent}

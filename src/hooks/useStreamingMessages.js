@@ -35,7 +35,11 @@ const chunkText = (text, maxChunkSize = 9) => {
     return chunks;
 };
 
-export function useStreamingMessages({ chat, updateChatHook }) {
+export function useStreamingMessages({
+    chat,
+    updateChatHook,
+    currentEntityId,
+}) {
     const streamingMessageRef = useRef("");
     const ephemeralContentRef = useRef(""); // Track ephemeral content separately
     const hasReceivedPersistentRef = useRef(false); // Track if we've received non-ephemeral content
@@ -173,6 +177,7 @@ export function useStreamingMessages({ chat, updateChatHook }) {
                 direction: "incoming",
                 position: "single",
                 sender: "labeeb",
+                entityId: currentEntityId,
                 isStreaming: false,
                 ephemeralContent: finalEphemeralContent || "",
                 thinkingDuration: thinkingDuration,
@@ -204,7 +209,13 @@ export function useStreamingMessages({ chat, updateChatHook }) {
         } finally {
             completingMessageRef.current = false;
         }
-    }, [chat, updateChatHook, clearStreamingState, thinkingDuration]);
+    }, [
+        chat,
+        updateChatHook,
+        clearStreamingState,
+        thinkingDuration,
+        currentEntityId,
+    ]);
 
     const stopStreaming = useCallback(async () => {
         if (chat?._id) {

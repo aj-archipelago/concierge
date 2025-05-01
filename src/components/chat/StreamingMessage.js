@@ -13,6 +13,10 @@ import { useTranslation } from "react-i18next";
 import i18next from "i18next";
 import Loader from "../../../app/components/loader";
 import { EphemeralContent } from "./BotMessage";
+import { predefinedEntities } from "../../config/entities";
+import EntityIcon from "./EntityIcon";
+import { AuthContext } from "../../App";
+import { useContext } from "react";
 
 // Memoize the content component to prevent re-renders when only the loader position changes
 const StreamingContent = React.memo(function StreamingContent({
@@ -51,9 +55,9 @@ const StreamingMessage = React.memo(function StreamingMessage({
     content,
     ephemeralContent,
     bot,
-    aiName,
     thinkingDuration,
     isThinking,
+    selectedEntityId,
 }) {
     const relativeContainerRef = useRef(null);
     const [loaderPosition, setLoaderPosition] = useState({ x: 0, y: 0 });
@@ -63,6 +67,8 @@ const StreamingMessage = React.memo(function StreamingMessage({
     const { t } = useTranslation();
     const { language } = i18next;
     const { getLogo } = config.global;
+    const { user } = useContext(AuthContext);
+    const defaultAiName = user?.aiName;
 
     // Track if we've ever shown ephemeral content
     useEffect(() => {
@@ -189,12 +195,24 @@ const StreamingMessage = React.memo(function StreamingMessage({
         "min-w-[3rem] basis-12 [.docked_&]:basis-10 [.docked_&]:min-w-[2.5rem]";
     let buttonWidthClass = "w-12 [.docked_&]:w-10";
     const botName =
-        bot === "code"
+        selectedEntityId ||
+        (bot === "code"
             ? config?.code?.botName
-            : aiName || config?.chat?.botName;
+            : defaultAiName || config?.chat?.botName);
 
     const avatar = useMemo(() => {
-        return bot === "code" ? (
+        const currentEntity = selectedEntityId
+            ? predefinedEntities.find((e) => e.id === selectedEntityId)
+            : null;
+
+        return currentEntity ? (
+            <EntityIcon
+                letter={currentEntity.letter}
+                bgColorClass={currentEntity.bgColor}
+                textColorClass={currentEntity.textColor}
+                size="large"
+            />
+        ) : bot === "code" ? (
             <AiOutlineRobot
                 className={classNames(
                     rowHeight,
@@ -215,7 +233,15 @@ const StreamingMessage = React.memo(function StreamingMessage({
                 )}
             />
         );
-    }, [bot, getLogo, language, basis, buttonWidthClass, rowHeight]);
+    }, [
+        bot,
+        getLogo,
+        language,
+        basis,
+        buttonWidthClass,
+        rowHeight,
+        selectedEntityId,
+    ]);
 
     return (
         <div className="flex bg-sky-50 ps-1 pt-1 relative group">
