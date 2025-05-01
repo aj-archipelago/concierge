@@ -83,6 +83,9 @@ userSchema.virtual("initials").get(function () {
         .join("");
 });
 
+// index for createdAt descending
+userSchema.index({ createdAt: -1 });
+
 // Create the User model from the schema
 const User = mongoose.models?.User || mongoose.model("User", userSchema);
 
