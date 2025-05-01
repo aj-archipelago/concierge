@@ -104,7 +104,7 @@ function Chat({ viewingChat = null }) {
                                 className="text-sm"
                                 value={defaultAiName}
                             >
-                                {defaultAiName}
+                                {t(defaultAiName)}
                             </SelectItem>
                             {predefinedEntities.map((entity) => (
                                 <SelectItem
@@ -112,7 +112,7 @@ function Chat({ viewingChat = null }) {
                                     key={entity.id}
                                     value={entity.id}
                                 >
-                                    {entity.name}
+                                    {t(entity.name)}
                                 </SelectItem>
                             ))}
                         </SelectContent>
