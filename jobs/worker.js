@@ -99,7 +99,7 @@ async function ensureDbConnection(forceReconnect = false) {
         dbInitialized = false;
     }
 
-    if (!dbInitialized) {
+    if (!dbInitialized || !mongoose.connection || mongoose.connection.readyState !== 1) {
         try {
             connectionAttempts++;
             console.log(
