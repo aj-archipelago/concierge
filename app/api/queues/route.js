@@ -146,6 +146,9 @@ export async function GET(req) {
                 );
             }
 
+            // Sort jobs by timestamp in descending order
+            jobs.sort((a, b) => b.timestamp - a.timestamp);
+
             // Apply pagination
             const totalItems = jobs.length;
             const start = (page - 1) * pageSize;
