@@ -67,6 +67,10 @@ function ChatContent({
         isThinking,
     } = useStreamingMessages({ chat, updateChatHook });
 
+    const handleError = useCallback((error) => {
+        toast.error(error.message);
+    }, []);
+
     const getMessagePayload = useCallback(
         (message) => {
             if (message.taskId) {
@@ -351,8 +355,38 @@ function ChatContent({
                     });
                 }
             } catch (error) {
-                console.error("Error in handleSend:", error);
-                toast.error(t("Error sending message"));
+                setIsStreaming(false);
+                handleError(error);
+
+                // Use error messages directly without processing
+                const errorMessagesToUpdate = [
+                    ...(chat?.messages || []),
+                    {
+                        payload: text,
+                        sender: "user",
+                        sentTime: "just now",
+                        direction: "outgoing",
+                        position: "single",
+                    },
+                    {
+                        payload: t(
+                            "Something went wrong trying to respond to your request. Please try something else or start over to continue.",
+                        ),
+                        sender: "labeeb",
+                        sentTime: "just now",
+                        direction: "incoming",
+                        position: "single",
+                    },
+                ];
+
+                await updateChatHook.mutateAsync({
+                    chatId: String(chat?._id),
+                    messages: errorMessagesToUpdate?.map((m) => ({
+                        ...m,
+                        payload: getMessagePayload(m),
+                    })),
+                    isChatLoading: false,
+                });
             }
         },
         [
@@ -368,6 +402,7 @@ function ChatContent({
             user,
             setIsStreaming,
             setSubscriptionId,
+            handleError,
         ],
     );
 
