@@ -7,7 +7,6 @@ import classNames from "../../../app/utils/class-names";
 import { getTaskDisplayName } from "../../utils/task-loader.mjs";
 import CopyButton from "../CopyButton";
 import { convertMessageToMarkdown } from "./ChatMessage";
-import { predefinedEntities } from "../../config/entities";
 import EntityIcon from "./EntityIcon";
 
 const MemoizedMarkdownMessage = React.memo(
@@ -363,6 +362,7 @@ const BotMessage = ({
     botName,
     messageRef = () => {},
     selectedEntityId,
+    entities,
 }) => {
     const { t } = useTranslation();
 
@@ -376,18 +376,13 @@ const BotMessage = ({
         : message.entityId || "";
 
     const currentEntity = entityIdToUse
-        ? predefinedEntities.find((e) => e.id === entityIdToUse)
+        ? entities.find((e) => e.id === entityIdToUse)
         : null;
 
     const displayName = currentEntity ? currentEntity.name : botName;
 
     const avatar = currentEntity ? (
-        <EntityIcon
-            letter={currentEntity.letter}
-            bgColorClass={currentEntity.bgColor}
-            textColorClass={currentEntity.textColor}
-            size="large"
-        />
+        <EntityIcon entity={currentEntity} size="large" />
     ) : toolData?.avatarImage ? (
         <img
             src={toolData.avatarImage}

@@ -787,6 +787,14 @@ const AZURE_VIDEO_TRANSLATE = gql`
     }
 `;
 
+const SYS_GET_ENTITIES = gql`
+    query Sys_get_entities {
+        sys_get_entities {
+            result
+        }
+    }
+`;
+
 const QUERIES = {
     AZURE_VIDEO_TRANSLATE,
     CHAT_PERSIST,
@@ -801,6 +809,7 @@ const QUERIES = {
     SYS_SAVE_MEMORY,
     SYS_ENTITY_AGENT,
     SYS_ENTITY_CONTINUE,
+    SYS_GET_ENTITIES,
     EXPAND_STORY,
     FORMAT_PARAGRAPH_TURBO,
     SELECT_SERVICES,
@@ -896,6 +905,7 @@ export {
     SYS_SAVE_MEMORY,
     SYS_ENTITY_AGENT,
     SYS_ENTITY_CONTINUE,
+    SYS_GET_ENTITIES,
     SELECT_SERVICES,
     SUMMARY,
     HASHTAGS,

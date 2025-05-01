@@ -1,12 +1,14 @@
 import React from "react";
 
 // Accept an optional size prop (defaults to 'small' if not provided)
-const EntityIcon = ({
-    letter,
-    bgColorClass,
-    textColorClass,
-    size = "small",
-}) => {
+const EntityIcon = ({ entity, size = "small" }) => {
+    // Get the first letter of the entity name
+    const letter = entity?.name ? entity.name[0].toUpperCase() : "?";
+
+    // Default colors if not provided
+    const bgColorClass = entity?.bgColorClass || "bg-blue-500";
+    const textColorClass = entity?.textColorClass || "text-white";
+
     // Determine classes based on size
     // Small: Fixed size w-5 h-5
     // Large: Fixed size w-12 h-12 (like original logo container) WITHOUT p-2 padding

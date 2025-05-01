@@ -13,7 +13,6 @@ import { useTranslation } from "react-i18next";
 import i18next from "i18next";
 import Loader from "../../../app/components/loader";
 import { EphemeralContent } from "./BotMessage";
-import { predefinedEntities } from "../../config/entities";
 import EntityIcon from "./EntityIcon";
 import { AuthContext } from "../../App";
 import { useContext } from "react";
@@ -58,6 +57,7 @@ const StreamingMessage = React.memo(function StreamingMessage({
     thinkingDuration,
     isThinking,
     selectedEntityId,
+    entities,
 }) {
     const relativeContainerRef = useRef(null);
     const [loaderPosition, setLoaderPosition] = useState({ x: 0, y: 0 });
@@ -194,24 +194,20 @@ const StreamingMessage = React.memo(function StreamingMessage({
     let basis =
         "min-w-[3rem] basis-12 [.docked_&]:basis-10 [.docked_&]:min-w-[2.5rem]";
     let buttonWidthClass = "w-12 [.docked_&]:w-10";
+
+    const currentEntity = selectedEntityId
+        ? entities.find((e) => e.id === selectedEntityId)
+        : null;
+
     const botName =
-        selectedEntityId ||
+        currentEntity?.name ||
         (bot === "code"
             ? config?.code?.botName
             : defaultAiName || config?.chat?.botName);
 
     const avatar = useMemo(() => {
-        const currentEntity = selectedEntityId
-            ? predefinedEntities.find((e) => e.id === selectedEntityId)
-            : null;
-
         return currentEntity ? (
-            <EntityIcon
-                letter={currentEntity.letter}
-                bgColorClass={currentEntity.bgColor}
-                textColorClass={currentEntity.textColor}
-                size="large"
-            />
+            <EntityIcon entity={currentEntity} size="large" />
         ) : bot === "code" ? (
             <AiOutlineRobot
                 className={classNames(
@@ -240,7 +236,8 @@ const StreamingMessage = React.memo(function StreamingMessage({
         basis,
         buttonWidthClass,
         rowHeight,
-        selectedEntityId,
+
+        currentEntity,
     ]);
 
     return (

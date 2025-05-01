@@ -9,9 +9,6 @@ import {
 } from "../../../app/queries/chats";
 import { useContext, useState, useEffect } from "react";
 import { AuthContext } from "../../App";
-import { FaPlus, FaTimes, FaCommentDots } from "react-icons/fa";
-import { predefinedEntities } from "../../config/entities";
-import EntityIcon from "./EntityIcon";
 import {
     Select,
     SelectContent,
@@ -19,7 +16,8 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
-import config from "../../../config";
+import { useQuery } from "@apollo/client";
+import { SYS_GET_ENTITIES } from "../../graphql";
 
 const ChatTopMenuDynamic = dynamic(() => import("./ChatTopMenu"), {
     loading: () => <div style={{ width: "80px", height: "20px" }}></div>,
@@ -37,13 +35,39 @@ function Chat({ viewingChat = null }) {
         chat?.selectedEntityId || "",
     );
 
+    const defaultAiName = user?.aiName || "Labeeb";
+
+    // Fetch entities from the API
+    const { data: entitiesData } = useQuery(SYS_GET_ENTITIES);
+    const entities = entitiesData?.sys_get_entities?.result
+        ? JSON.parse(entitiesData.sys_get_entities.result)
+        : [];
+
+    // Find and update the default entity's name
+    const aliasedEntities = entities.map((entity) => {
+        if (entity.isDefault) {
+            return { ...entity, name: defaultAiName };
+        }
+        return entity;
+    });
+
+    // Find default entity ID
+    const defaultEntity = aliasedEntities.find(e => e.isDefault);
+    const defaultEntityId = defaultEntity?.id || "";
+
     // Sync local state with fetched chat data
     useEffect(() => {
         const entityIdFromChat = chat?.selectedEntityId || "";
-        if (entityIdFromChat !== selectedEntityId) {
-            setSelectedEntityId(entityIdFromChat);
+        // If no entityId or entity doesn't exist, use default entity
+        const newEntityId = entityIdFromChat && aliasedEntities.some(e => e.id === entityIdFromChat)
+            ? entityIdFromChat
+            : defaultEntityId;
+            
+        if (newEntityId !== selectedEntityId) {
+            setSelectedEntityId(newEntityId);
         }
-    }, [chat?.selectedEntityId]); // Dependency: run only when fetched entityId changes
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [chat?.selectedEntityId, aliasedEntities, defaultEntityId]); // Dependency: run only when fetched entityId changes
 
     const handleShareOrCopy = async () => {
         const shareUrl = `${window.location.origin}/chat/${chat._id}`;
@@ -61,8 +85,6 @@ function Chat({ viewingChat = null }) {
             }
         }
     };
-
-    const defaultAiName = user?.aiName || "Labeeb";
 
     const handleEntityChange = (value) => {
         const newEntityId = value === defaultAiName ? "" : value;
@@ -100,13 +122,7 @@ function Chat({ viewingChat = null }) {
                             <SelectValue placeholder={t("Select Speaker")} />
                         </SelectTrigger>
                         <SelectContent>
-                            <SelectItem
-                                className="text-sm"
-                                value={defaultAiName}
-                            >
-                                {t(defaultAiName)}
-                            </SelectItem>
-                            {predefinedEntities.map((entity) => (
+                            {aliasedEntities.map((entity) => (
                                 <SelectItem
                                     className="text-sm"
                                     key={entity.id}
@@ -149,6 +165,7 @@ function Chat({ viewingChat = null }) {
                     viewingChat={viewingChat}
                     streamingEnabled={user.streamingEnabled}
                     selectedEntityId={selectedEntityId}
+                    entities={aliasedEntities}
                 />
             </div>
         </div>

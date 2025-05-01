@@ -24,6 +24,7 @@ function ChatContent({
     container = "chatpage",
     viewingChat = null,
     selectedEntityId: selectedEntityIdFromProp,
+    entities,
 }) {
     const { t } = useTranslation();
     const client = useApolloClient();
@@ -160,7 +161,7 @@ function ChatContent({
                     chatHistory: conversation,
                     contextId,
                     // Use entity ID as aiName if available, else fallback to default
-                    aiName: currentSelectedEntityId || user.aiName,
+                    aiName: currentSelectedEntityId || aiName,
                     aiMemorySelfModify,
                     aiStyle,
                     title: chat?.title,
@@ -412,13 +413,10 @@ function ChatContent({
             clearStreamingState,
             memoizedMessages,
             runTask,
-            t,
-            updateChatHook,
-            user,
             setIsStreaming,
             setSubscriptionId,
-            handleError,
             selectedEntityIdFromProp,
+            user,
         ],
     );
 
@@ -510,6 +508,7 @@ function ChatContent({
             thinkingDuration={thinkingDuration}
             isThinking={isThinking}
             selectedEntityId={selectedEntityIdFromProp}
+            entities={entities}
         />
     );
 }

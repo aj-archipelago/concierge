@@ -20,7 +20,6 @@ import {
 } from "../../utils/mediaUtils";
 import CopyButton from "../CopyButton";
 import ChatImage from "../images/ChatImage";
-import { predefinedEntities } from "../../config/entities";
 import { AuthContext } from "../../App";
 import BotMessage from "./BotMessage";
 import ScrollToBottom from "./ScrollToBottom";
@@ -245,6 +244,7 @@ const MessageList = React.memo(
             thinkingDuration,
             isThinking,
             selectedEntityId,
+            entities,
         },
         ref,
     ) {
@@ -388,6 +388,7 @@ const MessageList = React.memo(
                             botName={botName}
                             messageRef={messageRef}
                             selectedEntityId={selectedEntityId}
+                            entities={entities}
                         />
                     );
                 } else {
@@ -440,6 +441,7 @@ const MessageList = React.memo(
                 t,
                 botName,
                 selectedEntityId,
+                entities,
             ],
         );
 
@@ -472,6 +474,7 @@ const MessageList = React.memo(
                                 thinkingDuration={thinkingDuration}
                                 isThinking={isThinking}
                                 selectedEntityId={selectedEntityId}
+                                entities={entities}
                             />
                         )}
                         {loading &&
