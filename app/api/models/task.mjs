@@ -59,6 +59,11 @@ const taskSchema = new mongoose.Schema(
             type: Boolean,
             default: false,
         },
+        // BullMQ job ID
+        jobId: {
+            type: String,
+            default: null,
+        },
     },
     {
         timestamps: true,

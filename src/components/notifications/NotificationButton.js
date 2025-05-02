@@ -30,6 +30,7 @@ import {
 import { LanguageContext } from "../../contexts/LanguageProvider";
 import { useNotificationsContext } from "../../contexts/NotificationContext";
 import { getTaskDisplayName } from "../../utils/task-loader.mjs";
+import { useJob } from "../../../app/queries/jobs";
 
 const getLocaleShortName = (locale, usersLanguage) => {
     try {
@@ -76,6 +77,237 @@ export const getStatusColorClass = (status) => {
         default:
             return "text-gray-500";
     }
+};
+
+const JobInfoBox = ({ job }) => {
+    const [expanded, setExpanded] = useState(false);
+
+    if (!job) return null;
+
+    return (
+        <div className="ms-8 bg-gray-50 border border-gray-200 rounded p-2 mt-2 text-xs text-gray-700 overflow-auto max-h-40">
+            <div
+                className="flex items-center justify-between cursor-pointer font-medium text-gray-800"
+                onClick={() => setExpanded((prev) => !prev)}
+                title={expanded ? "Collapse" : "Expand"}
+            >
+                <span>Job Info</span>
+                <button
+                    className="ml-2 text-xs text-sky-500 hover:underline focus:outline-none"
+                    tabIndex={-1}
+                    type="button"
+                >
+                    {expanded ? "Hide" : "Show"}
+                </button>
+            </div>
+            {expanded && (
+                <div>
+                    <div>
+                        <span className="font-medium">ID:</span> {job.id}
+                    </div>
+                    <div>
+                        <span className="font-medium">State:</span> {job.state}
+                    </div>
+                    {job.failedReason && (
+                        <div className="text-red-500">
+                            <span className="font-medium">Failed Reason:</span>{" "}
+                            {job.failedReason}
+                        </div>
+                    )}
+                </div>
+            )}
+        </div>
+    );
+};
+
+const NotificationItem = ({
+    notification,
+    handlerDisplayNames,
+    language,
+    setActiveChatId,
+    router,
+    setIsNotificationOpen,
+    handleCancelRequest,
+    handleDismiss,
+    dismissingIds,
+    t,
+}) => {
+    const { data: job } = useJob(notification.jobId);
+
+    return (
+        <div
+            key={notification._id}
+            data-request-id={notification._id}
+            className={`
+            space-y-2 bg-gray-100 p-2 rounded-md mb-2 
+            transform transition-all duration-300 ease-in-out
+            ${dismissingIds.has(notification._id) ? "opacity-0 -translate-y-2" : "opacity-100 translate-y-0"}
+        `}
+        >
+            <div className="flex text-sm gap-3">
+                <div className="ps-1 pt-1 basis-5">
+                    <StatusIndicator status={notification.status} />
+                </div>
+                <div className="flex flex-col overflow-hidden grow">
+                    <span
+                        className={`font-semibold text-gray-800 ${notification.invokedFrom?.source ? "cursor-pointer hover:text-sky-600" : ""}`}
+                        onClick={() => {
+                            if (notification.invokedFrom?.source === "chat") {
+                                setActiveChatId
+                                    .mutateAsync(
+                                        notification.invokedFrom.chatId,
+                                    )
+                                    .then(() => {
+                                        router.push(
+                                            `/chat/${notification.invokedFrom.chatId}`,
+                                        );
+                                        setIsNotificationOpen(false);
+                                    })
+                                    .catch((error) => {
+                                        console.error(
+                                            "Error setting active chat ID:",
+                                            error,
+                                        );
+                                    });
+                            } else if (
+                                notification.invokedFrom?.source ===
+                                "video_page"
+                            ) {
+                                router.push("/video");
+                            }
+                        }}
+                    >
+                        {t(
+                            handlerDisplayNames[notification.type] ||
+                                notification.type,
+                        )}
+                    </span>
+                    {notification.metadata && (
+                        <div
+                            className="text-xs text-gray-600 truncate"
+                            title={notification.statusText}
+                        >
+                            {notification.type === "video-translate" && (
+                                <>
+                                    {t("{{from}} to {{to}}", {
+                                        from: getLocaleShortName(
+                                            notification.metadata.sourceLocale,
+                                            language,
+                                        ),
+                                        to: getLocaleShortName(
+                                            notification.metadata.targetLocale,
+                                            language,
+                                        ),
+                                    })}
+                                </>
+                            )}
+                            {notification.type === "transcribe" && (
+                                <>
+                                    {notification.metadata.url && (
+                                        <span
+                                            className="truncate block"
+                                            title={notification.metadata.url}
+                                        >
+                                            {new URL(
+                                                notification.metadata.url,
+                                            ).pathname
+                                                .split("/")
+                                                .pop() ||
+                                                notification.metadata.url}
+                                        </span>
+                                    )}
+                                    {notification.metadata.language && (
+                                        <span>
+                                            {t("Language")}:{" "}
+                                            {getLocaleShortName(
+                                                notification.metadata.language,
+                                                language,
+                                            )}
+                                        </span>
+                                    )}
+                                    {notification.metadata.responseFormat && (
+                                        <span>
+                                            {t("Format")}:{" "}
+                                            {notification.metadata
+                                                .responseFormat === "vtt"
+                                                ? t("Subtitles")
+                                                : t("Transcript")}
+                                        </span>
+                                    )}
+                                </>
+                            )}
+                        </div>
+                    )}
+                    <span
+                        className={`flex items-center gap-1 text-xs font-semibold ${getStatusColorClass(notification.status)}`}
+                    >
+                        {t(stringcase.sentencecase(notification.status))}
+                    </span>
+
+                    {notification.statusText && (
+                        <div
+                            className="text-xs text-gray-600 truncate"
+                            title={notification.statusText}
+                        >
+                            {notification.statusText}
+                        </div>
+                    )}
+                    {(notification.status === "in_progress" ||
+                        notification.status === "pending") && (
+                        <div className="my-1 h-2 w-full bg-gray-200 rounded-full">
+                            <div
+                                className={`h-full rounded-full transition-all  ${
+                                    notification.status === "pending"
+                                        ? "bg-yellow-500 animate-pulse"
+                                        : "bg-sky-600 duration-300"
+                                }`}
+                                style={{
+                                    width:
+                                        notification.status === "pending"
+                                            ? "100%"
+                                            : `${notification.progress * 100}%`,
+                                }}
+                            />
+                        </div>
+                    )}
+                    {notification.createdAt && (
+                        <span className="text-xs text-gray-500">
+                            {t("Created ")}{" "}
+                            <TimeAgo date={notification.createdAt} />
+                        </span>
+                    )}
+                </div>
+                <div className="flex gap-2">
+                    {(notification.status === "in_progress" ||
+                        notification.status === "pending") && (
+                        <button
+                            onClick={() =>
+                                handleCancelRequest(notification._id)
+                            }
+                            className="p-1 hover:bg-gray-100 rounded flex items-start"
+                            title={t("Cancel")}
+                        >
+                            <XIcon className="h-4 w-4 text-gray-500" />
+                        </button>
+                    )}
+                    {(notification.status === "completed" ||
+                        notification.status === "failed" ||
+                        notification.status === "cancelled" ||
+                        notification.status === "abandoned") && (
+                        <button
+                            onClick={() => handleDismiss(notification._id)}
+                            className="p-1 hover:bg-gray-100 rounded flex items-start"
+                            title={t("Hide")}
+                        >
+                            <EyeOff className="h-4 w-4 text-gray-500" />
+                        </button>
+                    )}
+                </div>
+            </div>
+
+            <JobInfoBox job={job} />
+        </div>
+    );
 };
 
 export default function NotificationButton() {
@@ -174,268 +406,25 @@ export default function NotificationButton() {
                             ) : (
                                 <div className="relative">
                                     {notifications.map((notification) => (
-                                        <div
+                                        <NotificationItem
                                             key={notification._id}
-                                            data-request-id={notification._id}
-                                            className={`
-                                                space-y-2 bg-gray-100 p-2 rounded-md mb-2 
-                                                transform transition-all duration-300 ease-in-out
-                                                ${dismissingIds.has(notification._id) ? "opacity-0 -translate-y-2" : "opacity-100 translate-y-0"}
-                                            `}
-                                        >
-                                            <div className="flex text-sm gap-3">
-                                                <div className="ps-1 pt-1 basis-5">
-                                                    <StatusIndicator
-                                                        status={
-                                                            notification.status
-                                                        }
-                                                    />
-                                                </div>
-                                                <div className="flex flex-col overflow-hidden grow">
-                                                    <span
-                                                        className={`font-semibold text-gray-800 ${notification.invokedFrom?.source ? "cursor-pointer hover:text-sky-600" : ""}`}
-                                                        onClick={() => {
-                                                            if (
-                                                                notification
-                                                                    .invokedFrom
-                                                                    ?.source ===
-                                                                "chat"
-                                                            ) {
-                                                                setActiveChatId
-                                                                    .mutateAsync(
-                                                                        notification
-                                                                            .invokedFrom
-                                                                            .chatId,
-                                                                    )
-                                                                    .then(
-                                                                        () => {
-                                                                            router.push(
-                                                                                `/chat/${notification.invokedFrom.chatId}`,
-                                                                            );
-                                                                            setIsNotificationOpen(
-                                                                                false,
-                                                                            );
-                                                                        },
-                                                                    )
-                                                                    .catch(
-                                                                        (
-                                                                            error,
-                                                                        ) => {
-                                                                            console.error(
-                                                                                "Error setting active chat ID:",
-                                                                                error,
-                                                                            );
-                                                                        },
-                                                                    );
-                                                            } else if (
-                                                                notification
-                                                                    .invokedFrom
-                                                                    ?.source ===
-                                                                "video_page"
-                                                            ) {
-                                                                router.push(
-                                                                    "/video",
-                                                                );
-                                                            }
-                                                        }}
-                                                    >
-                                                        {t(
-                                                            handlerDisplayNames[
-                                                                notification
-                                                                    .type
-                                                            ] ||
-                                                                notification.type,
-                                                        )}
-                                                    </span>
-                                                    {notification.metadata && (
-                                                        <div
-                                                            className="text-xs text-gray-600 truncate"
-                                                            title={
-                                                                notification.statusText
-                                                            }
-                                                        >
-                                                            {notification.type ===
-                                                                "video-translate" && (
-                                                                <>
-                                                                    {t(
-                                                                        "{{from}} to {{to}}",
-                                                                        {
-                                                                            from: getLocaleShortName(
-                                                                                notification
-                                                                                    .metadata
-                                                                                    .sourceLocale,
-                                                                                language,
-                                                                            ),
-                                                                            to: getLocaleShortName(
-                                                                                notification
-                                                                                    .metadata
-                                                                                    .targetLocale,
-                                                                                language,
-                                                                            ),
-                                                                        },
-                                                                    )}
-                                                                </>
-                                                            )}
-                                                            {notification.type ===
-                                                                "transcribe" && (
-                                                                <>
-                                                                    {notification
-                                                                        .metadata
-                                                                        .url && (
-                                                                        <span
-                                                                            className="truncate block"
-                                                                            title={
-                                                                                notification
-                                                                                    .metadata
-                                                                                    .url
-                                                                            }
-                                                                        >
-                                                                            {new URL(
-                                                                                notification.metadata.url,
-                                                                            ).pathname
-                                                                                .split(
-                                                                                    "/",
-                                                                                )
-                                                                                .pop() ||
-                                                                                notification
-                                                                                    .metadata
-                                                                                    .url}
-                                                                        </span>
-                                                                    )}
-                                                                    {notification
-                                                                        .metadata
-                                                                        .language && (
-                                                                        <span>
-                                                                            {t(
-                                                                                "Language",
-                                                                            )}
-                                                                            :{" "}
-                                                                            {getLocaleShortName(
-                                                                                notification
-                                                                                    .metadata
-                                                                                    .language,
-                                                                                language,
-                                                                            )}
-                                                                        </span>
-                                                                    )}
-                                                                    {notification
-                                                                        .metadata
-                                                                        .responseFormat && (
-                                                                        <span>
-                                                                            {t(
-                                                                                "Format",
-                                                                            )}
-                                                                            :{" "}
-                                                                            {notification
-                                                                                .metadata
-                                                                                .responseFormat ===
-                                                                            "vtt"
-                                                                                ? t(
-                                                                                      "Subtitles",
-                                                                                  )
-                                                                                : t(
-                                                                                      "Transcript",
-                                                                                  )}
-                                                                        </span>
-                                                                    )}
-                                                                </>
-                                                            )}
-                                                        </div>
-                                                    )}
-                                                    <span
-                                                        className={`text-xs font-semibold ${getStatusColorClass(notification.status)}`}
-                                                    >
-                                                        {t(
-                                                            stringcase.sentencecase(
-                                                                notification.status,
-                                                            ),
-                                                        )}
-                                                    </span>
-                                                    {notification.statusText && (
-                                                        <div
-                                                            className="text-xs text-gray-600 truncate"
-                                                            title={
-                                                                notification.statusText
-                                                            }
-                                                        >
-                                                            {
-                                                                notification.statusText
-                                                            }
-                                                        </div>
-                                                    )}
-                                                    {(notification.status ===
-                                                        "in_progress" ||
-                                                        notification.status ===
-                                                            "pending") && (
-                                                        <div className="my-1 h-2 w-full bg-gray-200 rounded-full">
-                                                            <div
-                                                                className={`h-full rounded-full transition-all  ${
-                                                                    notification.status ===
-                                                                    "pending"
-                                                                        ? "bg-yellow-500 animate-pulse"
-                                                                        : "bg-sky-600 duration-300"
-                                                                }`}
-                                                                style={{
-                                                                    width:
-                                                                        notification.status ===
-                                                                        "pending"
-                                                                            ? "100%"
-                                                                            : `${notification.progress * 100}%`,
-                                                                }}
-                                                            />
-                                                        </div>
-                                                    )}
-                                                    {notification.createdAt && (
-                                                        <span className="text-xs text-gray-500">
-                                                            {t("Created ")}{" "}
-                                                            <TimeAgo
-                                                                date={
-                                                                    notification.createdAt
-                                                                }
-                                                            />
-                                                        </span>
-                                                    )}
-                                                </div>
-                                                <div className="flex gap-2">
-                                                    {(notification.status ===
-                                                        "in_progress" ||
-                                                        notification.status ===
-                                                            "pending") && (
-                                                        <button
-                                                            onClick={() =>
-                                                                handleCancelRequest(
-                                                                    notification._id,
-                                                                )
-                                                            }
-                                                            className="p-1 hover:bg-gray-100 rounded flex items-start"
-                                                            title={t("Cancel")}
-                                                        >
-                                                            <XIcon className="h-4 w-4 text-gray-500" />
-                                                        </button>
-                                                    )}
-                                                    {(notification.status ===
-                                                        "completed" ||
-                                                        notification.status ===
-                                                            "failed" ||
-                                                        notification.status ===
-                                                            "cancelled" ||
-                                                        notification.status ===
-                                                            "abandoned") && (
-                                                        <button
-                                                            onClick={() =>
-                                                                handleDismiss(
-                                                                    notification._id,
-                                                                )
-                                                            }
-                                                            className="p-1 hover:bg-gray-100 rounded flex items-start"
-                                                            title={t("Hide")}
-                                                        >
-                                                            <EyeOff className="h-4 w-4 text-gray-500" />
-                                                        </button>
-                                                    )}
-                                                </div>
-                                            </div>
-                                        </div>
+                                            notification={notification}
+                                            handlerDisplayNames={
+                                                handlerDisplayNames
+                                            }
+                                            language={language}
+                                            setActiveChatId={setActiveChatId}
+                                            router={router}
+                                            setIsNotificationOpen={
+                                                setIsNotificationOpen
+                                            }
+                                            handleCancelRequest={
+                                                handleCancelRequest
+                                            }
+                                            handleDismiss={handleDismiss}
+                                            dismissingIds={dismissingIds}
+                                            t={t}
+                                        />
                                     ))}
                                 </div>
                             )}
