@@ -48,14 +48,12 @@ export function useStreamingMessages({
     const accumulatedInfoRef = useRef({});
     const updateTimeoutRef = useRef(null);
     const pendingTitleUpdateRef = useRef(null);
-    const updatedTitleRef = useRef(null);
     const transitionTimeoutRef = useRef(null);
     const [subscriptionId, setSubscriptionId] = useState(null);
     const [isStreaming, setIsStreaming] = useState(false);
     const [streamingContent, setStreamingContent] = useState("");
     const [ephemeralContent, setEphemeralContent] = useState(""); // Add state for ephemeral content
     const [streamingTool, setStreamingTool] = useState(null);
-    const [isTitleUpdateInProgress, setTitleUpdateInProgress] = useState(false);
     const [thinkingDuration, setThinkingDuration] = useState(0); // Add thinking duration state
     const [isThinking, setIsThinking] = useState(false);
     const completingMessageRef = useRef(false);
@@ -118,7 +116,6 @@ export function useStreamingMessages({
         setSubscriptionId(null);
         setIsStreaming(false);
         setStreamingTool(null);
-        setTitleUpdateInProgress(false);
         setThinkingDuration(0); // Reset thinking duration
         setIsThinking(false);
         messageQueueRef.current = [];
@@ -308,28 +305,6 @@ export function useStreamingMessages({
                     // Check if the content is ephemeral
                     isEphemeral = !!parsedInfo.ephemeral;
 
-                    if (
-                        parsedInfo.title &&
-                        chat &&
-                        !chat.titleSetByUser &&
-                        chat.title !== parsedInfo.title &&
-                        updatedTitleRef.current !== parsedInfo.title
-                    ) {
-                        // Mark the title as updated to prevent duplicate mutations
-                        updatedTitleRef.current = parsedInfo.title;
-                        if (!isTitleUpdateInProgress) {
-                            setTitleUpdateInProgress(true);
-                            updateChatHook
-                                .mutateAsync({
-                                    chatId: String(chat._id),
-                                    title: parsedInfo.title,
-                                })
-                                .finally(() => {
-                                    setTitleUpdateInProgress(false);
-                                });
-                        }
-                    }
-
                     // Store accumulated info
                     accumulatedInfoRef.current = {
                         ...accumulatedInfoRef.current,
@@ -418,7 +393,6 @@ export function useStreamingMessages({
     }, [
         chat,
         completeMessage,
-        isTitleUpdateInProgress,
         updateChatHook,
         processChunkQueue,
         clearStreamingState,
