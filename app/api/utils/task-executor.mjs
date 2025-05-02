@@ -296,6 +296,11 @@ class CortexRequestTracker {
         console.log(
             `[DEBUG] Updating request status - Status: ${status}, Progress: ${progress}`,
         );
+
+        if (typeof data === "string") {
+            data = { data: data };
+        }
+
         const update = {
             status,
             ...(statusText && { statusText }),
