@@ -53,6 +53,9 @@ async function createBackgroundTask({
         },
     });
 
+    // Update the Task document with the job id
+    await Task.findByIdAndUpdate(requestProgress._id, { jobId: job.id });
+
     return {
         job,
         taskId: requestProgress._id,

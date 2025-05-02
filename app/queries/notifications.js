@@ -61,25 +61,26 @@ export function useTasks(showDismissed = false) {
                 `/api/tasks?showDismissed=${showDismissed}`,
             );
 
-            // Check if any task has newly completed
+            // Check if any task has newly completed or has had its status updated
             if (previousData?.requests) {
                 data.requests.forEach((task) => {
                     const prevTask = previousData.requests.find(
                         (prev) => prev._id === task._id,
                     );
 
-                    if (
-                        prevTask &&
-                        task.status === "completed" &&
-                        prevTask.status !== "completed"
-                    ) {
-                        // Handle newly completed task
-                        if (clientSideCompletionHandlers[task.type]) {
-                            clientSideCompletionHandlers[task.type]({
-                                task,
-                                queryClient,
-                                refetchUserState,
-                            });
+                    if (prevTask && prevTask.status !== task.status) {
+                        if (
+                            task.status === "completed" &&
+                            prevTask.status !== "completed"
+                        ) {
+                            // Handle newly completed task
+                            if (clientSideCompletionHandlers[task.type]) {
+                                clientSideCompletionHandlers[task.type]({
+                                    task,
+                                    queryClient,
+                                    refetchUserState,
+                                });
+                            }
                         }
 
                         queryClient.invalidateQueries({
