@@ -28,7 +28,7 @@ import("../app/api/utils/redis.mjs").then((module) => {
     );
 
     worker.on("completed", (job, result) => {
-        console.log(`Job ${job.id} completed with result:`, result);
+        console.log(`Job ${job.id} completed`);
     });
 
     worker.on("failed", (job, error) => {

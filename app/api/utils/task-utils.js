@@ -1,5 +1,6 @@
 import { Queue } from "bullmq";
 import { getRedisConnection } from "./redis.mjs";
+import Task from "../models/task.mjs";
 
 const requestProgressQueue = new Queue("task", {
     connection: getRedisConnection(),
@@ -46,23 +47,28 @@ export async function syncTaskWithBullMQJob(task) {
     if (!task?.jobId) return task;
 
     const job = await requestProgressQueue.getJob(task.jobId);
-
     const status = await job.getState();
+
+    let update = {};
 
     if (
         jobStatusToTaskStatus[status] &&
         task.status !== jobStatusToTaskStatus[status] &&
         task.status !== "cancelled"
     ) {
-        task.status = jobStatusToTaskStatus[status];
-        task.statusText = job.failedReason;
-        await task.save();
+        update.status = jobStatusToTaskStatus[status];
+        update.statusText = job.failedReason;
     }
 
     if (job && job.failedReason && task.status !== "failed") {
-        task.status = "failed";
-        task.statusText = job.failedReason;
-        await task.save();
+        update.status = "failed";
+        update.statusText = job.failedReason;
+    }
+
+    if (Object.keys(update).length > 0) {
+        await Task.findByIdAndUpdate(task._id, update, { new: true });
+        // Optionally, you can return the updated task:
+        // return await Task.findById(task._id);
     }
 
     return task;

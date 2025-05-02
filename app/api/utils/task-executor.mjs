@@ -354,9 +354,6 @@ class CortexRequestTracker {
 
                         if (shouldResolve) {
                             this.cleanup();
-                            console.log(
-                                `[DEBUG] Resolving promise with data: ${dataObject}`,
-                            );
                             this.resolve(dataObject);
                         }
                     } catch (error) {
