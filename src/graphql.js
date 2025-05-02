@@ -167,12 +167,8 @@ const CHAT_TITLE = gql`
 const SYS_ENTITY_AGENT = gql`
     query RagStart(
         $chatHistory: [MultiMessage]!
-        $dataSources: [String]
         $contextId: String
         $text: String
-        $roleInformation: String
-        $indexName: String
-        $semanticConfiguration: String
         $aiName: String
         $aiMemorySelfModify: Boolean
         $aiStyle: String
@@ -180,15 +176,12 @@ const SYS_ENTITY_AGENT = gql`
         $codeRequestId: String
         $stream: Boolean
         $entityId: String
+        $chatId: String
     ) {
         sys_entity_agent(
             chatHistory: $chatHistory
-            dataSources: $dataSources
             contextId: $contextId
             text: $text
-            roleInformation: $roleInformation
-            indexName: $indexName
-            semanticConfiguration: $semanticConfiguration
             aiName: $aiName
             aiMemorySelfModify: $aiMemorySelfModify
             aiStyle: $aiStyle
@@ -196,6 +189,7 @@ const SYS_ENTITY_AGENT = gql`
             codeRequestId: $codeRequestId
             stream: $stream
             entityId: $entityId
+            chatId: $chatId
         ) {
             result
             contextId

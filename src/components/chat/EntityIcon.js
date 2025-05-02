@@ -1,7 +1,7 @@
 import React from "react";
 
 // Accept an optional size prop (defaults to 'small' if not provided)
-const EntityIcon = ({ entity, size = "small" }) => {
+const EntityIcon = ({ entity, size = "sm" }) => {
     // Get the first letter of the entity name
     const letter = entity?.name ? entity.name[0].toUpperCase() : "?";
 
@@ -9,16 +9,13 @@ const EntityIcon = ({ entity, size = "small" }) => {
     const bgColorClass = entity?.bgColorClass || "bg-blue-500";
     const textColorClass = entity?.textColorClass || "text-white";
 
-    // Determine classes based on size
-    // xs: Extra small for dropdown items
-    // small: Fixed size w-5 h-5
-    // large: Fixed size w-12 h-12 (like original logo container) WITHOUT p-2 padding
+    // Size classes mapping
     const sizeClasses =
-        size === "large"
-            ? "w-8 h-8 text-xl mt-2 mx-auto"
-            : size === "small"
-              ? "w-5 h-5 text-lg"
-              : "w-4 h-4 text-sm"; // xs size
+        {
+            lg: "w-8 h-8 text-xl mt-2 mx-auto",
+            sm: "w-5 h-5 text-lg",
+            xs: "w-4 h-4 text-sm",
+        }[size] || "w-5 h-5 text-lg"; // Default to sm classes if invalid size
 
     return (
         // Remove w-full h-full, apply sizeClasses directly

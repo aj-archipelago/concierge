@@ -121,31 +121,29 @@ const CODE_HUMAN_INPUT = gql`
 const SYS_ENTITY_AGENT = gql`
     query RagStart(
         $chatHistory: [MultiMessage]!
-        $dataSources: [String]
         $contextId: String
         $text: String
-        $roleInformation: String
-        $indexName: String
-        $semanticConfiguration: String
         $aiName: String
         $aiMemorySelfModify: Boolean
-        $title: String
         $aiStyle: String
+        $title: String
+        $codeRequestId: String
+        $stream: Boolean
         $entityId: String
+        $chatId: String
     ) {
         sys_entity_agent(
             chatHistory: $chatHistory
-            dataSources: $dataSources
             contextId: $contextId
             text: $text
-            roleInformation: $roleInformation
-            indexName: $indexName
-            semanticConfiguration: $semanticConfiguration
             aiName: $aiName
             aiMemorySelfModify: $aiMemorySelfModify
-            title: $title
             aiStyle: $aiStyle
+            title: $title
+            codeRequestId: $codeRequestId
+            stream: $stream
             entityId: $entityId
+            chatId: $chatId
         ) {
             result
             contextId

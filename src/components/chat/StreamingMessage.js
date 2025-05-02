@@ -58,6 +58,7 @@ const StreamingMessage = React.memo(function StreamingMessage({
     isThinking,
     selectedEntityId,
     entities,
+    entityIconSize,
 }) {
     const relativeContainerRef = useRef(null);
     const [loaderPosition, setLoaderPosition] = useState({ x: 0, y: 0 });
@@ -205,9 +206,12 @@ const StreamingMessage = React.memo(function StreamingMessage({
             ? config?.code?.botName
             : defaultAiName || config?.chat?.botName);
 
+    // Determine top padding based on entityIconSize
+    const avatarTopPadding = entityIconSize === "sm" ? "pt-3" : "pt-1";
+
     const avatar = useMemo(() => {
         return currentEntity ? (
-            <EntityIcon entity={currentEntity} size="large" />
+            <EntityIcon entity={currentEntity} size={entityIconSize} />
         ) : bot === "code" ? (
             <Bot
                 className={classNames(
@@ -236,13 +240,21 @@ const StreamingMessage = React.memo(function StreamingMessage({
         basis,
         buttonWidthClass,
         rowHeight,
-
+        entityIconSize,
         currentEntity,
     ]);
 
     return (
         <div className="flex bg-sky-50 ps-1 pt-1 relative group">
-            <div className={classNames(basis)}>{avatar}</div>
+            <div
+                className={classNames(
+                    basis,
+                    avatarTopPadding,
+                    "flex justify-center",
+                )}
+            >
+                {avatar}
+            </div>
             <div
                 className={classNames(
                     "px-1 pb-3 pt-2 [.docked_&]:px-0 [.docked_&]:py-3 w-full",
