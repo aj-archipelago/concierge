@@ -1,6 +1,6 @@
 "use client";
 import { ApolloNextAppProvider } from "@apollo/experimental-nextjs-app-support";
-import React, { useContext, useEffect, useState } from "react";
+import React, { useContext, useEffect, useRef, useState } from "react";
 import { getClient } from "./graphql";
 import "./i18n";
 
@@ -63,10 +63,10 @@ const App = ({
     const updateUserState = useUpdateUserState();
     const [userState, setUserState] = useState(null);
     const debouncedUserState = useDebounce(userState, STATE_DEBOUNCE_TIME);
-    const [refetchCalled, setRefetchCalled] = useState(false);
+    const refetchCalledRef = useRef(false);
 
     const refetchUserState = () => {
-        setRefetchCalled(true);
+        refetchCalledRef.current = true;
         refetchServerUserState();
     };
 
@@ -74,13 +74,13 @@ const App = ({
         // set user state from server if it exists, but only if there's no client
         // state yet
         if (
-            (!userState || refetchCalled) &&
+            (!userState || refetchCalledRef.current) &&
             JSON.stringify(serverUserState) !== JSON.stringify(userState)
         ) {
             setUserState(serverUserState);
-            setRefetchCalled(false);
+            refetchCalledRef.current = false;
         }
-    }, [userState, serverUserState, refetchCalled]);
+    }, [userState, serverUserState]);
 
     useEffect(() => {
         if (i18next.language !== language) {
