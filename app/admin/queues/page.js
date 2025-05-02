@@ -162,10 +162,10 @@ function WorkerStatus({ worker }) {
                 </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-2 mt-4 text-sm">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mt-4 text-sm">
                 <div className="flex items-center gap-2 text-muted-foreground">
                     <Cpu className="h-4 w-4" />
-                    <span>Address: {worker.addr}</span>
+                    <span className="truncate">Address: {worker.addr}</span>
                 </div>
                 <div className="flex items-center gap-2 text-muted-foreground">
                     <Clock className="h-4 w-4" />

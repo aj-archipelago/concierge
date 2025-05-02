@@ -56,7 +56,7 @@ export async function executeTask(jobData) {
         console.error(`[DEBUG] Error in executeTask: ${error.stack}`);
         await progressTracker.updateRequestStatus(
             "failed",
-            `Failed to execute ${type} task: ${error.message}`,
+            `Failed to execute ${type} task: ${error.message} ${error.stack}`,
         );
         throw error;
     }

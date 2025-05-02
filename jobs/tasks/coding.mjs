@@ -57,18 +57,23 @@ class CodingTask extends BaseTask {
         // Find the chat and check if the task message is the last one
         const chat = await Chat.findOne({
             _id: chatId,
-            "messages.taskId": taskId,
         });
 
         if (!chat) {
-            console.error("[CodingTask] Chat not found or message not in chat");
-            throw new Error("Chat not found or message not in chat");
+            console.error("[CodingTask] Chat not found");
+            throw new Error("Chat not found");
         }
 
         // Find the index of the task message
         const taskMessageIndex = chat.messages.findIndex(
             (msg) => msg.taskId?.toString() === taskId.toString(),
         );
+
+        if (taskMessageIndex === -1) {
+            console.error("[CodingTask] Task message not found in chat");
+            throw new Error("Task message not found in chat");
+        }
+
         const isLastMessage = taskMessageIndex === chat.messages.length - 1;
 
         console.log("[CodingTask] Updating message in chat", {
