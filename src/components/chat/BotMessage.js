@@ -361,7 +361,7 @@ const BotMessage = ({
     botName,
     messageRef = () => {},
     selectedEntityId,
-    entities,
+    entities = [],
 }) => {
     const { t } = useTranslation();
 
