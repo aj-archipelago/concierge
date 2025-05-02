@@ -93,48 +93,6 @@ const SELECT_EXTENSION = gql`
     }
 `;
 
-const CHAT_PERSIST = gql`
-    query ChatPersist($chatHistory: [Message]!, $contextId: String) {
-        chat_persist(chatHistory: $chatHistory, contextId: $contextId) {
-            result
-            contextId
-        }
-    }
-`;
-
-const CHAT_LABEEB = gql`
-    query ChatLabeeb($chatHistory: [Message]!, $contextId: String) {
-        chat_labeeb(chatHistory: $chatHistory, contextId: $contextId) {
-            result
-            contextId
-        }
-    }
-`;
-
-const CHAT_EXTENSION = gql`
-    query ChatExtension(
-        $chatHistory: [Message]!
-        $contextId: String
-        $text: String
-        $roleInformation: String
-        $indexName: String
-        $semanticConfiguration: String
-    ) {
-        retrieval(
-            chatHistory: $chatHistory
-            contextId: $contextId
-            text: $text
-            roleInformation: $roleInformation
-            indexName: $indexName
-            semanticConfiguration: $semanticConfiguration
-        ) {
-            result
-            contextId
-            tool
-        }
-    }
-`;
-
 const VISION = gql`
     query ($text: String, $chatHistory: [MultiMessage]) {
         vision(text: $text, chatHistory: $chatHistory) {
@@ -188,44 +146,6 @@ const SYS_ENTITY_AGENT = gql`
             title: $title
             aiStyle: $aiStyle
             entityId: $entityId
-        ) {
-            result
-            contextId
-            tool
-            warnings
-            errors
-        }
-    }
-`;
-
-const SYS_ENTITY_CONTINUE = gql`
-    query SysEntityContinue(
-        $chatHistory: [MultiMessage]!
-        $dataSources: [String]
-        $contextId: String
-        $text: String
-        $roleInformation: String
-        $indexName: String
-        $semanticConfiguration: String
-        $aiName: String
-        $useMemory: Boolean
-        $chatId: String
-        $generatorPathway: String
-        $aiStyle: String
-    ) {
-        sys_entity_continue(
-            chatHistory: $chatHistory
-            dataSources: $dataSources
-            contextId: $contextId
-            text: $text
-            roleInformation: $roleInformation
-            indexName: $indexName
-            semanticConfiguration: $semanticConfiguration
-            aiName: $aiName
-            useMemory: $useMemory
-            chatId: $chatId
-            generatorPathway: $generatorPathway
-            aiStyle: $aiStyle
         ) {
             result
             contextId
@@ -720,15 +640,11 @@ const getWorkspacePromptQuery = (pathwayName) => {
 
 const QUERIES = {
     AZURE_VIDEO_TRANSLATE,
-    CHAT_PERSIST,
-    CHAT_LABEEB,
-    CHAT_EXTENSION,
     COGNITIVE_DELETE,
     COGNITIVE_INSERT,
     IMAGE,
     SYS_SAVE_MEMORY,
     SYS_ENTITY_AGENT,
-    SYS_ENTITY_CONTINUE,
     EXPAND_STORY,
     FORMAT_PARAGRAPH_TURBO,
     SELECT_SERVICES,
@@ -779,14 +695,11 @@ const MUTATIONS = {
 export {
     AZURE_VIDEO_TRANSLATE,
     getClient,
-    CHAT_PERSIST,
-    CHAT_LABEEB,
     COGNITIVE_INSERT,
     COGNITIVE_DELETE,
     EXPAND_STORY,
     SYS_SAVE_MEMORY,
     SYS_ENTITY_AGENT,
-    SYS_ENTITY_CONTINUE,
     SELECT_SERVICES,
     SUMMARY,
     HASHTAGS,

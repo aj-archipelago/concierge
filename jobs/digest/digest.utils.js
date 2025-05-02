@@ -23,7 +23,6 @@ const generateDigestBlockContent = async (
     };
 
     const client = await getClient();
-    let toolCallbackName = null;
     let tool = null;
     let content;
     let progress = { progress: 0.05 };
@@ -43,48 +42,25 @@ const generateDigestBlockContent = async (
         });
 
         tool = result.data.sys_entity_agent.tool;
-        if (tool) {
-            const toolObj = JSON.parse(result.data.sys_entity_agent.tool);
-            toolCallbackName = toolObj?.toolCallbackName;
-        }
 
-        if (toolCallbackName) {
-            const result = await client.query({
-                query: QUERIES.SYS_ENTITY_CONTINUE,
-                variables: {
-                    ...variables,
-                    generatorPathway: toolCallbackName,
-                },
-            });
-
-            const { result: message, tool } = result.data.sys_entity_continue;
+        try {
             content = JSON.stringify({
                 payload: await processImageUrls(
-                    message,
+                    result.data.sys_entity_agent.result,
                     process.env.SERVER_URL,
                 ),
                 tool,
             });
-        } else {
-            try {
-                content = JSON.stringify({
-                    payload: await processImageUrls(
-                        result.data.sys_entity_agent.result,
-                        process.env.SERVER_URL,
-                    ),
-                    tool,
-                });
-            } catch (e) {
-                logger.log(
-                    `Error while parsing sys_entity_agent result: ${e.message}`,
-                    user?._id,
-                    block?._id,
-                );
-                content = JSON.stringify({
-                    payload: JSON.stringify(result.data),
-                    tool: null,
-                });
-            }
+        } catch (e) {
+            logger.log(
+                `Error while parsing sys_entity_agent result: ${e.message}`,
+                user?._id,
+                block?._id,
+            );
+            content = JSON.stringify({
+                payload: JSON.stringify(result.data),
+                tool: null,
+            });
         }
     } catch (e) {
         logger.log(

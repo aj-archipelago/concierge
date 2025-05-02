@@ -12,7 +12,6 @@ import { AuthContext } from "../../App.js";
 import ChatMessages from "./ChatMessages";
 import { QUERIES } from "../../graphql";
 import { useGetActiveChat, useUpdateChat } from "../../../app/queries/chats";
-import { processImageUrls } from "../../utils/imageUtils.mjs";
 import { useStreamingMessages } from "../../hooks/useStreamingMessages";
 import { useQueryClient } from "@tanstack/react-query";
 import { useRunTask } from "../../../app/queries/notifications";
@@ -170,7 +169,40 @@ function ChatContent({
                     entityId: currentSelectedEntityId,
                 };
 
-                // Perform RAG start query
+                // Make parallel title update call
+                if (chat && !chat.titleSetByUser) {
+                    client
+                        .query({
+                            query: QUERIES.CHAT_TITLE,
+                            variables: {
+                                title: chat.title || "",
+                                chatHistory: conversation,
+                                stream: false,
+                            },
+                            fetchPolicy: "network-only",
+                        })
+                        .then(({ data }) => {
+                            const newTitle = data?.chat_title?.result;
+                            if (newTitle && chat.title !== newTitle) {
+                                updateChatHook
+                                    .mutateAsync({
+                                        chatId: String(chat._id),
+                                        title: newTitle,
+                                    })
+                                    .catch((error) => {
+                                        console.error(
+                                            "Error updating chat title:",
+                                            error,
+                                        );
+                                    });
+                            }
+                        })
+                        .catch((error) => {
+                            console.error("Error updating chat title:", error);
+                        });
+                }
+
+                // Call agent
                 const result = await client.query({
                     query: QUERIES.SYS_ENTITY_AGENT,
                     variables,
@@ -181,191 +213,11 @@ function ChatContent({
                 if (subscriptionId) {
                     // Set streaming state BEFORE setting subscription ID
                     setIsStreaming(true);
-
                     // Finally set the subscription ID which will trigger the subscription
                     setSubscriptionId(subscriptionId);
-
-                    return; // Make sure we return here to prevent non-streaming handling
                 }
 
-                // Non-streaming response handling
-                let resultMessage = "";
-                let tool = null;
-                let newTitle = null;
-                let toolCallbackName = null;
-                let toolCallbackId = null;
-                let codeRequestId = null;
-                try {
-                    let resultObj;
-                    try {
-                        resultObj = JSON.parse(
-                            result.data.sys_entity_agent.result,
-                        );
-                    } catch {
-                        resultObj = result.data.sys_entity_agent.result;
-                    }
-                    resultMessage = resultObj;
-                    tool = result.data.sys_entity_agent.tool;
-                    if (tool) {
-                        const toolObj = JSON.parse(tool);
-                        toolCallbackName = toolObj?.toolCallbackName;
-                        toolCallbackId = toolObj?.toolCallbackId;
-                        codeRequestId = toolObj?.codeRequestId;
-                        if (
-                            !chat?.titleSetByUser &&
-                            toolObj?.title &&
-                            chat?.title !== toolObj.title
-                        ) {
-                            newTitle = toolObj.title;
-                        }
-                    }
-                } catch (e) {
-                    console.error("Error parsing result:", e);
-                    throw new Error("Failed to parse AI response");
-                }
-
-                // Only proceed if we have a valid response
-                if (!resultMessage?.trim()) {
-                    throw new Error("Received empty response from AI");
-                }
-
-                // Process any image URLs in the response
-                resultMessage = await processImageUrls(
-                    resultMessage,
-                    window.location.origin,
-                );
-
-                // Get current messages and check if we need to replace a hidden message
-                let currentMessages = [
-                    ...(chat?.messages || []),
-                    optimisticUserMessage,
-                ];
-                if (currentMessages.length >= 2) {
-                    const lastMessage =
-                        currentMessages[currentMessages.length - 1];
-                    const prevMessage =
-                        currentMessages[currentMessages.length - 2];
-                    if (prevMessage?.sender === "labeeb" && prevMessage?.tool) {
-                        try {
-                            const tool = JSON.parse(prevMessage.tool);
-                            if (tool.hideFromModel) {
-                                // Remove the previous hidden message
-                                currentMessages = [
-                                    ...currentMessages.slice(0, -2),
-                                    lastMessage,
-                                ];
-                            }
-                        } catch (e) {
-                            console.error("Invalid JSON in tool:", e);
-                        }
-                    }
-                }
-
-                // Add the new response
-                currentMessages.push({
-                    payload: resultMessage,
-                    tool: tool,
-                    sentTime: "just now",
-                    direction: "incoming",
-                    position: "single",
-                    sender: "labeeb",
-                    entityId: currentSelectedEntityId,
-                });
-
-                // Use messages directly without processing
-                const currentMessagesToUpdate = currentMessages;
-
-                // Create a task if codeRequestId is present in the tool
-                if (
-                    codeRequestId &&
-                    !processedCodeRequestIds.current.has(codeRequestId)
-                ) {
-                    // Mark this codeRequestId as processed
-                    processedCodeRequestIds.current.add(codeRequestId);
-
-                    // Create the task first
-                    await runTask.mutateAsync({
-                        type: "coding",
-                        codeRequestId: codeRequestId,
-                        chatId: String(chat?._id),
-                        source: "chat",
-                    });
-                }
-
-                // Update the chat (never setting codeRequestId field)
-                await updateChatHook.mutateAsync({
-                    chatId: String(chat?._id),
-                    messages: currentMessagesToUpdate?.map((m) => ({
-                        ...m,
-                        payload: getMessagePayload(m),
-                    })),
-                    ...(newTitle && { title: newTitle }),
-                    isChatLoading: !!toolCallbackName && !codeRequestId,
-                    ...(toolCallbackId && { toolCallbackId }),
-                    selectedEntityId: currentSelectedEntityId,
-                });
-
-                if (toolCallbackName && toolCallbackName !== "coding") {
-                    const searchResult = await client.query({
-                        query: QUERIES.SYS_ENTITY_CONTINUE,
-                        variables: {
-                            ...variables,
-                            generatorPathway: toolCallbackName,
-                        },
-                        fetchPolicy: "network-only",
-                    });
-                    const { result, tool } =
-                        searchResult.data.sys_entity_continue;
-
-                    // Validate the callback result
-                    if (!result?.trim()) {
-                        throw new Error(
-                            "Received empty tool callback response",
-                        );
-                    }
-
-                    // Process any image URLs in the tool callback response
-                    const processedResult = await processImageUrls(
-                        result,
-                        window.location.origin,
-                    );
-
-                    // Check again for hidden message before adding the tool callback response
-                    const finalMessages = currentMessages.slice();
-                    const lastMsg = finalMessages[finalMessages.length - 1];
-                    if (lastMsg?.sender === "labeeb" && lastMsg?.tool) {
-                        try {
-                            const lastTool = JSON.parse(lastMsg.tool);
-                            if (lastTool.hideFromModel) {
-                                finalMessages.pop();
-                            }
-                        } catch (e) {
-                            console.error("Invalid JSON in tool:", e);
-                        }
-                    }
-
-                    finalMessages.push({
-                        payload: processedResult,
-                        tool: tool,
-                        sentTime: "just now",
-                        direction: "incoming",
-                        position: "single",
-                        sender: "labeeb",
-                    });
-
-                    // Use messages directly without processing
-                    const finalMessagesToUpdate = finalMessages;
-
-                    await updateChatHook.mutateAsync({
-                        chatId: String(chat?._id),
-                        messages: finalMessagesToUpdate?.map((m) => ({
-                            ...m,
-                            payload: getMessagePayload(m),
-                        })),
-                        isChatLoading: false,
-                        selectedEntityId: currentSelectedEntityId,
-                    });
-                }
+                return;
             } catch (error) {
                 setIsStreaming(false);
                 handleError(error);
@@ -412,7 +264,6 @@ function ChatContent({
             t,
             clearStreamingState,
             memoizedMessages,
-            runTask,
             setIsStreaming,
             setSubscriptionId,
             selectedEntityIdFromProp,

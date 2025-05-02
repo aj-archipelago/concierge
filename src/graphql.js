@@ -127,48 +127,6 @@ const SELECT_EXTENSION = gql`
     }
 `;
 
-const CHAT_PERSIST = gql`
-    query ChatPersist($chatHistory: [Message]!, $contextId: String) {
-        chat_persist(chatHistory: $chatHistory, contextId: $contextId) {
-            result
-            contextId
-        }
-    }
-`;
-
-const CHAT_LABEEB = gql`
-    query ChatLabeeb($chatHistory: [Message]!, $contextId: String) {
-        chat_labeeb(chatHistory: $chatHistory, contextId: $contextId) {
-            result
-            contextId
-        }
-    }
-`;
-
-const CHAT_EXTENSION = gql`
-    query ChatExtension(
-        $chatHistory: [Message]!
-        $contextId: String
-        $text: String
-        $roleInformation: String
-        $indexName: String
-        $semanticConfiguration: String
-    ) {
-        retrieval(
-            chatHistory: $chatHistory
-            contextId: $contextId
-            text: $text
-            roleInformation: $roleInformation
-            indexName: $indexName
-            semanticConfiguration: $semanticConfiguration
-        ) {
-            result
-            contextId
-            tool
-        }
-    }
-`;
-
 const VISION = gql`
     query ($text: String, $chatHistory: [MultiMessage]) {
         vision(text: $text, chatHistory: $chatHistory) {
@@ -189,6 +147,18 @@ const SYS_READ_MEMORY = gql`
 const SYS_SAVE_MEMORY = gql`
     query SysSaveMemory($aiMemory: String!, $contextId: String!) {
         sys_save_memory(aiMemory: $aiMemory, contextId: $contextId) {
+            result
+        }
+    }
+`;
+
+const CHAT_TITLE = gql`
+    query Chat_title(
+        $text: String
+        $title: String
+        $chatHistory: [MultiMessage]
+    ) {
+        chat_title(text: $text, title: $title, chatHistory: $chatHistory) {
             result
         }
     }
@@ -226,44 +196,6 @@ const SYS_ENTITY_AGENT = gql`
             codeRequestId: $codeRequestId
             stream: $stream
             entityId: $entityId
-        ) {
-            result
-            contextId
-            tool
-            warnings
-            errors
-        }
-    }
-`;
-
-const SYS_ENTITY_CONTINUE = gql`
-    query SysEntityContinue(
-        $chatHistory: [MultiMessage]!
-        $dataSources: [String]
-        $contextId: String
-        $text: String
-        $roleInformation: String
-        $indexName: String
-        $semanticConfiguration: String
-        $aiName: String
-        $useMemory: Boolean
-        $aiStyle: String
-        $chatId: String
-        $generatorPathway: String
-    ) {
-        sys_entity_continue(
-            chatHistory: $chatHistory
-            dataSources: $dataSources
-            contextId: $contextId
-            text: $text
-            roleInformation: $roleInformation
-            indexName: $indexName
-            semanticConfiguration: $semanticConfiguration
-            aiName: $aiName
-            aiStyle: $aiStyle
-            useMemory: $useMemory
-            chatId: $chatId
-            generatorPathway: $generatorPathway
         ) {
             result
             contextId
@@ -797,9 +729,7 @@ const SYS_GET_ENTITIES = gql`
 
 const QUERIES = {
     AZURE_VIDEO_TRANSLATE,
-    CHAT_PERSIST,
-    CHAT_LABEEB,
-    CHAT_EXTENSION,
+    CHAT_TITLE,
     CODE_HUMAN_INPUT,
     COGNITIVE_DELETE,
     COGNITIVE_INSERT,
@@ -808,7 +738,6 @@ const QUERIES = {
     SYS_READ_MEMORY,
     SYS_SAVE_MEMORY,
     SYS_ENTITY_AGENT,
-    SYS_ENTITY_CONTINUE,
     SYS_GET_ENTITIES,
     EXPAND_STORY,
     FORMAT_PARAGRAPH_TURBO,
@@ -895,8 +824,6 @@ const MUTATIONS = {
 export {
     getClient,
     AZURE_VIDEO_TRANSLATE,
-    CHAT_PERSIST,
-    CHAT_LABEEB,
     CODE_HUMAN_INPUT,
     COGNITIVE_INSERT,
     COGNITIVE_DELETE,
@@ -904,7 +831,6 @@ export {
     SYS_READ_MEMORY,
     SYS_SAVE_MEMORY,
     SYS_ENTITY_AGENT,
-    SYS_ENTITY_CONTINUE,
     SYS_GET_ENTITIES,
     SELECT_SERVICES,
     SUMMARY,
