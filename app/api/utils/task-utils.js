@@ -51,7 +51,8 @@ export async function syncTaskWithBullMQJob(task) {
 
     if (
         jobStatusToTaskStatus[status] &&
-        task.status !== jobStatusToTaskStatus[status]
+        task.status !== jobStatusToTaskStatus[status] &&
+        task.status !== "cancelled"
     ) {
         task.status = jobStatusToTaskStatus[status];
         task.statusText = job.failedReason;
