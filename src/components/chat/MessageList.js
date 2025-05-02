@@ -240,6 +240,7 @@ const MessageList = React.memo(
             isThinking,
             selectedEntityId,
             entities,
+            entityIconSize,
         },
         ref,
     ) {
@@ -384,6 +385,8 @@ const MessageList = React.memo(
                             messageRef={messageRef}
                             selectedEntityId={selectedEntityId}
                             entities={entities}
+                            entityIconSize={entityIconSize}
+                            entityIconClasses={classNames(basis)}
                         />
                     );
                 } else {
@@ -437,6 +440,7 @@ const MessageList = React.memo(
                 botName,
                 selectedEntityId,
                 entities,
+                entityIconSize,
             ],
         );
 
@@ -470,6 +474,7 @@ const MessageList = React.memo(
                                 isThinking={isThinking}
                                 selectedEntityId={selectedEntityId}
                                 entities={entities}
+                                entityIconSize={entityIconSize}
                             />
                         )}
                         {loading &&

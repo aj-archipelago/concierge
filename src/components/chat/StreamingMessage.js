@@ -207,7 +207,7 @@ const StreamingMessage = React.memo(function StreamingMessage({
 
     const avatar = useMemo(() => {
         return currentEntity ? (
-            <EntityIcon entity={currentEntity} size="large" />
+            <EntityIcon entity={currentEntity} size="lg" />
         ) : bot === "code" ? (
             <Bot
                 className={classNames(

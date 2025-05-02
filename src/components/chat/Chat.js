@@ -16,10 +16,9 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
-import { useQuery } from "@apollo/client";
-import { SYS_GET_ENTITIES } from "../../graphql";
 import EntityIcon from "./EntityIcon";
 import { User, Share, Trash2 } from "lucide-react";
+import { useEntities } from "../../hooks/useEntities";
 
 const ChatTopMenuDynamic = dynamic(() => import("./ChatTopMenu"), {
     loading: () => <div style={{ width: "80px", height: "20px" }}></div>,
@@ -38,24 +37,7 @@ function Chat({ viewingChat = null }) {
     );
 
     const defaultAiName = user?.aiName || "Labeeb";
-
-    // Fetch entities from the API
-    const { data: entitiesData } = useQuery(SYS_GET_ENTITIES);
-    const entities = entitiesData?.sys_get_entities?.result
-        ? JSON.parse(entitiesData.sys_get_entities.result)
-        : [];
-
-    // Find and update the default entity's name
-    const aliasedEntities = entities.map((entity) => {
-        if (entity.isDefault) {
-            return { ...entity, name: defaultAiName };
-        }
-        return entity;
-    });
-
-    // Find default entity ID
-    const defaultEntity = aliasedEntities.find((e) => e.isDefault);
-    const defaultEntityId = defaultEntity?.id || "";
+    const { entities, defaultEntityId } = useEntities(defaultAiName);
 
     // Sync local state with fetched chat data
     useEffect(() => {
@@ -63,7 +45,7 @@ function Chat({ viewingChat = null }) {
         // If no entityId or entity doesn't exist, use default entity
         const newEntityId =
             entityIdFromChat &&
-            aliasedEntities.some((e) => e.id === entityIdFromChat)
+            entities.some((e) => e.id === entityIdFromChat)
                 ? entityIdFromChat
                 : defaultEntityId;
 
@@ -71,7 +53,7 @@ function Chat({ viewingChat = null }) {
             setSelectedEntityId(newEntityId);
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [chat?.selectedEntityId, aliasedEntities, defaultEntityId]); // Dependency: run only when fetched entityId changes
+    }, [chat?.selectedEntityId, entities, defaultEntityId]);
 
     const handleShareOrCopy = async () => {
         const shareUrl = `${window.location.origin}/chat/${chat._id}`;
@@ -131,7 +113,7 @@ function Chat({ viewingChat = null }) {
                             </div>
                         </SelectTrigger>
                         <SelectContent>
-                            {aliasedEntities.map((entity) => (
+                            {entities.map((entity) => (
                                 <SelectItem
                                     className="text-sm"
                                     key={entity.id}
@@ -187,7 +169,8 @@ function Chat({ viewingChat = null }) {
                     viewingChat={viewingChat}
                     streamingEnabled={user.streamingEnabled}
                     selectedEntityId={selectedEntityId}
-                    entities={aliasedEntities}
+                    entities={entities}
+                    entityIconSize="lg"
                 />
             </div>
         </div>

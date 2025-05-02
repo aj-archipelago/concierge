@@ -24,6 +24,7 @@ function ChatContent({
     viewingChat = null,
     selectedEntityId: selectedEntityIdFromProp,
     entities,
+    entityIconSize,
 }) {
     const { t } = useTranslation();
     const client = useApolloClient();
@@ -360,6 +361,7 @@ function ChatContent({
             isThinking={isThinking}
             selectedEntityId={selectedEntityIdFromProp}
             entities={entities}
+            entityIconSize={entityIconSize}
         />
     );
 }

@@ -362,6 +362,7 @@ const BotMessage = ({
     messageRef = () => {},
     selectedEntityId,
     entities = [],
+    entityIconSize,
 }) => {
     const { t } = useTranslation();
 
@@ -380,19 +381,19 @@ const BotMessage = ({
 
     const displayName = currentEntity ? currentEntity.name : botName;
 
+    // Avatar rendering
     const avatar = currentEntity ? (
-        <EntityIcon entity={currentEntity} size="large" />
+        <EntityIcon entity={currentEntity} size={entityIconSize} />
     ) : toolData?.avatarImage ? (
         <img
             src={toolData.avatarImage}
             alt="Tool Avatar"
             className={classNames(
-                basis,
-                "p-1",
                 buttonWidthClass,
                 rowHeight,
-                "rounded-full object-cover",
+                "rounded-full object-cover"
             )}
+            style={{ width: entityIconSize === "lg" ? 32 : entityIconSize === "sm" ? 20 : 16, height: entityIconSize === "lg" ? 32 : entityIconSize === "sm" ? 20 : 16 }}
         />
     ) : bot === "code" ? (
         <Bot
@@ -400,16 +401,22 @@ const BotMessage = ({
                 rowHeight,
                 buttonWidthClass,
                 "px-3",
-                "text-gray-400",
+                "text-gray-400"
             )}
         />
     ) : (
         <img
             src={getLogo(language)}
             alt="Logo"
-            className={classNames(basis, "p-2", buttonWidthClass, rowHeight)}
+            className={classNames(buttonWidthClass, rowHeight, "p-2 rounded-full object-cover")}
+            style={{ width: entityIconSize === "lg" ? 32 : entityIconSize === "sm" ? 20 : 16, height: entityIconSize === "lg" ? 32 : entityIconSize === "sm" ? 20 : 16 }}
         />
     );
+
+    // Determine top padding based on entityIconSize
+    const avatarTopPadding = entityIconSize === "sm"
+      ? "pt-3"
+      : "pt-1";
 
     return (
         <div
@@ -427,7 +434,7 @@ const BotMessage = ({
                 />
             </div>
 
-            <div className={classNames(basis)}>{avatar}</div>
+            <div className={classNames(basis, avatarTopPadding, "flex justify-center")}>{avatar}</div>
             <div
                 className={classNames(
                     "px-1 pb-3 pt-2 [.docked_&]:px-0 [.docked_&]:py-3 w-full",
