@@ -242,7 +242,7 @@ const StreamingMessage = React.memo(function StreamingMessage({
 
     return (
         <div className="flex bg-sky-50 ps-1 pt-1 relative group">
-            <div className={classNames(basis)}>{avatar}</div>
+            <div className={classNames(basis, "pt-1")}>{avatar}</div>
             <div
                 className={classNames(
                     "px-1 pb-3 pt-2 [.docked_&]:px-0 [.docked_&]:py-3 w-full",
