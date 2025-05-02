@@ -15,7 +15,22 @@ async function migrateTasks(userId) {
     for (const requestProgress of requestProgresses) {
         const task = requestProgress.toJSON();
         try {
-            await Task.create(task);
+            // Ensure encrypted fields have the correct type
+            const sanitizedTask = {
+                ...task,
+                // Convert null to empty object for data and metadata
+                data: task.data || {},
+                metadata: task.metadata || {},
+                // Convert null to empty string for statusText and error
+                statusText: task.statusText || "",
+                error: task.error || "",
+            };
+
+            // Use findOneAndUpdate with upsert to handle existing tasks
+            await Task.findOneAndUpdate({ _id: task._id }, sanitizedTask, {
+                upsert: true,
+                new: true,
+            });
         } catch (error) {
             console.error(`Error migrating task ${task._id}`, error);
         }
