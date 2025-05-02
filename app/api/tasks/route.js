@@ -15,7 +15,12 @@ async function migrateTasks(userId) {
     for (const requestProgress of requestProgresses) {
         const task = requestProgress.toJSON();
         try {
-            await Task.create(task);
+            // Use findOneAndUpdate with upsert to handle existing tasks
+            await Task.findOneAndUpdate(
+                { _id: task._id },
+                task,
+                { upsert: true, new: true }
+            );
         } catch (error) {
             console.error(`Error migrating task ${task._id}`, error);
         }
