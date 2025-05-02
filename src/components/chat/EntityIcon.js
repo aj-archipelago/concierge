@@ -10,11 +10,12 @@ const EntityIcon = ({ entity, size = "sm" }) => {
     const textColorClass = entity?.textColorClass || "text-white";
 
     // Size classes mapping
-    const sizeClasses = {
-        lg: "w-8 h-8 text-xl mt-2 mx-auto",
-        sm: "w-5 h-5 text-lg",
-        xs: "w-4 h-4 text-sm"
-    }[size] || "w-5 h-5 text-lg"; // Default to sm classes if invalid size
+    const sizeClasses =
+        {
+            lg: "w-8 h-8 text-xl mt-2 mx-auto",
+            sm: "w-5 h-5 text-lg",
+            xs: "w-4 h-4 text-sm",
+        }[size] || "w-5 h-5 text-lg"; // Default to sm classes if invalid size
 
     return (
         // Remove w-full h-full, apply sizeClasses directly

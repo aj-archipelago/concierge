@@ -164,7 +164,7 @@ function ChatBox() {
                     </div>
                     <Actions />
                 </div>
-                <ChatContent 
+                <ChatContent
                     entities={entities}
                     selectedEntityId={selectedEntityId}
                     entityIconSize="lg"

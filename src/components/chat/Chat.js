@@ -44,8 +44,7 @@ function Chat({ viewingChat = null }) {
         const entityIdFromChat = chat?.selectedEntityId || "";
         // If no entityId or entity doesn't exist, use default entity
         const newEntityId =
-            entityIdFromChat &&
-            entities.some((e) => e.id === entityIdFromChat)
+            entityIdFromChat && entities.some((e) => e.id === entityIdFromChat)
                 ? entityIdFromChat
                 : defaultEntityId;
 

@@ -3,19 +3,21 @@ import { SYS_GET_ENTITIES } from "../graphql";
 
 export function useEntities(userAiName) {
     const defaultResponse = {
-        entities: [{
-            id: "default",
-            name: userAiName || "Labeeb",
-            isDefault: true
-        }],
-        defaultEntityId: "default"
+        entities: [
+            {
+                id: "default",
+                name: userAiName || "Labeeb",
+                isDefault: true,
+            },
+        ],
+        defaultEntityId: "default",
     };
 
     const { data: entitiesData, error } = useQuery(SYS_GET_ENTITIES);
-    
+
     // If there's an error or no data, return a default entity
     if (error || !entitiesData?.sys_get_entities?.result) {
-        console.error('Failed to fetch entities:', error || 'No data returned');
+        console.error("Failed to fetch entities:", error || "No data returned");
         return defaultResponse;
     }
 
@@ -23,7 +25,7 @@ export function useEntities(userAiName) {
     try {
         entities = JSON.parse(entitiesData.sys_get_entities.result);
     } catch (parseError) {
-        console.error('Failed to parse entities:', parseError);
+        console.error("Failed to parse entities:", parseError);
         return defaultResponse;
     }
 
@@ -41,6 +43,6 @@ export function useEntities(userAiName) {
 
     return {
         entities: aliasedEntities,
-        defaultEntityId
+        defaultEntityId,
     };
-} 
+}

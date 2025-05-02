@@ -391,9 +391,22 @@ const BotMessage = ({
             className={classNames(
                 buttonWidthClass,
                 rowHeight,
-                "rounded-full object-cover"
+                "rounded-full object-cover",
             )}
-            style={{ width: entityIconSize === "lg" ? 32 : entityIconSize === "sm" ? 20 : 16, height: entityIconSize === "lg" ? 32 : entityIconSize === "sm" ? 20 : 16 }}
+            style={{
+                width:
+                    entityIconSize === "lg"
+                        ? 32
+                        : entityIconSize === "sm"
+                          ? 20
+                          : 16,
+                height:
+                    entityIconSize === "lg"
+                        ? 32
+                        : entityIconSize === "sm"
+                          ? 20
+                          : 16,
+            }}
         />
     ) : bot === "code" ? (
         <Bot
@@ -401,22 +414,37 @@ const BotMessage = ({
                 rowHeight,
                 buttonWidthClass,
                 "px-3",
-                "text-gray-400"
+                "text-gray-400",
             )}
         />
     ) : (
         <img
             src={getLogo(language)}
             alt="Logo"
-            className={classNames(buttonWidthClass, rowHeight, "p-2 rounded-full object-cover")}
-            style={{ width: entityIconSize === "lg" ? 32 : entityIconSize === "sm" ? 20 : 16, height: entityIconSize === "lg" ? 32 : entityIconSize === "sm" ? 20 : 16 }}
+            className={classNames(
+                buttonWidthClass,
+                rowHeight,
+                "p-2 rounded-full object-cover",
+            )}
+            style={{
+                width:
+                    entityIconSize === "lg"
+                        ? 32
+                        : entityIconSize === "sm"
+                          ? 20
+                          : 16,
+                height:
+                    entityIconSize === "lg"
+                        ? 32
+                        : entityIconSize === "sm"
+                          ? 20
+                          : 16,
+            }}
         />
     );
 
     // Determine top padding based on entityIconSize
-    const avatarTopPadding = entityIconSize === "sm"
-      ? "pt-3"
-      : "pt-1";
+    const avatarTopPadding = entityIconSize === "sm" ? "pt-3" : "pt-1";
 
     return (
         <div
@@ -434,7 +462,15 @@ const BotMessage = ({
                 />
             </div>
 
-            <div className={classNames(basis, avatarTopPadding, "flex justify-center")}>{avatar}</div>
+            <div
+                className={classNames(
+                    basis,
+                    avatarTopPadding,
+                    "flex justify-center",
+                )}
+            >
+                {avatar}
+            </div>
             <div
                 className={classNames(
                     "px-1 pb-3 pt-2 [.docked_&]:px-0 [.docked_&]:py-3 w-full",
