@@ -71,6 +71,7 @@ const ChatMessages = React.memo(function ChatMessages({
                     selectedEntityId={selectedEntityId}
                     entities={entities}
                     entityIconSize={entityIconSize}
+                    onSend={onSend}
                 />
             </div>
             <div>

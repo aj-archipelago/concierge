@@ -18,11 +18,13 @@ import {
     isVideoUrl,
 } from "../../utils/mediaUtils";
 import CopyButton from "../CopyButton";
+import ReplayButton from "../ReplayButton";
 import ChatImage from "../images/ChatImage";
 import { AuthContext } from "../../App";
 import BotMessage from "./BotMessage";
 import ScrollToBottom from "./ScrollToBottom";
 import StreamingMessage from "./StreamingMessage";
+import { useUpdateChat } from "../../../app/queries/chats";
 
 const hasImages = (message) => {
     if (!Array.isArray(message.payload)) return false;
@@ -250,6 +252,7 @@ const MessageList = React.memo(
         const scrollBottomRef = useRef(null);
         const { user } = useContext(AuthContext);
         const defaultAiName = user?.aiName;
+        const updateChatHook = useUpdateChat();
 
         // Forward scrollBottomRef to parent
         useImperativeHandle(
@@ -366,6 +369,76 @@ const MessageList = React.memo(
             [handleImageLoad],
         );
 
+        const handleReplay = useCallback(
+            (messageIndex) => {
+                if (messageIndex < 0 || messageIndex >= messages.length) {
+                    console.error(
+                        "Invalid message index for replay:",
+                        messageIndex,
+                    );
+                    return;
+                }
+
+                // Get all messages up to and including the selected message
+                const messagesToKeep = messages.slice(0, messageIndex + 1);
+
+                const messageToReplay =
+                    messagesToKeep[messagesToKeep.length - 1];
+
+                if (!messageToReplay || !messageToReplay.payload) {
+                    console.error(
+                        "Invalid message for replay:",
+                        messageToReplay,
+                    );
+                    return;
+                }
+
+                let messagePayload = messageToReplay.payload;
+                try {
+                    if (Array.isArray(messageToReplay.payload)) {
+                        messagePayload = messageToReplay.payload
+                            .map((p) => {
+                                try {
+                                    const obj = JSON.parse(p);
+                                    return obj.type === "text" ? obj.text : p;
+                                } catch (e) {
+                                    return p;
+                                }
+                            })
+                            .join(" ");
+                    } else if (typeof messageToReplay.payload === "string") {
+                        const obj = JSON.parse(messageToReplay.payload);
+                        messagePayload =
+                            obj.type === "text"
+                                ? obj.text
+                                : messageToReplay.payload;
+                    }
+                } catch (e) {}
+
+                updateChatHook
+                    .mutateAsync({
+                        chatId: String(chatId),
+                        messages: messagesToKeep,
+                        isChatLoading: true,
+                        selectedEntityId: selectedEntityId,
+                    })
+                    .then(() => {
+                        onSend(messagePayload, messagesToKeep);
+                        scrollBottomRef.current?.resetScrollState();
+                    })
+                    .catch((error) => {
+                        console.error("Error updating chat for replay:", error);
+                        updateChatHook.mutateAsync({
+                            chatId: String(chatId),
+                            messages: messagesToKeep,
+                            isChatLoading: false,
+                            selectedEntityId: selectedEntityId,
+                        });
+                    });
+            },
+            [messages, onSend, chatId, updateChatHook, selectedEntityId],
+        );
+
         const renderMessage = useCallback(
             (message) => {
                 const toolData = parseToolData(message.tool);
@@ -389,44 +462,59 @@ const MessageList = React.memo(
                             entityIconClasses={classNames(basis)}
                         />
                     );
-                } else {
-                    const avatar = (
-                        <UserCircle
-                            className={classNames(
-                                rowHeight,
-                                buttonWidthClass,
-                                "p-2",
-                                "text-gray-300",
-                            )}
-                        />
-                    );
-                    return (
-                        <div
-                            key={message.id}
-                            className="flex ps-1 pt-1 relative group"
-                        >
+                }
+                const avatar = (
+                    <UserCircle
+                        className={classNames(
+                            rowHeight,
+                            buttonWidthClass,
+                            "p-2",
+                            "text-gray-300",
+                        )}
+                    />
+                );
+                return (
+                    <div
+                        key={message.id}
+                        className="flex ps-1 pt-1 relative group"
+                    >
+                        <div className="flex items-center gap-2 absolute top-3 end-3">
+                            <ReplayButton
+                                onClick={() => {
+                                    // Get the index from the MessageListContent component
+                                    const index = messages.findIndex((m) => {
+                                        // Compare both id and _id to handle different message structures
+                                        return (
+                                            m.id === message.id ||
+                                            m._id === message.id
+                                        );
+                                    });
+                                    handleReplay(index);
+                                }}
+                                className="opacity-0 group-hover:opacity-60 hover:opacity-100 transition-opacity"
+                            />
                             <CopyButton
                                 item={
                                     typeof message.payload === "string"
                                         ? message.payload
                                         : ""
                                 }
-                                className="absolute top-3 end-3 opacity-0 group-hover:opacity-60 hover:opacity-100 transition-opacity"
+                                className="opacity-0 group-hover:opacity-60 hover:opacity-100 transition-opacity"
                             />
-                            <div className={classNames(basis)}>{avatar}</div>
-                            <div
-                                className={classNames(
-                                    "px-1 pb-3 pt-2 [.docked_&]:px-0 [.docked_&]:py-3",
-                                )}
-                            >
-                                <div className="font-semibold">{t("You")}</div>
-                                <pre className="chat-message-user">
-                                    {message.payload}
-                                </pre>
-                            </div>
                         </div>
-                    );
-                }
+                        <div className={classNames(basis)}>{avatar}</div>
+                        <div
+                            className={classNames(
+                                "px-1 pb-3 pt-2 [.docked_&]:px-0 [.docked_&]:py-3",
+                            )}
+                        >
+                            <div className="font-semibold">{t("You")}</div>
+                            <pre className="chat-message-user">
+                                {message.payload}
+                            </pre>
+                        </div>
+                    </div>
+                );
             },
             [
                 basis,
@@ -441,6 +529,8 @@ const MessageList = React.memo(
                 selectedEntityId,
                 entities,
                 entityIconSize,
+                handleReplay,
+                messages,
             ],
         );
 

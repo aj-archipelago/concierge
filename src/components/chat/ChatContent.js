@@ -97,7 +97,7 @@ function ChatContent({
     const processedCodeRequestIds = useRef(new Set());
 
     const handleSend = useCallback(
-        async (text) => {
+        async (text, overrideMessages) => {
             try {
                 // Reset streaming state (important before sending)
                 clearStreamingState();
@@ -111,11 +111,16 @@ function ChatContent({
                     position: "single",
                 };
 
-                // Use messages directly without processing
-                const userMessages = [
-                    ...(chat?.messages || []),
-                    optimisticUserMessage,
-                ];
+                let userMessages;
+
+                if (overrideMessages) {
+                    userMessages = [...overrideMessages];
+                } else {
+                    userMessages = [
+                        ...(chat?.messages || []),
+                        optimisticUserMessage,
+                    ];
+                }
 
                 // Show the user message immediately
                 await updateChatHook.mutateAsync({
@@ -129,7 +134,7 @@ function ChatContent({
                 });
 
                 // Prepare conversation history
-                const conversation = memoizedMessages
+                const conversation = (overrideMessages || memoizedMessages)
                     .slice(-contextMessageCount)
                     .filter((m) => {
                         if (!m.tool) return true;
