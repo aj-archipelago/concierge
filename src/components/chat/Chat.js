@@ -137,7 +137,7 @@ function Chat({ viewingChat = null }) {
                     >
                         <SelectTrigger
                             className={`w-auto text-sm h-7 lb-outline ${readOnly ? "cursor-not-allowed opacity-50" : ""}`}
-                            aria-label={t("Select Speaker")}
+                            aria-label={t("Select entity")}
                         >
                             <div className="flex items-center gap-2">
                                 <User className="w-4 h-4 text-gray-500" />
@@ -150,7 +150,7 @@ function Chat({ viewingChat = null }) {
                                     />
                                 ) : (
                                     <SelectValue
-                                        placeholder={t("Select Speaker")}
+                                        placeholder={t("Select entity")}
                                     />
                                 )}
                             </div>
