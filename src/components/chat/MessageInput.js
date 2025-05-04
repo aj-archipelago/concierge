@@ -326,13 +326,15 @@ function MessageInput({
                                 viewingReadOnlyChat
                             }
                             className={classNames(
-                                "ml-2 pr-4 pb-2.5 text-base rtl:rotate-180 text-emerald-600 hover:text-emerald-600 disabled:text-gray-300 active:text-gray-800 dark:bg-zinc-100 flex items-end",
+                                "ml-2 pr-4 pb-2.5 text-base text-emerald-600 hover:text-emerald-600 disabled:text-gray-300 active:text-gray-800 dark:bg-zinc-100 flex items-end",
                             )}
                         >
                             {isStreaming || loading ? (
                                 <StopCircle className="w-5 h-5 text-red-500" />
                             ) : (
-                                <Send className="w-5 h-5 text-gray-400" />
+                                <span className="rtl:scale-x-[-1]">
+                                    <Send className="w-5 h-5 text-gray-400" />
+                                </span>
                             )}
                         </button>
                     </div>
