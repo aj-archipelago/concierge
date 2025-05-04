@@ -330,8 +330,6 @@
     "Shared by:": "مشترك بواسطة:",
     "Copy Share URL": "نسخ عنوان URL للمشاركة",
     "Share URL copied to clipboard!": "تم نسخ عنوان URL للمشاركة إلى الحافظة!",
-    "Make this chat public?": "هل تريد جعل هذه الدردشة عامة؟",
-    "This will make this chat visible to anyone with the link. This action cannot be undone.": "سيجعل هذا الدردشة مرئية لأي شخص لديه الرابط. لا يمكن التراجع عن هذا الإجراء.",
     "An error was received from the API server:": "تم استلام خطأ من خادم API:",
     "This YouTube channel is not supported. If you're using a YouTube URL, it should be from an Al Jazeera channel. Otherwise, please use a direct URL to a video file (e.g. mp4, webm, etc.)": "هذا القناة يوتيوب غير مدعومة. إذا كنت تستخدم رابط يوتيوب، يجب أن يكون من قناة الجزيرة. وبخلاف ذلك، يرجى استخدام رابط مباشر إلى ملف فيديو (على سبيل المثال، mp4، webm، إلخ).",
     "Suggestion": "اقتراح",
