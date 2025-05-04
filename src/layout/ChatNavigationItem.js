@@ -98,11 +98,14 @@ const ChatNavigationItem = ({
                                     type="text"
                                     className="py-1 border-0 w-full text-xs bg-gray-50 p-0 font-medium underline ring-0 focus:ring-0 focus:outline-none"
                                     value={editedName}
-                                    onChange={(e) => setEditedName(e.target.value)}
+                                    onChange={(e) =>
+                                        setEditedName(e.target.value)
+                                    }
                                     onKeyDown={(e) => {
                                         if (e.key === "Enter")
                                             handleSaveEdit(subItem);
-                                        if (e.key === "Escape") setEditingId(null);
+                                        if (e.key === "Escape")
+                                            setEditingId(null);
                                     }}
                                 />
                             </>
@@ -150,7 +153,7 @@ const ChatNavigationItem = ({
                         </AlertDialogTitle>
                         <AlertDialogDescription>
                             {t(
-                                "This will permanently delete this chat and all its messages. This action cannot be undone. Continue?"
+                                "This will permanently delete this chat and all its messages. This action cannot be undone. Continue?",
                             )}
                         </AlertDialogDescription>
                     </AlertDialogHeader>
