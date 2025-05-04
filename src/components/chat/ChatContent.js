@@ -106,7 +106,7 @@ function ChatContent({
                 const optimisticUserMessage = {
                     payload: text,
                     sender: "user",
-                    sentTime: "just now",
+                    sentTime: new Date().toISOString(),
                     direction: "outgoing",
                     position: "single",
                 };
@@ -234,7 +234,7 @@ function ChatContent({
                     {
                         payload: text,
                         sender: "user",
-                        sentTime: "just now",
+                        sentTime: new Date().toISOString(),
                         direction: "outgoing",
                         position: "single",
                     },
@@ -243,7 +243,7 @@ function ChatContent({
                             "Something went wrong trying to respond to your request. Please try something else or start over to continue.",
                         ),
                         sender: "labeeb",
-                        sentTime: "just now",
+                        sentTime: new Date().toISOString(),
                         direction: "incoming",
                         position: "single",
                     },

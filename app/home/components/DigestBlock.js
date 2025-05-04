@@ -36,7 +36,7 @@ export default function DigestBlock({ block, contentClassName }) {
                 {
                     payload: block.prompt,
                     sender: "user",
-                    sentTime: "just now",
+                    sentTime: new Date().toISOString(),
                     direction: "outgoing",
                     position: "single",
                 },
@@ -44,7 +44,7 @@ export default function DigestBlock({ block, contentClassName }) {
                     payload: blockContent.payload,
                     tool: blockContent.tool,
                     sender: "labeeb",
-                    sentTime: "just now",
+                    sentTime: new Date().toISOString(),
                     direction: "incoming",
                     position: "single",
                 },

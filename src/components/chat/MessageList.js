@@ -5,6 +5,7 @@ import React, {
     useImperativeHandle,
     useRef,
     useContext,
+    useState,
 } from "react";
 import { useTranslation } from "react-i18next";
 import { FileImage, FileText, UserCircle } from "lucide-react";
@@ -25,6 +26,16 @@ import BotMessage from "./BotMessage";
 import ScrollToBottom from "./ScrollToBottom";
 import StreamingMessage from "./StreamingMessage";
 import { useUpdateChat } from "../../../app/queries/chats";
+import {
+    AlertDialog,
+    AlertDialogContent,
+    AlertDialogHeader,
+    AlertDialogTitle,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogAction,
+    AlertDialogCancel,
+} from "@/components/ui/alert-dialog";
 
 const hasImages = (message) => {
     if (!Array.isArray(message.payload)) return false;
@@ -253,6 +264,7 @@ const MessageList = React.memo(
         const { user } = useContext(AuthContext);
         const defaultAiName = user?.aiName;
         const updateChatHook = useUpdateChat();
+        const [replayIndex, setReplayIndex] = useState(null);
 
         // Forward scrollBottomRef to parent
         useImperativeHandle(
@@ -379,11 +391,16 @@ const MessageList = React.memo(
                     return;
                 }
 
-                // Get all messages up to and including the selected message
-                const messagesToKeep = messages.slice(0, messageIndex + 1);
+                // Get all messages up to the selected message
+                const messagesToKeep = messages.slice(0, messageIndex);
 
-                const messageToReplay =
-                    messagesToKeep[messagesToKeep.length - 1];
+                const messageToReplay = {
+                    payload: messages[messageIndex].payload,
+                    sender: messages[messageIndex].sender,
+                    sentTime: new Date().toISOString(),
+                    direction: messages[messageIndex].direction,
+                    position: messages[messageIndex].position,
+                };
 
                 if (!messageToReplay || !messageToReplay.payload) {
                     console.error(
@@ -414,6 +431,8 @@ const MessageList = React.memo(
                                 : messageToReplay.payload;
                     }
                 } catch (e) {}
+
+                messagesToKeep.push(messageToReplay);
 
                 updateChatHook
                     .mutateAsync({
@@ -489,7 +508,7 @@ const MessageList = React.memo(
                                             m._id === message.id
                                         );
                                     });
-                                    handleReplay(index);
+                                    setReplayIndex(index);
                                 }}
                                 className="opacity-0 group-hover:opacity-60 hover:opacity-100 transition-opacity"
                             />
@@ -529,7 +548,6 @@ const MessageList = React.memo(
                 selectedEntityId,
                 entities,
                 entityIconSize,
-                handleReplay,
                 messages,
             ],
         );
@@ -583,6 +601,36 @@ const MessageList = React.memo(
                             })}
                     </div>
                 </div>
+
+                <AlertDialog
+                    open={replayIndex !== null}
+                    onOpenChange={() => setReplayIndex(null)}
+                >
+                    <AlertDialogContent>
+                        <AlertDialogHeader>
+                            <AlertDialogTitle>
+                                {t("Replay from this point?")}
+                            </AlertDialogTitle>
+                            <AlertDialogDescription>
+                                {t(
+                                    "This will replay the conversation from this point. All messages after this one will be removed. Continue?",
+                                )}
+                            </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                            <AlertDialogCancel>{t("Cancel")}</AlertDialogCancel>
+                            <AlertDialogAction
+                                autoFocus
+                                onClick={() => {
+                                    handleReplay(replayIndex);
+                                    setReplayIndex(null);
+                                }}
+                            >
+                                {t("Continue")}
+                            </AlertDialogAction>
+                        </AlertDialogFooter>
+                    </AlertDialogContent>
+                </AlertDialog>
             </ScrollToBottom>
         );
     }),
