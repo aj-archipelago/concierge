@@ -320,11 +320,12 @@ function MessageInput({
                                     : undefined
                             }
                             disabled={
-                                (!isStreaming && !loading) &&
+                                !isStreaming &&
+                                !loading &&
                                 (loading ||
-                                inputValue === "" ||
-                                isUploadingMedia ||
-                                viewingReadOnlyChat)
+                                    inputValue === "" ||
+                                    isUploadingMedia ||
+                                    viewingReadOnlyChat)
                             }
                             className={classNames(
                                 "ml-2 pr-4 pb-2.5 text-base text-emerald-600 hover:text-emerald-600 disabled:text-gray-300 active:text-gray-800 dark:bg-zinc-100 flex items-end",
