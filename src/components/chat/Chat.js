@@ -172,7 +172,7 @@ function Chat({ viewingChat = null }) {
                     </Select>
                     <button
                         disabled={readOnly}
-                        className={`lb-sm lb-outline ${chat?.isPublic ? "" : "lb-primary"} flex items-center gap-2 relative`}
+                        className="flex items-center gap-1 px-3 py-1.5 rounded-md transition-colors border bg-white text-gray-700 border-gray-200 hover:bg-gray-100 text-xs"
                         onClick={handleShareOrCopy}
                         title={
                             chat?.isPublic ? t("Copy Share URL") : t("Share")
@@ -189,8 +189,7 @@ function Chat({ viewingChat = null }) {
                     </button>
                     <button
                         disabled={readOnly}
-                        className="lb-outline-secondary lb-sm flex items-center gap-2"
-                        size="sm"
+                        className="flex items-center gap-1 px-3 py-1.5 rounded-md transition-colors border bg-white text-gray-700 border-gray-200 hover:bg-gray-100 text-xs"
                         onClick={() => {
                             setShowDeleteConfirm(true);
                         }}

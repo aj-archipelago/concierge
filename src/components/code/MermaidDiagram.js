@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useContext } from "react";
+import React, { useEffect, useRef, useContext, useMemo, useState } from "react";
 import mermaid from "mermaid";
 import { ThemeContext } from "../../contexts/ThemeProvider";
 
@@ -22,45 +22,65 @@ const darkThemeVars = {
     background: "#222",
 };
 
+// Initialize mermaid once
+mermaid.initialize({
+    startOnLoad: true,
+    securityLevel: "loose",
+    suppressErrorRendering: true,
+});
+
 const MermaidDiagram = ({ code }) => {
     const { theme } = useContext(ThemeContext);
     const containerRef = useRef(null);
+    const [isRendering, setIsRendering] = useState(false);
+
+    // Memoize the theme configuration
+    const themeConfig = useMemo(() => ({
+        theme: theme === "dark" ? "dark" : "default",
+        themeVariables: theme === "dark" ? darkThemeVars : lightThemeVars,
+    }), [theme]);
 
     useEffect(() => {
-        if (containerRef.current) {
-            containerRef.current.innerHTML = "";
-            const id = `mermaid-${Math.random().toString(36).substr(2, 9)}`;
+        let isMounted = true;
 
-            mermaid.initialize({
-                startOnLoad: true,
-                theme: theme === "dark" ? "dark" : "default",
-                securityLevel: "loose",
-                themeVariables:
-                    theme === "dark" ? darkThemeVars : lightThemeVars,
-                suppressErrorRendering: true,
-            });
+        const renderDiagram = async () => {
+            if (!containerRef.current || !code || isRendering) return;
 
-            mermaid
-                .render(id, code)
-                .then(({ svg }) => {
-                    // Force SVG to be responsive and overflow visible
-                    //let styledSvg = svg.replace('<svg', '<svg style="max-width: 60%; height: auto; display: block; overflow: visible;"');
-                    // Also remove any overflow="hidden" attributes
-                    //styledSvg = styledSvg.replace(/overflow="hidden"/g, 'overflow="visible"');
+            try {
+                setIsRendering(true);
+                const id = `mermaid-${Math.random().toString(36).substr(2, 9)}`;
+                
+                // Update mermaid theme configuration
+                mermaid.initialize({
+                    ...mermaid.defaultConfig,
+                    ...themeConfig,
+                });
+
+                const { svg } = await mermaid.render(id, code);
+                
+                if (isMounted && containerRef.current) {
                     containerRef.current.innerHTML = svg;
-                    // Debug log
                     console.log("Mermaid diagram rendered:", {
                         id,
                         code,
                         theme,
                     });
-                })
-                .catch((error) => {
-                    console.error("Error rendering mermaid diagram:", error);
-                    containerRef.current.innerHTML = `Error rendering diagram: ${error.message}`;
-                });
-        }
-    }, [code, theme]);
+                }
+            } catch (error) {
+                console.error("Error rendering mermaid diagram:", error);
+            } finally {
+                if (isMounted) {
+                    setIsRendering(false);
+                }
+            }
+        };
+
+        renderDiagram();
+
+        return () => {
+            isMounted = false;
+        };
+    }, [code, themeConfig]);
 
     return (
         <div

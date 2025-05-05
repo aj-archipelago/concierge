@@ -105,10 +105,10 @@ function ChatTopMenu({ displayState = "full" }) {
         <div className="flex justify-center rounded-md items-center px-0 text-xs [.docked_&]:flex gap-2">
             <button
                 onClick={toggleResearchMode}
-                className={`flex items-center gap-1 px-2 py-1 rounded-md transition-colors ${
+                className={`flex items-center gap-1 px-3 py-1.5 rounded-md transition-colors border ${
                     isResearchMode
-                        ? "bg-blue-500 text-white"
-                        : "bg-gray-100 hover:bg-gray-200 text-gray-700"
+                        ? "bg-blue-500 text-white border-blue-600 hover:bg-blue-700"
+                        : "bg-white text-gray-700 border-gray-200 hover:bg-gray-100"
                 }`}
                 title={t("Toggle Research Mode")}
             >
