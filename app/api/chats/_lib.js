@@ -194,6 +194,7 @@ export async function getChatById(chatId) {
         codeRequestId,
         titleSetByUser,
         selectedEntityId,
+        researchMode,
     } = chat;
     const result = {
         _id,
@@ -205,6 +206,7 @@ export async function getChatById(chatId) {
         codeRequestId,
         titleSetByUser,
         selectedEntityId,
+        researchMode,
     };
 
     if (isReadOnly) {

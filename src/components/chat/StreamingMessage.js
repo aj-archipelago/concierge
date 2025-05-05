@@ -25,10 +25,13 @@ const StreamingContent = React.memo(function StreamingContent({
 }) {
     const contentRef = useRef(null);
     const markdownContent = useMemo(() => {
-        return convertMessageToMarkdown({
-            payload: content,
-            sender: "labeeb",
-        });
+        return convertMessageToMarkdown(
+            {
+                payload: content,
+                sender: "labeeb",
+            },
+            false,
+        );
     }, [content]);
 
     useEffect(() => {

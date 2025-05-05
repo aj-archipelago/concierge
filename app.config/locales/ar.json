@@ -531,6 +531,8 @@
     "Media File": "ملف وسائط",
     "Type": "النوع",
     "URL": "الرابط",
+    "Toggle Research Mode": "تحويل الوضع البحثي",
+    "Research Mode": "الوضع البحثي",
     "Confirm Cancellation": "تأكيد الإلغاء",
     "Are you sure you want to cancel this request? This action cannot be undone.": "هل أنت متأكد أنك تريد إلغاء هذا الطلب؟ لا يمكن التراجع عن هذا الإجراء.",
     "No": "لا",
