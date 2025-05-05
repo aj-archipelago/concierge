@@ -100,6 +100,6 @@ userStateSchema.index({ user: 1 });
 
 // Create the UserState model from the schema
 const UserState =
-    mongoose.models.UserState || mongoose.model("UserState", userStateSchema);
+    mongoose.models?.UserState || mongoose.model("UserState", userStateSchema);
 
 export default UserState;
