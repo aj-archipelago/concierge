@@ -44,18 +44,43 @@ div[dir="ltr"] {
     &-opaque {
         background-color: white;
     }
+
+    &:hover {
+        color: $primary;
+    }
+
+    &:active {
+        color: lighten($primary, 50%) !important;
+    }
+
+    &:focus {
+        outline: none;
+    }
 }
 
-.copy-button:hover {
-    color: $primary;
-}
+// Replay button styles
+.replay-button {
+    background-color: transparent;
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    text-align: end;
+    padding: 0 !important;
+    text-decoration: none;
+    color: lighten($secondary, 30%);
 
-.copy-button:active {
-    color: lighten($primary, 50%) !important;
-}
+    &:hover {
+        color: $primary;
+    }
 
-.copy-button:focus {
-    outline: none;
+    &:active {
+        color: lighten($primary, 50%) !important;
+    }
+
+    &:focus {
+        outline: none;
+    }
 }
 
 .copy-text {

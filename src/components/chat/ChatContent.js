@@ -97,7 +97,7 @@ function ChatContent({
     const processedCodeRequestIds = useRef(new Set());
 
     const handleSend = useCallback(
-        async (text) => {
+        async (text, overrideMessages) => {
             try {
                 // Reset streaming state (important before sending)
                 clearStreamingState();
@@ -106,16 +106,21 @@ function ChatContent({
                 const optimisticUserMessage = {
                     payload: text,
                     sender: "user",
-                    sentTime: "just now",
+                    sentTime: new Date().toISOString(),
                     direction: "outgoing",
                     position: "single",
                 };
 
-                // Use messages directly without processing
-                const userMessages = [
-                    ...(chat?.messages || []),
-                    optimisticUserMessage,
-                ];
+                let userMessages;
+
+                if (overrideMessages) {
+                    userMessages = [...overrideMessages];
+                } else {
+                    userMessages = [
+                        ...(chat?.messages || []),
+                        optimisticUserMessage,
+                    ];
+                }
 
                 // Show the user message immediately
                 await updateChatHook.mutateAsync({
@@ -129,7 +134,7 @@ function ChatContent({
                 });
 
                 // Prepare conversation history
-                const conversation = memoizedMessages
+                const conversation = (overrideMessages || memoizedMessages)
                     .slice(-contextMessageCount)
                     .filter((m) => {
                         if (!m.tool) return true;
@@ -229,7 +234,7 @@ function ChatContent({
                     {
                         payload: text,
                         sender: "user",
-                        sentTime: "just now",
+                        sentTime: new Date().toISOString(),
                         direction: "outgoing",
                         position: "single",
                     },
@@ -238,7 +243,7 @@ function ChatContent({
                             "Something went wrong trying to respond to your request. Please try something else or start over to continue.",
                         ),
                         sender: "labeeb",
-                        sentTime: "just now",
+                        sentTime: new Date().toISOString(),
                         direction: "incoming",
                         position: "single",
                     },
