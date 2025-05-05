@@ -35,10 +35,13 @@ const MermaidDiagram = ({ code }) => {
     const [isRendering, setIsRendering] = useState(false);
 
     // Memoize the theme configuration
-    const themeConfig = useMemo(() => ({
-        theme: theme === "dark" ? "dark" : "default",
-        themeVariables: theme === "dark" ? darkThemeVars : lightThemeVars,
-    }), [theme]);
+    const themeConfig = useMemo(
+        () => ({
+            theme: theme === "dark" ? "dark" : "default",
+            themeVariables: theme === "dark" ? darkThemeVars : lightThemeVars,
+        }),
+        [theme],
+    );
 
     useEffect(() => {
         let isMounted = true;
@@ -49,7 +52,7 @@ const MermaidDiagram = ({ code }) => {
             try {
                 setIsRendering(true);
                 const id = `mermaid-${Math.random().toString(36).substr(2, 9)}`;
-                
+
                 // Update mermaid theme configuration
                 mermaid.initialize({
                     ...mermaid.defaultConfig,
@@ -57,7 +60,7 @@ const MermaidDiagram = ({ code }) => {
                 });
 
                 const { svg } = await mermaid.render(id, code);
-                
+
                 if (isMounted && containerRef.current) {
                     containerRef.current.innerHTML = svg;
                     console.log("Mermaid diagram rendered:", {
@@ -80,7 +83,7 @@ const MermaidDiagram = ({ code }) => {
         return () => {
             isMounted = false;
         };
-    }, [code, themeConfig]);
+    }, [code, themeConfig, isRendering, theme]);
 
     return (
         <div
