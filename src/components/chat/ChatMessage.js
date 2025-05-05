@@ -13,6 +13,7 @@ import remarkMath from "remark-math";
 import "katex/dist/katex.min.css";
 import { visit } from "unist-util-visit";
 import ChatImage from "../images/ChatImage";
+import MermaidDiagram from "../code/MermaidDiagram";
 
 function transformToCitation(content) {
     return content
@@ -55,10 +56,11 @@ function customMarkdownDirective() {
     };
 }
 
-function convertMessageToMarkdown(message) {
+function convertMessageToMarkdown(message, finalRender = true) {
     const { payload, tool } = message;
     const citations = tool ? JSON.parse(tool).citations : null;
     let componentIndex = 0; // Counter for code blocks
+    let lastCodeWasMermaid = false; // Track if last code block was mermaid
 
     if (typeof payload !== "string") {
         return payload;
@@ -145,6 +147,16 @@ function convertMessageToMarkdown(message) {
             const { className, children } = props;
             const match = /language-(\w+)/.exec(className || "");
             const language = match ? match[1] : null;
+            
+            // Handle Mermaid diagrams
+            if (language === 'mermaid' && finalRender) {
+                return (
+                    <MermaidDiagram
+                        key={`mermaid-${++componentIndex}`}
+                        code={children}
+                    />
+                );
+            }
             return match ? (
                 <CodeBlock
                     key={`codeblock-${++componentIndex}`}
@@ -157,6 +169,18 @@ function convertMessageToMarkdown(message) {
                     {children}
                 </code>
             );
+        },
+        pre({ children }) {
+            // Check if the child is a code element with mermaid language
+            const isMermaid = React.Children.toArray(children).some(
+                child => React.isValidElement(child) && 
+                child.props.className?.includes('language-mermaid')
+            );
+            
+            if (isMermaid) {
+                return <>{children}</>;
+            }
+            return <pre>{children}</pre>;
         },
     };
 
