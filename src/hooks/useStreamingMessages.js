@@ -170,7 +170,7 @@ export function useStreamingMessages({
             const newMessage = {
                 payload: processedContent,
                 tool: toolString,
-                sentTime: "just now",
+                sentTime: new Date().toISOString(),
                 direction: "incoming",
                 position: "single",
                 sender: "labeeb",

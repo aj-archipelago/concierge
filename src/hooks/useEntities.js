@@ -17,7 +17,6 @@ export function useEntities(userAiName) {
 
     // If there's an error or no data, return a default entity
     if (error || !entitiesData?.sys_get_entities?.result) {
-        console.error("Failed to fetch entities:", error || "No data returned");
         return defaultResponse;
     }
 

@@ -197,10 +197,10 @@ function MessageInput({
             <div className="rounded-md border dark:border-zinc-200 mt-3">
                 <form
                     onSubmit={handleFormSubmit}
-                    className="flex items-center rounded-md dark:bg-zinc-100"
+                    className="flex items-end rounded-md dark:bg-zinc-100"
                 >
                     {enableRag && (
-                        <div className="flex items-center self-stretch px-3 py-2">
+                        <div className="flex items-end px-3 pb-1">
                             {!showFileUpload ? (
                                 <button
                                     onClick={() => {
@@ -222,128 +222,123 @@ function MessageInput({
                             )}
                         </div>
                     )}
-                    <div className="relative grow">
-                        <div className="flex items-center">
-                            <TextareaAutosize
-                                typeahead="none"
-                                className={classNames(
-                                    `w-full border-0 outline-none focus:shadow-none [.docked_&]:text-sm focus:ring-0 py-3 resize-none dark:bg-zinc-100`,
-                                    enableRag ? "px-1" : "px-3 rounded-s",
-                                )}
-                                rows={1}
-                                disabled={viewingReadOnlyChat}
-                                onKeyDown={(e) => {
-                                    if (e.key === "Enter" && !e.shiftKey) {
-                                        e.preventDefault();
-                                        // Immediately check upload state again to prevent race conditions
-                                        if (
-                                            isUploadingMedia ||
-                                            loading ||
-                                            inputValue === "" ||
-                                            viewingReadOnlyChat
-                                        ) {
-                                            // Preventing submission during inappropriate times
-                                            return;
-                                        }
-                                        handleFormSubmit(e);
+                    <div className="relative grow flex items-end">
+                        <TextareaAutosize
+                            typeahead="none"
+                            className={classNames(
+                                `w-full border-0 outline-none focus:shadow-none [.docked_&]:text-sm focus:ring-0 pt-2 resize-none dark:bg-zinc-100`,
+                                enableRag ? "px-1" : "px-3 rounded-s",
+                            )}
+                            rows={1}
+                            disabled={viewingReadOnlyChat}
+                            onKeyDown={(e) => {
+                                if (e.key === "Enter" && !e.shiftKey) {
+                                    e.preventDefault();
+                                    // Immediately check upload state again to prevent race conditions
+                                    if (
+                                        isUploadingMedia ||
+                                        loading ||
+                                        inputValue === "" ||
+                                        viewingReadOnlyChat
+                                    ) {
+                                        // Preventing submission during inappropriate times
+                                        return;
                                     }
-                                }}
-                                onPaste={async (e) => {
-                                    const items = e.clipboardData.items;
-                                    let hasFile = false;
-                                    let hasText = false;
+                                    handleFormSubmit(e);
+                                }
+                            }}
+                            onPaste={async (e) => {
+                                const items = e.clipboardData.items;
+                                let hasFile = false;
+                                let hasText = false;
 
-                                    // First check for text content
+                                // First check for text content
+                                for (let i = 0; i < items.length; i++) {
+                                    const item = items[i];
+                                    if (
+                                        item.kind === "string" &&
+                                        (item.type === "text/plain" ||
+                                            item.type === "text/html" ||
+                                            item.type === "text/rtf")
+                                    ) {
+                                        hasText = true;
+                                        break;
+                                    }
+                                }
+
+                                // Only check for files if we don't have text
+                                if (!hasText) {
                                     for (let i = 0; i < items.length; i++) {
                                         const item = items[i];
                                         if (
-                                            item.kind === "string" &&
-                                            (item.type === "text/plain" ||
-                                                item.type === "text/html" ||
-                                                item.type === "text/rtf")
+                                            item.kind === "file" &&
+                                            ACCEPTED_FILE_TYPES.includes(
+                                                item.type,
+                                            )
                                         ) {
-                                            hasText = true;
-                                            break;
-                                        }
-                                    }
-
-                                    // Only check for files if we don't have text
-                                    if (!hasText) {
-                                        for (let i = 0; i < items.length; i++) {
-                                            const item = items[i];
-                                            if (
-                                                item.kind === "file" &&
-                                                ACCEPTED_FILE_TYPES.includes(
-                                                    item.type,
-                                                )
-                                            ) {
-                                                hasFile = true;
-                                                const file = item.getAsFile();
-                                                if (file) {
-                                                    if (!showFileUpload) {
-                                                        setShowFileUpload(true);
-                                                    }
-                                                    const pondFile = {
-                                                        source: file,
-                                                        options: {
-                                                            type: "local",
-                                                            file: file,
-                                                        },
-                                                    };
-                                                    setFiles((prevFiles) => [
-                                                        ...prevFiles,
-                                                        pondFile,
-                                                    ]);
+                                            hasFile = true;
+                                            const file = item.getAsFile();
+                                            if (file) {
+                                                if (!showFileUpload) {
+                                                    setShowFileUpload(true);
                                                 }
+                                                const pondFile = {
+                                                    source: file,
+                                                    options: {
+                                                        type: "local",
+                                                        file: file,
+                                                    },
+                                                };
+                                                setFiles((prevFiles) => [
+                                                    ...prevFiles,
+                                                    pondFile,
+                                                ]);
                                             }
                                         }
                                     }
+                                }
 
-                                    // Prevent default only if we handled a file and there's no text
-                                    if (hasFile && !hasText) {
-                                        e.preventDefault();
-                                    }
-                                }}
-                                placeholder={placeholder || "Send a message"}
-                                value={inputValue}
-                                onChange={handleInputChange}
-                                autoComplete="on"
-                                autoCapitalize="sentences"
-                                autoCorrect="on"
-                                spellCheck="true"
-                                inputMode="text"
-                            />
-                        </div>
-                    </div>
-                    <div className=" pe-4 ps-3 dark:bg-zinc-100 self-stretch flex rounded-e">
-                        <div className="pt-4">
-                            {isStreaming || loading ? (
-                                <button
-                                    type="button"
-                                    onClick={onStopStreaming}
-                                    className={classNames(
-                                        "text-base text-red-600 hover:text-red-700 active:text-red-800 dark:bg-zinc-100",
-                                    )}
-                                >
-                                    <StopCircle className="w-5 h-5 text-red-500" />
-                                </button>
-                            ) : (
-                                <button
-                                    type="submit"
-                                    disabled={
-                                        loading ||
-                                        inputValue === "" ||
-                                        isUploadingMedia ||
-                                        viewingReadOnlyChat
-                                    }
-                                    className={classNames(
-                                        "text-base rtl:rotate-180 text-emerald-600 hover:text-emerald-600 disabled:text-gray-300 active:text-gray-800 dark:bg-zinc-100",
-                                    )}
-                                >
-                                    <Send className="w-5 h-5 text-gray-400" />
-                                </button>
+                                // Prevent default only if we handled a file and there's no text
+                                if (hasFile && !hasText) {
+                                    e.preventDefault();
+                                }
+                            }}
+                            placeholder={placeholder || "Send a message"}
+                            value={inputValue}
+                            onChange={handleInputChange}
+                            autoComplete="on"
+                            autoCapitalize="sentences"
+                            autoCorrect="on"
+                            spellCheck="true"
+                            inputMode="text"
+                        />
+                        <button
+                            type={isStreaming || loading ? "button" : "submit"}
+                            onClick={
+                                isStreaming || loading
+                                    ? onStopStreaming
+                                    : undefined
+                            }
+                            disabled={
+                                !isStreaming &&
+                                !loading &&
+                                (loading ||
+                                    inputValue === "" ||
+                                    isUploadingMedia ||
+                                    viewingReadOnlyChat)
+                            }
+                            className={classNames(
+                                "ml-2 pr-4 pb-2.5 text-base text-emerald-600 hover:text-emerald-600 disabled:text-gray-300 active:text-gray-800 dark:bg-zinc-100 flex items-end",
                             )}
-                        </div>
+                        >
+                            {isStreaming || loading ? (
+                                <StopCircle className="w-5 h-5 text-red-500" />
+                            ) : (
+                                <span className="rtl:scale-x-[-1]">
+                                    <Send className="w-5 h-5 text-gray-400" />
+                                </span>
+                            )}
+                        </button>
                     </div>
                 </form>
             </div>
