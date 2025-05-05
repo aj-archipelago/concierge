@@ -532,5 +532,7 @@
     "Video File": "ملف فيديو",
     "Media File": "ملف وسائط",
     "Type": "النوع",
-    "URL": "الرابط"
+    "URL": "الرابط",
+    "Toggle Research Mode": "تحويل الوضع البحثي",
+    "Research Mode": "الوضع البحثي"
 }

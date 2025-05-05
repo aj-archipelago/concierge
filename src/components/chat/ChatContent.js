@@ -168,6 +168,8 @@ function ChatContent({
                     chatId,
                     stream: true,
                     entityId: currentSelectedEntityId,
+                    researchMode: chat?.researchMode ? true : false,
+                    model: chat?.researchMode ? "oai-o3" : "oai-gpt41",
                 };
 
                 // Make parallel title update call

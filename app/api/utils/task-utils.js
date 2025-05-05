@@ -47,6 +47,8 @@ export async function syncTaskWithBullMQJob(task) {
     if (!task?.jobId) return task;
 
     const job = await requestProgressQueue.getJob(task.jobId);
+
+    if (!job) return task;
     const status = await job.getState();
 
     let update = {};
@@ -93,6 +95,8 @@ export async function retryTask(task) {
     if (task.jobId) {
         console.log("task.jobId", task.jobId);
         const job = await requestProgressQueue.getJob(task.jobId);
+
+        if (!job) return task;
 
         const status = await job.getState();
         console.log("job", status);
