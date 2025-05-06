@@ -17,7 +17,7 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 import EntityIcon from "./EntityIcon";
-import { User, Share, Trash2, Check } from "lucide-react";
+import { Share, Trash2, Check } from "lucide-react";
 import { useEntities } from "../../hooks/useEntities";
 import {
     AlertDialog,
@@ -139,15 +139,26 @@ function Chat({ viewingChat = null }) {
                             className={`w-auto text-sm h-7 lb-outline ${readOnly ? "cursor-not-allowed opacity-50" : ""}`}
                             aria-label={t("Select entity")}
                         >
-                            <div className="flex items-center gap-2">
-                                <User className="w-4 h-4 text-gray-500" />
+                            <div className="flex items-center gap-2 pr-1">
                                 {selectedEntityId ? (
-                                    <EntityIcon
-                                        entity={entities.find(
-                                            (e) => e.id === selectedEntityId,
-                                        )}
-                                        size="xs"
-                                    />
+                                    <>
+                                        <EntityIcon
+                                            entity={entities.find(
+                                                (e) =>
+                                                    e.id === selectedEntityId,
+                                            )}
+                                            size="xs"
+                                        />
+                                        <span className="hidden sm:inline">
+                                            {t(
+                                                entities.find(
+                                                    (e) =>
+                                                        e.id ===
+                                                        selectedEntityId,
+                                                )?.name,
+                                            )}
+                                        </span>
+                                    </>
                                 ) : (
                                     <SelectValue
                                         placeholder={t("Select entity")}
@@ -158,7 +169,7 @@ function Chat({ viewingChat = null }) {
                         <SelectContent>
                             {entities.map((entity) => (
                                 <SelectItem
-                                    className="text-sm"
+                                    className="text-sm focus:bg-gray-100 dark:focus:bg-gray-100 dark:focus:text-gray-800"
                                     key={entity.id}
                                     value={entity.id}
                                 >
