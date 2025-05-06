@@ -216,18 +216,26 @@ export function useStreamingMessages({
 
     const stopStreaming = useCallback(async () => {
         if (chat?._id) {
-            // If there's streaming content, complete the message
-            if (streamingMessageRef.current) {
-                await completeMessage();
+            try {
+                // If there's streaming content, complete the message
+                if (streamingMessageRef.current) {
+                    await completeMessage();
+                }
+            } catch (error) {
+                console.error("Error completing message during stop:", error);
+            } finally {
+                // Always ensure isChatLoading is set to false when stopping
+                await updateChatHook.mutateAsync({
+                    chatId: String(chat?._id),
+                    isChatLoading: false,
+                });
+                // Clear all streaming state
+                clearStreamingState();
+                // Reset subscription ID to stop any ongoing requests
+                setSubscriptionId(null);
             }
-
-            // Always ensure isChatLoading is set to false when stopping
-            await updateChatHook.mutateAsync({
-                chatId: String(chat?._id),
-                isChatLoading: false,
-            });
         }
-    }, [chat, completeMessage, updateChatHook]);
+    }, [chat, completeMessage, updateChatHook, clearStreamingState, setSubscriptionId]);
 
     const updateStreamingContent = useCallback(
         async (newContent, isEphemeral = false) => {

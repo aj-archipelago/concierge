@@ -203,6 +203,7 @@ function MessageInput({
                         <div className="flex items-end px-3 pb-2.5">
                             {!showFileUpload ? (
                                 <button
+                                    type="button"
                                     onClick={() => {
                                         setShowFileUpload(true);
                                     }}
@@ -212,6 +213,7 @@ function MessageInput({
                                 </button>
                             ) : (
                                 <button
+                                    type="button"
                                     onClick={() => {
                                         setShowFileUpload(false);
                                     }}

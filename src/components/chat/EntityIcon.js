@@ -1,7 +1,20 @@
 import React from "react";
+import config from "../../../config";
 
 // Accept an optional size prop (defaults to 'small' if not provided)
 const EntityIcon = ({ entity, size = "sm" }) => {
+    // If entity is default, show the app logo
+    if (entity?.isDefault) {
+        const logoUrl = config.global.getLogo();
+        return (
+            <img
+                src={logoUrl}
+                alt="Labeeb Logo"
+                className={`${size === "lg" ? "w-8 h-8" : size === "xs" ? "w-4 h-4" : "w-5 h-5"}`}
+            />
+        );
+    }
+
     // Get the first letter of the entity name
     const letter = entity?.name ? entity.name[0].toUpperCase() : "?";
 

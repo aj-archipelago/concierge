@@ -140,14 +140,16 @@ function Chat({ viewingChat = null }) {
                             aria-label={t("Select entity")}
                         >
                             <div className="flex items-center gap-2">
-                                <User className="w-4 h-4 text-gray-500" />
                                 {selectedEntityId ? (
-                                    <EntityIcon
-                                        entity={entities.find(
-                                            (e) => e.id === selectedEntityId,
-                                        )}
-                                        size="xs"
-                                    />
+                                    <>
+                                        <EntityIcon
+                                            entity={entities.find(
+                                                (e) => e.id === selectedEntityId,
+                                            )}
+                                            size="xs"
+                                        />
+                                        <span>{t(entities.find(e => e.id === selectedEntityId)?.name)}</span>
+                                    </>
                                 ) : (
                                     <SelectValue
                                         placeholder={t("Select entity")}
@@ -158,7 +160,7 @@ function Chat({ viewingChat = null }) {
                         <SelectContent>
                             {entities.map((entity) => (
                                 <SelectItem
-                                    className="text-sm"
+                                    className="text-sm focus:bg-gray-100 dark:focus:bg-gray-100 dark:focus:text-gray-800"
                                     key={entity.id}
                                     value={entity.id}
                                 >
