@@ -92,8 +92,8 @@ class VideoTranslateHandler extends BaseTask {
         targetLocaleLabel,
     ) {
         if (!userId || !dataObject) {
-            console.log("Missing required data for video state update");
-            return;
+            console.error("User ID or data object is missing");
+            throw new Error("User ID or data object is missing");
         }
 
         try {
@@ -102,8 +102,7 @@ class VideoTranslateHandler extends BaseTask {
             ).default;
             const userState = await UserState.findOne({ user: userId });
             if (!userState) {
-                console.log("User state not found");
-                return;
+                throw new Error("User state not found");
             }
 
             let state = {};
@@ -113,7 +112,7 @@ class VideoTranslateHandler extends BaseTask {
                     : {};
             } catch (e) {
                 console.error("Error parsing serializedState:", e);
-                state = {};
+                throw new Error("Error parsing serializedState:", e);
             }
 
             // Get the target locale and URLs from the data

@@ -30,7 +30,6 @@ import {
 import { LanguageContext } from "../../contexts/LanguageProvider";
 import { useNotificationsContext } from "../../contexts/NotificationContext";
 import { getTaskDisplayName } from "../../utils/task-loader.mjs";
-import { useJob } from "../../../app/queries/jobs";
 
 const getLocaleShortName = (locale, usersLanguage) => {
     try {
@@ -79,47 +78,6 @@ export const getStatusColorClass = (status) => {
     }
 };
 
-const JobInfoBox = ({ job }) => {
-    const [expanded, setExpanded] = useState(false);
-
-    if (!job) return null;
-
-    return (
-        <div className="ms-8 bg-gray-50 border border-gray-200 rounded p-2 mt-2 text-xs text-gray-700 overflow-auto max-h-40">
-            <div
-                className="flex items-center justify-between cursor-pointer font-medium text-gray-800"
-                onClick={() => setExpanded((prev) => !prev)}
-                title={expanded ? "Collapse" : "Expand"}
-            >
-                <span>Job Info</span>
-                <button
-                    className="ml-2 text-xs text-sky-500 hover:underline focus:outline-none"
-                    tabIndex={-1}
-                    type="button"
-                >
-                    {expanded ? "Hide" : "Show"}
-                </button>
-            </div>
-            {expanded && (
-                <div>
-                    <div>
-                        <span className="font-medium">ID:</span> {job.id}
-                    </div>
-                    <div>
-                        <span className="font-medium">State:</span> {job.state}
-                    </div>
-                    {job.failedReason && (
-                        <div className="text-red-500">
-                            <span className="font-medium">Failed Reason:</span>{" "}
-                            {job.failedReason}
-                        </div>
-                    )}
-                </div>
-            )}
-        </div>
-    );
-};
-
 const NotificationItem = ({
     notification,
     handlerDisplayNames,
@@ -132,8 +90,6 @@ const NotificationItem = ({
     dismissingIds,
     t,
 }) => {
-    const { data: job } = useJob(notification.jobId);
-
     return (
         <div
             key={notification._id}
@@ -304,8 +260,6 @@ const NotificationItem = ({
                     )}
                 </div>
             </div>
-
-            <JobInfoBox job={job} />
         </div>
     );
 };

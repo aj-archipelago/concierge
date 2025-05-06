@@ -130,10 +130,11 @@ export async function GET(request) {
             .skip((page - 1) * limit)
             .limit(limit);
 
+        await Promise.all(requests.map((task) => syncTaskWithBullMQJob(task)));
+
         // Check each task for abandoned status
         const updatedRequests = await Promise.all(
             requests.map((task) => checkAndUpdateAbandonedTask(task)),
-            requests.map((task) => syncTaskWithBullMQJob(task)),
         );
 
         const total = await Task.countDocuments(query);
