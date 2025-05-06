@@ -39,6 +39,10 @@ export const appletSchema = new mongoose.Schema(
                     type: String,
                     required: true,
                 },
+                linkToVersion: {
+                    type: Number,
+                    required: false,
+                },
             },
         ],
         suggestions: [

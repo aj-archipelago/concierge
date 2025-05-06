@@ -21,17 +21,21 @@ import {
 } from "../../../queries/workspaces";
 import LLMSelector from "../../components/LLMSelector";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { MonacoEditor } from "@monaco-editor/react";
+import MonacoEditor from "@monaco-editor/react";
 import {
     Tooltip,
     TooltipTrigger,
     TooltipContent,
     TooltipProvider,
 } from "@/components/ui/tooltip";
+import marked from "marked";
+import { ServerContext } from "../../../../src/App";
 
 function CopyPublishedLinkButton() {
     const [copied, setCopied] = useState(false);
-    const placeholderLink = "https://example.com/published-link";
+    const serverContext = useContext(ServerContext);
+    const { id } = useParams();
+    const placeholderLink = `${serverContext.serverUrl}/published/workspaces/${id}/applet`;
 
     const handleCopy = async (e) => {
         e.stopPropagation();
@@ -98,6 +102,7 @@ export default function WorkspaceApplet() {
     const updateApplet = useUpdateWorkspaceApplet();
     const chatMutation = useWorkspaceChat(id);
     const { direction } = useContext(LanguageContext);
+    const [allMessages, setAllMessages] = useState([]);
 
     useEffect(() => {
         if (
@@ -123,8 +128,14 @@ export default function WorkspaceApplet() {
     }, [selectedLLM]);
 
     useEffect(() => {
-        if (appletQuery.data) {
-            setMessages(appletQuery.data.messages || []);
+        if (appletQuery.data?.messages?.length > 0 && !allMessages?.length) {
+            setAllMessages(appletQuery.data.messages || []);
+            setMessages(
+                getMessagesUpToVersion(
+                    appletQuery.data.messages,
+                    activeVersionIndex,
+                ),
+            );
             if (appletQuery.data.htmlVersions?.length > 0) {
                 setHtmlVersions(
                     appletQuery.data.htmlVersions.map((v) => v.content),
@@ -142,7 +153,20 @@ export default function WorkspaceApplet() {
                     : null,
             );
         }
-    }, [appletQuery.data]);
+    }, [appletQuery.data, allMessages?.length]);
+
+    useEffect(() => {
+        // Only update if allMessages is loaded and activeVersionIndex is valid
+        if (
+            allMessages &&
+            allMessages.length > 0 &&
+            activeVersionIndex !== -1
+        ) {
+            setMessages(
+                getMessagesUpToVersion(allMessages, activeVersionIndex),
+            );
+        }
+    }, [activeVersionIndex, allMessages]);
 
     const handleSendMessage = async () => {
         if (!inputMessage.trim() || !selectedLLM) return;
@@ -158,67 +182,61 @@ export default function WorkspaceApplet() {
         setInputMessage("");
         setIsLoading(true);
 
-        // Save messages to applet
-        updateApplet.mutate({
-            id,
-            data: { messages: updatedMessages },
-        });
-
         try {
+            // Use the currently displayed version for currentHtml
+            const currentHtml = htmlVersions[activeVersionIndex] || "";
+
+            console.log("Current HTML", currentHtml);
+
             const response = await chatMutation.mutateAsync({
                 messages: updatedMessages,
                 model: selectedLLM,
-                currentHtml: previewHtml,
+                currentHtml,
             });
 
-            const aiMessage = {
+            let aiMessage = {
                 content: response.message,
                 role: "assistant",
                 timestamp: new Date().toISOString(),
             };
 
-            // Check if the message is HTML code (enclosed in backticks)
+            let newVersions = htmlVersions; // default to current
             if (
-                response.message.startsWith("`") &&
-                response.message.endsWith("`")
+                typeof response.message === "object" &&
+                response.message !== null &&
+                typeof response.message.html === "string" &&
+                typeof response.message.changes === "string"
             ) {
-                // Remove backticks, html prefix, and any whitespace around them more thoroughly
-                const htmlCode = response.message
-                    .replace(/^`+\s*html\s*/, "") // Remove backticks and html prefix only at start
-                    .replace(/^`+/, "") // Remove any remaining backticks at start
-                    .replace(/`+$/, "") // Remove backticks at end
-                    .replace(/``+/g, ""); // Remove any remaining double/triple backticks
-                setPreviewHtml(htmlCode);
-                // Add new version to history
-                const newVersions = [...htmlVersions, htmlCode];
+                // Branching logic: keep up to and including the current version, then add the new one
+                newVersions = [
+                    ...htmlVersions.slice(0, activeVersionIndex + 1),
+                    response.message.html,
+                ];
                 setHtmlVersions(newVersions);
+                setPreviewHtml(response.message.html);
                 setActiveVersionIndex(newVersions.length - 1);
 
-                // Update the applet with new HTML version
-                updateApplet.mutate({
-                    id,
-                    data: {
-                        html: htmlCode,
-                        messages: updatedMessages,
-                    },
-                });
-
-                aiMessage.content =
-                    "HTML code generated. Check the preview pane →";
+                aiMessage.content = `HTML code generated. Check the preview pane →\n\n**Summary of changes:**\n${response.message.changes}`;
+                aiMessage.linkToVersion = newVersions.length - 1;
             } else {
-                // For text messages, keep the existing preview HTML
                 aiMessage.content = response.message;
-                // If the message contains backticks but isn't fully wrapped, strip them
                 if (response.message.includes("`")) {
                     aiMessage.content = response.message.replace(/`/g, "");
                 }
             }
 
             const finalMessages = [...updatedMessages, aiMessage];
-            setMessages(finalMessages);
+            setAllMessages(finalMessages);
+            setMessages(
+                getMessagesUpToVersion(finalMessages, activeVersionIndex),
+            );
+
             updateApplet.mutate({
                 id,
-                data: { messages: finalMessages },
+                data: {
+                    messages: finalMessages,
+                    htmlVersions: newVersions,
+                },
             });
         } catch (error) {
             console.error("Error calling AI endpoint:", error);
@@ -257,6 +275,8 @@ export default function WorkspaceApplet() {
             },
         );
     };
+
+    console.log("Messages", messages);
 
     return (
         <TooltipProvider>
@@ -506,19 +526,22 @@ export default function WorkspaceApplet() {
                                                                 activeVersionIndex
                                                             ]
                                                         }
-                                                        onChange={(e) => {
+                                                        onChange={(
+                                                            value,
+                                                            e,
+                                                        ) => {
                                                             const newVersions =
                                                                 [
                                                                     ...htmlVersions,
                                                                 ];
                                                             newVersions[
                                                                 activeVersionIndex
-                                                            ] = e.target.value;
+                                                            ] = value;
                                                             setHtmlVersions(
                                                                 newVersions,
                                                             );
                                                             setPreviewHtml(
-                                                                e.target.value,
+                                                                value,
                                                             );
                                                         }}
                                                     />
@@ -586,37 +609,15 @@ export default function WorkspaceApplet() {
                                                 message.role === "user"
                                                     ? "bg-sky-100 text-sky-900"
                                                     : "bg-gray-100 text-gray-900"
-                                            } ${message.content === "HTML code generated. Check the preview pane →" ? "cursor-pointer hover:bg-gray-200" : ""}`}
+                                            } ${typeof message.linkToVersion === "number" ? "cursor-pointer hover:bg-gray-200" : ""}`}
                                             onClick={() => {
                                                 if (
-                                                    message.content ===
-                                                    "HTML code generated. Check the preview pane →"
+                                                    typeof message.linkToVersion ===
+                                                    "number"
                                                 ) {
-                                                    // Find the corresponding HTML version
-                                                    // Each HTML message corresponds to a version, so we can count backwards
-                                                    let htmlMessageCount = 0;
-                                                    for (
-                                                        let i =
-                                                            messages.length - 1;
-                                                        i >= 0;
-                                                        i--
-                                                    ) {
-                                                        if (
-                                                            messages[i]
-                                                                .content ===
-                                                            "HTML code generated. Check the preview pane →"
-                                                        ) {
-                                                            if (i === index) {
-                                                                setActiveVersionIndex(
-                                                                    htmlVersions.length -
-                                                                        1 -
-                                                                        htmlMessageCount,
-                                                                );
-                                                                break;
-                                                            }
-                                                            htmlMessageCount++;
-                                                        }
-                                                    }
+                                                    setActiveVersionIndex(
+                                                        message.linkToVersion,
+                                                    );
                                                 }
                                             }}
                                         >
@@ -778,4 +779,11 @@ function HtmlEditor({ value, onChange }) {
             onChange={onChange}
         />
     );
+}
+
+function getMessagesUpToVersion(messages, versionIndex) {
+    if (!messages) return [];
+    const idx = messages.findIndex((msg) => msg.linkToVersion === versionIndex);
+    if (idx === -1) return messages;
+    return messages.slice(0, idx + 1);
 }

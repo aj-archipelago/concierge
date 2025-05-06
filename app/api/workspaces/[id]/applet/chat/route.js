@@ -39,7 +39,13 @@ export async function POST(request, { params }) {
                 text: latestMessage.content,
                 prompt: conversationHistory,
                 systemPrompt: `You are a UI/UX expert assistant. Your task is to help users design and create user interfaces. You can respond in two ways:
-                1. With HTML/CSS code wrapped in backticks when you want to show a UI component
+                1. With a JSON object when you want to show a UI component. The object should have the following structure:
+                {
+                  "html": "<string containing the raw html>",
+                  "changes": "<markdown string containing a summary of the changes made to the html>"
+                }
+                In this option, do not output any notes or commentary outside the JSON object.
+                
                 2. With natural language when discussing or asking questions about the UI requirements
 
                 IMPORTANT: When modifying existing HTML, you will be provided with the current HTML. You should:
@@ -90,16 +96,42 @@ export async function POST(request, { params }) {
                   - Use box-shadow: 0 0.0625em 0.125em rgba(0, 0, 0, 0.05) for subtle shadows
                   - Use box-shadow: 0 0.25em 0.375em rgba(0, 0, 0, 0.1) for more prominent elements
                   - Use consistent padding (1.25em for containers, 0.5em to 0.75em for smaller elements)
-                  - Add margin of 0.75em between buttons and other elements for proper spacing`,
+                  - Add margin of 0.75em between buttons and other elements for proper spacing
+                  - For buttons that invoke long-running operations, show a spinner inside the button and disable the button while the operation is in progress. The spinner should be visible until the operation completes, then the button returns to its normal state.
+                `,
             },
         });
 
         // Extract the AI's response
         const aiResponse = response.data[pathwayName].result;
 
+        let message;
+        try {
+            // Try to parse as JSON
+            const parsed = JSON.parse(aiResponse);
+            // Check for expected structure
+            if (
+                typeof parsed === "object" &&
+                parsed !== null &&
+                typeof parsed.html === "string" &&
+                typeof parsed.changes === "string"
+            ) {
+                message = {
+                    html: parsed.html,
+                    changes: parsed.changes,
+                };
+            } else {
+                // Not the expected structure, treat as plain message
+                message = aiResponse;
+            }
+        } catch (e) {
+            // Not JSON, treat as plain message
+            message = aiResponse;
+        }
+
         // Return the response in the expected format
         return NextResponse.json({
-            message: aiResponse,
+            message,
         });
     } catch (error) {
         console.error("Error in chat endpoint:", error);
