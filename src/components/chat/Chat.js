@@ -17,7 +17,7 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 import EntityIcon from "./EntityIcon";
-import { User, Share, Trash2, Check } from "lucide-react";
+import { Share, Trash2, Check } from "lucide-react";
 import { useEntities } from "../../hooks/useEntities";
 import {
     AlertDialog,
@@ -144,11 +144,20 @@ function Chat({ viewingChat = null }) {
                                     <>
                                         <EntityIcon
                                             entity={entities.find(
-                                                (e) => e.id === selectedEntityId,
+                                                (e) =>
+                                                    e.id === selectedEntityId,
                                             )}
                                             size="xs"
                                         />
-                                        <span>{t(entities.find(e => e.id === selectedEntityId)?.name)}</span>
+                                        <span>
+                                            {t(
+                                                entities.find(
+                                                    (e) =>
+                                                        e.id ===
+                                                        selectedEntityId,
+                                                )?.name,
+                                            )}
+                                        </span>
                                     </>
                                 ) : (
                                     <SelectValue

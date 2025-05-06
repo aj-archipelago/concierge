@@ -235,7 +235,13 @@ export function useStreamingMessages({
                 setSubscriptionId(null);
             }
         }
-    }, [chat, completeMessage, updateChatHook, clearStreamingState, setSubscriptionId]);
+    }, [
+        chat,
+        completeMessage,
+        updateChatHook,
+        clearStreamingState,
+        setSubscriptionId,
+    ]);
 
     const updateStreamingContent = useCallback(
         async (newContent, isEphemeral = false) => {
