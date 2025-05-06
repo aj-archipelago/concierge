@@ -41,10 +41,10 @@ const MermaidDiagram = ({ code }) => {
 
         const renderDiagram = async () => {
             if (!containerRef.current || !code) return;
-            
+
             // Only set isRendering if we're actually going to render
             if (isRendering) return;
-            
+
             try {
                 setIsRendering(true);
                 const id = `mermaid-${Math.random().toString(36).substr(2, 9)}`;
@@ -57,7 +57,7 @@ const MermaidDiagram = ({ code }) => {
                     logLevel: "error",
                     flowchart: {
                         htmlLabels: true,
-                        curve: "basis"
+                        curve: "basis",
                     },
                     sequence: {
                         diagramMarginX: 50,
@@ -68,7 +68,7 @@ const MermaidDiagram = ({ code }) => {
                         boxMargin: 10,
                         boxTextMargin: 5,
                         noteMargin: 10,
-                        messageMargin: 35
+                        messageMargin: 35,
                     },
                     ...themeConfig,
                 });
@@ -107,7 +107,10 @@ const MermaidDiagram = ({ code }) => {
                                 </button>
                                 <div class="bg-white dark:bg-gray-900/50 p-4 rounded border border-red-100 dark:border-red-800 w-full overflow-hidden transition-all duration-300 max-h-0">
                                     <div class="flex font-mono text-sm">
-                                        <pre class="text-gray-400 dark:text-gray-500 pr-2 pl-1 select-none border-r border-gray-200 dark:border-gray-700 min-w-[2.5rem] text-right">${code.split('\n').map((_, i) => i + 1).join('\n')}</pre>
+                                        <pre class="text-gray-400 dark:text-gray-500 pr-2 pl-1 select-none border-r border-gray-200 dark:border-gray-700 min-w-[2.5rem] text-right">${code
+                                            .split("\n")
+                                            .map((_, i) => i + 1)
+                                            .join("\n")}</pre>
                                         <pre class="text-gray-700 dark:text-gray-800 overflow-x-auto pl-2 whitespace-pre">${code}</pre>
                                     </div>
                                 </div>
@@ -127,6 +130,7 @@ const MermaidDiagram = ({ code }) => {
             isMounted = false;
             setIsRendering(false); // Reset rendering state on cleanup
         };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [code, themeConfig, theme]); // Remove isRendering from dependencies
 
     return (
