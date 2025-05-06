@@ -139,7 +139,7 @@ function Chat({ viewingChat = null }) {
                             className={`w-auto text-sm h-7 lb-outline ${readOnly ? "cursor-not-allowed opacity-50" : ""}`}
                             aria-label={t("Select entity")}
                         >
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-2 pr-1">
                                 {selectedEntityId ? (
                                     <>
                                         <EntityIcon
@@ -149,7 +149,7 @@ function Chat({ viewingChat = null }) {
                                             )}
                                             size="xs"
                                         />
-                                        <span>
+                                        <span className="hidden sm:inline">
                                             {t(
                                                 entities.find(
                                                     (e) =>
