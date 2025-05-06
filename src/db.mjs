@@ -181,25 +181,7 @@ export async function connectToDatabase() {
         [`${dbName}.userstates`]: {
             bsonType: "object",
             properties: {
-                jira: {
-                    encrypt: {
-                        bsonType: "string",
-                        algorithm: "AEAD_AES_256_CBC_HMAC_SHA_512-Random",
-                    },
-                },
-                translate: {
-                    encrypt: {
-                        bsonType: "string",
-                        algorithm: "AEAD_AES_256_CBC_HMAC_SHA_512-Random",
-                    },
-                },
-                transcribe: {
-                    encrypt: {
-                        bsonType: "string",
-                        algorithm: "AEAD_AES_256_CBC_HMAC_SHA_512-Random",
-                    },
-                },
-                write: {
+                serializedState: {
                     encrypt: {
                         bsonType: "string",
                         algorithm: "AEAD_AES_256_CBC_HMAC_SHA_512-Random",
