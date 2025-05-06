@@ -93,6 +93,8 @@ export async function PUT(request, { params }) {
         if (body.suggestions !== undefined)
             updateObj.suggestions = body.suggestions;
         if (body.name !== undefined) updateObj.name = body.name;
+        if (body.publishedVersionIndex !== undefined)
+            updateObj.publishedVersionIndex = body.publishedVersionIndex;
 
         // Use findOneAndUpdate with atomic operations
         const updatedApplet = await Applet.findOneAndUpdate(

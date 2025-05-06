@@ -24,6 +24,11 @@ export const appletSchema = new mongoose.Schema(
                 },
             },
         ],
+        publishedVersionIndex: {
+            type: Number,
+            required: false,
+            default: null, // No version published by default
+        },
         messages: [
             {
                 role: {

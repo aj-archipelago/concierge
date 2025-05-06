@@ -5,7 +5,8 @@ import LLM from "../../../../models/llm";
 
 export async function POST(request, { params }) {
     try {
-        const { messages, model, currentHtml, restEndpoint } = await request.json();
+        const { messages, model, currentHtml, restEndpoint } =
+            await request.json();
 
         if (!model) {
             return NextResponse.json(
@@ -49,7 +50,9 @@ export async function POST(request, { params }) {
                 Current HTML being modified:
                 ${currentHtml || "No existing HTML provided - creating new component"}
 
-                ${restEndpoint ? `You have access to a REST endpoint at ${restEndpoint} that can be used for LLM processing.
+                ${
+                    restEndpoint
+                        ? `You have access to a REST endpoint at ${restEndpoint} that can be used for LLM processing.
                 When generating HTML components that need LLM capabilities (e.g. translation, text analysis, etc), 
                 you should include the necessary JavaScript to make POST requests to this endpoint.
                 
@@ -74,7 +77,9 @@ export async function POST(request, { params }) {
                     const data = await response.json();
                     return data.message;
                 }
-                \`\`\`` : ''}
+                \`\`\``
+                        : ""
+                }
 
                 When creating UI components, follow these styling guidelines:
                 - Use clean, semantic HTML with descriptive class names
