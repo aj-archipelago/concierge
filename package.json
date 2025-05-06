@@ -1,6 +1,6 @@
 {
     "name": "labeeb",
-    "version": "2.6.1",
+    "version": "2.6.2",
     "private": true,
     "dependencies": {
         "@aj-archipelago/subvibe": "^1.0.10",
