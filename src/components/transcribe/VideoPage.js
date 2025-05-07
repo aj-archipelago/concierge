@@ -304,6 +304,7 @@ function EditableTranscriptSelect({
                                     onValueChange={(value) =>
                                         setActiveTranscript(parseInt(value))
                                     }
+                                    disabled={isEditing}
                                 >
                                     <SelectTrigger className="w-full sm:w-[300px] py-1 h-8 font-medium text-start">
                                         <SelectValue>
@@ -370,8 +371,15 @@ function EditableTranscriptSelect({
                                     url={url}
                                     onAdd={onAdd}
                                     activeTranscript={activeTranscript}
+                                    disabled={isEditing}
                                     trigger={
-                                        <button className="flex items-center text-sky-600 hover:text-sky-700">
+                                        <button
+                                            className={classNames(
+                                                "flex items-center text-sky-600 hover:text-sky-700",
+                                                isEditing &&
+                                                    "opacity-50 cursor-not-allowed",
+                                            )}
+                                        >
                                             <PlusCircleIcon className="h-5 w-5" />
                                         </button>
                                     }
