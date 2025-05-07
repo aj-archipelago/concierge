@@ -45,11 +45,10 @@ async function createBackgroundTask({
     const job = await requestProgressQueue.add("task", jobData, {
         timeout,
         removeOnComplete: {
-            age: 24 * 3600,
-            count: 1000,
+            age: 24 * 3600 * 7,
         },
         removeOnFail: {
-            age: 24 * 3600,
+            age: 24 * 3600 * 7,
         },
     });
 

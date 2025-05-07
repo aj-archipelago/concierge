@@ -37,6 +37,10 @@ class TranscribeHandler extends BaseTask {
         return "Video transcription";
     }
 
+    get isRetryable() {
+        return true;
+    }
+
     async startRequest(job) {
         const { taskId, metadata } = job.data;
         console.debug(

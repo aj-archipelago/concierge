@@ -6,6 +6,10 @@ class VideoTranslateHandler extends BaseTask {
         return "Video translation";
     }
 
+    get isRetryable() {
+        return true;
+    }
+
     async startRequest(job) {
         const { taskId, metadata } = job.data;
 
