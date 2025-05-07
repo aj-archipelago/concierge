@@ -22,8 +22,13 @@ export async function checkAndUpdateAbandonedTask(task) {
     ) {
         const tenSecondsAgo = new Date(Date.now() - 10000); // 10 seconds in milliseconds
         if (new Date(task.lastHeartbeat) < tenSecondsAgo) {
-            task.status = "abandoned";
-            await task.save();
+            task = await Task.findByIdAndUpdate(
+                task._id,
+                {
+                    status: "abandoned",
+                },
+                { new: true },
+            );
         }
     }
     return task;
@@ -84,35 +89,70 @@ export async function syncTaskWithBullMQJob(task) {
 export async function retryTask(task) {
     if (!task) throw new Error("No task provided");
 
-    if (task.status !== "failed" && task.status !== "abandoned") {
-        throw new Error("Only failed or abandoned tasks can be retried");
+    console.log(`Trying to retry task ${task._id}. Job ID ${task.jobId}`);
+    if (
+        task.status !== "failed" &&
+        task.status !== "abandoned" &&
+        task.status !== "cancelled"
+    ) {
+        throw new Error(
+            "Only failed, abandoned or cancelled tasks can be retried",
+        );
     }
 
     let retried = false;
 
-    console.log("task", task);
-
     if (task.jobId) {
-        console.log("task.jobId", task.jobId);
-        const job = await requestProgressQueue.getJob(task.jobId);
+        let job = await requestProgressQueue.getJob(task.jobId);
 
         if (!job) return task;
 
         const status = await job.getState();
-        console.log("job", status);
 
         if (status === "failed") {
             await job.retry();
-            retried = true;
+        } else {
+            console.log(
+                `Job ${task.jobId} is not failed. Will create a new job for this task.`,
+            );
+            const data = job.data;
+            try {
+                await job.discard();
+                await job.remove();
+            } catch (error) {
+                // This can happen if there's a lock on the job, in which case we can just ignore it
+            }
+
+            delete data.id;
+
+            job = await requestProgressQueue.add("task", data);
+
+            await Task.findByIdAndUpdate(
+                task._id,
+                {
+                    jobId: job.id,
+                    lastHeartbeat: new Date(),
+                },
+                { new: true },
+            );
         }
+        retried = true;
     }
 
     if (retried) {
         // Optionally update task status
         task.status = "pending";
         task.statusText = "";
-        await task.save();
+        task = await Task.findByIdAndUpdate(
+            task._id,
+            {
+                status: "pending",
+                statusText: "",
+            },
+            { new: true },
+        );
     }
 
+    console.log(`Retried task ${task._id}. Job ID ${task.jobId}`);
     return task;
 }

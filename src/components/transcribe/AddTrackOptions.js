@@ -41,17 +41,17 @@ export function AddTrackOptions({
     );
     const gridCols =
         visibleOptions.length === 1
-            ? "grid-cols-1"
+            ? "lg:grid-cols-1"
             : visibleOptions.length === 2
-              ? "grid-cols-2"
+              ? "lg:grid-cols-2"
               : visibleOptions.length === 3
-                ? "grid-cols-3"
-                : "grid-cols-4";
+                ? "lg:grid-cols-3"
+                : "lg:grid-cols-4";
 
     return (
         <Tabs defaultValue={defaultTab || visibleOptions[0]} className="w-full">
             <TabsList
-                className={`grid w-full grid-cols-2 sm:${gridCols} mb-4 h-auto`}
+                className={`grid w-full grid-cols-2 ${gridCols} mb-4 h-auto`}
             >
                 {options.includes("transcribe") && (
                     <TabsTrigger value="transcribe">

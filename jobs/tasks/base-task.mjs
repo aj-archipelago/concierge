@@ -3,6 +3,10 @@ export class BaseTask {
         throw new Error("displayName must be implemented by handler");
     }
 
+    get isRetryable() {
+        return false;
+    }
+
     async startRequest(job) {
         throw new Error("startRequest must be implemented by handler");
     }

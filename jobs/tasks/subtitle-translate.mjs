@@ -33,6 +33,10 @@ class SubtitleTranslateHandler extends BaseTask {
         return "Subtitle translation";
     }
 
+    get isRetryable() {
+        return true;
+    }
+
     async startRequest(job) {
         const { taskId, metadata } = job.data;
         console.debug(`[SubtitleTranslateHandler] Initializing job ${taskId}`);

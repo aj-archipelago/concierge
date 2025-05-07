@@ -193,3 +193,17 @@ export function useRunTask() {
         },
     });
 }
+
+export function useRetryTask() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: async (taskId) => {
+            const response = await axios.post(`/api/tasks/${taskId}/retry`);
+            return response.data;
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ["tasks"] });
+        },
+    });
+}

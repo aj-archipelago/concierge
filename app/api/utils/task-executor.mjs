@@ -82,7 +82,6 @@ class CortexRequestTracker {
     }
 
     resetIdleTimeout() {
-        console.log(`[DEBUG] Resetting idle timeout for job ${this.job.id}`);
         clearTimeout(this.timeoutId);
         this.timeoutId = setTimeout(
             () => this.handleTimeout(),
@@ -153,9 +152,8 @@ class CortexRequestTracker {
     }
 
     async handleProgressUpdate(data, taskId) {
-        console.log(`[DEBUG] Handling progress update for ${taskId}:`, data);
+        console.log(`[DEBUG] Handling progress update for ${taskId}.`);
         let progress = data?.requestProgress?.progress || 0;
-        console.log(`[DEBUG] Raw progress value: ${progress}`);
 
         let dataObject = await this.parseProgressData(
             data?.requestProgress?.data,
@@ -208,18 +206,12 @@ class CortexRequestTracker {
     }
 
     async updateProgress(progress, taskId, info) {
-        console.log(
-            `[DEBUG] Attempting to find request progress document for ${taskId}`,
-        );
         const currentDoc = await retryDbOperation(() =>
             this.Task.findOne({ _id: taskId }),
         );
 
         if (currentDoc && progress < currentDoc.progress) {
             if (info) {
-                console.log(
-                    `[DEBUG] Attempting to update status text for ${taskId}`,
-                );
                 await retryDbOperation(() =>
                     this.Task.findOneAndUpdate(
                         { _id: taskId },
@@ -231,10 +223,6 @@ class CortexRequestTracker {
             return currentDoc.progress;
         }
 
-        // Update both progress and info fields
-        console.log(
-            `[DEBUG] Attempting to update progress and info for ${taskId}`,
-        );
         await retryDbOperation(() =>
             this.Task.findOneAndUpdate(
                 { _id: taskId },
@@ -350,10 +338,11 @@ class CortexRequestTracker {
                                 this.job.data.taskId,
                             );
 
-                        console.log(`[DEBUG] Should resolve: ${shouldResolve}`);
-
                         if (shouldResolve) {
                             this.cleanup();
+                            console.log(
+                                `[DEBUG] Should resolve: ${shouldResolve}`,
+                            );
                             this.resolve(dataObject);
                         }
                     } catch (error) {

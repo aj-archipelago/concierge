@@ -14,7 +14,7 @@ import {
     PopoverTrigger,
 } from "@/components/ui/popover";
 import { BellIcon } from "@heroicons/react/24/outline";
-import { BanIcon, Check, Clock, EyeOff, XIcon } from "lucide-react";
+import { BanIcon, Check, Clock, EyeOff, XIcon, RotateCcw } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -25,12 +25,13 @@ import { useSetActiveChatId } from "../../../app/queries/chats";
 import {
     useCancelTask,
     useDismissTask,
+    useRetryTask,
     useTasks,
 } from "../../../app/queries/notifications";
 import { LanguageContext } from "../../contexts/LanguageProvider";
 import { useNotificationsContext } from "../../contexts/NotificationContext";
-import { getTaskDisplayName } from "../../utils/task-loader.mjs";
-
+import { getTaskDisplayName, getTaskInfo } from "../../utils/task-loader.mjs";
+import { useJob } from "../../../app/queries/jobs";
 const getLocaleShortName = (locale, usersLanguage) => {
     try {
         return new Intl.DisplayNames([usersLanguage], { type: "language" }).of(
@@ -81,6 +82,7 @@ export const getStatusColorClass = (status) => {
 const NotificationItem = ({
     notification,
     handlerDisplayNames,
+    isRetryable,
     language,
     setActiveChatId,
     router,
@@ -89,7 +91,10 @@ const NotificationItem = ({
     handleDismiss,
     dismissingIds,
     t,
+    handleRetry,
 }) => {
+    const { data: job } = useJob(notification.jobId);
+
     return (
         <div
             key={notification._id}
@@ -258,6 +263,19 @@ const NotificationItem = ({
                             <EyeOff className="h-4 w-4 text-gray-500" />
                         </button>
                     )}
+                    {job &&
+                        (notification.status === "failed" ||
+                            notification.status === "cancelled" ||
+                            notification.status === "abandoned") &&
+                        isRetryable && (
+                            <button
+                                onClick={() => handleRetry(notification._id)}
+                                className="p-1 hover:bg-gray-100 rounded flex items-start"
+                                title={t("Retry")}
+                            >
+                                <RotateCcw className="h-4 w-4 text-gray-500" />
+                            </button>
+                        )}
                 </div>
             </div>
         </div>
@@ -279,20 +297,21 @@ export default function NotificationButton() {
     const { language } = useContext(LanguageContext);
     const router = useRouter();
     const cancelRequest = useCancelTask();
-    const [handlerDisplayNames, setHandlerDisplayNames] = useState({});
+    const [handlerInfo, setHandlerInfo] = useState({});
     const setActiveChatId = useSetActiveChatId();
+    const retryTask = useRetryTask();
 
-    // Load handler display names when notifications change
+    // Load handler info when notifications change
     useEffect(() => {
-        const loadTaskDefinitionDisplayNames = async () => {
+        const loadTaskDefinitionInfo = async () => {
             const uniqueTypes = [...new Set(notifications.map((n) => n.type))];
-            const displayNames = {};
+            const info = {};
             for (const type of uniqueTypes) {
-                displayNames[type] = await getTaskDisplayName(type);
+                info[type] = await getTaskInfo(type);
             }
-            setHandlerDisplayNames(displayNames);
+            setHandlerInfo(info);
         };
-        loadTaskDefinitionDisplayNames();
+        loadTaskDefinitionInfo();
     }, [notifications]);
 
     const handleDismiss = (_id) => {
@@ -309,6 +328,10 @@ export default function NotificationButton() {
 
     const handleCancelRequest = (_id) => {
         setCancelRequestId(_id);
+    };
+
+    const handleRetry = (_id) => {
+        retryTask.mutate(_id);
     };
 
     const confirmCancel = useCallback(async () => {
@@ -363,8 +386,17 @@ export default function NotificationButton() {
                                         <NotificationItem
                                             key={notification._id}
                                             notification={notification}
-                                            handlerDisplayNames={
-                                                handlerDisplayNames
+                                            handlerDisplayNames={Object.fromEntries(
+                                                Object.entries(handlerInfo).map(
+                                                    ([type, info]) => [
+                                                        type,
+                                                        info.displayName,
+                                                    ],
+                                                ),
+                                            )}
+                                            isRetryable={
+                                                handlerInfo[notification.type]
+                                                    ?.isRetryable
                                             }
                                             language={language}
                                             setActiveChatId={setActiveChatId}
@@ -378,6 +410,7 @@ export default function NotificationButton() {
                                             handleDismiss={handleDismiss}
                                             dismissingIds={dismissingIds}
                                             t={t}
+                                            handleRetry={handleRetry}
                                         />
                                     ))}
                                 </div>
