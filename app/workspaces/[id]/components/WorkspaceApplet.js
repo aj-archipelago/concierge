@@ -28,8 +28,8 @@ import {
     TooltipContent,
     TooltipProvider,
 } from "@/components/ui/tooltip";
-import marked from "marked";
 import { ServerContext } from "../../../../src/App";
+import React from "react";
 
 function CopyPublishedLinkButton() {
     const [copied, setCopied] = useState(false);
@@ -85,6 +85,43 @@ function CopyPublishedLinkButton() {
             </TooltipContent>
         </Tooltip>
     );
+}
+
+function renderWithColorPreviews(text) {
+    const hexColorRegex = /#([0-9a-fA-F]{6}|[0-9a-fA-F]{3})(?![0-9a-fA-F])/g;
+    const parts = [];
+    let lastIndex = 0;
+    let match;
+
+    while ((match = hexColorRegex.exec(text)) !== null) {
+        const color = match[0];
+        if (match.index > lastIndex) {
+            parts.push(text.slice(lastIndex, match.index));
+        }
+        parts.push(
+            <React.Fragment key={match.index}>
+                <span style={{ fontFamily: "monospace" }}>{color}</span>
+                <span
+                    style={{
+                        display: "inline-block",
+                        width: "1em",
+                        height: "1em",
+                        background: color,
+                        border: "1px solid #ccc",
+                        marginLeft: 4,
+                        marginRight: 4,
+                        verticalAlign: "middle",
+                    }}
+                    title={color}
+                />
+            </React.Fragment>
+        );
+        lastIndex = match.index + color.length;
+    }
+    if (lastIndex < text.length) {
+        parts.push(text.slice(lastIndex));
+    }
+    return parts;
 }
 
 export default function WorkspaceApplet() {
@@ -631,7 +668,11 @@ export default function WorkspaceApplet() {
                                                 components={{
                                                     p: ({ children }) => (
                                                         <p className="m-0">
-                                                            {children}
+                                                            {React.Children.toArray(children).map((child, idx) =>
+                                                                typeof child === "string"
+                                                                    ? renderWithColorPreviews(child)
+                                                                    : child
+                                                            )}
                                                         </p>
                                                     ),
                                                 }}
@@ -782,7 +823,7 @@ function HtmlEditor({ value, onChange }) {
 }
 
 function getMessagesUpToVersion(messages, versionIndex) {
-    if (!messages) return [];
+    if (!messages || versionIndex === 0) return [];
     const idx = messages.findIndex((msg) => msg.linkToVersion === versionIndex);
     if (idx === -1) return messages;
     return messages.slice(0, idx + 1);
