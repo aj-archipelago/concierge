@@ -31,6 +31,11 @@ const PERIODIC_BUILD_JOB = "periodic-build";
 const SINGLE_BUILD_JOB = "build-digest";
 
 (async function main() {
+    // wait between 10 and 30 seconds to avoid race condition with other workers
+    await new Promise((resolve) =>
+        setTimeout(resolve, Math.random() * 20000 + 10000),
+    );
+
     for (const job of await digestBuild.getRepeatableJobs()) {
         await digestBuild.removeRepeatableByKey(job.key);
     }
@@ -44,6 +49,7 @@ const SINGLE_BUILD_JOB = "build-digest";
         {}, // data
         {
             repeat: nHourlyRepeat,
+            delay: 60 * 1000, // delay makes sure that it's not available for workers to pick up until everyone has started up
         },
     );
 })();
