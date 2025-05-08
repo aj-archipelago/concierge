@@ -433,6 +433,154 @@ describe("MessageInput", () => {
 
             spy.mockRestore();
         });
+
+        it("should handle HTML image paste from Slack", async () => {
+            renderMessageInput();
+            const input = screen.getByPlaceholderText("Send a message");
+            const spy = jest.spyOn(Event.prototype, "preventDefault");
+
+            // Mock fetch for data URL conversion
+            global.fetch = jest.fn().mockImplementation(() =>
+                Promise.resolve({
+                    ok: true,
+                    blob: () =>
+                        Promise.resolve(
+                            new Blob(["test"], { type: "image/png" }),
+                        ),
+                }),
+            );
+
+            // Create clipboard data structure with HTML containing a data URL image
+            const clipboardData = {
+                items: [
+                    {
+                        kind: "string",
+                        type: "text/html",
+                        getAsString: (callback) =>
+                            callback(
+                                '<body><img src="data:image/png;base64,test"> Text</body>',
+                            ),
+                    },
+                ],
+            };
+
+            // Trigger paste event using userEvent with clipboardData
+            await userEvent.paste(input, "", { clipboardData });
+
+            // Wait for all promises to resolve and state updates to complete
+            await act(async () => {
+                await new Promise((resolve) => setTimeout(resolve, 0));
+            });
+
+            // Verify that preventDefault was called
+            expect(spy).toHaveBeenCalled();
+            spy.mockRestore();
+
+            // Verify FilePond is visible
+            expect(screen.getByTestId("filepond-mock")).toBeInTheDocument();
+
+            // Verify fetch was called with the data URL
+            expect(global.fetch).toHaveBeenCalledWith(
+                "data:image/png;base64,test",
+            );
+        });
+
+        it("should handle HTML image paste with mixed content", async () => {
+            renderMessageInput();
+            const input = screen.getByPlaceholderText("Send a message");
+            const spy = jest.spyOn(Event.prototype, "preventDefault");
+
+            // Mock fetch for data URL conversion
+            global.fetch = jest.fn().mockImplementation(() =>
+                Promise.resolve({
+                    ok: true,
+                    blob: () =>
+                        Promise.resolve(
+                            new Blob(["test"], { type: "image/png" }),
+                        ),
+                }),
+            );
+
+            // Create clipboard data structure with both HTML image and text
+            const clipboardData = {
+                items: [
+                    {
+                        kind: "string",
+                        type: "text/html",
+                        getAsString: (callback) =>
+                            callback(
+                                '<body><img src="data:image/png;base64,test"> Text</body>',
+                            ),
+                    },
+                    {
+                        kind: "string",
+                        type: "text/plain",
+                        getAsString: (callback) => callback("Pasted text"),
+                    },
+                ],
+            };
+
+            // Trigger paste event using userEvent with clipboardData
+            await userEvent.paste(input, "Pasted text", { clipboardData });
+
+            // Wait for all promises to resolve and state updates to complete
+            await act(async () => {
+                await new Promise((resolve) => setTimeout(resolve, 0));
+            });
+
+            // Verify that preventDefault was not called (text should be pasted)
+            expect(spy).not.toHaveBeenCalled();
+            spy.mockRestore();
+
+            // Verify input contains the text
+            expect(input.value).toBe("Pasted text");
+
+            // Verify FilePond is visible (for the image)
+            expect(screen.getByTestId("filepond-mock")).toBeInTheDocument();
+
+            // Verify fetch was called with the data URL
+            expect(global.fetch).toHaveBeenCalledWith(
+                "data:image/png;base64,test",
+            );
+        });
+
+        it("should handle HTML content without images", async () => {
+            renderMessageInput();
+            const input = screen.getByPlaceholderText("Send a message");
+            const spy = jest.spyOn(Event.prototype, "preventDefault");
+
+            // Create clipboard data structure with HTML but no images
+            const clipboardData = {
+                items: [
+                    {
+                        kind: "string",
+                        type: "text/html",
+                        getAsString: (callback) =>
+                            callback("<body><p>Some HTML content</p></body>"),
+                    },
+                ],
+            };
+
+            // Trigger paste event using userEvent with clipboardData
+            await userEvent.paste(input, "Some HTML content", {
+                clipboardData,
+            });
+
+            // Wait for all promises to resolve
+            await new Promise((resolve) => setTimeout(resolve, 0));
+
+            // Verify that preventDefault was not called
+            expect(spy).not.toHaveBeenCalled();
+            spy.mockRestore();
+
+            // Verify input contains the text
+            expect(input.value).toBe("Some HTML content");
+
+            // Verify FilePond is not visible
+            expect(
+                screen.queryByTestId("filepond-mock"),
+            ).not.toBeInTheDocument();
+        });
     });
 
     describe("Form submission", () => {

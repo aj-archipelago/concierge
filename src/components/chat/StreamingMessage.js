@@ -82,6 +82,9 @@ const StreamingMessage = React.memo(function StreamingMessage({
     }, [ephemeralContent]);
 
     const calculateLoaderPosition = useCallback(() => {
+        // Constants for loader positioning
+        const LOADER_BASELINE_OFFSET = 6; // Offset needed to align loader with text baseline
+
         const containerNode = relativeContainerRef.current;
         if (!containerNode) return;
 
@@ -130,7 +133,7 @@ const StreamingMessage = React.memo(function StreamingMessage({
             const textContainer = lastTextNode.parentElement;
             const computedStyle = window.getComputedStyle(textContainer);
             const fontSize = parseFloat(computedStyle.fontSize);
-            const loaderHeight = 16;
+            const lineHeight = parseFloat(computedStyle.lineHeight);
 
             // Calculate position relative to the container
             const x =
@@ -141,8 +144,8 @@ const StreamingMessage = React.memo(function StreamingMessage({
             const y =
                 textEndRect.top -
                 containerRect.top +
-                textEndRect.height / 2 -
-                loaderHeight / 2;
+                (lineHeight - fontSize) / 2 -
+                LOADER_BASELINE_OFFSET;
 
             setLoaderPosition({ x, y });
         }

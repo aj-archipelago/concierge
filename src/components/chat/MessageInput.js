@@ -250,28 +250,129 @@ function MessageInput({
                                 }
                             }}
                             onPaste={async (e) => {
+                                console.log("=== Paste Event Debug ===");
+                                console.log("Clipboard Data:", e.clipboardData);
+                                console.log(
+                                    "Clipboard Items:",
+                                    e.clipboardData.items,
+                                );
+
                                 const items = e.clipboardData.items;
                                 let hasFile = false;
                                 let hasText = false;
+                                let hasImageInHtml = false;
 
-                                // First check for text content
+                                // Process HTML content first
+                                const processHtmlContent = async (item) => {
+                                    return new Promise((resolve) => {
+                                        item.getAsString(async (html) => {
+                                            console.log("HTML content:", html);
+                                            const tempDiv =
+                                                document.createElement("div");
+                                            tempDiv.innerHTML = html;
+                                            const images =
+                                                tempDiv.getElementsByTagName(
+                                                    "img",
+                                                );
+
+                                            if (images.length > 0) {
+                                                console.log(
+                                                    "Found image in HTML:",
+                                                    images[0].src,
+                                                );
+                                                hasImageInHtml = true;
+
+                                                if (
+                                                    images[0].src.startsWith(
+                                                        "data:",
+                                                    )
+                                                ) {
+                                                    const dataUrl =
+                                                        images[0].src;
+                                                    const res =
+                                                        await fetch(dataUrl);
+                                                    const blob =
+                                                        await res.blob();
+                                                    const file = new File(
+                                                        [blob],
+                                                        "pasted-image.png",
+                                                        { type: blob.type },
+                                                    );
+
+                                                    if (!showFileUpload) {
+                                                        console.log(
+                                                            "Showing file upload UI",
+                                                        );
+                                                        setShowFileUpload(true);
+                                                    }
+
+                                                    const pondFile = {
+                                                        source: file,
+                                                        options: {
+                                                            type: "local",
+                                                            file: file,
+                                                        },
+                                                    };
+                                                    console.log(
+                                                        "Adding file to FilePond:",
+                                                        pondFile,
+                                                    );
+                                                    setFiles((prevFiles) => [
+                                                        ...prevFiles,
+                                                        pondFile,
+                                                    ]);
+                                                    hasFile = true;
+                                                }
+                                            }
+                                            resolve();
+                                        });
+                                    });
+                                };
+
+                                // Process all items
                                 for (let i = 0; i < items.length; i++) {
                                     const item = items[i];
-                                    if (
-                                        item.kind === "string" &&
-                                        (item.type === "text/plain" ||
-                                            item.type === "text/html" ||
-                                            item.type === "text/rtf")
-                                    ) {
-                                        hasText = true;
-                                        break;
+                                    console.log(`Item ${i}:`, {
+                                        kind: item.kind,
+                                        type: item.type,
+                                    });
+
+                                    if (item.kind === "string") {
+                                        if (item.type === "text/html") {
+                                            await processHtmlContent(item);
+                                        } else if (
+                                            item.type === "text/plain" ||
+                                            item.type === "text/rtf"
+                                        ) {
+                                            hasText = true;
+                                            console.log(
+                                                "Found text content:",
+                                                item.type,
+                                            );
+                                        }
                                     }
                                 }
 
-                                // Only check for files if we don't have text
-                                if (!hasText) {
+                                console.log("Has text:", hasText);
+                                console.log(
+                                    "Has image in HTML:",
+                                    hasImageInHtml,
+                                );
+
+                                // Only check for files if we don't have text or HTML images
+                                if (!hasText && !hasImageInHtml) {
+                                    console.log("Checking for files...");
                                     for (let i = 0; i < items.length; i++) {
                                         const item = items[i];
+                                        console.log(`File item ${i}:`, {
+                                            kind: item.kind,
+                                            type: item.type,
+                                            isAccepted:
+                                                ACCEPTED_FILE_TYPES.includes(
+                                                    item.type,
+                                                ),
+                                        });
+
                                         if (
                                             item.kind === "file" &&
                                             ACCEPTED_FILE_TYPES.includes(
@@ -280,8 +381,17 @@ function MessageInput({
                                         ) {
                                             hasFile = true;
                                             const file = item.getAsFile();
+                                            console.log("File details:", {
+                                                name: file?.name,
+                                                type: file?.type,
+                                                size: file?.size,
+                                            });
+
                                             if (file) {
                                                 if (!showFileUpload) {
+                                                    console.log(
+                                                        "Showing file upload UI",
+                                                    );
                                                     setShowFileUpload(true);
                                                 }
                                                 const pondFile = {
@@ -291,6 +401,10 @@ function MessageInput({
                                                         file: file,
                                                     },
                                                 };
+                                                console.log(
+                                                    "Adding file to FilePond:",
+                                                    pondFile,
+                                                );
                                                 setFiles((prevFiles) => [
                                                     ...prevFiles,
                                                     pondFile,
@@ -299,11 +413,29 @@ function MessageInput({
                                         }
                                     }
                                 }
+                                console.log("Has file:", hasFile);
 
-                                // Prevent default only if we handled a file and there's no text
-                                if (hasFile && !hasText) {
-                                    e.preventDefault();
+                                // Handle mixed content
+                                if (hasText && hasImageInHtml) {
+                                    console.log(
+                                        "Mixed content detected - handling both text and image",
+                                    );
+                                    // Allow the text to be pasted normally
+                                    // The image will be handled by the async callback above
                                 }
+
+                                // Prevent default if we have a file or an image in HTML (and no text)
+                                if ((hasFile || hasImageInHtml) && !hasText) {
+                                    console.log(
+                                        "Preventing default paste behavior",
+                                    );
+                                    e.preventDefault();
+                                } else {
+                                    console.log(
+                                        "Allowing default paste behavior",
+                                    );
+                                }
+                                console.log("=== End Paste Event Debug ===");
                             }}
                             placeholder={placeholder || "Send a message"}
                             value={inputValue}
