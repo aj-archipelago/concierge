@@ -23,6 +23,15 @@ import {
     isDocumentUrl,
     isMediaUrl,
 } from "../../utils/mediaUtils";
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 const DynamicFilepond = dynamic(() => import("./MyFilePond"), {
     ssr: false,
@@ -48,6 +57,12 @@ function MessageInput({
     const client = useApolloClient();
     const [isUploadingMedia, setIsUploadingMedia] = useState(false);
     const addDocument = useAddDocument();
+    const MAX_INPUT_LENGTH = 50000;
+    const [lengthLimitAlert, setLengthLimitAlert] = useState({
+        show: false,
+        actualLength: 0,
+        source: "", // 'paste' or 'input'
+    });
 
     // Only set input value on initial mount or chat change
     useEffect(() => {
@@ -93,13 +108,24 @@ function MessageInput({
 
     const handleInputChange = (event) => {
         const newValue = event.target.value;
-        setInputValue(newValue);
+        let finalValue = newValue;
+
+        if (newValue.length > MAX_INPUT_LENGTH) {
+            setLengthLimitAlert({
+                show: true,
+                actualLength: newValue.length,
+                source: "input",
+            });
+            finalValue = newValue.substring(0, MAX_INPUT_LENGTH);
+        }
+
+        setInputValue(finalValue);
 
         if (activeChatId) {
             debouncedUpdateUserState((prevState) => ({
                 chatInputs: {
                     ...(prevState?.chatInputs || {}),
-                    [activeChatId]: newValue,
+                    [activeChatId]: finalValue,
                 },
             }));
         }
@@ -250,192 +276,248 @@ function MessageInput({
                                 }
                             }}
                             onPaste={async (e) => {
-                                console.log("=== Paste Event Debug ===");
-                                console.log("Clipboard Data:", e.clipboardData);
-                                console.log(
-                                    "Clipboard Items:",
-                                    e.clipboardData.items,
-                                );
+                                const pastedPlainText =
+                                    e.clipboardData.getData("text/plain");
+
+                                if (
+                                    pastedPlainText &&
+                                    pastedPlainText.length > MAX_INPUT_LENGTH
+                                ) {
+                                    setLengthLimitAlert({
+                                        show: true,
+                                        actualLength: pastedPlainText.length,
+                                        source: "paste",
+                                    });
+                                    e.preventDefault();
+                                    return; // Stop further paste processing
+                                }
+
+                                const pastedHtmlContent =
+                                    e.clipboardData.getData("text/html");
+                                if (
+                                    pastedHtmlContent &&
+                                    pastedHtmlContent.length > MAX_INPUT_LENGTH
+                                ) {
+                                    setLengthLimitAlert({
+                                        show: true,
+                                        actualLength: pastedHtmlContent.length,
+                                        source: "paste",
+                                    });
+                                    e.preventDefault();
+                                    return; // Stop further paste processing
+                                }
 
                                 const items = e.clipboardData.items;
-                                let hasFile = false;
-                                let hasText = false;
-                                let hasImageInHtml = false;
+                                let hasActualFileProcessed = false; // True if a file is successfully added to FilePond
+                                let hasPlainText = false;
+                                let hasHtmlContent = false;
+                                let potentialHtmlImageSrc = null;
+                                let fileToProcess = null;
 
-                                // Process HTML content first
-                                const processHtmlContent = async (item) => {
-                                    return new Promise((resolve) => {
-                                        item.getAsString(async (html) => {
-                                            console.log("HTML content:", html);
-                                            const tempDiv =
-                                                document.createElement("div");
-                                            tempDiv.innerHTML = html;
-                                            const images =
-                                                tempDiv.getElementsByTagName(
-                                                    "img",
-                                                );
+                                // --- Pass 1: Inspect all clipboard items ---
+                                const htmlProcessingPromises = [];
 
-                                            if (images.length > 0) {
-                                                console.log(
-                                                    "Found image in HTML:",
-                                                    images[0].src,
-                                                );
-                                                hasImageInHtml = true;
-
-                                                if (
-                                                    images[0].src.startsWith(
-                                                        "data:",
-                                                    )
-                                                ) {
-                                                    const dataUrl =
-                                                        images[0].src;
-                                                    const res =
-                                                        await fetch(dataUrl);
-                                                    const blob =
-                                                        await res.blob();
-                                                    const file = new File(
-                                                        [blob],
-                                                        "pasted-image.png",
-                                                        { type: blob.type },
-                                                    );
-
-                                                    if (!showFileUpload) {
-                                                        console.log(
-                                                            "Showing file upload UI",
-                                                        );
-                                                        setShowFileUpload(true);
-                                                    }
-
-                                                    const pondFile = {
-                                                        source: file,
-                                                        options: {
-                                                            type: "local",
-                                                            file: file,
-                                                        },
-                                                    };
-                                                    console.log(
-                                                        "Adding file to FilePond:",
-                                                        pondFile,
-                                                    );
-                                                    setFiles((prevFiles) => [
-                                                        ...prevFiles,
-                                                        pondFile,
-                                                    ]);
-                                                    hasFile = true;
-                                                }
-                                            }
-                                            resolve();
-                                        });
-                                    });
-                                };
-
-                                // Process all items
                                 for (let i = 0; i < items.length; i++) {
                                     const item = items[i];
-                                    console.log(`Item ${i}:`, {
-                                        kind: item.kind,
-                                        type: item.type,
-                                    });
 
-                                    if (item.kind === "string") {
-                                        if (item.type === "text/html") {
-                                            await processHtmlContent(item);
-                                        } else if (
-                                            item.type === "text/plain" ||
-                                            item.type === "text/rtf"
-                                        ) {
-                                            hasText = true;
-                                            console.log(
-                                                "Found text content:",
-                                                item.type,
+                                    if (
+                                        item.kind === "file" &&
+                                        ACCEPTED_FILE_TYPES.includes(item.type)
+                                    ) {
+                                        if (!fileToProcess) {
+                                            // Prioritize the first actual file found
+                                            const f = item.getAsFile();
+                                            if (f) {
+                                                fileToProcess = f;
+                                            }
+                                        }
+                                    } else if (item.kind === "string") {
+                                        if (item.type === "text/plain") {
+                                            hasPlainText = true;
+                                        } else if (item.type === "text/html") {
+                                            hasHtmlContent = true;
+                                            htmlProcessingPromises.push(
+                                                new Promise((resolve) => {
+                                                    item.getAsString((html) => {
+                                                        let imgSrc = null;
+                                                        let textFoundInHtml = false;
+                                                        const tempDiv =
+                                                            document.createElement(
+                                                                "div",
+                                                            );
+                                                        tempDiv.innerHTML =
+                                                            html;
+                                                        const images =
+                                                            tempDiv.getElementsByTagName(
+                                                                "img",
+                                                            );
+                                                        if (
+                                                            images.length > 0 &&
+                                                            images[0].src
+                                                        ) {
+                                                            imgSrc =
+                                                                images[0].src;
+                                                        }
+                                                        // Check for actual text content within HTML too
+                                                        if (
+                                                            tempDiv.textContent?.trim() !==
+                                                            ""
+                                                        ) {
+                                                            textFoundInHtml = true;
+                                                        }
+                                                        resolve({
+                                                            imgSrc,
+                                                            textFoundInHtml,
+                                                        });
+                                                    });
+                                                }),
                                             );
                                         }
                                     }
                                 }
 
-                                console.log("Has text:", hasText);
-                                console.log(
-                                    "Has image in HTML:",
-                                    hasImageInHtml,
+                                const htmlResults = await Promise.all(
+                                    htmlProcessingPromises,
                                 );
+                                for (const result of htmlResults) {
+                                    if (
+                                        result.imgSrc &&
+                                        !potentialHtmlImageSrc
+                                    ) {
+                                        potentialHtmlImageSrc = result.imgSrc;
+                                    }
+                                    if (result.textFoundInHtml) {
+                                        hasPlainText = true;
+                                    }
+                                }
 
-                                // Only check for files if we don't have text or HTML images
-                                if (!hasText && !hasImageInHtml) {
-                                    console.log("Checking for files...");
-                                    for (let i = 0; i < items.length; i++) {
-                                        const item = items[i];
-                                        console.log(`File item ${i}:`, {
-                                            kind: item.kind,
-                                            type: item.type,
-                                            isAccepted:
-                                                ACCEPTED_FILE_TYPES.includes(
-                                                    item.type,
-                                                ),
-                                        });
+                                // --- Pass 2: Decide what to do and process ---
 
-                                        if (
-                                            item.kind === "file" &&
-                                            ACCEPTED_FILE_TYPES.includes(
-                                                item.type,
-                                            )
-                                        ) {
-                                            hasFile = true;
-                                            const file = item.getAsFile();
-                                            console.log("File details:", {
-                                                name: file?.name,
-                                                type: file?.type,
-                                                size: file?.size,
-                                            });
-
-                                            if (file) {
-                                                if (!showFileUpload) {
-                                                    console.log(
-                                                        "Showing file upload UI",
-                                                    );
-                                                    setShowFileUpload(true);
-                                                }
-                                                const pondFile = {
+                                // Priority 1: Direct File
+                                if (fileToProcess) {
+                                    if (!showFileUpload) {
+                                        setShowFileUpload(true);
+                                    }
+                                    const pondFile = {
+                                        source: fileToProcess,
+                                        options: {
+                                            type: "local",
+                                            file: fileToProcess,
+                                        },
+                                    };
+                                    setFiles((prevFiles) => [
+                                        ...prevFiles,
+                                        pondFile,
+                                    ]);
+                                    hasActualFileProcessed = true;
+                                }
+                                // Priority 2: Image from HTML (if no direct file was processed)
+                                else if (potentialHtmlImageSrc) {
+                                    if (
+                                        potentialHtmlImageSrc.startsWith(
+                                            "data:",
+                                        )
+                                    ) {
+                                        try {
+                                            const res = await fetch(
+                                                potentialHtmlImageSrc,
+                                            );
+                                            const blob = await res.blob();
+                                            const file = new File(
+                                                [blob],
+                                                "pasted-image.png",
+                                                { type: blob.type },
+                                            );
+                                            if (!showFileUpload)
+                                                setShowFileUpload(true);
+                                            setFiles((prevFiles) => [
+                                                ...prevFiles,
+                                                {
                                                     source: file,
                                                     options: {
                                                         type: "local",
                                                         file: file,
                                                     },
-                                                };
-                                                console.log(
-                                                    "Adding file to FilePond:",
-                                                    pondFile,
+                                                },
+                                            ]);
+                                            hasActualFileProcessed = true;
+                                        } catch (error) {
+                                            console.error(
+                                                "Error processing data URI from HTML:",
+                                                error,
+                                            );
+                                        }
+                                    } else {
+                                        // Remote URL
+                                        try {
+                                            const response = await fetch(
+                                                potentialHtmlImageSrc,
+                                            );
+                                            if (!response.ok)
+                                                throw new Error(
+                                                    `HTTP error! status: ${response.status}`,
                                                 );
-                                                setFiles((prevFiles) => [
-                                                    ...prevFiles,
-                                                    pondFile,
-                                                ]);
-                                            }
+                                            const blob = await response.blob();
+                                            let filename = "pasted-image";
+                                            const subtype =
+                                                blob.type.split("/")[1];
+                                            if (
+                                                subtype &&
+                                                /^[a-z0-9]+$/.test(subtype)
+                                            )
+                                                filename += `.${subtype}`;
+                                            else filename += ".png"; // Basic fallback
+
+                                            const file = new File(
+                                                [blob],
+                                                filename,
+                                                { type: blob.type },
+                                            );
+                                            if (!showFileUpload)
+                                                setShowFileUpload(true);
+                                            setFiles((prevFiles) => [
+                                                ...prevFiles,
+                                                {
+                                                    source: file,
+                                                    options: {
+                                                        type: "local",
+                                                        file: file,
+                                                    },
+                                                },
+                                            ]);
+                                            hasActualFileProcessed = true;
+                                        } catch (error) {
+                                            console.error(
+                                                "Error fetching remote image from HTML src:",
+                                                error,
+                                            );
                                         }
                                     }
                                 }
-                                console.log("Has file:", hasFile);
 
-                                // Handle mixed content
-                                if (hasText && hasImageInHtml) {
-                                    console.log(
-                                        "Mixed content detected - handling both text and image",
-                                    );
-                                    // Allow the text to be pasted normally
-                                    // The image will be handled by the async callback above
-                                }
-
-                                // Prevent default if we have a file or an image in HTML (and no text)
-                                if ((hasFile || hasImageInHtml) && !hasText) {
-                                    console.log(
-                                        "Preventing default paste behavior",
-                                    );
+                                // --- Pass 3: Determine default paste behavior ---
+                                if (hasActualFileProcessed && !hasPlainText) {
                                     e.preventDefault();
-                                } else {
-                                    console.log(
-                                        "Allowing default paste behavior",
-                                    );
+                                } else if (
+                                    hasActualFileProcessed &&
+                                    hasPlainText
+                                ) {
+                                    // File is handled, text will paste by default.
+                                } else if (
+                                    !hasActualFileProcessed &&
+                                    hasPlainText
+                                ) {
+                                    // Only text, let it paste.
+                                } else if (
+                                    !hasActualFileProcessed &&
+                                    !hasPlainText &&
+                                    hasHtmlContent
+                                ) {
+                                    // This means there was HTML (e.g. just an img tag that might have failed to load, or complex HTML without simple text)
+                                    // and no actual file was made from it, and no plain text.
+                                    // Prevent pasting potentially broken/unwanted HTML string if we couldn't make a file from it.
+                                    e.preventDefault();
                                 }
-                                console.log("=== End Paste Event Debug ===");
                             }}
                             placeholder={placeholder || "Send a message"}
                             value={inputValue}
@@ -476,6 +558,50 @@ function MessageInput({
                     </div>
                 </form>
             </div>
+            {lengthLimitAlert.show && (
+                <AlertDialog
+                    open={lengthLimitAlert.show}
+                    onOpenChange={() =>
+                        setLengthLimitAlert({
+                            show: false,
+                            actualLength: 0,
+                            source: "",
+                        })
+                    }
+                >
+                    <AlertDialogContent>
+                        <AlertDialogHeader>
+                            <AlertDialogTitle>
+                                Content Too Long
+                            </AlertDialogTitle>
+                            <AlertDialogDescription>
+                                The content has exceeded the maximum allowed
+                                length of {MAX_INPUT_LENGTH} characters. Your
+                                submission of {lengthLimitAlert.actualLength}{" "}
+                                characters&nbsp;
+                                {lengthLimitAlert.source === "paste"
+                                    ? "was prevented from being pasted."
+                                    : "has been truncated."}
+                                &nbsp;Please consider uploading it as a file
+                                instead.
+                            </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                            <AlertDialogAction
+                                onClick={() =>
+                                    setLengthLimitAlert({
+                                        show: false,
+                                        actualLength: 0,
+                                        source: "",
+                                    })
+                                }
+                            >
+                                OK
+                            </AlertDialogAction>
+                        </AlertDialogFooter>
+                    </AlertDialogContent>
+                </AlertDialog>
+            )}
         </div>
     );
 }

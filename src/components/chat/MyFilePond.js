@@ -699,6 +699,13 @@ function MyFilePond({
                                     },
                                 };
                             },
+                            revert: (uniqueFileId, load, error) => {
+                                console.log(
+                                    "Revert called with uniqueFileId:",
+                                    uniqueFileId,
+                                );
+                                load(null);
+                            },
                         }}
                         onprocessfile={(error, file) => {
                             if (error) {
