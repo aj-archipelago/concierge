@@ -165,8 +165,10 @@ function ChatContent({
                 const variables = {
                     chatHistory: conversation,
                     contextId,
-                    // Use entity ID as aiName if available, else fallback to default
-                    aiName: currentSelectedEntityId || aiName,
+                    // Use entity name if available, else fallback to default
+                    aiName:
+                        entities?.find((e) => e.id === currentSelectedEntityId)
+                            ?.name || aiName,
                     aiMemorySelfModify,
                     aiStyle,
                     title: chat?.title,
@@ -276,6 +278,7 @@ function ChatContent({
             setSubscriptionId,
             selectedEntityIdFromProp,
             user,
+            entities,
         ],
     );
 
