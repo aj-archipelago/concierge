@@ -30,6 +30,16 @@ import {
 } from "@/components/ui/tooltip";
 import { ServerContext } from "../../../../src/App";
 import React from "react";
+import {
+    AlertDialog,
+    AlertDialogContent,
+    AlertDialogHeader,
+    AlertDialogTitle,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogAction,
+    AlertDialogCancel,
+} from "@/components/ui/alert-dialog";
 
 function CopyPublishedLinkButton() {
     const [copied, setCopied] = useState(false);
@@ -140,6 +150,9 @@ export default function WorkspaceApplet() {
     const chatMutation = useWorkspaceChat(id);
     const { direction } = useContext(LanguageContext);
     const [allMessages, setAllMessages] = useState([]);
+    const [showClearConfirm, setShowClearConfirm] = useState(false);
+    const [showContinueConfirm, setShowContinueConfirm] = useState(false);
+    const [isContinuingFromOldVersion, setIsContinuingFromOldVersion] = useState(false);
 
     useEffect(() => {
         if (
@@ -208,22 +221,29 @@ export default function WorkspaceApplet() {
     const handleSendMessage = async () => {
         if (!inputMessage.trim() || !selectedLLM) return;
 
+        let truncatedAllMessages = allMessages;
+        let truncatedHtmlVersions = htmlVersions;
+
+        // If continuing from an old version, truncate arrays
+        if (isContinuingFromOldVersion) {
+            truncatedAllMessages = getMessagesUpToVersion(allMessages, activeVersionIndex);
+            truncatedHtmlVersions = htmlVersions.slice(0, activeVersionIndex + 1);
+            setIsContinuingFromOldVersion(false); // Reset the flag after first message
+        }
+
         const newMessage = {
             content: inputMessage,
             role: "user",
             timestamp: new Date().toISOString(),
         };
 
-        const updatedMessages = [...messages, newMessage];
+        const updatedMessages = [...truncatedAllMessages, newMessage];
         setMessages(updatedMessages);
         setInputMessage("");
         setIsLoading(true);
 
         try {
-            // Use the currently displayed version for currentHtml
-            const currentHtml = htmlVersions[activeVersionIndex] || "";
-
-            console.log("Current HTML", currentHtml);
+            const currentHtml = truncatedHtmlVersions[activeVersionIndex] || "";
 
             const response = await chatMutation.mutateAsync({
                 messages: updatedMessages,
@@ -237,16 +257,15 @@ export default function WorkspaceApplet() {
                 timestamp: new Date().toISOString(),
             };
 
-            let newVersions = htmlVersions; // default to current
+            let newVersions = truncatedHtmlVersions;
             if (
                 typeof response.message === "object" &&
                 response.message !== null &&
                 typeof response.message.html === "string" &&
                 typeof response.message.changes === "string"
             ) {
-                // Branching logic: keep up to and including the current version, then add the new one
                 newVersions = [
-                    ...htmlVersions.slice(0, activeVersionIndex + 1),
+                    ...truncatedHtmlVersions.slice(0, activeVersionIndex + 1),
                     response.message.html,
                 ];
                 setHtmlVersions(newVersions);
@@ -265,7 +284,7 @@ export default function WorkspaceApplet() {
             const finalMessages = [...updatedMessages, aiMessage];
             setAllMessages(finalMessages);
             setMessages(
-                getMessagesUpToVersion(finalMessages, activeVersionIndex),
+                getMessagesUpToVersion(finalMessages, newVersions.length - 1),
             );
 
             updateApplet.mutate({
@@ -609,29 +628,93 @@ export default function WorkspaceApplet() {
                                 </div>
                             </div>
                             {messages && messages.length > 0 && (
-                                <button
-                                    className="lb-outline-secondary lb-sm"
-                                    onClick={() => {
-                                        if (
-                                            window.confirm(
-                                                "Are you sure you want to clear the chat?",
-                                            )
-                                        ) {
-                                            setMessages([]);
-                                            updateApplet.mutate({
-                                                id,
-                                                data: { messages: [] },
-                                            });
-                                        }
-                                    }}
-                                >
-                                    Clear chat
-                                </button>
+                                <>
+                                    <button
+                                        className={cn(
+                                            "lb-outline-secondary lb-sm",
+                                            (activeVersionIndex !== htmlVersions.length - 1 && !isContinuingFromOldVersion) && "opacity-50 cursor-not-allowed"
+                                        )}
+                                        onClick={() => setShowClearConfirm(true)}
+                                        disabled={activeVersionIndex !== htmlVersions.length - 1 && !isContinuingFromOldVersion}
+                                    >
+                                        Clear chat
+                                    </button>
+
+                                    <AlertDialog
+                                        open={showClearConfirm}
+                                        onOpenChange={setShowClearConfirm}
+                                    >
+                                        <AlertDialogContent>
+                                            <AlertDialogHeader>
+                                                <AlertDialogTitle>Clear Chat?</AlertDialogTitle>
+                                                <AlertDialogDescription>
+                                                    Are you sure you want to clear the chat? This action cannot be undone.
+                                                </AlertDialogDescription>
+                                            </AlertDialogHeader>
+                                            <AlertDialogFooter>
+                                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                <AlertDialogAction
+                                                    autoFocus
+                                                    onClick={() => {
+                                                        setMessages([]);
+                                                        updateApplet.mutate({
+                                                            id,
+                                                            data: { messages: [] },
+                                                        });
+                                                        setShowClearConfirm(false);
+                                                    }}
+                                                >
+                                                    Clear
+                                                </AlertDialogAction>
+                                            </AlertDialogFooter>
+                                        </AlertDialogContent>
+                                    </AlertDialog>
+                                </>
                             )}
                         </div>
 
-                        {messages && messages.length > 0 ? (
-                            <div className="flex-1 overflow-auto border rounded-md p-4 bg-white scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent hover:scrollbar-thumb-gray-400">
+                        {(messages && messages.length > 0) || htmlVersions.length > 0 ? (
+                            <div className="flex-1 overflow-auto border rounded-md p-4 bg-white scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent hover:scrollbar-thumb-gray-400 relative">
+                                {activeVersionIndex !== htmlVersions.length - 1 && !isContinuingFromOldVersion && (
+                                    <>
+                                        <div className="absolute inset-0 bg-white/80 backdrop-blur-sm flex items-center justify-center z-10">
+                                            <button 
+                                                className="px-4 py-2 bg-emerald-500 text-white rounded-md hover:bg-emerald-600 transition-colors"
+                                                onClick={() => setShowContinueConfirm(true)}
+                                            >
+                                                Continue from here
+                                            </button>
+                                        </div>
+                                        <AlertDialog
+                                            open={showContinueConfirm}
+                                            onOpenChange={setShowContinueConfirm}
+                                        >
+                                            <AlertDialogContent>
+                                                <AlertDialogHeader>
+                                                    <AlertDialogTitle>Continue from this version?</AlertDialogTitle>
+                                                    <AlertDialogDescription>
+                                                        Continuing from this version will remove all future versions. This action cannot be undone.
+                                                        <br /><br />
+                                                        <span className="text-emerald-600 font-medium">Note: Published versions are never lost.</span>
+                                                    </AlertDialogDescription>
+                                                </AlertDialogHeader>
+                                                <AlertDialogFooter>
+                                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                    <AlertDialogAction
+                                                        autoFocus
+                                                        onClick={() => {
+                                                            setIsContinuingFromOldVersion(true);
+                                                            setShowContinueConfirm(false);
+                                                            // Optionally, scroll to input or focus input
+                                                        }}
+                                                    >
+                                                        Continue
+                                                    </AlertDialogAction>
+                                                </AlertDialogFooter>
+                                            </AlertDialogContent>
+                                        </AlertDialog>
+                                    </>
+                                )}
                                 {messages.map((message, index) => (
                                     <div
                                         key={index}
@@ -686,11 +769,10 @@ export default function WorkspaceApplet() {
                         ) : null}
 
                         {/* Suggestions section */}
-                        {selectedLLM && !messages.length && (
+                        {selectedLLM && !messages.length && htmlVersions.length === 0 && (
                             <div className="mb-4  bg-white rounded-md p-3 border grow">
                                 <div className="flex justify-between items-center mb-2">
-                                    {appletQuery.data?.suggestions?.length >
-                                        0 && (
+                                    {appletQuery.data?.suggestions?.length > 0 && (
                                         <p className="text-sm text-gray-600 font-semibold">
                                             Suggested prompts:
                                         </p>
@@ -748,14 +830,17 @@ export default function WorkspaceApplet() {
                                 <div className="relative grow">
                                     <div className="flex items-center">
                                         <TextareaAutosize
-                                            className="w-full border-0 outline-none focus:shadow-none text-sm focus:ring-0 py-3 resize-none dark:bg-zinc-100 px-3 rounded-s max-h-24 overflow-y-auto"
+                                            className={cn(
+                                                "w-full border-0 outline-none focus:shadow-none text-sm focus:ring-0 py-3 resize-none dark:bg-zinc-100 px-3 rounded-s max-h-24 overflow-y-auto",
+                                                (activeVersionIndex !== htmlVersions.length - 1 && !isContinuingFromOldVersion) && "opacity-50 cursor-not-allowed"
+                                            )}
                                             rows={1}
                                             value={inputMessage}
                                             onChange={(e) =>
                                                 setInputMessage(e.target.value)
                                             }
                                             placeholder={
-                                                messages && messages.length > 0
+                                                (messages && messages.length > 0) || htmlVersions.length > 0
                                                     ? "Type your message here..."
                                                     : "Describe your desired UI in natural language..."
                                             }
@@ -773,7 +858,7 @@ export default function WorkspaceApplet() {
                                             autoCorrect="on"
                                             spellCheck="true"
                                             inputMode="text"
-                                            disabled={isLoading}
+                                            disabled={isLoading || (activeVersionIndex !== htmlVersions.length - 1 && !isContinuingFromOldVersion)}
                                         />
                                     </div>
                                 </div>
@@ -783,7 +868,8 @@ export default function WorkspaceApplet() {
                                             type="submit"
                                             disabled={
                                                 !inputMessage.trim() ||
-                                                isLoading
+                                                isLoading ||
+                                                (activeVersionIndex !== htmlVersions.length - 1 && !isContinuingFromOldVersion)
                                             }
                                             onClick={handleSendMessage}
                                             className="text-base rtl:rotate-180 text-emerald-500 hover:text-emerald-600 disabled:text-gray-300 active:text-gray-800 dark:bg-zinc-100 flex items-center justify-center"
@@ -823,7 +909,7 @@ function HtmlEditor({ value, onChange }) {
 }
 
 function getMessagesUpToVersion(messages, versionIndex) {
-    if (!messages || versionIndex === 0) return [];
+    if (!messages) return [];
     const idx = messages.findIndex((msg) => msg.linkToVersion === versionIndex);
     if (idx === -1) return messages;
     return messages.slice(0, idx + 1);
