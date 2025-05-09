@@ -25,7 +25,6 @@ import { AuthContext } from "../../App";
 import BotMessage from "./BotMessage";
 import ScrollToBottom from "./ScrollToBottom";
 import StreamingMessage from "./StreamingMessage";
-import { useUpdateChat } from "../../../app/queries/chats";
 import {
     AlertDialog,
     AlertDialogContent,
@@ -263,7 +262,6 @@ const MessageList = React.memo(
         const scrollBottomRef = useRef(null);
         const { user } = useContext(AuthContext);
         const defaultAiName = user?.aiName;
-        const updateChatHook = useUpdateChat();
         const [replayIndex, setReplayIndex] = useState(null);
 
         // Forward scrollBottomRef to parent
