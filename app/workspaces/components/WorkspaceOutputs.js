@@ -39,7 +39,11 @@ function Output({ output, onDelete }) {
                     <div className="chat-message-bot">
                         {convertMessageToMarkdown({
                             payload: output.output,
-                            tool: output.tool,
+                            tool: output.citations
+                                ? JSON.stringify({
+                                      citations: output.citations,
+                                  })
+                                : null,
                         })}
                     </div>
                 )}

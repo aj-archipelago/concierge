@@ -631,6 +631,7 @@ const getWorkspacePromptQuery = (pathwayName) => {
                 async: $async
             ) {
                 result
+                tool
             }
         }
     `;
