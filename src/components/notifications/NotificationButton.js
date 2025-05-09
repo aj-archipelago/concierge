@@ -30,7 +30,7 @@ import {
 } from "../../../app/queries/notifications";
 import { LanguageContext } from "../../contexts/LanguageProvider";
 import { useNotificationsContext } from "../../contexts/NotificationContext";
-import { getTaskDisplayName, getTaskInfo } from "../../utils/task-loader.mjs";
+import { getTaskInfo } from "../../utils/task-loader.mjs";
 import { useJob } from "../../../app/queries/jobs";
 const getLocaleShortName = (locale, usersLanguage) => {
     try {
