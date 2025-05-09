@@ -114,7 +114,7 @@ function ChatContent({
                 let userMessages;
 
                 if (overrideMessages) {
-                    userMessages = [...overrideMessages];
+                    userMessages = [...overrideMessages, optimisticUserMessage];
                 } else {
                     userMessages = [
                         ...(chat?.messages || []),

@@ -25,7 +25,6 @@ import { AuthContext } from "../../App";
 import BotMessage from "./BotMessage";
 import ScrollToBottom from "./ScrollToBottom";
 import StreamingMessage from "./StreamingMessage";
-import { useUpdateChat } from "../../../app/queries/chats";
 import {
     AlertDialog,
     AlertDialogContent,
@@ -263,7 +262,6 @@ const MessageList = React.memo(
         const scrollBottomRef = useRef(null);
         const { user } = useContext(AuthContext);
         const defaultAiName = user?.aiName;
-        const updateChatHook = useUpdateChat();
         const [replayIndex, setReplayIndex] = useState(null);
 
         // Forward scrollBottomRef to parent
@@ -432,30 +430,10 @@ const MessageList = React.memo(
                     }
                 } catch (e) {}
 
-                messagesToKeep.push(messageToReplay);
-
-                updateChatHook
-                    .mutateAsync({
-                        chatId: String(chatId),
-                        messages: messagesToKeep,
-                        isChatLoading: true,
-                        selectedEntityId: selectedEntityId,
-                    })
-                    .then(() => {
-                        onSend(messagePayload, messagesToKeep);
-                        scrollBottomRef.current?.resetScrollState();
-                    })
-                    .catch((error) => {
-                        console.error("Error updating chat for replay:", error);
-                        updateChatHook.mutateAsync({
-                            chatId: String(chatId),
-                            messages: messagesToKeep,
-                            isChatLoading: false,
-                            selectedEntityId: selectedEntityId,
-                        });
-                    });
+                onSend(messagePayload, messagesToKeep);
+                scrollBottomRef.current?.resetScrollState();
             },
-            [messages, onSend, chatId, updateChatHook, selectedEntityId],
+            [messages, onSend],
         );
 
         const renderMessage = useCallback(
