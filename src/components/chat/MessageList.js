@@ -408,29 +408,7 @@ const MessageList = React.memo(
                     return;
                 }
 
-                let messagePayload = messageToReplay.payload;
-                try {
-                    if (Array.isArray(messageToReplay.payload)) {
-                        messagePayload = messageToReplay.payload
-                            .map((p) => {
-                                try {
-                                    const obj = JSON.parse(p);
-                                    return obj.type === "text" ? obj.text : p;
-                                } catch (e) {
-                                    return p;
-                                }
-                            })
-                            .join(" ");
-                    } else if (typeof messageToReplay.payload === "string") {
-                        const obj = JSON.parse(messageToReplay.payload);
-                        messagePayload =
-                            obj.type === "text"
-                                ? obj.text
-                                : messageToReplay.payload;
-                    }
-                } catch (e) {}
-
-                onSend(messagePayload, messagesToKeep);
+                onSend(messageToReplay, messagesToKeep);
                 scrollBottomRef.current?.resetScrollState();
             },
             [messages, onSend],
