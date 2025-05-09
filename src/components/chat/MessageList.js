@@ -432,30 +432,10 @@ const MessageList = React.memo(
                     }
                 } catch (e) {}
 
-                messagesToKeep.push(messageToReplay);
-
-                updateChatHook
-                    .mutateAsync({
-                        chatId: String(chatId),
-                        messages: messagesToKeep,
-                        isChatLoading: true,
-                        selectedEntityId: selectedEntityId,
-                    })
-                    .then(() => {
-                        onSend(messagePayload, messagesToKeep);
-                        scrollBottomRef.current?.resetScrollState();
-                    })
-                    .catch((error) => {
-                        console.error("Error updating chat for replay:", error);
-                        updateChatHook.mutateAsync({
-                            chatId: String(chatId),
-                            messages: messagesToKeep,
-                            isChatLoading: false,
-                            selectedEntityId: selectedEntityId,
-                        });
-                    });
+                onSend(messagePayload, messagesToKeep);
+                scrollBottomRef.current?.resetScrollState();
             },
-            [messages, onSend, chatId, updateChatHook, selectedEntityId],
+            [messages, onSend],
         );
 
         const renderMessage = useCallback(
