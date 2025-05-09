@@ -202,6 +202,28 @@ export function useRetryTask() {
             const response = await axios.post(`/api/tasks/${taskId}/retry`);
             return response.data;
         },
+        onSuccess: (data) => {
+            if (data.invokedFrom.source === "chat") {
+                queryClient.invalidateQueries({
+                    queryKey: ["chat", data.invokedFrom.chatId],
+                });
+            }
+
+            queryClient.invalidateQueries({ queryKey: ["tasks"] });
+        },
+    });
+}
+
+export function useDeleteOldTasks() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: async (days = 7) => {
+            const response = await axios.post("/api/tasks/delete-old", {
+                days,
+            });
+            return response.data;
+        },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ["tasks"] });
         },

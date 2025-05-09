@@ -4,6 +4,7 @@ import { createBackgroundTask } from "../utils/tasks";
 import {
     checkAndUpdateAbandonedTask,
     syncTaskWithBullMQJob,
+    deleteTask,
 } from "../utils/task-utils";
 
 import RequestProgress from "../models/request-progress.mjs";
@@ -166,7 +167,7 @@ export async function DELETE(request) {
     try {
         const user = await getCurrentUser();
         const { _id } = await request.json();
-        await Task.findOneAndDelete({ _id, owner: user._id });
+        await deleteTask(_id, user._id);
         return NextResponse.json({ success: true });
     } catch (error) {
         return NextResponse.json({ error: error.message }, { status: 500 });

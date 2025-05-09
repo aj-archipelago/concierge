@@ -1,6 +1,6 @@
 import mongoose from "mongoose";
 
-const taskSchema = new mongoose.Schema(
+export const taskSchema = new mongoose.Schema(
     {
         // Cortex request ID
         cortexRequestId: {
