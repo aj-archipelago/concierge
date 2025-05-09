@@ -73,9 +73,19 @@ export async function copyTaskToChatMessage(task) {
         return;
     }
 
-    // Update the message's task field with the completed task data
-    chat.messages[messageIndex].task = task.toObject();
-    await chat.save();
+    // Create a new messages array with the updated task
+    const updatedMessages = [...chat.messages];
+    updatedMessages[messageIndex] = {
+        ...updatedMessages[messageIndex],
+        task: task.toObject(),
+    };
+
+    // Update the entire messages array using findOneAndUpdate
+    await Chat.findOneAndUpdate(
+        { _id: task.invokedFrom.chatId },
+        { $set: { messages: updatedMessages } },
+        { new: true },
+    );
 }
 
 /**
@@ -142,9 +152,19 @@ export async function removeTaskFromChatMessage(task) {
         return;
     }
 
-    // Remove the task object but keep the taskId reference
-    chat.messages[messageIndex].task = undefined;
-    await chat.save();
+    // Create a new messages array with the task removed
+    const updatedMessages = [...chat.messages];
+    updatedMessages[messageIndex] = {
+        ...updatedMessages[messageIndex],
+        task: undefined,
+    };
+
+    // Update the entire messages array using findOneAndUpdate
+    await Chat.findOneAndUpdate(
+        { _id: task.invokedFrom.chatId },
+        { $set: { messages: updatedMessages } },
+        { new: true },
+    );
 }
 
 /**
