@@ -14,7 +14,7 @@ export async function POST(req, { params }) {
     const prompt = await Prompt.create({
         ...promptParams,
         owner: user._id,
-        llm: defaultLLM._id,
+        llm: promptParams.llm || defaultLLM._id,
     });
 
     const workspace = await Workspace.findById(id);

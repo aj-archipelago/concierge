@@ -3,11 +3,7 @@ import { useContext, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Modal } from "../../../@/components/ui/modal";
 import LoadingButton from "../../../src/components/editor/LoadingButton";
-import {
-    useCreatePrompt,
-    usePromptLibrary,
-    usePromptsByIds,
-} from "../../queries/prompts";
+import { useCreatePrompt } from "../../queries/prompts";
 import classNames from "../../utils/class-names";
 import LLMSelector from "./LLMSelector"; // Add this import
 import { WorkspaceContext } from "./WorkspaceContent";
@@ -39,18 +35,12 @@ export default function PromptSelectorModal({ isOpen, setIsOpen }) {
 }
 
 function SelectorDialog({ setIsOpen }) {
-    const { data: promptLibrary } = usePromptLibrary();
-
     const { workspace } = useContext(WorkspaceContext);
-    const { data: workspacePrompts } = usePromptsByIds(
-        workspace?.prompts || [],
-    );
     const [promptBeingAdded, setPromptBeingAdded] = useState(null);
     const createPrompt = useCreatePrompt();
     const [title, setTitle] = useState("");
     const [text, setText] = useState("");
     const [llm, setLLM] = useState("");
-    const [addedLast, setAddedLast] = useState(null);
     const { t } = useTranslation();
     const [activeTab, setActiveTab] = useState("write_your_own");
 
@@ -106,7 +96,12 @@ function SelectorDialog({ setIsOpen }) {
                                 placeholder={t("Enter the prompt")}
                             />
                         </div>
-                        <LLMSelector value={llm} onChange={setLLM} />
+                        <LLMSelector
+                            value={llm}
+                            onChange={(newValue) => {
+                                setLLM(newValue);
+                            }}
+                        />
                         <div>
                             <LoadingButton
                                 loading={
