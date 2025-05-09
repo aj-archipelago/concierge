@@ -26,7 +26,6 @@ const LLM_IDENTIFIERS = {
     o3: "o3",
     gemini20flash: "gemini20flash",
     gemini25pro: "gemini25pro",
-    labeebagent: "labeebagent",
 };
 
 // eslint-disable-next-line import/no-anonymous-default-export
