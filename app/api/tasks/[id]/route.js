@@ -1,7 +1,7 @@
 import Task from "../../models/task.mjs";
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "../../utils/auth";
-import { checkAndUpdateAbandonedTask } from "../../utils/task-utils";
+import { checkAndUpdateAbandonedTask } from "../../utils/task-utils.mjs";
 
 export async function GET(request, { params }) {
     try {

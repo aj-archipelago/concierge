@@ -1,7 +1,7 @@
 import Task from "../../../models/task.mjs";
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "../../../utils/auth";
-import { retryTask } from "../../../utils/task-utils"; // We'll assume this exists
+import { retryTask } from "../../../utils/task-utils.mjs"; // We'll assume this exists
 
 export async function POST(request, { params }) {
     try {

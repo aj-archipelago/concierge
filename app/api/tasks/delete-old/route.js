@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import Task from "../../models/task.mjs";
 import { getCurrentUser } from "../../utils/auth";
-import { deleteTask } from "../../utils/task-utils";
+import { deleteTask } from "../../utils/task-utils.mjs";
 
 export async function POST(req) {
     try {

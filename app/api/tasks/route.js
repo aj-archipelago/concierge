@@ -5,7 +5,7 @@ import {
     checkAndUpdateAbandonedTask,
     syncTaskWithBullMQJob,
     deleteTask,
-} from "../utils/task-utils";
+} from "../utils/task-utils.mjs";
 
 import RequestProgress from "../models/request-progress.mjs";
 import Task from "../models/task.mjs";

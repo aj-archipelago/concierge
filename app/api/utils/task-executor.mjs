@@ -1,7 +1,7 @@
 import { getClient, SUBSCRIPTIONS } from "../../../jobs/graphql.mjs";
 import { loadTaskDefinition } from "../../../src/utils/task-loader.mjs";
 import Task from "../models/task.mjs";
-import { copyTaskToChatMessage } from "./task-utils.js";
+import { copyTaskToChatMessage } from "./task-utils.mjs";
 
 // Remove the Apollo client initialization code and use getClient instead
 

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "../utils/auth";
-import { cancelTask } from "../utils/task-utils";
+import { cancelTask } from "../utils/task-utils.mjs";
 
 export async function POST(req) {
     try {
