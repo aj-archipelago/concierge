@@ -23,8 +23,10 @@ const LLM_IDENTIFIERS = {
     claude3opus: "claude3opus",
     o1: "o1",
     o3mini: "o3mini",
+    o3: "o3",
     gemini20flash: "gemini20flash",
     gemini25pro: "gemini25pro",
+    labeebagent: "labeebagent",
 };
 
 // eslint-disable-next-line import/no-anonymous-default-export
@@ -105,6 +107,12 @@ export default {
                 cortexModelName: "oai-o3-mini",
             },
             {
+                identifier: LLM_IDENTIFIERS.o3,
+                name: "o3",
+                cortexPathwayName: "run_o3",
+                cortexModelName: "oai-o3",
+            },
+            {
                 identifier: LLM_IDENTIFIERS.gemini20flash,
                 name: "Gemini 2.0 Flash",
                 cortexPathwayName: "run_gemini_20_flash",
@@ -115,6 +123,12 @@ export default {
                 name: "Gemini 2.5 Pro",
                 cortexPathwayName: "run_gemini_25_pro",
                 cortexModelName: "gemini-pro-25-vision",
+            },
+            {
+                identifier: LLM_IDENTIFIERS.labeebagent,
+                name: "Labeeb Agent",
+                cortexPathwayName: "run_labeeb_agent",
+                cortexModelName: "labeeb-agent",
             },
         ],
     },
