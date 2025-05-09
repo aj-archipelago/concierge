@@ -124,12 +124,6 @@ export default {
                 cortexPathwayName: "run_gemini_25_pro",
                 cortexModelName: "gemini-pro-25-vision",
             },
-            {
-                identifier: LLM_IDENTIFIERS.labeebagent,
-                name: "Labeeb Agent",
-                cortexPathwayName: "run_labeeb_agent",
-                cortexModelName: "labeeb-agent",
-            },
         ],
     },
     write: {
