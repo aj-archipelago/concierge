@@ -6,6 +6,8 @@ const requestProgressQueue = new Queue("task", {
     connection: getRedisConnection(),
 });
 
+const ABANDONED_TASK_THRESHOLD = 30000; // 30 seconds in milliseconds
+
 /**
  * Checks if a task should be marked as abandoned and updates it if necessary
  * @param {Object} task - The task document to check
@@ -20,8 +22,10 @@ export async function checkAndUpdateAbandonedTask(task) {
         task.status !== "completed" &&
         task.status !== "failed"
     ) {
-        const tenSecondsAgo = new Date(Date.now() - 10000); // 10 seconds in milliseconds
-        if (new Date(task.lastHeartbeat) < tenSecondsAgo) {
+        const abandonedThreshold = new Date(
+            Date.now() - ABANDONED_TASK_THRESHOLD,
+        ); // 30 seconds in milliseconds
+        if (new Date(task.lastHeartbeat) < abandonedThreshold) {
             task = await Task.findByIdAndUpdate(
                 task._id,
                 {
