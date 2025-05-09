@@ -76,7 +76,7 @@ export async function copyTaskToChatMessage(task) {
     // Create a new messages array with the updated task
     const updatedMessages = [...chat.messages];
     updatedMessages[messageIndex] = {
-        ...updatedMessages[messageIndex],
+        ...updatedMessages[messageIndex]?.toObject(),
         task: task.toObject(),
     };
 
@@ -155,7 +155,7 @@ export async function removeTaskFromChatMessage(task) {
     // Create a new messages array with the task removed
     const updatedMessages = [...chat.messages];
     updatedMessages[messageIndex] = {
-        ...updatedMessages[messageIndex],
+        ...updatedMessages[messageIndex]?.toObject(),
         task: undefined,
     };
 

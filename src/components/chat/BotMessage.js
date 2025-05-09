@@ -370,7 +370,8 @@ const BotMessage = ({
     entityIconSize,
 }) => {
     const { t } = useTranslation();
-    const { data: task } = useTask(message.taskId);
+    const { data: serverTask } = useTask(message.taskId);
+    const task = message.task || serverTask;
 
     // Determine the entity ID to use
     const isLoader = message.id === "loading";
