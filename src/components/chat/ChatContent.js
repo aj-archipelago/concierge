@@ -97,19 +97,22 @@ function ChatContent({
     const processedCodeRequestIds = useRef(new Set());
 
     const handleSend = useCallback(
-        async (text, overrideMessages) => {
+        async (sendMessage, overrideMessages) => {
+            // Optimistic update for the user's message
+            const optimisticUserMessage =
+                typeof sendMessage === "string" || Array.isArray(sendMessage)
+                    ? {
+                          payload: sendMessage,
+                          sender: "user",
+                          sentTime: new Date().toISOString(),
+                          direction: "outgoing",
+                          position: "single",
+                      }
+                    : sendMessage;
+
             try {
                 // Reset streaming state (important before sending)
                 clearStreamingState();
-
-                // Optimistic update for the user's message
-                const optimisticUserMessage = {
-                    payload: text,
-                    sender: "user",
-                    sentTime: new Date().toISOString(),
-                    direction: "outgoing",
-                    position: "single",
-                };
 
                 let userMessages;
 
@@ -155,7 +158,10 @@ function ChatContent({
                             : { role: "user", content: m.payload },
                     );
 
-                conversation.push({ role: "user", content: text });
+                conversation.push({
+                    role: "user",
+                    content: optimisticUserMessage.payload,
+                });
 
                 const { contextId, aiMemorySelfModify, aiName, aiStyle } = user;
 
@@ -235,13 +241,7 @@ function ChatContent({
                 // Use error messages directly without processing
                 const errorMessagesToUpdate = [
                     ...(chat?.messages || []),
-                    {
-                        payload: text,
-                        sender: "user",
-                        sentTime: new Date().toISOString(),
-                        direction: "outgoing",
-                        position: "single",
-                    },
+                    optimisticUserMessage,
                     {
                         payload: t(
                             "Something went wrong trying to respond to your request. Please try something else or start over to continue.",
