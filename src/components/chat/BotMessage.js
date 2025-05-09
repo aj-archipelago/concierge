@@ -82,7 +82,12 @@ const MemoizedMarkdownMessage = React.memo(
 );
 
 const TaskPlaceholder = ({ message }) => {
-    const { data: task } = useTask(message.taskId);
+    const { data: serverTask } = useTask(message.taskId);
+
+    // serverTask may be deleted, but once completed, the task is cached in the message
+    // so it'll always be available.
+    const task = message.task || serverTask;
+
     const [displayName, setDisplayName] = useState(null);
     const [expanded, setExpanded] = useState(false);
     const [showFullOutput, setShowFullOutput] = useState(false);

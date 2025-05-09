@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import { taskSchema } from "./task.mjs";
 
 const validatePayload = (value) => {
     return (
@@ -48,6 +49,7 @@ const messageSchema = new mongoose.Schema(
             ref: "Task",
             default: null,
         },
+        task: taskSchema,
         isServerGenerated: {
             type: Boolean,
             default: false,

@@ -33,6 +33,7 @@ export async function checkAndUpdateAbandonedTask(task) {
                 },
                 { new: true },
             );
+            await copyTaskToChatMessage(task);
         }
     }
     return task;
@@ -45,6 +46,37 @@ const jobStatusToTaskStatus = {
     active: "in_progress",
     delayed: "pending",
 };
+
+/**
+ * Copies task data to the associated chat message if the task was invoked from a chat
+ * @param {Object} task - The task document to copy
+ * @returns {Promise<void>}
+ */
+export async function copyTaskToChatMessage(task) {
+    if (!task?.invokedFrom?.source === "chat" || !task?.invokedFrom?.chatId) {
+        return;
+    }
+
+    const Chat = (await import("../models/chat.mjs")).default;
+    const chat = await Chat.findById(task.invokedFrom.chatId);
+    if (!chat) {
+        return;
+    }
+
+    // Find the message with this taskId
+    const messageIndex = chat.messages.findIndex(
+        (msg) => msg.taskId?.toString() === task._id.toString(),
+    );
+
+    console.log(`Message index: ${messageIndex} ${task._id}`);
+    if (messageIndex === -1) {
+        return;
+    }
+
+    // Update the message's task field with the completed task data
+    chat.messages[messageIndex].task = task.toObject();
+    await chat.save();
+}
 
 /**
  * Syncs the task status with BullMQ job status if jobId is present.
@@ -78,11 +110,41 @@ export async function syncTaskWithBullMQJob(task) {
 
     if (Object.keys(update).length > 0) {
         await Task.findByIdAndUpdate(task._id, update, { new: true });
-        // Optionally, you can return the updated task:
-        // return await Task.findById(task._id);
+
+        if (update.status === "failed" || update.status === "completed") {
+            await copyTaskToChatMessage(task);
+        }
     }
 
     return task;
+}
+
+/**
+ * Removes the task object from the associated chat message while keeping the taskId reference
+ * @param {Object} task - The task document
+ * @returns {Promise<void>}
+ */
+export async function removeTaskFromChatMessage(task) {
+    if (!task?.invokedFrom?.source === "chat" || !task?.invokedFrom?.chatId) {
+        return;
+    }
+
+    const Chat = (await import("../models/chat.mjs")).default;
+    const chat = await Chat.findById(task.invokedFrom.chatId);
+    if (!chat) {
+        return;
+    }
+
+    const messageIndex = chat.messages.findIndex(
+        (msg) => msg.taskId?.toString() === task._id.toString(),
+    );
+    if (messageIndex === -1) {
+        return;
+    }
+
+    // Remove the task object but keep the taskId reference
+    chat.messages[messageIndex].task = undefined;
+    await chat.save();
 }
 
 /**
@@ -144,7 +206,7 @@ export async function retryTask(task) {
     }
 
     if (retried) {
-        // Optionally update task status
+        // Update task status
         task.status = "pending";
         task.statusText = "";
         task = await Task.findByIdAndUpdate(
@@ -155,8 +217,81 @@ export async function retryTask(task) {
             },
             { new: true },
         );
+
+        // Remove cached task object from chat message
+        await removeTaskFromChatMessage(task);
     }
 
     console.log(`Retried task ${task._id}. Job ID ${task.jobId}`);
     return task;
+}
+
+/**
+ * Deletes a task and its associated BullMQ job if it exists
+ * @param {string} taskId - The ID of the task to delete
+ * @param {string} userId - The ID of the user who owns the task
+ * @returns {Promise<boolean>} True if deletion was successful
+ * @throws {Error} If task deletion fails or task doesn't exist
+ */
+export async function deleteTask(taskId, userId) {
+    try {
+        // Delete the task from the database
+        const result = await Task.findOneAndDelete({
+            _id: taskId,
+            owner: userId,
+        });
+
+        if (!result) {
+            throw new Error("Task not found");
+        }
+
+        return true;
+    } catch (error) {
+        console.error(`Error deleting task ${taskId}:`, error);
+        throw error;
+    }
+}
+
+/**
+ * Cancels a task by removing its BullMQ job and updating its status
+ * @param {string} taskId - The ID of the task to cancel
+ * @param {string} userId - The ID of the user who owns the task
+ * @returns {Promise<Object>} The updated task
+ * @throws {Error} If task cancellation fails or task doesn't exist
+ */
+export async function cancelTask(taskId, userId) {
+    try {
+        // Find the request and verify ownership
+        const task = await Task.findOne({
+            _id: taskId,
+            owner: userId,
+        });
+
+        if (!task) {
+            throw new Error("Request not found");
+        }
+
+        // Get active jobs for this request
+        const jobs = await requestProgressQueue.getJobs(["waiting"]);
+        const job = jobs.find((job) => job.data.taskId === taskId);
+
+        if (job) {
+            await job.remove();
+        }
+
+        // Update request status
+        const updatedTask = await Task.findOneAndUpdate(
+            { _id: taskId },
+            { status: "cancelled" },
+            { new: true },
+        );
+
+        // Copy the cancelled task to chat message
+        await copyTaskToChatMessage(updatedTask);
+
+        return updatedTask;
+    } catch (error) {
+        console.error("Cancel task error:", error);
+        throw error;
+    }
 }

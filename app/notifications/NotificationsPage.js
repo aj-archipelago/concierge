@@ -1,6 +1,6 @@
 "use client";
 
-import { TrashIcon, XIcon } from "lucide-react";
+import { TrashIcon, XIcon, ClockIcon } from "lucide-react";
 import { useEffect, useState, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { useInView } from "react-intersection-observer";
@@ -10,6 +10,7 @@ import {
     useDeleteTask,
     useInfiniteTasks,
     useCancelTask,
+    useDeleteOldTasks,
 } from "../../app/queries/notifications";
 import {
     StatusIndicator,
@@ -27,6 +28,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { getTaskDisplayName } from "../../src/utils/task-loader.mjs";
 import { useJob } from "../../app/queries/jobs";
+import { toast } from "react-toastify";
 
 const StatusText = ({ text, id, t }) => {
     const [isExpanded, setIsExpanded] = useState(false);
@@ -79,7 +81,7 @@ const JobInfoBox = ({ job }) => {
     if (!job) return null;
 
     return (
-        <div className="ms-8 bg-gray-50 border border-gray-200 rounded p-2 mt-2 text-xs text-gray-700 overflow-auto max-h-40">
+        <div className="ms-8 bg-gray-50 border rounded p-2 mt-2 text-xs text-gray-700 overflow-auto max-h-40">
             <div
                 className="flex items-center justify-between cursor-pointer font-medium text-gray-800"
                 onClick={() => setExpanded((prev) => !prev)}
@@ -208,7 +210,7 @@ function NotificationItem({
 export default function NotificationsPage() {
     const { t } = useTranslation();
     const { ref, inView } = useInView();
-
+    const [showDeleteOldDialog, setShowDeleteOldDialog] = useState(false);
     const { data, fetchNextPage, hasNextPage, isFetchingNextPage, status } =
         useInfiniteTasks();
 
@@ -216,6 +218,7 @@ export default function NotificationsPage() {
     const [cancelRequestId, setCancelRequestId] = useState(null);
     const cancelRequest = useCancelTask();
     const [notificationTypes, setNotificationTypes] = useState({});
+    const deleteOldTasks = useDeleteOldTasks();
 
     useEffect(() => {
         if (inView && hasNextPage) {
@@ -268,11 +271,44 @@ export default function NotificationsPage() {
         return notificationTypes[type] || type;
     };
 
+    const handleDeleteOld = async () => {
+        try {
+            const result = await deleteOldTasks.mutateAsync(7);
+            setShowDeleteOldDialog(false);
+
+            if (result.deletedCount > 0) {
+                toast.success(
+                    t("Deleted {{count}} notifications older than 7 days.", {
+                        count: result.deletedCount,
+                    }),
+                );
+            } else {
+                toast.info(t("You have no notifications older than 7 days."));
+            }
+        } catch (error) {
+            toast.error(
+                t("Failed to delete old notifications: ") + error.message,
+            );
+        }
+    };
+
     return (
         <div className="p-2">
-            <h1 className="text-2xl font-bold mb-6">
-                {t("All notifications")}
-            </h1>
+            <div className="flex justify-between items-center mb-6">
+                <h1 className="text-2xl font-bold">{t("All notifications")}</h1>
+                <button
+                    onClick={() => setShowDeleteOldDialog(true)}
+                    disabled={deleteOldTasks.isPending}
+                    className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-sky-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                    {deleteOldTasks.isPending ? (
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-900" />
+                    ) : (
+                        <ClockIcon className="h-4 w-4" />
+                    )}
+                    {t("Delete Old Notifications")}
+                </button>
+            </div>
             <div className="space-y-4">
                 {status === "pending" ? (
                     <div className="flex justify-center">
@@ -305,6 +341,29 @@ export default function NotificationsPage() {
                     </>
                 )}
             </div>
+            <AlertDialog
+                open={showDeleteOldDialog}
+                onOpenChange={setShowDeleteOldDialog}
+            >
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>
+                            {t("Delete Old Notifications")}
+                        </AlertDialogTitle>
+                        <AlertDialogDescription>
+                            {t(
+                                "Are you sure you want to delete all notifications older than 7 days? This action cannot be undone.",
+                            )}
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>{t("Cancel")}</AlertDialogCancel>
+                        <AlertDialogAction onClick={handleDeleteOld}>
+                            {t("Delete")}
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
             <AlertDialog
                 open={!!cancelRequestId}
                 onOpenChange={() => setCancelRequestId(null)}

@@ -1,6 +1,7 @@
 import { getClient, SUBSCRIPTIONS } from "../../../jobs/graphql.mjs";
 import { loadTaskDefinition } from "../../../src/utils/task-loader.mjs";
 import Task from "../models/task.mjs";
+import { copyTaskToChatMessage } from "./task-utils.js";
 
 // Remove the Apollo client initialization code and use getClient instead
 
@@ -116,7 +117,6 @@ class CortexRequestTracker {
             "failed",
             "Operation timed out after 5 minutes of inactivity",
         );
-        throw new Error("Operation timed out after 5 minutes of inactivity");
     }
 
     setupCancellationCheck() {
@@ -252,7 +252,13 @@ class CortexRequestTracker {
 
         if (dataObject) {
             dataObject = await this.processCompletedData(dataObject);
-            await this.updateRequestStatus("completed", null, dataObject);
+            const task = await this.updateRequestStatus(
+                "completed",
+                null,
+                dataObject,
+            );
+
+            await copyTaskToChatMessage(task);
         } else {
             await this.updateRequestStatus("completed");
         }
@@ -297,7 +303,7 @@ class CortexRequestTracker {
             ...(progress !== null && { progress }),
             lastHeartbeat: new Date(),
         };
-        await retryDbOperation(() =>
+        return await retryDbOperation(() =>
             this.Task.findOneAndUpdate({ _id: this.job.data.taskId }, update, {
                 new: true,
             }),
