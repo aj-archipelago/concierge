@@ -87,7 +87,7 @@ const TaskPlaceholder = ({ message }) => {
     const [expanded, setExpanded] = useState(false);
     const [showFullOutput, setShowFullOutput] = useState(false);
     const cancelRequest = useCancelTask();
-
+    const { t } = useTranslation();
     useEffect(() => {
         if (!task) {
             return;
@@ -166,8 +166,8 @@ const TaskPlaceholder = ({ message }) => {
             >
                 {isInProgress ? (
                     <>
-                        <span className="inline-block text-transparent bg-gradient-to-r from-gray-800 via-sky-500 to-gray-800 bg-clip-text animate-shimmer bg-[length:200%_100%] font-semibold me-1">
-                            {displayName}
+                        <span className="inline-block text-transparent bg-gradient-to-r from-gray-900 via-gray-600 to-gray-900 dark:from-gray-100 dark:via-gray-400 dark:to-gray-100 bg-clip-text animate-shimmer bg-[length:200%_100%] font-semibold me-1">
+                            {t(displayName)}
                         </span>
                         <svg
                             className={`h-4 w-4 text-gray-500 transition-transform ${expanded ? "rotate-180" : ""}`}
@@ -192,7 +192,7 @@ const TaskPlaceholder = ({ message }) => {
                     </>
                 ) : (
                     <span className="font-medium flex items-center gap-1">
-                        {displayName}
+                        {t(displayName)}
                         <svg
                             className={`h-4 w-4 text-gray-500 transition-transform ${expanded ? "rotate-180" : ""}`}
                             fill="none"
@@ -308,7 +308,7 @@ const TaskPlaceholder = ({ message }) => {
 export const EphemeralContent = React.memo(
     ({ content, duration, isThinking }) => {
         const [expanded, setExpanded] = useState(true);
-
+        const { t } = useTranslation();
         return (
             <div className="mb-2 ephemeral-content-wrapper">
                 <div
@@ -319,8 +319,8 @@ export const EphemeralContent = React.memo(
                         className={`inline-block ${isThinking ? "text-transparent bg-gradient-to-r from-gray-900 via-gray-600 to-gray-900 dark:from-gray-100 dark:via-gray-400 dark:to-gray-100 bg-clip-text animate-shimmer bg-[length:200%_100%]" : "text-gray-900 [.dark_&]:text-gray-100"} font-semibold me-1`}
                     >
                         {isThinking
-                            ? `Thinking... ${duration}s`
-                            : `Thought for ${duration}s`}
+                            ? t("Thinking...") + ` ${duration}s`
+                            : t("Thought for") + ` ${duration}s`}
                     </span>
                     <svg
                         className={`h-4 w-4 text-gray-500 transition-transform ${expanded ? "rotate-180" : ""}`}
@@ -365,6 +365,7 @@ const BotMessage = ({
     entityIconSize,
 }) => {
     const { t } = useTranslation();
+    const { data: task } = useTask(message.taskId);
 
     // Determine the entity ID to use
     const isLoader = message.id === "loading";
@@ -377,9 +378,11 @@ const BotMessage = ({
 
     const currentEntity = entityIdToUse
         ? entities.find((e) => e.id === entityIdToUse)
-        : null;
+        : entities.find((e) => e.isDefault === true);
 
-    const displayName = currentEntity ? currentEntity.name : botName;
+    const entityDisplaySuffix = message.taskId ? t("'s Agent") : "";
+
+    const entityDisplayName = `${currentEntity ? currentEntity.name : botName}${entityDisplaySuffix}`;
 
     // Avatar rendering
     const avatar = currentEntity ? (
@@ -416,6 +419,20 @@ const BotMessage = ({
                 "px-3",
                 "text-gray-400",
             )}
+            style={{
+                width:
+                    entityIconSize === "lg"
+                        ? 32
+                        : entityIconSize === "sm"
+                          ? 20
+                          : 16,
+                height:
+                    entityIconSize === "lg"
+                        ? 32
+                        : entityIconSize === "sm"
+                          ? 20
+                          : 16,
+            }}
         />
     ) : (
         <img
@@ -477,7 +494,7 @@ const BotMessage = ({
                 )}
             >
                 <div className="flex flex-col">
-                    <div className="font-semibold">{t(displayName)}</div>
+                    <div className="font-semibold">{t(entityDisplayName)}</div>
                     {message.ephemeralContent && (
                         <EphemeralContent
                             content={message.ephemeralContent}
@@ -490,7 +507,7 @@ const BotMessage = ({
                         ref={(el) => messageRef(el, message.id)}
                     >
                         <React.Fragment key={`md-${message.id}`}>
-                            {message.taskId ? (
+                            {message.taskId && task ? (
                                 <TaskPlaceholder message={message} />
                             ) : (
                                 <MemoizedMarkdownMessage message={message} />
