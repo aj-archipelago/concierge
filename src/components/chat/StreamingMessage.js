@@ -156,6 +156,8 @@ const StreamingMessage = React.memo(function StreamingMessage({
             // contentNode here is the StreamingContent's div
             if (!contentNode || !relativeContainerRef.current) return;
 
+            if (contentNode.textContent?.trim() === "") return;
+
             const now = Date.now();
 
             // Clear any existing loader timeout
