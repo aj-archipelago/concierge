@@ -246,6 +246,7 @@ export function useStreamingMessages({
     const updateStreamingContent = useCallback(
         async (newContent, isEphemeral = false) => {
             if (completingMessageRef.current) return;
+            if (newContent.trim() === "") return;
 
             if (isEphemeral) {
                 // For ephemeral content, update the ephemeral content state
