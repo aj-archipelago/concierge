@@ -42,11 +42,6 @@ const userSchema = new mongoose.Schema(
             required: true,
             default: "OpenAI",
         },
-        streamingEnabled: {
-            type: Boolean,
-            required: true,
-            default: false,
-        },
         uploadedDocs: {
             type: [uploadedDocsSchema],
             required: false,
@@ -66,6 +61,12 @@ const userSchema = new mongoose.Schema(
             type: Date,
             required: false,
         },
+        role: {
+            type: String,
+            required: true,
+            enum: ["user", "admin"],
+            default: "user",
+        },
     },
     {
         timestamps: true,
@@ -82,7 +83,10 @@ userSchema.virtual("initials").get(function () {
         .join("");
 });
 
+// index for createdAt descending
+userSchema.index({ createdAt: -1 });
+
 // Create the User model from the schema
-const User = mongoose.models.User || mongoose.model("User", userSchema);
+const User = mongoose.models?.User || mongoose.model("User", userSchema);
 
 export default User;

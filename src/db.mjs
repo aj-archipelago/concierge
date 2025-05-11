@@ -181,25 +181,7 @@ export async function connectToDatabase() {
         [`${dbName}.userstates`]: {
             bsonType: "object",
             properties: {
-                jira: {
-                    encrypt: {
-                        bsonType: "string",
-                        algorithm: "AEAD_AES_256_CBC_HMAC_SHA_512-Random",
-                    },
-                },
-                translate: {
-                    encrypt: {
-                        bsonType: "string",
-                        algorithm: "AEAD_AES_256_CBC_HMAC_SHA_512-Random",
-                    },
-                },
-                transcribe: {
-                    encrypt: {
-                        bsonType: "string",
-                        algorithm: "AEAD_AES_256_CBC_HMAC_SHA_512-Random",
-                    },
-                },
-                write: {
+                serializedState: {
                     encrypt: {
                         bsonType: "string",
                         algorithm: "AEAD_AES_256_CBC_HMAC_SHA_512-Random",
@@ -244,6 +226,38 @@ export async function connectToDatabase() {
                 inputText: {
                     encrypt: {
                         bsonType: "string",
+                        algorithm: "AEAD_AES_256_CBC_HMAC_SHA_512-Random",
+                    },
+                },
+            },
+            encryptMetadata: {
+                keyId: [_key],
+            },
+        },
+        [`${dbName}.tasks`]: {
+            bsonType: "object",
+            properties: {
+                data: {
+                    encrypt: {
+                        bsonType: "object",
+                        algorithm: "AEAD_AES_256_CBC_HMAC_SHA_512-Random",
+                    },
+                },
+                statusText: {
+                    encrypt: {
+                        bsonType: "string",
+                        algorithm: "AEAD_AES_256_CBC_HMAC_SHA_512-Random",
+                    },
+                },
+                error: {
+                    encrypt: {
+                        bsonType: "string",
+                        algorithm: "AEAD_AES_256_CBC_HMAC_SHA_512-Random",
+                    },
+                },
+                metadata: {
+                    encrypt: {
+                        bsonType: "object",
                         algorithm: "AEAD_AES_256_CBC_HMAC_SHA_512-Random",
                     },
                 },

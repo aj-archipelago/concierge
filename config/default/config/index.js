@@ -23,6 +23,7 @@ const LLM_IDENTIFIERS = {
     claude3opus: "claude3opus",
     o1: "o1",
     o3mini: "o3mini",
+    o3: "o3",
     gemini20flash: "gemini20flash",
     gemini25pro: "gemini25pro",
 };
@@ -103,6 +104,12 @@ export default {
                 name: "o3 Mini",
                 cortexPathwayName: "run_o3_mini",
                 cortexModelName: "oai-o3-mini",
+            },
+            {
+                identifier: LLM_IDENTIFIERS.o3,
+                name: "o3",
+                cortexPathwayName: "run_o3",
+                cortexModelName: "oai-o3",
             },
             {
                 identifier: LLM_IDENTIFIERS.gemini20flash,

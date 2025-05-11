@@ -1,18 +1,17 @@
 import i18next from "i18next";
 import React, {
-    useEffect,
     useCallback,
-    useRef,
+    useEffect,
     useImperativeHandle,
+    useRef,
+    useContext,
+    useState,
 } from "react";
 import { useTranslation } from "react-i18next";
-import { AiFillFilePdf, AiFillFileText, AiOutlineRobot } from "react-icons/ai";
-import { FaUserCircle } from "react-icons/fa";
+import { FileImage, FileText, UserCircle } from "lucide-react";
+import Loader from "../../../app/components/loader";
 import classNames from "../../../app/utils/class-names";
 import config from "../../../config";
-import { convertMessageToMarkdown } from "./ChatMessage";
-import ScrollToBottom from "./ScrollToBottom";
-import Loader from "../../../app/components/loader";
 import {
     getExtension,
     getFilename,
@@ -20,11 +19,22 @@ import {
     isVideoUrl,
 } from "../../utils/mediaUtils";
 import CopyButton from "../CopyButton";
-import { useGetActiveChat, useUpdateChat } from "../../../app/queries/chats";
-import ProgressUpdate from "../editor/ProgressUpdate";
-import { useGetAutogenRun } from "../../../app/queries/autogen";
-import StreamingMessage from "./StreamingMessage";
+import ReplayButton from "../ReplayButton";
 import ChatImage from "../images/ChatImage";
+import { AuthContext } from "../../App";
+import BotMessage from "./BotMessage";
+import ScrollToBottom from "./ScrollToBottom";
+import StreamingMessage from "./StreamingMessage";
+import {
+    AlertDialog,
+    AlertDialogContent,
+    AlertDialogHeader,
+    AlertDialogTitle,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogAction,
+    AlertDialogCancel,
+} from "@/components/ui/alert-dialog";
 
 const hasImages = (message) => {
     if (!Array.isArray(message.payload)) return false;
@@ -50,28 +60,6 @@ const countImages = (message) => {
             return count;
         }
     }, 0);
-};
-
-const getToolMetadata = (toolName, t) => {
-    const toolIcons = {
-        search: "🔍",
-        reasoning: "🧠",
-        image: "🖼️",
-        writing: "💻",
-        vision: "👁️",
-        default: "🛠️",
-        coding: "🤖",
-        memory: "🧠",
-    };
-
-    const normalizedToolName = toolName?.toLowerCase();
-    const icon = toolIcons[normalizedToolName] || toolIcons.default;
-    const translatedName = t(`tool.${normalizedToolName || "default"}`);
-
-    return {
-        icon,
-        translatedName,
-    };
 };
 
 const parseToolData = (toolString) => {
@@ -126,80 +114,6 @@ const MemoizedYouTubeEmbed = React.memo(({ url, onLoad }) => {
         />
     );
 });
-
-// Add this near the top of the file, after imports:
-const MemoizedMarkdownMessage = React.memo(
-    ({ message }) => {
-        return convertMessageToMarkdown(message);
-    },
-    (prevProps, nextProps) => {
-        // If messages are completely identical, no need to re-render
-        if (prevProps.message === nextProps.message) {
-            return true;
-        }
-
-        // If payloads are strings and identical, no need to re-render
-        if (
-            typeof prevProps.message.payload === "string" &&
-            typeof nextProps.message.payload === "string" &&
-            prevProps.message.payload === nextProps.message.payload
-        ) {
-            return true;
-        }
-
-        // For array payloads, we need to compare each item
-        if (
-            Array.isArray(prevProps.message.payload) &&
-            Array.isArray(nextProps.message.payload)
-        ) {
-            if (
-                prevProps.message.payload.length !==
-                nextProps.message.payload.length
-            ) {
-                return false;
-            }
-
-            // Compare each item in the array
-            return prevProps.message.payload.every((item, index) => {
-                const nextItem = nextProps.message.payload[index];
-                try {
-                    const prevObj =
-                        typeof item === "string" ? JSON.parse(item) : item;
-                    const nextObj =
-                        typeof nextItem === "string"
-                            ? JSON.parse(nextItem)
-                            : nextItem;
-
-                    // For image URLs, only compare the base URL without query parameters
-                    if (
-                        prevObj.type === "image_url" &&
-                        nextObj.type === "image_url"
-                    ) {
-                        const prevUrl = new URL(
-                            prevObj.url ||
-                                prevObj.image_url?.url ||
-                                prevObj.gcs,
-                        ).pathname;
-                        const nextUrl = new URL(
-                            nextObj.url ||
-                                nextObj.image_url?.url ||
-                                nextObj.gcs,
-                        ).pathname;
-                        return prevUrl === nextUrl;
-                    }
-
-                    return JSON.stringify(prevObj) === JSON.stringify(nextObj);
-                } catch (e) {
-                    // If JSON parsing fails, compare as strings
-                    return item === nextItem;
-                }
-            });
-        }
-
-        // Default to re-rendering if we can't determine equality
-        return false;
-    },
-);
 
 // Create a memoized component for the static message list content
 const MessageListContent = React.memo(function MessageListContent({
@@ -273,8 +187,7 @@ const MessageListContent = React.memo(function MessageListContent({
                         const ext = getExtension(src);
 
                         if ([".pdf", ".txt", ".csv"].includes(ext)) {
-                            const Icon =
-                                ext === ".pdf" ? AiFillFilePdf : AiFillFileText;
+                            const Icon = ext === ".pdf" ? FileImage : FileText;
                             return (
                                 <a
                                     key={`file-${index}-${index2}`}
@@ -286,10 +199,7 @@ const MessageListContent = React.memo(function MessageListContent({
                                     target="_blank"
                                     rel="noopener noreferrer"
                                 >
-                                    <Icon
-                                        size={40}
-                                        className="text-red-600 dark:text-red-400"
-                                    />
+                                    <Icon className="w-6 h-6 text-red-500" />
                                     {filename}
                                 </a>
                             );
@@ -319,7 +229,7 @@ const MessageListContent = React.memo(function MessageListContent({
         }
 
         return (
-            <div key={newMessage.id}>
+            <div key={newMessage.id} id={`message-${newMessage.id}`}>
                 {renderMessage({ ...newMessage, payload: display })}
             </div>
         );
@@ -336,8 +246,13 @@ const MessageList = React.memo(
             chatId,
             streamingContent,
             isStreaming,
-            aiName,
             onSend,
+            ephemeralContent,
+            thinkingDuration,
+            isThinking,
+            selectedEntityId,
+            entities,
+            entityIconSize,
         },
         ref,
     ) {
@@ -345,6 +260,9 @@ const MessageList = React.memo(
         const { getLogo } = config.global;
         const { t } = useTranslation();
         const scrollBottomRef = useRef(null);
+        const { user } = useContext(AuthContext);
+        const defaultAiName = user?.aiName;
+        const [replayIndex, setReplayIndex] = useState(null);
 
         // Forward scrollBottomRef to parent
         useImperativeHandle(
@@ -370,11 +288,6 @@ const MessageList = React.memo(
         const prevStreamingContentRef = React.useRef(streamingContent);
         const prevChatIdRef = React.useRef(chatId);
 
-        const chat = useGetActiveChat()?.data;
-        const updateChat = useUpdateChat();
-        const codeRequestId = chat?.codeRequestId;
-        const getAutogenRun = useGetAutogenRun(codeRequestId);
-
         // Reset scroll when switching chats
         useEffect(() => {
             if (chatId !== prevChatIdRef.current) {
@@ -387,36 +300,6 @@ const MessageList = React.memo(
         React.useEffect(() => {
             prevStreamingContentRef.current = streamingContent;
         }, [streamingContent]);
-
-        const setCodeRequestFinalData = useCallback(
-            (data) => {
-                const message = {
-                    payload: data,
-                    sender: "labeeb",
-                    sentTime: "just now",
-                    direction: "incoming",
-                    position: "single",
-                    tool: '{"toolUsed":"coding"}',
-                };
-
-                updateChat.mutateAsync({
-                    chatId,
-                    codeRequestId: null,
-                    isChatLoading: false,
-                    messages: chat?.messages
-                        ? [...chat.messages, message]
-                        : [message],
-                });
-            },
-            [chatId, updateChat, chat?.messages],
-        );
-
-        useEffect(() => {
-            const data = getAutogenRun?.data?.data?.data;
-            if (data) {
-                setCodeRequestFinalData(data);
-            }
-        }, [getAutogenRun?.data?.data, setCodeRequestFinalData]);
 
         useEffect(() => {
             const newMessageIds = messages.map((m) => m?.id).join(",");
@@ -450,7 +333,7 @@ const MessageList = React.memo(
         const botName =
             bot === "code"
                 ? config?.code?.botName
-                : aiName || config?.chat?.botName;
+                : defaultAiName || config?.chat?.botName;
 
         const handleMessageLoad = useCallback((messageId) => {
             setMessageLoadState((prev) =>
@@ -496,150 +379,118 @@ const MessageList = React.memo(
             [handleImageLoad],
         );
 
+        const handleReplay = useCallback(
+            (messageIndex) => {
+                if (messageIndex < 0 || messageIndex >= messages.length) {
+                    console.error(
+                        "Invalid message index for replay:",
+                        messageIndex,
+                    );
+                    return;
+                }
+
+                // Get all messages up to the selected message
+                const messagesToKeep = messages.slice(0, messageIndex);
+
+                const messageToReplay = {
+                    payload: messages[messageIndex].payload,
+                    sender: messages[messageIndex].sender,
+                    sentTime: new Date().toISOString(),
+                    direction: messages[messageIndex].direction,
+                    position: messages[messageIndex].position,
+                };
+
+                if (!messageToReplay || !messageToReplay.payload) {
+                    console.error(
+                        "Invalid message for replay:",
+                        messageToReplay,
+                    );
+                    return;
+                }
+
+                onSend(messageToReplay, messagesToKeep);
+                scrollBottomRef.current?.resetScrollState();
+            },
+            [messages, onSend],
+        );
+
         const renderMessage = useCallback(
             (message) => {
-                let avatar;
                 const toolData = parseToolData(message.tool);
 
                 if (message.sender === "labeeb") {
-                    avatar = toolData?.avatarImage ? (
-                        <img
-                            src={toolData.avatarImage}
-                            alt="Tool Avatar"
-                            className={classNames(
-                                basis,
-                                "p-1",
-                                buttonWidthClass,
-                                rowHeight,
-                                "rounded-full object-cover",
-                            )}
-                        />
-                    ) : bot === "code" ? (
-                        <AiOutlineRobot
-                            className={classNames(
-                                rowHeight,
-                                buttonWidthClass,
-                                "px-3",
-                                "text-gray-400",
-                            )}
-                        />
-                    ) : (
-                        <img
-                            src={getLogo(language)}
-                            alt="Logo"
-                            className={classNames(
-                                basis,
-                                "p-2",
-                                buttonWidthClass,
-                                rowHeight,
-                            )}
-                        />
-                    );
-
                     return (
-                        <div
-                            key={message.id}
-                            className="flex bg-sky-50 ps-1 pt-1 relative group"
-                        >
-                            <div className="flex items-center gap-2 absolute top-3 end-3">
-                                {toolData?.toolUsed && (
-                                    <div className="tool-badge inline-flex items-center gap-1.5 px-1.5 py-0.5 rounded-md bg-sky-50 border border-sky-100 text-xs text-sky-600 font-medium w-fit">
-                                        <span className="tool-icon">
-                                            {
-                                                getToolMetadata(
-                                                    toolData.toolUsed,
-                                                    t,
-                                                ).icon
-                                            }
-                                        </span>
-                                        <span className="tool-name">
-                                            {t("Used {{tool}} tool", {
-                                                tool: getToolMetadata(
-                                                    toolData.toolUsed,
-                                                    t,
-                                                ).translatedName,
-                                            })}
-                                        </span>
-                                    </div>
-                                )}
-                                <CopyButton
-                                    item={
-                                        typeof message.payload === "string"
-                                            ? message.payload
-                                            : message.text
-                                    }
-                                    className="copy-button opacity-0 group-hover:opacity-60 hover:opacity-100 transition-opacity"
-                                />
-                            </div>
-
-                            <div className={classNames(basis)}>{avatar}</div>
-                            <div
-                                className={classNames(
-                                    "px-1 pb-3 pt-2 [.docked_&]:px-0 [.docked_&]:py-3 w-full",
-                                )}
-                            >
-                                <div className="flex flex-col">
-                                    <div className="font-semibold">
-                                        {t(botName)}
-                                    </div>
-                                    <div
-                                        className="chat-message-bot relative break-words"
-                                        ref={(el) => messageRef(el, message.id)}
-                                    >
-                                        <React.Fragment
-                                            key={`md-${message.id}`}
-                                        >
-                                            <MemoizedMarkdownMessage
-                                                message={message}
-                                            />
-                                        </React.Fragment>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    );
-                } else {
-                    avatar = (
-                        <FaUserCircle
-                            className={classNames(
-                                rowHeight,
-                                buttonWidthClass,
-                                "p-2",
-                                "text-gray-300",
-                            )}
+                        <BotMessage
+                            message={message}
+                            toolData={toolData}
+                            bot={bot}
+                            basis={basis}
+                            buttonWidthClass={buttonWidthClass}
+                            rowHeight={rowHeight}
+                            getLogo={getLogo}
+                            language={language}
+                            botName={botName}
+                            messageRef={messageRef}
+                            selectedEntityId={selectedEntityId}
+                            entities={entities}
+                            entityIconSize={entityIconSize}
+                            entityIconClasses={classNames(basis)}
                         />
                     );
-                    return (
-                        <div
-                            key={message.id}
-                            className="flex ps-1 pt-1 relative group"
-                        >
+                }
+                const avatar = (
+                    <UserCircle
+                        className={classNames(
+                            rowHeight,
+                            buttonWidthClass,
+                            "p-2",
+                            "text-gray-300",
+                        )}
+                    />
+                );
+                return (
+                    <div
+                        key={message.id}
+                        className="flex ps-1 pt-1 relative group"
+                    >
+                        <div className="flex items-center gap-2 absolute top-3 end-3">
+                            <ReplayButton
+                                onClick={() => {
+                                    // Get the index from the MessageListContent component
+                                    const index = messages.findIndex((m) => {
+                                        // Compare both id and _id to handle different message structures
+                                        return (
+                                            m.id === message.id ||
+                                            m._id === message.id
+                                        );
+                                    });
+                                    setReplayIndex(index);
+                                }}
+                                className="opacity-0 group-hover:opacity-60 hover:opacity-100 transition-opacity"
+                            />
                             <CopyButton
                                 item={
                                     typeof message.payload === "string"
                                         ? message.payload
                                         : ""
                                 }
-                                className="absolute top-3 end-3 opacity-0 group-hover:opacity-60 hover:opacity-100 transition-opacity"
+                                className="opacity-0 group-hover:opacity-60 hover:opacity-100 transition-opacity"
                             />
-                            <div className={classNames(basis, "py-0")}>
-                                {avatar}
-                            </div>
-                            <div
-                                className={classNames(
-                                    "px-1 pb-3 pt-2 [.docked_&]:px-0 [.docked_&]:py-3",
-                                )}
-                            >
-                                <div className="font-semibold">{t("You")}</div>
-                                <pre className="chat-message-user">
-                                    {message.payload}
-                                </pre>
-                            </div>
                         </div>
-                    );
-                }
+                        <div className={classNames(basis)}>{avatar}</div>
+                        <div
+                            className={classNames(
+                                "px-1 pb-3 pt-2 [.docked_&]:px-0 [.docked_&]:py-3",
+                            )}
+                        >
+                            <div className="font-semibold">{t("You")}</div>
+                            <pre className="chat-message-user">
+                                {message.payload}
+                            </pre>
+                        </div>
+                    </div>
+                );
             },
-            // eslint-disable-next-line react-hooks/exhaustive-deps
             [
                 basis,
                 bot,
@@ -649,6 +500,11 @@ const MessageList = React.memo(
                 messageRef,
                 rowHeight,
                 t,
+                botName,
+                selectedEntityId,
+                entities,
+                entityIconSize,
+                messages,
             ],
         );
 
@@ -676,16 +532,21 @@ const MessageList = React.memo(
                         {isStreaming && (
                             <StreamingMessage
                                 content={streamingContent}
+                                ephemeralContent={ephemeralContent}
                                 bot={bot}
-                                aiName={aiName}
+                                thinkingDuration={thinkingDuration}
+                                isThinking={isThinking}
+                                selectedEntityId={selectedEntityId}
+                                entities={entities}
+                                entityIconSize={entityIconSize}
                             />
                         )}
                         {loading &&
                             !isStreaming &&
-                            !codeRequestId &&
                             renderMessage({
                                 id: "loading",
                                 sender: "labeeb",
+                                entityId: selectedEntityId,
                                 payload: (
                                     <div className="flex gap-4">
                                         <div className="mt-1 ms-1 mb-1 h-4">
@@ -694,18 +555,38 @@ const MessageList = React.memo(
                                     </div>
                                 ),
                             })}
-                        {loading && !isStreaming && codeRequestId && (
-                            <div className="border pt-5 pb-3 px-7 rounded-md bg-white animate-fade-in">
-                                <ProgressUpdate
-                                    requestId={codeRequestId}
-                                    setFinalData={setCodeRequestFinalData}
-                                    initialText={"🤖 Agent coding..."}
-                                    codeAgent={true}
-                                />
-                            </div>
-                        )}
                     </div>
                 </div>
+
+                <AlertDialog
+                    open={replayIndex !== null}
+                    onOpenChange={() => setReplayIndex(null)}
+                >
+                    <AlertDialogContent>
+                        <AlertDialogHeader>
+                            <AlertDialogTitle>
+                                {t("Replay from this point?")}
+                            </AlertDialogTitle>
+                            <AlertDialogDescription>
+                                {t(
+                                    "This will replay the conversation from this point. All messages after this one will be removed. Continue?",
+                                )}
+                            </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                            <AlertDialogCancel>{t("Cancel")}</AlertDialogCancel>
+                            <AlertDialogAction
+                                autoFocus
+                                onClick={() => {
+                                    handleReplay(replayIndex);
+                                    setReplayIndex(null);
+                                }}
+                            >
+                                {t("Continue")}
+                            </AlertDialogAction>
+                        </AlertDialogFooter>
+                    </AlertDialogContent>
+                </AlertDialog>
             </ScrollToBottom>
         );
     }),

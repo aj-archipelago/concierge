@@ -3,11 +3,7 @@ import { useContext, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Modal } from "../../../@/components/ui/modal";
 import LoadingButton from "../../../src/components/editor/LoadingButton";
-import {
-    useCreatePrompt,
-    usePromptLibrary,
-    usePromptsByIds,
-} from "../../queries/prompts";
+import { useCreatePrompt } from "../../queries/prompts";
 import classNames from "../../utils/class-names";
 import LLMSelector from "./LLMSelector"; // Add this import
 import { WorkspaceContext } from "./WorkspaceContent";
@@ -39,18 +35,12 @@ export default function PromptSelectorModal({ isOpen, setIsOpen }) {
 }
 
 function SelectorDialog({ setIsOpen }) {
-    const { data: promptLibrary } = usePromptLibrary();
-
     const { workspace } = useContext(WorkspaceContext);
-    const { data: workspacePrompts } = usePromptsByIds(
-        workspace?.prompts || [],
-    );
     const [promptBeingAdded, setPromptBeingAdded] = useState(null);
     const createPrompt = useCreatePrompt();
     const [title, setTitle] = useState("");
     const [text, setText] = useState("");
     const [llm, setLLM] = useState("");
-    const [addedLast, setAddedLast] = useState(null);
     const { t } = useTranslation();
     const [activeTab, setActiveTab] = useState("write_your_own");
 
@@ -106,7 +96,12 @@ function SelectorDialog({ setIsOpen }) {
                                 placeholder={t("Enter the prompt")}
                             />
                         </div>
-                        <LLMSelector value={llm} onChange={setLLM} />
+                        <LLMSelector
+                            value={llm}
+                            onChange={(newValue) => {
+                                setLLM(newValue);
+                            }}
+                        />
                         <div>
                             <LoadingButton
                                 loading={
@@ -134,77 +129,6 @@ function SelectorDialog({ setIsOpen }) {
                             >
                                 {t("Add")}
                             </LoadingButton>
-                        </div>
-                    </div>
-                    <div
-                        className={classNames(
-                            activeTab === "pick_from_library"
-                                ? "flex"
-                                : "hidden sm:flex",
-                            "sm:basis-6/12 flex-col gap-3 h-full",
-                        )}
-                    >
-                        <h4>
-                            {t("Or add prompts from the AJ prompt library")}
-                        </h4>
-                        <div className="h-full overflow-auto flex flex-col gap-3">
-                            {promptLibrary?.map((prompt, index) => {
-                                const promptWithSameTitleExists =
-                                    workspacePrompts?.some(
-                                        (p) => p?.title === prompt.title,
-                                    ) || addedLast === prompt.title;
-
-                                return (
-                                    <div
-                                        key={index}
-                                        className="w-full flex items-center justify-between"
-                                    >
-                                        <div className="bg-gray-100 p-4 rounded-md grow border">
-                                            <h3 className="text-sm font-medium">
-                                                {prompt.title}
-                                            </h3>
-                                            <p className="text-sm text-gray-500">
-                                                {prompt.text}
-                                            </p>
-                                            {promptWithSameTitleExists ? (
-                                                <span className="text-sm text-gray-400">
-                                                    {t("Added")}
-                                                </span>
-                                            ) : (
-                                                <LoadingButton
-                                                    loading={
-                                                        createPrompt.isPending &&
-                                                        promptBeingAdded ===
-                                                            prompt.text
-                                                    }
-                                                    text={t("Adding") + "..."}
-                                                    className="text-sm text-blue-500 hover:text-blue-700"
-                                                    onClick={async () => {
-                                                        setPromptBeingAdded(
-                                                            prompt?.text,
-                                                        );
-                                                        await createPrompt.mutateAsync(
-                                                            {
-                                                                workspaceId:
-                                                                    workspace._id,
-                                                                prompt: prompt,
-                                                            },
-                                                        );
-                                                        setPromptBeingAdded(
-                                                            null,
-                                                        );
-                                                        setAddedLast(
-                                                            prompt.title,
-                                                        );
-                                                    }}
-                                                >
-                                                    {t("Add")}
-                                                </LoadingButton>
-                                            )}
-                                        </div>
-                                    </div>
-                                );
-                            })}
                         </div>
                     </div>
                 </div>

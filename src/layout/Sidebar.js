@@ -63,11 +63,6 @@ export default React.forwardRef(function Sidebar(_, ref) {
     };
 
     const handleDeleteChat = async (chatId) => {
-        const userConfirmed = window.confirm(
-            t("Are you sure you want to delete this chat?"),
-        );
-        if (!userConfirmed) return;
-
         try {
             const { activeChatId, recentChatIds } =
                 await deleteChat.mutateAsync({ chatId });

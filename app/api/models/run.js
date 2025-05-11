@@ -14,6 +14,10 @@ const runSchema = new mongoose.Schema(
         output: {
             type: String,
         },
+        citations: {
+            type: [mongoose.Schema.Types.Mixed],
+            default: [],
+        },
         // expire in 15 days
         expireAt: {
             type: Date,

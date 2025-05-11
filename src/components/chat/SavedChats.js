@@ -8,11 +8,16 @@ import { PlusIcon } from "@heroicons/react/24/outline";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
 import i18next from "i18next";
-import { EditIcon, MoreVertical, TrashIcon, XIcon } from "lucide-react";
+import {
+    EditIcon,
+    MoreVertical,
+    XIcon,
+    UserCircle,
+    Trash2,
+} from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { FaUserCircle } from "react-icons/fa";
 import { useInView } from "react-intersection-observer";
 import Loader from "../../../app/components/loader";
 import {
@@ -25,6 +30,16 @@ import {
 import classNames from "../../../app/utils/class-names";
 import config from "../../../config";
 import { isValidObjectId } from "../../utils/helper";
+import {
+    AlertDialog,
+    AlertDialogContent,
+    AlertDialogHeader,
+    AlertDialogTitle,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogAction,
+    AlertDialogCancel,
+} from "@/components/ui/alert-dialog";
 
 dayjs.extend(relativeTime);
 
@@ -55,6 +70,7 @@ function SavedChats({ displayState }) {
     const [editingId, setEditingId] = useState(null);
     const [editedName, setEditedName] = useState("");
     const { language } = i18next;
+    const [deleteChatId, setDeleteChatId] = useState(null);
 
     const categorizedChats = useMemo(() => {
         const categories = {
@@ -97,17 +113,11 @@ function SavedChats({ displayState }) {
         }
     };
 
-    const handleDelete = async (chatId, e) => {
-        e.stopPropagation();
-
-        const userConfirmed = window.confirm(
-            t("Are you sure you want to delete this chat?"),
-        );
-        if (!userConfirmed) return;
-
+    const handleDelete = async (chatId) => {
         try {
             if (!chatId) return;
             await deleteChat.mutateAsync({ chatId });
+            setDeleteChatId(null);
         } catch (error) {
             console.error("Failed to delete chat", error);
         }
@@ -227,9 +237,10 @@ function SavedChats({ displayState }) {
                                         </button>
                                     )}
                                     <button
-                                        onClick={(e) =>
-                                            handleDelete(chat._id, e)
-                                        }
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            setDeleteChatId(chat._id);
+                                        }}
                                         className={classNames(
                                             "text-gray-400 hover:text-red-500",
                                             editingId === chat._id
@@ -237,7 +248,7 @@ function SavedChats({ displayState }) {
                                                 : "block",
                                         )}
                                     >
-                                        <TrashIcon className="h-3 w-3 flex-shrink-0" />
+                                        <Trash2 className="h-3 w-3 flex-shrink-0" />
                                     </button>
                                 </div>
                                 {editingId !== chat._id && (
@@ -262,9 +273,9 @@ function SavedChats({ displayState }) {
                                                 <DropdownMenuItem
                                                     className="text-sm"
                                                     onClick={(e) => {
-                                                        handleDelete(
+                                                        e.stopPropagation();
+                                                        setDeleteChatId(
                                                             chat._id,
-                                                            e,
                                                         );
                                                     }}
                                                 >
@@ -296,12 +307,7 @@ function SavedChats({ displayState }) {
                                             >
                                                 <div className="basis-[1rem] flex items-center gap-1">
                                                     {m?.sender === "user" ? (
-                                                        <FaUserCircle
-                                                            className={classNames(
-                                                                "w-4 h-4",
-                                                                "text-gray-300",
-                                                            )}
-                                                        />
+                                                        <UserCircle className="w-4 h-4 text-gray-300" />
                                                     ) : (
                                                         <img
                                                             src={getLogo(
@@ -399,6 +405,31 @@ function SavedChats({ displayState }) {
                     {isFetchingNextPage && <Loader />}
                 </div>
             )}
+
+            <AlertDialog
+                open={deleteChatId !== null}
+                onOpenChange={() => setDeleteChatId(null)}
+            >
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>{t("Delete Chat?")}</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            {t(
+                                "Are you sure you want to delete this chat? This action cannot be undone.",
+                            )}
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>{t("Cancel")}</AlertDialogCancel>
+                        <AlertDialogAction
+                            autoFocus
+                            onClick={() => handleDelete(deleteChatId)}
+                        >
+                            {t("Delete")}
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </div>
     );
 }

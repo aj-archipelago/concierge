@@ -4,20 +4,57 @@ const CORTEX_GRAPHQL_API_URL =
     process.env.CORTEX_GRAPHQL_API_URL || "http://localhost:4000/graphql";
 
 const getClient = async (serverUrl) => {
-    // const config = await import("../config/index.js").default;
     const apollo = await import("@apollo/client/index.js");
-
-    const { ApolloClient, InMemoryCache } = apollo;
+    const { ApolloClient, InMemoryCache, split, HttpLink } = apollo;
+    const { GraphQLWsLink } = await import(
+        "@apollo/client/link/subscriptions/index.js"
+    );
+    const { createClient } = await import("graphql-ws");
+    const { getMainDefinition } = await import(
+        "@apollo/client/utilities/index.js"
+    );
+    const WebSocket = await import("ws");
 
     let graphqlEndpoint;
     if (serverUrl) {
-        // graphqlEndpoint = config.endpoints.graphql(serverUrl);
+        graphqlEndpoint = serverUrl;
     } else {
         graphqlEndpoint = CORTEX_GRAPHQL_API_URL;
     }
 
-    const client = new ApolloClient({
+    const httpLink = new HttpLink({
         uri: graphqlEndpoint,
+    });
+
+    const wsLink = new GraphQLWsLink(
+        createClient({
+            url: graphqlEndpoint.replace("http", "ws"),
+            webSocketImpl: WebSocket.default,
+            connectionParams: {},
+            on: {
+                connected: () => console.log("GraphQL WebSocket connected"),
+                error: (error) =>
+                    console.error("GraphQL WebSocket error:", error),
+                closed: () => console.log("GraphQL WebSocket closed"),
+            },
+        }),
+    );
+
+    // Split requests between WebSocket and HTTP
+    const splitLink = split(
+        ({ query }) => {
+            const definition = getMainDefinition(query);
+            return (
+                definition.kind === "OperationDefinition" &&
+                definition.operation === "subscription"
+            );
+        },
+        wsLink,
+        httpLink,
+    );
+
+    const client = new ApolloClient({
+        link: splitLink,
         cache: new InMemoryCache(),
     });
 
@@ -56,48 +93,6 @@ const SELECT_EXTENSION = gql`
     }
 `;
 
-const CHAT_PERSIST = gql`
-    query ChatPersist($chatHistory: [Message]!, $contextId: String) {
-        chat_persist(chatHistory: $chatHistory, contextId: $contextId) {
-            result
-            contextId
-        }
-    }
-`;
-
-const CHAT_LABEEB = gql`
-    query ChatLabeeb($chatHistory: [Message]!, $contextId: String) {
-        chat_labeeb(chatHistory: $chatHistory, contextId: $contextId) {
-            result
-            contextId
-        }
-    }
-`;
-
-const CHAT_EXTENSION = gql`
-    query ChatExtension(
-        $chatHistory: [Message]!
-        $contextId: String
-        $text: String
-        $roleInformation: String
-        $indexName: String
-        $semanticConfiguration: String
-    ) {
-        retrieval(
-            chatHistory: $chatHistory
-            contextId: $contextId
-            text: $text
-            roleInformation: $roleInformation
-            indexName: $indexName
-            semanticConfiguration: $semanticConfiguration
-        ) {
-            result
-            contextId
-            tool
-        }
-    }
-`;
-
 const VISION = gql`
     query ($text: String, $chatHistory: [MultiMessage]) {
         vision(text: $text, chatHistory: $chatHistory) {
@@ -115,70 +110,40 @@ const SYS_SAVE_MEMORY = gql`
     }
 `;
 
-const SYS_ENTITY_START = gql`
-    query RagStart(
-        $chatHistory: [MultiMessage]!
-        $dataSources: [String]
-        $contextId: String
-        $text: String
-        $roleInformation: String
-        $indexName: String
-        $semanticConfiguration: String
-        $aiName: String
-        $aiMemorySelfModify: Boolean
-        $title: String
-        $aiStyle: String
-    ) {
-        sys_entity_start(
-            chatHistory: $chatHistory
-            dataSources: $dataSources
-            contextId: $contextId
-            text: $text
-            roleInformation: $roleInformation
-            indexName: $indexName
-            semanticConfiguration: $semanticConfiguration
-            aiName: $aiName
-            aiMemorySelfModify: $aiMemorySelfModify
-            title: $title
-            aiStyle: $aiStyle
-        ) {
+const CODE_HUMAN_INPUT = gql`
+    query ($text: String, $codeRequestId: String) {
+        code_human_input(text: $text, codeRequestId: $codeRequestId) {
             result
-            contextId
-            tool
-            warnings
-            errors
         }
     }
 `;
 
-const SYS_ENTITY_CONTINUE = gql`
-    query SysEntityContinue(
+const SYS_ENTITY_AGENT = gql`
+    query RagStart(
         $chatHistory: [MultiMessage]!
-        $dataSources: [String]
         $contextId: String
         $text: String
-        $roleInformation: String
-        $indexName: String
-        $semanticConfiguration: String
         $aiName: String
-        $useMemory: Boolean
-        $chatId: String
-        $generatorPathway: String
+        $aiMemorySelfModify: Boolean
         $aiStyle: String
+        $title: String
+        $codeRequestId: String
+        $stream: Boolean
+        $entityId: String
+        $chatId: String
     ) {
-        sys_entity_continue(
+        sys_entity_agent(
             chatHistory: $chatHistory
-            dataSources: $dataSources
             contextId: $contextId
             text: $text
-            roleInformation: $roleInformation
-            indexName: $indexName
-            semanticConfiguration: $semanticConfiguration
             aiName: $aiName
-            useMemory: $useMemory
-            chatId: $chatId
-            generatorPathway: $generatorPathway
+            aiMemorySelfModify: $aiMemorySelfModify
             aiStyle: $aiStyle
+            title: $title
+            codeRequestId: $codeRequestId
+            stream: $stream
+            entityId: $entityId
+            chatId: $chatId
         ) {
             result
             contextId
@@ -386,26 +351,52 @@ const TRANSCRIBE = gql`
 const TRANSCRIBE_NEURALSPACE = gql`
     query TranscribeNeuralSpace(
         $file: String!
-        $text: String
         $language: String
         $wordTimestamped: Boolean
+        $responseFormat: String
         $maxLineCount: Int
         $maxLineWidth: Int
         $maxWordsPerLine: Int
         $highlightWords: Boolean
-        $responseFormat: String
         $async: Boolean
     ) {
         transcribe_neuralspace(
             file: $file
-            text: $text
             language: $language
             wordTimestamped: $wordTimestamped
+            responseFormat: $responseFormat
             maxLineCount: $maxLineCount
             maxLineWidth: $maxLineWidth
             maxWordsPerLine: $maxWordsPerLine
             highlightWords: $highlightWords
+            async: $async
+        ) {
+            result
+        }
+    }
+`;
+
+const TRANSCRIBE_GEMINI = gql`
+    query TranscribeGemini(
+        $file: String!
+        $language: String
+        $wordTimestamped: Boolean
+        $responseFormat: String
+        $maxLineCount: Int
+        $maxLineWidth: Int
+        $maxWordsPerLine: Int
+        $highlightWords: Boolean
+        $async: Boolean
+    ) {
+        transcribe_gemini(
+            file: $file
+            language: $language
+            wordTimestamped: $wordTimestamped
             responseFormat: $responseFormat
+            maxLineCount: $maxLineCount
+            maxLineWidth: $maxLineWidth
+            maxWordsPerLine: $maxWordsPerLine
+            highlightWords: $highlightWords
             async: $async
         ) {
             result
@@ -489,7 +480,7 @@ const ENTITIES = gql`
 `;
 
 const REQUEST_PROGRESS = gql`
-    subscription RequestProgress($requestIds: [String!]) {
+    subscription Task($requestIds: [String!]) {
         requestProgress(requestIds: $requestIds) {
             data
             progress
@@ -605,6 +596,26 @@ const JIRA_STORY = gql`
     }
 `;
 
+const AZURE_VIDEO_TRANSLATE = gql`
+    query (
+        $mode: String
+        $sourcelocale: String
+        $targetlocale: String
+        $sourcevideooraudiofilepath: String
+        $stream: Boolean
+    ) {
+        azure_video_translate(
+            mode: $mode
+            sourcelocale: $sourcelocale
+            targetlocale: $targetlocale
+            sourcevideooraudiofilepath: $sourcevideooraudiofilepath
+            stream: $stream
+        ) {
+            result
+        }
+    }
+`;
+
 const getWorkspacePromptQuery = (pathwayName) => {
     return gql`
         query ${pathwayName}(
@@ -620,21 +631,19 @@ const getWorkspacePromptQuery = (pathwayName) => {
                 async: $async
             ) {
                 result
+                tool
             }
         }
     `;
 };
 
 const QUERIES = {
-    CHAT_PERSIST,
-    CHAT_LABEEB,
-    CHAT_EXTENSION,
+    AZURE_VIDEO_TRANSLATE,
     COGNITIVE_DELETE,
     COGNITIVE_INSERT,
     IMAGE,
     SYS_SAVE_MEMORY,
-    SYS_ENTITY_START,
-    SYS_ENTITY_CONTINUE,
+    SYS_ENTITY_AGENT,
     EXPAND_STORY,
     FORMAT_PARAGRAPH_TURBO,
     SELECT_SERVICES,
@@ -657,6 +666,7 @@ const QUERIES = {
     SUMMARIZE_TURBO,
     TRANSCRIBE,
     TRANSCRIBE_NEURALSPACE,
+    TRANSCRIBE_GEMINI,
     TRANSLATE,
     TRANSLATE_AZURE,
     TRANSLATE_CONTEXT,
@@ -682,15 +692,13 @@ const MUTATIONS = {
 };
 
 export {
+    AZURE_VIDEO_TRANSLATE,
     getClient,
-    CHAT_PERSIST,
-    CHAT_LABEEB,
     COGNITIVE_INSERT,
     COGNITIVE_DELETE,
     EXPAND_STORY,
     SYS_SAVE_MEMORY,
-    SYS_ENTITY_START,
-    SYS_ENTITY_CONTINUE,
+    SYS_ENTITY_AGENT,
     SELECT_SERVICES,
     SUMMARY,
     HASHTAGS,
@@ -719,4 +727,9 @@ export {
     REMOVE_CONTENT,
     JIRA_STORY,
     VISION,
+    TRANSCRIBE,
+    TRANSCRIBE_NEURALSPACE,
+    TRANSCRIBE_GEMINI,
+    FORMAT_PARAGRAPH_TURBO,
+    CODE_HUMAN_INPUT,
 };

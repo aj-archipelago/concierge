@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import { taskSchema } from "./task.mjs";
 
 const validatePayload = (value) => {
     return (
@@ -39,6 +40,28 @@ const messageSchema = new mongoose.Schema(
             type: String,
             required: true,
         },
+        entityId: {
+            type: String,
+            default: null,
+        },
+        taskId: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "Task",
+            default: null,
+        },
+        task: taskSchema,
+        isServerGenerated: {
+            type: Boolean,
+            default: false,
+        },
+        ephemeralContent: {
+            type: String,
+            default: null,
+        },
+        thinkingDuration: {
+            type: Number,
+            default: 0,
+        },
     },
     {
         timestamps: true,
@@ -74,19 +97,15 @@ const chatSchema = new mongoose.Schema(
             type: Boolean,
             default: false,
         },
-        codeRequestId: {
-            type: String,
-            default: null,
-        },
-        lastCodeRequestId: {
-            type: String,
-            default: null,
-        },
-        lastCodeRequestTime: {
-            type: Date,
-            default: null,
-        },
         isChatLoading: {
+            type: Boolean,
+            default: false,
+        },
+        selectedEntityId: {
+            type: String,
+            default: "",
+        },
+        researchMode: {
             type: Boolean,
             default: false,
         },
@@ -102,6 +121,6 @@ chatSchema.index({ createdAt: -1 });
 chatSchema.index({ userId: 1, updatedAt: -1 });
 
 // Create the Chat model from the schema
-const Chat = mongoose.models.Chat || mongoose.model("Chat", chatSchema);
+const Chat = mongoose.models?.Chat || mongoose.model("Chat", chatSchema);
 
 export default Chat;

@@ -8,41 +8,86 @@ import axios from "../utils/axios-client";
 import { useContext } from "react";
 import { AuthContext } from "../../src/App";
 
-export function useNotifications(showDismissed = false) {
+const clientSideCompletionHandlers = {
+    coding: async ({ task, queryClient }) => {
+        const { chatId } = task.metadata;
+        queryClient.invalidateQueries({ queryKey: ["chat", chatId] });
+    },
+    "subtitle-translate": async ({ refetchUserState }) => {
+        refetchUserState();
+    },
+    transcribe: async ({ refetchUserState }) => {
+        refetchUserState();
+    },
+    "video-translate": async ({ refetchUserState }) => {
+        refetchUserState();
+    },
+};
+
+export function useTask(id) {
+    return useQuery({
+        queryKey: ["tasks", id],
+        queryFn: async () => {
+            const { data } = await axios.get(`/api/tasks/${id}`);
+            return data;
+        },
+        enabled: !!id,
+        refetchInterval: (query) => {
+            if (
+                query.state.data?.status === "in_progress" ||
+                query.state.data?.status === "pending"
+            ) {
+                return 5000;
+            }
+            return false;
+        },
+        refetchIntervalInBackground: true,
+    });
+}
+
+export function useTasks(showDismissed = false) {
     const queryClient = useQueryClient();
-    const previousData = queryClient.getQueryData([
-        "notifications",
-        showDismissed,
-    ]);
+    const previousData = queryClient.getQueryData(["tasks", showDismissed]);
     const { refetchUserState } = useContext(AuthContext);
 
-    const invalidateNotifications = () => {
-        queryClient.invalidateQueries({ queryKey: ["notifications"] });
+    const invalidateTasks = () => {
+        queryClient.invalidateQueries({ queryKey: ["tasks"] });
     };
 
     const query = useQuery({
-        queryKey: ["notifications", showDismissed],
+        queryKey: ["tasks", showDismissed],
         queryFn: async () => {
             const { data } = await axios.get(
-                `/api/request-progress?showDismissed=${showDismissed}`,
+                `/api/tasks?showDismissed=${showDismissed}`,
             );
 
-            // Check if any notification has newly completed
+            // Check if any task has newly completed or has had its status updated
             if (previousData?.requests) {
-                const newlyCompleted = data.requests.some(
-                    (notification) =>
-                        notification.status === "completed" &&
-                        previousData.requests.find(
-                            (prev) =>
-                                prev.requestId === notification.requestId &&
-                                prev.status !== "completed",
-                        ),
-                );
+                data.requests.forEach((task) => {
+                    const prevTask = previousData.requests.find(
+                        (prev) => prev._id === task._id,
+                    );
 
-                if (newlyCompleted) {
-                    // Refetch user state when a notification completes
-                    refetchUserState();
-                }
+                    if (prevTask && prevTask.status !== task.status) {
+                        if (
+                            task.status === "completed" &&
+                            prevTask.status !== "completed"
+                        ) {
+                            // Handle newly completed task
+                            if (clientSideCompletionHandlers[task.type]) {
+                                clientSideCompletionHandlers[task.type]({
+                                    task,
+                                    queryClient,
+                                    refetchUserState,
+                                });
+                            }
+                        }
+
+                        queryClient.invalidateQueries({
+                            queryKey: ["tasks", task._id],
+                        });
+                    }
+                });
             }
 
             return data;
@@ -51,7 +96,9 @@ export function useNotifications(showDismissed = false) {
             const requests = query.state.data?.requests;
             if (
                 requests?.some(
-                    (notification) => notification.status === "in_progress",
+                    (task) =>
+                        task.status === "in_progress" ||
+                        task.status === "pending",
                 )
             ) {
                 return 5000;
@@ -62,68 +109,123 @@ export function useNotifications(showDismissed = false) {
         refetchIntervalInBackground: true,
     });
 
-    return { ...query, invalidateNotifications };
+    return { ...query, invalidateTasks };
 }
 
-export function useDeleteNotification() {
+export function useDeleteTask() {
     const queryClient = useQueryClient();
 
     return useMutation({
-        mutationFn: async (requestId) => {
-            const response = await axios.delete("/api/request-progress", {
-                data: { requestId },
+        mutationFn: async (_id) => {
+            const response = await axios.delete("/api/tasks", {
+                data: { _id },
             });
             return response.data;
         },
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ["notifications"] });
+            queryClient.invalidateQueries({ queryKey: ["tasks"] });
         },
     });
 }
 
-export function useDismissNotification() {
+export function useDismissTask() {
     const queryClient = useQueryClient();
 
     return useMutation({
-        mutationFn: async (requestId) => {
-            const response = await axios.patch("/api/request-progress", {
-                requestId,
+        mutationFn: async (_id) => {
+            const response = await axios.patch("/api/tasks", {
+                _id: _id,
             });
             return response.data;
         },
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ["notifications"] });
+            queryClient.invalidateQueries({ queryKey: ["tasks"] });
         },
     });
 }
 
-export function useCancelRequest() {
+export function useCancelTask() {
     const queryClient = useQueryClient();
 
     return useMutation({
-        mutationFn: async (requestId) => {
+        mutationFn: async (_id) => {
             const response = await axios.post("/api/cancel-request", {
-                requestId,
+                _id: _id,
             });
             return response.data;
         },
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ["notifications"] });
+            queryClient.invalidateQueries({ queryKey: ["tasks"] });
         },
     });
 }
 
-export function useInfiniteNotifications() {
+export function useInfiniteTasks() {
     return useInfiniteQuery({
-        queryKey: ["notifications", "infinite", true],
+        queryKey: ["tasks", "infinite", true],
         queryFn: async ({ pageParam = 1 }) => {
             const response = await fetch(
-                `/api/request-progress?showDismissed=true&page=${pageParam}&limit=10`,
+                `/api/tasks?showDismissed=true&page=${pageParam}&limit=10`,
             );
             return response.json();
         },
         getNextPageParam: (lastPage, pages) => {
             return lastPage.hasMore ? pages.length + 1 : undefined;
+        },
+    });
+}
+
+export function useRunTask() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: async (taskData) => {
+            const response = await axios.post("/api/tasks", taskData);
+            return response.data;
+        },
+        onSuccess: (data, variables) => {
+            queryClient.invalidateQueries({ queryKey: ["tasks"] });
+            if (variables.chatId) {
+                queryClient.invalidateQueries({
+                    queryKey: ["chat", variables.chatId],
+                });
+            }
+        },
+    });
+}
+
+export function useRetryTask() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: async (taskId) => {
+            const response = await axios.post(`/api/tasks/${taskId}/retry`);
+            return response.data;
+        },
+        onSuccess: (data) => {
+            if (data.invokedFrom.source === "chat") {
+                queryClient.invalidateQueries({
+                    queryKey: ["chat", data.invokedFrom.chatId],
+                });
+            }
+
+            queryClient.invalidateQueries({ queryKey: ["tasks"] });
+        },
+    });
+}
+
+export function useDeleteOldTasks() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: async (days = 7) => {
+            const response = await axios.post("/api/tasks/delete-old", {
+                days,
+            });
+            return response.data;
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ["tasks"] });
         },
     });
 }

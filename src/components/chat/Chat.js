@@ -7,8 +7,28 @@ import {
     useUpdateActiveChat,
     useGetActiveChat,
 } from "../../../app/queries/chats";
-import { useContext } from "react";
+import { useContext, useState, useEffect } from "react";
 import { AuthContext } from "../../App";
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select";
+import EntityIcon from "./EntityIcon";
+import { Share, Trash2, Check } from "lucide-react";
+import { useEntities } from "../../hooks/useEntities";
+import {
+    AlertDialog,
+    AlertDialogContent,
+    AlertDialogHeader,
+    AlertDialogTitle,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogAction,
+    AlertDialogCancel,
+} from "@/components/ui/alert-dialog";
 
 const ChatTopMenuDynamic = dynamic(() => import("./ChatTopMenu"), {
     loading: () => <div style={{ width: "80px", height: "20px" }}></div>,
@@ -18,30 +38,88 @@ function Chat({ viewingChat = null }) {
     const { t } = useTranslation();
     const updateActiveChat = useUpdateActiveChat();
     const { data: chat } = useGetActiveChat();
+    const activeChatId = chat?._id;
     const { user } = useContext(AuthContext);
     const { readOnly } = viewingChat || {};
     const publicChatOwner = viewingChat?.owner;
+    const [selectedEntityId, setSelectedEntityId] = useState(
+        chat?.selectedEntityId || "",
+    );
+    const [showPublicConfirm, setShowPublicConfirm] = useState(false);
+    const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+    const [copyStatus, setCopyStatus] = useState(false);
+
+    const defaultAiName = user?.aiName || "Labeeb";
+    const { entities, defaultEntityId } = useEntities(defaultAiName);
+
+    // Sync local state with fetched chat data
+    useEffect(() => {
+        const entityIdFromChat = chat?.selectedEntityId || "";
+        // If no entityId or entity doesn't exist, use default entity
+        const newEntityId =
+            entityIdFromChat && entities.some((e) => e.id === entityIdFromChat)
+                ? entityIdFromChat
+                : defaultEntityId;
+
+        if (newEntityId !== selectedEntityId) {
+            setSelectedEntityId(newEntityId);
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [chat?.selectedEntityId, entities, defaultEntityId]);
 
     const handleShareOrCopy = async () => {
         const shareUrl = `${window.location.origin}/chat/${chat._id}`;
 
         if (chat?.isPublic) {
             await navigator.clipboard.writeText(shareUrl);
-            alert(t("Share URL copied to clipboard!"));
+            setCopyStatus(true);
+            setTimeout(() => setCopyStatus(false), 2000);
         } else {
-            if (window.confirm(t("Make this chat public?"))) {
-                await updateActiveChat.mutateAsync({ isPublic: true });
-                document.body.focus(); // Refocus the document
-                await new Promise((resolve) => setTimeout(resolve, 1000));
-                await navigator.clipboard.writeText(shareUrl);
-                alert(t("Chat made public. Share URL copied to clipboard!"));
+            setShowPublicConfirm(true);
+        }
+    };
+
+    const handleEntityChange = (value) => {
+        const newEntityId = value === defaultAiName ? "" : value;
+        setSelectedEntityId(newEntityId);
+        if (activeChatId) {
+            updateActiveChat.mutate({
+                chatId: activeChatId,
+                selectedEntityId: newEntityId,
+            });
+        }
+    };
+
+    const handleMakePublic = async () => {
+        try {
+            const shareUrl = `${window.location.origin}/chat/${chat._id}`;
+            await updateActiveChat.mutateAsync({ isPublic: true });
+            document.body.focus();
+            await navigator.clipboard.writeText(shareUrl);
+            setCopyStatus(true);
+            setTimeout(() => setCopyStatus(false), 2000);
+        } catch (error) {
+            console.error("Error making chat public:", error);
+        }
+    };
+
+    const handleDelete = async () => {
+        try {
+            if (activeChatId) {
+                updateActiveChat.mutate({
+                    chatId: activeChatId,
+                    messages: [],
+                    title: "",
+                });
             }
+        } catch (error) {
+            console.error("Error deleting chat:", error);
         }
     };
 
     return (
         <div className="flex flex-col gap-3 h-full">
-            <div className="flex justify-between">
+            <div className="flex justify-between items-center">
                 <ChatTopMenuDynamic />
                 {publicChatOwner && (
                     <div className="text-sm font-medium text-gray-600 bg-gray-100 px-3 py-1 rounded shadow-sm">
@@ -51,28 +129,87 @@ function Chat({ viewingChat = null }) {
                         </span>
                     </div>
                 )}
-                <div className="flex gap-2">
+                <div className="flex gap-2 items-center">
+                    <Select
+                        value={selectedEntityId || defaultAiName}
+                        onValueChange={handleEntityChange}
+                        disabled={readOnly}
+                    >
+                        <SelectTrigger
+                            className={`w-auto text-sm h-7 lb-outline ${readOnly ? "cursor-not-allowed opacity-50" : ""}`}
+                            aria-label={t("Select entity")}
+                        >
+                            <div className="flex items-center gap-2 pr-1">
+                                {selectedEntityId ? (
+                                    <>
+                                        <EntityIcon
+                                            entity={entities.find(
+                                                (e) =>
+                                                    e.id === selectedEntityId,
+                                            )}
+                                            size="xs"
+                                        />
+                                        <span className="hidden sm:inline">
+                                            {t(
+                                                entities.find(
+                                                    (e) =>
+                                                        e.id ===
+                                                        selectedEntityId,
+                                                )?.name,
+                                            )}
+                                        </span>
+                                    </>
+                                ) : (
+                                    <SelectValue
+                                        placeholder={t("Select entity")}
+                                    />
+                                )}
+                            </div>
+                        </SelectTrigger>
+                        <SelectContent>
+                            {entities.map((entity) => (
+                                <SelectItem
+                                    className="text-sm focus:bg-gray-100 dark:focus:bg-gray-100 dark:focus:text-gray-800"
+                                    key={entity.id}
+                                    value={entity.id}
+                                >
+                                    <div className="flex items-center gap-2">
+                                        <EntityIcon entity={entity} size="xs" />
+                                        {t(entity.name)}
+                                    </div>
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
                     <button
                         disabled={readOnly}
-                        className={`lb-sm lb-outline ${chat?.isPublic ? "" : "lb-primary"}`}
+                        className="flex items-center gap-1 px-3 py-1.5 rounded-md transition-colors border bg-white text-gray-700 border-gray-200 hover:bg-gray-100 text-xs"
                         onClick={handleShareOrCopy}
+                        title={
+                            chat?.isPublic ? t("Copy Share URL") : t("Share")
+                        }
                     >
-                        {chat?.isPublic ? t("Copy Share URL") : t("Share")}
+                        {copyStatus ? (
+                            <Check className="w-4 h-4 text-green-500" />
+                        ) : (
+                            <Share className="w-4 h-4" />
+                        )}
+                        <span className="hidden sm:inline">
+                            {chat?.isPublic ? t("Copy Share URL") : t("Share")}
+                        </span>
                     </button>
                     <button
                         disabled={readOnly}
-                        className="lb-outline-secondary lb-sm"
-                        size="sm"
+                        className="flex items-center gap-1 px-3 py-1.5 rounded-md transition-colors border bg-white text-gray-700 border-gray-200 hover:bg-gray-100 text-xs"
                         onClick={() => {
-                            if (window.confirm(t("Are you sure?"))) {
-                                updateActiveChat.mutateAsync({
-                                    messages: [],
-                                    title: "",
-                                });
-                            }
+                            setShowDeleteConfirm(true);
                         }}
+                        title={t("Clear this chat")}
                     >
-                        {t("Clear this chat")}
+                        <Trash2 className="w-4 h-4" />
+                        <span className="hidden sm:inline">
+                            {t("Clear this chat")}
+                        </span>
                     </button>
                 </div>
             </div>
@@ -80,8 +217,69 @@ function Chat({ viewingChat = null }) {
                 <ChatContent
                     viewingChat={viewingChat}
                     streamingEnabled={user.streamingEnabled}
+                    selectedEntityId={selectedEntityId}
+                    entities={entities}
+                    entityIconSize="lg"
                 />
             </div>
+
+            <AlertDialog
+                open={showPublicConfirm}
+                onOpenChange={setShowPublicConfirm}
+            >
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>
+                            {t("Make this chat public?")}
+                        </AlertDialogTitle>
+                        <AlertDialogDescription>
+                            {t(
+                                "This will make this chat visible to anyone with the link. This action cannot be undone.",
+                            )}
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>{t("Cancel")}</AlertDialogCancel>
+                        <AlertDialogAction
+                            autoFocus
+                            onClick={() => {
+                                handleMakePublic();
+                                setShowPublicConfirm(false);
+                            }}
+                        >
+                            {t("Make Public")}
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+
+            <AlertDialog
+                open={showDeleteConfirm}
+                onOpenChange={setShowDeleteConfirm}
+            >
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>{t("Clear Chat?")}</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            {t(
+                                "Are you sure you want to clear this chat? This action cannot be undone.",
+                            )}
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>{t("Cancel")}</AlertDialogCancel>
+                        <AlertDialogAction
+                            autoFocus
+                            onClick={() => {
+                                handleDelete();
+                                setShowDeleteConfirm(false);
+                            }}
+                        >
+                            {t("Clear")}
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </div>
     );
 }

@@ -9,7 +9,8 @@ const queueName = "digest-build";
 const { REDIS_CONNECTION_STRING } = process.env;
 const { Logger } = require("./logger.js");
 const { DIGEST_REBUILD_INTERVAL_HOURS = 4 } = process.env;
-const requestProgressWorker = require("./request-progress-worker");
+const cortexRequestWorker = require("./cortex-request-worker.js");
+require("dotenv").config();
 
 const connection = new Redis(
     REDIS_CONNECTION_STRING || "redis://localhost:6379",
@@ -30,6 +31,11 @@ const PERIODIC_BUILD_JOB = "periodic-build";
 const SINGLE_BUILD_JOB = "build-digest";
 
 (async function main() {
+    // wait between 10 and 30 seconds to avoid race condition with other workers
+    await new Promise((resolve) =>
+        setTimeout(resolve, Math.random() * 20000 + 10000),
+    );
+
     for (const job of await digestBuild.getRepeatableJobs()) {
         await digestBuild.removeRepeatableByKey(job.key);
     }
@@ -43,6 +49,7 @@ const SINGLE_BUILD_JOB = "build-digest";
         {}, // data
         {
             repeat: nHourlyRepeat,
+            delay: 60 * 1000, // delay makes sure that it's not available for workers to pick up until everyone has started up
         },
     );
 })();
@@ -98,7 +105,14 @@ async function ensureDbConnection(forceReconnect = false) {
         dbInitialized = false;
     }
 
-    if (!dbInitialized) {
+    // Get mongoose to check connection state
+    const mongoose = (await import("mongoose")).default;
+
+    if (
+        !dbInitialized ||
+        !mongoose.connection ||
+        mongoose.connection.readyState !== 1
+    ) {
         try {
             connectionAttempts++;
             console.log(
@@ -111,9 +125,6 @@ async function ensureDbConnection(forceReconnect = false) {
 
             // Give the connection a moment to fully establish
             await new Promise((resolve) => setTimeout(resolve, 500));
-
-            // Get mongoose to check connection state
-            const mongoose = (await import("mongoose")).default;
 
             if (mongoose.connection && mongoose.connection.readyState === 1) {
                 console.log("Successfully connected to MongoDB database");
@@ -193,7 +204,7 @@ async function startWorkers() {
 
         // Start workers
         console.log("Starting workers...");
-        await requestProgressWorker.run();
+        await cortexRequestWorker.run();
         worker.run();
 
         console.log("All workers are running");
@@ -208,3 +219,8 @@ async function startWorkers() {
 
 // Start the workers
 startWorkers();
+
+module.exports = {
+    run: startWorkers,
+    ensureDbConnection,
+};
