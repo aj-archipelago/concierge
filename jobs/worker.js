@@ -12,6 +12,12 @@ const { DIGEST_REBUILD_INTERVAL_HOURS = 4 } = process.env;
 const cortexRequestWorker = require("./cortex-request-worker.js");
 require("dotenv").config();
 
+// Import the queue monitor
+import("../app/api/utils/queue-monitor.mjs").then(({ queueMonitor }) => {
+    // Start monitoring queues
+    queueMonitor.startMonitoring();
+});
+
 const connection = new Redis(
     REDIS_CONNECTION_STRING || "redis://localhost:6379",
     {
