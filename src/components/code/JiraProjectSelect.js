@@ -1,6 +1,6 @@
 "use client";
 
-import axios from "axios";
+import axios from "../../../app/utils/axios-client";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { basePath } from "../../utils/constants";

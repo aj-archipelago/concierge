@@ -1,7 +1,8 @@
 import { Modal } from "@/components/ui/modal";
 import { useApolloClient, useQuery } from "@apollo/client";
-import { useContext, useEffect, useState } from "react";
+import { useContext, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { FiDownload, FiUpload } from "react-icons/fi";
 import { useUpdateAiOptions } from "../../app/queries/options";
 import { QUERIES } from "../../src/graphql";
 import { AuthContext } from "../App";
@@ -9,6 +10,7 @@ import { AuthContext } from "../App";
 const UserOptions = ({ show, handleClose }) => {
     const { t } = useTranslation();
     const { user } = useContext(AuthContext);
+    const fileInputRef = useRef();
     const [aiMemorySelfModify, setAiMemorySelfModify] = useState(
         user.aiMemorySelfModify || false,
     );
@@ -20,7 +22,9 @@ const UserOptions = ({ show, handleClose }) => {
         memoryDirectives: "",
         memoryUser: "",
         memoryTopics: "",
+        memoryVersion: "",
     });
+    const [uploadError, setUploadError] = useState("");
 
     const updateAiOptionsMutation = useUpdateAiOptions();
     const apolloClient = useApolloClient();
@@ -52,6 +56,7 @@ const UserOptions = ({ show, handleClose }) => {
                     memoryDirectives: parsed.memoryDirectives || "",
                     memoryUser: parsed.memoryUser || "",
                     memoryTopics: parsed.memoryTopics || "",
+                    memoryVersion: parsed.memoryVersion || "",
                 });
             } catch (e) {
                 // If parsing fails, put everything in memoryUser
@@ -60,6 +65,7 @@ const UserOptions = ({ show, handleClose }) => {
                     memoryDirectives: "",
                     memoryUser: memoryData.sys_read_memory.result || "",
                     memoryTopics: "",
+                    memoryVersion: "",
                 });
             }
         }
@@ -75,6 +81,7 @@ const UserOptions = ({ show, handleClose }) => {
             memoryDirectives: "",
             memoryUser: "",
             memoryTopics: "",
+            memoryVersion: "",
         });
     };
 
@@ -110,6 +117,65 @@ const UserOptions = ({ show, handleClose }) => {
             });
 
         handleClose();
+    };
+
+    const handleDownloadMemory = () => {
+        const blob = new Blob([JSON.stringify(parsedMemory, null, 2)], {
+            type: "application/json",
+        });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        const now = new Date();
+        const date = now.toISOString().split("T")[0];
+        const time = now.toTimeString().split(" ")[0].replace(/:/g, "-");
+        a.download = `${aiName.toLowerCase()}-memory-${date}-${time}.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    };
+
+    const handleUploadMemory = (event) => {
+        const file = event.target.files[0];
+        setUploadError(""); // Clear any previous errors
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                try {
+                    const uploaded = JSON.parse(e.target.result);
+                    // Validate the required memory structure
+                    if (!uploaded || typeof uploaded !== "object") {
+                        throw new Error(t("Invalid memory file format"));
+                    }
+                    setParsedMemory({
+                        memorySelf: uploaded.memorySelf || "",
+                        memoryDirectives: uploaded.memoryDirectives || "",
+                        memoryUser: uploaded.memoryUser || "",
+                        memoryTopics: uploaded.memoryTopics || "",
+                        memoryVersion: uploaded.memoryVersion || "",
+                    });
+                } catch (error) {
+                    console.error("Failed to parse memory file:", error);
+                    setUploadError(
+                        t(
+                            "Failed to parse memory file. Please ensure it is a valid JSON file with the correct memory structure.",
+                        ),
+                    );
+                    // Reset the file input so the same file can be selected again
+                    if (fileInputRef.current) {
+                        fileInputRef.current.value = "";
+                    }
+                }
+            };
+            reader.onerror = () => {
+                setUploadError(t("Failed to read the file. Please try again."));
+                if (fileInputRef.current) {
+                    fileInputRef.current.value = "";
+                }
+            };
+            reader.readAsText(file);
+        }
     };
 
     const memoryTabs = [
@@ -203,19 +269,51 @@ const UserOptions = ({ show, handleClose }) => {
                         <p>{t("Loading memory...")}</p>
                     ) : (
                         <>
-                            <div className="flex justify-between items-center mb-2">
-                                <button
-                                    className="lb-outline-danger"
-                                    onClick={handleClearMemory}
-                                >
-                                    {t("Clear Memory")}
-                                </button>
-                                <span className="text-sm text-gray-500">
-                                    {t("Memory size: {{size}} characters", {
-                                        size: JSON.stringify(parsedMemory)
-                                            .length,
-                                    })}
-                                </span>
+                            <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-2 space-y-2 md:space-y-0">
+                                <div className="flex flex-wrap gap-2 items-center">
+                                    <button
+                                        className="lb-outline-danger"
+                                        onClick={handleClearMemory}
+                                    >
+                                        {t("Clear Memory")}
+                                    </button>
+                                    <button
+                                        className="lb-outline-secondary"
+                                        onClick={handleDownloadMemory}
+                                        title={t("Download memory backup")}
+                                    >
+                                        <FiDownload className="w-4 h-4" />
+                                    </button>
+                                    <button
+                                        className="lb-outline-secondary"
+                                        onClick={() =>
+                                            fileInputRef.current?.click()
+                                        }
+                                        title={t("Upload memory from backup")}
+                                    >
+                                        <FiUpload className="w-4 h-4" />
+                                    </button>
+                                    <input
+                                        ref={fileInputRef}
+                                        type="file"
+                                        accept=".json"
+                                        onChange={handleUploadMemory}
+                                        className="hidden"
+                                    />
+                                </div>
+                                <div className="text-sm text-gray-500 flex flex-wrap gap-2 items-center">
+                                    <span>
+                                        {t("Memory size: {{size}} characters", {
+                                            size: JSON.stringify(parsedMemory)
+                                                .length,
+                                        })}
+                                    </span>
+                                    {parsedMemory.memoryVersion && (
+                                        <span className="text-xs text-gray-400">
+                                            (v{parsedMemory.memoryVersion})
+                                        </span>
+                                    )}
+                                </div>
                             </div>
                             <div className="border-b border-gray-200">
                                 <nav className="flex -mb-px">
@@ -247,6 +345,11 @@ const UserOptions = ({ show, handleClose }) => {
                                 className="lb-input font-mono w-full mt-4"
                                 rows={10}
                             />
+                            {uploadError && (
+                                <div className="text-red-500 text-sm mt-2">
+                                    {uploadError}
+                                </div>
+                            )}
                         </>
                     )}
                 </div>

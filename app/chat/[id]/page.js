@@ -18,6 +18,7 @@ export default async function ChatPage({ params }) {
         id = await getActiveChatId();
         // route page to active chat
     }
+
     const chat = await getChatById(id);
     if (!chat) {
         return (

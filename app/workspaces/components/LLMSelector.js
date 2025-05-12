@@ -6,7 +6,12 @@ export default function LLMSelector({ value, onChange }) {
 
     useEffect(() => {
         if (llms && llms.length > 0 && !value) {
-            onChange(llms[0]._id);
+            const defaultLLM = llms.find((llm) => llm.isDefault);
+            if (defaultLLM) {
+                onChange(defaultLLM._id);
+            } else {
+                onChange(llms[0]._id);
+            }
         }
     }, [llms, value, onChange]);
 

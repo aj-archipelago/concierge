@@ -1,13 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import axios from "../utils/axios-client";
 
-export function useUpdateAiOptions(
-    userId,
-    contextId,
-    aiMemorySelfModify,
-    aiName,
-    aiStyle,
-) {
+export function useUpdateAiOptions() {
     const queryClient = useQueryClient();
 
     const mutation = useMutation({

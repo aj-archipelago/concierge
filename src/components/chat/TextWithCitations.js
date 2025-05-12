@@ -9,7 +9,8 @@ import CopyButton from "../CopyButton";
 function TextWithCitations({ index, citation }) {
     const [show, setShow] = useState(false);
     const target = useRef(null);
-    const { title, url, content, path, wireid, source, slugline } = citation;
+    const { title, url, content, path, wireid, source, slugline, date } =
+        citation;
 
     var parser = new DOMParser();
     var dom = parser.parseFromString(content, "text/html");
@@ -17,7 +18,7 @@ function TextWithCitations({ index, citation }) {
 
     strippedContent = strippedContent.replace(/\[.*?\]/g, "");
 
-    const wireRef = [wireid, source, slugline, path]
+    const wireRef = [wireid, source, slugline, path, date]
         .filter(Boolean)
         .join(" ")
         .trim();

@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { CheckIcon, SearchIcon, XIcon } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import config from "../../../config";
 import LoadingButton from "../editor/LoadingButton";
@@ -22,6 +22,18 @@ const VideoSelector = ({ url, onSelect, onClose }) => {
         },
         enabled: !!debouncedUrl && !!fetchUrlSource,
     });
+
+    useEffect(() => {
+        if (
+            data?.results?.length === 1 &&
+            data?.results[0]?.fromExternalChannel
+        ) {
+            onSelect({
+                videoUrl: ensureHttps(data?.results[0]?.videoUrl),
+                transcriptionUrl: ensureHttps(data?.results[0]?.url),
+            });
+        }
+    }, [data, onSelect]);
 
     const ensureHttps = (url) => {
         if (url?.startsWith("http://")) {

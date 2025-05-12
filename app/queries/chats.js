@@ -38,10 +38,21 @@ export function useGetActiveChats() {
             activeChats.forEach((chat) => {
                 const existingChat =
                     queryClient.getQueryData(["chat", chat._id]) || {};
-                queryClient.setQueryData(["chat", chat._id], {
-                    ...existingChat,
-                    ...chat,
-                });
+
+                // If chat has a firstMessage property but the existing chat has a full messages array,
+                // keep the existing messages and don't overwrite with the truncated version
+                const updatedChat = { ...existingChat, ...chat };
+
+                // Only preserve existing messages if they exist and are not empty
+                if (
+                    chat.firstMessage &&
+                    existingChat.messages &&
+                    existingChat.messages.length > 0
+                ) {
+                    updatedChat.messages = existingChat.messages;
+                }
+
+                queryClient.setQueryData(["chat", chat._id], updatedChat);
             });
             return activeChats;
         },
@@ -53,10 +64,12 @@ export function useGetActiveChats() {
 }
 
 function temporaryNewChat({ messages, title }) {
+    const tempId = `temp_${Date.now()}_${crypto.randomUUID()}`;
     return {
-        _id: null,
+        _id: tempId,
         messages: messages || [],
         title: title || "",
+        isTemporary: true,
     };
 }
 
@@ -71,51 +84,169 @@ export function useAddChat() {
             });
             return response.data;
         },
-        onMutate: async ({ messages, title }) => {
+        // Using the standard Tanstack Query pattern for optimistic updates
+        onMutate: async (newChatData) => {
+            // Cancel related queries to prevent race conditions
+            await queryClient.cancelQueries({
+                queryKey: ["activeChats", "userChatInfo", "chats"],
+            });
+
+            // Snapshot the current state
             const previousActiveChats =
                 queryClient.getQueryData(["activeChats"]) || [];
             const previousUserChatInfo =
                 queryClient.getQueryData(["userChatInfo"]) || {};
-            const newChat = temporaryNewChat({ messages, title });
 
+            // Create an optimistic chat entry
+            const optimisticChat = temporaryNewChat(newChatData);
+
+            // Update all relevant query data optimistically
+            queryClient.setQueryData(
+                ["chat", optimisticChat._id],
+                optimisticChat,
+            );
             queryClient.setQueryData(
                 ["activeChats"],
-                [newChat, ...previousActiveChats],
+                [optimisticChat, ...previousActiveChats],
             );
             queryClient.setQueryData(["userChatInfo"], {
                 ...previousUserChatInfo,
-                activeChatId: newChat._id,
+                activeChatId: optimisticChat._id,
+                recentChatIds: previousUserChatInfo.recentChatIds
+                    ? [
+                          optimisticChat._id,
+                          ...previousUserChatInfo.recentChatIds
+                              .filter((id) => id !== optimisticChat._id)
+                              .slice(0, 2),
+                      ]
+                    : [optimisticChat._id],
             });
 
-            return { previousActiveChats, previousUserChatInfo };
+            // Return context for potential rollback
+            return {
+                previousActiveChats,
+                previousUserChatInfo,
+                optimisticChatId: optimisticChat._id,
+            };
         },
-        onSuccess: (newChat) => {
-            queryClient.setQueryData(["chat", newChat._id], newChat);
-            queryClient.setQueryData(["activeChats"], (oldChats = []) => [
-                newChat,
-                ...oldChats.filter(
-                    (chat) => chat._id !== null && chat._id !== newChat._id,
-                ),
-            ]);
-            queryClient.setQueryData(["userChatInfo"], (oldInfo) => ({
-                ...oldInfo,
-                activeChatId: newChat._id,
-            }));
-            queryClient.invalidateQueries({ queryKey: ["userChatInfo"] });
-            queryClient.invalidateQueries({ queryKey: ["activeChats"] });
-            queryClient.invalidateQueries({ queryKey: ["chats"] });
-        },
-        onError: (err, variables, context) => {
-            if (context?.previousActiveChats) {
+        onError: (err, newChat, context) => {
+            // On error, roll back to the previous state
+            if (context) {
                 queryClient.setQueryData(
                     ["activeChats"],
                     context.previousActiveChats,
                 );
-            }
-            if (context?.previousUserChatInfo) {
                 queryClient.setQueryData(
                     ["userChatInfo"],
                     context.previousUserChatInfo,
+                );
+                queryClient.removeQueries({
+                    queryKey: ["chat", context.optimisticChatId],
+                });
+            }
+        },
+        onSuccess: (serverChat, variables, context) => {
+            // Remove the optimistic entry
+            if (context?.optimisticChatId) {
+                queryClient.removeQueries({
+                    queryKey: ["chat", context.optimisticChatId],
+                });
+            }
+
+            // Add the confirmed server data
+            queryClient.setQueryData(["chat", serverChat._id], serverChat);
+
+            // Update active chats by replacing the optimistic version
+            queryClient.setQueryData(["activeChats"], (oldData = []) => {
+                return [
+                    serverChat,
+                    ...oldData.filter(
+                        (chat) =>
+                            chat._id !== context?.optimisticChatId &&
+                            chat._id !== serverChat._id,
+                    ),
+                ];
+            });
+
+            // Update the userChatInfo with the actual chat ID
+            queryClient.setQueryData(["userChatInfo"], (oldData = {}) => {
+                return {
+                    ...oldData,
+                    activeChatId: serverChat._id,
+                    recentChatIds: oldData.recentChatIds
+                        ? [
+                              serverChat._id,
+                              ...oldData.recentChatIds.filter(
+                                  (id) =>
+                                      id !== context?.optimisticChatId &&
+                                      id !== serverChat._id,
+                              ),
+                          ]
+                        : [serverChat._id],
+                };
+            });
+        },
+        onSettled: () => {
+            // Always refresh the data to ensure consistency
+            queryClient.invalidateQueries({ queryKey: ["chats"] });
+            queryClient.invalidateQueries({ queryKey: ["activeChats"] });
+            queryClient.invalidateQueries({ queryKey: ["userChatInfo"] });
+        },
+    });
+}
+
+// The useAddMessage function will now automatically leverage the optimistic behavior
+// of useAddChat if no chatId is provided
+export function useAddMessage() {
+    const queryClient = useQueryClient();
+    const addChatMutation = useAddChat();
+
+    return useMutation({
+        mutationFn: async ({ message, chatId }) => {
+            let chatData;
+            if (!chatId) {
+                // No changes needed here - the optimistic updates are handled in useAddChat
+                const newChat = await addChatMutation.mutateAsync({
+                    messages: [message],
+                });
+                chatId = String(newChat?._id);
+                chatData = newChat;
+            } else {
+                const chatResponse = await axios.post(
+                    `/api/chats/${String(chatId)}`,
+                    { message },
+                );
+                chatData = chatResponse.data;
+                queryClient.setQueryData(["chat", String(chatId)], chatData);
+            }
+            return chatData;
+        },
+        onMutate: ({ message, chatId }) => {
+            if (!chatId || !message) return;
+            const existingChat = queryClient.getQueryData([
+                "chat",
+                String(chatId),
+            ]);
+            const expectedChatData = {
+                ...existingChat,
+                messages: [...(existingChat?.messages || []), message],
+            };
+            queryClient.setQueryData(
+                ["chat", String(chatId)],
+                expectedChatData,
+            );
+        },
+        onSuccess: (updatedChat) => {
+            queryClient.setQueryData(
+                ["chat", String(updatedChat?._id)],
+                updatedChat,
+            );
+        },
+        onError: (err, variables, context) => {
+            if (context?.previousChat) {
+                queryClient.setQueryData(
+                    ["chat", String(context.previousChat._id)],
+                    context.previousChat,
                 );
             }
         },
@@ -206,14 +337,39 @@ export function useGetActiveChatId() {
 }
 
 export function useGetChatById(chatId) {
+    const queryClient = useQueryClient();
+
     return useQuery({
         queryKey: ["chat", chatId],
         queryFn: async () => {
             if (!chatId) throw new Error("chatId is required");
+
+            // Track this query with a timestamp to identify outdated responses
+            const requestTimestamp = Date.now();
+            queryClient.setQueryData(
+                ["chatRequestTimestamp", chatId],
+                requestTimestamp,
+            );
+
             const response = await axios.get(`/api/chats/${String(chatId)}`);
+
+            // Check if this response is still the most recent one
+            const currentTimestamp =
+                queryClient.getQueryData(["chatRequestTimestamp", chatId]) || 0;
+            if (requestTimestamp < currentTimestamp) {
+                // Return the current data instead of the outdated response
+                return (
+                    queryClient.getQueryData(["chat", chatId]) || response.data
+                );
+            }
+
             return response.data;
         },
         enabled: !!chatId,
+        // Reduce stale time to ensure more frequent refreshes
+        staleTime: 1000 * 60, // 1 minute
+        // Add refetchOnMount to ensure fresh data when switching chats
+        refetchOnMount: true,
     });
 }
 
@@ -306,69 +462,6 @@ export function useSetActiveChatId() {
     });
 }
 
-export function useAddMessage() {
-    const queryClient = useQueryClient();
-    const addChatMutation = useAddChat();
-
-    return useMutation({
-        mutationFn: async ({ message, chatId }) => {
-            let chatData;
-            if (!chatId) {
-                const newChat = await addChatMutation.mutateAsync({
-                    messages: [message],
-                });
-                chatId = String(newChat?._id);
-                chatData = newChat;
-                queryClient.setQueryData(["chats"], (old = []) => [
-                    newChat,
-                    ...old,
-                ]);
-                queryClient.setQueryData(["activeChats"], (old = []) => [
-                    newChat,
-                    ...old,
-                ]);
-            } else {
-                const chatResponse = await axios.post(
-                    `/api/chats/${String(chatId)}`,
-                    { message },
-                );
-                chatData = chatResponse.data;
-                queryClient.setQueryData(["chat", String(chatId)], chatData);
-            }
-            return chatData;
-        },
-        onMutate: ({ message, chatId }) => {
-            if (!chatId || !message) return;
-            const existingChat = queryClient.getQueryData([
-                "chat",
-                String(chatId),
-            ]);
-            const expectedChatData = {
-                ...existingChat,
-                messages: [...(existingChat?.messages || []), message],
-            };
-            queryClient.setQueryData(
-                ["chat", String(chatId)],
-                expectedChatData,
-            );
-        },
-        onSuccess: (updatedChat) => {
-            queryClient.setQueryData(
-                ["chat", String(updatedChat?._id)],
-                updatedChat,
-            );
-        },
-        onError: (err, variables, context) => {
-            if (context?.previousChat) {
-                queryClient.setQueryData(
-                    ["chat", String(context.previousChat._id)],
-                    context.previousChat,
-                );
-            }
-        },
-    });
-}
-
 export function useUpdateChat() {
     const queryClient = useQueryClient();
 
@@ -377,16 +470,32 @@ export function useUpdateChat() {
             if (!chatId) {
                 throw new Error("chatId is required");
             }
+
+            // Track this mutation with a timestamp
+            const requestTimestamp = Date.now();
+            queryClient.setQueryData(
+                ["chatRequestTimestamp", chatId],
+                requestTimestamp,
+            );
+
             const response = await axios.put(
                 `/api/chats/${String(chatId)}`,
                 updateData,
             );
-            return response.data;
+
+            return { data: response.data, timestamp: requestTimestamp };
         },
         onMutate: async ({ chatId, ...updateData }) => {
             await queryClient.cancelQueries({ queryKey: ["chat", chatId] });
             await queryClient.cancelQueries({ queryKey: ["chats"] });
             await queryClient.cancelQueries({ queryKey: ["activeChats"] });
+
+            // Track this mutation with a timestamp
+            const requestTimestamp = Date.now();
+            queryClient.setQueryData(
+                ["chatRequestTimestamp", chatId],
+                requestTimestamp,
+            );
 
             const previousChat = queryClient.getQueryData(["chat", chatId]);
             const expectedChatData = { ...previousChat, ...updateData };
@@ -413,7 +522,7 @@ export function useUpdateChat() {
                     ) || [],
             );
 
-            return { previousChat };
+            return { previousChat, timestamp: requestTimestamp };
         },
         onError: (err, variables, context) => {
             if (context?.previousChat) {
@@ -423,7 +532,20 @@ export function useUpdateChat() {
                 );
             }
         },
-        onSuccess: (updatedChat, { chatId }) => {
+        onSuccess: (result, { chatId }) => {
+            const { data: updatedChat, timestamp } = result;
+
+            // Check if this response is still the most recent one
+            const currentTimestamp =
+                queryClient.getQueryData(["chatRequestTimestamp", chatId]) || 0;
+            if (timestamp < currentTimestamp) {
+                console.log(
+                    "[useUpdateChat:onSuccess] Ignoring outdated response for",
+                    chatId,
+                );
+                return;
+            }
+
             queryClient.setQueryData(["chat", chatId], updatedChat);
             queryClient.invalidateQueries({ queryKey: ["chats"] });
             queryClient.invalidateQueries({ queryKey: ["activeChats"] });

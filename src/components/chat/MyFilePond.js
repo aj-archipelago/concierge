@@ -1,10 +1,9 @@
-import axios from "axios";
+import axios from "../../../app/utils/axios-client";
 import FilePondPluginFileValidateType from "filepond-plugin-file-validate-type";
 import mime from "mime-types";
 import { FilePond, registerPlugin } from "react-filepond";
 import { AiOutlineClose } from "react-icons/ai";
-import { FaYoutube } from "react-icons/fa";
-import { IoIosVideocam } from "react-icons/io";
+import { FaLink } from "react-icons/fa";
 
 // Import FilePond styles
 import "filepond/dist/filepond.min.css";
@@ -17,7 +16,14 @@ import FilePondPluginImagePreview from "filepond-plugin-image-preview";
 import "filepond-plugin-image-preview/dist/filepond-plugin-image-preview.css";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { hashMediaFile } from "../../utils/mediaUtils";
+import {
+    hashMediaFile,
+    DOC_MIME_TYPES,
+    ACCEPTED_FILE_TYPES,
+    isMediaUrl,
+    getFilename,
+    getVideoDuration,
+} from "../../utils/mediaUtils";
 import { isYoutubeUrl } from "../../utils/urlUtils";
 
 // Global upload speed tracking
@@ -54,14 +60,11 @@ function RemoteUrlInputUI({
                     className="flex items-center justify-center"
                     onClick={() => setShowInputUI(!showInputUI)}
                 >
-                    <span className="inline-block px-2">
-                        <FaYoutube />
+                    <span className="inline-block px-1">
+                        <FaLink />
                     </span>
-                    <span className="underline">
-                        {t("Add Remote Media Url")}
-                    </span>
-                    <span className="inline-block px-2">
-                        <IoIosVideocam />
+                    <span className="underline px-1">
+                        {t("Add File from Url")}
                     </span>
                 </button>
             </div>
@@ -106,209 +109,37 @@ function RemoteUrlInputUI({
     );
 }
 
-const DOC_EXTENSIONS = [
-    ".json",
-    ".csv",
-    ".md",
-    ".xml",
-    ".js",
-    ".html",
-    ".css",
-    ".docx",
-    ".xlsx",
-    ".xls",
-    ".doc",
-];
-
-const IMAGE_EXTENSIONS = [
-    ".jpg",
-    ".jpeg",
-    ".png",
-    ".webp",
-    ".heic",
-    ".heif",
-    ".pdf",
-    ".txt",
-];
-
-const VIDEO_EXTENSIONS = [
-    ".mp4",
-    ".mpeg",
-    ".mov",
-    ".avi",
-    ".flv",
-    ".mpg",
-    ".mov",
-    ".webm",
-    ".wmv",
-    ".3gp",
-];
-
-const AUDIO_EXTENSIONS = [".wav", ".mp3", ".m4a", ".aac", ".ogg", ".flac"];
-
-function isDocumentUrl(url) {
-    const urlExt = getExtension(url);
-    return DOC_EXTENSIONS.includes(urlExt);
-}
-
-function getYoutubeVideoId(url) {
-    try {
-        const urlObj = new URL(url);
-        // Handle youtu.be URLs
-        if (urlObj.hostname === "youtu.be") {
-            return urlObj.pathname.substring(1).split("?")[0];
-        }
-        // Handle youtube.com URLs
-        if (
-            urlObj.hostname === "youtube.com" ||
-            urlObj.hostname === "www.youtube.com"
-        ) {
-            return urlObj.searchParams.get("v");
-        }
-        return null;
-    } catch (err) {
-        return null;
-    }
-}
-
-// Extracts the filename from a URL
-export function getFilename(url) {
-    try {
-        // Special handling for YouTube URLs
-        if (isYoutubeUrl(url)) {
-            const videoId = getYoutubeVideoId(url);
-            return videoId ? `youtube-video-${videoId}` : "youtube-video";
-        }
-
-        // Create a URL object to handle parsing
-        const urlObject = new URL(url);
-
-        // Get the pathname and remove leading/trailing slashes
-        const path = urlObject.pathname.replace(/^\/|\/$/g, "");
-
-        // Get the last part of the path (filename)
-        const fullFilename = path.split("/").pop() || "";
-
-        // Decode the filename to handle URL encoding
-        const decodedFilename = decodeURIComponent(fullFilename);
-
-        // Split by underscore and remove the first part if it exists
-        const parts = decodedFilename.split("_");
-        const relevantParts = parts.length > 1 ? parts.slice(1) : parts;
-
-        // Join the parts back together
-        return relevantParts.join("_");
-    } catch (error) {
-        console.error("Error parsing URL:", error);
-        return "";
-    }
-}
-
-export function getExtension(url) {
-    try {
-        const parsedUrl = new URL(url);
-        const pathname = parsedUrl.pathname;
-        return "." + pathname.split(".").pop().toLowerCase();
-    } catch (error) {
-        return "." + url.split(".").pop().split(/[?#]/)[0].toLowerCase();
-    }
-}
-
-function isImageUrl(url) {
-    const urlExt = getExtension(url);
-    const mimeType = mime.contentType(urlExt);
-    return (
-        IMAGE_EXTENSIONS.includes(urlExt) &&
-        (mimeType.startsWith("image/") ||
-            mimeType === "application/pdf" ||
-            mimeType.startsWith("text/plain"))
-    );
-}
-
-function isVideoUrl(url) {
-    if (isYoutubeUrl(url)) {
-        return true;
-    }
-    const urlExt = getExtension(url);
-    const mimeType = mime.contentType(urlExt);
-    return VIDEO_EXTENSIONS.includes(urlExt) && mimeType.startsWith("video/");
-}
-
-function isAudioUrl(url) {
-    const urlExt = getExtension(url);
-    const mimeType = mime.contentType(urlExt);
-    return AUDIO_EXTENSIONS.includes(urlExt) && mimeType.startsWith("audio/");
-}
-
-function isMediaUrl(url) {
-    return isImageUrl(url) || isVideoUrl(url) || isAudioUrl(url);
-}
-
-const DOC_MIME_TYPES = DOC_EXTENSIONS.map((ext) => mime.lookup(ext));
-const MEDIA_MIME_TYPES = [
-    // Images
-    "image/png",
-    "image/jpeg",
-    "image/webp",
-    "image/heic",
-    "image/heif",
-    // Videos
-    "video/mp4",
-    "video/mpeg",
-    "video/mov",
-    "video/quicktime",
-    "video/avi",
-    "video/x-flv",
-    "video/mpg",
-    "video/webm",
-    "video/wmv",
-    "video/3gpp",
-    "video/m4v",
-    "video/youtube",
-    // Audio
-    "audio/wav",
-    "audio/mpeg",
-    "audio/aac",
-    "audio/ogg",
-    "audio/flac",
-    "audio/m4a",
-    "audio/mp3",
-    "audio/mp4",
-    "audio/x-m4a", // Common browser MIME type for .m4a files
-    // PDF
-    "application/pdf",
-    // Text
-    "text/plain",
-];
-
-const ACCEPTED_FILE_TYPES = [...DOC_MIME_TYPES, ...MEDIA_MIME_TYPES];
-
-// Add this helper function to check video duration
-function getVideoDuration(file) {
-    return new Promise((resolve, reject) => {
-        const video = document.createElement("video");
-        video.preload = "metadata";
-
-        video.onloadedmetadata = function () {
-            window.URL.revokeObjectURL(video.src);
-            resolve(video.duration);
-        };
-
-        video.onerror = function () {
-            reject("Error loading video file");
-        };
-
-        video.src = URL.createObjectURL(file);
-    });
-}
-
 // Our app
-function MyFilePond({ addUrl, files, setFiles, setIsUploadingMedia }) {
+function MyFilePond({
+    addUrl,
+    files,
+    setFiles,
+    setIsUploadingMedia,
+    setUrlsData,
+}) {
     const pondRef = useRef(null);
+    const processedFilesRef = useRef(new Set());
     const serverUrl = "/media-helper?useGoogle=true";
     const [inputUrl, setInputUrl] = useState("");
     const [showInputUI, setShowInputUI] = useState(false);
     const { t } = useTranslation();
+
+    // Add effect to automatically process files when added
+    useEffect(() => {
+        if (files && files.length > 0 && pondRef.current) {
+            // Process all files that haven't been processed yet
+            files.forEach((file) => {
+                if (
+                    file &&
+                    !processedFilesRef.current.has(file.id) &&
+                    !isYoutubeUrl(file.source?.url)
+                ) {
+                    processedFilesRef.current.add(file.id);
+                    pondRef.current.processFile(file);
+                }
+            });
+        }
+    }, [files]);
 
     const [processingLabel, setProcessingLabel] = useState(
         t("Checking file..."),
@@ -324,7 +155,7 @@ function MyFilePond({ addUrl, files, setFiles, setIsUploadingMedia }) {
             return;
         }
 
-        // If it's a YouTube URL, simulate an instant upload through FilePond's API
+        // If it's a YouTube URL, handle it separately without going through FilePond
         if (isYoutubeUrl(inputUrl)) {
             const youtubeResponse = {
                 url: inputUrl,
@@ -343,10 +174,11 @@ function MyFilePond({ addUrl, files, setFiles, setIsUploadingMedia }) {
             // Pass the response to your existing chat logic
             addUrl(youtubeResponse);
 
-            // Create a pre-loaded file object
+            // Add to FilePond UI with an id to prevent processing
             setFiles((prevFiles) => [
                 ...prevFiles,
                 {
+                    id: `youtube-${Date.now()}`, // Add a unique id
                     source: youtubeResponse,
                     options: {
                         type: "limbo",
@@ -399,7 +231,7 @@ function MyFilePond({ addUrl, files, setFiles, setIsUploadingMedia }) {
 
     return (
         <>
-            <div className="flex items-center justify-center pb-2 h-8">
+            <div className="flex items-center justify-center pb-1 mt-0 h-12">
                 <RemoteUrlInputUI
                     inputUrl={inputUrl}
                     setInputUrl={setInputUrl}
@@ -408,12 +240,123 @@ function MyFilePond({ addUrl, files, setFiles, setIsUploadingMedia }) {
                     setShowInputUI={setShowInputUI}
                 />
             </div>
-            <div className="flex">
+            <div className="flex mt-0 mb-0">
                 <div className="flex-grow w-full">
                     <FilePond
                         ref={pondRef}
                         files={files}
-                        onupdatefiles={setFiles}
+                        onupdatefiles={(fileItems) => {
+                            // Only handle removal logic when files are actually removed
+                            if (files.length > fileItems.length) {
+                                // Find the removed file by looking at filenames of remaining files
+                                const existingFilenames = new Set(
+                                    fileItems
+                                        .map((f) => {
+                                            // Get filename from multiple possible locations
+                                            if (f.file && f.file.name)
+                                                return f.file.name;
+                                            if (f.filename) return f.filename;
+                                            if (f.source && f.source.filename)
+                                                return f.source.filename;
+                                            if (f.source instanceof File)
+                                                return f.source.name;
+                                            return null;
+                                        })
+                                        .filter(Boolean),
+                                );
+
+                                // Find which files are no longer in the list
+                                const removedFiles = files.filter((f) => {
+                                    // Extract filename from file object
+                                    let filename = null;
+                                    if (f.file && f.file.name)
+                                        filename = f.file.name;
+                                    else if (f.filename) filename = f.filename;
+                                    else if (f.source && f.source.filename)
+                                        filename = f.source.filename;
+                                    else if (f.source instanceof File)
+                                        filename = f.source.name;
+
+                                    // If we found a filename, check if it's still in the fileset
+                                    return (
+                                        filename &&
+                                        !existingFilenames.has(filename)
+                                    );
+                                });
+
+                                if (removedFiles.length > 0 && setUrlsData) {
+                                    // Get sources of removed files
+                                    const removedFileSources = removedFiles
+                                        .map((f) => f.source)
+                                        .filter(Boolean);
+
+                                    // Remove matching entries from urlsData
+                                    if (removedFileSources.length > 0) {
+                                        setUrlsData((prevUrls) => {
+                                            const filteredUrls =
+                                                prevUrls.filter((item) => {
+                                                    // Check if any removed file matches this item
+                                                    const isRemoved =
+                                                        removedFileSources.some(
+                                                            (source) => {
+                                                                // For File objects, match by filename
+                                                                if (
+                                                                    source instanceof
+                                                                    File
+                                                                ) {
+                                                                    return (
+                                                                        item.filename ===
+                                                                        source.name
+                                                                    );
+                                                                }
+
+                                                                // For objects with filename property
+                                                                if (
+                                                                    source.filename &&
+                                                                    item.filename
+                                                                ) {
+                                                                    return (
+                                                                        source.filename ===
+                                                                        item.filename
+                                                                    );
+                                                                }
+
+                                                                // For URL objects
+                                                                const sourceUrl =
+                                                                    source.url;
+                                                                const sourceGcs =
+                                                                    source.gcs;
+
+                                                                return (
+                                                                    (sourceUrl &&
+                                                                        item.url &&
+                                                                        sourceUrl ===
+                                                                            item.url) ||
+                                                                    (sourceGcs &&
+                                                                        item.gcs &&
+                                                                        sourceGcs ===
+                                                                            item.gcs)
+                                                                );
+                                                            },
+                                                        );
+
+                                                    return !isRemoved;
+                                                });
+
+                                            return filteredUrls;
+                                        });
+                                    }
+                                }
+                            }
+
+                            // Update files state
+                            setFiles(fileItems);
+
+                            // If all files are removed, reset upload state
+                            if (fileItems.length === 0) {
+                                setIsUploadingMedia(false);
+                            }
+                        }}
                         allowFileTypeValidation={true}
                         {...labels}
                         acceptedFileTypes={ACCEPTED_FILE_TYPES}
@@ -506,7 +449,6 @@ function MyFilePond({ addUrl, files, setFiles, setIsUploadingMedia }) {
 
                                 const isRemote = !(file instanceof File);
                                 if (isRemote) {
-                                    setIsUploadingMedia(false);
                                     load(file.source);
                                     return;
                                 }
@@ -515,7 +457,6 @@ function MyFilePond({ addUrl, files, setFiles, setIsUploadingMedia }) {
                                 if (file.type === "application/pdf") {
                                     const MAX_PDF_SIZE = 50 * 1024 * 1024;
                                     if (file.size > MAX_PDF_SIZE) {
-                                        setIsUploadingMedia(false);
                                         error(
                                             "PDF files must be less than 50MB",
                                         );
@@ -529,7 +470,6 @@ function MyFilePond({ addUrl, files, setFiles, setIsUploadingMedia }) {
                                         const duration =
                                             await getVideoDuration(file);
                                         if (duration > 3600) {
-                                            setIsUploadingMedia(false);
                                             error(
                                                 "Video must be less than 60 minutes long",
                                             );
@@ -540,7 +480,6 @@ function MyFilePond({ addUrl, files, setFiles, setIsUploadingMedia }) {
                                             "Error checking video duration:",
                                             err,
                                         );
-                                        setIsUploadingMedia(false);
                                         error(
                                             "Could not verify video duration",
                                         );
@@ -578,14 +517,12 @@ function MyFilePond({ addUrl, files, setFiles, setIsUploadingMedia }) {
                                                     body: "Media file upload failed: Missing required storage URLs",
                                                     type: "error",
                                                 });
-                                                setIsUploadingMedia(false);
                                                 return;
                                             }
                                         }
                                         progress(true, file.size, file.size);
                                         load(response.data);
                                         addUrl(response.data);
-                                        setIsUploadingMedia(false);
                                         return;
                                     }
                                 } catch (err) {
@@ -595,7 +532,6 @@ function MyFilePond({ addUrl, files, setFiles, setIsUploadingMedia }) {
                                             err,
                                         );
                                     }
-                                    setIsUploadingMedia(false);
                                 }
 
                                 // If we get here, we need to upload the file
@@ -609,7 +545,6 @@ function MyFilePond({ addUrl, files, setFiles, setIsUploadingMedia }) {
 
                                 let cloudProgressInterval;
                                 request.upload.onprogress = (e) => {
-                                    console.log(e);
                                     if (e.lengthComputable) {
                                         totalBytes = e.total; // Store total bytes for later use
                                         // First 50% is actual upload progress
@@ -764,31 +699,44 @@ function MyFilePond({ addUrl, files, setFiles, setIsUploadingMedia }) {
                                     },
                                 };
                             },
+                            revert: (uniqueFileId, load, error) => {
+                                console.log(
+                                    "Revert called with uniqueFileId:",
+                                    uniqueFileId,
+                                );
+                                load(null);
+                            },
                         }}
                         onprocessfile={(error, file) => {
-                            setTimeout(() => {
-                                if (error) {
-                                    console.error("Error:", error);
+                            if (error) {
+                                console.error("Error:", error);
+                                setIsUploadingMedia(false);
+                            } else {
+                                const filetype = file.file.type;
+                                // For document files, wait 10 seconds for indexing
+                                if (DOC_MIME_TYPES.includes(filetype)) {
+                                    // Remove the file from FilePond after processing
+                                    setFiles((oldFiles) =>
+                                        oldFiles.filter(
+                                            (f) => f.serverId !== file.serverId,
+                                        ),
+                                    );
+                                    // Wait 10 seconds for indexing
+                                    setTimeout(() => {
+                                        setIsUploadingMedia(false);
+                                    }, 10000);
                                 } else {
-                                    const filetype = file.file.type;
-                                    //only doc files should be timed as rag ll pick them
-                                    if (DOC_MIME_TYPES.includes(filetype)) {
-                                        setFiles((oldFiles) =>
-                                            oldFiles.filter(
-                                                (f) =>
-                                                    f.serverId !==
-                                                    file.serverId,
-                                            ),
-                                        );
-                                    }
+                                    // For non-document files, set isUploadingMedia to false immediately
+                                    setIsUploadingMedia(false);
                                 }
-                            }, 10000);
+                            }
                         }}
                         name="files" /* sets the file input name, it's filepond by default */
                         labelIdle={labelIdle}
                         // allowProcess={false}
                         credits={false}
-                        allowRevert={false}
+                        allowRevert={true}
+                        allowRemove={true}
                         allowReplace={false}
                     />
                 </div>
@@ -798,5 +746,3 @@ function MyFilePond({ addUrl, files, setFiles, setIsUploadingMedia }) {
 }
 
 export default MyFilePond;
-
-export { isAudioUrl, isDocumentUrl, isImageUrl, isMediaUrl, isVideoUrl };

@@ -10,10 +10,18 @@ $popover-bg-color-dark: #474747;
 $popover-border-color-dark: #575757;
 $code-color-dark: #ffa500;
 
+// Only apply these styles to elements that don't use Tailwind's dark mode
 body.dark {
+    // Base styles that should apply regardless of Tailwind
     background-color: $bg-color-dark;
     color: $text-color-dark;
     scrollbar-color: rgba(209, 213, 219, 0.5) rgba(209, 213, 219, 0.125);
+
+    // Only style elements that don't use Tailwind's dark mode
+    .no-tailwind-dark {
+        background-color: $bg-color-dark;
+        color: $text-color-dark;
+    }
 
     div {
         scrollbar-width: thin;

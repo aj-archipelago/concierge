@@ -1,5 +1,16 @@
 const { TextEncoder, TextDecoder } = require("util");
 
+// Suppress ReactDOMTestUtils.act deprecation warning
+const originalError = console.error;
+console.error = (...args) => {
+    if (
+        typeof args[0] === "string" &&
+        args[0].includes("ReactDOMTestUtils.act")
+    )
+        return;
+    originalError.call(console, ...args);
+};
+
 // Define text encoder/decoder globals first
 global.TextEncoder = TextEncoder;
 global.TextDecoder = TextDecoder;
@@ -31,3 +42,56 @@ Object.defineProperty(window, "matchMedia", {
         dispatchEvent: jest.fn(),
     })),
 });
+
+// Mock require.context for webpack compatibility in jest
+require.context = (
+    base = ".",
+    scanSubDirectories = false,
+    regularExpression = /\.js$/,
+) => {
+    const fs = require("fs");
+    const path = require("path");
+
+    const files = {};
+
+    function readDirectory(directory) {
+        fs.readdirSync(directory).forEach((file) => {
+            const fullPath = path.resolve(directory, file);
+
+            if (fs.statSync(fullPath).isDirectory()) {
+                if (scanSubDirectories) {
+                    readDirectory(fullPath);
+                }
+                return;
+            }
+
+            if (!regularExpression.test(fullPath)) {
+                return;
+            }
+
+            files[fullPath] = true;
+        });
+    }
+
+    try {
+        readDirectory(path.resolve(__dirname, base));
+    } catch (error) {
+        // Just return an empty context if the directory doesn't exist
+    }
+
+    const keys = Object.keys(files);
+    const context = function (file) {
+        // Simple handling for taxonomy-sets
+        if (file.includes("taxonomy-sets")) {
+            return [];
+        }
+        // Return empty object as default
+        return {};
+    };
+
+    context.keys = () => keys;
+    context.resolve = (key) => key;
+    context.id = base;
+
+    return context;
+};

@@ -15,6 +15,7 @@ import {
     TooltipContent,
     TooltipProvider,
 } from "../../../@/components/ui/tooltip";
+import ChatImage from "./ChatImage";
 
 function ImagesPage() {
     const [prompt, setPrompt] = useState("");
@@ -268,7 +269,7 @@ function ImagesPage() {
                         <Tooltip>
                             <TooltipTrigger asChild>
                                 <button
-                                    className="lb-icon-button"
+                                    className="lb-icon-button text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 dark:bg-transparent dark:border-gray-600 dark:hover:border-gray-500"
                                     disabled={selectedImages.size === 0}
                                     onClick={() => handleBulkAction("download")}
                                 >
@@ -283,7 +284,7 @@ function ImagesPage() {
                         <Tooltip>
                             <TooltipTrigger asChild>
                                 <button
-                                    className="lb-icon-button"
+                                    className="lb-icon-button text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 dark:bg-transparent dark:border-gray-600 dark:hover:border-gray-500"
                                     disabled={selectedImages.size === 0}
                                     onClick={() => handleBulkAction("delete")}
                                 >
@@ -300,7 +301,7 @@ function ImagesPage() {
                         <Tooltip>
                             <TooltipTrigger asChild>
                                 <button
-                                    className="lb-icon-button"
+                                    className="lb-icon-button text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 dark:bg-transparent dark:border-gray-600 dark:hover:border-gray-500"
                                     onClick={() => {
                                         if (
                                             window.confirm(
@@ -418,11 +419,12 @@ function ImageTile({
 
             <div className="image-wrapper" onClick={onClick}>
                 {!expired && url && !loadError ? (
-                    <img
+                    <ChatImage
                         src={url}
                         alt={prompt}
                         onError={() => setLoadError(true)}
                         onLoad={() => setLoadError(false)}
+                        className="w-full h-full object-cover object-center"
                     />
                 ) : (
                     <div className="h-full bg-gray-50 p-4 text-sm flex items-center justify-center">
@@ -444,7 +446,7 @@ function ImageTile({
 
             <div className="image-actions">
                 <button
-                    className="lb-sm lb-outline-secondary"
+                    className="lb-icon-button text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 dark:bg-transparent dark:border-gray-600 dark:hover:border-gray-500"
                     title={t("Download")}
                     onClick={(e) => {
                         e.stopPropagation();
@@ -454,7 +456,7 @@ function ImageTile({
                     <FaDownload />
                 </button>
                 <button
-                    className="lb-sm lb-outline-secondary"
+                    className="lb-icon-button text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 dark:bg-transparent dark:border-gray-600 dark:hover:border-gray-500"
                     title={t("Delete")}
                     onClick={(e) => {
                         if (
@@ -567,8 +569,8 @@ function ImageModal({ show, image, onHide }) {
         <Modal show={show} onHide={onHide} title={t("Generated image")}>
             <div className="flex flex-col gap-4 sm:flex-row sm:gap-6">
                 <div className="sm:basis-9/12">
-                    <img
-                        className="rounded-md"
+                    <ChatImage
+                        className="rounded-md w-full"
                         src={image?.url}
                         alt={image?.prompt}
                     />

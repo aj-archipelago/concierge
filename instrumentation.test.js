@@ -6,14 +6,30 @@ import { seed } from "./instrumentation";
 import config from "./config/index";
 
 let mongoServer;
+let originalConsole;
 
 beforeAll(async () => {
+    // Mock console methods
+    originalConsole = {
+        log: console.log,
+        warn: console.warn,
+        error: console.error,
+    };
+    console.log = jest.fn();
+    console.warn = jest.fn();
+    console.error = jest.fn();
+
     mongoServer = await MongoMemoryServer.create();
     const mongoUri = mongoServer.getUri();
     await mongoose.connect(mongoUri);
 });
 
 afterAll(async () => {
+    // Restore console methods
+    console.log = originalConsole.log;
+    console.warn = originalConsole.warn;
+    console.error = originalConsole.error;
+
     await mongoose.disconnect();
     await mongoServer.stop();
 });
@@ -28,8 +44,8 @@ describe("LLM Initialization", () => {
         // Create an LLM without identifier
         const llmWithoutIdentifier = await LLM.create({
             name: "Test LLM",
-            cortexModelName: "azure-turbo-chat",
-            cortexPathwayName: "run_gpt35turbo",
+            cortexModelName: "oai-gpt4o",
+            cortexPathwayName: "run_gpt4_o",
             isDefault: false,
             identifier: null,
         });
@@ -37,7 +53,7 @@ describe("LLM Initialization", () => {
         await seed();
 
         const updatedLLM = await LLM.findById(llmWithoutIdentifier._id);
-        expect(updatedLLM.identifier).toBe("gpt35turbo");
+        expect(updatedLLM.identifier).toBe("gpt4o");
     });
 
     test("should upsert LLMs from config", async () => {
@@ -49,7 +65,7 @@ describe("LLM Initialization", () => {
         // Verify default LLM exists
         const defaultLLM = await LLM.findOne({ isDefault: true });
         expect(defaultLLM).toBeTruthy();
-        expect(defaultLLM.identifier).toBe("gpt35turbo");
+        expect(defaultLLM.identifier).toBe("gpt4o");
     });
 
     test("should handle LLMs missing from config", async () => {

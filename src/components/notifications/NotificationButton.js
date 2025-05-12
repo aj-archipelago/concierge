@@ -14,25 +14,24 @@ import {
     PopoverTrigger,
 } from "@/components/ui/popover";
 import { BellIcon } from "@heroicons/react/24/outline";
-import { BanIcon, Check, EyeOff, XIcon } from "lucide-react";
+import { BanIcon, Check, Clock, EyeOff, XIcon, RotateCcw } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useCallback, useContext, useState } from "react";
+import { useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import TimeAgo from "react-time-ago";
 import stringcase from "stringcase";
 import Loader from "../../../app/components/loader";
+import { useSetActiveChatId } from "../../../app/queries/chats";
 import {
-    useCancelRequest,
-    useDismissNotification,
-    useNotifications,
+    useCancelTask,
+    useDismissTask,
+    useRetryTask,
+    useTasks,
 } from "../../../app/queries/notifications";
 import { LanguageContext } from "../../contexts/LanguageProvider";
 import { useNotificationsContext } from "../../contexts/NotificationContext";
-
-export const NotificationDisplayType = {
-    "video-translate": "Video translation",
-};
-
+import { getTaskInfo } from "../../utils/task-loader.mjs";
+import { useJob } from "../../../app/queries/jobs";
 const getLocaleShortName = (locale, usersLanguage) => {
     try {
         return new Intl.DisplayNames([usersLanguage], { type: "language" }).of(
@@ -53,6 +52,10 @@ export const StatusIndicator = ({ status }) => {
         return <Loader size="small" delay={0} />;
     } else if (status === "cancelled") {
         return <BanIcon className="h-4 w-4 text-red-500" />;
+    } else if (status === "pending") {
+        return <Clock className="h-4 w-4 text-yellow-500" />;
+    } else if (status === "abandoned") {
+        return <BanIcon className="h-4 w-4 text-red-500" />;
     } else {
         return "Unknown";
     }
@@ -67,38 +70,268 @@ export const getStatusColorClass = (status) => {
             return "text-red-500";
         case "in_progress":
             return "text-sky-500";
+        case "pending":
+            return "text-yellow-500";
+        case "abandoned":
+            return "text-red-500";
         default:
             return "text-gray-500";
     }
+};
+
+const NotificationItem = ({
+    notification,
+    handlerDisplayNames,
+    isRetryable,
+    language,
+    setActiveChatId,
+    router,
+    setIsNotificationOpen,
+    handleCancelRequest,
+    handleDismiss,
+    dismissingIds,
+    t,
+    handleRetry,
+}) => {
+    const { data: job } = useJob(notification.jobId);
+
+    return (
+        <div
+            key={notification._id}
+            data-request-id={notification._id}
+            className={`
+            space-y-2 bg-gray-100 p-2 rounded-md mb-2 
+            transform transition-all duration-300 ease-in-out
+            ${dismissingIds.has(notification._id) ? "opacity-0 -translate-y-2" : "opacity-100 translate-y-0"}
+        `}
+        >
+            <div className="flex text-sm gap-3">
+                <div className="ps-1 pt-1 basis-5">
+                    <StatusIndicator status={notification.status} />
+                </div>
+                <div className="flex flex-col overflow-hidden grow">
+                    <span
+                        className={`font-semibold text-gray-800 ${notification.invokedFrom?.source ? "cursor-pointer hover:text-sky-600" : ""}`}
+                        onClick={() => {
+                            if (notification.invokedFrom?.source === "chat") {
+                                setActiveChatId
+                                    .mutateAsync(
+                                        notification.invokedFrom.chatId,
+                                    )
+                                    .then(() => {
+                                        router.push(
+                                            `/chat/${notification.invokedFrom.chatId}`,
+                                        );
+                                        setIsNotificationOpen(false);
+                                    })
+                                    .catch((error) => {
+                                        console.error(
+                                            "Error setting active chat ID:",
+                                            error,
+                                        );
+                                    });
+                            } else if (
+                                notification.invokedFrom?.source ===
+                                "video_page"
+                            ) {
+                                router.push("/video");
+                            }
+                        }}
+                    >
+                        {t(
+                            handlerDisplayNames[notification.type] ||
+                                notification.type,
+                        )}
+                    </span>
+                    {notification.metadata && (
+                        <div
+                            className="text-xs text-gray-600 truncate"
+                            title={notification.statusText}
+                        >
+                            {notification.type === "video-translate" && (
+                                <>
+                                    {t("{{from}} to {{to}}", {
+                                        from: getLocaleShortName(
+                                            notification.metadata.sourceLocale,
+                                            language,
+                                        ),
+                                        to: getLocaleShortName(
+                                            notification.metadata.targetLocale,
+                                            language,
+                                        ),
+                                    })}
+                                </>
+                            )}
+                            {notification.type === "transcribe" && (
+                                <>
+                                    {notification.metadata.url && (
+                                        <span
+                                            className="truncate block"
+                                            title={notification.metadata.url}
+                                        >
+                                            {new URL(
+                                                notification.metadata.url,
+                                            ).pathname
+                                                .split("/")
+                                                .pop() ||
+                                                notification.metadata.url}
+                                        </span>
+                                    )}
+                                    {notification.metadata.language && (
+                                        <span>
+                                            {t("Language")}:{" "}
+                                            {getLocaleShortName(
+                                                notification.metadata.language,
+                                                language,
+                                            )}
+                                        </span>
+                                    )}
+                                    {notification.metadata.responseFormat && (
+                                        <span>
+                                            {t("Format")}:{" "}
+                                            {notification.metadata
+                                                .responseFormat === "vtt"
+                                                ? t("Subtitles")
+                                                : t("Transcript")}
+                                        </span>
+                                    )}
+                                </>
+                            )}
+                        </div>
+                    )}
+                    <span
+                        className={`flex items-center gap-1 text-xs font-semibold ${getStatusColorClass(notification.status)}`}
+                    >
+                        {t(stringcase.sentencecase(notification.status))}
+                    </span>
+
+                    {notification.statusText && (
+                        <div
+                            className="text-xs text-gray-600 truncate"
+                            title={notification.statusText}
+                        >
+                            {notification.statusText}
+                        </div>
+                    )}
+                    {(notification.status === "in_progress" ||
+                        notification.status === "pending") && (
+                        <div className="my-1 h-2 w-full bg-gray-200 rounded-full">
+                            <div
+                                className={`h-full rounded-full transition-all  ${
+                                    notification.status === "pending"
+                                        ? "bg-yellow-500 animate-pulse"
+                                        : "bg-sky-600 duration-300"
+                                }`}
+                                style={{
+                                    width:
+                                        notification.status === "pending"
+                                            ? "100%"
+                                            : `${notification.progress * 100}%`,
+                                }}
+                            />
+                        </div>
+                    )}
+                    {notification.createdAt && (
+                        <span className="text-xs text-gray-500">
+                            {t("Created ")}{" "}
+                            <TimeAgo date={notification.createdAt} />
+                        </span>
+                    )}
+                </div>
+                <div className="flex gap-2">
+                    {(notification.status === "in_progress" ||
+                        notification.status === "pending") && (
+                        <button
+                            onClick={() =>
+                                handleCancelRequest(notification._id)
+                            }
+                            className="p-1 hover:bg-gray-100 rounded flex items-start"
+                            title={t("Cancel")}
+                        >
+                            <XIcon className="h-4 w-4 text-gray-500" />
+                        </button>
+                    )}
+                    {(notification.status === "completed" ||
+                        notification.status === "failed" ||
+                        notification.status === "cancelled" ||
+                        notification.status === "abandoned") && (
+                        <button
+                            onClick={() => handleDismiss(notification._id)}
+                            className="p-1 hover:bg-gray-100 rounded flex items-start"
+                            title={t("Hide")}
+                        >
+                            <EyeOff className="h-4 w-4 text-gray-500" />
+                        </button>
+                    )}
+                    {job &&
+                        (notification.status === "failed" ||
+                            notification.status === "cancelled" ||
+                            notification.status === "abandoned") &&
+                        isRetryable && (
+                            <button
+                                onClick={() => handleRetry(notification._id)}
+                                className="p-1 hover:bg-gray-100 rounded flex items-start"
+                                title={t("Retry")}
+                            >
+                                <RotateCcw className="h-4 w-4 text-gray-500" />
+                            </button>
+                        )}
+                </div>
+            </div>
+        </div>
+    );
 };
 
 export default function NotificationButton() {
     const { t } = useTranslation();
     const { isNotificationOpen, setIsNotificationOpen } =
         useNotificationsContext();
-    const { data: notificationsData } = useNotifications();
-    const notifications = notificationsData?.requests || []; // Extract requests from the response
-    const dismissNotification = useDismissNotification();
+    const { data: notificationsData } = useTasks();
+    const notifications = useMemo(
+        () => notificationsData?.requests || [],
+        [notificationsData],
+    );
+    const dismissNotification = useDismissTask();
     const [dismissingIds, setDismissingIds] = useState(new Set());
     const [cancelRequestId, setCancelRequestId] = useState(null);
     const { language } = useContext(LanguageContext);
     const router = useRouter();
-    const cancelRequest = useCancelRequest();
+    const cancelRequest = useCancelTask();
+    const [handlerInfo, setHandlerInfo] = useState({});
+    const setActiveChatId = useSetActiveChatId();
+    const retryTask = useRetryTask();
 
-    const handleDismiss = (requestId) => {
-        setDismissingIds((prev) => new Set([...prev, requestId]));
+    // Load handler info when notifications change
+    useEffect(() => {
+        const loadTaskDefinitionInfo = async () => {
+            const uniqueTypes = [...new Set(notifications.map((n) => n.type))];
+            const info = {};
+            for (const type of uniqueTypes) {
+                info[type] = await getTaskInfo(type);
+            }
+            setHandlerInfo(info);
+        };
+        loadTaskDefinitionInfo();
+    }, [notifications]);
+
+    const handleDismiss = (_id) => {
+        setDismissingIds((prev) => new Set([...prev, _id]));
         setTimeout(() => {
-            dismissNotification.mutate(requestId);
+            dismissNotification.mutate(_id);
             setDismissingIds((prev) => {
                 const next = new Set(prev);
-                next.delete(requestId);
+                next.delete(_id);
                 return next;
             });
         }, 300);
     };
 
-    const handleCancelRequest = (requestId) => {
-        setCancelRequestId(requestId);
+    const handleCancelRequest = (_id) => {
+        setCancelRequestId(_id);
+    };
+
+    const handleRetry = (_id) => {
+        retryTask.mutate(_id);
     };
 
     const confirmCancel = useCallback(async () => {
@@ -120,14 +353,19 @@ export default function NotificationButton() {
                         stroke="#0284c7"
                         fill={isNotificationOpen ? "#0284c7" : "none"}
                     />
-                    {notifications.filter((n) => n.status === "in_progress")
-                        .length > 0 && (
+                    {notifications.filter(
+                        (n) =>
+                            n.status === "in_progress" ||
+                            n.status === "pending",
+                    ).length > 0 && (
                         <>
                             <span className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-red-500 animate-ping opacity-75" />
                             <span className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-red-500 text-xs text-white flex items-center justify-center">
                                 {
                                     notifications.filter(
-                                        (n) => n.status === "in_progress",
+                                        (n) =>
+                                            n.status === "in_progress" ||
+                                            n.status === "pending",
                                     ).length
                                 }
                             </span>
@@ -145,144 +383,35 @@ export default function NotificationButton() {
                             ) : (
                                 <div className="relative">
                                     {notifications.map((notification) => (
-                                        <div
-                                            key={notification.requestId}
-                                            data-request-id={
-                                                notification.requestId
+                                        <NotificationItem
+                                            key={notification._id}
+                                            notification={notification}
+                                            handlerDisplayNames={Object.fromEntries(
+                                                Object.entries(handlerInfo).map(
+                                                    ([type, info]) => [
+                                                        type,
+                                                        info.displayName,
+                                                    ],
+                                                ),
+                                            )}
+                                            isRetryable={
+                                                handlerInfo[notification.type]
+                                                    ?.isRetryable
                                             }
-                                            className={`
-                                                space-y-2 bg-gray-100 p-2 rounded-md mb-2 
-                                                transform transition-all duration-300 ease-in-out
-                                                ${dismissingIds.has(notification.requestId) ? "opacity-0 -translate-y-2" : "opacity-100 translate-y-0"}
-                                            `}
-                                        >
-                                            <div className="flex text-sm gap-3">
-                                                <div className="ps-1 pt-1 basis-5">
-                                                    <StatusIndicator
-                                                        status={
-                                                            notification.status
-                                                        }
-                                                    />
-                                                </div>
-                                                <div className="flex flex-col overflow-hidden grow">
-                                                    <span className="font-semibold">
-                                                        {t(
-                                                            NotificationDisplayType[
-                                                                notification
-                                                                    .type
-                                                            ],
-                                                        )}
-                                                    </span>
-                                                    {notification.metadata && (
-                                                        <div
-                                                            className="text-xs text-gray-800 truncate"
-                                                            title={
-                                                                notification.statusText
-                                                            }
-                                                        >
-                                                            {t(
-                                                                "{{from}} to {{to}}",
-                                                                {
-                                                                    from: getLocaleShortName(
-                                                                        notification
-                                                                            .metadata
-                                                                            .sourceLocale,
-                                                                        language,
-                                                                    ),
-                                                                    to: getLocaleShortName(
-                                                                        notification
-                                                                            .metadata
-                                                                            .targetLocale,
-                                                                        language,
-                                                                    ),
-                                                                },
-                                                            )}
-                                                        </div>
-                                                    )}
-                                                    {notification.status ===
-                                                        "in_progress" && (
-                                                        <span className="text-xs text-gray-500">
-                                                            {
-                                                                notification.statusText
-                                                            }
-                                                        </span>
-                                                    )}
-                                                    {notification.status ===
-                                                        "failed" && (
-                                                        <span className="text-xs text-red-500">
-                                                            {notification.statusText ||
-                                                                t(
-                                                                    "Request failed",
-                                                                )}
-                                                        </span>
-                                                    )}
-                                                    <span
-                                                        className={`text-xs font-semibold ${getStatusColorClass(notification.status)}`}
-                                                    >
-                                                        {t(
-                                                            stringcase.sentencecase(
-                                                                notification.status,
-                                                            ),
-                                                        )}
-                                                    </span>
-                                                    {notification.status ===
-                                                        "in_progress" && (
-                                                        <div className="my-1 h-2 w-full bg-gray-200 rounded-full">
-                                                            <div
-                                                                className="h-full bg-sky-600 rounded-full transition-all duration-300"
-                                                                style={{
-                                                                    width: `${notification.progress * 100}%`,
-                                                                }}
-                                                            />
-                                                        </div>
-                                                    )}
-                                                    {notification.createdAt && (
-                                                        <span className="text-xs text-gray-500">
-                                                            {t("Created ")}{" "}
-                                                            <TimeAgo
-                                                                date={
-                                                                    notification.createdAt
-                                                                }
-                                                            />
-                                                        </span>
-                                                    )}
-                                                </div>
-                                                <div className="flex gap-2">
-                                                    {notification.status ===
-                                                        "in_progress" && (
-                                                        <button
-                                                            onClick={() =>
-                                                                handleCancelRequest(
-                                                                    notification.requestId,
-                                                                )
-                                                            }
-                                                            className="p-1 hover:bg-gray-100 rounded flex items-start"
-                                                            title={t("Cancel")}
-                                                        >
-                                                            <XIcon className="h-4 w-4 text-gray-500" />
-                                                        </button>
-                                                    )}
-                                                    {(notification.status ===
-                                                        "completed" ||
-                                                        notification.status ===
-                                                            "failed" ||
-                                                        notification.status ===
-                                                            "cancelled") && (
-                                                        <button
-                                                            onClick={() =>
-                                                                handleDismiss(
-                                                                    notification.requestId,
-                                                                )
-                                                            }
-                                                            className="p-1 hover:bg-gray-100 rounded flex items-start"
-                                                            title={t("Hide")}
-                                                        >
-                                                            <EyeOff className="h-4 w-4 text-gray-500" />
-                                                        </button>
-                                                    )}
-                                                </div>
-                                            </div>
-                                        </div>
+                                            language={language}
+                                            setActiveChatId={setActiveChatId}
+                                            router={router}
+                                            setIsNotificationOpen={
+                                                setIsNotificationOpen
+                                            }
+                                            handleCancelRequest={
+                                                handleCancelRequest
+                                            }
+                                            handleDismiss={handleDismiss}
+                                            dismissingIds={dismissingIds}
+                                            t={t}
+                                            handleRetry={handleRetry}
+                                        />
                                     ))}
                                 </div>
                             )}
