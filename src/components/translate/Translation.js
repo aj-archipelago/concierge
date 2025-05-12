@@ -256,7 +256,7 @@ function Translation({
                                     "Translation will appear here...",
                                 )}
                                 rows={10}
-                                value={translatedText}
+                                value={translatedText || ""}
                             />
                         </div>
 

@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { MdOutlineSdStorage } from "react-icons/md";
 import { Popover } from "@headlessui/react";
 import { IoIosTrash } from "react-icons/io";
+import { Microscope } from "lucide-react";
 import {
     BsFiletypeDocx,
     BsFiletypePdf,
@@ -11,14 +12,15 @@ import {
 } from "react-icons/bs";
 import { COGNITIVE_DELETE } from "../../graphql";
 import { useLazyQuery } from "@apollo/client";
-import { useContext, useState } from "react";
+import { useContext, useState, useEffect } from "react";
 import Loader from "../../../app/components/loader";
 import { AuthContext } from "../../App";
 import {
     useDeleteAllDocuments,
     useDeleteDocument,
 } from "../../../app/queries/uploadedDocs";
-import { useGetActiveChatId } from "../../../app/queries/chats";
+import { useGetActiveChat } from "../../../app/queries/chats";
+import { useUpdateChat } from "../../../app/queries/chats";
 
 function getFileIcon(filename) {
     const extension = filename?.split(".").pop().toLowerCase();
@@ -41,7 +43,9 @@ const DELETE_ALL_UPLOADS_STR = "__ALL__";
 function ChatTopMenu({ displayState = "full" }) {
     const { t } = useTranslation();
     const { user } = useContext(AuthContext);
-    const activeChatId = useGetActiveChatId();
+    const { data: chat } = useGetActiveChat();
+    const activeChatId = chat?._id;
+    const updateChat = useUpdateChat();
     const docs = user?.uploadedDocs?.filter(
         ({ chatId }) => chatId === activeChatId,
     );
@@ -57,6 +61,13 @@ function ChatTopMenu({ displayState = "full" }) {
     );
     const currentlyIndexing = fileUploaderLoading || mainPaneIndexerLoading;
     const displayStateFull = displayState === "full";
+    const [isResearchMode, setIsResearchMode] = useState(false);
+
+    useEffect(() => {
+        if (chat?.researchMode !== undefined) {
+            setIsResearchMode(chat.researchMode);
+        }
+    }, [chat?.researchMode]);
 
     const [cognitiveDelete, { loading: loadingCD }] = useLazyQuery(
         COGNITIVE_DELETE,
@@ -81,12 +92,34 @@ function ChatTopMenu({ displayState = "full" }) {
         });
     };
 
+    const toggleResearchMode = () => {
+        const newMode = !isResearchMode;
+        setIsResearchMode(newMode);
+        updateChat.mutate({
+            chatId: activeChatId,
+            researchMode: newMode,
+        });
+    };
+
     return (
-        <div className="flex justify-center rounded-md items-center px-0 text-xs [.docked_&]:flex">
+        <div className="flex justify-center rounded-md items-center px-0 text-xs [.docked_&]:flex gap-2">
+            <button
+                onClick={toggleResearchMode}
+                className={`flex items-center gap-1 px-3 py-1.5 rounded-md transition-colors border ${
+                    isResearchMode
+                        ? "bg-blue-500 text-white border-blue-600 hover:bg-blue-700 dark:hover:bg-blue-600 dark:hover:text-white"
+                        : "bg-white text-gray-700 border-gray-200 hover:bg-gray-100"
+                }`}
+                title={t("Toggle Research Mode")}
+            >
+                <Microscope className="w-4 h-4" />
+                <span className="hidden md:inline">{t("Research Mode")}</span>
+            </button>
+
             {!docs || docs?.length === 0 ? (
                 <>
                     <span className="text-gray-400">
-                        {displayStateFull && t("No active files")}
+                        {displayStateFull && t("No indexed files")}
                     </span>
                 </>
             ) : (
@@ -95,7 +128,7 @@ function ChatTopMenu({ displayState = "full" }) {
                     <Popover.Button className="flex gap-0 focus:outline-none items-center rounded-md underline hover:text-sky-500 active:text-sky-700">
                         <MdOutlineSdStorage />
                         {displayStateFull
-                            ? t("Files active in this conversation")
+                            ? t("Files indexed in this conversation")
                             : t("Files")}{" "}
                         ({docs?.length})
                         {currentlyIndexing && (

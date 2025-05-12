@@ -16,6 +16,7 @@ import config from "../../../config";
 import { useRouter, usePathname } from "next/navigation";
 import { AuthContext } from "../../App.js";
 import { useGetActiveChat } from "../../../app/queries/chats"; // Add this import at the top
+import { useEntities } from "../../hooks/useEntities";
 
 function ChatBox() {
     const { user } = useContext(AuthContext);
@@ -34,6 +35,9 @@ function ChatBox() {
     const router = useRouter();
     const pathname = usePathname(); // Get the current pathname
     const activeChat = useGetActiveChat()?.data;
+
+    const { entities, defaultEntityId } = useEntities(aiName);
+    const selectedEntityId = activeChat?.selectedEntityId || defaultEntityId;
 
     const updateChatBox = useCallback(
         (newPosition) => {
@@ -160,7 +164,11 @@ function ChatBox() {
                     </div>
                     <Actions />
                 </div>
-                <ChatContent />
+                <ChatContent
+                    entities={entities}
+                    selectedEntityId={selectedEntityId}
+                    entityIconSize="lg"
+                />
             </div>
         );
     } else if (statePosition === "closed") {
@@ -190,6 +198,9 @@ function ChatBox() {
                             <ChatContent
                                 displayState={statePosition}
                                 container={"chatbox"}
+                                entities={entities}
+                                selectedEntityId={selectedEntityId}
+                                entityIconSize="sm"
                             />
                         </div>
                     )}

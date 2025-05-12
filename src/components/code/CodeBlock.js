@@ -4,7 +4,7 @@ import CopyButton from "../CopyButton";
 
 const CodeBlock = ({ code, language }) => {
     let highlightedCode = "";
-    const trimmedCode = code.trim();
+    const trimmedCode = code?.trim() || "";
 
     if (language && HighlightJS.getLanguage(language)) {
         highlightedCode = HighlightJS.highlight(trimmedCode, {

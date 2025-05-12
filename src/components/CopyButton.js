@@ -15,17 +15,26 @@ function CopyButton({ item, className = "absolute top-1 end-1 " }) {
     }, [copied]);
 
     const copyFormattedText = async (text) => {
+        // If text is undefined or null, use an empty string instead
+        const textToCopy = text || "";
+
         try {
-            const html = marked(text);
+            const html = marked(textToCopy);
             const blob = new Blob([html], { type: "text/html" });
             const clipboardItem = new ClipboardItem({
                 "text/html": blob,
-                "text/plain": new Blob([text], { type: "text/plain" }),
+                "text/plain": new Blob([textToCopy], { type: "text/plain" }),
             });
             await navigator.clipboard.write([clipboardItem]);
             setCopied(true);
         } catch (err) {
-            console.error("Failed to copy text: ", err);
+            // Fallback to basic clipboard API if rich text copy fails
+            try {
+                await navigator.clipboard.writeText(textToCopy);
+                setCopied(true);
+            } catch (clipboardErr) {
+                console.error("Failed to copy text: ", clipboardErr);
+            }
         }
     };
 

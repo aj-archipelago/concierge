@@ -7,21 +7,31 @@ export async function createWorkspace({
     prompts = [],
     systemPrompt,
 }) {
-    let index = 0;
-    let name;
-    do {
-        name = workspaceName + (index > 0 ? ` ${index}` : "");
-        index++;
-    } while (await Workspace.findOne({ name }));
+    // Use workspace name as is
+    const name = workspaceName;
 
-    index = 0;
+    // Generate a random 8-character hex string for the slug
+    const generateRandomSlug = () => {
+        const randomHex = Math.random().toString(16).substring(2, 10);
+        return `${stringcase.spinalcase(workspaceName)}-${randomHex}`;
+    };
+
+    // Try up to 3 times to generate a unique slug
+    let attempts = 0;
     let slug;
+    let existingWorkspace;
+
     do {
-        slug =
-            stringcase.spinalcase(workspaceName) +
-            (index > 0 ? `-${index}` : "");
-        index++;
-    } while (await Workspace.findOne({ slug }));
+        slug = generateRandomSlug();
+        existingWorkspace = await Workspace.findOne({ slug });
+        attempts++;
+    } while (existingWorkspace && attempts < 3);
+
+    if (existingWorkspace) {
+        throw new Error(
+            "Failed to generate unique workspace slug after multiple attempts",
+        );
+    }
 
     const workspace = await Workspace.create({
         name,

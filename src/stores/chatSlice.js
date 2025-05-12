@@ -96,7 +96,7 @@ export const chatSlice = createSlice({
                     payload: {
                         id: uuidv4(),
                         payload: message,
-                        sentTime: "just now",
+                        sentTime: new Date().toISOString(),
                         direction: "incoming",
                         position: "single",
                         sender: "labeeb",
@@ -131,10 +131,10 @@ export const chatSlice = createSlice({
             }
         },
     },
-    extraReducers: {
-        [toggleAJArticles]: (state) => {
+    extraReducers: (builder) => {
+        builder.addCase(toggleAJArticles, (state) => {
             state.includeAJArticles = !state.includeAJArticles;
-        },
+        });
     },
 });
 

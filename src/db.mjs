@@ -5,9 +5,18 @@ import mongoose from "mongoose";
 // otherwise chooses the first key in the key vault if available, if not creates a new key
 const { MONGO_URI, MONGO_ENCRYPTION_KEY, MONGO_DATAKEY_UUID } = process.env;
 
+// Default connection options - using only supported options
+const DEFAULT_CONNECTION_OPTIONS = {
+    serverSelectionTimeoutMS: 30000, // Increase server selection timeout
+    socketTimeoutMS: 45000, // Increase socket timeout
+    connectTimeoutMS: 30000, // Increase connection timeout
+    maxPoolSize: 10, // Control the maximum number of connections in the pool
+    bufferCommands: false, // Prevent buffering commands when disconnected
+};
+
 export async function connectToDatabase() {
     if (!MONGO_ENCRYPTION_KEY) {
-        await mongoose.connect(MONGO_URI);
+        await mongoose.connect(MONGO_URI, DEFAULT_CONNECTION_OPTIONS);
         console.log(
             "MONGO_ENCRYPTION_KEY not found. Connected to MongoDB in development mode (no encryption)",
         );
@@ -51,6 +60,7 @@ export async function connectToDatabase() {
         try {
             conn = await mongoose
                 .createConnection(MONGO_URI, {
+                    ...DEFAULT_CONNECTION_OPTIONS,
                     autoEncryption: autoEncryptionOptions,
                 })
                 .asPromise();
@@ -171,25 +181,7 @@ export async function connectToDatabase() {
         [`${dbName}.userstates`]: {
             bsonType: "object",
             properties: {
-                jira: {
-                    encrypt: {
-                        bsonType: "string",
-                        algorithm: "AEAD_AES_256_CBC_HMAC_SHA_512-Random",
-                    },
-                },
-                translate: {
-                    encrypt: {
-                        bsonType: "string",
-                        algorithm: "AEAD_AES_256_CBC_HMAC_SHA_512-Random",
-                    },
-                },
-                transcribe: {
-                    encrypt: {
-                        bsonType: "string",
-                        algorithm: "AEAD_AES_256_CBC_HMAC_SHA_512-Random",
-                    },
-                },
-                write: {
+                serializedState: {
                     encrypt: {
                         bsonType: "string",
                         algorithm: "AEAD_AES_256_CBC_HMAC_SHA_512-Random",
@@ -242,14 +234,49 @@ export async function connectToDatabase() {
                 keyId: [_key],
             },
         },
+        [`${dbName}.tasks`]: {
+            bsonType: "object",
+            properties: {
+                data: {
+                    encrypt: {
+                        bsonType: "object",
+                        algorithm: "AEAD_AES_256_CBC_HMAC_SHA_512-Random",
+                    },
+                },
+                statusText: {
+                    encrypt: {
+                        bsonType: "string",
+                        algorithm: "AEAD_AES_256_CBC_HMAC_SHA_512-Random",
+                    },
+                },
+                error: {
+                    encrypt: {
+                        bsonType: "string",
+                        algorithm: "AEAD_AES_256_CBC_HMAC_SHA_512-Random",
+                    },
+                },
+                metadata: {
+                    encrypt: {
+                        bsonType: "object",
+                        algorithm: "AEAD_AES_256_CBC_HMAC_SHA_512-Random",
+                    },
+                },
+            },
+            encryptMetadata: {
+                keyId: [_key],
+            },
+        },
     };
 
     autoEncryptionOptions.schemaMap = schemaMap;
 
     console.log("Connecting to MongoDB with encryption");
-    await mongoose.connect(MONGO_URI, {
+    const encryptionConnectionOptions = {
+        ...DEFAULT_CONNECTION_OPTIONS,
         autoEncryption: autoEncryptionOptions,
-    });
+    };
+
+    await mongoose.connect(MONGO_URI, encryptionConnectionOptions);
 }
 
 export async function closeDatabaseConnection() {

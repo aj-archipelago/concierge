@@ -27,6 +27,7 @@ export function AddTrackButton({
     selectedTab,
     setSelectedTab,
     activeTranscript,
+    disabled,
 }) {
     const { t } = useTranslation();
     const options = [
@@ -39,7 +40,9 @@ export function AddTrackButton({
     return (
         <div className="">
             <DropdownMenu>
-                <DropdownMenuTrigger asChild>{trigger}</DropdownMenuTrigger>
+                <DropdownMenuTrigger asChild disabled={disabled}>
+                    {trigger}
+                </DropdownMenuTrigger>
                 <DropdownMenuContent className="flex flex-col p-2">
                     {options.map((option) => {
                         switch (option) {

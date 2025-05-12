@@ -49,7 +49,6 @@ function TaxonomySelector({ text }) {
                 );
             })
             .catch((e) => {
-                console.log("failed", e);
                 setError(e);
             });
     }, []);

@@ -1,6 +1,6 @@
 "use client";
 import { ApolloNextAppProvider } from "@apollo/experimental-nextjs-app-support";
-import React, { useContext, useEffect, useState } from "react";
+import React, { useContext, useEffect, useRef, useState } from "react";
 import { getClient } from "./graphql";
 import "./i18n";
 
@@ -18,15 +18,31 @@ import "./App.scss";
 import StoreProvider from "./StoreProvider";
 import { LanguageContext, LanguageProvider } from "./contexts/LanguageProvider";
 import { ThemeProvider } from "./contexts/ThemeProvider";
+import { AutoTranscribeProvider } from "./contexts/AutoTranscribeContext";
 import Layout from "./layout/Layout";
 import "./tailwind.css";
 
-const { NEXT_PUBLIC_AMPLITUDE_API_KEY } = process.env;
+const NEXT_PUBLIC_AMPLITUDE_API_KEY = process.env.NEXT_PUBLIC_AMPLITUDE_API_KEY;
 
-if (typeof document !== "undefined") {
-    amplitude.init(NEXT_PUBLIC_AMPLITUDE_API_KEY, {
-        defaultTracking: true,
-    });
+// Skip Amplitude initialization in test environment
+if (typeof document !== "undefined" && process.env.NODE_ENV !== "test") {
+    try {
+        console.log(
+            "Initializing Amplitude with API key:",
+            NEXT_PUBLIC_AMPLITUDE_API_KEY ? "present" : "missing",
+        );
+        amplitude.init(NEXT_PUBLIC_AMPLITUDE_API_KEY, {
+            defaultTracking: true,
+            logLevel: amplitude.Types.LogLevel.Warn,
+        });
+        console.log("Amplitude initialized successfully");
+
+        // Test event to verify tracking
+        amplitude.track("Test Event", { timestamp: new Date().toISOString() });
+        console.log("Test event sent successfully");
+    } catch (error) {
+        console.error("Failed to initialize Amplitude:", error);
+    }
 }
 
 export const AuthContext = React.createContext({});
@@ -42,19 +58,29 @@ const App = ({
     neuralspaceEnabled,
 }) => {
     const { data: currentUser } = useCurrentUser();
-    const { data: serverUserState } = useUserState();
+    const { data: serverUserState, refetch: refetchServerUserState } =
+        useUserState();
     const updateUserState = useUpdateUserState();
-    const [userState, setUserState] = useState(serverUserState);
+    const [userState, setUserState] = useState(null);
     const debouncedUserState = useDebounce(userState, STATE_DEBOUNCE_TIME);
+    const refetchCalledRef = useRef(false);
+
+    const refetchUserState = () => {
+        refetchCalledRef.current = true;
+        refetchServerUserState();
+    };
 
     useEffect(() => {
+        // set user state from server if it exists, but only if there's no client
+        // state yet
         if (
-            JSON.stringify(userState || {}) !==
-            JSON.stringify(serverUserState || {})
+            (!userState || refetchCalledRef.current) &&
+            JSON.stringify(serverUserState) !== JSON.stringify(userState)
         ) {
             setUserState(serverUserState);
+            refetchCalledRef.current = false;
         }
-    }, [serverUserState]);
+    }, [userState, serverUserState]);
 
     useEffect(() => {
         if (i18next.language !== language) {
@@ -96,19 +122,22 @@ const App = ({
                 <StoreProvider>
                     <ThemeProvider savedTheme={theme}>
                         <LanguageProvider savedLanguage={language}>
-                            <React.StrictMode>
-                                <AuthContext.Provider
-                                    value={{
-                                        user: currentUser,
-                                        userState,
-                                        debouncedUpdateUserState,
-                                    }}
-                                >
-                                    <Layout>
-                                        <Body>{children}</Body>
-                                    </Layout>
-                                </AuthContext.Provider>
-                            </React.StrictMode>
+                            <AutoTranscribeProvider>
+                                <React.StrictMode>
+                                    <AuthContext.Provider
+                                        value={{
+                                            user: currentUser,
+                                            userState,
+                                            refetchUserState,
+                                            debouncedUpdateUserState,
+                                        }}
+                                    >
+                                        <Layout>
+                                            <Body>{children}</Body>
+                                        </Layout>
+                                    </AuthContext.Provider>
+                                </React.StrictMode>
+                            </AutoTranscribeProvider>
                         </LanguageProvider>
                     </ThemeProvider>
                 </StoreProvider>

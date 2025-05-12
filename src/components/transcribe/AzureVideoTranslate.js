@@ -1,12 +1,11 @@
-import axios from "axios";
 import { LanguagesIcon } from "lucide-react";
 import { useContext, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "react-toastify";
+import { useRunTask } from "../../../app/queries/notifications";
 import { LanguageContext } from "../../contexts/LanguageProvider";
 import { useNotificationsContext } from "../../contexts/NotificationContext";
 import { LOCALES } from "../../utils/constants";
-import { useNotifications } from "../../../app/queries/notifications";
 
 export default function AzureVideoTranslate({ url, onQueued }) {
     const [sourceLocale, setSourceLocale] = useState("en-US");
@@ -14,27 +13,25 @@ export default function AzureVideoTranslate({ url, onQueued }) {
     const { t } = useTranslation();
     const { language } = useContext(LanguageContext);
     const { openNotifications } = useNotificationsContext();
-    const { invalidateNotifications } = useNotifications();
+    const runTask = useRunTask();
 
     const handleSubmit = async () => {
         try {
-            const { data } = await axios.post("/api/azure-video-translate", {
+            await runTask.mutateAsync({
+                type: "video-translate",
                 sourceLocale,
                 targetLocale,
                 targetLocaleLabel: new Intl.DisplayNames([language], {
                     type: "language",
                 }).of(targetLocale),
                 url,
+                source: "video_page",
             });
 
-            const requestId = data;
-
-            // Invalidate notifications to trigger a refetch
-            invalidateNotifications();
             // Open notifications panel
             openNotifications();
 
-            onQueued?.(requestId);
+            onQueued?.();
         } catch (error) {
             console.error("Error translating video:", error);
             toast.error("Error queuing video translation");
@@ -45,9 +42,9 @@ export default function AzureVideoTranslate({ url, onQueued }) {
         <>
             <div className="mt-2 p-2 border-t border-b rounded border-gray-200 pt-4 bg-opacity-90 bg-neutral-100 shadow">
                 <div className="flex items-end gap-3">
-                    <div>
-                        <label htmlFor="sourceLocaleSelect">
-                            {t("Source Locale")}
+                    <div className="flex flex-col gap-1">
+                        <label className="text-sm" htmlFor="sourceLocaleSelect">
+                            {t("Original")}
                         </label>
                         <select
                             id="sourceLocaleSelect"
@@ -65,9 +62,9 @@ export default function AzureVideoTranslate({ url, onQueued }) {
                         </select>
                     </div>
 
-                    <div>
-                        <label htmlFor="targetLocaleSelect">
-                            {t("Target Locale")}
+                    <div className="flex flex-col gap-1">
+                        <label className="text-sm" htmlFor="targetLocaleSelect">
+                            {t("Translate to")}
                         </label>
                         <select
                             className="lb-select"

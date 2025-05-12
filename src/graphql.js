@@ -5,12 +5,28 @@ import {
 import { gql } from "@apollo/client";
 import { GraphQLWsLink } from "@apollo/client/link/subscriptions";
 import { createClient } from "graphql-ws";
-import { split, HttpLink } from "@apollo/client";
+import { split, HttpLink, from } from "@apollo/client";
+import { onError } from "@apollo/client/link/error";
 import { getMainDefinition } from "@apollo/client/utilities";
 import config from "../config";
 
 const CORTEX_GRAPHQL_API_URL =
     process.env.CORTEX_GRAPHQL_API_URL || "http://localhost:4000/graphql";
+
+// Add a function to trigger reauth, similar to axios-client.js
+function triggerReauth() {
+    if (typeof window !== "undefined") {
+        if (window.location.search.indexOf("reauth=true") !== -1) {
+            return;
+        }
+
+        window.location.href =
+            window.location.pathname +
+            window.location.search +
+            (window.location.search ? "&" : "?") +
+            "reauth=true";
+    }
+}
 
 const getClient = (serverUrl) => {
     let graphqlEndpoint;
@@ -30,6 +46,27 @@ const getClient = (serverUrl) => {
         }),
     );
 
+    // Add error handling link for authentication errors
+    const errorLink = onError(({ networkError, graphQLErrors }) => {
+        // Handle 401 Unauthorized errors
+        if (networkError && networkError.statusCode === 401) {
+            triggerReauth();
+        }
+
+        // Handle GraphQL errors that might indicate auth issues
+        if (graphQLErrors) {
+            graphQLErrors.forEach(({ message, extensions }) => {
+                if (
+                    extensions?.code === "UNAUTHENTICATED" ||
+                    message?.toLowerCase().includes("unauthorized") ||
+                    message?.toLowerCase().includes("authentication")
+                ) {
+                    triggerReauth();
+                }
+            });
+        }
+    });
+
     // The split function takes three parameters:
     //
     // * A function that's called for each operation to execute
@@ -47,8 +84,11 @@ const getClient = (serverUrl) => {
         httpLink,
     );
 
+    // Combine the error link with the split link
+    const link = from([errorLink, splitLink]);
+
     const client = new ApolloClient({
-        link: splitLink,
+        link,
         cache: new InMemoryCache(),
     });
 
@@ -87,48 +127,6 @@ const SELECT_EXTENSION = gql`
     }
 `;
 
-const CHAT_PERSIST = gql`
-    query ChatPersist($chatHistory: [Message]!, $contextId: String) {
-        chat_persist(chatHistory: $chatHistory, contextId: $contextId) {
-            result
-            contextId
-        }
-    }
-`;
-
-const CHAT_LABEEB = gql`
-    query ChatLabeeb($chatHistory: [Message]!, $contextId: String) {
-        chat_labeeb(chatHistory: $chatHistory, contextId: $contextId) {
-            result
-            contextId
-        }
-    }
-`;
-
-const CHAT_EXTENSION = gql`
-    query ChatExtension(
-        $chatHistory: [Message]!
-        $contextId: String
-        $text: String
-        $roleInformation: String
-        $indexName: String
-        $semanticConfiguration: String
-    ) {
-        retrieval(
-            chatHistory: $chatHistory
-            contextId: $contextId
-            text: $text
-            roleInformation: $roleInformation
-            indexName: $indexName
-            semanticConfiguration: $semanticConfiguration
-        ) {
-            result
-            contextId
-            tool
-        }
-    }
-`;
-
 const VISION = gql`
     query ($text: String, $chatHistory: [MultiMessage]) {
         vision(text: $text, chatHistory: $chatHistory) {
@@ -154,72 +152,48 @@ const SYS_SAVE_MEMORY = gql`
     }
 `;
 
-const RAG_START = gql`
+const CHAT_TITLE = gql`
+    query Chat_title(
+        $text: String
+        $title: String
+        $chatHistory: [MultiMessage]
+    ) {
+        chat_title(text: $text, title: $title, chatHistory: $chatHistory) {
+            result
+        }
+    }
+`;
+
+const SYS_ENTITY_AGENT = gql`
     query RagStart(
         $chatHistory: [MultiMessage]!
-        $dataSources: [String]
         $contextId: String
         $text: String
-        $roleInformation: String
-        $indexName: String
-        $semanticConfiguration: String
         $aiName: String
         $aiMemorySelfModify: Boolean
         $aiStyle: String
         $title: String
         $codeRequestId: String
+        $stream: Boolean
+        $entityId: String
+        $chatId: String
+        $researchMode: Boolean
+        $model: String
     ) {
-        rag_start(
+        sys_entity_agent(
             chatHistory: $chatHistory
-            dataSources: $dataSources
             contextId: $contextId
             text: $text
-            roleInformation: $roleInformation
-            indexName: $indexName
-            semanticConfiguration: $semanticConfiguration
             aiName: $aiName
             aiMemorySelfModify: $aiMemorySelfModify
             aiStyle: $aiStyle
             title: $title
             codeRequestId: $codeRequestId
-        ) {
-            result
-            contextId
-            tool
-            warnings
-            errors
-        }
-    }
-`;
-
-const SYS_ENTITY_CONTINUE = gql`
-    query SysEntityContinue(
-        $chatHistory: [MultiMessage]!
-        $dataSources: [String]
-        $contextId: String
-        $text: String
-        $roleInformation: String
-        $indexName: String
-        $semanticConfiguration: String
-        $aiName: String
-        $useMemory: Boolean
-        $aiStyle: String
-        $chatId: String
-        $generatorPathway: String
-    ) {
-        sys_entity_continue(
-            chatHistory: $chatHistory
-            dataSources: $dataSources
-            contextId: $contextId
-            text: $text
-            roleInformation: $roleInformation
-            indexName: $indexName
-            semanticConfiguration: $semanticConfiguration
-            aiName: $aiName
-            aiStyle: $aiStyle
-            useMemory: $useMemory
+            stream: $stream
+            entityId: $entityId
             chatId: $chatId
-            generatorPathway: $generatorPathway
+            researchMode: $researchMode
+            model: $model
         ) {
             result
             contextId
@@ -576,6 +550,7 @@ const REQUEST_PROGRESS = gql`
             data
             progress
             info
+            error
         }
     }
 `;
@@ -717,6 +692,7 @@ const getWorkspacePromptQuery = (pathwayName) => {
                 async: $async
             ) {
                 result
+                tool
             }
         }
     `;
@@ -742,11 +718,17 @@ const AZURE_VIDEO_TRANSLATE = gql`
     }
 `;
 
+const SYS_GET_ENTITIES = gql`
+    query Sys_get_entities {
+        sys_get_entities {
+            result
+        }
+    }
+`;
+
 const QUERIES = {
     AZURE_VIDEO_TRANSLATE,
-    CHAT_PERSIST,
-    CHAT_LABEEB,
-    CHAT_EXTENSION,
+    CHAT_TITLE,
     CODE_HUMAN_INPUT,
     COGNITIVE_DELETE,
     COGNITIVE_INSERT,
@@ -754,8 +736,8 @@ const QUERIES = {
     IMAGE_FLUX,
     SYS_READ_MEMORY,
     SYS_SAVE_MEMORY,
-    RAG_START,
-    SYS_ENTITY_CONTINUE,
+    SYS_ENTITY_AGENT,
+    SYS_GET_ENTITIES,
     EXPAND_STORY,
     FORMAT_PARAGRAPH_TURBO,
     SELECT_SERVICES,
@@ -841,16 +823,14 @@ const MUTATIONS = {
 export {
     getClient,
     AZURE_VIDEO_TRANSLATE,
-    CHAT_PERSIST,
-    CHAT_LABEEB,
     CODE_HUMAN_INPUT,
     COGNITIVE_INSERT,
     COGNITIVE_DELETE,
     EXPAND_STORY,
     SYS_READ_MEMORY,
     SYS_SAVE_MEMORY,
-    RAG_START,
-    SYS_ENTITY_CONTINUE,
+    SYS_ENTITY_AGENT,
+    SYS_GET_ENTITIES,
     SELECT_SERVICES,
     SUMMARY,
     HASHTAGS,

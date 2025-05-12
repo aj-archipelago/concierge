@@ -213,24 +213,6 @@ html[dir="ltr"] {
             height: 87px;
             background-color: $chat-secondary;
         }
-
-        // .message-list-container {
-        //   &::before {
-        //     content: '';
-        //     position: absolute;
-        //     width: 5px;
-        //     height: calc(100vh - 30px - 100px);
-        //     cursor: ew-resize;
-        //   }
-        // }
-
-        .message-container {
-            // height: calc(100vh - 194px);
-        }
-
-        // .message-list-container {
-        //   border-inline-start: 1px solid;
-        // }
     }
 
     .chat-message-container {
@@ -692,5 +674,15 @@ html[dir="ltr"] {
 
     &:hover {
         box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+    }
+}
+
+@keyframes pulse {
+    0%,
+    100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.3;
     }
 }

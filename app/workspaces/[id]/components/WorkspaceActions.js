@@ -7,7 +7,7 @@ import {
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import axios from "axios";
+import axios from "../../../utils/axios-client";
 import { useRouter } from "next/navigation";
 import { useContext, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -100,8 +100,10 @@ function Name({ workspace, user }) {
     }, [showCopiedMessage]);
 
     useEffect(() => {
-        setSlug(stringcase.spinalcase(name));
-    }, [name]);
+        if (editing) {
+            setSlug(stringcase.spinalcase(name));
+        }
+    }, [name, editing]);
 
     const updateWorkspace = useMutation({
         queryKey: ["workspace", workspace?._id],

@@ -1,6 +1,6 @@
 /**
  * Checks if a given URL is a valid YouTube URL
- * Supports standard youtube.com, shortened youtu.be, and embed URLs
+ * Supports standard youtube.com, shortened youtu.be, embed URLs, and shorts URLs
  *
  * @param {string} url - The URL to check
  * @returns {boolean} - True if URL is a valid YouTube URL
@@ -21,6 +21,10 @@ export function isYoutubeUrl(url) {
             // For embed URLs, verify they have a video ID in the path
             if (urlObj.pathname.startsWith("/embed/")) {
                 return urlObj.pathname.length > 7; // '/embed/' is 7 chars
+            }
+            // For shorts URLs, verify they have a video ID in the path
+            if (urlObj.pathname.startsWith("/shorts/")) {
+                return urlObj.pathname.length > 8; // '/shorts/' is 8 chars
             }
             return false;
         }

@@ -1,18 +1,10 @@
-import Redis from "ioredis";
 import { Queue } from "bullmq";
+import { getRedisConnection } from "../../../utils/redis";
 
 const queueName = "digest-build";
-const { REDIS_CONNECTION_STRING } = process.env;
-
-const connection = new Redis(
-    REDIS_CONNECTION_STRING || "redis://localhost:6379",
-    {
-        maxRetriesPerRequest: null,
-    },
-);
 
 const digestBuild = new Queue(queueName, {
-    connection,
+    connection: getRedisConnection(),
 });
 
 export async function getJob(jobId) {

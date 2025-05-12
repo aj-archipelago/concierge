@@ -93,6 +93,7 @@ function ProgressToast({
                 subscriptionRef.current();
             }
         }, timeout);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [timeout, onError, requestId]);
 
     // Initial timeout setup
@@ -136,6 +137,17 @@ function ProgressToast({
             resetTimeout();
         }
 
+        // Check for error in the requestProgress data
+        if (data?.requestProgress?.error) {
+            const progressError = new Error(data.requestProgress.error);
+            onError?.(progressError);
+            setErrorMessage(
+                data.requestProgress.error || ERROR_MESSAGES.generic,
+            );
+            toast.update(requestId, { closeButton: true });
+            return;
+        }
+
         const result = data?.requestProgress?.data;
         const newProgress = Math.max(
             (data?.requestProgress?.progress || 0) * 100,
@@ -149,7 +161,8 @@ function ProgressToast({
         if (
             result &&
             data.requestProgress.progress === 1 &&
-            !onCompleteCalledRef.current
+            !onCompleteCalledRef.current &&
+            !isCancelled
         ) {
             if (timeoutRef.current) {
                 clearTimeout(timeoutRef.current);
@@ -179,6 +192,7 @@ function ProgressToast({
                     toast.update(requestId, { closeButton: true });
                 });
         }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [
         data,
         error,
@@ -188,6 +202,7 @@ function ProgressToast({
         onError,
         activeToasts,
         resetTimeout,
+        isCancelled,
     ]);
 
     const handleCancel = () => {
@@ -205,6 +220,9 @@ function ProgressToast({
             setErrorMessage(t("Operation cancelled"));
             activeToasts?.delete(requestId);
             toast.update(requestId, { closeButton: true });
+
+            // Set onCompleteCalledRef to true to prevent completion callback
+            onCompleteCalledRef.current = true;
         }
     };
 

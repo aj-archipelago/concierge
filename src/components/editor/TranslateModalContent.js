@@ -4,7 +4,7 @@ import Translation from "../translate/Translation";
 
 function TranslateModalContent({ text, onSelect }) {
     const [inputText, setInputText] = useState(text);
-    const [translatedText, setTranslatedText] = useState(null);
+    const [translatedText, setTranslatedText] = useState("");
     const [translationLanguage, setTranslationLanguage] = useState("en");
     const [translationStrategy, setTranslationStrategy] = useState("translate");
 

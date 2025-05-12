@@ -26,7 +26,7 @@ export default function AddTrackDialog({
 
     return (
         <Dialog open={addTrackDialogOpen} onOpenChange={setAddTrackDialogOpen}>
-            <DialogContent className="min-h-[450px]">
+            <DialogContent className="min-h-[450px] sm:w-[50vw] md:w-[60vw] max-w-[1200px]">
                 <DialogHeader>
                     <DialogTitle>{t("Add subtitles/transcripts")}</DialogTitle>
                     <DialogDescription>

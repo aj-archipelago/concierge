@@ -1,4 +1,4 @@
-import axios from "axios";
+import axios from "../../../../../utils/axios-client";
 
 export async function GET(request, { params }) {
     try {

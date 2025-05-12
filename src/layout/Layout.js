@@ -4,7 +4,6 @@ import { Bars3Icon, XMarkIcon } from "@heroicons/react/24/outline";
 import { MessageCircle } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { Fragment, useContext, useEffect, useRef, useState } from "react";
-import { useTranslation } from "react-i18next";
 import { useDispatch, useSelector } from "react-redux";
 import { Flip, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
@@ -27,7 +26,6 @@ export default function Layout({ children }) {
     const [showTos, setShowTos] = useState(false);
     const statePosition = useSelector((state) => state.chat?.chatBox?.position);
     const dispatch = useDispatch();
-    const { t } = useTranslation();
     const { user } = useContext(AuthContext);
     const pathname = usePathname();
     const { theme } = useContext(ThemeContext);
@@ -42,6 +40,24 @@ export default function Layout({ children }) {
     useEffect(() => {
         setSidebarOpen(false);
     }, [pathname]);
+
+    // Add viewport height fix for mobile browsers
+    useEffect(() => {
+        // Function to update the viewport height CSS variable
+        const setViewportHeight = () => {
+            const vh = window.innerHeight * 0.01;
+            document.documentElement.style.setProperty("--vh", `${vh}px`);
+        };
+
+        // Set the viewport height initially
+        setViewportHeight();
+
+        // Update the viewport height on resize
+        window.addEventListener("resize", setViewportHeight);
+
+        // Clean up the event listener
+        return () => window.removeEventListener("resize", setViewportHeight);
+    }, []);
 
     return (
         <>
@@ -211,8 +227,10 @@ export default function Layout({ children }) {
                                 ref={contentRef}
                             >
                                 <div
-                                    className={`${"grow"} bg-white dark:border-gray-200 rounded-md border p-4 lg:p-6 overflow-auto`}
-                                    style={{ height: "calc(100vh - 120px)" }}
+                                    className={`grow bg-white dark:border-gray-200 rounded-md border p-3 lg:p-4 lg:pb-3 overflow-auto`}
+                                    style={{
+                                        height: "calc((var(--vh, 1vh) * 100) - 105px)",
+                                    }}
                                 >
                                     {showOptions && (
                                         <UserOptions
@@ -227,7 +245,12 @@ export default function Layout({ children }) {
                                     {children}
                                 </div>
                                 {showChatbox && (
-                                    <div className="hidden sm:block basis-[302px] h-[calc(100vh-120px)]">
+                                    <div
+                                        className="hidden sm:block basis-[302px] h-[calc(100vh-105px)]"
+                                        style={{
+                                            height: "calc((var(--vh, 1vh) * 100) - 105px)",
+                                        }}
+                                    >
                                         <ChatBox />
                                     </div>
                                 )}
