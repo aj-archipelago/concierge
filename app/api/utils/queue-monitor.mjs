@@ -142,7 +142,6 @@ class QueueMonitor {
     async checkQueues() {
         for (const [queueName, queue] of this.queues) {
             // Get jobs in the monitoring window
-            const queue = this.queues.get(queueName);
             if (!queue) continue;
 
             const now = Date.now();
