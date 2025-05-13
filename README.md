@@ -11,6 +11,10 @@ The following environment variables are required to configure Concierge to conne
 - `CORTEX_GRAPHQL_API_URL`: the full GraphQL URL of the Cortex deployment, e.g. `https://<site>.azure-api.net/graphql?subscription-key=<key>`
 - `CORTEX_MEDIA_API_URL`: the full URL of the Cortex media helper app, e.g. `https://<site>.azure-api.net/media-helper?subscription-key=<key>`
 
+The following environment variable is optional and used for blue/green deployment scenarios:
+
+- `CORTEX_GRAPHQL_API_BLUE_URL`: When you want to test your application against a pre-production ("blue") environment while using the same build that will run in production, set this to the Cortex "blue" URL. This variable must be set both at build-time and at runtime in the blue environment only. This is particularly useful for testing new features or changes in a pre-production environment before deploying to production.
+
 The following environment variable is needed to deliver user feedback to Slack:
 
 - `SLACK_WEBHOOK_URL` - the is the URL of the Slack webhook you've configured to deliver the message to whichever channel you want to deliver it to.

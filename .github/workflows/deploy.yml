@@ -42,6 +42,7 @@ jobs:
                   file: ./Dockerfile
                   build-args: |
                       CORTEX_GRAPHQL_API_URL=${{secrets.CORTEX_GRAPHQL_API_URL}}
+                      CORTEX_GRAPHQL_API_BLUE_URL=${{secrets.CORTEX_GRAPHQL_API_BLUE_URL}}
                       CORTEX_MEDIA_API_URL=${{secrets.CORTEX_MEDIA_API_URL}}
                       NEXT_PUBLIC_AMPLITUDE_API_KEY=${{secrets.NEXT_PUBLIC_AMPLITUDE_API_KEY}}
                       NEXT_PUBLIC_ATLASSIAN_CLIENT_ID=${{secrets.NEXT_PUBLIC_ATLASSIAN_CLIENT_ID}}
