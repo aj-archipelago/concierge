@@ -172,17 +172,28 @@ async function buildDigestForUser(user, logger, job, force = false) {
 
 async function buildDigestsForAllUsers(logger) {
     const User = (await import("../app/api/models/user.mjs")).default;
+    const batchSize = 10;
+    let lastId = null;
 
-    // using an async iterator (for "await" syntax) creates a cursor
-    // and returns only one document at a time
-    for await (const user of User.find({
-        lastActiveAt: {
-            $gte: new Date(
-                Date.now() - ACTIVE_USER_PERIOD_DAYS * 24 * 60 * 60 * 1000,
-            ),
-        },
-    })) {
-        await buildDigestForUser(user, logger, null, true);
+    while (true) {
+        const users = await User.find({
+            lastActiveAt: {
+                $gte: new Date(
+                    Date.now() - ACTIVE_USER_PERIOD_DAYS * 24 * 60 * 60 * 1000,
+                ),
+            },
+            ...(lastId && { _id: { $gt: lastId } }),
+        })
+            .limit(batchSize)
+            .sort({ _id: 1 });
+
+        if (users.length === 0) break;
+
+        for (const user of users) {
+            await buildDigestForUser(user, logger, null, true);
+        }
+
+        lastId = users[users.length - 1]._id;
     }
 }
 
