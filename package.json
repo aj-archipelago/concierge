@@ -2,6 +2,7 @@
     "name": "labeeb",
     "version": "2.6.6",
     "private": true,
+    "type": "module",
     "dependencies": {
         "@aj-archipelago/subvibe": "^1.0.10",
         "@amplitude/analytics-browser": "^2.13.0",
@@ -97,7 +98,7 @@
         "xxhash-wasm": "^1.1.0"
     },
     "scripts": {
-        "dev": "concurrently \"npm run next:dev\" \"npm run worker:dev\"",
+        "dev": "concurrently -c blue,green -n web,worker \"npm run next:dev\" \"npm run worker:dev\"",
         "dev:multiworker": "concurrently \"npm run next:dev\" \"npm run worker:dev\" \"npm run worker:dev\"",
         "next:dev": "npm run prebuild && next dev",
         "prebuild": "node ./scripts/prebuild.js",

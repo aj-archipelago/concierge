@@ -1,4 +1,4 @@
-const dayjs = require("dayjs");
+import dayjs from "dayjs";
 const logTimestamp = () => dayjs().format("YYYY-MM-DD HH:mm:ss:SSS");
 
 class Logger {
@@ -28,6 +28,4 @@ class Logger {
     }
 }
 
-module.exports = {
-    Logger,
-};
+export { Logger };

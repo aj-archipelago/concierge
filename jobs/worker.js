@@ -1,16 +1,16 @@
-const pkg = require("bullmq");
-const { Worker, Queue } = pkg;
-const {
+import { Worker, Queue } from "bullmq";
+import {
     buildDigestsForAllUsers,
     buildDigestForSingleUser,
-} = require("./digest-build.js");
-const Redis = require("ioredis");
+} from "./digest-build.js";
+import Redis from "ioredis";
+import { Logger } from "./logger.js";
+import cortexRequestWorker from "./cortex-request-worker.js";
+import "dotenv/config";
+
 const queueName = "digest-build";
 const { REDIS_CONNECTION_STRING } = process.env;
-const { Logger } = require("./logger.js");
 const { DIGEST_REBUILD_INTERVAL_HOURS = 4 } = process.env;
-const cortexRequestWorker = require("./cortex-request-worker.js");
-require("dotenv").config();
 
 // Import the queue monitor
 import("../app/api/utils/queue-monitor.mjs").then(({ queueMonitor }) => {
@@ -225,8 +225,4 @@ async function startWorkers() {
 
 // Start the workers
 startWorkers();
-
-module.exports = {
-    run: startWorkers,
-    ensureDbConnection,
-};
+export { startWorkers as run, ensureDbConnection };

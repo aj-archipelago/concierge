@@ -1,5 +1,6 @@
 const APPROXIMATE_DURATION_SECONDS = 60;
 const PROGRESS_UPDATE_INTERVAL = 3000;
+import { QUERIES, getClient } from "../graphql.mjs";
 
 const generateDigestBlockContent = async (
     block,
@@ -10,8 +11,6 @@ const generateDigestBlockContent = async (
     let imageUtils = await import("../../src/utils/imageUtils.mjs");
     const { processImageUrls } = imageUtils;
 
-    let graphql = await import("../graphql.mjs");
-    const { QUERIES, getClient } = graphql;
     const { prompt } = block;
 
     const variables = {
@@ -63,6 +62,7 @@ const generateDigestBlockContent = async (
             });
         }
     } catch (e) {
+        console.error(e);
         logger.log(
             `Error while generating content: ${e.message}`,
             user?._id,
@@ -104,7 +104,4 @@ const generateDigestGreeting = async (user, text, logger) => {
     }
 };
 
-module.exports = {
-    generateDigestBlockContent,
-    generateDigestGreeting,
-};
+export { generateDigestBlockContent, generateDigestGreeting };

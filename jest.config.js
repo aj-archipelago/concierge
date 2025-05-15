@@ -133,7 +133,7 @@ const projects = process.env.CI
           },
       ];
 
-module.exports = {
+export default {
     watchPathIgnorePatterns: ["\\.next"],
     modulePathIgnorePatterns: ["<rootDir>/.next", "<rootDir>/.next/standalone"],
     testPathIgnorePatterns: ["<rootDir>/.next", "<rootDir>/.next/standalone"],

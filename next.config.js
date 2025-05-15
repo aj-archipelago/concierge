@@ -1,4 +1,8 @@
-const path = require("path");
+import path from "path";
+import { fileURLToPath } from "url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const basePath = process.env.NEXT_PUBLIC_BASE_PATH;
 
@@ -42,7 +46,7 @@ const anonymizeUrl = (urlString) => {
     return url.toString();
 };
 
-module.exports = {
+const config = {
     async rewrites() {
         const rewrites = [
             {
@@ -89,3 +93,5 @@ module.exports = {
         return config;
     },
 };
+
+export default config;

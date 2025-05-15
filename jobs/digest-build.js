@@ -1,8 +1,8 @@
-const dayjs = require("dayjs");
-const {
+import dayjs from "dayjs";
+import {
     generateDigestBlockContent,
     generateDigestGreeting,
-} = require("./digest/digest.utils.js");
+} from "./digest/digest.utils.js";
 
 const { DIGEST_REBUILD_INTERVAL_HOURS = 4, ACTIVE_USER_PERIOD_DAYS = 7 } =
     process.env;
@@ -198,7 +198,4 @@ async function buildDigestForSingleUser(userId, logger, job) {
     await buildDigestForUser(user, logger, job);
 }
 
-module.exports = {
-    buildDigestsForAllUsers,
-    buildDigestForSingleUser,
-};
+export { buildDigestsForAllUsers, buildDigestForSingleUser };

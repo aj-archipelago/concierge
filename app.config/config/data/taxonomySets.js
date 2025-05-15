@@ -1,4 +1,5 @@
 import axios from "../../../app/utils/axios-client";
+
 const URLS = {
     aja: "https://wordpress.aljazeera.net",
     aje: "https://wordpress.aljazeera.com",
@@ -45,58 +46,37 @@ let taxonomySets;
 let taxonomyDownloadError;
 
 export async function initializeTaxonomies() {
-    const taxonomySetsContext = require.context(
-        "./taxonomy-sets",
-        false,
-        /\.json$/,
-    );
+    // Import all JSON files explicitly
+    const [ajplusArabic, ajplusEspanol, ajplusFrancais] = await Promise.all([
+        import("./taxonomy-sets/ajplus_arabic.json"),
+        import("./taxonomy-sets/ajplus_espanol.json"),
+        import("./taxonomy-sets/ajplus_francais.json"),
+    ]);
 
-    let dedupedFileNames = [];
-
-    taxonomySets = taxonomySetsContext
-        .keys()
-        .map((filename) => {
-            const filenameOnly = filename.split("/").pop();
-
-            // This is needed because the require.context keys
-            // will include the same file with two paths:
-            // ./filename.json and <absolute-path>/filename.json
-            if (dedupedFileNames.includes(filenameOnly)) {
-                return null;
-            }
-
-            const setName = filename.slice(2, -5); // Remove './' and '.json' from the file name
-            const content = taxonomySetsContext(filename);
-
-            dedupedFileNames.push(filenameOnly);
-            return { setName, ...content };
-        })
-        .filter(Boolean)
-        .concat([
-            {
-                name: "Al Jazeera Arabic",
-                setName: "aljazeera_arabic",
-                categories: (await fetchTaxonomyData("aja", "categories")).map(
-                    (c) => c.name,
-                ),
-                tags: (await fetchTaxonomyData("aja", "tags")).map(
-                    (c) => c.name,
-                ),
-            },
-            {
-                name: "Al Jazeera English",
-                setName: "aljazeera_english",
-                categories: (await fetchTaxonomyData("aje", "categories")).map(
-                    (c) => c.name,
-                ),
-                tags: (await fetchTaxonomyData("aje", "tags")).map(
-                    (c) => c.name,
-                ),
-            },
-        ]);
+    taxonomySets = [
+        { setName: "ajplus_arabic", ...ajplusArabic.default },
+        { setName: "ajplus_espanol", ...ajplusEspanol.default },
+        { setName: "ajplus_francais", ...ajplusFrancais.default },
+        {
+            name: "Al Jazeera Arabic",
+            setName: "aljazeera_arabic",
+            categories: (await fetchTaxonomyData("aja", "categories")).map(
+                (c) => c.name,
+            ),
+            tags: (await fetchTaxonomyData("aja", "tags")).map((c) => c.name),
+        },
+        {
+            name: "Al Jazeera English",
+            setName: "aljazeera_english",
+            categories: (await fetchTaxonomyData("aje", "categories")).map(
+                (c) => c.name,
+            ),
+            tags: (await fetchTaxonomyData("aje", "tags")).map((c) => c.name),
+        },
+    ];
 }
 
-export const getTaxonomySets = async function () {
+export const getTaxonomySets = async () => {
     if (taxonomyDownloadError) {
         throw taxonomyDownloadError;
     }
@@ -104,7 +84,7 @@ export const getTaxonomySets = async function () {
     return taxonomySets;
 };
 
-export const getTopics = async function (language) {
+export const getTopics = async (language) => {
     if (language === "ar") {
         return taxonomySets?.find((set) => set.setName === "aljazeera_arabic")
             ?.categories;
@@ -113,7 +93,7 @@ export const getTopics = async function (language) {
         ?.categories;
 };
 
-export const getTags = async function (language) {
+export const getTags = async (language) => {
     if (language === "ar") {
         return taxonomySets?.find((set) => set.setName === "aljazeera_arabic")
             ?.tags;

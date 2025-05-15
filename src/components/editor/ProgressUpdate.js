@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useApolloClient, useSubscription } from "@apollo/client";
 import { Progress } from "@/components/ui/progress";
-import ProgressTimer from "react-progress-timer";
+import ReactProgressTimer from "react-progress-timer";
 import ReactTimeAgo from "react-time-ago";
 import { SUBSCRIPTIONS, CODE_HUMAN_INPUT } from "../../graphql";
 import { MdCancel } from "react-icons/md";
@@ -16,6 +16,8 @@ const ProgressUpdate = ({
     const { data } = useSubscription(SUBSCRIPTIONS.REQUEST_PROGRESS, {
         variables: { requestIds: [requestId] },
     });
+
+    const ProgressTimer = ReactProgressTimer.default;
 
     const apolloClient = useApolloClient();
     const [cancelButtonDisabled, setCancelButtonDisabled] = useState(false);
