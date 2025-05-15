@@ -56,6 +56,7 @@ const App = ({
     serverUrl,
     graphQLPublicEndpoint,
     neuralspaceEnabled,
+    useBlueGraphQL,
 }) => {
     const { data: currentUser } = useCurrentUser();
     const { data: serverUserState, refetch: refetchServerUserState } =
@@ -115,7 +116,9 @@ const App = ({
     };
 
     return (
-        <ApolloNextAppProvider makeClient={() => getClient(serverUrl)}>
+        <ApolloNextAppProvider
+            makeClient={() => getClient(serverUrl, useBlueGraphQL)}
+        >
             <ServerContext.Provider
                 value={{ graphQLPublicEndpoint, serverUrl, neuralspaceEnabled }}
             >

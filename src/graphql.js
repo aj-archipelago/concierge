@@ -28,10 +28,10 @@ function triggerReauth() {
     }
 }
 
-const getClient = (serverUrl) => {
+const getClient = (serverUrl, useBlueGraphQL) => {
     let graphqlEndpoint;
     if (serverUrl) {
-        graphqlEndpoint = config.endpoints.graphql(serverUrl);
+        graphqlEndpoint = config.endpoints.graphql(serverUrl, useBlueGraphQL);
     } else {
         graphqlEndpoint = CORTEX_GRAPHQL_API_URL;
     }

@@ -134,7 +134,12 @@ export default {
     },
     endpoints: {
         mediaHelper: (serverUrl) => `${serverUrl}${basePath}/media-helper`,
-        graphql: (serverUrl) => `${serverUrl}${basePath}/graphql`,
+        graphql: (serverUrl, useBlueGraphQL) => {
+            if (useBlueGraphQL) {
+                return `${serverUrl}${basePath}/graphql-blue`;
+            }
+            return `${serverUrl}${basePath}/graphql`;
+        },
     },
     auth: {
         provider: null, // only one value is supported: "entra"
