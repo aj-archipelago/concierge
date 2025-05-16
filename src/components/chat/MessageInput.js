@@ -20,8 +20,8 @@ import {
 import {
     ACCEPTED_FILE_TYPES,
     getFilename,
-    isDocumentUrl,
-    isMediaUrl,
+    isRagFileUrl,
+    isSupportedFileUrl,
 } from "../../utils/mediaUtils";
 import {
     AlertDialog,
@@ -86,20 +86,14 @@ function MessageInput({
     const prepareMessage = (inputText) => {
         return [
             JSON.stringify({ type: "text", text: inputText }),
-            ...(urlsData || [])?.map(({ url, gcs }) => {
+            ...(urlsData || [])?.map(({ url, gcs, converted }) => {
                 const obj = {
                     type: "image_url",
                 };
 
-                if (gcs) {
-                    obj.gcs = gcs;
-                    obj.url = url;
-                    obj.image_url = {
-                        url: gcs,
-                    };
-                } else {
-                    obj.image_url = { url };
-                }
+                obj.gcs = converted?.gcs || gcs;
+                obj.url = converted?.url || url;
+                obj.image_url = gcs ? { url: gcs } : { url };
 
                 return JSON.stringify(obj);
             }),
@@ -198,13 +192,24 @@ function MessageInput({
             }
         };
 
-        //check if url is doc type and process accordingly
-        if (isDocumentUrl(url)) {
+        //check if url is rag type and process accordingly
+        if (isRagFileUrl(url)) {
             fetchData(url);
         } else {
             //media urls, will be sent with active message
-            if (isMediaUrl(url)) {
-                setUrlsData((prevUrlsData) => [...prevUrlsData, urlData]);
+            if (isSupportedFileUrl(url)) {
+                const currentUrlsData = urlsData;
+                const isDuplicate = currentUrlsData.some(
+                    (existingUrl) => existingUrl.hash === urlData.hash
+                );
+                if (!isDuplicate) {
+                    console.log("Adding new URL data:", urlData);
+                    setUrlsData((prevUrlsData) => [...prevUrlsData, urlData]);
+                } else {
+                    console.log("Skipping duplicate URL with hash:", urlData.hash);
+                }
+            } else {
+                console.log("URL is not supported:", url);
             }
         }
     };

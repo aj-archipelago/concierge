@@ -18,9 +18,9 @@ import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
     hashMediaFile,
-    DOC_MIME_TYPES,
     ACCEPTED_FILE_TYPES,
-    isMediaUrl,
+    RAG_MIME_TYPES,
+    isSupportedFileUrl,
     getFilename,
     getVideoDuration,
 } from "../../utils/mediaUtils";
@@ -487,7 +487,7 @@ function MyFilePond({
                                     }
                                 }
 
-                                if (isMediaUrl(file?.name)) {
+                                if (isSupportedFileUrl(file?.name)) {
                                     setIsUploadingMedia(true);
                                 }
 
@@ -504,7 +504,7 @@ function MyFilePond({
                                         response.status === 200 &&
                                         response.data?.url
                                     ) {
-                                        if (isMediaUrl(file?.name)) {
+                                        if (isSupportedFileUrl(file?.name)) {
                                             const hasAzureUrl =
                                                 response.data.url &&
                                                 response.data.url.includes(
@@ -638,7 +638,7 @@ function MyFilePond({
                                         }
 
                                         // Add validation for media files requiring both Azure and GCS URLs
-                                        if (isMediaUrl(file?.name)) {
+                                        if (isSupportedFileUrl(file?.name)) {
                                             const hasAzureUrl =
                                                 responseData.url &&
                                                 responseData.url.includes(
@@ -714,7 +714,7 @@ function MyFilePond({
                             } else {
                                 const filetype = file.file.type;
                                 // For document files, wait 10 seconds for indexing
-                                if (DOC_MIME_TYPES.includes(filetype)) {
+                                if (RAG_MIME_TYPES.includes(filetype)) {
                                     // Remove the file from FilePond after processing
                                     setFiles((oldFiles) =>
                                         oldFiles.filter(

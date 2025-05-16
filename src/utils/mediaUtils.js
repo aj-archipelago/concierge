@@ -12,8 +12,15 @@ async function getXXHashInstance() {
     return xxhashInstance;
 }
 
+// RAG File Type Extensions
+export const RAG_EXTENSIONS = [
+];
+
 // File type definitions
 export const DOC_EXTENSIONS = [
+    ".pdf",
+    ".txt",
+    ".csv",
     ".json",
     ".md",
     ".xml",
@@ -24,6 +31,8 @@ export const DOC_EXTENSIONS = [
     ".xlsx",
     ".xls",
     ".doc",
+    ".heic",
+    ".heif",
 ];
 
 export const IMAGE_EXTENSIONS = [
@@ -31,11 +40,9 @@ export const IMAGE_EXTENSIONS = [
     ".jpeg",
     ".png",
     ".webp",
-    ".heic",
-    ".heif",
-    ".pdf",
-    ".txt",
-    ".csv",
+    ".gif",
+    ".bmp",
+    ".tiff",
 ];
 
 export const VIDEO_EXTENSIONS = [
@@ -59,46 +66,19 @@ export const AUDIO_EXTENSIONS = [
     ".flac",
 ];
 
+export const RAG_MIME_TYPES = RAG_EXTENSIONS.map((ext) => mime.lookup(ext));
 export const DOC_MIME_TYPES = DOC_EXTENSIONS.map((ext) => mime.lookup(ext));
+export const IMAGE_MIME_TYPES = IMAGE_EXTENSIONS.map((ext) => mime.lookup(ext));
+export const VIDEO_MIME_TYPES = VIDEO_EXTENSIONS.map((ext) => mime.lookup(ext));
+VIDEO_MIME_TYPES.push("video/youtube");
+export const AUDIO_MIME_TYPES = AUDIO_EXTENSIONS.map((ext) => mime.lookup(ext));
 
 export const MEDIA_MIME_TYPES = [
-    // Images
-    "image/png",
-    "image/jpeg",
-    "image/webp",
-    "image/heic",
-    "image/heif",
-    // Videos
-    "video/mp4",
-    "video/mpeg",
-    "video/mov",
-    "video/quicktime",
-    "video/avi",
-    "video/x-flv",
-    "video/mpg",
-    "video/webm",
-    "video/wmv",
-    "video/3gpp",
-    "video/m4v",
-    "video/youtube",
-    // Audio
-    "audio/wav",
-    "audio/mpeg",
-    "audio/aac",
-    "audio/ogg",
-    "audio/flac",
-    "audio/m4a",
-    "audio/mp3",
-    "audio/mp4",
-    "audio/x-m4a", // Common browser MIME type for .m4a files
-    // PDF
-    "application/pdf",
-    // Text
-    "text/plain",
-    "text/csv",
+    ...VIDEO_MIME_TYPES,
+    ...AUDIO_MIME_TYPES,
 ];
 
-export const ACCEPTED_FILE_TYPES = [...DOC_MIME_TYPES, ...MEDIA_MIME_TYPES];
+export const ACCEPTED_FILE_TYPES = [...DOC_MIME_TYPES, ...IMAGE_MIME_TYPES, ...VIDEO_MIME_TYPES, ...AUDIO_MIME_TYPES];
 
 // File type utilities
 export function getExtension(url) {
@@ -106,6 +86,13 @@ export function getExtension(url) {
     const filename = url.split("?")[0].split("#")[0];
     const lastDotIndex = filename.lastIndexOf(".");
     return lastDotIndex > 0 ? filename.slice(lastDotIndex).toLowerCase() : "";
+}
+
+export function isRagFileUrl(url) {
+    const urlExt = getExtension(url);
+    console.log("urlExt", urlExt);
+    console.log("RAG_EXTENSIONS", RAG_EXTENSIONS);
+    return RAG_EXTENSIONS.includes(urlExt);
 }
 
 export function isDocumentUrl(url) {
@@ -142,6 +129,10 @@ export function isAudioUrl(url) {
 
 export function isMediaUrl(url) {
     return isImageUrl(url) || isVideoUrl(url) || isAudioUrl(url);
+}
+
+export function isSupportedFileUrl(url) {
+    return isDocumentUrl(url) || isMediaUrl(url);
 }
 
 export function getYoutubeVideoId(url) {

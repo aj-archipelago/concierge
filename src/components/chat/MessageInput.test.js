@@ -125,8 +125,8 @@ jest.mock("../../graphql", () => ({
 // Mock the mediaUtils
 jest.mock("../../utils/mediaUtils", () => ({
     getFilename: jest.fn(),
-    isDocumentUrl: jest.fn(),
-    isMediaUrl: jest.fn(),
+    isRagFileUrl: jest.fn(),
+    isSupportedFileUrl: jest.fn(),
     ACCEPTED_FILE_TYPES: ["image/png", "image/jpeg", "image/gif"],
 }));
 
@@ -901,7 +901,7 @@ describe("MessageInput", () => {
         it("should handle document URLs", async () => {
             jest.spyOn(
                 require("../../utils/mediaUtils"),
-                "isDocumentUrl",
+                "isRagFileUrl",
             ).mockImplementation(() => true);
             const mockQuery = jest.fn().mockResolvedValue({});
             const mockApolloClient = { query: mockQuery };
@@ -943,11 +943,11 @@ describe("MessageInput", () => {
         it("should handle media URLs by adding to urlsData and enabling send", async () => {
             jest.spyOn(
                 require("../../utils/mediaUtils"),
-                "isMediaUrl",
+                "isSupportedFileUrl",
             ).mockImplementation(() => true);
             jest.spyOn(
                 require("../../utils/mediaUtils"),
-                "isDocumentUrl",
+                "isRagFileUrl",
             ).mockImplementation(() => false); // Ensure it's not treated as doc
 
             const setUrlsDataMock = jest.fn();
