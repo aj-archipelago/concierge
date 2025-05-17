@@ -13,8 +13,7 @@ async function getXXHashInstance() {
 }
 
 // RAG File Type Extensions
-export const RAG_EXTENSIONS = [
-];
+export const RAG_EXTENSIONS = [];
 
 // File type definitions
 export const DOC_EXTENSIONS = [
@@ -73,12 +72,14 @@ export const VIDEO_MIME_TYPES = VIDEO_EXTENSIONS.map((ext) => mime.lookup(ext));
 VIDEO_MIME_TYPES.push("video/youtube");
 export const AUDIO_MIME_TYPES = AUDIO_EXTENSIONS.map((ext) => mime.lookup(ext));
 
-export const MEDIA_MIME_TYPES = [
+export const MEDIA_MIME_TYPES = [...VIDEO_MIME_TYPES, ...AUDIO_MIME_TYPES];
+
+export const ACCEPTED_FILE_TYPES = [
+    ...DOC_MIME_TYPES,
+    ...IMAGE_MIME_TYPES,
     ...VIDEO_MIME_TYPES,
     ...AUDIO_MIME_TYPES,
 ];
-
-export const ACCEPTED_FILE_TYPES = [...DOC_MIME_TYPES, ...IMAGE_MIME_TYPES, ...VIDEO_MIME_TYPES, ...AUDIO_MIME_TYPES];
 
 // File type utilities
 export function getExtension(url) {

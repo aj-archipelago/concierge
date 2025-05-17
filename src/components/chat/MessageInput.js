@@ -200,13 +200,16 @@ function MessageInput({
             if (isSupportedFileUrl(url)) {
                 const currentUrlsData = urlsData;
                 const isDuplicate = currentUrlsData.some(
-                    (existingUrl) => existingUrl.hash === urlData.hash
+                    (existingUrl) => existingUrl.hash === urlData.hash,
                 );
                 if (!isDuplicate) {
                     console.log("Adding new URL data:", urlData);
                     setUrlsData((prevUrlsData) => [...prevUrlsData, urlData]);
                 } else {
-                    console.log("Skipping duplicate URL with hash:", urlData.hash);
+                    console.log(
+                        "Skipping duplicate URL with hash:",
+                        urlData.hash,
+                    );
                 }
             } else {
                 console.log("URL is not supported:", url);
