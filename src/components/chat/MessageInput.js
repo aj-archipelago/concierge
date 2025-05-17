@@ -57,7 +57,7 @@ function MessageInput({
     const client = useApolloClient();
     const [isUploadingMedia, setIsUploadingMedia] = useState(false);
     const addDocument = useAddDocument();
-    const MAX_INPUT_LENGTH = 50000;
+    const MAX_INPUT_LENGTH = 100000;
     const [lengthLimitAlert, setLengthLimitAlert] = useState({
         show: false,
         actualLength: 0,
