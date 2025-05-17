@@ -15,6 +15,12 @@ const getMediaHelperUrl = async (serverUrl) => {
     return config.endpoints.mediaHelper(serverUrl);
 };
 
+// Get IMAGE_EXTENSIONS from mediaUtils
+const getImageExtensions = async () => {
+    const { IMAGE_EXTENSIONS } = await import("./mediaUtils.js");
+    return IMAGE_EXTENSIONS;
+};
+
 // Skip image processing if no media helper is configured
 const isMediaHelperConfigured = async () => {
     try {
@@ -71,23 +77,22 @@ function getStableImageId(src, node = null) {
     return stableId;
 }
 
-// Common image extensions that we want to process
-const IMAGE_EXTENSIONS = [".jpg", ".jpeg", ".png", ".webp", ".gif"];
-
 /**
  * Simple check if a URL points to an image based on file extension
  * @param {string} url - URL to check
  * @returns {boolean} - Whether the URL likely points to an image
  */
-function isImageUrl(url) {
+async function isImageUrl(url) {
     try {
+        const extensions = await getImageExtensions();
         const urlObj = new URL(url);
         const pathname = urlObj.pathname.toLowerCase();
-        return IMAGE_EXTENSIONS.some((ext) => pathname.endsWith(ext));
+        return extensions.some((ext) => pathname.endsWith(ext));
     } catch (error) {
         // If URL parsing fails, try a simple string check
+        const extensions = await getImageExtensions();
         const urlLower = url.toLowerCase();
-        return IMAGE_EXTENSIONS.some((ext) => urlLower.endsWith(ext));
+        return extensions.some((ext) => urlLower.endsWith(ext));
     }
 }
 
@@ -234,7 +239,6 @@ export {
     imageNodeIds,
     imageUrlToId,
     tempToPermanentUrlMap,
-    IMAGE_EXTENSIONS,
     isImageUrl,
     processImageUrls,
 };
