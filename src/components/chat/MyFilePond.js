@@ -387,6 +387,10 @@ function MyFilePond({
                                         type: "video/youtube",
                                         filename: getFilename(fileUrl),
                                     };
+                                    // Explicitly snap progress to 100% so the FilePond UI shows the check-mark
+                                    if (typeof progress === "function") {
+                                        progress(true, 100, 100);
+                                    }
                                     load(response);
                                     return;
                                 }
@@ -406,6 +410,10 @@ function MyFilePond({
                                                 type,
                                             }),
                                         );
+                                        // Ensure progress shows complete before marking load done
+                                        if (typeof progress === "function") {
+                                            progress(true, 100, 100);
+                                        }
                                         addUrl(response.data);
                                         setIsUploadingMedia(false);
                                         return;
@@ -449,7 +457,10 @@ function MyFilePond({
 
                                 const isRemote = !(file instanceof File);
                                 if (isRemote) {
+                                    // Remote files have already been fetched, so instantly mark progress complete
+                                    progress(true, 100, 100);
                                     load(file.source);
+                                    setIsUploadingMedia(false);
                                     return;
                                 }
 
