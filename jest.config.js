@@ -133,6 +133,7 @@ const projects = process.env.CI
           },
       ];
 
+// eslint-disable-next-line import/no-anonymous-default-export
 export default {
     watchPathIgnorePatterns: ["\\.next"],
     modulePathIgnorePatterns: ["<rootDir>/.next", "<rootDir>/.next/standalone"],
