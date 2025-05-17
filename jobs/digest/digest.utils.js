@@ -1,6 +1,7 @@
+import { QUERIES, getClient } from "../graphql.mjs";
+
 const APPROXIMATE_DURATION_SECONDS = 60;
 const PROGRESS_UPDATE_INTERVAL = 3000;
-import { QUERIES, getClient } from "../graphql.mjs";
 
 const generateDigestBlockContent = async (
     block,
