@@ -1,6 +1,6 @@
 import xxhash from "xxhash-wasm";
 import mime from "mime-types";
-import { isYoutubeUrl } from "./urlUtils";
+import { isYoutubeUrl } from "./urlUtils.js";
 
 let xxhashInstance = null;
 
@@ -26,10 +26,13 @@ export const DOC_EXTENSIONS = [
     ".js",
     ".html",
     ".css",
+    ".doc",
     ".docx",
     ".xlsx",
     ".xls",
-    ".doc",
+    ".ppt",
+    ".pptx",
+    ".pptm",
     ".heic",
     ".heif",
 ];

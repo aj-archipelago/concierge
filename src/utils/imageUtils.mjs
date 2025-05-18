@@ -150,7 +150,7 @@ async function processImageUrls(message, serverUrl) {
     const preloadPromises = [];
 
     for (const { url, description, fullMatch } of matches) {
-        if (isImageUrl(url)) {
+        if (await isImageUrl(url)) {
             try {
                 // Create URL object from base media helper URL
                 const baseUrl = new URL(await getMediaHelperUrl(serverUrl));
