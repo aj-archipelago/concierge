@@ -36,26 +36,10 @@ const digestSchema = new mongoose.Schema(
                     type: Date,
                     required: false,
                 },
-                state: {
-                    jobId: {
-                        type: String,
-                        required: false,
-                    },
-                    taskId: {
-                        type: mongoose.Schema.Types.ObjectId,
-                        ref: "Task",
-                        required: false,
-                    },
-                    status: {
-                        type: String,
-                        required: false,
-                        enum: Object.values(DigestGenerationStatus),
-                        default: DigestGenerationStatus.PENDING,
-                    },
-                    error: {
-                        type: String,
-                        required: false,
-                    },
+                taskId: {
+                    type: mongoose.Schema.Types.ObjectId,
+                    ref: "Task",
+                    required: false,
                 },
             },
         ],

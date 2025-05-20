@@ -4,27 +4,25 @@ import {
     generateDigestGreeting,
 } from "./digest/digest.utils.js";
 import Task from "../app/api/models/task.mjs";
+import Digest from "../app/api/models/digest.mjs";
+import User from "../app/api/models/user.mjs";
 
 const { DIGEST_REBUILD_INTERVAL_HOURS = 4, ACTIVE_USER_PERIOD_DAYS = 7 } =
     process.env;
 
 async function buildDigestForUser(user, logger, job, force = false, taskId) {
     const owner = user._id;
-    const Digest = (await import("../app/api/models/digest.mjs")).default;
-    const DigestGenerationStatus = (
-        await import("../app/api/models/digest.mjs")
-    ).DigestGenerationStatus;
 
     let digest = await Digest.findOne({
         owner,
     });
 
     if (!digest) {
-        logger.log("user does not have digest", owner);
+        logger.log("[Digest] User does not have digest", owner);
         return;
     }
 
-    logger.log("building digest", owner);
+    logger.log("[Digest] Building digest for user", owner);
     // update states of blocks that need to be rebuilt
     const existingBlocks = (
         await Digest.findOne({
@@ -38,13 +36,10 @@ async function buildDigestForUser(user, logger, job, force = false, taskId) {
             !b.content ||
             dayjs().diff(dayjs(b.updatedAt), "hours") >
                 DIGEST_REBUILD_INTERVAL_HOURS ||
-            force ||
-            b.state.status === DigestGenerationStatus.PENDING ||
-            b.state.status === DigestGenerationStatus.IN_PROGRESS;
+            force;
 
         if (shouldBeRebuilt) {
-            b.state.status = DigestGenerationStatus.IN_PROGRESS;
-            b.state.jobId = job?.id;
+            b.taskId = taskId;
         }
 
         return b;
@@ -66,7 +61,7 @@ async function buildDigestForUser(user, logger, job, force = false, taskId) {
             },
         );
     } catch (e) {
-        logger.log(`error updating block state ${e.message}`, owner);
+        logger.log(`[Digest] Error updating block state ${e.message}`, owner);
     }
 
     let greeting = null; // Variable to store the greeting
@@ -77,9 +72,11 @@ async function buildDigestForUser(user, logger, job, force = false, taskId) {
         const daysSinceLastUpdate = dayjs().diff(dayjs(lastUpdated), "days");
         let changed = false;
 
-        if (block.state.status === DigestGenerationStatus.IN_PROGRESS) {
+        console.log("taskIds", block.taskId, taskId);
+
+        if (block.taskId?.toString() === taskId?.toString()) {
             logger.log(
-                `regenerating content. Status: ${block.state.status}. Last updated: ${lastUpdated}. Has Content: ${!!block.content}. Interval: ${daysSinceLastUpdate} days.`,
+                `[Digest] Regenerating content. Last updated: ${lastUpdated}. Has Content: ${!!block.content}. Interval: ${daysSinceLastUpdate} days.`,
                 owner,
                 block._id,
             );
@@ -100,9 +97,6 @@ async function buildDigestForUser(user, logger, job, force = false, taskId) {
                 );
                 block.content = content;
                 block.updatedAt = new Date();
-                block.state.status = DigestGenerationStatus.SUCCESS;
-                block.state.error = null;
-                block.state.jobId = null;
                 changed = true;
 
                 // Generate greeting if the first block is generated
@@ -115,13 +109,12 @@ async function buildDigestForUser(user, logger, job, force = false, taskId) {
                 }
             } catch (e) {
                 logger.log(
-                    `error generating content: ${e.message}`,
+                    `[Digest] Error generating content: ${e.message}`,
                     owner,
                     block._id,
                 );
-                block.state.status = DigestGenerationStatus.FAILURE;
-                block.state.error = e.message;
-                block.content = null;
+                block.taskId = null;
+                block.content = `Error generating content: ${e.message}`;
                 changed = true;
             }
         }
@@ -142,7 +135,7 @@ async function buildDigestForUser(user, logger, job, force = false, taskId) {
 
     if (blocksChanged) {
         // Update the entire blocks array in one call
-        logger.log("updating blocks in database", owner);
+        logger.log("[Digest] Updating blocks in database", owner);
         try {
             digest = await Digest.findOneAndUpdate(
                 { owner },
@@ -150,9 +143,9 @@ async function buildDigestForUser(user, logger, job, force = false, taskId) {
                 { upsert: true, new: true },
             );
 
-            logger.log("updated blocks in database", owner);
+            logger.log("[Digest] Updated blocks in database", owner);
         } catch (e) {
-            logger.log("error updating blocks in database", owner, e);
+            logger.log("[Digest] Error updating blocks in database", owner, e);
         }
     }
 
@@ -164,9 +157,9 @@ async function buildDigestForUser(user, logger, job, force = false, taskId) {
                 { $set: { greeting } },
                 { upsert: true, new: true },
             );
-            logger.log("updated greeting in database", owner);
+            logger.log("[Digest] Updated greeting in database", owner);
         } catch (e) {
-            logger.log("error updating greeting in database", owner, e);
+            logger.log("[Digest] Error updating greeting in database", owner, e);
         }
     }
 
@@ -205,14 +198,75 @@ async function buildDigestForSingleUser(userId, logger, job, taskId) {
 
     const user = await User.findById(userId);
     if (!user) {
-        logger.log("user not found", userId);
+        logger.log("[Digest] User not found", userId);
         return;
     }
 
-    await buildDigestForUser(user, logger, job, false, taskId);
+    await buildDigestForUser(user, logger, job, true, taskId);
 }
 
-export {
-    buildDigestsForAllUsers,
-    buildDigestForSingleUser,
-};
+async function buildDigestBlock(blockId, userId, logger, taskId = null) {
+    const digest = await Digest.findOne({ owner: userId });
+    const block = digest.blocks.find((b) => b._id.toString() === blockId);
+    const user = await User.findById(userId);
+
+    if (!digest || !block || !user) {
+        logger.log("[Digest] Block or user not found", userId, blockId);
+        return;
+    }
+
+    try {
+        const content = await generateDigestBlockContent(
+            block,
+            user,
+            logger,
+            async (progress) => {
+                if (taskId) {
+                    await Task.findOneAndUpdate(
+                        { _id: taskId },
+                        { $set: { progress: progress / 100 } },
+                    );
+                }
+            },
+        );
+
+        console.log("content generated");
+        
+        block.content = content;
+        block.updatedAt = new Date();
+
+        const newBlocks = digest.blocks.map((b) => {
+            if (b._id.toString() === block._id.toString()) {
+                return block;
+            }
+            return b;
+        });
+
+        await Digest.findOneAndUpdate(
+            { owner: userId },
+            { $set: { blocks: newBlocks } },
+            { upsert: true, new: true },
+        );
+
+        return {
+            block,
+            success: true,
+        };
+    } catch (e) {
+        logger.log(
+            `[Digest] Error generating content: ${e.message}`,
+            user?._id,
+            block?._id,
+        );
+        block.taskId = null;
+        block.content = `Error generating content: ${e.message}`;
+        
+        return {
+            block,
+            success: false,
+            error: e.message
+        };
+    }
+}
+
+export { buildDigestsForAllUsers, buildDigestForSingleUser, buildDigestBlock };

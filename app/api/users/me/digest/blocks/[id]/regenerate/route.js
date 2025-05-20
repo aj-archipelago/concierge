@@ -19,9 +19,9 @@ export async function POST(req, { params }) {
             { status: 404 },
         );
     }
-   
-    const { taskId } = await enqueueBuildDigest(user._id);
-    
+
+    const { taskId } = await enqueueBuildDigest(user._id, id);
+
     const block = digest.blocks.find((b) => b._id.toString() === id.toString());
 
     if (!block) {
@@ -31,8 +31,8 @@ export async function POST(req, { params }) {
         );
     }
 
-    block.state.status = DigestGenerationStatus.PENDING;
-    block.state.taskId = taskId;
+    block.taskId = taskId;
+
     digest = await Digest.updateOne(
         {
             owner: user._id,
@@ -46,7 +46,6 @@ export async function POST(req, { params }) {
             new: true,
         },
     );
-
 
     return NextResponse.json(digest);
 }

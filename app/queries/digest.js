@@ -9,17 +9,6 @@ export function useCurrentUserDigest() {
             return data;
         },
         staleTime: Infinity,
-        refetchInterval: (query) => {
-            const data = query?.state?.data;
-
-            const isAnyBlockPending = data?.blocks?.some(
-                (block) =>
-                    block.state?.status === "pending" ||
-                    block.state?.status === "in_progress",
-            );
-
-            return isAnyBlockPending ? 5000 : false;
-        },
     });
 
     return query;
@@ -75,21 +64,7 @@ export function useRegenerateDigestBlock() {
             );
             return response.data;
         },
-        onMutate: async ({ blockId }) => {
-            queryClient.setQueryData(["currentUserDigest"], (oldData) => {
-                const block = oldData.blocks.find(
-                    (b) => b._id?.toString() === blockId?.toString(),
-                );
-
-                if (block) {
-                    block.state.status = "pending";
-                }
-
-                return {
-                    ...oldData,
-                };
-            });
-        },
+        onMutate: async ({ blockId }) => {},
         onSettled: () => {
             queryClient.invalidateQueries({ queryKey: ["currentUserDigest"] });
             queryClient.invalidateQueries({ queryKey: ["tasks"] });

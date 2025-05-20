@@ -12,12 +12,13 @@ export async function getJob(jobId) {
     return await digestBuild.getJob(jobId);
 }
 
-export async function enqueueBuildDigest(userId) {
+export async function enqueueBuildDigest(userId, blockId) {
     return await createBackgroundTask({
         userId,
         type: "build-digest",
         metadata: {
             userId,
+            blockId,
         },
         timeout: 60 * 60 * 1000, // 1 hour timeout
     });

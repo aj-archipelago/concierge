@@ -1,17 +1,18 @@
 "use client";
 
-import { RefreshCw, MessageSquare } from "lucide-react";
-import ReactTimeAgo from "react-time-ago";
-import { convertMessageToMarkdown } from "../../../src/components/chat/ChatMessage";
-import { useRegenerateDigestBlock } from "../../queries/digest";
-import classNames from "../../utils/class-names";
-import { useTranslation } from "react-i18next";
-import Loader from "../../components/loader";
-import { useContext } from "react";
-import { LanguageContext } from "../../../src/contexts/LanguageProvider";
-import { Progress } from "../../../@/components/ui/progress";
-import { useAddChat } from "../../queries/chats";
+import { MessageSquare, RefreshCw } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { useContext } from "react";
+import { useTranslation } from "react-i18next";
+import ReactTimeAgo from "react-time-ago";
+import { Progress } from "../../../@/components/ui/progress";
+import { convertMessageToMarkdown } from "../../../src/components/chat/ChatMessage";
+import { LanguageContext } from "../../../src/contexts/LanguageProvider";
+import Loader from "../../components/loader";
+import { useAddChat } from "../../queries/chats";
+import { useRegenerateDigestBlock } from "../../queries/digest";
+import { useTask } from "../../queries/notifications";
+import classNames from "../../utils/class-names";
 
 export default function DigestBlock({ block, contentClassName }) {
     const regenerateDigestBlock = useRegenerateDigestBlock();
@@ -20,14 +21,17 @@ export default function DigestBlock({ block, contentClassName }) {
     const { t } = useTranslation();
     const { language } = useContext(LanguageContext);
 
+    // Add task query if block has a taskId
+    const { data: task } = useTask(block?.taskId);
+
     if (!block) {
         return null;
     }
 
     const isRebuilding =
         regenerateDigestBlock.isPending ||
-        block?.state?.status === "pending" ||
-        block?.state?.status === "in_progress";
+        task?.status === "pending" ||
+        task?.status === "in_progress";
 
     const handleOpenInChat = async () => {
         try {
@@ -78,32 +82,39 @@ export default function DigestBlock({ block, contentClassName }) {
                             <div
                                 className={classNames(
                                     "text-xs flex items-center gap-2 rounded-full px-3 py-2 border bg-gray-50 whitespace-nowrap",
-                                    !block.state?.progress &&
+                                    task?.status !== "pending" &&
+                                        task?.status !== "in_progress" &&
                                         "cursor-pointer hover:bg-gray-100",
                                 )}
                                 onClick={() => {
-                                    if (!block.state?.progress) {
+                                    if (
+                                        task?.status !== "pending" &&
+                                        task?.status !== "in_progress"
+                                    ) {
                                         regenerateDigestBlock.mutate({
                                             blockId: block._id,
                                         });
                                     }
                                 }}
                             >
-                                {block.updatedAt && !block.state?.progress && (
-                                    <RefreshCw
-                                        className={classNames(
-                                            "text-gray-600 hover:text-gray-800 shrink-0",
-                                            isRebuilding ? "animate-spin" : "",
-                                            "inline-block",
-                                        )}
-                                        size={14}
-                                    />
-                                )}
+                                {block.updatedAt &&
+                                    (!isRebuilding || !task?.progress) && (
+                                        <RefreshCw
+                                            className={classNames(
+                                                "text-gray-600 hover:text-gray-800 shrink-0",
+                                                isRebuilding
+                                                    ? "animate-spin"
+                                                    : "",
+                                                "inline-block",
+                                            )}
+                                            size={14}
+                                        />
+                                    )}
                                 <div className="flex items-center justify-center gap-1 min-w-0">
                                     {isRebuilding ? (
-                                        block.state.progress ? (
+                                        task?.progress ? (
                                             <Progress
-                                                value={block.state.progress}
+                                                value={task.progress * 100}
                                                 className="w-24"
                                             />
                                         ) : (
@@ -137,10 +148,10 @@ export default function DigestBlock({ block, contentClassName }) {
 
 function BlockContent({ block }) {
     const { t } = useTranslation();
+    const { data: task } = useTask(block?.taskId);
 
     if (
-        (block.state?.status === "pending" ||
-            block.state?.status === "in_progress") &&
+        (task?.status === "pending" || task?.status === "in_progress") &&
         !block.content
     ) {
         return (
@@ -151,10 +162,11 @@ function BlockContent({ block }) {
         );
     }
 
-    if (block.state?.status === "failure") {
+    if (task?.status === "failed") {
         return (
             <div className="text-red-500">
-                {t("Error building digest block:")} {block.state.error}
+                {t("Error building digest block:")}{" "}
+                {task.statusText || task.error}
             </div>
         );
     }

@@ -1,7 +1,5 @@
 import { BaseTask } from "./base-task.mjs";
-import {
-    buildDigestForSingleUser,
-} from "../digest-build.js";
+import { buildDigestBlock, buildDigestForSingleUser } from "../digest-build.js";
 import Task from "../../app/api/models/task.mjs";
 
 class BuildDigestTask extends BaseTask {
@@ -17,8 +15,6 @@ class BuildDigestTask extends BaseTask {
         const { userId, taskId } = job.data;
         const { blockId } = job.data.metadata;
 
-        console.log("build digest task", job.data, job.data.metadata);
-
         if (!userId) {
             throw new Error("User ID is required in metadata");
         }
@@ -31,7 +27,8 @@ class BuildDigestTask extends BaseTask {
         };
 
         // Start the digest build process
-        await buildDigestForSingleUser(userId, logger, job, taskId);
+        // await buildDigestForSingleUser(userId, logger, job, taskId);
+        await buildDigestBlock(blockId, userId, logger, taskId);
 
         return; // after this is done, no need to track anything else
     }

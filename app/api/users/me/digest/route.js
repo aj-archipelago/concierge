@@ -54,16 +54,6 @@ export async function GET(req, { params }) {
 
     digest = digest.toJSON();
 
-    for (const block of digest.blocks) {
-        if (block.state.status === DigestGenerationStatus.IN_PROGRESS) {
-            const jobId = block.state.jobId;
-
-            // get progress update status from job
-            const job = await getJob(jobId);
-            block.state.progress = job?.progress;
-        }
-    }
-
     return NextResponse.json(digest);
 }
 
@@ -77,29 +67,27 @@ export async function PATCH(req, { params }) {
 
     const existingBlocks = digest.blocks;
 
-    const { taskId } = await enqueueBuildDigest(user._id);
 
-    const newBlocks = blocks.map((block) => {
+    const newBlocks = [];
+    for (const block of blocks) {
         const existingBlock = existingBlocks.find(
             (b) => b._id?.toString() === block._id?.toString(),
         );
 
         if (existingBlock && existingBlock.prompt !== block.prompt) {
-            existingBlock.content = null;
+            console.log("regenerating block", block._id);
+            const { taskId } = await enqueueBuildDigest(user._id, block._id);
+            existingBlock.taskId = taskId;
             existingBlock.updatedAt = null;
-            block.state = {
-                status: DigestGenerationStatus.PENDING,
-                taskId,
-            };
+            existingBlock.content = null;
         }
-
         const newBlock = {
             ...existingBlock?.toJSON(),
             ...block,
         };
 
-        return newBlock;
-    });
+        newBlocks.push(newBlock);
+    }
 
     digest = await Digest.findOneAndUpdate(
         {
@@ -117,3 +105,4 @@ export async function PATCH(req, { params }) {
 
     return NextResponse.json(digest);
 }
+

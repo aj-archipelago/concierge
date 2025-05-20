@@ -2,9 +2,7 @@ import { Queue, Worker } from "bullmq";
 import "dotenv/config";
 import Redis from "ioredis";
 import cortexRequestWorker from "./cortex-request-worker.js";
-import {
-    buildDigestsForAllUsers
-} from "./digest-build.js";
+import { buildDigestsForAllUsers } from "./digest-build.js";
 import { Logger } from "./logger.js";
 
 const queueName = "digest-build";
@@ -221,4 +219,3 @@ async function startWorkers() {
 // Start the workers
 startWorkers();
 export { ensureDbConnection, startWorkers as run };
-
