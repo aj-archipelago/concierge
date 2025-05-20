@@ -1,20 +1,20 @@
 "use client";
 
-import { RefreshCw, MessageSquare } from "lucide-react";
-import ReactTimeAgo from "react-time-ago";
-import { convertMessageToMarkdown } from "../../../src/components/chat/ChatMessage";
-import { useRegenerateDigestBlock } from "../../queries/digest";
-import classNames from "../../utils/class-names";
-import { useTranslation } from "react-i18next";
-import Loader from "../../components/loader";
-import { useContext } from "react";
-import { LanguageContext } from "../../../src/contexts/LanguageProvider";
-import { Progress } from "../../../@/components/ui/progress";
-import { useAddChat } from "../../queries/chats";
+import { MessageSquare, RefreshCw } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { useContext } from "react";
+import { useTranslation } from "react-i18next";
+import ReactTimeAgo from "react-time-ago";
+import { Progress } from "../../../@/components/ui/progress";
+import { convertMessageToMarkdown } from "../../../src/components/chat/ChatMessage";
+import { LanguageContext } from "../../../src/contexts/LanguageProvider";
+import Loader from "../../components/loader";
+import { useAddChat } from "../../queries/chats";
+import { useRunTask } from "../../queries/notifications";
+import classNames from "../../utils/class-names";
 
 export default function DigestBlock({ block, contentClassName }) {
-    const regenerateDigestBlock = useRegenerateDigestBlock();
+    const runTask = useRunTask();
     const addChat = useAddChat();
     const router = useRouter();
     const { t } = useTranslation();
@@ -25,7 +25,7 @@ export default function DigestBlock({ block, contentClassName }) {
     }
 
     const isRebuilding =
-        regenerateDigestBlock.isPending ||
+        runTask.isPending ||
         block?.state?.status === "pending" ||
         block?.state?.status === "in_progress";
 
@@ -83,7 +83,8 @@ export default function DigestBlock({ block, contentClassName }) {
                                 )}
                                 onClick={() => {
                                     if (!block.state?.progress) {
-                                        regenerateDigestBlock.mutate({
+                                        runTask.mutate({
+                                            type: "build-digest",
                                             blockId: block._id,
                                         });
                                     }

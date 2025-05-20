@@ -3,11 +3,12 @@ import {
     generateDigestBlockContent,
     generateDigestGreeting,
 } from "./digest/digest.utils.js";
+import Task from "../app/api/models/task.mjs";
 
 const { DIGEST_REBUILD_INTERVAL_HOURS = 4, ACTIVE_USER_PERIOD_DAYS = 7 } =
     process.env;
 
-async function buildDigestForUser(user, logger, job, force = false) {
+async function buildDigestForUser(user, logger, job, force = false, taskId) {
     const owner = user._id;
     const Digest = (await import("../app/api/models/digest.mjs")).default;
     const DigestGenerationStatus = (
@@ -88,13 +89,15 @@ async function buildDigestForUser(user, logger, job, force = false) {
                     block,
                     user,
                     logger,
-                    (progress) => {
-                        if (job) {
-                            job.updateProgress(progress);
+                    async (progress) => {
+                        if (taskId) {
+                            await Task.findOneAndUpdate(
+                                { _id: taskId },
+                                { $set: { progress: progress / 100 } },
+                            );
                         }
                     },
                 );
-                logger.log("generated content", owner, block._id);
                 block.content = content;
                 block.updatedAt = new Date();
                 block.state.status = DigestGenerationStatus.SUCCESS;
@@ -197,7 +200,7 @@ async function buildDigestsForAllUsers(logger) {
     }
 }
 
-async function buildDigestForSingleUser(userId, logger, job) {
+async function buildDigestForSingleUser(userId, logger, job, taskId) {
     const User = (await import("../app/api/models/user.mjs")).default;
 
     const user = await User.findById(userId);
@@ -206,7 +209,45 @@ async function buildDigestForSingleUser(userId, logger, job) {
         return;
     }
 
-    await buildDigestForUser(user, logger, job);
+    await buildDigestForUser(user, logger, job, false, taskId);
 }
 
-export { buildDigestsForAllUsers, buildDigestForSingleUser };
+async function markBlockAsInProgress(userId, blockId, jobId = null) {
+    const Digest = (await import("../app/api/models/digest.mjs")).default;
+    const DigestGenerationStatus = (
+        await import("../app/api/models/digest.mjs")
+    ).DigestGenerationStatus;
+
+    try {
+        const digest = await Digest.findOneAndUpdate(
+            {
+                owner: userId,
+                "blocks._id": blockId,
+            },
+            {
+                $set: {
+                    "blocks.$.state.status": DigestGenerationStatus.IN_PROGRESS,
+                    "blocks.$.state.jobId": jobId,
+                    "blocks.$.state.error": null,
+                },
+            },
+            { new: true },
+        );
+
+        if (!digest) {
+            throw new Error("Digest or block not found");
+        }
+
+        return digest;
+    } catch (error) {
+        throw new Error(
+            `Failed to mark block as in progress: ${error.message}`,
+        );
+    }
+}
+
+export {
+    buildDigestsForAllUsers,
+    buildDigestForSingleUser,
+    markBlockAsInProgress,
+};

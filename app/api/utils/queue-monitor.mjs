@@ -198,11 +198,10 @@ class QueueMonitor {
         }
     }
 
-    async startMonitoring(interval = 2000) {
+    async startMonitoring(interval = 10000) {
         setInterval(async () => {
             const gotLock = await this.acquireLock();
             if (gotLock) {
-                console.log("Starting queue monitoring (singleton mode)...");
                 await this.checkQueues();
                 // The lock will expire automatically after lockTTL
             } else {
