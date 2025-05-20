@@ -212,42 +212,49 @@ async function buildDigestForSingleUser(userId, logger, job, taskId) {
     await buildDigestForUser(user, logger, job, false, taskId);
 }
 
-async function markBlockAsInProgress(userId, blockId, jobId = null) {
+async function markBlockAsPending(userId, blockId) {
     const Digest = (await import("../app/api/models/digest.mjs")).default;
     const DigestGenerationStatus = (
         await import("../app/api/models/digest.mjs")
     ).DigestGenerationStatus;
 
     try {
-        const digest = await Digest.findOneAndUpdate(
+        let digest = await Digest.findOne({
+            owner: userId,
+        });
+
+        if (!digest) {
+            throw new Error("Digest not found");
+        }
+
+        const block = digest.blocks.find(
+            (b) => b._id.toString() === blockId.toString(),
+        );
+        if (!block) {
+            throw new Error("Block not found");
+        }
+
+        block.state.status = DigestGenerationStatus.PENDING;
+
+        digest = await Digest.updateOne(
             {
                 owner: userId,
-                "blocks._id": blockId,
             },
             {
                 $set: {
-                    "blocks.$.state.status": DigestGenerationStatus.IN_PROGRESS,
-                    "blocks.$.state.jobId": jobId,
-                    "blocks.$.state.error": null,
+                    blocks: digest.blocks,
                 },
             },
-            { new: true },
         );
-
-        if (!digest) {
-            throw new Error("Digest or block not found");
-        }
 
         return digest;
     } catch (error) {
-        throw new Error(
-            `Failed to mark block as in progress: ${error.message}`,
-        );
+        throw new Error(`Failed to mark block as pending: ${error.message}`);
     }
 }
 
 export {
     buildDigestsForAllUsers,
     buildDigestForSingleUser,
-    markBlockAsInProgress,
+    markBlockAsPending,
 };

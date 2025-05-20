@@ -62,37 +62,3 @@ export function useUpdateCurrentUserDigest() {
 
     return mutation;
 }
-
-export function useRegenerateDigestBlock() {
-    const queryClient = useQueryClient();
-
-    const mutation = useMutation({
-        mutationFn: async ({ blockId }) => {
-            // insert mutation code
-            const response = await axios.post(
-                `/api/users/me/digest/blocks/${blockId}/regenerate`,
-            );
-            return response.data;
-        },
-        onMutate: async ({ blockId }) => {
-            queryClient.setQueryData(["currentUserDigest"], (oldData) => {
-                const block = oldData.blocks.find(
-                    (b) => b._id?.toString() === blockId?.toString(),
-                );
-
-                if (block) {
-                    block.state.status = "pending";
-                }
-
-                return {
-                    ...oldData,
-                };
-            });
-        },
-        onSettled: () => {
-            queryClient.invalidateQueries({ queryKey: ["currentUserDigest"] });
-        },
-    });
-
-    return mutation;
-}

@@ -1,7 +1,7 @@
 import { BaseTask } from "./base-task.mjs";
 import {
     buildDigestForSingleUser,
-    markBlockAsInProgress,
+    markBlockAsPending,
 } from "../digest-build.js";
 import Task from "../../app/api/models/task.mjs";
 
@@ -18,8 +18,6 @@ class BuildDigestTask extends BaseTask {
         const { userId, taskId } = job.data;
         const { blockId } = job.data.metadata;
 
-        console.log("build digest task", job.data, job.data.metadata);
-
         if (!userId) {
             throw new Error("User ID is required in metadata");
         }
@@ -31,7 +29,7 @@ class BuildDigestTask extends BaseTask {
             },
         };
 
-        await markBlockAsInProgress(userId, blockId, taskId);
+        await markBlockAsPending(userId, blockId);
 
         // Start the digest build process
         await buildDigestForSingleUser(userId, logger, job, taskId);
