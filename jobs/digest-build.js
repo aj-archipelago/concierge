@@ -7,10 +7,10 @@ import Task from "../app/api/models/task.mjs";
 import Digest from "../app/api/models/digest.mjs";
 import User from "../app/api/models/user.mjs";
 
-const { DIGEST_REBUILD_INTERVAL_HOURS = 4, ACTIVE_USER_PERIOD_DAYS = 7 } =
+const { ACTIVE_USER_PERIOD_DAYS = 7 } =
     typeof process.env === "object" ? process.env : {};
 
-async function buildDigestForUser(user, logger, job, force = false, taskId) {
+async function buildDigestForUser(user, logger) {
     const owner = user._id;
 
     let digest = await Digest.findOne({
@@ -22,149 +22,59 @@ async function buildDigestForUser(user, logger, job, force = false, taskId) {
         return;
     }
 
+    logger.log("[Digest] Generate greeting for user", owner);
+
     logger.log("[Digest] Building digest for user", owner);
-    // update states of blocks that need to be rebuilt
-    const existingBlocks = (
-        await Digest.findOne({
-            owner,
-        })
-    ).blocks;
-
-    const newBlocks = existingBlocks.map((b) => {
-        const shouldBeRebuilt =
-            !b.updatedAt ||
-            !b.content ||
-            dayjs().diff(dayjs(b.updatedAt), "hours") >
-                DIGEST_REBUILD_INTERVAL_HOURS ||
-            force;
-
-        if (shouldBeRebuilt) {
-            b.taskId = taskId;
-        }
-
-        return b;
-    });
-
-    try {
-        digest = await Digest.findOneAndUpdate(
-            {
-                owner,
-            },
-            {
-                $set: {
-                    blocks: newBlocks,
-                },
-            },
-            {
-                upsert: true,
-                new: true,
-            },
-        );
-    } catch (e) {
-        logger.log(`[Digest] Error updating block state ${e.message}`, owner);
-    }
-
-    let greeting = null; // Variable to store the greeting
-
     const promises = digest.blocks.map(async (block, i) => {
         const lastUpdated = block.updatedAt;
 
-        const daysSinceLastUpdate = dayjs().diff(dayjs(lastUpdated), "days");
-        let changed = false;
+        logger.log(
+            `[Digest] Regenerating content. Last updated: ${lastUpdated}. Has Content: ${!!block.content}.`,
+            owner,
+            block._id,
+        );
 
-        console.log("taskIds", block.taskId, taskId);
-
-        if (block.taskId?.toString() === taskId?.toString()) {
+        try {
+            const content = await generateDigestBlockContent(
+                block,
+                user,
+                logger,
+                () => {},
+            );
+            block.content = content;
+            block.updatedAt = new Date();
+        } catch (e) {
             logger.log(
-                `[Digest] Regenerating content. Last updated: ${lastUpdated}. Has Content: ${!!block.content}. Interval: ${daysSinceLastUpdate} days.`,
+                `[Digest] Error generating content: ${e.message}`,
                 owner,
                 block._id,
             );
-
-            try {
-                const content = await generateDigestBlockContent(
-                    block,
-                    user,
-                    logger,
-                    async (progress) => {
-                        if (taskId) {
-                            await Task.findOneAndUpdate(
-                                { _id: taskId },
-                                { $set: { progress: progress / 100 } },
-                            );
-                        }
-                    },
-                );
-                block.content = content;
-                block.updatedAt = new Date();
-                changed = true;
-
-                // Generate greeting if the first block is generated
-                if (i === 0) {
-                    greeting = await generateDigestGreeting(
-                        user,
-                        block.content,
-                        logger,
-                    );
-                }
-            } catch (e) {
-                logger.log(
-                    `[Digest] Error generating content: ${e.message}`,
-                    owner,
-                    block._id,
-                );
-                block.taskId = null;
-                block.content = `Error generating content: ${e.message}`;
-                changed = true;
-            }
+            block.taskId = null;
+            block.content = `Error generating content: ${e.message}`;
         }
 
-        return { block, changed, i };
+        return block;
     });
 
-    const results = await Promise.all(promises);
+    const updatedBlocks = await Promise.all(promises);
+    const greeting = await generateDigestGreeting(
+        user,
+        updatedBlocks[0]?.content,
+        logger,
+    );
 
-    let blocksChanged = false;
+    // Update the entire blocks array in one call
+    logger.log("[Digest] Updating greeting and blocks in database", owner);
+    try {
+        digest = await Digest.findOneAndUpdate(
+            { owner },
+            { $set: { blocks: updatedBlocks, greeting } }, // Update the entire blocks array
+            { upsert: true, new: true },
+        );
 
-    for (const { block, changed, i } of results) {
-        if (changed) {
-            digest.blocks[i] = block; // Update the block in the local digest object
-            blocksChanged = true;
-        }
-    }
-
-    if (blocksChanged) {
-        // Update the entire blocks array in one call
-        logger.log("[Digest] Updating blocks in database", owner);
-        try {
-            digest = await Digest.findOneAndUpdate(
-                { owner },
-                { $set: { blocks: digest.blocks } }, // Update the entire blocks array
-                { upsert: true, new: true },
-            );
-
-            logger.log("[Digest] Updated blocks in database", owner);
-        } catch (e) {
-            logger.log("[Digest] Error updating blocks in database", owner, e);
-        }
-    }
-
-    // Update the greeting in the database if it was generated
-    if (greeting) {
-        try {
-            await Digest.findOneAndUpdate(
-                { owner },
-                { $set: { greeting } },
-                { upsert: true, new: true },
-            );
-            logger.log("[Digest] Updated greeting in database", owner);
-        } catch (e) {
-            logger.log(
-                "[Digest] Error updating greeting in database",
-                owner,
-                e,
-            );
-        }
+        logger.log("[Digest] Updated blocks in database", owner);
+    } catch (e) {
+        logger.log("[Digest] Error updating blocks in database", owner, e);
     }
 
     return digest;
@@ -190,23 +100,20 @@ async function buildDigestsForAllUsers(logger) {
         if (users.length === 0) break;
 
         for (const user of users) {
-            await buildDigestForUser(user, logger, null, true);
+            try {
+                await buildDigestForUser(user, logger);
+            } catch (e) {
+                console.error(e);
+                logger.log(
+                    "[Digest] Error building digest for user",
+                    user._id,
+                    e,
+                );
+            }
         }
 
         lastId = users[users.length - 1]._id;
     }
-}
-
-async function buildDigestForSingleUser(userId, logger, job, taskId) {
-    const User = (await import("../app/api/models/user.mjs")).default;
-
-    const user = await User.findById(userId);
-    if (!user) {
-        logger.log("[Digest] User not found", userId);
-        return;
-    }
-
-    await buildDigestForUser(user, logger, job, true, taskId);
 }
 
 async function buildDigestBlock(blockId, userId, logger, taskId = null) {
@@ -233,8 +140,6 @@ async function buildDigestBlock(blockId, userId, logger, taskId = null) {
                 }
             },
         );
-
-        console.log("content generated");
 
         block.content = content;
         block.updatedAt = new Date();
@@ -281,4 +186,4 @@ async function buildDigestBlock(blockId, userId, logger, taskId = null) {
     }
 }
 
-export { buildDigestsForAllUsers, buildDigestForSingleUser, buildDigestBlock };
+export { buildDigestsForAllUsers, buildDigestBlock };
