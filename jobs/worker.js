@@ -34,7 +34,6 @@ const nHourlyRepeat = {
 };
 
 const PERIODIC_BUILD_JOB = "periodic-build";
-const SINGLE_BUILD_JOB = "build-digest";
 
 (async function main() {
     // wait between 10 and 30 seconds to avoid race condition with other workers
@@ -76,9 +75,6 @@ const worker = new Worker(
             if (job.name === PERIODIC_BUILD_JOB) {
                 logger.log("building digests for all users");
                 await buildDigestsForAllUsers(logger, job);
-            } else if (job.name === SINGLE_BUILD_JOB) {
-                logger.log(`building digest for user`, job.data.userId);
-                await buildDigestForSingleUser(job.data.userId, logger, job);
             }
         } finally {
             await closeDatabaseConnection();

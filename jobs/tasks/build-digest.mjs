@@ -29,7 +29,9 @@ class BuildDigestTask extends BaseTask {
             },
         };
 
-        await markBlockAsPending(userId, blockId);
+        if (blockId) {
+            await markBlockAsPending(userId, blockId);
+        }
 
         // Start the digest build process
         await buildDigestForSingleUser(userId, logger, job, taskId);
