@@ -56,6 +56,7 @@ const digestSchema = new mongoose.Schema(
 digestSchema.index({ owner: 1 });
 
 // Create the User model from the schema
-const Digest = mongoose.models.Digest || mongoose.model("Digest", digestSchema);
+const Digest =
+    mongoose.models?.Digest || mongoose.model("Digest", digestSchema);
 
 export default Digest;

@@ -8,7 +8,7 @@ import Digest from "../app/api/models/digest.mjs";
 import User from "../app/api/models/user.mjs";
 
 const { DIGEST_REBUILD_INTERVAL_HOURS = 4, ACTIVE_USER_PERIOD_DAYS = 7 } =
-    process.env;
+    typeof process.env === "object" ? process.env : {};
 
 async function buildDigestForUser(user, logger, job, force = false, taskId) {
     const owner = user._id;

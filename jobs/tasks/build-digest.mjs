@@ -8,7 +8,7 @@ class BuildDigestTask extends BaseTask {
     }
 
     get displayName() {
-        return "Build Digest task";
+        return "Build digest block";
     }
 
     async startRequest(job) {
