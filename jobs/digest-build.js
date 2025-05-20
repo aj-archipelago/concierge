@@ -263,7 +263,15 @@ async function buildDigestBlock(blockId, userId, logger, taskId = null) {
             block?._id,
         );
         block.taskId = null;
-        block.content = `Error generating content: ${e.message}`;
+        block.content = JSON.stringify({
+            payload: `Error generating content: ${e.message}`,
+        });
+
+        await Digest.findOneAndUpdate(
+            { owner: userId },
+            { $set: { blocks: digest.blocks } },
+            { upsert: true, new: true },
+        );
 
         return {
             block,

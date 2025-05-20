@@ -6,7 +6,6 @@ import { copyTaskToChatMessage } from "./task-utils.mjs";
 // Remove the Apollo client initialization code and use getClient instead
 
 export async function executeTask(jobData) {
-    console.log("Executing task", jobData);
     const { taskId, type } = jobData;
     console.log(
         `[DEBUG] Starting executeTask - Type: ${type}, RequestProgressId: ${taskId}`,
