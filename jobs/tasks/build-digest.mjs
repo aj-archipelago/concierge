@@ -1,6 +1,5 @@
-import { BaseTask } from "./base-task.mjs";
 import { buildDigestBlock } from "../digest-build.js";
-import Task from "../../app/api/models/task.mjs";
+import { BaseTask } from "./base-task.mjs";
 
 class BuildDigestTask extends BaseTask {
     constructor(taskId) {
@@ -30,39 +29,6 @@ class BuildDigestTask extends BaseTask {
         await buildDigestBlock(blockId, userId, logger, taskId);
 
         return; // after this is done, no need to track anything else
-    }
-
-    async handleCompletion(taskId, dataObject, metadata, client) {
-        console.log("[BuildDigestTask] Starting handleCompletion", {
-            taskId,
-            metadata,
-        });
-
-        const task = await Task.findById(taskId);
-        if (!task) {
-            throw new Error("Task not found");
-        }
-
-        // Update the task with completion status
-        await Task.findOneAndUpdate(
-            { _id: taskId },
-            {
-                status: "completed",
-                progress: 1,
-                data: dataObject || {
-                    message: "Digest build completed successfully",
-                },
-            },
-        );
-
-        return dataObject;
-    }
-
-    async cancelRequest(taskId, client) {
-        // For digest building, we can't really cancel the process
-        // as it's a one-time operation. We'll just mark the task as cancelled.
-        await Task.findOneAndUpdate({ _id: taskId }, { status: "cancelled" });
-        return taskId;
     }
 }
 

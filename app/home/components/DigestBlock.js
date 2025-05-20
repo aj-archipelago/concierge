@@ -77,64 +77,64 @@ export default function DigestBlock({ block, contentClassName }) {
                             <MessageSquare size={14} />
                         </button>
                     )}
-                    {block.updatedAt && (
-                        <div>
-                            <div
-                                className={classNames(
-                                    "text-xs flex items-center gap-2 rounded-full px-3 py-2 border bg-gray-50 whitespace-nowrap",
+                    <div>
+                        <div
+                            className={classNames(
+                                "text-xs flex items-center gap-2 rounded-full px-3 py-2 border bg-gray-50 whitespace-nowrap",
+                                task?.status !== "pending" &&
+                                    task?.status !== "in_progress" &&
+                                    "cursor-pointer hover:bg-gray-100",
+                            )}
+                            onClick={() => {
+                                if (
                                     task?.status !== "pending" &&
-                                        task?.status !== "in_progress" &&
-                                        "cursor-pointer hover:bg-gray-100",
+                                    task?.status !== "in_progress"
+                                ) {
+                                    regenerateDigestBlock.mutate({
+                                        blockId: block._id,
+                                    });
+                                }
+                            }}
+                        >
+                            {block.updatedAt &&
+                                (!isRebuilding || !task?.progress) && (
+                                    <RefreshCw
+                                        className={classNames(
+                                            "text-gray-600 hover:text-gray-800 shrink-0",
+                                            isRebuilding ? "animate-spin" : "",
+                                            "inline-block",
+                                        )}
+                                        size={14}
+                                    />
                                 )}
-                                onClick={() => {
-                                    if (
-                                        task?.status !== "pending" &&
-                                        task?.status !== "in_progress"
-                                    ) {
-                                        regenerateDigestBlock.mutate({
-                                            blockId: block._id,
-                                        });
-                                    }
-                                }}
-                            >
-                                {block.updatedAt &&
-                                    (!isRebuilding || !task?.progress) && (
-                                        <RefreshCw
-                                            className={classNames(
-                                                "text-gray-600 hover:text-gray-800 shrink-0",
-                                                isRebuilding
-                                                    ? "animate-spin"
-                                                    : "",
-                                                "inline-block",
-                                            )}
-                                            size={14}
+                            <div className="flex items-center justify-center gap-1 min-w-0">
+                                {isRebuilding ? (
+                                    task?.progress ? (
+                                        <Progress
+                                            value={task.progress * 100}
+                                            className="w-24"
                                         />
-                                    )}
-                                <div className="flex items-center justify-center gap-1 min-w-0">
-                                    {isRebuilding ? (
-                                        task?.progress ? (
-                                            <Progress
-                                                value={task.progress * 100}
-                                                className="w-24"
-                                            />
-                                        ) : (
-                                            t("Rebuilding...")
-                                        )
                                     ) : (
-                                        <>
-                                            <span className="hidden lg:inline">
-                                                {t("Updated")}
-                                            </span>{" "}
-                                            <ReactTimeAgo
-                                                date={block.updatedAt}
-                                                locale={language}
-                                            />
-                                        </>
-                                    )}
-                                </div>
+                                        t("Rebuilding...")
+                                    )
+                                ) : block.updatedAt ? (
+                                    <>
+                                        <span className="hidden lg:inline">
+                                            {t("Updated")}
+                                        </span>{" "}
+                                        <ReactTimeAgo
+                                            date={block.updatedAt}
+                                            locale={language}
+                                        />
+                                    </>
+                                ) : (
+                                    <span className="hidden lg:inline">
+                                        {t("Build now")}
+                                    </span>
+                                )}
                             </div>
                         </div>
-                    )}
+                    </div>
                 </div>
             </div>
             <div className="text-sm">

@@ -1,11 +1,10 @@
-import dayjs from "dayjs";
+import Digest from "../app/api/models/digest.mjs";
+import Task from "../app/api/models/task.mjs";
+import User from "../app/api/models/user.mjs";
 import {
     generateDigestBlockContent,
     generateDigestGreeting,
 } from "./digest/digest.utils.js";
-import Task from "../app/api/models/task.mjs";
-import Digest from "../app/api/models/digest.mjs";
-import User from "../app/api/models/user.mjs";
 
 const { ACTIVE_USER_PERIOD_DAYS = 7 } =
     typeof process.env === "object" ? process.env : {};
@@ -117,7 +116,7 @@ async function buildDigestsForAllUsers(logger) {
 }
 
 async function buildDigestBlock(blockId, userId, logger, taskId = null) {
-    const digest = await Digest.findOne({ owner: userId });
+    let digest = await Digest.findOne({ owner: userId });
     const block = digest.blocks.find((b) => b._id.toString() === blockId);
     const user = await User.findById(userId);
 
@@ -143,6 +142,10 @@ async function buildDigestBlock(blockId, userId, logger, taskId = null) {
 
         block.content = content;
         block.updatedAt = new Date();
+
+        // re-read the blocks since the digest might have been updated
+        // since generateDigestBlockContent was called
+        digest = await Digest.findOne({ owner: userId });
 
         const newBlocks = digest.blocks.map((b) => {
             if (b._id.toString() === block._id.toString()) {
@@ -186,4 +189,4 @@ async function buildDigestBlock(blockId, userId, logger, taskId = null) {
     }
 }
 
-export { buildDigestsForAllUsers, buildDigestBlock };
+export { buildDigestBlock, buildDigestsForAllUsers };
