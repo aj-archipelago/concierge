@@ -77,6 +77,8 @@ export async function PATCH(req, { params }) {
 
     const existingBlocks = digest.blocks;
 
+    const { taskId } = await enqueueBuildDigest(user._id);
+
     const newBlocks = blocks.map((block) => {
         const existingBlock = existingBlocks.find(
             (b) => b._id?.toString() === block._id?.toString(),
@@ -87,6 +89,7 @@ export async function PATCH(req, { params }) {
             existingBlock.updatedAt = null;
             block.state = {
                 status: DigestGenerationStatus.PENDING,
+                taskId,
             };
         }
 
@@ -111,8 +114,6 @@ export async function PATCH(req, { params }) {
             new: true,
         },
     );
-
-    await enqueueBuildDigest(user._id);
 
     return NextResponse.json(digest);
 }

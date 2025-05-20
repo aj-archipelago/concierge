@@ -1,12 +1,11 @@
-import { Worker, Queue } from "bullmq";
-import {
-    buildDigestsForAllUsers,
-    buildDigestForSingleUser,
-} from "./digest-build.js";
-import Redis from "ioredis";
-import { Logger } from "./logger.js";
-import cortexRequestWorker from "./cortex-request-worker.js";
+import { Queue, Worker } from "bullmq";
 import "dotenv/config";
+import Redis from "ioredis";
+import cortexRequestWorker from "./cortex-request-worker.js";
+import {
+    buildDigestsForAllUsers
+} from "./digest-build.js";
+import { Logger } from "./logger.js";
 
 const queueName = "digest-build";
 const { REDIS_CONNECTION_STRING } = process.env;
@@ -221,4 +220,5 @@ async function startWorkers() {
 
 // Start the workers
 startWorkers();
-export { startWorkers as run, ensureDbConnection };
+export { ensureDbConnection, startWorkers as run };
+

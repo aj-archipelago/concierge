@@ -41,6 +41,11 @@ const digestSchema = new mongoose.Schema(
                         type: String,
                         required: false,
                     },
+                    taskId: {
+                        type: mongoose.Schema.Types.ObjectId,
+                        ref: "Task",
+                        required: false,
+                    },
                     status: {
                         type: String,
                         required: false,

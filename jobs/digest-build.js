@@ -212,49 +212,7 @@ async function buildDigestForSingleUser(userId, logger, job, taskId) {
     await buildDigestForUser(user, logger, job, false, taskId);
 }
 
-async function markBlockAsPending(userId, blockId) {
-    const Digest = (await import("../app/api/models/digest.mjs")).default;
-    const DigestGenerationStatus = (
-        await import("../app/api/models/digest.mjs")
-    ).DigestGenerationStatus;
-
-    try {
-        let digest = await Digest.findOne({
-            owner: userId,
-        });
-
-        if (!digest) {
-            throw new Error("Digest not found");
-        }
-
-        const block = digest.blocks.find(
-            (b) => b._id.toString() === blockId.toString(),
-        );
-        if (!block) {
-            throw new Error("Block not found");
-        }
-
-        block.state.status = DigestGenerationStatus.PENDING;
-
-        digest = await Digest.updateOne(
-            {
-                owner: userId,
-            },
-            {
-                $set: {
-                    blocks: digest.blocks,
-                },
-            },
-        );
-
-        return digest;
-    } catch (error) {
-        throw new Error(`Failed to mark block as pending: ${error.message}`);
-    }
-}
-
 export {
     buildDigestsForAllUsers,
     buildDigestForSingleUser,
-    markBlockAsPending,
 };
