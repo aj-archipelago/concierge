@@ -92,6 +92,7 @@ export function useRegenerateDigestBlock() {
         },
         onSettled: () => {
             queryClient.invalidateQueries({ queryKey: ["currentUserDigest"] });
+            queryClient.invalidateQueries({ queryKey: ["tasks"] });
         },
     });
 
