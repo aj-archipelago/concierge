@@ -1,12 +1,5 @@
 import mongoose from "mongoose";
 
-export const DigestGenerationStatus = {
-    PENDING: "pending",
-    IN_PROGRESS: "in_progress",
-    SUCCESS: "success",
-    FAILURE: "failure",
-};
-
 // Define the User schema
 const digestSchema = new mongoose.Schema(
     {

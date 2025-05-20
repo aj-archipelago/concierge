@@ -3,7 +3,6 @@ import { getCurrentUser } from "../../../utils/auth";
 import { NextResponse } from "next/server";
 import Digest from "../../../models/digest";
 import { enqueueBuildDigest, getJob } from "./utils";
-import { DigestGenerationStatus } from "../../../models/digest.mjs";
 
 export async function GET(req, { params }) {
     const user = await getCurrentUser();
@@ -23,9 +22,6 @@ export async function GET(req, { params }) {
                     {
                         prompt: `What's going on in the world today? If you know my profession, give me updates specific to my profession and preferences. Otherwise, give me general updates.`,
                         title: "Daily digest",
-                        state: {
-                            status: DigestGenerationStatus.PENDING,
-                        },
                     },
                 ],
             },

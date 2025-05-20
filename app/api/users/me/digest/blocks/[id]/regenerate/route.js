@@ -1,7 +1,5 @@
 import { NextResponse } from "next/server";
-import Digest, {
-    DigestGenerationStatus,
-} from "../../../../../../models/digest.mjs";
+import Digest from "../../../../../../models/digest.mjs";
 import { getCurrentUser } from "../../../../../../utils/auth";
 import { enqueueBuildDigest } from "../../../utils";
 
