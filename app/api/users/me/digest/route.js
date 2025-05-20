@@ -61,48 +61,55 @@ export async function PATCH(req, { params }) {
     const user = await getCurrentUser();
     const { blocks } = await req.json();
 
-    let digest = await Digest.findOne({
+    const oldDigest = await Digest.findOne({
         owner: user._id,
     });
 
-    const existingBlocks = digest.blocks;
+    const oldBlocks = oldDigest?.blocks;
 
-
-    const newBlocks = [];
-    for (const block of blocks) {
-        const existingBlock = existingBlocks.find(
-            (b) => b._id?.toString() === block._id?.toString(),
-        );
-
-        if (existingBlock && existingBlock.prompt !== block.prompt) {
-            console.log("regenerating block", block._id);
-            const { taskId } = await enqueueBuildDigest(user._id, block._id);
-            existingBlock.taskId = taskId;
-            existingBlock.updatedAt = null;
-            existingBlock.content = null;
-        }
-        const newBlock = {
-            ...existingBlock?.toJSON(),
-            ...block,
-        };
-
-        newBlocks.push(newBlock);
-    }
-
-    digest = await Digest.findOneAndUpdate(
+    let newDigest = await Digest.findOneAndUpdate(
         {
             owner: user._id,
         },
         {
             owner: user._id,
-            blocks: newBlocks,
+            blocks: blocks,
         },
         {
-            upsert: true,
             new: true,
         },
     );
 
-    return NextResponse.json(digest);
-}
+    const newBlocks = newDigest.blocks;
 
+    for (const newBlock of newBlocks) {
+        const oldBlock = oldBlocks.find(
+            (b) => b._id?.toString() === newBlock._id?.toString(),
+        );
+
+        //   if the prompt has changed or if there's no content,
+        // we need to regenerate the block
+        if (
+            !oldBlock ||
+            oldBlock?.prompt !== newBlock.prompt ||
+            !newBlock.content
+        ) {
+            console.log("regenerating block", newBlock._id);
+            const { taskId } = await enqueueBuildDigest(user._id, newBlock._id);
+            newBlock.taskId = taskId;
+            newBlock.updatedAt = null;
+            newBlock.content = null;
+        }
+    }
+
+    await Digest.findOneAndUpdate(
+        {
+            owner: user._id,
+        },
+        {
+            blocks: newBlocks,
+        },
+    );
+
+    return NextResponse.json(newDigest);
+}

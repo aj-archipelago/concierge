@@ -159,7 +159,11 @@ async function buildDigestForUser(user, logger, job, force = false, taskId) {
             );
             logger.log("[Digest] Updated greeting in database", owner);
         } catch (e) {
-            logger.log("[Digest] Error updating greeting in database", owner, e);
+            logger.log(
+                "[Digest] Error updating greeting in database",
+                owner,
+                e,
+            );
         }
     }
 
@@ -231,7 +235,7 @@ async function buildDigestBlock(blockId, userId, logger, taskId = null) {
         );
 
         console.log("content generated");
-        
+
         block.content = content;
         block.updatedAt = new Date();
 
@@ -260,11 +264,11 @@ async function buildDigestBlock(blockId, userId, logger, taskId = null) {
         );
         block.taskId = null;
         block.content = `Error generating content: ${e.message}`;
-        
+
         return {
             block,
             success: false,
-            error: e.message
+            error: e.message,
         };
     }
 }
