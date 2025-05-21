@@ -39,6 +39,12 @@ import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "../../../@/components/ui/progress";
 import { Clock, Cpu } from "lucide-react";
+import {
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
+} from "@/components/ui/dialog";
 
 const QUEUE_NAMES = ["task", "digest-build"];
 
@@ -86,30 +92,61 @@ function StatusBadge({ status }) {
 }
 
 function DataCell({ data }) {
-    const [isExpanded, setIsExpanded] = useState(false);
-    const stringifiedData = JSON.stringify(data, null, 2);
-    const isLong = stringifiedData?.length > 100;
+    const [isOpen, setIsOpen] = useState(false);
 
-    return stringifiedData ? (
-        <div className=" bg-gray-50 p-2 rounded-md max-w-[300px] border">
-            <pre
-                className={cn(
-                    "whitespace-pre-wrap text-xs",
-                    !isExpanded && isLong && "max-h-[100px] overflow-hidden",
-                )}
-            >
-                {stringifiedData}
-            </pre>
-
-            {isLong && (
-                <button
-                    onClick={() => setIsExpanded(!isExpanded)}
-                    className="text-xs text-blue-500 hover:text-blue-600 mt-1 font-medium"
+    // If data is an array of strings (logs), display them without wrapping
+    if (Array.isArray(data)) {
+        return (
+            <>
+                <div
+                    className="bg-gray-50 p-2 rounded-md max-w-[300px] border max-h-[100px] overflow-auto cursor-pointer hover:bg-gray-100"
+                    onClick={() => setIsOpen(true)}
                 >
-                    {isExpanded ? "Show less" : "Show more"}
-                </button>
-            )}
-        </div>
+                    <pre className="text-xs whitespace-pre">
+                        {data.join("\n")}
+                    </pre>
+                </div>
+                <Dialog open={isOpen} onOpenChange={setIsOpen}>
+                    <DialogContent className="max-w-7xl overflow-auto">
+                        <DialogHeader>
+                            <DialogTitle>Data Details</DialogTitle>
+                        </DialogHeader>
+                        <div className="bg-gray-50 p-4 rounded-md">
+                            <pre className="whitespace-pre-wrap text-sm overflow-auto max-h-[60vh]">
+                                {data.join("\n")}
+                            </pre>
+                        </div>
+                    </DialogContent>
+                </Dialog>
+            </>
+        );
+    }
+
+    // For other data types, use the existing JSON.stringify approach
+    const stringifiedData = JSON.stringify(data, null, 2);
+    return stringifiedData ? (
+        <>
+            <div
+                className="bg-gray-50 p-2 rounded-md max-w-[300px] border max-h-[100px] overflow-auto cursor-pointer hover:bg-gray-100"
+                onClick={() => setIsOpen(true)}
+            >
+                <pre className="whitespace-pre-wrap text-xs">
+                    {stringifiedData}
+                </pre>
+            </div>
+            <Dialog open={isOpen} onOpenChange={setIsOpen}>
+                <DialogContent className="max-w-3xl">
+                    <DialogHeader>
+                        <DialogTitle>Data Details</DialogTitle>
+                    </DialogHeader>
+                    <div className="bg-gray-50 p-4 rounded-md">
+                        <pre className="whitespace-pre-wrap text-sm overflow-auto max-h-[60vh]">
+                            {stringifiedData}
+                        </pre>
+                    </div>
+                </DialogContent>
+            </Dialog>
+        </>
     ) : (
         "-"
     );
@@ -380,9 +417,11 @@ export default function QueuesPage() {
                                                 <TableHead>User</TableHead>
                                                 <TableHead>Status</TableHead>
                                                 <TableHead>Progress</TableHead>
+                                                <TableHead>Attempts</TableHead>
                                                 <TableHead>Timestamp</TableHead>
-                                                <TableHead>Details</TableHead>
-                                                <TableHead>Data</TableHead>
+                                                <TableHead>Input</TableHead>
+                                                <TableHead>Output</TableHead>
+                                                <TableHead>Logs</TableHead>
                                             </TableRow>
                                         </TableHeader>
                                         <TableBody>
@@ -414,6 +453,9 @@ export default function QueuesPage() {
                                                             "-"
                                                         )}
                                                     </TableCell>
+                                                    <TableCell>
+                                                        {job.attemptsMade || 0}
+                                                    </TableCell>
                                                     <TableCell
                                                         className="whitespace-nowrap"
                                                         title={new Date(
@@ -423,6 +465,11 @@ export default function QueuesPage() {
                                                         {formatTimestamp(
                                                             job.timestamp,
                                                         )}
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        <DataCell
+                                                            data={job.data}
+                                                        />
                                                     </TableCell>
                                                     <TableCell>
                                                         {job.status ===
@@ -444,7 +491,11 @@ export default function QueuesPage() {
                                                     </TableCell>
                                                     <TableCell>
                                                         <DataCell
-                                                            data={job.data}
+                                                            data={
+                                                                job.logs
+                                                                    ?.logs ||
+                                                                "No logs available"
+                                                            }
                                                         />
                                                     </TableCell>
                                                 </TableRow>

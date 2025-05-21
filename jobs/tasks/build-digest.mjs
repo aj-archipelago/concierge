@@ -1,4 +1,5 @@
 import { buildDigestBlock } from "../digest-build.js";
+import { Logger } from "../logger.js";
 import { BaseTask } from "./base-task.mjs";
 
 class BuildDigestTask extends BaseTask {
@@ -18,12 +19,7 @@ class BuildDigestTask extends BaseTask {
             throw new Error("User ID is required in metadata");
         }
 
-        // Create a logger object for the digest build
-        const logger = {
-            log: (message, ...args) => {
-                console.log(`[BuildDigestTask] ${message}`, ...args);
-            },
-        };
+        const logger = new Logger(job);
 
         // Start the digest build process
         await buildDigestBlock(blockId, userId, logger, taskId);
