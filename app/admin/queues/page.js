@@ -491,7 +491,11 @@ export default function QueuesPage() {
                                                     </TableCell>
                                                     <TableCell>
                                                         <DataCell
-                                                            data={job.logs?.logs || "No logs available"}
+                                                            data={
+                                                                job.logs
+                                                                    ?.logs ||
+                                                                "No logs available"
+                                                            }
                                                         />
                                                     </TableCell>
                                                 </TableRow>
