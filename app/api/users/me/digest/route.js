@@ -2,7 +2,7 @@ import { getCurrentUser } from "../../../utils/auth";
 
 import { NextResponse } from "next/server";
 import Digest from "../../../models/digest";
-import { enqueueBuildDigest, getJob } from "./utils";
+import { enqueueBuildDigest } from "./utils";
 
 export async function GET(req, { params }) {
     const user = await getCurrentUser();

@@ -111,7 +111,12 @@ export default function DigestBlock({ block, contentClassName }) {
                                 {isRebuilding ? (
                                     task?.progress ? (
                                         <Progress
-                                            value={Math.min(Math.max(task.progress, 0), 1) * 100}
+                                            value={
+                                                Math.min(
+                                                    Math.max(task.progress, 0),
+                                                    1,
+                                                ) * 100
+                                            }
                                             className="w-24"
                                         />
                                     ) : (
