@@ -51,7 +51,11 @@ export default React.forwardRef(function SendFeedbackModal(
                 setError(null);
             };
             reader.onerror = () => {
-                setError(t("Failed to read the selected file. Please try another file."));
+                setError(
+                    t(
+                        "Failed to read the selected file. Please try another file.",
+                    ),
+                );
             };
             reader.readAsDataURL(file);
         }
@@ -186,7 +190,7 @@ export default React.forwardRef(function SendFeedbackModal(
                 {error && (
                     <div className="bg-red-50 p-4 rounded-lg text-red-500 mb-6 flex items-center justify-between border border-red-100">
                         <span className="text-sm">{error}</span>
-                        <button 
+                        <button
                             className="text-red-500 hover:text-red-700 p-1 rounded-full hover:bg-red-100 transition-colors"
                             onClick={() => setError(null)}
                         >
@@ -195,10 +199,7 @@ export default React.forwardRef(function SendFeedbackModal(
                     </div>
                 )}
                 <div className="flex gap-3 justify-end">
-                    <button 
-                        className="lb-outline-secondary"
-                        onClick={onHide}
-                    >
+                    <button className="lb-outline-secondary" onClick={onHide}>
                         {t("Cancel")}
                     </button>
                     <LoadingButton
