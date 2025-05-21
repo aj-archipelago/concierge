@@ -1,10 +1,16 @@
 const dayjs = require("dayjs");
+const { Job, Queue } = require("bullmq");
+const { getRedisConnection } = require("../app/api/utils/redis.mjs");
 const logTimestamp = () => dayjs().format("YYYY-MM-DD HH:mm:ss:SSS");
 
 class Logger {
-    constructor({ id, name } = {}) {
+    constructor({ id, name, queueName } = {}) {
         this.id = id;
         this.name = name;
+        if (queueName) {
+            const connection = getRedisConnection();
+            this.queue = new Queue(queueName, { connection });
+        }
     }
 
     log(message, ...debug) {
@@ -25,6 +31,14 @@ class Logger {
 
         const elements = [`${logTimestamp()}${prefix}`, message];
         console.log(elements.filter(Boolean).join(": "));
+
+        if (this.queue) {
+            Job.addJobLog(
+                this.queue,
+                this.id,
+                `${logTimestamp()}${prefix}: ${message} ${debugInfo ? `[${debugInfo}]` : ""}`,
+            );
+        }
     }
 }
 
