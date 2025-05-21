@@ -12,7 +12,7 @@ const initializeWorker = async () => {
         async (job) => {
             console.log(`Worker processing job ${job.id}`);
             await ensureDbConnection();
-            return await executeTask(job.data);
+            return await executeTask(job.data, job);
         },
         {
             connection,

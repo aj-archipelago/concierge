@@ -67,7 +67,7 @@ const worker = new Worker(
         try {
             await connectToDatabase();
 
-            const logger = new Logger(job);
+            const logger = new Logger(job, digestBuild);
 
             if (job.name === PERIODIC_BUILD_JOB) {
                 logger.log("building digests for all users");
@@ -84,12 +84,12 @@ const worker = new Worker(
 );
 
 worker.on("completed", (job) => {
-    const logger = new Logger(job);
+    const logger = new Logger(job, digestBuild);
     logger.log("job completed");
 });
 
 worker.on("failed", (job, error) => {
-    const logger = new Logger(job);
+    const logger = new Logger(job, digestBuild);
     logger.log("job failed with error: " + error.message);
 });
 
