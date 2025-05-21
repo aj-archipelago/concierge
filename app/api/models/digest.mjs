@@ -1,12 +1,5 @@
 import mongoose from "mongoose";
 
-export const DigestGenerationStatus = {
-    PENDING: "pending",
-    IN_PROGRESS: "in_progress",
-    SUCCESS: "success",
-    FAILURE: "failure",
-};
-
 // Define the User schema
 const digestSchema = new mongoose.Schema(
     {
@@ -36,21 +29,10 @@ const digestSchema = new mongoose.Schema(
                     type: Date,
                     required: false,
                 },
-                state: {
-                    jobId: {
-                        type: String,
-                        required: false,
-                    },
-                    status: {
-                        type: String,
-                        required: false,
-                        enum: Object.values(DigestGenerationStatus),
-                        default: DigestGenerationStatus.PENDING,
-                    },
-                    error: {
-                        type: String,
-                        required: false,
-                    },
+                taskId: {
+                    type: mongoose.Schema.Types.ObjectId,
+                    ref: "Task",
+                    required: false,
                 },
             },
         ],
@@ -67,6 +49,7 @@ const digestSchema = new mongoose.Schema(
 digestSchema.index({ owner: 1 });
 
 // Create the User model from the schema
-const Digest = mongoose.models.Digest || mongoose.model("Digest", digestSchema);
+const Digest =
+    mongoose.models?.Digest || mongoose.model("Digest", digestSchema);
 
 export default Digest;

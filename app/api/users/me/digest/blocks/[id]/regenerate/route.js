@@ -1,7 +1,5 @@
 import { NextResponse } from "next/server";
-import Digest, {
-    DigestGenerationStatus,
-} from "../../../../../../models/digest.mjs";
+import Digest from "../../../../../../models/digest.mjs";
 import { getCurrentUser } from "../../../../../../utils/auth";
 import { enqueueBuildDigest } from "../../../utils";
 
@@ -20,6 +18,8 @@ export async function POST(req, { params }) {
         );
     }
 
+    const { taskId } = await enqueueBuildDigest(user._id, id);
+
     const block = digest.blocks.find((b) => b._id.toString() === id.toString());
 
     if (!block) {
@@ -29,7 +29,7 @@ export async function POST(req, { params }) {
         );
     }
 
-    block.state.status = DigestGenerationStatus.PENDING;
+    block.taskId = taskId;
 
     digest = await Digest.updateOne(
         {
@@ -44,8 +44,6 @@ export async function POST(req, { params }) {
             new: true,
         },
     );
-
-    await enqueueBuildDigest(user._id);
 
     return NextResponse.json(digest);
 }

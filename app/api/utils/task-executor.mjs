@@ -6,7 +6,6 @@ import { copyTaskToChatMessage } from "./task-utils.mjs";
 // Remove the Apollo client initialization code and use getClient instead
 
 export async function executeTask(jobData) {
-    console.log("Executing task", jobData);
     const { taskId, type } = jobData;
     console.log(
         `[DEBUG] Starting executeTask - Type: ${type}, RequestProgressId: ${taskId}`,
@@ -44,15 +43,21 @@ export async function executeTask(jobData) {
     try {
         console.log(`[DEBUG] Starting request execution`);
         const cortexRequestId = await handler.startRequest(job);
-        console.log(`[DEBUG] Received cortexRequestId: ${cortexRequestId}`);
 
         if (cortexRequestId) {
+            console.log(`[DEBUG] Received cortexRequestId: ${cortexRequestId}`);
             console.log(`[DEBUG] Updating Task with cortexRequestId`);
             await Task.findOneAndUpdate({ _id: taskId }, { cortexRequestId });
-        }
 
-        console.log(`[DEBUG] Starting progress tracking`);
-        return await progressTracker.run(cortexRequestId);
+            console.log(`[DEBUG] Starting progress tracking`);
+            return await progressTracker.run(cortexRequestId);
+        } else {
+            await Task.findOneAndUpdate(
+                { _id: taskId },
+                { status: "completed", progress: 1 },
+            );
+            return;
+        }
     } catch (error) {
         console.error(`[DEBUG] Error in executeTask: ${error.stack}`);
         await progressTracker.updateRequestStatus(
@@ -178,7 +183,6 @@ class CortexRequestTracker {
             taskId,
             data?.requestProgress?.info,
         );
-        console.log(`[DEBUG] Updated progress: ${progress}`);
 
         if (progress === 1) {
             console.log(`[DEBUG] Progress complete, handling completion`);
