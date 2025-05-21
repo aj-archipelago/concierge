@@ -21,6 +21,7 @@ export default async function RootLayout({ children }) {
     const host = headers().get("x-forwarded-host");
     const protocol = headers().get("x-forwarded-proto");
     const serverUrl = `${protocol}://${host}`;
+    const useBlueGraphQL = !!process.env.CORTEX_GRAPHQL_API_BLUE_URL;
     const graphQLPublicEndpoint = config.global.getPublicGraphQLEndpoint(
         process.env.CORTEX_GRAPHQL_API_URL || "http://localhost:4000/graphql",
     );
@@ -66,6 +67,7 @@ export default async function RootLayout({ children }) {
                             serverUrl={serverUrl}
                             graphQLPublicEndpoint={graphQLPublicEndpoint}
                             neuralspaceEnabled={neuralspaceEnabled}
+                            useBlueGraphQL={useBlueGraphQL}
                         >
                             {children}
                         </App>

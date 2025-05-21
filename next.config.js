@@ -58,6 +58,14 @@ module.exports = {
             },
         ];
 
+        // If you have a blue/green deployment, you can use this to switch between the two
+        if (process.env.CORTEX_GRAPHQL_API_BLUE_URL) {
+            rewrites.push({
+                source: "/graphql-blue",
+                destination: process.env.CORTEX_GRAPHQL_API_BLUE_URL,
+            });
+        }
+
         // Log the URLs to console
         rewrites.forEach((rewrite) => {
             console.log(
