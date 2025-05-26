@@ -1,18 +1,19 @@
 "use client";
+import {
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { LanguageContext } from "@/src/contexts/LanguageProvider";
-import {
-    ArrowLeftIcon,
-    ArrowRightIcon,
-    TrashIcon,
-    Link2Icon,
-    CheckIcon,
-} from "lucide-react";
+import MonacoEditor from "@monaco-editor/react";
+import { CheckIcon, Link2Icon } from "lucide-react";
 import { useParams } from "next/navigation";
-import { useContext, useEffect, useState } from "react";
-import { RiRefreshLine, RiSendPlane2Fill } from "react-icons/ri";
-import ReactMarkdown from "react-markdown";
+import React, { useContext, useEffect, useRef, useState } from "react";
+import { RiSendPlane2Fill } from "react-icons/ri";
 import TextareaAutosize from "react-textarea-autosize";
+import { ServerContext } from "../../../../src/App";
 import {
     useUpdateWorkspaceApplet,
     useWorkspaceApplet,
@@ -20,25 +21,20 @@ import {
     useWorkspaceSuggestions,
 } from "../../../queries/workspaces";
 import LLMSelector from "../../components/LLMSelector";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import MonacoEditor from "@monaco-editor/react";
-import {
-    Tooltip,
-    TooltipTrigger,
-    TooltipContent,
-    TooltipProvider,
-} from "@/components/ui/tooltip";
-import { ServerContext } from "../../../../src/App";
-import React from "react";
+import ChatInterface from "./ChatInterface";
+import PreviewTabs from "./PreviewTabs";
+import SuggestionsPanel from "./SuggestionsPanel";
+import { getMessagesUpToVersion } from "./utils";
+import VersionNavigator from "./VersionNavigator";
 import {
     AlertDialog,
     AlertDialogContent,
-    AlertDialogHeader,
-    AlertDialogTitle,
     AlertDialogDescription,
     AlertDialogFooter,
-    AlertDialogAction,
+    AlertDialogHeader,
+    AlertDialogTitle,
     AlertDialogCancel,
+    AlertDialogAction,
 } from "@/components/ui/alert-dialog";
 
 function CopyPublishedLinkButton() {
@@ -124,7 +120,7 @@ function renderWithColorPreviews(text) {
                     }}
                     title={color}
                 />
-            </React.Fragment>
+            </React.Fragment>,
         );
         lastIndex = match.index + color.length;
     }
@@ -144,23 +140,32 @@ export default function WorkspaceApplet() {
     const [activeVersionIndex, setActiveVersionIndex] = useState(-1);
     const [isLoading, setIsLoading] = useState(false);
     const [publishedVersionIndex, setPublishedVersionIndex] = useState(null);
+    const allMessagesRef = useRef([]);
+    const [showClearConfirm, setShowClearConfirm] = useState(false);
+    const [showContinueConfirm, setShowContinueConfirm] = useState(false);
+    const [isContinuingFromOldVersion, setIsContinuingFromOldVersion] =
+        useState(false);
+
+    // Queries and mutations
     const suggestionsMutation = useWorkspaceSuggestions(id, selectedLLM);
     const appletQuery = useWorkspaceApplet(id);
     const updateApplet = useUpdateWorkspaceApplet();
     const chatMutation = useWorkspaceChat(id);
-    const { direction } = useContext(LanguageContext);
-    const [allMessages, setAllMessages] = useState([]);
-    const [showClearConfirm, setShowClearConfirm] = useState(false);
-    const [showContinueConfirm, setShowContinueConfirm] = useState(false);
-    const [isContinuingFromOldVersion, setIsContinuingFromOldVersion] = useState(false);
 
+    // Reset continuing flag when version changes
+    useEffect(() => {
+        setIsContinuingFromOldVersion(false);
+    }, [activeVersionIndex]);
+
+    console.log("isContinuingFromOldVersion", isContinuingFromOldVersion);
+
+    // Generate initial suggestions
     useEffect(() => {
         if (
             selectedLLM &&
             !appletQuery.data?.suggestions?.length &&
             !appletQuery.isLoading
         ) {
-            // Only generate suggestions if they don't exist yet
             suggestionsMutation.mutate(undefined, {
                 onSuccess: (data) => {
                     updateApplet.mutate({
@@ -177,15 +182,31 @@ export default function WorkspaceApplet() {
         }
     }, [selectedLLM]);
 
+    // Load initial data
     useEffect(() => {
-        if (appletQuery.data?.messages?.length > 0 && !allMessages?.length) {
-            setAllMessages(appletQuery.data.messages || []);
+        if (
+            appletQuery.data?.messages?.length > 0 &&
+            !allMessagesRef.current?.length
+        ) {
+            console.log(
+                "DEBUG: setMessages - initial load from appletQuery.data",
+                {
+                    messages: appletQuery.data.messages,
+                    activeVersionIndex,
+                },
+            );
+            console.log("DEBUG: About to call setAllMessages - initial load");
+            allMessagesRef.current = appletQuery.data.messages || [];
+            console.log(
+                "DEBUG: About to call setMessages - initial load from appletQuery.data",
+            );
             setMessages(
                 getMessagesUpToVersion(
                     appletQuery.data.messages,
                     activeVersionIndex,
                 ),
             );
+
             if (appletQuery.data.htmlVersions?.length > 0) {
                 setHtmlVersions(
                     appletQuery.data.htmlVersions.map((v) => v.content),
@@ -197,38 +218,54 @@ export default function WorkspaceApplet() {
                     ].content,
                 );
             }
+
             setPublishedVersionIndex(
                 typeof appletQuery.data.publishedVersionIndex === "number"
                     ? appletQuery.data.publishedVersionIndex
                     : null,
             );
         }
-    }, [appletQuery.data, allMessages?.length]);
+    }, [appletQuery.data]);
 
+    // Update messages when version changes
     useEffect(() => {
-        // Only update if allMessages is loaded and activeVersionIndex is valid
         if (
-            allMessages &&
-            allMessages.length > 0 &&
+            allMessagesRef.current &&
+            allMessagesRef.current.length > 0 &&
             activeVersionIndex !== -1
         ) {
+            console.log("DEBUG: setMessages - effect update from allMessages", {
+                allMessages: allMessagesRef.current,
+                activeVersionIndex,
+            });
+            console.log(
+                "DEBUG: About to call setMessages - version change effect",
+            );
             setMessages(
-                getMessagesUpToVersion(allMessages, activeVersionIndex),
+                getMessagesUpToVersion(
+                    allMessagesRef.current,
+                    activeVersionIndex,
+                ),
             );
         }
-    }, [activeVersionIndex, allMessages]);
+    }, [activeVersionIndex]);
 
     const handleSendMessage = async () => {
         if (!inputMessage.trim() || !selectedLLM) return;
 
-        let truncatedAllMessages = allMessages;
+        let truncatedAllMessages = allMessagesRef.current;
         let truncatedHtmlVersions = htmlVersions;
 
         // If continuing from an old version, truncate arrays
         if (isContinuingFromOldVersion) {
-            truncatedAllMessages = getMessagesUpToVersion(allMessages, activeVersionIndex);
-            truncatedHtmlVersions = htmlVersions.slice(0, activeVersionIndex + 1);
-            setIsContinuingFromOldVersion(false); // Reset the flag after first message
+            truncatedAllMessages = getMessagesUpToVersion(
+                allMessagesRef.current,
+                activeVersionIndex,
+            );
+            truncatedHtmlVersions = htmlVersions.slice(
+                0,
+                activeVersionIndex + 1,
+            );
         }
 
         const newMessage = {
@@ -238,13 +275,16 @@ export default function WorkspaceApplet() {
         };
 
         const updatedMessages = [...truncatedAllMessages, newMessage];
+        console.log("DEBUG: setMessages - handleSendMessage", {
+            updatedMessages,
+        });
+        console.log("DEBUG: About to call setMessages - handleSendMessage");
         setMessages(updatedMessages);
         setInputMessage("");
         setIsLoading(true);
 
         try {
             const currentHtml = truncatedHtmlVersions[activeVersionIndex] || "";
-
             const response = await chatMutation.mutateAsync({
                 messages: updatedMessages,
                 model: selectedLLM,
@@ -272,20 +312,29 @@ export default function WorkspaceApplet() {
                 setPreviewHtml(response.message.html);
                 setActiveVersionIndex(newVersions.length - 1);
 
-                aiMessage.content = `HTML code generated. Check the preview pane →\n\n**Summary of changes:**\n${response.message.changes}`;
+                aiMessage.content = `HTML code generated. Check the preview pane\n\n\n#### Summary of changes:**\n${response.message.changes}`;
                 aiMessage.linkToVersion = newVersions.length - 1;
             } else {
                 aiMessage.content = response.message;
                 if (response.message.includes("`")) {
                     aiMessage.content = response.message.replace(/`/g, "");
                 }
+                aiMessage.linkToVersion = newVersions.length - 1;
             }
 
             const finalMessages = [...updatedMessages, aiMessage];
-            setAllMessages(finalMessages);
+            console.log("DEBUG: setMessages - after AI response", {
+                finalMessages,
+                newVersionsLength: newVersions.length - 1,
+            });
+
+            console.log("DEBUG: About to call setMessages - after AI response");
             setMessages(
                 getMessagesUpToVersion(finalMessages, newVersions.length - 1),
             );
+            setIsContinuingFromOldVersion(false);
+
+            allMessagesRef.current = finalMessages;
 
             updateApplet.mutate({
                 id,
@@ -317,22 +366,72 @@ export default function WorkspaceApplet() {
         });
     };
 
-    // Handler to publish a version
     const handlePublishVersion = (versionIdx) => {
         updateApplet.mutate(
-            {
-                id,
-                data: { publishedVersionIndex: versionIdx },
-            },
-            {
-                onSuccess: () => {
-                    setPublishedVersionIndex(versionIdx);
-                },
-            },
+            { id, data: { publishedVersionIndex: versionIdx } },
+            { onSuccess: () => setPublishedVersionIndex(versionIdx) },
         );
     };
 
-    console.log("Messages", messages);
+    const handleUnpublish = () => {
+        updateApplet.mutate(
+            { id, data: { publishedVersionIndex: null } },
+            { onSuccess: () => setPublishedVersionIndex(null) },
+        );
+    };
+
+    const handleClearChat = () => {
+        console.log("DEBUG: setMessages - clear chat");
+        console.log("DEBUG: About to call setMessages - clear chat");
+        allMessagesRef.current = [];
+        setMessages([]);
+        updateApplet.mutate({ id, data: { messages: [] } });
+    };
+
+    const handleHtmlChange = (value, versionIndex) => {
+        const newVersions = [...htmlVersions];
+        newVersions[versionIndex] = value;
+        setHtmlVersions(newVersions);
+        setPreviewHtml(value);
+    };
+
+    const handleContinueFromOldVersion = () => {
+        setIsContinuingFromOldVersion(true);
+    };
+
+    const handleMessageClick = (versionIndex) => {
+        setActiveVersionIndex(versionIndex);
+    };
+
+    const handleReplayMessage = (messageIndex) => {
+        // Get all messages up to and including the selected message
+        const messageToReplay = allMessagesRef.current[messageIndex];
+        const content = messageToReplay.content;
+        const messagesToKeep = allMessagesRef.current.slice(0, messageIndex);
+
+        // Update the messages state
+        setMessages(messagesToKeep);
+        allMessagesRef.current = messagesToKeep;
+
+        // Update the applet with the truncated messages
+        updateApplet.mutate({
+            id,
+            data: {
+                messages: messagesToKeep,
+            },
+        });
+
+        // Send the last message to restart the conversation
+        setInputMessage(content);
+        setTimeout(() => {
+            handleSendMessage();
+        }, 100);
+    };
+
+    const blockOldVersionChat =
+        htmlVersions.length > 0 &&
+        activeVersionIndex !== htmlVersions.length - 1 &&
+        !isContinuingFromOldVersion;
 
     return (
         <TooltipProvider>
@@ -352,271 +451,33 @@ export default function WorkspaceApplet() {
                 <div className="flex justify-between gap-4 h-full overflow-auto bg-gray-100 p-4">
                     {htmlVersions.length > 0 && (
                         <div className="flex flex-col grow overflow-auto">
-                            <Tabs
-                                defaultValue="preview"
-                                className="flex flex-col grow overflow-auto"
-                            >
-                                {htmlVersions.length > 0 && (
-                                    <div className="flex justify-between items-center mb-2">
-                                        <div className="flex items-center gap-2">
-                                            <button
-                                                className={cn(
-                                                    "lb-outline-secondary",
-                                                    "bg-white",
-                                                )}
-                                                onClick={() =>
-                                                    setActiveVersionIndex(
-                                                        (prev) =>
-                                                            Math.max(
-                                                                0,
-                                                                prev - 1,
-                                                            ),
-                                                    )
-                                                }
-                                                disabled={
-                                                    activeVersionIndex <= 0
-                                                }
-                                            >
-                                                {direction === "rtl" ? (
-                                                    <ArrowRightIcon className="w-4 h-4" />
-                                                ) : (
-                                                    <ArrowLeftIcon className="w-4 h-4" />
-                                                )}
-                                            </button>
-                                            <button
-                                                className={cn(
-                                                    "lb-outline-secondary ",
-                                                    "bg-white",
-                                                )}
-                                                onClick={() =>
-                                                    setActiveVersionIndex(
-                                                        (prev) =>
-                                                            Math.min(
-                                                                htmlVersions.length -
-                                                                    1,
-                                                                prev + 1,
-                                                            ),
-                                                    )
-                                                }
-                                                disabled={
-                                                    activeVersionIndex >=
-                                                    htmlVersions.length - 1
-                                                }
-                                            >
-                                                {direction === "rtl" ? (
-                                                    <ArrowLeftIcon className="w-4 h-4" />
-                                                ) : (
-                                                    <ArrowRightIcon className="w-4 h-4" />
-                                                )}
-                                            </button>
-                                            <span className="text-sm text-gray-600">
-                                                Version {activeVersionIndex + 1}{" "}
-                                                of {htmlVersions.length}
-                                            </span>
-                                            {publishedVersionIndex !== null &&
-                                                (activeVersionIndex ===
-                                                publishedVersionIndex ? (
-                                                    <>
-                                                        <span
-                                                            className=" px-3 py-1 rounded-full text-xs font-bold bg-emerald-500 text-white shadow-sm border border-emerald-600"
-                                                            style={{
-                                                                letterSpacing:
-                                                                    "0.03em",
-                                                            }}
-                                                        >
-                                                            Published
-                                                        </span>
-                                                        <CopyPublishedLinkButton />
-                                                        <button
-                                                            className=" px-3 py-1 rounded-full text-xs font-bold border border-red-300 text-red-600 bg-white hover:bg-red-50 hover:border-red-400 transition focus:ring-2 focus:ring-red-200 focus:outline-none shadow-sm"
-                                                            onClick={() => {
-                                                                updateApplet.mutate(
-                                                                    {
-                                                                        id,
-                                                                        data: {
-                                                                            publishedVersionIndex:
-                                                                                null,
-                                                                        },
-                                                                    },
-                                                                    {
-                                                                        onSuccess:
-                                                                            () =>
-                                                                                setPublishedVersionIndex(
-                                                                                    null,
-                                                                                ),
-                                                                    },
-                                                                );
-                                                            }}
-                                                            disabled={
-                                                                updateApplet.isPending
-                                                            }
-                                                            type="button"
-                                                        >
-                                                            Unpublish
-                                                        </button>
-                                                    </>
-                                                ) : (
-                                                    <button
-                                                        className="px-3 py-1 rounded-full text-xs font-bold border border-gray-300 bg-gray-100 text-gray-600 hover:bg-gray-200 transition shadow-sm"
-                                                        onClick={() =>
-                                                            setActiveVersionIndex(
-                                                                publishedVersionIndex,
-                                                            )
-                                                        }
-                                                        title={`Go to published version (v${publishedVersionIndex + 1})`}
-                                                        type="button"
-                                                    >
-                                                        Published: v
-                                                        {publishedVersionIndex +
-                                                            1}
-                                                    </button>
-                                                ))}
-                                            {activeVersionIndex !==
-                                                publishedVersionIndex && (
-                                                <>
-                                                    <button
-                                                        className="px-3 py-1.5 rounded-full text-xs font-bold bg-gradient-to-r from-emerald-500 to-emerald-600 text-white shadow-md hover:from-emerald-600 hover:to-emerald-700 transition focus:ring-2 focus:ring-emerald-200 focus:outline-none"
-                                                        onClick={() =>
-                                                            handlePublishVersion(
-                                                                activeVersionIndex,
-                                                            )
-                                                        }
-                                                        disabled={
-                                                            updateApplet.isPending
-                                                        }
-                                                        type="button"
-                                                    >
-                                                        {publishedVersionIndex ===
-                                                        null
-                                                            ? "Publish"
-                                                            : "Publish this version instead"}
-                                                    </button>
-                                                    <button
-                                                        className="px-3 py-1 rounded-full text-xs font-bold border lb-outline-secondary bg-white"
-                                                        onClick={() => {
-                                                            if (
-                                                                window.confirm(
-                                                                    "Are you sure you want to delete this version?",
-                                                                )
-                                                            ) {
-                                                                setHtmlVersions(
-                                                                    (prev) => {
-                                                                        const newVersions =
-                                                                            prev.filter(
-                                                                                (
-                                                                                    _,
-                                                                                    index,
-                                                                                ) =>
-                                                                                    index !==
-                                                                                    activeVersionIndex,
-                                                                            );
-                                                                        updateApplet.mutate(
-                                                                            {
-                                                                                id,
-                                                                                data: {
-                                                                                    htmlVersions:
-                                                                                        newVersions,
-                                                                                },
-                                                                            },
-                                                                        );
-                                                                        setPreviewHtml(
-                                                                            newVersions[
-                                                                                newVersions.length -
-                                                                                    1
-                                                                            ],
-                                                                        );
-                                                                        setActiveVersionIndex(
-                                                                            Math.max(
-                                                                                0,
-                                                                                activeVersionIndex -
-                                                                                    1,
-                                                                            ),
-                                                                        );
-                                                                        return newVersions;
-                                                                    },
-                                                                );
-                                                            }
-                                                        }}
-                                                    >
-                                                        <TrashIcon className="w-4 h-4" />
-                                                    </button>
-                                                </>
-                                            )}
-                                        </div>
-                                        <TabsList>
-                                            <TabsTrigger value="preview">
-                                                Preview
-                                            </TabsTrigger>
-                                            <TabsTrigger value="code">
-                                                Code
-                                            </TabsTrigger>
-                                        </TabsList>
-                                    </div>
-                                )}
-                                {htmlVersions.length > 0 ? (
-                                    <div className="border rounded-md shadow-md bg-white mb-4 grow overflow-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent hover:scrollbar-thumb-gray-400">
-                                        <div className="flex flex-col h-full">
-                                            <div className="flex-1 p-4">
-                                                <TabsContent
-                                                    value="preview"
-                                                    className="h-full m-0"
-                                                >
-                                                    <iframe
-                                                        srcDoc={
-                                                            htmlVersions[
-                                                                activeVersionIndex
-                                                            ]
-                                                        }
-                                                        className="w-full h-full border-0"
-                                                        sandbox="allow-scripts allow-same-origin"
-                                                        title="Preview"
-                                                    />
-                                                </TabsContent>
-                                                <TabsContent
-                                                    value="code"
-                                                    className="h-full m-0"
-                                                >
-                                                    <HtmlEditor
-                                                        value={
-                                                            htmlVersions[
-                                                                activeVersionIndex
-                                                            ]
-                                                        }
-                                                        onChange={(
-                                                            value,
-                                                            e,
-                                                        ) => {
-                                                            const newVersions =
-                                                                [
-                                                                    ...htmlVersions,
-                                                                ];
-                                                            newVersions[
-                                                                activeVersionIndex
-                                                            ] = value;
-                                                            setHtmlVersions(
-                                                                newVersions,
-                                                            );
-                                                            setPreviewHtml(
-                                                                value,
-                                                            );
-                                                        }}
-                                                    />
-                                                </TabsContent>
-                                            </div>
-                                        </div>
-                                    </div>
-                                ) : null}
-                            </Tabs>
+                            <VersionNavigator
+                                activeVersionIndex={activeVersionIndex}
+                                setActiveVersionIndex={setActiveVersionIndex}
+                                htmlVersions={htmlVersions}
+                                setHtmlVersions={setHtmlVersions}
+                                publishedVersionIndex={publishedVersionIndex}
+                                onPublishVersion={handlePublishVersion}
+                                onUnpublish={handleUnpublish}
+                                updateApplet={updateApplet}
+                                workspaceId={id}
+                                setPreviewHtml={setPreviewHtml}
+                            />
+                            <PreviewTabs
+                                htmlVersions={htmlVersions}
+                                activeVersionIndex={activeVersionIndex}
+                                onHtmlChange={handleHtmlChange}
+                            />
                         </div>
                     )}
 
                     <div
                         className={cn(
-                            "flex flex-col",
+                            "flex h-full overflow-auto flex-col",
                             htmlVersions.length > 0 ? "w-80" : "w-full",
                         )}
                     >
-                        {/* Model selector and Clear button in one line */}
+                        {/* Model selector and Clear button */}
                         <div className="mb-4 flex items-center justify-between gap-4">
                             <div className="flex items-center gap-2 flex-1">
                                 <div className="w-48">
@@ -628,84 +489,77 @@ export default function WorkspaceApplet() {
                                 </div>
                             </div>
                             {messages && messages.length > 0 && (
-                                <>
-                                    <button
-                                        className={cn(
-                                            "lb-outline-secondary lb-sm",
-                                            (activeVersionIndex !== htmlVersions.length - 1 && !isContinuingFromOldVersion) && "opacity-50 cursor-not-allowed"
-                                        )}
-                                        onClick={() => setShowClearConfirm(true)}
-                                        disabled={activeVersionIndex !== htmlVersions.length - 1 && !isContinuingFromOldVersion}
-                                    >
-                                        Clear chat
-                                    </button>
-
-                                    <AlertDialog
-                                        open={showClearConfirm}
-                                        onOpenChange={setShowClearConfirm}
-                                    >
-                                        <AlertDialogContent>
-                                            <AlertDialogHeader>
-                                                <AlertDialogTitle>Clear Chat?</AlertDialogTitle>
-                                                <AlertDialogDescription>
-                                                    Are you sure you want to clear the chat? This action cannot be undone.
-                                                </AlertDialogDescription>
-                                            </AlertDialogHeader>
-                                            <AlertDialogFooter>
-                                                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                                <AlertDialogAction
-                                                    autoFocus
-                                                    onClick={() => {
-                                                        setMessages([]);
-                                                        updateApplet.mutate({
-                                                            id,
-                                                            data: { messages: [] },
-                                                        });
-                                                        setShowClearConfirm(false);
-                                                    }}
-                                                >
-                                                    Clear
-                                                </AlertDialogAction>
-                                            </AlertDialogFooter>
-                                        </AlertDialogContent>
-                                    </AlertDialog>
-                                </>
+                                <button
+                                    className={cn(
+                                        "lb-outline-secondary lb-sm",
+                                        blockOldVersionChat &&
+                                            "opacity-50 cursor-not-allowed",
+                                    )}
+                                    onClick={() => setShowClearConfirm(true)}
+                                    disabled={blockOldVersionChat}
+                                >
+                                    Clear chat
+                                </button>
                             )}
                         </div>
 
-                        {(messages && messages.length > 0) || htmlVersions.length > 0 ? (
-                            <div className="flex-1 overflow-auto border rounded-md p-4 bg-white scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent hover:scrollbar-thumb-gray-400 relative">
-                                {activeVersionIndex !== htmlVersions.length - 1 && !isContinuingFromOldVersion && (
+                        {/* Chat or Suggestions */}
+                        {(messages && messages.length > 0) ||
+                        htmlVersions.length > 0 ? (
+                            <div
+                                className={cn(
+                                    "relative flex-1 grow overflow-hidden",
+                                )}
+                            >
+                                {blockOldVersionChat && (
                                     <>
                                         <div className="absolute inset-0 bg-white/80 backdrop-blur-sm flex items-center justify-center z-10">
-                                            <button 
+                                            <button
                                                 className="px-4 py-2 bg-emerald-500 text-white rounded-md hover:bg-emerald-600 transition-colors"
-                                                onClick={() => setShowContinueConfirm(true)}
+                                                onClick={() =>
+                                                    setShowContinueConfirm(true)
+                                                }
                                             >
                                                 Continue from here
                                             </button>
                                         </div>
                                         <AlertDialog
                                             open={showContinueConfirm}
-                                            onOpenChange={setShowContinueConfirm}
+                                            onOpenChange={
+                                                setShowContinueConfirm
+                                            }
                                         >
                                             <AlertDialogContent>
                                                 <AlertDialogHeader>
-                                                    <AlertDialogTitle>Continue from this version?</AlertDialogTitle>
+                                                    <AlertDialogTitle>
+                                                        Continue from this
+                                                        version?
+                                                    </AlertDialogTitle>
                                                     <AlertDialogDescription>
-                                                        Continuing from this version will remove all future versions. This action cannot be undone.
-                                                        <br /><br />
-                                                        <span className="text-emerald-600 font-medium">Note: Published versions are never lost.</span>
+                                                        Continuing from this
+                                                        version will remove all
+                                                        future versions. This
+                                                        action cannot be undone.
+                                                        <br />
+                                                        <br />
+                                                        <span className="text-emerald-600 font-medium">
+                                                            Note: Published
+                                                            versions are never
+                                                            lost.
+                                                        </span>
                                                     </AlertDialogDescription>
                                                 </AlertDialogHeader>
                                                 <AlertDialogFooter>
-                                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                    <AlertDialogCancel>
+                                                        Cancel
+                                                    </AlertDialogCancel>
                                                     <AlertDialogAction
                                                         autoFocus
                                                         onClick={() => {
-                                                            setIsContinuingFromOldVersion(true);
-                                                            setShowContinueConfirm(false);
-                                                            // Optionally, scroll to input or focus input
+                                                            handleContinueFromOldVersion();
+                                                            setShowContinueConfirm(
+                                                                false,
+                                                            );
                                                         }}
                                                     >
                                                         Continue
@@ -715,175 +569,112 @@ export default function WorkspaceApplet() {
                                         </AlertDialog>
                                     </>
                                 )}
-                                {messages.map((message, index) => (
-                                    <div
-                                        key={index}
-                                        className={`mb-4 ${
-                                            message.role === "user"
-                                                ? "flex justify-end"
-                                                : "flex justify-start"
-                                        }`}
-                                    >
-                                        <div
-                                            className={`max-w-[80%] rounded-md p-3 ${
-                                                message.role === "user"
-                                                    ? "bg-sky-100 text-sky-900"
-                                                    : "bg-gray-100 text-gray-900"
-                                            } ${typeof message.linkToVersion === "number" ? "cursor-pointer hover:bg-gray-200" : ""}`}
-                                            onClick={() => {
-                                                if (
-                                                    typeof message.linkToVersion ===
-                                                    "number"
-                                                ) {
-                                                    setActiveVersionIndex(
-                                                        message.linkToVersion,
-                                                    );
-                                                }
+                                <div className="overflow-auto h-full">
+                                    <ChatInterface
+                                        messages={messages}
+                                        inputMessage={inputMessage}
+                                        setInputMessage={setInputMessage}
+                                        onSendMessage={handleSendMessage}
+                                        isLoading={isLoading}
+                                        blockOldVersionChat={
+                                            blockOldVersionChat
+                                        }
+                                        showContinueConfirm={
+                                            showContinueConfirm
+                                        }
+                                        setShowContinueConfirm={
+                                            setShowContinueConfirm
+                                        }
+                                        showClearConfirm={showClearConfirm}
+                                        setShowClearConfirm={
+                                            setShowClearConfirm
+                                        }
+                                        onContinueFromOldVersion={
+                                            handleContinueFromOldVersion
+                                        }
+                                        onClearChat={handleClearChat}
+                                        onMessageClick={handleMessageClick}
+                                        htmlVersions={htmlVersions}
+                                        onReplayMessage={handleReplayMessage}
+                                    />
+                                </div>
+                            </div>
+                        ) : (
+                            selectedLLM && (
+                                <>
+                                    <SuggestionsPanel
+                                        suggestions={
+                                            appletQuery.data?.suggestions
+                                        }
+                                        onSuggestionClick={setInputMessage}
+                                        onRefresh={handleRefreshSuggestions}
+                                        isRefreshing={
+                                            suggestionsMutation.isPending
+                                        }
+                                    />
+                                    {/* Message input for initial state */}
+                                    <div className="rounded-md border dark:border-zinc-200 mt-3">
+                                        <form
+                                            className="flex items-center rounded-md dark:bg-zinc-100"
+                                            onSubmit={(e) => {
+                                                e.preventDefault();
+                                                handleSendMessage();
                                             }}
                                         >
-                                            <div className="text-xs text-gray-600 mb-1 capitalize">
-                                                {message.role === "user"
-                                                    ? "You"
-                                                    : "Assistant"}
-                                            </div>
-                                            <ReactMarkdown
-                                                className="prose dark:prose-invert text-sm break-words"
-                                                components={{
-                                                    p: ({ children }) => (
-                                                        <p className="m-0">
-                                                            {React.Children.toArray(children).map((child, idx) =>
-                                                                typeof child === "string"
-                                                                    ? renderWithColorPreviews(child)
-                                                                    : child
-                                                            )}
-                                                        </p>
-                                                    ),
-                                                }}
-                                            >
-                                                {message.content}
-                                            </ReactMarkdown>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        ) : null}
-
-                        {/* Suggestions section */}
-                        {selectedLLM && !messages.length && htmlVersions.length === 0 && (
-                            <div className="mb-4  bg-white rounded-md p-3 border grow">
-                                <div className="flex justify-between items-center mb-2">
-                                    {appletQuery.data?.suggestions?.length > 0 && (
-                                        <p className="text-sm text-gray-600 font-semibold">
-                                            Suggested prompts:
-                                        </p>
-                                    )}
-                                    <button
-                                        onClick={handleRefreshSuggestions}
-                                        disabled={suggestionsMutation.isPending}
-                                        className="p-1 hover:bg-gray-100 rounded-full text-gray-500 hover:text-gray-700 disabled:opacity-50 flex gap-2 items-center"
-                                        title="Refresh suggestions"
-                                    >
-                                        {suggestionsMutation.isPending && (
-                                            <span className="ps-2 text-sm">
-                                                Loading suggestions...
-                                            </span>
-                                        )}
-                                        <RiRefreshLine
-                                            className={`w-4 h-4 ${suggestionsMutation.isPending ? "animate-spin" : ""}`}
-                                        />
-                                    </button>
-                                </div>
-                                {appletQuery.data?.suggestions?.length > 0 && (
-                                    <div className="flex gap-2 overflow-auto">
-                                        {appletQuery.data.suggestions.map(
-                                            (suggestion, index) => (
-                                                <button
-                                                    key={index}
-                                                    onClick={() =>
-                                                        setInputMessage(
-                                                            suggestion.uxDescription,
-                                                        )
-                                                    }
-                                                    className="text-left p-2 bg-gray-100 rounded-md text-sm text-gray-700 hover:bg-gray-200 w-96 shrink-0 flex items-start"
-                                                >
-                                                    <div>
-                                                        <p className="font-bold">
-                                                            {suggestion.name}
-                                                        </p>
-                                                        <pre className="max-h-40 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100 hover:scrollbar-thumb-gray-400 font-sans whitespace-pre-wrap text-sm text-gray-500">
-                                                            {
-                                                                suggestion.uxDescription
+                                            <div className="relative grow">
+                                                <div className="flex items-center">
+                                                    <TextareaAutosize
+                                                        className="w-full border-0 outline-none focus:shadow-none text-sm focus:ring-0 py-3 resize-none dark:bg-zinc-100 px-3 rounded-s max-h-24 overflow-y-auto"
+                                                        rows={1}
+                                                        value={inputMessage}
+                                                        onChange={(e) =>
+                                                            setInputMessage(
+                                                                e.target.value,
+                                                            )
+                                                        }
+                                                        placeholder="Describe your desired UI in natural language..."
+                                                        onKeyDown={(e) => {
+                                                            if (
+                                                                e.key ===
+                                                                    "Enter" &&
+                                                                !e.shiftKey
+                                                            ) {
+                                                                e.preventDefault();
+                                                                handleSendMessage();
                                                             }
-                                                        </pre>
-                                                    </div>
-                                                </button>
-                                            ),
-                                        )}
+                                                        }}
+                                                        autoComplete="on"
+                                                        autoCapitalize="sentences"
+                                                        autoCorrect="on"
+                                                        spellCheck="true"
+                                                        inputMode="text"
+                                                        disabled={isLoading}
+                                                    />
+                                                </div>
+                                            </div>
+                                            <div className="px-3 bg-white self-stretch flex items-center rounded-e">
+                                                <div>
+                                                    <button
+                                                        type="submit"
+                                                        disabled={
+                                                            !inputMessage.trim() ||
+                                                            isLoading
+                                                        }
+                                                        className="text-base rtl:rotate-180 text-emerald-500 hover:text-emerald-600 disabled:text-gray-300 active:text-gray-800 dark:bg-zinc-100 flex items-center justify-center"
+                                                    >
+                                                        {isLoading ? (
+                                                            <div className="w-4 h-4 border-2 border-sky-600 border-t-transparent rounded-full animate-spin" />
+                                                        ) : (
+                                                            <RiSendPlane2Fill />
+                                                        )}
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </form>
                                     </div>
-                                )}
-                            </div>
+                                </>
+                            )
                         )}
-
-                        {/* Chat input section styled like MessageInput.js */}
-                        <div className="rounded-md border dark:border-zinc-200 mt-3">
-                            <form className="flex items-center rounded-md dark:bg-zinc-100">
-                                <div className="relative grow">
-                                    <div className="flex items-center">
-                                        <TextareaAutosize
-                                            className={cn(
-                                                "w-full border-0 outline-none focus:shadow-none text-sm focus:ring-0 py-3 resize-none dark:bg-zinc-100 px-3 rounded-s max-h-24 overflow-y-auto",
-                                                (activeVersionIndex !== htmlVersions.length - 1 && !isContinuingFromOldVersion) && "opacity-50 cursor-not-allowed"
-                                            )}
-                                            rows={1}
-                                            value={inputMessage}
-                                            onChange={(e) =>
-                                                setInputMessage(e.target.value)
-                                            }
-                                            placeholder={
-                                                (messages && messages.length > 0) || htmlVersions.length > 0
-                                                    ? "Type your message here..."
-                                                    : "Describe your desired UI in natural language..."
-                                            }
-                                            onKeyDown={(e) => {
-                                                if (
-                                                    e.key === "Enter" &&
-                                                    !e.shiftKey
-                                                ) {
-                                                    e.preventDefault();
-                                                    handleSendMessage();
-                                                }
-                                            }}
-                                            autoComplete="on"
-                                            autoCapitalize="sentences"
-                                            autoCorrect="on"
-                                            spellCheck="true"
-                                            inputMode="text"
-                                            disabled={isLoading || (activeVersionIndex !== htmlVersions.length - 1 && !isContinuingFromOldVersion)}
-                                        />
-                                    </div>
-                                </div>
-                                <div className="px-3 bg-white self-stretch flex items-center rounded-e">
-                                    <div>
-                                        <button
-                                            type="submit"
-                                            disabled={
-                                                !inputMessage.trim() ||
-                                                isLoading ||
-                                                (activeVersionIndex !== htmlVersions.length - 1 && !isContinuingFromOldVersion)
-                                            }
-                                            onClick={handleSendMessage}
-                                            className="text-base rtl:rotate-180 text-emerald-500 hover:text-emerald-600 disabled:text-gray-300 active:text-gray-800 dark:bg-zinc-100 flex items-center justify-center"
-                                        >
-                                            {isLoading ? (
-                                                <div className="w-4 h-4 border-2 border-sky-600 border-t-transparent rounded-full animate-spin" />
-                                            ) : (
-                                                <RiSendPlane2Fill />
-                                            )}
-                                        </button>
-                                    </div>
-                                </div>
-                            </form>
-                        </div>
                     </div>
                 </div>
             </div>
@@ -906,11 +697,4 @@ function HtmlEditor({ value, onChange }) {
             onChange={onChange}
         />
     );
-}
-
-function getMessagesUpToVersion(messages, versionIndex) {
-    if (!messages) return [];
-    const idx = messages.findIndex((msg) => msg.linkToVersion === versionIndex);
-    if (idx === -1) return messages;
-    return messages.slice(0, idx + 1);
 }

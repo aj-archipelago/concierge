@@ -264,8 +264,6 @@ export function useUpdateWorkspaceApplet() {
 }
 
 export function useWorkspaceChat(id) {
-    const queryClient = useQueryClient();
-
     const mutation = useMutation({
         mutationFn: async ({ messages, model, currentHtml }) => {
             const { data } = await axios.post(

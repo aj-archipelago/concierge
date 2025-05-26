@@ -110,6 +110,7 @@ const MemoizedYouTubeEmbed = React.memo(({ url, onLoad }) => {
                 aspectRatio: "16/9",
                 backgroundColor: "transparent",
             }}
+            sandbox="allow-scripts allow-same-origin allow-forms"
             allowFullScreen
             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
         />

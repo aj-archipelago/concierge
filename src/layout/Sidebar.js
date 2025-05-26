@@ -48,9 +48,14 @@ export const navigation = [
     { name: "Jira", icon: CodeBracketIcon, href: "/code/jira" },
 ];
 
+const routesToCollapseSidebarFor = ["/published"];
+
 export const shouldForceCollapse = (pathname) => {
-    return navigation.some(
-        (item) => item.collapsed && pathname?.startsWith(item.href),
+    return (
+        navigation.some(
+            (item) => item.collapsed && pathname?.startsWith(item.href),
+        ) ||
+        routesToCollapseSidebarFor.some((route) => pathname?.startsWith(route))
     );
 };
 

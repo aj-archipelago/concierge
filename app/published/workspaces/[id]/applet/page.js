@@ -1,6 +1,7 @@
 "use client";
-import { useEffect, useState } from "react";
+import OutputSandbox from "@/src/components/sandbox/OutputSandbox";
 import { useParams } from "next/navigation";
+import { useEffect, useState } from "react";
 import { useWorkspaceApplet } from "../../../../queries/workspaces";
 
 export default function PublishedAppletPage() {
@@ -45,20 +46,17 @@ export default function PublishedAppletPage() {
 
     if (error) {
         return (
-            <div className="flex items-center justify-center h-screen text-red-600">
+            <div className="flex items-center justify-center h-full text-red-600">
                 <span>{error}</span>
             </div>
         );
     }
 
     return (
-        <div className="w-full h-screen bg-gray-100 flex items-center justify-center">
-            <iframe
-                srcDoc={publishedHtml}
-                className="w-full h-full border-0 bg-white"
-                sandbox="allow-scripts allow-same-origin"
-                title="Published Applet"
-            />
+        <div className="w-full h-full bg-gray-100 flex items-center justify-center">
+            <div className="w-full h-full bg-white">
+                <OutputSandbox content={publishedHtml} height="100%" />
+            </div>
         </div>
     );
 }
