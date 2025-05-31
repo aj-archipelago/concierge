@@ -26,6 +26,7 @@ function ImagesPage() {
     const { t } = useTranslation();
     const [loading, setLoading] = useState(false);
     const [selectedImages, setSelectedImages] = useState(new Set());
+    const [isModifyMode, setIsModifyMode] = useState(false);
 
     useEffect(() => {
         const imagesInStorage = localStorage.getItem("generated-images");
@@ -37,14 +38,16 @@ function ImagesPage() {
     const apolloClient = useApolloClient();
 
     const generateImage = useCallback(
-        async (prompt) => {
+        async (prompt, inputImageUrl = null) => {
             const variables = {
                 text: prompt,
                 async: true,
-                model:
-                    quality === "draft"
+                model: inputImageUrl 
+                    ? "replicate-flux-kontext-pro"
+                    : quality === "draft"
                         ? "replicate-flux-1-schnell"
                         : "replicate-flux-11-pro",
+                input_image: inputImageUrl || "",
             };
 
             setLoading(true);
@@ -67,9 +70,9 @@ function ImagesPage() {
                             cortexRequestId: requestId,
                             prompt: prompt,
                             created: Math.floor(Date.now() / 1000),
+                            inputImageUrl: inputImageUrl,
                         };
                         const updatedImages = [newImage, ...filteredImages];
-                        // Update localStorage with the new images array
                         localStorage.setItem(
                             "generated-images",
                             JSON.stringify(updatedImages),
@@ -86,6 +89,70 @@ function ImagesPage() {
         },
         [apolloClient, quality],
     );
+
+    useEffect(() => {
+        setIsModifyMode(selectedImages.size > 0);
+    }, [selectedImages]);
+
+    const handleModifySelected = useCallback(async () => {
+        if (!prompt.trim() || selectedImages.size === 0) return;
+
+        const selectedImageObjects = images.filter(img => 
+            selectedImages.has(img.cortexRequestId) && img.url
+        );
+
+        for (const image of selectedImageObjects) {
+            const variables = {
+                text: prompt,
+                async: true,
+                model: "replicate-flux-kontext-pro",
+                input_image: image.url,
+            };
+
+            setLoading(true);
+            try {
+                const { data } = await apolloClient.query({
+                    query: QUERIES.IMAGE_FLUX,
+                    variables,
+                    fetchPolicy: "network-only",
+                });
+                setLoading(false);
+
+                if (data?.image_flux?.result) {
+                    const requestId = data?.image_flux?.result;
+
+                    setImages((prevImages) => {
+                        // Replace the selected image with the new one
+                        const updatedImages = prevImages.map(img => {
+                            if (img.cortexRequestId === image.cortexRequestId) {
+                                // Combine the original prompt with the new modification prompt
+                                const combinedPrompt = image.prompt 
+                                    ? `${image.prompt} - ${prompt}`
+                                    : prompt;
+                                return {
+                                    cortexRequestId: requestId,
+                                    prompt: combinedPrompt,
+                                    created: Math.floor(Date.now() / 1000),
+                                    inputImageUrl: image.url,
+                                };
+                            }
+                            return img;
+                        });
+                        localStorage.setItem(
+                            "generated-images",
+                            JSON.stringify(updatedImages),
+                        );
+                        return updatedImages;
+                    });
+                }
+            } catch (error) {
+                setLoading(false);
+                console.error("Error modifying image:", error);
+            }
+        }
+        // Clear selection after modification
+        setSelectedImages(new Set());
+    }, [prompt, selectedImages, images, apolloClient]);
 
     images.sort((a, b) => {
         return b.created - a.created;
@@ -208,14 +275,19 @@ function ImagesPage() {
                             e.preventDefault();
                             if (!prompt.trim()) return;
                             setGenerationPrompt(prompt);
-                            generateImage(prompt);
+                            if (isModifyMode) {
+                                handleModifySelected();
+                            } else {
+                                generateImage(prompt);
+                            }
                         }}
                     >
                         <textarea
                             className="lb-input flex-grow min-h-[2.5rem] max-h-32 resize-y"
-                            placeholder={t(
-                                "Enter prompt and set quality to generate image",
-                            )}
+                            placeholder={isModifyMode 
+                                ? t("Enter prompt to modify selected images")
+                                : t("Enter prompt and set quality to generate image")
+                            }
                             value={prompt}
                             onChange={(e) => setPrompt(e.target.value)}
                             onKeyDown={(e) => {
@@ -223,32 +295,36 @@ function ImagesPage() {
                                     e.preventDefault();
                                     if (!prompt.trim()) return;
                                     setGenerationPrompt(prompt);
-                                    generateImage(prompt);
+                                    if (isModifyMode) {
+                                        handleModifySelected();
+                                    } else {
+                                        generateImage(prompt);
+                                    }
                                 }
                             }}
                         />
 
                         <div className="flex gap-2">
-                            <select
-                                className="lb-input w-full sm:w-fit"
-                                value={quality}
-                                onChange={(e) => setQuality(e.target.value)}
-                            >
-                                <option value="draft">{t("Draft")}</option>
-                                <option value="high">
-                                    {t("High Quality")}
-                                </option>
-                            </select>
+                            {!isModifyMode && (
+                                <select
+                                    className="lb-input w-full sm:w-fit"
+                                    value={quality}
+                                    onChange={(e) => setQuality(e.target.value)}
+                                >
+                                    <option value="draft">{t("Draft")}</option>
+                                    <option value="high">{t("High Quality")}</option>
+                                </select>
+                            )}
 
                             <LoadingButton
                                 className="lb-primary w-full sm:w-auto"
                                 style={{ whiteSpace: "nowrap" }}
                                 loading={loading}
-                                text={t("Generating...")}
+                                text={isModifyMode ? t("Modifying...") : t("Generating...")}
                                 type="submit"
-                                disabled={!prompt.trim()}
+                                disabled={!prompt.trim() || (isModifyMode && selectedImages.size === 0)}
                             >
-                                {t("Generate")}
+                                {isModifyMode ? t("Modify") : t("Generate")}
                             </LoadingButton>
                         </div>
                     </form>
