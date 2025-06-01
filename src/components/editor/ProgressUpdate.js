@@ -52,9 +52,9 @@ const ProgressUpdate = ({
                 result: {
                     error: {
                         code: "REQUEST_ERROR",
-                        message: data.requestProgress.error
-                    }
-                }
+                        message: data.requestProgress.error,
+                    },
+                },
             });
             return;
         }

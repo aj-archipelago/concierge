@@ -43,7 +43,8 @@ function ImagesPage() {
     const [isUploading, setIsUploading] = useState(false);
     const [uploadProgress, setUploadProgress] = useState(0);
     const [showDeleteAllConfirm, setShowDeleteAllConfirm] = useState(false);
-    const [showDeleteSelectedConfirm, setShowDeleteSelectedConfirm] = useState(false);
+    const [showDeleteSelectedConfirm, setShowDeleteSelectedConfirm] =
+        useState(false);
     const promptRef = useRef(null);
 
     useEffect(() => {
@@ -60,11 +61,11 @@ function ImagesPage() {
             const variables = {
                 text: prompt,
                 async: true,
-                model: inputImageUrl 
+                model: inputImageUrl
                     ? "replicate-flux-kontext-max"
                     : quality === "draft"
-                        ? "replicate-flux-1-schnell"
-                        : "replicate-flux-11-pro",
+                      ? "replicate-flux-1-schnell"
+                      : "replicate-flux-11-pro",
                 input_image: inputImageUrl || "",
                 aspectRatio: inputImageUrl ? "match_input_image" : undefined,
             };
@@ -97,7 +98,9 @@ function ImagesPage() {
                             JSON.stringify(updatedImages),
                         );
                         setSelectedImages(new Set([requestId]));
-                        setTimeout(() => { promptRef.current && promptRef.current.focus(); }, 0);
+                        setTimeout(() => {
+                            promptRef.current && promptRef.current.focus();
+                        }, 0);
                         return updatedImages;
                     });
 
@@ -120,8 +123,8 @@ function ImagesPage() {
 
         const newSelectedIds = [];
 
-        const selectedImageObjects = images.filter(img => 
-            selectedImages.has(img.cortexRequestId) && img.url
+        const selectedImageObjects = images.filter(
+            (img) => selectedImages.has(img.cortexRequestId) && img.url,
         );
 
         for (const image of selectedImageObjects) {
@@ -148,7 +151,7 @@ function ImagesPage() {
 
                     setImages((prevImages) => {
                         // Do NOT replace the old image; instead, add a new tile on top
-                        const combinedPrompt = image.prompt 
+                        const combinedPrompt = image.prompt
                             ? `${image.prompt} - ${prompt}`
                             : prompt;
                         const newImage = {
@@ -174,72 +177,89 @@ function ImagesPage() {
         // Select the newly created modified images and focus prompt box
         if (newSelectedIds.length > 0) {
             setSelectedImages(new Set(newSelectedIds));
-            setTimeout(() => { promptRef.current && promptRef.current.focus(); }, 0);
+            setTimeout(() => {
+                promptRef.current && promptRef.current.focus();
+            }, 0);
         } else {
             // If no new ids (shouldn't happen), clear selection
             setSelectedImages(new Set());
         }
     }, [prompt, selectedImages, images, apolloClient]);
 
-    const handleFileUpload = useCallback(async (file) => {
-        if (!file) return;
+    const handleFileUpload = useCallback(
+        async (file) => {
+            if (!file) return;
 
-        setIsUploading(true);
-        setUploadProgress(0);
-        const serverUrl = "/media-helper?useGoogle=true";
-
-        try {
-            // Start showing upload progress
-            const fileHash = await hashMediaFile(file);
-            const formData = new FormData();
-            formData.append("hash", fileHash);
-            formData.append("file", file, file.name);
-
-            const response = await axios.post(`${serverUrl}&hash=${fileHash}`, formData, {
-                headers: {
-                    'Content-Type': 'multipart/form-data',
-                },
-                onUploadProgress: (progressEvent) => {
-                    const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
-                    setUploadProgress(percentCompleted);
-                },
-            });
-
-            if (response.data?.url) {
-                // Create a new image entry with the uploaded file
-                const newImage = {
-                    cortexRequestId: `upload-${Date.now()}`,
-                    prompt: t("Uploaded image"),
-                    created: Math.floor(Date.now() / 1000),
-                    url: response.data.url,
-                    gcs: response.data.gcs,
-                };
-
-                setImages((prevImages) => {
-                    const updatedImages = [newImage, ...prevImages];
-                    localStorage.setItem(
-                        "generated-images",
-                        JSON.stringify(updatedImages),
-                    );
-                    setSelectedImages(new Set([newImage.cortexRequestId]));
-                    setTimeout(() => { promptRef.current && promptRef.current.focus(); }, 0);
-                    return updatedImages;
-                });
-            }
-        } catch (error) {
-            console.error("Error uploading file:", error);
-        } finally {
-            setIsUploading(false);
+            setIsUploading(true);
             setUploadProgress(0);
-        }
-    }, [t]);
+            const serverUrl = "/media-helper?useGoogle=true";
 
-    const handleFileSelect = useCallback((event) => {
-        const file = event.target.files[0];
-        if (file) {
-            handleFileUpload(file);
-        }
-    }, [handleFileUpload]);
+            try {
+                // Start showing upload progress
+                const fileHash = await hashMediaFile(file);
+                const formData = new FormData();
+                formData.append("hash", fileHash);
+                formData.append("file", file, file.name);
+
+                const response = await axios.post(
+                    `${serverUrl}&hash=${fileHash}`,
+                    formData,
+                    {
+                        headers: {
+                            "Content-Type": "multipart/form-data",
+                        },
+                        onUploadProgress: (progressEvent) => {
+                            const percentCompleted = Math.round(
+                                (progressEvent.loaded * 100) /
+                                    progressEvent.total,
+                            );
+                            setUploadProgress(percentCompleted);
+                        },
+                    },
+                );
+
+                if (response.data?.url) {
+                    // Create a new image entry with the uploaded file
+                    const newImage = {
+                        cortexRequestId: `upload-${Date.now()}`,
+                        prompt: t("Uploaded image"),
+                        created: Math.floor(Date.now() / 1000),
+                        url: response.data.url,
+                        gcs: response.data.gcs,
+                    };
+
+                    setImages((prevImages) => {
+                        const updatedImages = [newImage, ...prevImages];
+                        localStorage.setItem(
+                            "generated-images",
+                            JSON.stringify(updatedImages),
+                        );
+                        setSelectedImages(new Set([newImage.cortexRequestId]));
+                        setTimeout(() => {
+                            promptRef.current && promptRef.current.focus();
+                        }, 0);
+                        return updatedImages;
+                    });
+                }
+            } catch (error) {
+                console.error("Error uploading file:", error);
+            } finally {
+                setIsUploading(false);
+                setUploadProgress(0);
+            }
+        },
+        [t],
+    );
+
+    const handleFileSelect = useCallback(
+        (event) => {
+            const file = event.target.files[0];
+            if (file) {
+                handleFileUpload(file);
+            }
+        },
+        [handleFileUpload],
+    );
 
     images.sort((a, b) => {
         return b.created - a.created;
@@ -266,10 +286,7 @@ function ImagesPage() {
             (img) => !selectedImages.has(img.cortexRequestId),
         );
         setImages(newImages);
-        localStorage.setItem(
-            "generated-images",
-            JSON.stringify(newImages),
-        );
+        localStorage.setItem("generated-images", JSON.stringify(newImages));
         setSelectedImages(new Set());
         setShowDeleteSelectedConfirm(false);
     }, [images, selectedImages]);
@@ -331,7 +348,9 @@ function ImagesPage() {
                             // Remove the old tile first (regenerate replaces it)
                             setImages((prevImages) => {
                                 const newImages = prevImages.filter(
-                                    (img) => img.cortexRequestId !== image.cortexRequestId,
+                                    (img) =>
+                                        img.cortexRequestId !==
+                                        image.cortexRequestId,
                                 );
                                 localStorage.setItem(
                                     "generated-images",
@@ -342,7 +361,10 @@ function ImagesPage() {
 
                             if (image.inputImageUrl) {
                                 // Regenerate modification with same input image
-                                await generateImage(image.prompt, image.inputImageUrl || image.url);
+                                await generateImage(
+                                    image.prompt,
+                                    image.inputImageUrl || image.url,
+                                );
                             } else {
                                 // Regular regenerate
                                 await generateImage(image.prompt);
@@ -374,7 +396,8 @@ function ImagesPage() {
                         onDelete={(image) => {
                             const newImages = images.filter((img) => {
                                 return (
-                                    img.cortexRequestId !== image.cortexRequestId
+                                    img.cortexRequestId !==
+                                    image.cortexRequestId
                                 );
                             });
 
@@ -387,10 +410,12 @@ function ImagesPage() {
                                 "generated-images",
                                 JSON.stringify(newImages),
                             );
-                            
+
                             // Clear selection if the deleted image was selected
                             if (selectedImages.has(image.cortexRequestId)) {
-                                const newSelectedImages = new Set(selectedImages);
+                                const newSelectedImages = new Set(
+                                    selectedImages,
+                                );
                                 newSelectedImages.delete(image.cortexRequestId);
                                 setSelectedImages(newSelectedImages);
                             }
@@ -399,7 +424,19 @@ function ImagesPage() {
                 );
             }),
         ];
-    }, [images, generationPrompt, generateImage, quality, selectedImages, t, handleFileSelect, isUploading, uploadProgress, lastSelectedImage, setLastSelectedImage]);
+    }, [
+        images,
+        generationPrompt,
+        generateImage,
+        quality,
+        selectedImages,
+        t,
+        handleFileSelect,
+        isUploading,
+        uploadProgress,
+        lastSelectedImage,
+        setLastSelectedImage,
+    ]);
 
     return (
         <div>
@@ -420,9 +457,14 @@ function ImagesPage() {
                     >
                         <textarea
                             className="lb-input flex-grow min-h-[2.5rem] max-h-32 resize-y"
-                            placeholder={isModifyMode 
-                                ? t("Enter prompt to modify selected images")
-                                : t("Enter prompt and set quality to generate image")
+                            placeholder={
+                                isModifyMode
+                                    ? t(
+                                          "Enter prompt to modify selected images",
+                                      )
+                                    : t(
+                                          "Enter prompt and set quality to generate image",
+                                      )
                             }
                             value={prompt}
                             onChange={(e) => setPrompt(e.target.value)}
@@ -449,7 +491,9 @@ function ImagesPage() {
                                     onChange={(e) => setQuality(e.target.value)}
                                 >
                                     <option value="draft">{t("Draft")}</option>
-                                    <option value="high">{t("High Quality")}</option>
+                                    <option value="high">
+                                        {t("High Quality")}
+                                    </option>
                                 </select>
                             )}
 
@@ -457,9 +501,16 @@ function ImagesPage() {
                                 className="lb-primary w-full sm:w-auto"
                                 style={{ whiteSpace: "nowrap" }}
                                 loading={loading}
-                                text={isModifyMode ? t("Modifying...") : t("Generating...")}
+                                text={
+                                    isModifyMode
+                                        ? t("Modifying...")
+                                        : t("Generating...")
+                                }
                                 type="submit"
-                                disabled={!prompt.trim() || (isModifyMode && selectedImages.size === 0)}
+                                disabled={
+                                    !prompt.trim() ||
+                                    (isModifyMode && selectedImages.size === 0)
+                                }
                             >
                                 {isModifyMode ? t("Modify") : t("Generate")}
                             </LoadingButton>
@@ -514,7 +565,9 @@ function ImagesPage() {
                             <TooltipTrigger asChild>
                                 <button
                                     className="lb-icon-button text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 dark:bg-transparent dark:border-gray-600 dark:hover:border-gray-500"
-                                    onClick={() => setShowDeleteAllConfirm(true)}
+                                    onClick={() =>
+                                        setShowDeleteAllConfirm(true)
+                                    }
                                 >
                                     <FaTrash />
                                 </button>
@@ -543,17 +596,18 @@ function ImagesPage() {
             >
                 <AlertDialogContent>
                     <AlertDialogHeader>
-                        <AlertDialogTitle>{t("Delete All Images?")}</AlertDialogTitle>
+                        <AlertDialogTitle>
+                            {t("Delete All Images?")}
+                        </AlertDialogTitle>
                         <AlertDialogDescription>
-                            {t("Are you sure you want to delete all images? This action cannot be undone.")}
+                            {t(
+                                "Are you sure you want to delete all images? This action cannot be undone.",
+                            )}
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
                         <AlertDialogCancel>{t("Cancel")}</AlertDialogCancel>
-                        <AlertDialogAction
-                            autoFocus
-                            onClick={handleDeleteAll}
-                        >
+                        <AlertDialogAction autoFocus onClick={handleDeleteAll}>
                             {t("Delete All")}
                         </AlertDialogAction>
                     </AlertDialogFooter>
@@ -566,9 +620,13 @@ function ImagesPage() {
             >
                 <AlertDialogContent>
                     <AlertDialogHeader>
-                        <AlertDialogTitle>{t("Delete Selected Images?")}</AlertDialogTitle>
+                        <AlertDialogTitle>
+                            {t("Delete Selected Images?")}
+                        </AlertDialogTitle>
                         <AlertDialogDescription>
-                            {t("Are you sure you want to delete the selected images? This action cannot be undone.")}
+                            {t(
+                                "Are you sure you want to delete the selected images? This action cannot be undone.",
+                            )}
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
@@ -586,7 +644,13 @@ function ImagesPage() {
     );
 }
 
-function Progress({ requestId, prompt, quality, onDataReceived, inputImageUrl }) {
+function Progress({
+    requestId,
+    prompt,
+    quality,
+    onDataReceived,
+    inputImageUrl,
+}) {
     const [data] = useState(null);
     const { t } = useTranslation();
 
@@ -622,7 +686,9 @@ function Progress({ requestId, prompt, quality, onDataReceived, inputImageUrl })
                         });
                     }
                 }}
-                autoDuration={!inputImageUrl && (quality === "draft") ? 1000 : 10000}
+                autoDuration={
+                    !inputImageUrl && quality === "draft" ? 1000 : 10000
+                }
             />
         );
     }
@@ -652,16 +718,20 @@ function ImageTile({
     const handleSelection = (e) => {
         e.stopPropagation();
         const newSelectedImages = new Set(selectedImages);
-        
+
         if (e.shiftKey && lastSelectedImage) {
             // Find indices of last selected and current image
-            const lastIndex = images.findIndex(img => img.cortexRequestId === lastSelectedImage);
-            const currentIndex = images.findIndex(img => img.cortexRequestId === cortexRequestId);
-            
+            const lastIndex = images.findIndex(
+                (img) => img.cortexRequestId === lastSelectedImage,
+            );
+            const currentIndex = images.findIndex(
+                (img) => img.cortexRequestId === cortexRequestId,
+            );
+
             // Select all images between last selected and current
             const start = Math.min(lastIndex, currentIndex);
             const end = Math.max(lastIndex, currentIndex);
-            
+
             for (let i = start; i <= end; i++) {
                 newSelectedImages.add(images[i].cortexRequestId);
             }
@@ -673,7 +743,7 @@ function ImageTile({
                 newSelectedImages.add(cortexRequestId);
             }
         }
-        
+
         setSelectedImages(newSelectedImages);
         setLastSelectedImage(cortexRequestId);
     };
