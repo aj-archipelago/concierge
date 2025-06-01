@@ -644,8 +644,8 @@ const IMAGE = gql`
 `;
 
 const IMAGE_FLUX = gql`
-    query ImageFlux($text: String!, $model: String, $async: Boolean, $input_image: String) {
-        image_flux(text: $text, model: $model, async: $async, input_image: $input_image) {
+    query ImageFlux($text: String!, $model: String, $async: Boolean, $input_image: String, $aspectRatio: String) {
+        image_flux(text: $text, model: $model, async: $async, input_image: $input_image, aspectRatio: $aspectRatio) {
             result
         }
     }

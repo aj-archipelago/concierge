@@ -47,8 +47,15 @@ const ProgressUpdate = ({
 
         // Check for error in the requestProgress data
         if (data?.requestProgress?.error) {
-            // Handle the error by setting an error message in the UI
-            setInfo(`Error: ${data.requestProgress.error}`);
+            // Pass the error through setFinalData instead of just setting info
+            setFinalData({
+                result: {
+                    error: {
+                        code: "REQUEST_ERROR",
+                        message: data.requestProgress.error
+                    }
+                }
+            });
             return;
         }
 
