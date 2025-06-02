@@ -1,25 +1,11 @@
 import { NextResponse } from "next/server";
 import { getClient } from "../../../../../../src/graphql";
 import { QUERIES } from "../../../../../../src/graphql";
-import LLM from "../../../../models/llm";
 
 export async function POST(request, { params }) {
     try {
-        const { messages, model, currentHtml, restEndpoint } =
+        const { messages, currentHtml, restEndpoint } =
             await request.json();
-
-        if (!model) {
-            return NextResponse.json(
-                { error: "Model ID is required" },
-                { status: 400 },
-            );
-        }
-
-        // Get the specified LLM model
-        const llm = await LLM.findOne({ _id: model });
-        if (!llm) {
-            throw new Error("Specified LLM model not found");
-        }
 
         // Get the latest message from the user
         const latestMessage = messages[messages.length - 1];

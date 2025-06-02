@@ -20,7 +20,6 @@ import {
     useWorkspaceChat,
     useWorkspaceSuggestions,
 } from "../../../queries/workspaces";
-import LLMSelector from "../../components/LLMSelector";
 import ChatInterface from "./ChatInterface";
 import PreviewTabs from "./PreviewTabs";
 import SuggestionsPanel from "./SuggestionsPanel";
@@ -132,7 +131,7 @@ function renderWithColorPreviews(text) {
 
 export default function WorkspaceApplet() {
     const { id } = useParams();
-    const [selectedLLM, setSelectedLLM] = useState("");
+    const selectedLLM = "o3mini"; // This will be the default model
     const [messages, setMessages] = useState([]);
     const [inputMessage, setInputMessage] = useState("");
     const [previewHtml, setPreviewHtml] = useState(null);
@@ -287,7 +286,6 @@ export default function WorkspaceApplet() {
             const currentHtml = truncatedHtmlVersions[activeVersionIndex] || "";
             const response = await chatMutation.mutateAsync({
                 messages: updatedMessages,
-                model: selectedLLM,
                 currentHtml,
             });
 
@@ -477,17 +475,8 @@ export default function WorkspaceApplet() {
                             htmlVersions.length > 0 ? "w-80" : "w-full",
                         )}
                     >
-                        {/* Model selector and Clear button */}
-                        <div className="mb-4 flex items-center justify-between gap-4">
-                            <div className="flex items-center gap-2 flex-1">
-                                <div className="w-48">
-                                    <LLMSelector
-                                        defaultModelIdentifier={"o3mini"}
-                                        value={selectedLLM}
-                                        onChange={setSelectedLLM}
-                                    />
-                                </div>
-                            </div>
+                        {/* Remove model selector and keep only Clear button */}
+                        <div className="mb-4 flex items-center justify-end gap-4">
                             {messages && messages.length > 0 && (
                                 <button
                                     className={cn(
