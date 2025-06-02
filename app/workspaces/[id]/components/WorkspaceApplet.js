@@ -18,11 +18,9 @@ import {
     useUpdateWorkspaceApplet,
     useWorkspaceApplet,
     useWorkspaceChat,
-    useWorkspaceSuggestions,
 } from "../../../queries/workspaces";
 import ChatInterface from "./ChatInterface";
 import PreviewTabs from "./PreviewTabs";
-import SuggestionsPanel from "./SuggestionsPanel";
 import { getMessagesUpToVersion } from "./utils";
 import VersionNavigator from "./VersionNavigator";
 import {
@@ -146,7 +144,6 @@ export default function WorkspaceApplet() {
         useState(false);
 
     // Queries and mutations
-    const suggestionsMutation = useWorkspaceSuggestions(id, selectedLLM);
     const appletQuery = useWorkspaceApplet(id);
     const updateApplet = useUpdateWorkspaceApplet();
     const chatMutation = useWorkspaceChat(id);
@@ -155,31 +152,6 @@ export default function WorkspaceApplet() {
     useEffect(() => {
         setIsContinuingFromOldVersion(false);
     }, [activeVersionIndex]);
-
-    console.log("isContinuingFromOldVersion", isContinuingFromOldVersion);
-
-    // Generate initial suggestions
-    useEffect(() => {
-        if (
-            selectedLLM &&
-            !appletQuery.data?.suggestions?.length &&
-            !appletQuery.isLoading
-        ) {
-            suggestionsMutation.mutate(undefined, {
-                onSuccess: (data) => {
-                    updateApplet.mutate({
-                        id,
-                        data: {
-                            suggestions: data.map((suggestion) => ({
-                                name: suggestion.name,
-                                uxDescription: suggestion.ux_description,
-                            })),
-                        },
-                    });
-                },
-            });
-        }
-    }, [selectedLLM]);
 
     // Load initial data
     useEffect(() => {
@@ -348,22 +320,6 @@ export default function WorkspaceApplet() {
         }
     };
 
-    const handleRefreshSuggestions = () => {
-        suggestionsMutation.mutate(undefined, {
-            onSuccess: (data) => {
-                updateApplet.mutate({
-                    id,
-                    data: {
-                        suggestions: data.map((suggestion) => ({
-                            name: suggestion.name,
-                            uxDescription: suggestion.ux_description,
-                        })),
-                    },
-                });
-            },
-        });
-    };
-
     const handlePublishVersion = (versionIdx) => {
         updateApplet.mutate(
             { id, data: { publishedVersionIndex: versionIdx } },
@@ -492,7 +448,7 @@ export default function WorkspaceApplet() {
                             )}
                         </div>
 
-                        {/* Chat or Suggestions */}
+                        {/* Chat or Message Input */}
                         {(messages && messages.length > 0) ||
                         htmlVersions.length > 0 ? (
                             <div
@@ -590,78 +546,65 @@ export default function WorkspaceApplet() {
                             </div>
                         ) : (
                             selectedLLM && (
-                                <>
-                                    <SuggestionsPanel
-                                        suggestions={
-                                            appletQuery.data?.suggestions
-                                        }
-                                        onSuggestionClick={setInputMessage}
-                                        onRefresh={handleRefreshSuggestions}
-                                        isRefreshing={
-                                            suggestionsMutation.isPending
-                                        }
-                                    />
-                                    {/* Message input for initial state */}
-                                    <div className="rounded-md border dark:border-zinc-200 mt-3">
-                                        <form
-                                            className="flex items-center rounded-md dark:bg-zinc-100"
-                                            onSubmit={(e) => {
-                                                e.preventDefault();
-                                                handleSendMessage();
-                                            }}
-                                        >
-                                            <div className="relative grow">
-                                                <div className="flex items-center">
-                                                    <TextareaAutosize
-                                                        className="w-full border-0 outline-none focus:shadow-none text-sm focus:ring-0 py-3 resize-none dark:bg-zinc-100 px-3 rounded-s max-h-24 overflow-y-auto"
-                                                        rows={1}
-                                                        value={inputMessage}
-                                                        onChange={(e) =>
-                                                            setInputMessage(
-                                                                e.target.value,
-                                                            )
+                                <div className="rounded-md border dark:border-zinc-200 mt-3">
+                                    <form
+                                        className="flex items-center rounded-md dark:bg-zinc-100"
+                                        onSubmit={(e) => {
+                                            e.preventDefault();
+                                            handleSendMessage();
+                                        }}
+                                    >
+                                        <div className="relative grow">
+                                            <div className="flex items-center">
+                                                <TextareaAutosize
+                                                    className="w-full border-0 outline-none focus:shadow-none text-sm focus:ring-0 py-3 resize-none dark:bg-zinc-100 px-3 rounded-s max-h-24 overflow-y-auto"
+                                                    rows={1}
+                                                    value={inputMessage}
+                                                    onChange={(e) =>
+                                                        setInputMessage(
+                                                            e.target.value,
+                                                        )
+                                                    }
+                                                    placeholder="Describe your desired UI in natural language..."
+                                                    onKeyDown={(e) => {
+                                                        if (
+                                                            e.key ===
+                                                                "Enter" &&
+                                                            !e.shiftKey
+                                                        ) {
+                                                            e.preventDefault();
+                                                            handleSendMessage();
                                                         }
-                                                        placeholder="Describe your desired UI in natural language..."
-                                                        onKeyDown={(e) => {
-                                                            if (
-                                                                e.key ===
-                                                                    "Enter" &&
-                                                                !e.shiftKey
-                                                            ) {
-                                                                e.preventDefault();
-                                                                handleSendMessage();
-                                                            }
-                                                        }}
-                                                        autoComplete="on"
-                                                        autoCapitalize="sentences"
-                                                        autoCorrect="on"
-                                                        spellCheck="true"
-                                                        inputMode="text"
-                                                        disabled={isLoading}
-                                                    />
-                                                </div>
+                                                    }}
+                                                    autoComplete="on"
+                                                    autoCapitalize="sentences"
+                                                    autoCorrect="on"
+                                                    spellCheck="true"
+                                                    inputMode="text"
+                                                    disabled={isLoading}
+                                                />
                                             </div>
-                                            <div className="px-3 bg-white self-stretch flex items-center rounded-e">
-                                                <div>
-                                                    <button
-                                                        type="submit"
-                                                        disabled={
-                                                            !inputMessage.trim() ||
-                                                            isLoading
-                                                        }
-                                                        className="text-base rtl:rotate-180 text-emerald-500 hover:text-emerald-600 disabled:text-gray-300 active:text-gray-800 dark:bg-zinc-100 flex items-center justify-center"
-                                                    >
-                                                        {isLoading ? (
-                                                            <div className="w-4 h-4 border-2 border-sky-600 border-t-transparent rounded-full animate-spin" />
-                                                        ) : (
-                                                            <RiSendPlane2Fill />
-                                                        )}
-                                                    </button>
-                                                </div>
+                                        </div>
+                                        <div className="px-3 bg-white self-stretch flex items-center rounded-e">
+                                            <div>
+                                                <button
+                                                    type="submit"
+                                                    disabled={
+                                                        !inputMessage.trim() ||
+                                                        isLoading
+                                                    }
+                                                    className="text-base rtl:rotate-180 text-emerald-500 hover:text-emerald-600 disabled:text-gray-300 active:text-gray-800 dark:bg-zinc-100 flex items-center justify-center"
+                                                >
+                                                    {isLoading ? (
+                                                        <div className="w-4 h-4 border-2 border-sky-600 border-t-transparent rounded-full animate-spin" />
+                                                    ) : (
+                                                        <RiSendPlane2Fill />
+                                                    )}
+                                                </button>
                                             </div>
-                                        </form>
-                                    </div>
-                                </>
+                                        </div>
+                                    </form>
+                                </div>
                             )
                         )}
                     </div>
