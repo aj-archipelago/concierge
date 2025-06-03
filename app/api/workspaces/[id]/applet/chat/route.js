@@ -4,8 +4,7 @@ import { QUERIES } from "../../../../../../src/graphql";
 
 export async function POST(request, { params }) {
     try {
-        const { messages, currentHtml, restEndpoint } =
-            await request.json();
+        const { messages, currentHtml, restEndpoint } = await request.json();
 
         // Get the latest message from the user
         const latestMessage = messages[messages.length - 1];

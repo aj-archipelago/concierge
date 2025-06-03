@@ -212,8 +212,6 @@ export function useUpdateWorkspaceState() {
 }
 
 export function useWorkspaceSuggestions(id, model) {
-    const queryClient = useQueryClient();
-
     const mutation = useMutation({
         mutationFn: async () => {
             if (!model) return [];

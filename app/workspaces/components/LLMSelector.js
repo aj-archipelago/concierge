@@ -28,7 +28,7 @@ export default function LLMSelector({
                 onChange(llms[0]._id);
             }
         }
-    }, [llms, value, onChange]);
+    }, [llms, value, onChange, defaultModelIdentifier]);
 
     if (isLoading) return null;
 

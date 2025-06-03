@@ -1,19 +1,20 @@
 "use client";
 import {
-    Tooltip,
-    TooltipContent,
-    TooltipProvider,
-    TooltipTrigger,
-} from "@/components/ui/tooltip";
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { TooltipProvider } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
-import { LanguageContext } from "@/src/contexts/LanguageProvider";
-import MonacoEditor from "@monaco-editor/react";
-import { CheckIcon, Link2Icon } from "lucide-react";
 import { useParams } from "next/navigation";
-import React, { useContext, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { RiSendPlane2Fill } from "react-icons/ri";
 import TextareaAutosize from "react-textarea-autosize";
-import { ServerContext } from "../../../../src/App";
 import {
     useUpdateWorkspaceApplet,
     useWorkspaceApplet,
@@ -23,116 +24,12 @@ import ChatInterface from "./ChatInterface";
 import PreviewTabs from "./PreviewTabs";
 import { getMessagesUpToVersion } from "./utils";
 import VersionNavigator from "./VersionNavigator";
-import {
-    AlertDialog,
-    AlertDialogContent,
-    AlertDialogDescription,
-    AlertDialogFooter,
-    AlertDialogHeader,
-    AlertDialogTitle,
-    AlertDialogCancel,
-    AlertDialogAction,
-} from "@/components/ui/alert-dialog";
-
-function CopyPublishedLinkButton() {
-    const [copied, setCopied] = useState(false);
-    const serverContext = useContext(ServerContext);
-    const { id } = useParams();
-    const placeholderLink = `${serverContext.serverUrl}/published/workspaces/${id}/applet`;
-
-    const handleCopy = async (e) => {
-        e.stopPropagation();
-        await navigator.clipboard.writeText(placeholderLink);
-        setCopied(true);
-        setTimeout(() => setCopied(false), 1200);
-    };
-
-    const handleOpen = (e) => {
-        e.stopPropagation();
-        window.open(placeholderLink, "_blank", "noopener,noreferrer");
-    };
-
-    return (
-        <Tooltip>
-            <TooltipTrigger asChild>
-                <span className="inline-flex">
-                    <button
-                        className={`flex items-center px-2 py-0.5 rounded-full border border-emerald-200 bg-white hover:bg-emerald-50 transition shadow-sm ${copied ? "border-emerald-400 bg-emerald-50" : ""}`}
-                        type="button"
-                        aria-label="Copy or open published link"
-                        tabIndex={0}
-                    >
-                        <span
-                            className={`p-1 rounded-full transition cursor-pointer ${copied ? "bg-emerald-100" : "hover:bg-emerald-100"}`}
-                            onClick={handleCopy}
-                            title="Copy link"
-                        >
-                            {copied ? (
-                                <CheckIcon className="w-4 h-4 text-emerald-700" />
-                            ) : (
-                                <Link2Icon className="w-4 h-4 text-emerald-700" />
-                            )}
-                        </span>
-                        <span
-                            className="px-1 py-1 rounded-full text-xs font-bold text-emerald-700 underline hover:text-emerald-900 transition cursor-pointer"
-                            onClick={handleOpen}
-                            title="Open link"
-                        >
-                            {copied ? "Copied!" : "Open"}
-                        </span>
-                    </button>
-                </span>
-            </TooltipTrigger>
-            <TooltipContent side="bottom" sideOffset={10}>
-                {copied ? "Copied!" : placeholderLink}
-            </TooltipContent>
-        </Tooltip>
-    );
-}
-
-function renderWithColorPreviews(text) {
-    const hexColorRegex = /#([0-9a-fA-F]{6}|[0-9a-fA-F]{3})(?![0-9a-fA-F])/g;
-    const parts = [];
-    let lastIndex = 0;
-    let match;
-
-    while ((match = hexColorRegex.exec(text)) !== null) {
-        const color = match[0];
-        if (match.index > lastIndex) {
-            parts.push(text.slice(lastIndex, match.index));
-        }
-        parts.push(
-            <React.Fragment key={match.index}>
-                <span style={{ fontFamily: "monospace" }}>{color}</span>
-                <span
-                    style={{
-                        display: "inline-block",
-                        width: "1em",
-                        height: "1em",
-                        background: color,
-                        border: "1px solid #ccc",
-                        marginLeft: 4,
-                        marginRight: 4,
-                        verticalAlign: "middle",
-                    }}
-                    title={color}
-                />
-            </React.Fragment>,
-        );
-        lastIndex = match.index + color.length;
-    }
-    if (lastIndex < text.length) {
-        parts.push(text.slice(lastIndex));
-    }
-    return parts;
-}
 
 export default function WorkspaceApplet() {
     const { id } = useParams();
     const selectedLLM = "o3mini"; // This will be the default model
     const [messages, setMessages] = useState([]);
     const [inputMessage, setInputMessage] = useState("");
-    const [previewHtml, setPreviewHtml] = useState(null);
     const [htmlVersions, setHtmlVersions] = useState([]);
     const [activeVersionIndex, setActiveVersionIndex] = useState(-1);
     const [isLoading, setIsLoading] = useState(false);
@@ -183,11 +80,6 @@ export default function WorkspaceApplet() {
                     appletQuery.data.htmlVersions.map((v) => v.content),
                 );
                 setActiveVersionIndex(appletQuery.data.htmlVersions.length - 1);
-                setPreviewHtml(
-                    appletQuery.data.htmlVersions[
-                        appletQuery.data.htmlVersions.length - 1
-                    ].content,
-                );
             }
 
             setPublishedVersionIndex(
@@ -196,7 +88,7 @@ export default function WorkspaceApplet() {
                     : null,
             );
         }
-    }, [appletQuery.data]);
+    }, [appletQuery.data, activeVersionIndex]);
 
     // Update messages when version changes
     useEffect(() => {
@@ -279,7 +171,6 @@ export default function WorkspaceApplet() {
                     response.message.html,
                 ];
                 setHtmlVersions(newVersions);
-                setPreviewHtml(response.message.html);
                 setActiveVersionIndex(newVersions.length - 1);
 
                 aiMessage.content = `HTML code generated. Check the preview pane\n\n\n#### Summary of changes:**\n${response.message.changes}`;
@@ -346,7 +237,6 @@ export default function WorkspaceApplet() {
         const newVersions = [...htmlVersions];
         newVersions[versionIndex] = value;
         setHtmlVersions(newVersions);
-        setPreviewHtml(value);
     };
 
     const handleContinueFromOldVersion = () => {
@@ -415,7 +305,6 @@ export default function WorkspaceApplet() {
                                 onUnpublish={handleUnpublish}
                                 updateApplet={updateApplet}
                                 workspaceId={id}
-                                setPreviewHtml={setPreviewHtml}
                             />
                             <PreviewTabs
                                 htmlVersions={htmlVersions}
@@ -568,8 +457,7 @@ export default function WorkspaceApplet() {
                                                     placeholder="Describe your desired UI in natural language..."
                                                     onKeyDown={(e) => {
                                                         if (
-                                                            e.key ===
-                                                                "Enter" &&
+                                                            e.key === "Enter" &&
                                                             !e.shiftKey
                                                         ) {
                                                             e.preventDefault();
@@ -611,22 +499,5 @@ export default function WorkspaceApplet() {
                 </div>
             </div>
         </TooltipProvider>
-    );
-}
-
-function HtmlEditor({ value, onChange }) {
-    return (
-        <MonacoEditor
-            height="100%"
-            width="100%"
-            language="html"
-            theme="vs-dark"
-            options={{
-                fontSize: 12,
-                fontWeight: "normal",
-            }}
-            value={value}
-            onChange={onChange}
-        />
     );
 }

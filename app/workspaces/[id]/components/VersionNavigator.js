@@ -84,7 +84,6 @@ export default function VersionNavigator({
     onUnpublish,
     updateApplet,
     workspaceId,
-    setPreviewHtml,
 }) {
     const { direction } = useContext(LanguageContext);
 
@@ -100,7 +99,6 @@ export default function VersionNavigator({
                         htmlVersions: newVersions,
                     },
                 });
-                setPreviewHtml(newVersions[newVersions.length - 1]);
                 setActiveVersionIndex(Math.max(0, activeVersionIndex - 1));
                 return newVersions;
             });
