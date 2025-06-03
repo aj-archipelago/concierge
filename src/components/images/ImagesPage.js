@@ -1,9 +1,9 @@
 "use client";
 
 import { useApolloClient } from "@apollo/client";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { FaDownload, FaTrash, FaCheck } from "react-icons/fa";
+import { FaDownload, FaTrash, FaCheck, FaPlus } from "react-icons/fa";
 import { Modal } from "../../../@/components/ui/modal";
 import { QUERIES } from "../../graphql";
 import LoadingButton from "../editor/LoadingButton";
@@ -15,6 +15,18 @@ import {
     TooltipProvider,
 } from "../../../@/components/ui/tooltip";
 import ChatImage from "./ChatImage";
+import axios from "../../../app/utils/axios-client";
+import { hashMediaFile } from "../../utils/mediaUtils";
+import {
+    AlertDialog,
+    AlertDialogContent,
+    AlertDialogHeader,
+    AlertDialogTitle,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogAction,
+    AlertDialogCancel,
+} from "../../../@/components/ui/alert-dialog";
 
 function ImagesPage() {
     const [prompt, setPrompt] = useState("");
@@ -26,6 +38,14 @@ function ImagesPage() {
     const { t } = useTranslation();
     const [loading, setLoading] = useState(false);
     const [selectedImages, setSelectedImages] = useState(new Set());
+    const [lastSelectedImage, setLastSelectedImage] = useState(null);
+    const [isModifyMode, setIsModifyMode] = useState(false);
+    const [isUploading, setIsUploading] = useState(false);
+    const [uploadProgress, setUploadProgress] = useState(0);
+    const [showDeleteAllConfirm, setShowDeleteAllConfirm] = useState(false);
+    const [showDeleteSelectedConfirm, setShowDeleteSelectedConfirm] =
+        useState(false);
+    const promptRef = useRef(null);
 
     useEffect(() => {
         const imagesInStorage = localStorage.getItem("generated-images");
@@ -37,14 +57,17 @@ function ImagesPage() {
     const apolloClient = useApolloClient();
 
     const generateImage = useCallback(
-        async (prompt) => {
+        async (prompt, inputImageUrl = null) => {
             const variables = {
                 text: prompt,
                 async: true,
-                model:
-                    quality === "draft"
-                        ? "replicate-flux-1-schnell"
-                        : "replicate-flux-11-pro",
+                model: inputImageUrl
+                    ? "replicate-flux-kontext-max"
+                    : quality === "draft"
+                      ? "replicate-flux-1-schnell"
+                      : "replicate-flux-11-pro",
+                input_image: inputImageUrl || "",
+                aspectRatio: inputImageUrl ? "match_input_image" : undefined,
             };
 
             setLoading(true);
@@ -67,13 +90,17 @@ function ImagesPage() {
                             cortexRequestId: requestId,
                             prompt: prompt,
                             created: Math.floor(Date.now() / 1000),
+                            inputImageUrl: inputImageUrl,
                         };
                         const updatedImages = [newImage, ...filteredImages];
-                        // Update localStorage with the new images array
                         localStorage.setItem(
                             "generated-images",
                             JSON.stringify(updatedImages),
                         );
+                        setSelectedImages(new Set([requestId]));
+                        setTimeout(() => {
+                            promptRef.current && promptRef.current.focus();
+                        }, 0);
                         return updatedImages;
                     });
 
@@ -87,6 +114,153 @@ function ImagesPage() {
         [apolloClient, quality],
     );
 
+    useEffect(() => {
+        setIsModifyMode(selectedImages.size > 0);
+    }, [selectedImages]);
+
+    const handleModifySelected = useCallback(async () => {
+        if (!prompt.trim() || selectedImages.size === 0) return;
+
+        const newSelectedIds = [];
+
+        const selectedImageObjects = images.filter(
+            (img) => selectedImages.has(img.cortexRequestId) && img.url,
+        );
+
+        for (const image of selectedImageObjects) {
+            const variables = {
+                text: prompt,
+                async: true,
+                model: "replicate-flux-kontext-max",
+                input_image: image.url,
+                aspectRatio: "match_input_image",
+            };
+
+            setLoading(true);
+            try {
+                const { data } = await apolloClient.query({
+                    query: QUERIES.IMAGE_FLUX,
+                    variables,
+                    fetchPolicy: "network-only",
+                });
+                setLoading(false);
+
+                if (data?.image_flux?.result) {
+                    const requestId = data?.image_flux?.result;
+                    newSelectedIds.push(requestId);
+
+                    setImages((prevImages) => {
+                        // Do NOT replace the old image; instead, add a new tile on top
+                        const combinedPrompt = image.prompt
+                            ? `${image.prompt} - ${prompt}`
+                            : prompt;
+                        const newImage = {
+                            cortexRequestId: requestId,
+                            prompt: combinedPrompt,
+                            created: Math.floor(Date.now() / 1000),
+                            inputImageUrl: image.url,
+                        };
+                        const updatedImages = [newImage, ...prevImages];
+                        localStorage.setItem(
+                            "generated-images",
+                            JSON.stringify(updatedImages),
+                        );
+                        return updatedImages;
+                    });
+                }
+            } catch (error) {
+                setLoading(false);
+                console.error("Error modifying image:", error);
+            }
+        }
+
+        // Select the newly created modified images and focus prompt box
+        if (newSelectedIds.length > 0) {
+            setSelectedImages(new Set(newSelectedIds));
+            setTimeout(() => {
+                promptRef.current && promptRef.current.focus();
+            }, 0);
+        } else {
+            // If no new ids (shouldn't happen), clear selection
+            setSelectedImages(new Set());
+        }
+    }, [prompt, selectedImages, images, apolloClient]);
+
+    const handleFileUpload = useCallback(
+        async (file) => {
+            if (!file) return;
+
+            setIsUploading(true);
+            setUploadProgress(0);
+            const serverUrl = "/media-helper?useGoogle=true";
+
+            try {
+                // Start showing upload progress
+                const fileHash = await hashMediaFile(file);
+                const formData = new FormData();
+                formData.append("hash", fileHash);
+                formData.append("file", file, file.name);
+
+                const response = await axios.post(
+                    `${serverUrl}&hash=${fileHash}`,
+                    formData,
+                    {
+                        headers: {
+                            "Content-Type": "multipart/form-data",
+                        },
+                        onUploadProgress: (progressEvent) => {
+                            const percentCompleted = Math.round(
+                                (progressEvent.loaded * 100) /
+                                    progressEvent.total,
+                            );
+                            setUploadProgress(percentCompleted);
+                        },
+                    },
+                );
+
+                if (response.data?.url) {
+                    // Create a new image entry with the uploaded file
+                    const newImage = {
+                        cortexRequestId: `upload-${Date.now()}`,
+                        prompt: t("Uploaded image"),
+                        created: Math.floor(Date.now() / 1000),
+                        url: response.data.url,
+                        gcs: response.data.gcs,
+                    };
+
+                    setImages((prevImages) => {
+                        const updatedImages = [newImage, ...prevImages];
+                        localStorage.setItem(
+                            "generated-images",
+                            JSON.stringify(updatedImages),
+                        );
+                        setSelectedImages(new Set([newImage.cortexRequestId]));
+                        setTimeout(() => {
+                            promptRef.current && promptRef.current.focus();
+                        }, 0);
+                        return updatedImages;
+                    });
+                }
+            } catch (error) {
+                console.error("Error uploading file:", error);
+            } finally {
+                setIsUploading(false);
+                setUploadProgress(0);
+            }
+        },
+        [t],
+    );
+
+    const handleFileSelect = useCallback(
+        (event) => {
+            const file = event.target.files[0];
+            if (file) {
+                handleFileUpload(file);
+            }
+        },
+        [handleFileUpload],
+    );
+
     images.sort((a, b) => {
         return b.created - a.created;
     });
@@ -94,109 +268,175 @@ function ImagesPage() {
     const handleBulkAction = useCallback(
         (action) => {
             if (action === "delete") {
-                if (
-                    window.confirm(
-                        t("Are you sure you want to delete selected images?"),
-                    )
-                ) {
-                    const newImages = images.filter(
-                        (img) => !selectedImages.has(img.cortexRequestId),
-                    );
-                    setImages(newImages);
-                    localStorage.setItem(
-                        "generated-images",
-                        JSON.stringify(newImages),
-                    );
-                }
+                setShowDeleteSelectedConfirm(true);
             } else if (action === "download") {
                 images.forEach((img) => {
                     if (selectedImages.has(img.cortexRequestId) && img.url) {
                         window.open(img.url, "_blank");
                     }
                 });
+                setSelectedImages(new Set());
             }
-            setSelectedImages(new Set());
         },
-        [images, selectedImages, t],
+        [images, selectedImages],
     );
 
-    const imageTiles = useMemo(() => {
-        return images.map((image) => {
-            const key = image?.cortexRequestId;
+    const handleDeleteSelected = useCallback(() => {
+        const newImages = images.filter(
+            (img) => !selectedImages.has(img.cortexRequestId),
+        );
+        setImages(newImages);
+        localStorage.setItem("generated-images", JSON.stringify(newImages));
+        setSelectedImages(new Set());
+        setShowDeleteSelectedConfirm(false);
+    }, [images, selectedImages]);
 
-            return (
-                <ImageTile
-                    key={`image-${key}`}
-                    image={image}
-                    quality={quality}
-                    selectedImages={selectedImages}
-                    setSelectedImages={setSelectedImages}
-                    onClick={() => {
-                        if (image?.url) {
-                            setSelectedImage(image);
-                            setShowModal(true);
-                        }
-                    }}
-                    onRegenerate={async () => {
-                        // Remove the old image first
-                        setImages((prevImages) => {
-                            const newImages = prevImages.filter(
-                                (img) =>
-                                    img.cortexRequestId !==
-                                    image.cortexRequestId,
+    const handleDeleteAll = useCallback(() => {
+        setImages([]);
+        localStorage.setItem("generated-images", "[]");
+        setSelectedImages(new Set());
+        setShowDeleteAllConfirm(false);
+    }, []);
+
+    const imageTiles = useMemo(() => {
+        return [
+            <div key="upload-tile" className="image-tile">
+                <label className="image-wrapper cursor-pointer flex items-center justify-center bg-gray-50 hover:bg-gray-100 transition-colors">
+                    <input
+                        type="file"
+                        className="hidden"
+                        accept="image/*"
+                        onChange={handleFileSelect}
+                        disabled={isUploading}
+                    />
+                    {isUploading ? (
+                        <div className="flex flex-col items-center gap-2 text-gray-500">
+                            <ProgressUpdate
+                                initialText={t("Uploading...")}
+                                progress={uploadProgress}
+                                autoDuration={0}
+                            />
+                        </div>
+                    ) : (
+                        <div className="flex flex-col items-center gap-2 text-gray-500">
+                            <FaPlus className="text-2xl" />
+                            <span className="text-sm">{t("Upload Image")}</span>
+                        </div>
+                    )}
+                </label>
+            </div>,
+            ...images.map((image) => {
+                const key = image?.cortexRequestId;
+
+                return (
+                    <ImageTile
+                        key={`image-${key}`}
+                        image={image}
+                        quality={quality}
+                        selectedImages={selectedImages}
+                        setSelectedImages={setSelectedImages}
+                        lastSelectedImage={lastSelectedImage}
+                        setLastSelectedImage={setLastSelectedImage}
+                        images={images}
+                        onClick={() => {
+                            if (image?.url) {
+                                setSelectedImage(image);
+                                setShowModal(true);
+                            }
+                        }}
+                        onRegenerate={async () => {
+                            // Remove the old tile first (regenerate replaces it)
+                            setImages((prevImages) => {
+                                const newImages = prevImages.filter(
+                                    (img) =>
+                                        img.cortexRequestId !==
+                                        image.cortexRequestId,
+                                );
+                                localStorage.setItem(
+                                    "generated-images",
+                                    JSON.stringify(newImages),
+                                );
+                                return newImages;
+                            });
+
+                            if (image.inputImageUrl) {
+                                // Regenerate modification with same input image
+                                await generateImage(
+                                    image.prompt,
+                                    image.inputImageUrl || image.url,
+                                );
+                            } else {
+                                // Regular regenerate
+                                await generateImage(image.prompt);
+                            }
+                        }}
+                        onGenerationComplete={(requestId, data) => {
+                            const newImages = [...images];
+
+                            const imageIndex = newImages.findIndex(
+                                (img) => img.cortexRequestId === requestId,
                             );
+
+                            if (imageIndex !== -1) {
+                                newImages[imageIndex] = {
+                                    ...newImages[imageIndex],
+                                    ...data,
+                                    url: Array.isArray(data?.result?.output)
+                                        ? data?.result?.output?.[0]
+                                        : data?.result?.output,
+                                    regenerating: false,
+                                };
+                            }
+                            setImages(newImages);
                             localStorage.setItem(
                                 "generated-images",
                                 JSON.stringify(newImages),
                             );
-                            return newImages;
-                        });
-                        // Generate new image with the same prompt
-                        await generateImage(image.prompt);
-                    }}
-                    onGenerationComplete={(requestId, data) => {
-                        const newImages = [...images];
+                        }}
+                        onDelete={(image) => {
+                            const newImages = images.filter((img) => {
+                                return (
+                                    img.cortexRequestId !==
+                                    image.cortexRequestId
+                                );
+                            });
 
-                        const imageIndex = newImages.findIndex(
-                            (img) => img.cortexRequestId === requestId,
-                        );
+                            if (generationPrompt === image.prompt) {
+                                setGenerationPrompt("");
+                            }
 
-                        if (imageIndex !== -1) {
-                            newImages[imageIndex] = {
-                                ...newImages[imageIndex],
-                                ...data,
-                                url: Array.isArray(data?.result?.output)
-                                    ? data?.result?.output?.[0]
-                                    : data?.result?.output,
-                            };
-                        }
-                        setImages(newImages);
-                        localStorage.setItem(
-                            "generated-images",
-                            JSON.stringify(newImages),
-                        );
-                    }}
-                    onDelete={(image) => {
-                        const newImages = images.filter((img) => {
-                            return (
-                                img.cortexRequestId !== image.cortexRequestId
+                            setImages(newImages);
+                            localStorage.setItem(
+                                "generated-images",
+                                JSON.stringify(newImages),
                             );
-                        });
 
-                        if (generationPrompt === image.prompt) {
-                            setGenerationPrompt("");
-                        }
-
-                        setImages(newImages);
-                        localStorage.setItem(
-                            "generated-images",
-                            JSON.stringify(newImages),
-                        );
-                    }}
-                />
-            );
-        });
-    }, [images, generationPrompt, generateImage, quality, selectedImages]);
+                            // Clear selection if the deleted image was selected
+                            if (selectedImages.has(image.cortexRequestId)) {
+                                const newSelectedImages = new Set(
+                                    selectedImages,
+                                );
+                                newSelectedImages.delete(image.cortexRequestId);
+                                setSelectedImages(newSelectedImages);
+                            }
+                        }}
+                    />
+                );
+            }),
+        ];
+    }, [
+        images,
+        generationPrompt,
+        generateImage,
+        quality,
+        selectedImages,
+        t,
+        handleFileSelect,
+        isUploading,
+        uploadProgress,
+        lastSelectedImage,
+        setLastSelectedImage,
+    ]);
 
     return (
         <div>
@@ -208,14 +448,24 @@ function ImagesPage() {
                             e.preventDefault();
                             if (!prompt.trim()) return;
                             setGenerationPrompt(prompt);
-                            generateImage(prompt);
+                            if (isModifyMode) {
+                                handleModifySelected();
+                            } else {
+                                generateImage(prompt);
+                            }
                         }}
                     >
                         <textarea
                             className="lb-input flex-grow min-h-[2.5rem] max-h-32 resize-y"
-                            placeholder={t(
-                                "Enter prompt and set quality to generate image",
-                            )}
+                            placeholder={
+                                isModifyMode
+                                    ? t(
+                                          "Enter prompt to modify selected images",
+                                      )
+                                    : t(
+                                          "Enter prompt and set quality to generate image",
+                                      )
+                            }
                             value={prompt}
                             onChange={(e) => setPrompt(e.target.value)}
                             onKeyDown={(e) => {
@@ -223,32 +473,46 @@ function ImagesPage() {
                                     e.preventDefault();
                                     if (!prompt.trim()) return;
                                     setGenerationPrompt(prompt);
-                                    generateImage(prompt);
+                                    if (isModifyMode) {
+                                        handleModifySelected();
+                                    } else {
+                                        generateImage(prompt);
+                                    }
                                 }
                             }}
+                            ref={promptRef}
                         />
 
                         <div className="flex gap-2">
-                            <select
-                                className="lb-input w-full sm:w-fit"
-                                value={quality}
-                                onChange={(e) => setQuality(e.target.value)}
-                            >
-                                <option value="draft">{t("Draft")}</option>
-                                <option value="high">
-                                    {t("High Quality")}
-                                </option>
-                            </select>
+                            {!isModifyMode && (
+                                <select
+                                    className="lb-input w-full sm:w-fit"
+                                    value={quality}
+                                    onChange={(e) => setQuality(e.target.value)}
+                                >
+                                    <option value="draft">{t("Draft")}</option>
+                                    <option value="high">
+                                        {t("High Quality")}
+                                    </option>
+                                </select>
+                            )}
 
                             <LoadingButton
                                 className="lb-primary w-full sm:w-auto"
                                 style={{ whiteSpace: "nowrap" }}
                                 loading={loading}
-                                text={t("Generating...")}
+                                text={
+                                    isModifyMode
+                                        ? t("Modifying...")
+                                        : t("Generating...")
+                                }
                                 type="submit"
-                                disabled={!prompt.trim()}
+                                disabled={
+                                    !prompt.trim() ||
+                                    (isModifyMode && selectedImages.size === 0)
+                                }
                             >
-                                {t("Generate")}
+                                {isModifyMode ? t("Modify") : t("Generate")}
                             </LoadingButton>
                         </div>
                     </form>
@@ -301,21 +565,9 @@ function ImagesPage() {
                             <TooltipTrigger asChild>
                                 <button
                                     className="lb-icon-button text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 dark:bg-transparent dark:border-gray-600 dark:hover:border-gray-500"
-                                    onClick={() => {
-                                        if (
-                                            window.confirm(
-                                                t(
-                                                    "Are you sure you want to delete all images?",
-                                                ),
-                                            )
-                                        ) {
-                                            setImages([]);
-                                            localStorage.setItem(
-                                                "generated-images",
-                                                "[]",
-                                            );
-                                        }
-                                    }}
+                                    onClick={() =>
+                                        setShowDeleteAllConfirm(true)
+                                    }
                                 >
                                     <FaTrash />
                                 </button>
@@ -337,11 +589,68 @@ function ImagesPage() {
                     }, 300);
                 }}
             />
+
+            <AlertDialog
+                open={showDeleteAllConfirm}
+                onOpenChange={setShowDeleteAllConfirm}
+            >
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>
+                            {t("Delete All Images?")}
+                        </AlertDialogTitle>
+                        <AlertDialogDescription>
+                            {t(
+                                "Are you sure you want to delete all images? This action cannot be undone.",
+                            )}
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>{t("Cancel")}</AlertDialogCancel>
+                        <AlertDialogAction autoFocus onClick={handleDeleteAll}>
+                            {t("Delete All")}
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+
+            <AlertDialog
+                open={showDeleteSelectedConfirm}
+                onOpenChange={setShowDeleteSelectedConfirm}
+            >
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>
+                            {t("Delete Selected Images?")}
+                        </AlertDialogTitle>
+                        <AlertDialogDescription>
+                            {t(
+                                "Are you sure you want to delete the selected images? This action cannot be undone.",
+                            )}
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>{t("Cancel")}</AlertDialogCancel>
+                        <AlertDialogAction
+                            autoFocus
+                            onClick={handleDeleteSelected}
+                        >
+                            {t("Delete Selected")}
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </div>
     );
 }
 
-function Progress({ requestId, prompt, quality, onDataReceived }) {
+function Progress({
+    requestId,
+    prompt,
+    quality,
+    onDataReceived,
+    inputImageUrl,
+}) {
     const [data] = useState(null);
     const { t } = useTranslation();
 
@@ -355,6 +664,12 @@ function Progress({ requestId, prompt, quality, onDataReceived }) {
                 initialText={t("Generating...")}
                 requestId={requestId}
                 setFinalData={(data) => {
+                    // If data is already an object with error, pass it through
+                    if (data?.result?.error) {
+                        onDataReceived({ result: data.result, prompt });
+                        return;
+                    }
+
                     try {
                         const parsedData = JSON.parse(data);
                         onDataReceived({ result: { ...parsedData }, prompt });
@@ -371,7 +686,9 @@ function Progress({ requestId, prompt, quality, onDataReceived }) {
                         });
                     }
                 }}
-                autoDuration={quality === "draft" ? 1000 : 10000}
+                autoDuration={
+                    !inputImageUrl && quality === "draft" ? 1000 : 10000
+                }
             />
         );
     }
@@ -386,30 +703,57 @@ function ImageTile({
     quality,
     selectedImages,
     setSelectedImages,
+    lastSelectedImage,
+    setLastSelectedImage,
+    images,
 }) {
     const [loadError, setLoadError] = useState(false);
     const url = image?.url;
     const { t } = useTranslation();
     const expired = image?.expires < Date.now() / 1000;
-    const { cortexRequestId, prompt, result } = image || {};
+    const { cortexRequestId, prompt, result, regenerating } = image || {};
     const { code, message } = result?.error || {};
     const isSelected = selectedImages.has(cortexRequestId);
+
+    const handleSelection = (e) => {
+        e.stopPropagation();
+        const newSelectedImages = new Set(selectedImages);
+
+        if (e.shiftKey && lastSelectedImage) {
+            // Find indices of last selected and current image
+            const lastIndex = images.findIndex(
+                (img) => img.cortexRequestId === lastSelectedImage,
+            );
+            const currentIndex = images.findIndex(
+                (img) => img.cortexRequestId === cortexRequestId,
+            );
+
+            // Select all images between last selected and current
+            const start = Math.min(lastIndex, currentIndex);
+            const end = Math.max(lastIndex, currentIndex);
+
+            for (let i = start; i <= end; i++) {
+                newSelectedImages.add(images[i].cortexRequestId);
+            }
+        } else {
+            // Normal click behavior
+            if (isSelected) {
+                newSelectedImages.delete(cortexRequestId);
+            } else {
+                newSelectedImages.add(cortexRequestId);
+            }
+        }
+
+        setSelectedImages(newSelectedImages);
+        setLastSelectedImage(cortexRequestId);
+    };
 
     return (
         <div className="image-tile">
             {/* Selection checkbox - always visible */}
             <div
                 className={`selection-checkbox ${isSelected ? "selected" : ""}`}
-                onClick={(e) => {
-                    e.stopPropagation();
-                    const newSelectedImages = new Set(selectedImages);
-                    if (isSelected) {
-                        newSelectedImages.delete(cortexRequestId);
-                    } else {
-                        newSelectedImages.add(cortexRequestId);
-                    }
-                    setSelectedImages(newSelectedImages);
-                }}
+                onClick={handleSelection}
             >
                 <FaCheck
                     className={`text-sm ${isSelected ? "opacity-100" : "opacity-0"}`}
@@ -417,7 +761,11 @@ function ImageTile({
             </div>
 
             <div className="image-wrapper" onClick={onClick}>
-                {!expired && url && !loadError ? (
+                {regenerating ? (
+                    <div className="h-full bg-gray-50 p-4 text-sm flex items-center justify-center">
+                        <ProgressComponent />
+                    </div>
+                ) : !expired && url && !loadError ? (
                     <ChatImage
                         src={url}
                         alt={prompt}
@@ -486,6 +834,7 @@ function ImageTile({
                     onDataReceived={(data) =>
                         onGenerationComplete(cortexRequestId, data)
                     }
+                    inputImageUrl={image?.inputImageUrl}
                 />
             </div>
         );
