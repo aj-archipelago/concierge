@@ -20,6 +20,7 @@ const ChatNavigationItem = ({
     router,
     setActiveChatId,
     handleDeleteChat,
+    isCollapsed,
 }) => {
     const [editingId, setEditingId] = useState(null);
     const [editedName, setEditedName] = useState("");

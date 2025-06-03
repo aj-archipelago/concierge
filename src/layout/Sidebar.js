@@ -6,6 +6,8 @@ import {
     PencilSquareIcon,
     PhotoIcon,
     PlusIcon,
+    ChevronLeftIcon,
+    ChevronRightIcon,
 } from "@heroicons/react/24/outline";
 import { HelpCircle, VideoIcon } from "lucide-react";
 import Link from "next/link";
@@ -24,8 +26,9 @@ import config from "../../config";
 import SendFeedbackModal from "../components/help/SendFeedbackModal";
 import { LanguageContext } from "../contexts/LanguageProvider";
 import ChatNavigationItem from "./ChatNavigationItem";
+import { cn } from "@/lib/utils";
 
-const navigation = [
+export const navigation = [
     {
         name: "Home",
         icon: NewspaperIcon,
@@ -35,12 +38,31 @@ const navigation = [
     { name: "Translate", icon: GlobeAltIcon, href: "/translate" },
     { name: "Video", icon: VideoIcon, href: "/video" },
     { name: "Write", icon: PencilSquareIcon, href: "/write" },
-    { name: "Workspaces", icon: MdOutlineWorkspaces, href: "/workspaces" },
+    {
+        name: "Workspaces",
+        icon: MdOutlineWorkspaces,
+        href: "/workspaces",
+        collapsed: true,
+    },
     { name: "Images", icon: PhotoIcon, href: "/images" },
     { name: "Jira", icon: CodeBracketIcon, href: "/code/jira" },
 ];
 
-export default React.forwardRef(function Sidebar(_, ref) {
+const routesToCollapseSidebarFor = ["/published"];
+
+export const shouldForceCollapse = (pathname) => {
+    return (
+        navigation.some(
+            (item) => item.collapsed && pathname?.startsWith(item.href),
+        ) ||
+        routesToCollapseSidebarFor.some((route) => pathname?.startsWith(route))
+    );
+};
+
+export default React.forwardRef(function Sidebar(
+    { isCollapsed: propIsCollapsed, onToggleCollapse },
+    ref,
+) {
     const pathname = usePathname();
     const router = useRouter();
     const { getLogo, getSidebarLogo } = config.global;
@@ -52,6 +74,8 @@ export default React.forwardRef(function Sidebar(_, ref) {
     const deleteChat = useDeleteChat();
     const setActiveChatId = useSetActiveChatId();
     const addChat = useAddChat();
+
+    const isCollapsed = propIsCollapsed || shouldForceCollapse(pathname);
 
     const handleNewChat = async () => {
         try {
@@ -110,21 +134,57 @@ export default React.forwardRef(function Sidebar(_, ref) {
     });
 
     return (
-        <div className="flex grow flex-col gap-y-5 overflow-y-auto border-r border-gray-200 bg-white px-5">
+        <div
+            className={cn(
+                "flex grow flex-col gap-y-5 overflow-y-auto border-r border-gray-200 bg-white px-5 relative z-[70]",
+                isCollapsed &&
+                    "group hover:w-56 w-16 transition-[width] duration-200",
+                !isCollapsed && "w-56",
+            )}
+        >
+            <div className="relative">
+                <button
+                    onClick={onToggleCollapse}
+                    className={cn(
+                        "bg-white border border-gray-200 rounded-full p-1 hidden lg:block shadow-sm hover:bg-gray-50",
+                        shouldForceCollapse(pathname) && "lg:hidden",
+                        isCollapsed
+                            ? "mx-auto mt-4 group-hover:mt-0 group-hover:absolute group-hover:-right-3 group-hover:top-5"
+                            : "absolute -right-3 top-5",
+                    )}
+                >
+                    {isCollapsed ? (
+                        <ChevronRightIcon className="h-4 w-4 text-gray-400" />
+                    ) : (
+                        <ChevronLeftIcon className="h-4 w-4 text-gray-400" />
+                    )}
+                </button>
+            </div>
+
             <div className="flex h-16 shrink-0 items-center gap-2">
                 <Link className="flex items-center gap-2" href="/">
                     <img
-                        className="h-12 w-auto"
+                        className={cn(
+                            "w-auto h-12",
+                            isCollapsed ? "hidden group-hover:block" : "block",
+                        )}
                         src={getLogo(language)}
                         alt="Your Company"
                     />
-                    {getSidebarLogo(language)}
+                    <div
+                        className={cn(
+                            "transition-all",
+                            isCollapsed ? "hidden group-hover:block" : "",
+                        )}
+                    >
+                        {getSidebarLogo(language)}
+                    </div>
                 </Link>
             </div>
             <nav className="flex flex-1 flex-col">
                 <ul className="flex flex-1 flex-col gap-y-4">
                     <li className="grow">
-                        <ul className="-mx-2 space-y-1 max-h-[calc(100vh-155px)] overflow-y-auto overflow-x-hidden ">
+                        <ul className="-mx-2 space-y-1 max-h-[calc(100vh-155px)] overflow-y-auto overflow-x-hidden">
                             {updatedNavigation.map((item) => (
                                 <li
                                     key={item.name}
@@ -151,13 +211,25 @@ export default React.forwardRef(function Sidebar(_, ref) {
                                                 className="h-6 w-6 shrink-0 text-gray-400"
                                                 aria-hidden="true"
                                             />
-                                            <span className="select-none">
+                                            <span
+                                                className={cn(
+                                                    "select-none",
+                                                    isCollapsed
+                                                        ? "hidden group-hover:inline"
+                                                        : "inline",
+                                                )}
+                                            >
                                                 {t(item.name)}
                                             </span>
                                         </div>
                                         {item.name === "Chat" && (
                                             <PlusIcon
-                                                className="h-6 w-6 ml-auto p-1 rounded-full bg-blue-100 text-blue-600 hover:bg-blue-200 hover:text-blue-800 cursor-pointer"
+                                                className={cn(
+                                                    "h-6 w-6 ml-auto p-1 rounded-full bg-blue-100 text-blue-600 hover:bg-blue-200 hover:text-blue-800 cursor-pointer",
+                                                    isCollapsed
+                                                        ? "hidden group-hover:inline"
+                                                        : "inline",
+                                                )}
                                                 onClick={(e) => {
                                                     e.stopPropagation();
                                                     handleNewChat();
@@ -166,7 +238,14 @@ export default React.forwardRef(function Sidebar(_, ref) {
                                         )}
                                     </div>
                                     {item.children?.length > 0 && (
-                                        <ul className="mt-1 px-1">
+                                        <ul
+                                            className={cn(
+                                                "mt-1 px-1",
+                                                isCollapsed
+                                                    ? "hidden group-hover:block"
+                                                    : "block",
+                                            )}
+                                        >
                                             {item.children.map(
                                                 (subItem, index) =>
                                                     item.name === "Chat" ? (
@@ -183,6 +262,9 @@ export default React.forwardRef(function Sidebar(_, ref) {
                                                             }
                                                             handleDeleteChat={
                                                                 handleDeleteChat
+                                                            }
+                                                            isCollapsed={
+                                                                isCollapsed
                                                             }
                                                         />
                                                     ) : (
@@ -228,7 +310,7 @@ export default React.forwardRef(function Sidebar(_, ref) {
                                                                     title={t(
                                                                         subItem.name ||
                                                                             "",
-                                                                    )} // Add this line for tooltip
+                                                                    )}
                                                                 >
                                                                     {t(
                                                                         subItem.name ||
@@ -247,7 +329,10 @@ export default React.forwardRef(function Sidebar(_, ref) {
                     </li>
                     <li>
                         <div className="py-3 bg-gray-50 -mx-5 px-5 text-gray-700">
-                            <SendFeedbackButton ref={ref} />
+                            <SendFeedbackButton
+                                ref={ref}
+                                isCollapsed={isCollapsed}
+                            />
                         </div>
                     </li>
                 </ul>
@@ -256,28 +341,29 @@ export default React.forwardRef(function Sidebar(_, ref) {
     );
 });
 
-const SendFeedbackButton = React.forwardRef(
-    function SendFeedbackButton(_, ref) {
-        const [show, setShow] = useState(false);
-        const { t } = useTranslation();
+const SendFeedbackButton = React.forwardRef(function SendFeedbackButton(
+    { isCollapsed },
+    ref,
+) {
+    const [show, setShow] = useState(false);
+    const { t } = useTranslation();
 
-        const handleClick = () => setShow(true);
+    const handleClick = () => setShow(true);
 
-        return (
-            <>
-                <SendFeedbackModal
-                    ref={ref}
-                    show={show}
-                    onHide={() => setShow(false)}
-                />
-                <button
-                    className="flex gap-2 items-center text-sm"
-                    onClick={handleClick}
-                >
-                    <HelpCircle className="h-6 w-6 shrink-0 text-gray-400" />
-                    {t("Send feedback")}
-                </button>
-            </>
-        );
-    },
-);
+    return (
+        <>
+            <SendFeedbackModal
+                ref={ref}
+                show={show}
+                onHide={() => setShow(false)}
+            />
+            <button
+                className="flex gap-2 items-center text-sm"
+                onClick={handleClick}
+            >
+                <HelpCircle className="h-6 w-6 shrink-0 text-gray-400" />
+                {!isCollapsed && t("Send feedback")}
+            </button>
+        </>
+    );
+});

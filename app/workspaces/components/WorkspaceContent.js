@@ -27,9 +27,6 @@ export default function WorkspaceContent({ idOrSlug, user }) {
     useEffect(() => {
         if (ref.current) {
             ref.current.scrollTop = 0;
-            console.log("scrolling to top");
-        } else {
-            console.log("no ref");
         }
     }, [activeTab]);
 

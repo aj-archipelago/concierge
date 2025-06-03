@@ -36,6 +36,10 @@ export const workspaceSchema = new mongoose.Schema(
             type: mongoose.Schema.Types.ObjectId,
             ref: "Pathway",
         },
+        applet: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "Applet",
+        },
     },
     {
         timestamps: true,

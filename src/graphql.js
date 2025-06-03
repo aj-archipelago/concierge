@@ -738,6 +738,24 @@ const SYS_GET_ENTITIES = gql`
     }
 `;
 
+const WORKSPACE_APPLET_EDIT = gql`
+    query WorkspaceAppletEdit(
+        $text: String!
+        $async: Boolean
+        $restEndpoint: String
+        $currentHtml: String
+    ) {
+        workspace_applet_edit(
+            text: $text
+            restEndpoint: $restEndpoint
+            currentHtml: $currentHtml
+            async: $async
+        ) {
+            result
+        }
+    }
+`;
+
 const QUERIES = {
     AZURE_VIDEO_TRANSLATE,
     CHAT_TITLE,
@@ -787,6 +805,7 @@ const QUERIES = {
     HEADLINE_CUSTOM,
     SUBHEAD,
     VISION,
+    WORKSPACE_APPLET_EDIT,
 };
 
 const SUBSCRIPTIONS = {
@@ -872,4 +891,5 @@ export {
     REMOVE_CONTENT,
     JIRA_STORY,
     VISION,
+    WORKSPACE_APPLET_EDIT,
 };

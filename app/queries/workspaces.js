@@ -210,3 +210,72 @@ export function useUpdateWorkspaceState() {
 
     return mutation;
 }
+
+export function useWorkspaceSuggestions(id, model) {
+    const mutation = useMutation({
+        mutationFn: async () => {
+            if (!model) return [];
+            const { data } = await axios.post(
+                `/api/workspaces/${id}/ui/suggestions`,
+                {
+                    model,
+                },
+            );
+            return data.suggestions || [];
+        },
+    });
+
+    return mutation;
+}
+
+export function useWorkspaceApplet(id) {
+    const query = useQuery({
+        queryKey: ["workspaceApplet", id],
+        queryFn: async () => {
+            const { data } = await axios.get(`/api/workspaces/${id}/applet`);
+            return data;
+        },
+    });
+
+    return query;
+}
+
+export function useUpdateWorkspaceApplet() {
+    const queryClient = useQueryClient();
+
+    const mutation = useMutation({
+        mutationFn: async ({ id, data }) => {
+            const { data: updated } = await axios.put(
+                `/api/workspaces/${id}/applet`,
+                data,
+            );
+            return updated;
+        },
+        onSuccess: (data, { id }) => {
+            queryClient.invalidateQueries({
+                queryKey: ["workspaceApplet", id],
+            });
+        },
+    });
+
+    return mutation;
+}
+
+export function useWorkspaceChat(id) {
+    const mutation = useMutation({
+        mutationFn: async ({ messages, model, currentHtml }) => {
+            const { data } = await axios.post(
+                `/api/workspaces/${id}/applet/chat`,
+                {
+                    messages,
+                    model,
+                    currentHtml,
+                    restEndpoint: `/api/workspaces/${id}/applet/prompt`,
+                },
+            );
+            return data;
+        },
+    });
+
+    return mutation;
+}
