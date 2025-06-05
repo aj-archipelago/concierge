@@ -6,10 +6,8 @@ import {
     PencilSquareIcon,
     PhotoIcon,
     PlusIcon,
-    ChevronLeftIcon,
-    ChevronRightIcon,
 } from "@heroicons/react/24/outline";
-import { HelpCircle, VideoIcon } from "lucide-react";
+import { HelpCircle, VideoIcon, PinIcon, PinOffIcon } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import React, { useContext, useState } from "react";
@@ -138,7 +136,7 @@ export default React.forwardRef(function Sidebar(
             className={cn(
                 "flex grow flex-col gap-y-5 overflow-y-auto border-r border-gray-200 bg-white px-5 relative z-[70]",
                 isCollapsed &&
-                    "group hover:w-56 w-16 transition-[width] duration-200",
+                    "group hover:w-56 w-16 transition-[width] duration-100 shadow-xl",
                 !isCollapsed && "w-56",
             )}
         >
@@ -146,17 +144,17 @@ export default React.forwardRef(function Sidebar(
                 <button
                     onClick={onToggleCollapse}
                     className={cn(
-                        "bg-white border border-gray-200 rounded-full p-1 hidden lg:block shadow-sm hover:bg-gray-50",
-                        shouldForceCollapse(pathname) && "lg:hidden",
+                        "hidden bg-white border border-gray-200 rounded-full p-1 shadow-sm hover:bg-gray-50",
+                        shouldForceCollapse(pathname) ? "lg:hidden" : "group-hover:block",
                         isCollapsed
-                            ? "mx-auto mt-4 group-hover:mt-0 group-hover:absolute group-hover:-right-3 group-hover:top-5"
-                            : "absolute -right-3 top-5",
+                            ? "mx-auto mt-4 hidden group-hover:mt-0 group-hover:absolute group-hover:-right-3 group-hover:top-5"
+                            : "mx-auto lg:block absolute -right-3 top-5",
                     )}
                 >
                     {isCollapsed ? (
-                        <ChevronRightIcon className="h-4 w-4 text-gray-400" />
+                        <PinIcon className="h-4 w-4 text-gray-400" />
                     ) : (
-                        <ChevronLeftIcon className="h-4 w-4 text-gray-400" />
+                        <PinOffIcon className="h-4 w-4 text-gray-400" />
                     )}
                 </button>
             </div>
@@ -165,8 +163,8 @@ export default React.forwardRef(function Sidebar(
                 <Link className="flex items-center gap-2" href="/">
                     <img
                         className={cn(
-                            "w-auto h-12",
-                            isCollapsed ? "hidden group-hover:block" : "block",
+                            "w-auto",
+                            isCollapsed ? "-mx-2 group-hover:h-12" : "block h-12",
                         )}
                         src={getLogo(language)}
                         alt="Your Company"
@@ -184,7 +182,7 @@ export default React.forwardRef(function Sidebar(
             <nav className="flex flex-1 flex-col">
                 <ul className="flex flex-1 flex-col gap-y-4">
                     <li className="grow">
-                        <ul className="-mx-2 space-y-1 max-h-[calc(100vh-155px)] overflow-y-auto overflow-x-hidden">
+                        <ul className="-mx-2 space-y-1 max-h-[calc(100vh-155px)] overflow-y-auto overflow-x-hidden scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
                             {updatedNavigation.map((item) => (
                                 <li
                                     key={item.name}
