@@ -71,7 +71,9 @@ class QueueMonitor {
                     type: "header",
                     text: {
                         type: "plain_text",
-                        text: pendingJobs ? "🚨 Queue Alert: High Pending Jobs" : "🚨 Queue Alert: High Failure Rate Detected",
+                        text: pendingJobs
+                            ? "🚨 Queue Alert: High Pending Jobs"
+                            : "🚨 Queue Alert: High Failure Rate Detected",
                         emoji: true,
                     },
                 },
@@ -86,25 +88,27 @@ class QueueMonitor {
                             type: "mrkdwn",
                             text: `*Time:*\n${new Date().toLocaleString()}`,
                         },
-                        ...(pendingJobs ? [
-                            {
-                                type: "mrkdwn",
-                                text: `*Pending Jobs:*\n*${pendingJobs}*`,
-                            }
-                        ] : [
-                            {
-                                type: "mrkdwn",
-                                text: `*Failure Rate:*\n*${(failureRate * 100).toFixed(2)}%*`,
-                            },
-                            {
-                                type: "mrkdwn",
-                                text: `*Threshold:*\n${(FAILURE_THRESHOLD * 100).toFixed(2)}%`,
-                            },
-                            {
-                                type: "mrkdwn",
-                                text: `*Window:*\n10 minutes`,
-                            }
-                        ]),
+                        ...(pendingJobs
+                            ? [
+                                  {
+                                      type: "mrkdwn",
+                                      text: `*Pending Jobs:*\n*${pendingJobs}*`,
+                                  },
+                              ]
+                            : [
+                                  {
+                                      type: "mrkdwn",
+                                      text: `*Failure Rate:*\n*${(failureRate * 100).toFixed(2)}%*`,
+                                  },
+                                  {
+                                      type: "mrkdwn",
+                                      text: `*Threshold:*\n${(FAILURE_THRESHOLD * 100).toFixed(2)}%`,
+                                  },
+                                  {
+                                      type: "mrkdwn",
+                                      text: `*Window:*\n10 minutes`,
+                                  },
+                              ]),
                         {
                             type: "mrkdwn",
                             text: `*Container App:*\n${containerAppName}`,
@@ -116,7 +120,9 @@ class QueueMonitor {
                     elements: [
                         {
                             type: "mrkdwn",
-                            text: pendingJobs ? "_Please investigate the cause of the high number of pending jobs._" : "_Please investigate the cause of the high failure rate._",
+                            text: pendingJobs
+                                ? "_Please investigate the cause of the high number of pending jobs._"
+                                : "_Please investigate the cause of the high failure rate._",
                         },
                     ],
                 },
