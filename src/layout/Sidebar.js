@@ -145,7 +145,9 @@ export default React.forwardRef(function Sidebar(
                     onClick={onToggleCollapse}
                     className={cn(
                         "hidden bg-white border border-gray-200 rounded-full p-1 shadow-sm hover:bg-gray-50",
-                        shouldForceCollapse(pathname) ? "lg:hidden" : "group-hover:block",
+                        shouldForceCollapse(pathname)
+                            ? "lg:hidden"
+                            : "group-hover:block",
                         isCollapsed
                             ? "mx-auto mt-4 hidden group-hover:mt-0 group-hover:absolute group-hover:-right-3 group-hover:top-5"
                             : "mx-auto lg:block absolute -right-3 top-5",
@@ -164,7 +166,9 @@ export default React.forwardRef(function Sidebar(
                     <img
                         className={cn(
                             "w-auto",
-                            isCollapsed ? "-mx-2 group-hover:h-12" : "block h-12",
+                            isCollapsed
+                                ? "-mx-2 group-hover:h-12"
+                                : "block h-12",
                         )}
                         src={getLogo(language)}
                         alt="Your Company"
