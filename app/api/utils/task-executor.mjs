@@ -17,10 +17,6 @@ export async function executeTask(jobData, job) {
 
     // Check if cancelled
     const request = await Task.findOne({ _id: taskId });
-    logger.log(
-        `[DEBUG] Initial request status check: ${JSON.stringify(request)}`,
-    );
-
     if (request?.status === "cancelled") {
         logger.log(`[DEBUG] Task ${taskId} was cancelled before execution`);
         return;
@@ -28,32 +24,22 @@ export async function executeTask(jobData, job) {
 
     // Create a job-like object for consistency
     const taskInfo = { id: taskId, data: jobData, client };
-    logger.log(
-        `[DEBUG] Created taskInfo object: ${JSON.stringify(taskInfo.data)}`,
-    );
 
     // Initialize progress tracker
-    logger.log(`[DEBUG] Initializing progress tracker`);
     const progressTracker = new CortexRequestTracker(taskInfo, client, logger);
 
     // Set initial status
-    logger.log(`[DEBUG] Setting initial status`);
     await progressTracker.updateRequestStatus("in_progress", null, null, 0.05);
 
     // Initialize taskInfo handler
-    logger.log(`[DEBUG] Loading handler for type: ${type}`);
     const handler = await loadTaskDefinition(type);
 
     try {
-        logger.log(`[DEBUG] Starting request execution`);
         const cortexRequestId = await handler.startRequest(taskInfo);
 
         if (cortexRequestId) {
-            logger.log(`[DEBUG] Received cortexRequestId: ${cortexRequestId}`);
-            logger.log(`[DEBUG] Updating Task with cortexRequestId`);
             await Task.findOneAndUpdate({ _id: taskId }, { cortexRequestId });
 
-            logger.log(`[DEBUG] Starting progress tracking`);
             return await progressTracker.run(cortexRequestId);
         } else {
             await Task.findOneAndUpdate(
@@ -167,7 +153,6 @@ class CortexRequestTracker {
         let dataObject = await this.parseProgressData(
             data?.requestProgress?.data,
         );
-        this.logger.log(`[DEBUG] Parsed data object:`, dataObject);
 
         if (data?.requestProgress?.error) {
             this.logger.log(
@@ -354,9 +339,6 @@ class CortexRequestTracker {
 
                         if (shouldResolve) {
                             this.cleanup();
-                            this.logger.log(
-                                `[DEBUG] Should resolve: ${shouldResolve}`,
-                            );
                             this.resolve(dataObject);
                         }
                     } catch (error) {
