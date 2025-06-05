@@ -49,10 +49,10 @@ class CodingTask extends BaseTask {
             throw new Error("Chat ID is required in metadata");
         }
 
-        console.log("[CodingTask] Retrieving chat to check message position", {
+        console.log(
+            "[CodingTask] Retrieving chat to check message position. Chat ID:",
             chatId,
-            taskId,
-        });
+        );
 
         // Find the chat and check if the task message is the last one
         const chat = await Chat.findOne({
@@ -124,7 +124,10 @@ class CodingTask extends BaseTask {
             );
         }
 
-        console.log("[CodingTask] Successfully completed handling", { chatId });
+        console.log(
+            "[CodingTask] Successfully completed handling chat ID:",
+            chatId,
+        );
         return dataObject;
     }
 
