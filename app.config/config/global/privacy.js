@@ -35,7 +35,43 @@ function getEnglish() {
             .otnotice-menu{width:310px!important;max-height:80%!important;overflow-y:auto!important;background:#F8F8F8!important;border:1px solid #EEEEEE!important;box-shadow:0px 7px 10px 0px rgba(124,124,124,0.2)!important;padding:25px!important;margin:0!important;position:absolute!important;top:0;left:0;}
             .otnotice-menu>.otnotice-menu-section{width:100%!important;margin-bottom:25px!important;}
             .otnotice-sections{margin-left:335px!important;margin-right:0!important;}
-            @media (max-width:768px){.mobile-view .otnotice-menu{position:relative!important;width:100%!important;}.mobile-view .otnotice-sections{margin:0!important;}}
+            @media (max-width:768px){
+                #otnotice-e7d5c184-8792-450c-bdbc-b765b6250a0c .otnotice-content,
+                .mobile-view .otnotice-content{
+                    display:block!important;
+                    position:relative!important;
+                    width:100%!important;
+                }
+                #otnotice-e7d5c184-8792-450c-bdbc-b765b6250a0c .otnotice-menu,
+                .mobile-view .otnotice-menu{
+                    position:relative!important;
+                    width:100%!important;
+                    margin-bottom:20px!important;
+                    left:0!important;
+                    top:0!important;
+                    transform:none!important;
+                    float:none!important;
+                    display:block!important;
+                }
+                #otnotice-e7d5c184-8792-450c-bdbc-b765b6250a0c .otnotice-sections,
+                .mobile-view .otnotice-sections{
+                    margin:0!important;
+                    width:100%!important;
+                    float:none!important;
+                    clear:both!important;
+                    display:block!important;
+                }
+                #otnotice-e7d5c184-8792-450c-bdbc-b765b6250a0c .otnotice-menu,
+                #otnotice-e7d5c184-8792-450c-bdbc-b765b6250a0c .otnotice-sections,
+                .mobile-view .otnotice-menu,
+                .mobile-view .otnotice-sections{
+                    position:relative!important;
+                    left:0!important;
+                    right:0!important;
+                    transform:none!important;
+                    max-width:100%!important;
+                }
+            }
             body.dark .otnotice-menu{background:#1f2937!important;border-color:#374151!important;}
             body.dark .otnotice-menu>.otnotice-menu-section a{color:#e5e7eb!important;}
             body.dark .otnotice-sections>.otnotice-section>h2.otnotice-section-header{color:#e5e7eb!important;}

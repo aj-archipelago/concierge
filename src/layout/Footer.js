@@ -21,7 +21,7 @@ export default function Footer() {
                 <div className="truncate">{t("footer_copyright")}</div>
                 <a 
                     href="/privacy" 
-                    className="hover:text-sky-900 transition-colors hidden sm:block"
+                    className="text-sky-700 hover:text-sky-700 hidden sm:block"
                 >
                     {t("footer_privacy_policy")}
                 </a>
