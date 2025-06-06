@@ -4,7 +4,15 @@ import i18next from "i18next";
 import { useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import config from "../../config";
-import { Modal } from "@/components/ui/modal";
+import {
+    AlertDialog,
+    AlertDialogContent,
+    AlertDialogHeader,
+    AlertDialogTitle,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogAction,
+} from "@/components/ui/alert-dialog";
 
 const Tos = ({ showTos, setShowTos }) => {
     const { getLogo, getTosContent } = config.global;
@@ -46,25 +54,49 @@ const Tos = ({ showTos, setShowTos }) => {
     };
 
     return (
-        <Modal
-            dialogClassName="tos"
-            show={showTos}
-            title={t("Terms of Service")}
-        >
-            <div overflow="auto">
-                <div className="alert-content">
-                    <div className="alert-logo">
-                        <img src={logo} height="40px" alt="alert logo" />
+        <AlertDialog open={showTos} onOpenChange={setShowTos}>
+            <AlertDialogContent className="max-h-[90vh] overflow-auto w-[65%] max-w-[800px] z-50">
+                <AlertDialogHeader>
+                    <div className="flex items-center gap-3 mb-2">
+                        <img
+                            src={logo}
+                            height="40"
+                            width="40"
+                            alt="alert logo"
+                            className="shrink-0"
+                        />
+                        <AlertDialogTitle className="text-lg md:text-base">
+                            {t("Terms of Service")}
+                        </AlertDialogTitle>
                     </div>
-                    <div className="alert-text">{tosContent}</div>
-                </div>
-                <div className="flex justify-end mt-4">
-                    <button className="lb-primary" onClick={handleTosClose}>
+                    <AlertDialogDescription asChild>
+                        <div className="space-y-3">
+                            <div className="alert-text prose prose-sm max-w-none dark:prose-invert">
+                                {tosContent}
+                            </div>
+                            <p className="alert-text prose prose-sm max-w-none dark:prose-invert">
+                                {t("For more information, please review our")}{" "}
+                                <a
+                                    href="/privacy"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="underline text-blue-600 hover:text-blue-800"
+                                >
+                                    {t("Privacy Policy")}
+                                </a>
+                                .
+                            </p>
+                        </div>
+                    </AlertDialogDescription>
+                </AlertDialogHeader>
+
+                <AlertDialogFooter>
+                    <AlertDialogAction onClick={handleTosClose}>
                         {t("I Accept")}
-                    </button>
-                </div>
-            </div>
-        </Modal>
+                    </AlertDialogAction>
+                </AlertDialogFooter>
+            </AlertDialogContent>
+        </AlertDialog>
     );
 };
 
