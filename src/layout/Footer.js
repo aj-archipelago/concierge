@@ -19,8 +19,8 @@ export default function Footer() {
         <div className="h-10 flex gap-1 justify-between sm:gap-8 bottom-0 items-center text-xs text-sky-700 px-4 py-2 bg-zinc-200">
             <div className="flex items-center gap-4">
                 <div className="truncate">{t("footer_copyright")}</div>
-                <a 
-                    href="/privacy" 
+                <a
+                    href="/privacy"
                     className="text-sky-700 hover:text-sky-700 hidden sm:block"
                 >
                     {t("footer_privacy_policy")}
