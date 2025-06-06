@@ -1,8 +1,15 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useContext } from "react";
+import { LanguageContext } from "../../src/contexts/LanguageProvider";
+import PrivacyNoticePageAr from "./page.ar";
 
-export default function PrivacyNoticePage() {
+export default function PrivacyNoticeRouter() {
+    const { language } = useContext(LanguageContext);
+    return language === "ar" ? <PrivacyNoticePageAr /> : <PrivacyNoticePage />;
+}
+
+function PrivacyNoticePage() {
     useEffect(() => {
         // Dynamically add the OneTrust privacy notice script only on the client.
         const script = document.createElement("script");
@@ -38,7 +45,7 @@ export default function PrivacyNoticePage() {
             <section className="w-full">
                 <div className="max-w-6xl mx-auto px-4">
                     <div className="mb-8 text-center">
-                        <h1 className="text-xl font-medium mb-3 text-gray-800 dark:text-gray-100">Privacy Notice</h1>
+                        <h1 className="text-xl font-medium mb-3 text-gray-800">Privacy Notice</h1>
                     </div>
                     <div className="flex flex-wrap justify-center">
                         <div className="w-full">
