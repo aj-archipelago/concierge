@@ -1,282 +1,68 @@
-"use client";
+// NOTE: This file only returns static markup; no client-only features.
 
-export default function PrivacyNoticePageAr() {
-    return (
-<>
-  {/* Import local Al-Jazeera font */}
-  <style jsx global>{`
-    @font-face {
-      font-family: 'Al-Jazeera';
-      src: url('/app/assets/fonts/Al-Jazeera-Regular.woff2') format('woff2');
-      font-weight: normal;
-      font-style: normal;
-      font-display: swap;
-    }
-    @font-face {
-      font-family: 'Al-Jazeera';
-      src: url('/app/assets/fonts/Al-Jazeera-Bold.woff2') format('woff2');
-      font-weight: 700;
-      font-style: normal;
-      font-display: swap;
-    }
-    html[dir="rtl"] strong,
-    html[dir="rtl"] b,
-    html[dir="rtl"] h1,
-    html[dir="rtl"] h2,
-    html[dir="rtl"] h3,
-    html[dir="rtl"] th {
-      font-weight: 700;
-    }
-  `}</style>
-  <style jsx global>{`
-  html[dir="rtl"], html[dir="rtl"] body {
-    background: #f3f4f6;
-    font-family: 'Al-Jazeera', 'Helvetica Neue', Helvetica, Arial, sans-serif !important;
-    direction: rtl;
-  }
-  .page.inner-page,
-  .bright-gray-bg,
-  .container,
-  .container-overlap-top {
-    background: #f3f4f6;
-    min-height: 100vh;
-    padding-top: 2rem;
-    padding-bottom: 2rem;
-  }
-  .container, .container-overlap-top {
-    max-width: 1200px;
-    margin: 0 auto;
-    padding: 0 1rem;
-  }
-  .block-heading,
-  .page-title {
-    text-align: center !important;
-    margin-bottom: 1.5rem;
-  }
-  .page-title,
-  .block-heading h1 {
-    color: #1f2937;
-    font-size: 1.25rem;
-    line-height: 1.75rem;
-    font-weight: 500;
-    margin-bottom: 0;
-    letter-spacing: 0.03em;
-  }
-  .row {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0 2rem;
-    margin: 0 -1rem;
-  }
-  .col,
-  .col-md-12,
-  .col-xs-12,
-  .col-lg-3,
-  .col-lg-9 {
-    padding: 0 1rem;
-    box-sizing: border-box;
-  }
-  .col-md-12,
-  .col-xs-12 {
-    flex: 1 1 100%;
-  }
-  .col-lg-3 {
-    flex: 0 0 310px;
-    max-width: 310px;
-  }
-  .col-lg-9 {
-    flex: 1 1 0%;
-    max-width: calc(100% - 310px);
-  }
-  @media (max-width: 992px) {
-    .row {
-      flex-direction: column;
-    }
-    .col-lg-3,
-    .col-lg-9 {
-      flex: 1 1 100%;
-      max-width: 100%;
-    }
-  }
+export const getPrivacyContent = (language) => {
+    const common = language === "ar" ? getArabic() : getEnglish();
+    return common;
+};
 
-  .notice-menu {
-    background: #f8f8f8;
-    border: 1px solid #eee;
-    box-shadow: 0px 7px 10px 0px rgba(124,124,124,0.16);
-    border-radius: 0.7rem;
-    padding: 1.1rem 1.25rem;
-    margin-bottom: 2rem;
-    list-style: none;
-    position: relative;
-    width: 100%;
-    max-width: 310px;
-  }
-  .notice-menu li {
-    margin: 0;
-    border-bottom: 1px solid #eee;
-  }
-  .notice-menu li:last-child {
-    border-bottom: 0;
-  }
-  .notice-menu a {
-    display: block;
-    padding: 0.7rem 0.5rem;
-    color: #1f2937;
-    font-size: 1.09rem;
-    font-weight: 500;
-    text-decoration: none;
-    border-radius: 0.45rem;
-    transition: background 0.18s, color 0.18s;
-  }
-  .notice-menu a:hover,
-  .notice-menu a:focus {
-    background: #357DED;
-    color: #fff;
-  }
+function getEnglish() {
+    const html = `
+    <main class="min-h-screen bg-gray-100 py-8">
+        <section class="w-full">
+            <div class="max-w-6xl mx-auto px-4">
+                <div class="mb-8 text-center">
+                    <h1 class="text-xl font-medium mb-3 text-gray-800">Privacy Notice</h1>
+                </div>
+                <div class="flex flex-wrap justify-center">
+                    <div class="w-full">
+                        <div class="bg-white p-6 sm:p-8 rounded-lg shadow-md">
+                            <!-- OneTrust Privacy Notice start -->
+                            <div class="otnotice-language-dropdown-container" style="display:none">
+                               <select id="otnotice-language-dropdown" aria-label="language selector"></select>
+                            </div>
 
-  .card,
-  .white-bg,
-  .main-row {
-    background: #fff;
-    border-radius: 0.7rem;
-    box-shadow: 0 2px 14px rgba(30,40,90,0.10);
-    padding: 2rem 1.5rem 2rem 1.5rem;
-    margin-bottom: 2rem;
-  }
-  .privacy-content {
-    padding: 0.2rem 0;
-  }
-  .privacy-content h1,
-  .privacy-content h2,
-  .privacy-content h3 {
-    color: #1f2937;
-    font-size: 1.18rem;
-    font-weight: bold;
-    margin: 2rem 0 0.9rem 0;
-  }
-  .privacy-content p {
-    color: #273142;
-    font-size: 1.05em;
-    margin-bottom: 0.8em;
-    line-height: 1.68em;
-  }
-  .privacy-content ul {
-    padding-right: 1.2em;
-    margin-bottom: 1.12em;
-  }
-  .privacy-content li {
-    margin-bottom: 0.4em;
-  }
-  .ms-rteTable-default {
-    width: 100%;
-    border-collapse: collapse;
-    background: #fafafd;
-    margin-top: 1.1em;
-    margin-bottom: 1.1em;
-    font-size: 1em;
-    table-layout: fixed;
-  }
-  .ms-rteTable-default th,
-  .ms-rteTable-default td {
-    border: 1px solid #e5e7eb;
-    padding: 0.65em 0.85em;
-    text-align: right;
-    background: #fff;
-    color: #1f2937;
-    word-wrap: break-word;
-    white-space: normal;
-  }
-  .ms-rteTable-default tr:nth-child(even) td {
-    background: #f3f4f6;
-  }
-  .ms-rteTable-default th {
-    background: #357DED;
-    color: #fff;
-    font-weight: 600;
-  }
-  .ms-clear { clear:both; }
-  .ms-webpart-chrome { margin: 0; padding: 0; border: none; }
-  .noindex { display: block; }
-  [dir="rtl"] h1, [dir="rtl"] h2, [dir="rtl"] h3 { text-align: right; }
-  @media (max-width: 768px) {
-    .card,
-    .white-bg,
-    .main-row {
-      padding: 1.1rem 0.7rem 1.1rem 0.7rem;
-    }
-    .notice-menu {
-      max-width: 100%;
-      margin-bottom: 1.5rem;
-      padding: 0.8rem;
-    }
-  }
-  /* -- DARK MODE (enabled by <body class="dark">, matches English page logic) -- */
-  body.dark, .dark .page.inner-page, .dark .bright-gray-bg, .dark .container, .dark .container-overlap-top {
-    background: #16191e !important;
-  }
-  body.dark .card,
-  body.dark .white-bg,
-  body.dark .main-row,
-  .dark .card,
-  .dark .white-bg,
-  .dark .main-row {
-      background: #1f2937 !important;
-      color: #e5e7eb !important;
-      box-shadow: 0 2px 14px rgba(20,24,35,0.22) !important;
-  }
-  body.dark .page-title,
-  body.dark .block-heading h1,
-  body.dark .privacy-content h1,
-  body.dark .privacy-content h2,
-  body.dark .privacy-content h3,
-  .dark .page-title,
-  .dark .block-heading h1,
-  .dark .privacy-content h1,
-  .dark .privacy-content h2,
-  .dark .privacy-content h3 {
-      color: #e5e7eb !important;
-  }
-  body.dark .privacy-content p,
-  body.dark .privacy-content ul,
-  body.dark .privacy-content li,
-  .dark .privacy-content p,
-  .dark .privacy-content ul,
-  .dark .privacy-content li {
-      color: #d1d5db !important;
-  }
-  body.dark .notice-menu,
-  .dark .notice-menu {
-      background: #232946 !important;
-      border-color: #374151 !important;
-  }
-  body.dark .notice-menu a,
-  .dark .notice-menu a {
-      color: #e5e7eb !important;
-  }
-  body.dark .notice-menu a:hover,
-  body.dark .notice-menu a:focus,
-  .dark .notice-menu a:hover,
-  .dark .notice-menu a:focus {
-      background: #357DED !important;
-      color: #fff !important;
-  }
-  body.dark .ms-rteTable-default th,
-  .dark .ms-rteTable-default th {
-      background: #357DED !important;
-      color: #fff !important;
-  }
-  body.dark .ms-rteTable-default td,
-  .dark .ms-rteTable-default td {
-      background: #232946 !important;
-      color: #e5e7eb !important;
-  }
-  body.dark .ms-rteTable-default tr:nth-child(even) td,
-  .dark .ms-rteTable-default tr:nth-child(even) td {
-      background: #1f232d !important;
-  }
-  `}</style>
+                            <div id="otnotice-e7d5c184-8792-450c-bdbc-b765b6250a0c" class="otnotice"></div>
 
-           <div dangerouslySetInnerHTML={{ __html: `<main class="page inner-page">
+                            <!-- scripts are injected by page wrapper -->
+                            <!-- OneTrust Privacy Notice end -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+        <style>
+            .otnotice-content{padding:0!important;position:relative!important;text-align:left!important;}
+            .otnotice-menu{width:310px!important;max-height:80%!important;overflow-y:auto!important;background:#F8F8F8!important;border:1px solid #EEEEEE!important;box-shadow:0px 7px 10px 0px rgba(124,124,124,0.2)!important;padding:25px!important;margin:0!important;position:absolute!important;top:0;left:0;}
+            .otnotice-menu>.otnotice-menu-section{width:100%!important;margin-bottom:25px!important;}
+            .otnotice-sections{margin-left:335px!important;margin-right:0!important;}
+            @media (max-width:768px){.mobile-view .otnotice-menu{position:relative!important;width:100%!important;}.mobile-view .otnotice-sections{margin:0!important;}}
+            body.dark .otnotice-menu{background:#1f2937!important;border-color:#374151!important;}
+            body.dark .otnotice-menu>.otnotice-menu-section a{color:#e5e7eb!important;}
+            body.dark .otnotice-sections>.otnotice-section>h2.otnotice-section-header{color:#e5e7eb!important;}
+        </style>
+    </main>`;
+
+    return {
+        markup: <div suppressHydrationWarning={true} dangerouslySetInnerHTML={{ __html: html }} />,
+        scripts: [
+            {
+                src: "https://privacyportalde-cdn.onetrust.com/privacy-notice-scripts/otnotice-1.0.min.js",
+                id: "otprivacy-notice-script",
+                strategy: "afterInteractive",
+                attrs: {
+                    charSet: "UTF-8",
+                    settings: "eyJjYWxsYmFja1VybCI6Imh0dHBzOi8vZHNwb3J0YWwuYWxqYXplZXJhLm5ldC9yZXF1ZXN0L3YxL3ByaXZhY3lOb3RpY2VzL3N0YXRzL3ZpZXdzIn0=",
+                },
+            },
+        ],
+        noticeUrls: [
+            "https://privacyportalde-cdn.onetrust.com/15894e16-5fd4-4170-9dfc-9fb1d34b6c3c/privacy-notices/e7d5c184-8792-450c-bdbc-b765b6250a0c.json",
+        ],
+    };
+}
+
+function getArabic() {
+    const html = `<main class="page inner-page">
         <section class="clean-block clean-info bright-gray-bg">
 
             <div class="container container-overlap-top">
@@ -310,7 +96,282 @@ export default function PrivacyNoticePageAr() {
                 </div>
             </div>
         </section>
-    </main>`}} />
-    </>
-    );
+    </main>`;
+
+    const fontStyle = `
+      @font-face {
+        font-family: 'Al-Jazeera';
+        src: url('/app/assets/fonts/Al-Jazeera-Regular.woff2') format('woff2');
+        font-weight: normal;
+        font-style: normal;
+        font-display: swap;
+      }
+      @font-face {
+        font-family: 'Al-Jazeera';
+        src: url('/app/assets/fonts/Al-Jazeera-Bold.woff2') format('woff2');
+        font-weight: 700;
+        font-style: normal;
+        font-display: swap;
+      }
+      html[dir="rtl"] strong,
+      html[dir="rtl"] b,
+      html[dir="rtl"] h1,
+      html[dir="rtl"] h2,
+      html[dir="rtl"] h3,
+      html[dir="rtl"] th {
+        font-weight: 700;
+      }
+    `;
+    
+    const noticeStyles = `
+    html[dir="rtl"], html[dir="rtl"] body {
+      background: #f3f4f6;
+      font-family: 'Al-Jazeera', 'Helvetica Neue', Helvetica, Arial, sans-serif !important;
+      direction: rtl;
+    }
+    .page.inner-page,
+    .bright-gray-bg,
+    .container,
+    .container-overlap-top {
+      background: #f3f4f6;
+      min-height: 100vh;
+      padding-top: 2rem;
+      padding-bottom: 2rem;
+    }
+    .container, .container-overlap-top {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 0 1rem;
+    }
+    .block-heading,
+    .page-title {
+      text-align: center !important;
+      margin-bottom: 1.5rem;
+    }
+    .page-title,
+    .block-heading h1 {
+      color: #1f2937;
+      font-size: 1.25rem;
+      line-height: 1.75rem;
+      font-weight: 500;
+      margin-bottom: 0;
+      letter-spacing: 0.03em;
+    }
+    .row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0 2rem;
+      margin: 0 -1rem;
+    }
+    .col,
+    .col-md-12,
+    .col-xs-12,
+    .col-lg-3,
+    .col-lg-9 {
+      padding: 0 1rem;
+      box-sizing: border-box;
+    }
+    .col-md-12,
+    .col-xs-12 {
+      flex: 1 1 100%;
+    }
+    .col-lg-3 {
+      flex: 0 0 310px;
+      max-width: 310px;
+    }
+    .col-lg-9 {
+      flex: 1 1 0%;
+      max-width: calc(100% - 310px);
+    }
+    @media (max-width: 992px) {
+      .row {
+        flex-direction: column;
+      }
+      .col-lg-3,
+      .col-lg-9 {
+        flex: 1 1 100%;
+        max-width: 100%;
+      }
+    }
+  
+    .notice-menu {
+      background: #f8f8f8;
+      border: 1px solid #eee;
+      box-shadow: 0px 7px 10px 0px rgba(124,124,124,0.16);
+      border-radius: 0.7rem;
+      padding: 1.1rem 1.25rem;
+      margin-bottom: 2rem;
+      list-style: none;
+      position: relative;
+      width: 100%;
+      max-width: 310px;
+    }
+    .notice-menu li {
+      margin: 0;
+      border-bottom: 1px solid #eee;
+    }
+    .notice-menu li:last-child {
+      border-bottom: 0;
+    }
+    .notice-menu a {
+      display: block;
+      padding: 0.7rem 0.5rem;
+      color: #1f2937;
+      font-size: 1.09rem;
+      font-weight: 500;
+      text-decoration: none;
+      border-radius: 0.45rem;
+      transition: background 0.18s, color 0.18s;
+    }
+    .notice-menu a:hover,
+    .notice-menu a:focus {
+      background: #357DED;
+      color: #fff;
+    }
+  
+    .card,
+    .white-bg,
+    .main-row {
+      background: #fff;
+      border-radius: 0.7rem;
+      box-shadow: 0 2px 14px rgba(30,40,90,0.10);
+      padding: 2rem 1.5rem 2rem 1.5rem;
+      margin-bottom: 2rem;
+    }
+    .privacy-content {
+      padding: 0.2rem 0;
+    }
+    .privacy-content h1,
+    .privacy-content h2,
+    .privacy-content h3 {
+      color: #1f2937;
+      font-size: 1.18rem;
+      font-weight: bold;
+      margin: 2rem 0 0.9rem 0;
+    }
+    .privacy-content p {
+      color: #273142;
+      font-size: 1.05em;
+      margin-bottom: 0.8em;
+      line-height: 1.68em;
+    }
+    .privacy-content ul {
+      padding-right: 1.2em;
+      margin-bottom: 1.12em;
+    }
+    .privacy-content li {
+      margin-bottom: 0.4em;
+    }
+    .ms-rteTable-default {
+      width: 100%;
+      border-collapse: collapse;
+      background: #fafafd;
+      margin-top: 1.1em;
+      margin-bottom: 1.1em;
+      font-size: 1em;
+      table-layout: fixed;
+    }
+    .ms-rteTable-default th,
+    .ms-rteTable-default td {
+      border: 1px solid #e5e7eb;
+      padding: 0.65em 0.85em;
+      text-align: right;
+      background: #fff;
+      color: #1f2937;
+      word-wrap: break-word;
+      white-space: normal;
+    }
+    .ms-rteTable-default tr:nth-child(even) td {
+      background: #f3f4f6;
+    }
+    .ms-rteTable-default th {
+      background: #357DED;
+      color: #fff;
+      font-weight: 600;
+    }
+    .ms-clear { clear:both; }
+    .ms-webpart-chrome { margin: 0; padding: 0; border: none; }
+    .noindex { display: block; }
+    [dir="rtl"] h1, [dir="rtl"] h2, [dir="rtl"] h3 { text-align: right; }
+    @media (max-width: 768px) {
+      .card,
+      .white-bg,
+      .main-row {
+        padding: 1.1rem 0.7rem 1.1rem 0.7rem;
+      }
+      .notice-menu {
+        max-width: 100%;
+        margin-bottom: 1.5rem;
+        padding: 0.8rem;
+      }
+    }
+    /* -- DARK MODE (enabled by <body class="dark">, matches English page logic) -- */
+    body.dark, .dark .page.inner-page, .dark .bright-gray-bg, .dark .container, .dark .container-overlap-top {
+      background: #16191e !important;
+    }
+    body.dark .card,
+    body.dark .white-bg,
+    body.dark .main-row,
+    .dark .card,
+    .dark .white-bg,
+    .dark .main-row {
+        background: #1f2937 !important;
+        color: #e5e7eb !important;
+        box-shadow: 0 2px 14px rgba(20,24,35,0.22) !important;
+    }
+    body.dark .page-title,
+    body.dark .block-heading h1,
+    body.dark .privacy-content h1,
+    body.dark .privacy-content h2,
+    body.dark .privacy-content h3,
+    .dark .page-title,
+    .dark .block-heading h1,
+    .dark .privacy-content h1,
+    .dark .privacy-content h2,
+    .dark .privacy-content h3 {
+        color: #e5e7eb !important;
+    }
+    body.dark .privacy-content p,
+    body.dark .privacy-content ul,
+    body.dark .privacy-content li,
+    .dark .privacy-content p,
+    .dark .privacy-content ul,
+    .dark .privacy-content li {
+        color: #d1d5db !important;
+    }
+    body.dark .notice-menu,
+    .dark .notice-menu {
+        background: #232946 !important;
+        border-color: #374151 !important;
+    }
+    body.dark .notice-menu a,
+    .dark .notice-menu a {
+        color: #e5e7eb !important;
+    }
+    body.dark .notice-menu a:hover,
+    body.dark .notice-menu a:focus,
+    .dark .notice-menu a:hover,
+    .dark .notice-menu a:focus {
+        background: #357DED !important;
+        color: #fff !important;
+    }
+    body.dark .ms-rteTable-default th,
+    .dark .ms-rteTable-default th {
+        background: #357DED !important;
+        color: #fff !important;
+    }
+    body.dark .ms-rteTable-default td,
+    .dark .ms-rteTable-default td {
+        background: #232946 !important;
+        color: #e5e7eb !important;
+    }
+    body.dark .ms-rteTable-default tr:nth-child(even) td,
+    .dark .ms-rteTable-default tr:nth-child(even) td {
+        background: #1f232d !important;
+    }
+    `;
+
+    const fullMarkup = `<style jsx global>${fontStyle}</style><style jsx global>${noticeStyles}</style><div>${html}</div>`;
+
+    return { markup: <div suppressHydrationWarning={true} dangerouslySetInnerHTML={{__html:fullMarkup}} />, scripts: [], initInline: ""};
 } 
