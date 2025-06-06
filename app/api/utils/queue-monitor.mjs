@@ -56,14 +56,14 @@ class QueueMonitor {
         return recentFailed.length / totalJobs;
     }
 
-    async sendSlackAlert(queueName, failureRate) {
+    async sendSlackAlert(queueName, failureRate, pendingJobs = null) {
         const webhookUrl = process.env.SLACK_WEBHOOK_URL;
         if (!webhookUrl) {
             console.error("SLACK_WEBHOOK_URL is not configured");
             return;
         }
 
-        const containerAppName = process.env.CONTAINER_APP_NAME || "local"; // Get container app name
+        const containerAppName = process.env.CONTAINER_APP_NAME || "local";
 
         const message = {
             blocks: [
@@ -71,7 +71,9 @@ class QueueMonitor {
                     type: "header",
                     text: {
                         type: "plain_text",
-                        text: "🚨 Queue Alert: High Failure Rate Detected",
+                        text: pendingJobs
+                            ? "🚨 Queue Alert: High Pending Jobs"
+                            : "🚨 Queue Alert: High Failure Rate Detected",
                         emoji: true,
                     },
                 },
@@ -86,18 +88,27 @@ class QueueMonitor {
                             type: "mrkdwn",
                             text: `*Time:*\n${new Date().toLocaleString()}`,
                         },
-                        {
-                            type: "mrkdwn",
-                            text: `*Failure Rate:*\n*${(failureRate * 100).toFixed(2)}%*`,
-                        },
-                        {
-                            type: "mrkdwn",
-                            text: `*Threshold:*\n${(FAILURE_THRESHOLD * 100).toFixed(2)}%`,
-                        },
-                        {
-                            type: "mrkdwn",
-                            text: `*Window:*\n10 minutes`,
-                        },
+                        ...(pendingJobs
+                            ? [
+                                  {
+                                      type: "mrkdwn",
+                                      text: `*Pending Jobs:*\n*${pendingJobs}*`,
+                                  },
+                              ]
+                            : [
+                                  {
+                                      type: "mrkdwn",
+                                      text: `*Failure Rate:*\n*${(failureRate * 100).toFixed(2)}%*`,
+                                  },
+                                  {
+                                      type: "mrkdwn",
+                                      text: `*Threshold:*\n${(FAILURE_THRESHOLD * 100).toFixed(2)}%`,
+                                  },
+                                  {
+                                      type: "mrkdwn",
+                                      text: `*Window:*\n10 minutes`,
+                                  },
+                              ]),
                         {
                             type: "mrkdwn",
                             text: `*Container App:*\n${containerAppName}`,
@@ -109,7 +120,9 @@ class QueueMonitor {
                     elements: [
                         {
                             type: "mrkdwn",
-                            text: "_Please investigate the cause of the high failure rate._",
+                            text: pendingJobs
+                                ? "_Please investigate the cause of the high number of pending jobs._"
+                                : "_Please investigate the cause of the high failure rate._",
                         },
                     ],
                 },
@@ -141,15 +154,15 @@ class QueueMonitor {
 
     async checkQueues() {
         for (const [queueName, queue] of this.queues) {
-            // Get jobs in the monitoring window
             if (!queue) continue;
 
             const now = Date.now();
             const windowStart = now - MONITORING_WINDOW;
 
-            const [completed, failed] = await Promise.all([
+            const [completed, failed, waiting] = await Promise.all([
                 queue.getJobs(["completed"], 0, -1, true),
                 queue.getJobs(["failed"], 0, -1, true),
+                queue.getJobs(["waiting"], 0, -1, true),
             ]);
             const recentCompleted = completed.filter(
                 (job) => job.finishedOn >= windowStart,
@@ -167,11 +180,18 @@ class QueueMonitor {
 
             const lastAlert = await this.getLastAlertTime(queueName);
 
+            // Check for high failure rate
             if (
                 failureRate > FAILURE_THRESHOLD &&
                 now - lastAlert > ALERT_COOLDOWN
             ) {
                 await this.sendSlackAlert(queueName, failureRate);
+                await this.setLastAlertTime(queueName, now);
+            }
+
+            // Check for high waiting jobs
+            if (waiting.length > 5 && now - lastAlert > ALERT_COOLDOWN) {
+                await this.sendSlackAlert(queueName, null, waiting.length);
                 await this.setLastAlertTime(queueName, now);
             }
         }

@@ -56,18 +56,7 @@ export default function WorkspaceApplet() {
             appletQuery.data?.messages?.length > 0 &&
             !allMessagesRef.current?.length
         ) {
-            console.log(
-                "DEBUG: setMessages - initial load from appletQuery.data",
-                {
-                    messages: appletQuery.data.messages,
-                    activeVersionIndex,
-                },
-            );
-            console.log("DEBUG: About to call setAllMessages - initial load");
             allMessagesRef.current = appletQuery.data.messages || [];
-            console.log(
-                "DEBUG: About to call setMessages - initial load from appletQuery.data",
-            );
             setMessages(
                 getMessagesUpToVersion(
                     appletQuery.data.messages,
@@ -97,13 +86,6 @@ export default function WorkspaceApplet() {
             allMessagesRef.current.length > 0 &&
             activeVersionIndex !== -1
         ) {
-            console.log("DEBUG: setMessages - effect update from allMessages", {
-                allMessages: allMessagesRef.current,
-                activeVersionIndex,
-            });
-            console.log(
-                "DEBUG: About to call setMessages - version change effect",
-            );
             setMessages(
                 getMessagesUpToVersion(
                     allMessagesRef.current,

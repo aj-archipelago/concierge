@@ -17,7 +17,7 @@ const initializeWorker = async () => {
         {
             connection,
             autorun: false,
-            concurrency: 5,
+            concurrency: 20,
             stalledInterval: 300000,
         },
     );

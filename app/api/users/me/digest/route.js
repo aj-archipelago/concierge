@@ -90,7 +90,6 @@ export async function PATCH(req, { params }) {
             oldBlock?.prompt !== newBlock.prompt ||
             !newBlock.content
         ) {
-            console.log("regenerating block", newBlock._id);
             const { taskId } = await enqueueBuildDigest(user._id, newBlock._id);
             newBlock.taskId = taskId;
             newBlock.updatedAt = null;

@@ -94,8 +94,6 @@ export function getExtension(url) {
 
 export function isRagFileUrl(url) {
     const urlExt = getExtension(url);
-    console.log("urlExt", urlExt);
-    console.log("RAG_EXTENSIONS", RAG_EXTENSIONS);
     return RAG_EXTENSIONS.includes(urlExt);
 }
 
