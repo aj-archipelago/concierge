@@ -43,7 +43,12 @@ function getEnglish() {
     </main>`;
 
     return {
-        markup: <div suppressHydrationWarning={true} dangerouslySetInnerHTML={{ __html: html }} />,
+        markup: (
+            <div
+                suppressHydrationWarning={true}
+                dangerouslySetInnerHTML={{ __html: html }}
+            />
+        ),
         scripts: [
             {
                 src: "https://privacyportalde-cdn.onetrust.com/privacy-notice-scripts/otnotice-1.0.min.js",
@@ -51,7 +56,8 @@ function getEnglish() {
                 strategy: "afterInteractive",
                 attrs: {
                     charSet: "UTF-8",
-                    settings: "eyJjYWxsYmFja1VybCI6Imh0dHBzOi8vZHNwb3J0YWwuYWxqYXplZXJhLm5ldC9yZXF1ZXN0L3YxL3ByaXZhY3lOb3RpY2VzL3N0YXRzL3ZpZXdzIn0=",
+                    settings:
+                        "eyJjYWxsYmFja1VybCI6Imh0dHBzOi8vZHNwb3J0YWwuYWxqYXplZXJhLm5ldC9yZXF1ZXN0L3YxL3ByaXZhY3lOb3RpY2VzL3N0YXRzL3ZpZXdzIn0=",
                 },
             },
         ],
@@ -122,7 +128,7 @@ function getArabic() {
         font-weight: 700;
       }
     `;
-    
+
     const noticeStyles = `
     html[dir="rtl"], html[dir="rtl"] body {
       background: #f3f4f6;
@@ -373,5 +379,14 @@ function getArabic() {
 
     const fullMarkup = `<style jsx global>${fontStyle}</style><style jsx global>${noticeStyles}</style><div>${html}</div>`;
 
-    return { markup: <div suppressHydrationWarning={true} dangerouslySetInnerHTML={{__html:fullMarkup}} />, scripts: [], initInline: ""};
-} 
+    return {
+        markup: (
+            <div
+                suppressHydrationWarning={true}
+                dangerouslySetInnerHTML={{ __html: fullMarkup }}
+            />
+        ),
+        scripts: [],
+        initInline: "",
+    };
+}

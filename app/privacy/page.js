@@ -11,8 +11,13 @@ export default function PrivacyNoticePage() {
     const { getPrivacyContent } = config.global;
 
     const data = getPrivacyContent(language);
-    const { markup, scripts = [], noticeUrls = [] } =
-        data && data.markup ? data : { markup: data, scripts: [], noticeUrls: [] };
+    const {
+        markup,
+        scripts = [],
+        noticeUrls = [],
+    } = data && data.markup
+        ? data
+        : { markup: data, scripts: [], noticeUrls: [] };
 
     useEffect(() => {
         if (!noticeUrls.length) return;
@@ -39,7 +44,13 @@ export default function PrivacyNoticePage() {
         <div>
             {/* Render dynamic scripts from config */}
             {scripts.map((s) => (
-                <Script key={s.id || s.src} src={s.src} id={s.id} strategy={s.strategy || "afterInteractive"} {...(s.attrs || {})} />
+                <Script
+                    key={s.id || s.src}
+                    src={s.src}
+                    id={s.id}
+                    strategy={s.strategy || "afterInteractive"}
+                    {...(s.attrs || {})}
+                />
             ))}
 
             {markup}
