@@ -6,6 +6,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useContext } from "react";
 import { useTranslation } from "react-i18next";
+import Link from "next/link";
 import { LanguageContext } from "../contexts/LanguageProvider";
 import { ThemeContext } from "../contexts/ThemeProvider";
 import { basePath } from "../utils/constants";
@@ -19,12 +20,12 @@ export default function Footer() {
         <div className="h-10 flex gap-1 justify-between sm:gap-8 bottom-0 items-center text-xs text-sky-700 px-4 py-2 bg-zinc-200">
             <div className="flex items-center gap-4">
                 <div className="truncate">{t("footer_copyright")}</div>
-                <a
+                <Link
                     href="/privacy"
                     className="text-sky-700 hover:text-sky-700 hidden sm:block"
                 >
                     {t("footer_privacy_policy")}
-                </a>
+                </Link>
             </div>
 
             <div className="flex gap-8 items-center">
