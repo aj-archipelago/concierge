@@ -77,6 +77,7 @@
     "Entities extracted from text": "الكيانات المستخرجة من النص",
     "What else would the reader like to know?": "ماذا يريد القارئ المزيد من المعرفة؟",
     "footer_copyright": "حقوق النشر © 2025 شبكة الإعلام الجزيرة. كل الحقوق محفوظة.",
+    "footer_privacy_policy": "سياسة الخصوصية",
     "Powered by": "مدعوم من قبل",
     "Reset chat": "إعادة تعيين الدردشة",
     "Terms of Service": "شروط الخدمة",
@@ -559,5 +560,7 @@
     "Agent": "الوكيل",
     "Coding task": "مهمة ترميز",
     "Thinking...": "يتم التفكير...",
-    "Thought for": "فكر لمدة"
+    "Thought for": "فكر لمدة",
+    "For more information, please review our": "للحصول على معلومات إضافية، يرجى مراجعة السياسة الخاصة بنا",
+    "Privacy Policy": "سياسة الخصوصية"
 }
