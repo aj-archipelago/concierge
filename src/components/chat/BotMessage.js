@@ -527,4 +527,3 @@ const BotMessage = ({
 };
 
 export default React.memo(BotMessage);
-``
