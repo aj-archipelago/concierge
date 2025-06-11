@@ -1,5 +1,21 @@
 "use client";
 
+import { TrashIcon, XIcon, ClockIcon } from "lucide-react";
+import { useEffect, useState, useCallback } from "react";
+import { useTranslation } from "react-i18next";
+import { useInView } from "react-intersection-observer";
+import TimeAgo from "react-time-ago";
+import stringcase from "stringcase";
+import {
+    useDeleteTask,
+    useInfiniteTasks,
+    useCancelTask,
+    useDeleteOldTasks,
+} from "../../app/queries/notifications";
+import {
+    StatusIndicator,
+    getStatusColorClass,
+} from "../../src/components/notifications/NotificationButton";
 import {
     AlertDialog,
     AlertDialogAction,
@@ -10,25 +26,9 @@ import {
     AlertDialogHeader,
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { ClockIcon, TrashIcon, XIcon } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
-import { useTranslation } from "react-i18next";
-import { useInView } from "react-intersection-observer";
-import TimeAgo from "react-time-ago";
-import { toast } from "react-toastify";
-import stringcase from "stringcase";
+import { getTaskDisplayName } from "../../src/utils/task-loader.mjs";
 import { useJob } from "../../app/queries/jobs";
-import {
-    useCancelTask,
-    useDeleteOldTasks,
-    useDeleteTask,
-    useInfiniteTasks,
-} from "../../app/queries/notifications";
-import {
-    StatusIndicator,
-    getStatusColorClass,
-} from "../../src/components/notifications/NotificationButton";
-import { TASK_INFO } from "../../src/utils/task-info";
+import { toast } from "react-toastify";
 
 const StatusText = ({ text, id, t }) => {
     const [isExpanded, setIsExpanded] = useState(false);
@@ -217,6 +217,7 @@ export default function NotificationsPage() {
     const deleteNotification = useDeleteTask();
     const [cancelRequestId, setCancelRequestId] = useState(null);
     const cancelRequest = useCancelTask();
+    const [notificationTypes, setNotificationTypes] = useState({});
     const deleteOldTasks = useDeleteOldTasks();
 
     useEffect(() => {
@@ -224,6 +225,24 @@ export default function NotificationsPage() {
             fetchNextPage();
         }
     }, [inView, hasNextPage, fetchNextPage]);
+
+    useEffect(() => {
+        // Load all notification types for displayed notifications
+        const loadTypes = async () => {
+            const types = {};
+            for (const notification of data?.pages.flatMap(
+                (page) => page.requests,
+            ) ?? []) {
+                if (!types[notification.type]) {
+                    types[notification.type] = await getTaskDisplayName(
+                        notification.type,
+                    );
+                }
+            }
+            setNotificationTypes(types);
+        };
+        loadTypes();
+    }, [data]);
 
     const handleDelete = (_id) => {
         if (
@@ -249,7 +268,7 @@ export default function NotificationsPage() {
     const notifications = data?.pages.flatMap((page) => page.requests) ?? [];
 
     const displayType = (type) => {
-        return TASK_INFO[type]?.displayName || type;
+        return notificationTypes[type] || type;
     };
 
     const handleDeleteOld = async () => {

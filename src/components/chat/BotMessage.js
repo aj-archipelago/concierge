@@ -1,9 +1,9 @@
-import { Bot, CheckCircle, XCircle } from "lucide-react";
+import { CheckCircle, XCircle, Bot } from "lucide-react";
 import React, { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useCancelTask, useTask } from "../../../app/queries/notifications";
+import { useTask, useCancelTask } from "../../../app/queries/notifications";
 import classNames from "../../../app/utils/class-names";
-import { TASK_INFO } from "../../utils/task-info";
+import { getTaskDisplayName } from "../../utils/task-loader.mjs";
 import CopyButton from "../CopyButton";
 import { convertMessageToMarkdown } from "./ChatMessage";
 import EntityIcon from "./EntityIcon";
@@ -83,6 +83,9 @@ const MemoizedMarkdownMessage = React.memo(
 
 const TaskPlaceholder = ({ message }) => {
     const { data: serverTask } = useTask(message.taskId);
+
+    // serverTask may be deleted, but once completed, the task is cached in the message
+    // so it'll always be available.
     const task = message.task || serverTask;
 
     const [displayName, setDisplayName] = useState(null);
@@ -90,15 +93,16 @@ const TaskPlaceholder = ({ message }) => {
     const [showFullOutput, setShowFullOutput] = useState(false);
     const cancelRequest = useCancelTask();
     const { t } = useTranslation();
-
     useEffect(() => {
         if (!task) {
             return;
         }
 
-        // Use TASK_INFO directly instead of async getTaskDisplayName
-        const displayName = TASK_INFO[task.type]?.displayName || task.type;
-        setDisplayName(displayName);
+        const fetchDisplayName = async () => {
+            const displayName = await getTaskDisplayName(task.type);
+            setDisplayName(displayName);
+        };
+        fetchDisplayName();
 
         // Auto-expand for in-progress tasks
         if (task.status === "in_progress" || task.status === "pending") {
@@ -523,3 +527,4 @@ const BotMessage = ({
 };
 
 export default React.memo(BotMessage);
+``
