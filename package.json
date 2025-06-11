@@ -98,7 +98,6 @@
     },
     "scripts": {
         "dev": "concurrently \"npm run next:dev\" \"npm run worker:dev\"",
-        "dev:multiworker": "concurrently \"npm run next:dev\" \"npm run worker:dev\" \"npm run worker:dev\"",
         "next:dev": "npm run prebuild && next dev",
         "prebuild": "node ./scripts/prebuild.js",
         "build": "next build",
