@@ -16,3 +16,26 @@ export async function loadTaskDefinition(type, silent = false) {
         return null;
     }
 }
+
+/**
+ * Gets the display name and retryable status for a handler type
+ * @param {string} type - The type of handler
+ * @returns {Promise<{displayName: string, isRetryable: boolean}>} The display name and retryable status
+ */
+export async function getTaskInfo(type) {
+    const handler = await loadTaskDefinition(type, true);
+    return {
+        displayName: handler?.displayName || type,
+        isRetryable: handler?.isRetryable || false,
+    };
+}
+
+/**
+ * Gets the display name for a handler type
+ * @param {string} type - The type of handler
+ * @returns {Promise<string>} The display name or the original type if not found
+ */
+export async function getTaskDisplayName(type) {
+    const info = await getTaskInfo(type);
+    return info.displayName;
+}
