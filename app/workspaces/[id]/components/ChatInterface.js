@@ -3,7 +3,7 @@ import { cn } from "@/lib/utils";
 import { RiSendPlane2Fill } from "react-icons/ri";
 import ReactMarkdown from "react-markdown";
 import TextareaAutosize from "react-textarea-autosize";
-import React, { useRef, useEffect } from "react";
+import React, { useRef, useEffect, useState } from "react";
 import { RotateCcw } from "lucide-react";
 import {
     AlertDialog,
@@ -151,6 +151,28 @@ export default function ChatInterface({
                         </div>
                     </div>
                 ))}
+                {isLoading && (
+                    <div className="flex justify-start mb-4">
+                        <div className="max-w-[80%] rounded-md p-3 bg-gray-100 text-gray-900">
+                            <div className="flex items-center justify-between mb-1">
+                                <div className="text-xs text-gray-600 capitalize">
+                                    Assistant
+                                </div>
+                            </div>
+                            <div className="mt-2 flex items-center space-x-2">
+                                <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" />
+                                <div
+                                    className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"
+                                    style={{ animationDelay: "0.2s" }}
+                                />
+                                <div
+                                    className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"
+                                    style={{ animationDelay: "0.4s" }}
+                                />
+                            </div>
+                        </div>
+                    </div>
+                )}
                 <div ref={messagesEndRef} />
             </div>
 

@@ -134,10 +134,10 @@ export default React.forwardRef(function Sidebar(
     return (
         <div
             className={cn(
-                "flex grow flex-col gap-y-5 overflow-y-auto border-r border-gray-200 bg-white px-5 relative z-[70]",
+                "flex grow flex-col gap-y-5 overflow-y-auto border-r border-gray-200 bg-white px-5 relative z-[41]",
                 isCollapsed &&
-                    "group hover:w-56 w-16 transition-[width] duration-100 shadow-xl",
-                !isCollapsed && "w-56",
+                    "group overflow-y-hidden hover:overflow-y-auto hover:w-56 w-16 transition-[width] duration-100 shadow-xl",
+                !isCollapsed && "w-56 overflow-y-auto",
             )}
         >
             <div className="relative">
@@ -161,14 +161,17 @@ export default React.forwardRef(function Sidebar(
                 </button>
             </div>
 
-            <div className="flex h-16 shrink-0 items-center gap-2">
+            <div
+                className={cn(
+                    "flex h-16 shrink-0 items-center gap-2",
+                    isCollapsed ? "-mx-2" : "justify-start",
+                )}
+            >
                 <Link className="flex items-center gap-2" href="/">
                     <img
                         className={cn(
                             "w-auto",
-                            isCollapsed
-                                ? "-mx-2 group-hover:h-12"
-                                : "block h-12",
+                            isCollapsed ? "group-hover:h-12" : "block h-12",
                         )}
                         src={getLogo(language)}
                         alt="Your Company"
@@ -186,7 +189,7 @@ export default React.forwardRef(function Sidebar(
             <nav className="flex flex-1 flex-col">
                 <ul className="flex flex-1 flex-col gap-y-4">
                     <li className="grow">
-                        <ul className="-mx-2 space-y-1 max-h-[calc(100vh-155px)] overflow-y-auto overflow-x-hidden scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
+                        <ul className="-mx-2 space-y-1 overflow-x-hidden scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
                             {updatedNavigation.map((item) => (
                                 <li
                                     key={item.name}

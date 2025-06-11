@@ -6,6 +6,7 @@ import {
     ArrowRightIcon,
     TrashIcon,
     CheckIcon,
+    CopyIcon,
 } from "lucide-react";
 import { useContext } from "react";
 import {
@@ -77,6 +78,7 @@ function CopyPublishedLinkButton() {
 export default function VersionNavigator({
     activeVersionIndex,
     setActiveVersionIndex,
+    setPublishedVersionIndex,
     htmlVersions,
     setHtmlVersions,
     publishedVersionIndex,
@@ -87,18 +89,65 @@ export default function VersionNavigator({
 }) {
     const { direction } = useContext(LanguageContext);
 
+    const handleDuplicateVersion = () => {
+        setHtmlVersions((prev) => {
+            const newVersions = [...prev];
+            const currentVersion = newVersions[activeVersionIndex];
+            newVersions.splice(activeVersionIndex + 1, 0, currentVersion);
+
+            updateApplet.mutate({
+                id: workspaceId,
+                data: {
+                    htmlVersions: newVersions,
+                    publishedVersionIndex,
+                },
+            });
+
+            setActiveVersionIndex(activeVersionIndex + 1);
+            return newVersions;
+        });
+    };
+
     const handleDeleteVersion = () => {
         if (window.confirm("Are you sure you want to delete this version?")) {
             setHtmlVersions((prev) => {
                 const newVersions = prev.filter(
                     (_, index) => index !== activeVersionIndex,
                 );
+
+                let newPublishedVersionIndex = publishedVersionIndex;
+
+                if (activeVersionIndex === publishedVersionIndex) {
+                    newPublishedVersionIndex = null;
+                }
+
+                if (activeVersionIndex < publishedVersionIndex) {
+                    newPublishedVersionIndex = publishedVersionIndex - 1;
+                }
+
+                console.log("publishedVersionIndex", publishedVersionIndex);
+
+                console.log(
+                    "DEBUG: newPublishedVersionIndex",
+                    newPublishedVersionIndex,
+                );
+                console.log("DEBUG: newVersions", newVersions);
+
+                if (
+                    newPublishedVersionIndex !== null &&
+                    newPublishedVersionIndex >= newVersions.length
+                ) {
+                    newPublishedVersionIndex = newVersions.length - 1;
+                }
+
                 updateApplet.mutate({
                     id: workspaceId,
                     data: {
                         htmlVersions: newVersions,
+                        publishedVersionIndex: newPublishedVersionIndex,
                     },
                 });
+                setPublishedVersionIndex(newPublishedVersionIndex);
                 setActiveVersionIndex(Math.max(0, activeVersionIndex - 1));
                 return newVersions;
             });
@@ -186,6 +235,13 @@ export default function VersionNavigator({
                                 {publishedVersionIndex === null
                                     ? "Publish"
                                     : "Publish this version"}
+                            </button>
+                            <button
+                                className="px-3 py-1 rounded-full text-xs font-bold border lb-outline-secondary bg-white"
+                                onClick={handleDuplicateVersion}
+                                title="Duplicate this version"
+                            >
+                                <CopyIcon className="w-4 h-4" />
                             </button>
                             <button
                                 className="px-3 py-1 rounded-full text-xs font-bold border lb-outline-secondary bg-white"

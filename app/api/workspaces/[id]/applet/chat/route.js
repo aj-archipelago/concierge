@@ -1,10 +1,23 @@
 import { NextResponse } from "next/server";
 import { getClient } from "../../../../../../src/graphql";
 import { QUERIES } from "../../../../../../src/graphql";
+import Workspace from "../../../../models/workspace";
+import Prompt from "../../../../models/prompt";
 
 export async function POST(request, { params }) {
     try {
-        const { messages, currentHtml, restEndpoint } = await request.json();
+        const { messages, currentHtml, promptEndpoint } = await request.json();
+
+        // Get the workspace and its prompts
+        const workspace = await Workspace.findById(params.id).populate(
+            "prompts",
+        );
+        if (!workspace) {
+            return NextResponse.json(
+                { error: "Workspace not found" },
+                { status: 404 },
+            );
+        }
 
         // Get the latest message from the user
         const latestMessage = messages[messages.length - 1];
@@ -14,13 +27,22 @@ export async function POST(request, { params }) {
             .map((msg) => `${msg.role}: ${msg.content}`)
             .join("\n");
 
+        const promptDetails = JSON.stringify(
+            workspace.prompts.map((prompt) => ({
+                title: prompt.title,
+                text: prompt.text,
+                id: prompt._id,
+            })),
+        );
+
         // Call the AI with the conversation history
         const response = await getClient().query({
             query: QUERIES.WORKSPACE_APPLET_EDIT,
             variables: {
                 text: `${conversationHistory}\n${latestMessage.content}`,
-                restEndpoint,
+                promptEndpoint,
                 currentHtml,
+                promptDetails,
             },
         });
 
