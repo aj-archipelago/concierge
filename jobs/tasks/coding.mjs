@@ -50,7 +50,9 @@ class CodingTask extends BaseTask {
         }
 
         console.log(
-            "[CodingTask] Retrieving chat to check message position. Chat ID:",
+            "[CodingTask] Retrieving chat to check message position. Task ID:",
+            taskId,
+            "Chat ID:",
             chatId,
         );
 
