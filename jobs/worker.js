@@ -13,10 +13,15 @@ const cortexRequestWorker = require("./cortex-request-worker.js");
 require("dotenv").config();
 
 // Import the queue monitor
-import("../app/api/utils/queue-monitor.mjs").then(({ queueMonitor }) => {
-    // Start monitoring queues
-    queueMonitor.startMonitoring();
-});
+import("../app/api/utils/queue-monitor.mjs")
+    .then(({ queueMonitor }) => {
+        // Start monitoring queues
+        queueMonitor.startMonitoring();
+    })
+    .catch((error) => {
+        const logger = new Logger("QueueMonitor");
+        logger.error("Failed to import queue-monitor.mjs:", error);
+    });
 
 const connection = new Redis(
     REDIS_CONNECTION_STRING || "redis://localhost:6379",
