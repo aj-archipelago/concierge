@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { getRedisConnection } from "../../utils/redis.mjs";
 
 // Use the same queue name as in task-utils.js
-const taskQueue = new Queue("task", {
+const requestProgressQueue = new Queue("task", {
     connection: getRedisConnection(),
 });
 
@@ -12,7 +12,7 @@ export async function GET(request, { params }) {
         const { id } = params;
 
         // Fetch the job from BullMQ
-        const job = await taskQueue.getJob(id);
+        const job = await requestProgressQueue.getJob(id);
 
         if (!job) {
             return NextResponse.json(
@@ -21,20 +21,13 @@ export async function GET(request, { params }) {
             );
         }
 
-        const logs = await taskQueue.getJobLogs(id);
-
-        console.log("job.name", job.name);
-
-        const jobName = job.name === "task" ? job.data.type : job.name;
-
         // You can customize which job properties to return
         const jobData = {
             id: job.id,
-            name: jobName,
+            name: job.name,
             data: job.data,
             opts: job.opts,
             progress: job.progress,
-            logs: logs,
             attemptsMade: job.attemptsMade,
             finishedOn: job.finishedOn,
             processedOn: job.processedOn,

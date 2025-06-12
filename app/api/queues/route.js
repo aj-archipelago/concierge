@@ -181,15 +181,13 @@ export async function GET(req) {
             const formattedJobs = await Promise.all(
                 paginatedJobs.map(async (job) => ({
                     id: job.id,
-                    name: job.name === "task" ? job.data.type : job.name,
+                    name: job.name,
                     status: await job.getState(),
                     data: job.data,
-                    logs: await queue.getJobLogs(job.id),
                     progress: job.progress || 0,
                     timestamp: job.timestamp,
                     failedReason: job.failedReason,
                     returnvalue: job.returnvalue,
-                    attemptsMade: job.attemptsMade,
                     username: job.data?.userId
                         ? userMap[job.data.userId]?.username
                         : null,
