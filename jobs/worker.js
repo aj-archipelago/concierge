@@ -12,6 +12,17 @@ const { DIGEST_REBUILD_INTERVAL_HOURS = 4 } = process.env;
 const cortexRequestWorker = require("./cortex-request-worker.js");
 require("dotenv").config();
 
+// Import the queue monitor
+import("../app/api/utils/queue-monitor.mjs")
+    .then(({ queueMonitor }) => {
+        // Start monitoring queues
+        queueMonitor.startMonitoring();
+    })
+    .catch((error) => {
+        const logger = new Logger("QueueMonitor");
+        logger.error("Failed to import queue-monitor.mjs:", error);
+    });
+
 const connection = new Redis(
     REDIS_CONNECTION_STRING || "redis://localhost:6379",
     {
@@ -65,7 +76,7 @@ const worker = new Worker(
         try {
             await connectToDatabase();
 
-            const logger = new Logger(job);
+            const logger = new Logger(job, digestBuild);
 
             if (job.name === PERIODIC_BUILD_JOB) {
                 logger.log("building digests for all users");
@@ -85,12 +96,12 @@ const worker = new Worker(
 );
 
 worker.on("completed", (job) => {
-    const logger = new Logger(job);
+    const logger = new Logger(job, digestBuild);
     logger.log("job completed");
 });
 
 worker.on("failed", (job, error) => {
-    const logger = new Logger(job);
+    const logger = new Logger(job, digestBuild);
     logger.log("job failed with error: " + error.message);
 });
 
