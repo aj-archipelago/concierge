@@ -23,7 +23,6 @@ import("../app/api/utils/redis.mjs").then((module) => {
             connection,
             autorun: false,
             concurrency: 5,
-            stalledInterval: 300000,
         },
     );
 

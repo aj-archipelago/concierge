@@ -117,6 +117,8 @@ class CortexRequestTracker {
             "failed",
             "Operation timed out after 5 minutes of inactivity",
         );
+
+        this.reject(new Error("Operation timed out after 5 minutes of inactivity"));
     }
 
     setupCancellationCheck() {
