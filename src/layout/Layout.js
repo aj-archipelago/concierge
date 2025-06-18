@@ -147,7 +147,7 @@ export default function Layout({ children }) {
                                         </div>
                                     </Transition.Child>
                                     {/* Sidebar component, swap this element with another sidebar if you like */}
-                                    <Sidebar ref={contentRef} />
+                                    <Sidebar ref={contentRef} isMobile={true} />
                                 </Dialog.Panel>
                             </Transition.Child>
                         </div>

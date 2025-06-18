@@ -58,7 +58,7 @@ export const shouldForceCollapse = (pathname) => {
 };
 
 export default React.forwardRef(function Sidebar(
-    { isCollapsed: propIsCollapsed, onToggleCollapse },
+    { isCollapsed: propIsCollapsed, onToggleCollapse, isMobile },
     ref,
 ) {
     const pathname = usePathname();
@@ -73,7 +73,8 @@ export default React.forwardRef(function Sidebar(
     const setActiveChatId = useSetActiveChatId();
     const addChat = useAddChat();
 
-    const isCollapsed = propIsCollapsed || shouldForceCollapse(pathname);
+    const isCollapsed =
+        (propIsCollapsed || shouldForceCollapse(pathname)) && !isMobile;
 
     const handleNewChat = async () => {
         try {
