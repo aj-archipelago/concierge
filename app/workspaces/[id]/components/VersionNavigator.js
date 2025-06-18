@@ -125,14 +125,6 @@ export default function VersionNavigator({
                     newPublishedVersionIndex = publishedVersionIndex - 1;
                 }
 
-                console.log("publishedVersionIndex", publishedVersionIndex);
-
-                console.log(
-                    "DEBUG: newPublishedVersionIndex",
-                    newPublishedVersionIndex,
-                );
-                console.log("DEBUG: newVersions", newVersions);
-
                 if (
                     newPublishedVersionIndex !== null &&
                     newPublishedVersionIndex >= newVersions.length

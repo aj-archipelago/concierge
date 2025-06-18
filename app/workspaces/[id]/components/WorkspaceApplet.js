@@ -228,12 +228,6 @@ export default function WorkspaceApplet() {
     const handleReplayMessage = (messageIndex) => {
         // Get all messages up to and including the selected message
         const messageToReplay = allMessagesRef.current[messageIndex];
-        console.log(
-            "DEBUG: messageToReplay",
-            messageToReplay,
-            allMessagesRef.current,
-            messageIndex,
-        );
         const content = messageToReplay.content;
         const messagesToKeep = allMessagesRef.current.slice(0, messageIndex);
 
