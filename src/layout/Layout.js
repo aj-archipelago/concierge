@@ -147,7 +147,7 @@ export default function Layout({ children }) {
                                         </div>
                                     </Transition.Child>
                                     {/* Sidebar component, swap this element with another sidebar if you like */}
-                                    <Sidebar ref={contentRef} />
+                                    <Sidebar ref={contentRef} isMobile={true} />
                                 </Dialog.Panel>
                             </Transition.Child>
                         </div>
@@ -157,7 +157,7 @@ export default function Layout({ children }) {
                 {/* Static sidebar for desktop */}
                 <div
                     className={cn(
-                        "hidden lg:fixed lg:inset-y-0 lg:z-[60] lg:flex lg:flex-col transition-all duration-300",
+                        "hidden lg:fixed lg:inset-y-0 lg:z-[41] lg:flex lg:flex-col transition-all duration-300",
                         isCollapsed ? "lg:w-16" : "lg:w-56",
                     )}
                 >

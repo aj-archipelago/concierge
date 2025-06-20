@@ -2,22 +2,42 @@ import { NextResponse } from "next/server";
 import { getClient } from "../../../../../../src/graphql";
 import { QUERIES } from "../../../../../../src/graphql";
 import LLM from "../../../../models/llm";
+import Prompt from "../../../../models/prompt";
 
 export async function POST(request, { params }) {
     try {
-        const { prompt, systemPrompt } = await request.json();
+        let { prompt, systemPrompt, promptId } = await request.json();
 
-        if (!prompt) {
+        if (!prompt && !promptId) {
             return NextResponse.json(
-                { error: "Prompt is required" },
+                { error: "Either prompt or promptId is required" },
                 { status: 400 },
             );
         }
 
-        // Get the specified LLM model
-        const llm = await LLM.findOne({ identifier: "gpt4o" });
+        let promptToSend = prompt;
+        let llm;
+
+        // If promptId is provided, look up the prompt and its associated LLM
+        if (promptId) {
+            const promptDoc = await Prompt.findById(promptId);
+            if (!promptDoc) {
+                return NextResponse.json(
+                    { error: "Prompt not found" },
+                    { status: 404 },
+                );
+            }
+            systemPrompt = promptDoc.text;
+
+            // Get the LLM associated with the prompt
+            if (promptDoc.llm) {
+                llm = await LLM.findOne({ _id: promptDoc.llm });
+            }
+        }
+
+        // If no LLM is found, use the default LLM
         if (!llm) {
-            throw new Error("Specified LLM model not found");
+            llm = await LLM.findOne({ isDefault: true });
         }
 
         const pathwayName = llm.cortexPathwayName;
@@ -27,8 +47,8 @@ export async function POST(request, { params }) {
         const response = await getClient().query({
             query,
             variables: {
-                text: prompt,
-                prompt: prompt,
+                text: promptToSend,
+                prompt: promptToSend,
                 systemPrompt: systemPrompt,
             },
         });
@@ -38,7 +58,7 @@ export async function POST(request, { params }) {
 
         // Return the response
         return NextResponse.json({
-            message: aiResponse,
+            output: aiResponse,
         });
     } catch (error) {
         console.error("Error in execute endpoint:", error);

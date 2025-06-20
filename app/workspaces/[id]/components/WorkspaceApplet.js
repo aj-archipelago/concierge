@@ -120,10 +120,6 @@ export default function WorkspaceApplet() {
         };
 
         const updatedMessages = [...truncatedAllMessages, newMessage];
-        console.log("DEBUG: setMessages - handleSendMessage", {
-            updatedMessages,
-        });
-        console.log("DEBUG: About to call setMessages - handleSendMessage");
         setMessages(updatedMessages);
         setInputMessage("");
         setIsLoading(true);
@@ -166,12 +162,6 @@ export default function WorkspaceApplet() {
             }
 
             const finalMessages = [...updatedMessages, aiMessage];
-            console.log("DEBUG: setMessages - after AI response", {
-                finalMessages,
-                newVersionsLength: newVersions.length - 1,
-            });
-
-            console.log("DEBUG: About to call setMessages - after AI response");
             setMessages(
                 getMessagesUpToVersion(finalMessages, newVersions.length - 1),
             );
@@ -208,8 +198,6 @@ export default function WorkspaceApplet() {
     };
 
     const handleClearChat = () => {
-        console.log("DEBUG: setMessages - clear chat");
-        console.log("DEBUG: About to call setMessages - clear chat");
         allMessagesRef.current = [];
         setMessages([]);
         updateApplet.mutate({ id, data: { messages: [] } });
@@ -219,6 +207,14 @@ export default function WorkspaceApplet() {
         const newVersions = [...htmlVersions];
         newVersions[versionIndex] = value;
         setHtmlVersions(newVersions);
+
+        // Update the server with the new HTML versions
+        updateApplet.mutate({
+            id,
+            data: {
+                htmlVersions: newVersions,
+            },
+        });
     };
 
     const handleContinueFromOldVersion = () => {
@@ -283,6 +279,9 @@ export default function WorkspaceApplet() {
                                 htmlVersions={htmlVersions}
                                 setHtmlVersions={setHtmlVersions}
                                 publishedVersionIndex={publishedVersionIndex}
+                                setPublishedVersionIndex={
+                                    setPublishedVersionIndex
+                                }
                                 onPublishVersion={handlePublishVersion}
                                 onUnpublish={handleUnpublish}
                                 updateApplet={updateApplet}

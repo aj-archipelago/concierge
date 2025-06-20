@@ -742,14 +742,16 @@ const WORKSPACE_APPLET_EDIT = gql`
     query WorkspaceAppletEdit(
         $text: String!
         $async: Boolean
-        $restEndpoint: String
+        $promptEndpoint: String
         $currentHtml: String
+        $promptDetails: String
     ) {
         workspace_applet_edit(
             text: $text
-            restEndpoint: $restEndpoint
+            promptEndpoint: $promptEndpoint
             currentHtml: $currentHtml
             async: $async
+            promptDetails: $promptDetails
         ) {
             result
         }

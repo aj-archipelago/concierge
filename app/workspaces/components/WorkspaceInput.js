@@ -73,7 +73,7 @@ export default function WorkspaceInput({ onRun, onRunMany }) {
     return (
         <div className="h-full overflow-auto flex flex-col gap-2">
             <>
-                <div className="basis-4/12 min-h-[150px] flex flex-col gap-3 p-1 overflow-auto">
+                <div className="basis-4/12 min-h-[150px] max-h-[200px] flex flex-col gap-3 p-1 overflow-auto">
                     <textarea
                         placeholder={t("Enter some text here")}
                         value={text}
