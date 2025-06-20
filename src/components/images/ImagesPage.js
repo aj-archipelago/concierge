@@ -115,7 +115,7 @@ function ImagesPage() {
     );
 
     useEffect(() => {
-        setIsModifyMode(selectedImages.size > 0);
+        setIsModifyMode(selectedImages.size === 1 || selectedImages.size === 2);
     }, [selectedImages]);
 
     const handleModifySelected = useCallback(async () => {
@@ -186,6 +186,63 @@ function ImagesPage() {
         }
     }, [prompt, selectedImages, images, apolloClient]);
 
+    const handleCombineSelected = useCallback(async () => {
+        if (!prompt.trim() || selectedImages.size !== 2) return;
+
+        const selectedImageObjects = images.filter(
+            (img) => selectedImages.has(img.cortexRequestId) && img.url,
+        );
+
+        if (selectedImageObjects.length !== 2) return;
+
+        const [image1, image2] = selectedImageObjects;
+        const variables = {
+            text: prompt,
+            async: true,
+            model: "replicate-multi-image-kontext-max",
+            input_image: image1.url,
+            input_image_2: image2.url,
+            aspectRatio: "1:1",
+        };
+
+        setLoading(true);
+        try {
+            const { data } = await apolloClient.query({
+                query: QUERIES.IMAGE_FLUX,
+                variables,
+                fetchPolicy: "network-only",
+            });
+            setLoading(false);
+
+            if (data?.image_flux?.result) {
+                const requestId = data?.image_flux?.result;
+
+                setImages((prevImages) => {
+                    const combinedPrompt = `${image1.prompt} + ${image2.prompt} - ${prompt}`;
+                    const newImage = {
+                        cortexRequestId: requestId,
+                        prompt: combinedPrompt,
+                        created: Math.floor(Date.now() / 1000),
+                        inputImageUrl: image1.url,
+                    };
+                    const updatedImages = [newImage, ...prevImages];
+                    localStorage.setItem(
+                        "generated-images",
+                        JSON.stringify(updatedImages),
+                    );
+                    setSelectedImages(new Set([requestId]));
+                    setTimeout(() => {
+                        promptRef.current && promptRef.current.focus();
+                    }, 0);
+                    return updatedImages;
+                });
+            }
+        } catch (error) {
+            setLoading(false);
+            console.error("Error combining images:", error);
+        }
+    }, [prompt, selectedImages, images, apolloClient]);
+
     const handleFileUpload = useCallback(
         async (file) => {
             if (!file) return;
@@ -197,6 +254,50 @@ function ImagesPage() {
             try {
                 // Start showing upload progress
                 const fileHash = await hashMediaFile(file);
+
+                // Check if file exists first
+                try {
+                    const checkResponse = await axios.get(
+                        `${serverUrl}&hash=${fileHash}&checkHash=true`,
+                    );
+                    if (
+                        checkResponse.status === 200 &&
+                        checkResponse.data?.url
+                    ) {
+                        // File exists, use the existing URL
+                        const newImage = {
+                            cortexRequestId: `upload-${Date.now()}`,
+                            prompt: t("Uploaded image"),
+                            created: Math.floor(Date.now() / 1000),
+                            url: checkResponse.data.url,
+                            gcs: checkResponse.data.gcs,
+                        };
+
+                        setImages((prevImages) => {
+                            const updatedImages = [newImage, ...prevImages];
+                            localStorage.setItem(
+                                "generated-images",
+                                JSON.stringify(updatedImages),
+                            );
+                            setSelectedImages(
+                                new Set([newImage.cortexRequestId]),
+                            );
+                            setTimeout(() => {
+                                promptRef.current && promptRef.current.focus();
+                            }, 0);
+                            return updatedImages;
+                        });
+                        setIsUploading(false);
+                        setUploadProgress(0);
+                        return;
+                    }
+                } catch (err) {
+                    if (err.response?.status !== 404) {
+                        console.error("Error checking file hash:", err);
+                    }
+                }
+
+                // If we get here, we need to upload the file
                 const formData = new FormData();
                 formData.append("hash", fileHash);
                 formData.append("file", file, file.name);
@@ -449,7 +550,13 @@ function ImagesPage() {
                             if (!prompt.trim()) return;
                             setGenerationPrompt(prompt);
                             if (isModifyMode) {
-                                handleModifySelected();
+                                if (selectedImages.size === 2) {
+                                    handleCombineSelected();
+                                } else if (selectedImages.size === 1) {
+                                    handleModifySelected();
+                                } else {
+                                    generateImage(prompt);
+                                }
                             } else {
                                 generateImage(prompt);
                             }
@@ -459,9 +566,17 @@ function ImagesPage() {
                             className="lb-input flex-grow min-h-[2.5rem] max-h-32 resize-y"
                             placeholder={
                                 isModifyMode
-                                    ? t(
-                                          "Enter prompt to modify selected images",
-                                      )
+                                    ? selectedImages.size === 2
+                                        ? t(
+                                              "Enter prompt to combine selected images",
+                                          )
+                                        : selectedImages.size === 1
+                                          ? t(
+                                                "Enter prompt to modify selected image",
+                                            )
+                                          : t(
+                                                "Enter prompt and set quality to generate image",
+                                            )
                                     : t(
                                           "Enter prompt and set quality to generate image",
                                       )
@@ -474,7 +589,13 @@ function ImagesPage() {
                                     if (!prompt.trim()) return;
                                     setGenerationPrompt(prompt);
                                     if (isModifyMode) {
-                                        handleModifySelected();
+                                        if (selectedImages.size === 2) {
+                                            handleCombineSelected();
+                                        } else if (selectedImages.size === 1) {
+                                            handleModifySelected();
+                                        } else {
+                                            generateImage(prompt);
+                                        }
                                     } else {
                                         generateImage(prompt);
                                     }
@@ -503,7 +624,9 @@ function ImagesPage() {
                                 loading={loading}
                                 text={
                                     isModifyMode
-                                        ? t("Modifying...")
+                                        ? selectedImages.size === 2
+                                            ? t("Combining...")
+                                            : t("Modifying...")
                                         : t("Generating...")
                                 }
                                 type="submit"
@@ -512,7 +635,11 @@ function ImagesPage() {
                                     (isModifyMode && selectedImages.size === 0)
                                 }
                             >
-                                {isModifyMode ? t("Modify") : t("Generate")}
+                                {isModifyMode
+                                    ? selectedImages.size === 2
+                                        ? t("Combine")
+                                        : t("Modify")
+                                    : t("Generate")}
                             </LoadingButton>
                         </div>
                     </form>

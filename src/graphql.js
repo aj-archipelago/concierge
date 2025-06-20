@@ -649,6 +649,7 @@ const IMAGE_FLUX = gql`
         $model: String
         $async: Boolean
         $input_image: String
+        $input_image_2: String
         $aspectRatio: String
     ) {
         image_flux(
@@ -656,6 +657,7 @@ const IMAGE_FLUX = gql`
             model: $model
             async: $async
             input_image: $input_image
+            input_image_2: $input_image_2
             aspectRatio: $aspectRatio
         ) {
             result
