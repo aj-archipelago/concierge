@@ -93,7 +93,7 @@ function MessageInput({
 
                 obj.gcs = converted?.gcs || gcs;
                 obj.url = converted?.url || url;
-                obj.image_url = converted?.url || url;
+                obj.image_url = { url: converted?.url || url };
 
                 return JSON.stringify(obj);
             }),
