@@ -1,12 +1,11 @@
 import { NextResponse } from "next/server";
-import { getClient } from "../../../../../../src/graphql";
-import { QUERIES } from "../../../../../../src/graphql";
+import { getClient, QUERIES } from "../../../../../../src/graphql";
 import Workspace from "../../../../models/workspace";
-import Prompt from "../../../../models/prompt";
 
 export async function POST(request, { params }) {
     try {
-        const { messages, currentHtml, promptEndpoint } = await request.json();
+        const { messages, currentHtml, promptEndpoint, stream } =
+            await request.json();
 
         // Get the workspace and its prompts
         const workspace = await Workspace.findById(params.id).populate(
@@ -43,16 +42,32 @@ export async function POST(request, { params }) {
                 promptEndpoint,
                 currentHtml,
                 promptDetails,
+                stream,
             },
         });
 
         // Extract the AI's response
         const aiResponse = response.data.workspace_applet_edit.result;
 
+        // If stream is true, return the result as-is without parsing
+        if (stream) {
+            return NextResponse.json({
+                message: aiResponse,
+            });
+        }
+
+        // Remove markdown code blocks if present
+        let cleanedResponse = aiResponse;
+        const codeBlockRegex = /```(?:json)?\s*([\s\S]*?)```/g;
+        const match = codeBlockRegex.exec(aiResponse);
+        if (match) {
+            cleanedResponse = match[1].trim();
+        }
+
         let message;
         try {
             // Try to parse as JSON
-            const parsed = JSON.parse(aiResponse);
+            const parsed = JSON.parse(cleanedResponse);
             // Check for expected structure
             if (
                 typeof parsed === "object" &&
@@ -66,11 +81,11 @@ export async function POST(request, { params }) {
                 };
             } else {
                 // Not the expected structure, treat as plain message
-                message = aiResponse;
+                message = cleanedResponse;
             }
         } catch (e) {
             // Not JSON, treat as plain message
-            message = aiResponse;
+            message = cleanedResponse;
         }
 
         // Return the response in the expected format

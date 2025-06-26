@@ -744,6 +744,7 @@ const WORKSPACE_APPLET_EDIT = gql`
     query WorkspaceAppletEdit(
         $text: String!
         $async: Boolean
+        $stream: Boolean
         $promptEndpoint: String
         $currentHtml: String
         $promptDetails: String
@@ -753,6 +754,7 @@ const WORKSPACE_APPLET_EDIT = gql`
             promptEndpoint: $promptEndpoint
             currentHtml: $currentHtml
             async: $async
+            stream: $stream
             promptDetails: $promptDetails
         ) {
             result

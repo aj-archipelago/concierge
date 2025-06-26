@@ -20,10 +20,40 @@ function HtmlEditor({ value, onChange }) {
     );
 }
 
+// Streaming preview component that uses dangerouslySetInnerHTML for smooth updates
+function StreamingPreview({ content }) {
+    return (
+        <div
+            className="w-full h-full overflow-auto"
+            dangerouslySetInnerHTML={{
+                __html: `
+                    <!DOCTYPE html>
+                    <html>
+                        <head>
+                            <meta charset="utf-8">
+                            <meta name="viewport" content="width=device-width, initial-scale=1">
+                            <style>
+                                body { 
+                                    margin: 0; 
+                                    font-family: system-ui, -apple-system, sans-serif;
+                                }
+                                /* Ensure images don't overflow */
+                                img { max-width: 100%; height: auto; }
+                            </style>
+                        </head>
+                        <body>${content}</body>
+                    </html>
+                `,
+            }}
+        />
+    );
+}
+
 export default function PreviewTabs({
     htmlVersions,
     activeVersionIndex,
     onHtmlChange,
+    isStreaming = false,
 }) {
     if (!htmlVersions.length) return null;
 
@@ -41,10 +71,16 @@ export default function PreviewTabs({
                 <div className="flex flex-col h-full">
                     <div className="flex-1 p-4">
                         <TabsContent value="preview" className="h-full m-0">
-                            <OutputSandbox
-                                content={htmlVersions[activeVersionIndex]}
-                                height="100%"
-                            />
+                            {isStreaming ? (
+                                <StreamingPreview
+                                    content={htmlVersions[activeVersionIndex]}
+                                />
+                            ) : (
+                                <OutputSandbox
+                                    content={htmlVersions[activeVersionIndex]}
+                                    height="100%"
+                                />
+                            )}
                         </TabsContent>
                         <TabsContent value="code" className="h-full m-0">
                             <HtmlEditor

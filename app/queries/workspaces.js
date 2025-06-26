@@ -271,6 +271,7 @@ export function useWorkspaceChat(id) {
                     model,
                     currentHtml,
                     promptEndpoint: `/api/workspaces/${id}/applet/execute_prompt`,
+                    stream: true,
                 },
             );
             return data;

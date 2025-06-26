@@ -15,6 +15,22 @@ import {
     AlertDialogAction,
     AlertDialogCancel,
 } from "@/components/ui/alert-dialog";
+import { extractHtmlFromStreamingContent } from "./utils";
+
+// Helper function to get display content for streaming messages
+function getStreamingDisplayContent(content, isStreaming) {
+    if (!isStreaming || !content) return content;
+
+    // Use the existing detection mechanism to check if content contains HTML
+    const htmlContent = extractHtmlFromStreamingContent(content);
+
+    // If HTML is detected, show a placeholder
+    if (htmlContent && htmlContent.html) {
+        return "🔄 **Generating HTML...**\n\n*Please check the preview pane.*";
+    }
+
+    return content;
+}
 
 function renderWithColorPreviews(text) {
     const hexColorRegex = /#([0-9a-fA-F]{6}|[0-9a-fA-F]{3})(?![0-9a-fA-F])/g;
@@ -69,6 +85,8 @@ export default function ChatInterface({
     onMessageClick,
     htmlVersions,
     onReplayMessage,
+    streamingContent,
+    isStreaming,
 }) {
     const messagesEndRef = useRef(null);
 
@@ -78,7 +96,7 @@ export default function ChatInterface({
 
     useEffect(() => {
         scrollToBottom();
-    }, [messages]);
+    }, [messages, streamingContent]);
 
     const handleSubmit = (e) => {
         e.preventDefault();
@@ -146,33 +164,53 @@ export default function ChatInterface({
                                     ),
                                 }}
                             >
-                                {message.content}
+                                {message.isStreaming && isStreaming
+                                    ? getStreamingDisplayContent(
+                                          streamingContent || message.content,
+                                          isStreaming,
+                                      )
+                                    : message.content}
                             </ReactMarkdown>
+                            {message.isStreaming && isStreaming && (
+                                <div className="mt-2 flex items-center space-x-2">
+                                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" />
+                                    <div
+                                        className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"
+                                        style={{ animationDelay: "0.2s" }}
+                                    />
+                                    <div
+                                        className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"
+                                        style={{ animationDelay: "0.4s" }}
+                                    />
+                                </div>
+                            )}
                         </div>
                     </div>
                 ))}
-                {isLoading && (
-                    <div className="flex justify-start mb-4">
-                        <div className="max-w-[80%] rounded-md p-3 bg-gray-100 text-gray-900">
-                            <div className="flex items-center justify-between mb-1">
-                                <div className="text-xs text-gray-600 capitalize">
-                                    Assistant
+                {isLoading &&
+                    !isStreaming &&
+                    !messages.some((m) => m.isStreaming) && (
+                        <div className="flex justify-start mb-4">
+                            <div className="max-w-[80%] rounded-md p-3 bg-gray-100 text-gray-900">
+                                <div className="flex items-center justify-between mb-1">
+                                    <div className="text-xs text-gray-600 capitalize">
+                                        Assistant
+                                    </div>
+                                </div>
+                                <div className="mt-2 flex items-center space-x-2">
+                                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" />
+                                    <div
+                                        className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"
+                                        style={{ animationDelay: "0.2s" }}
+                                    />
+                                    <div
+                                        className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"
+                                        style={{ animationDelay: "0.4s" }}
+                                    />
                                 </div>
                             </div>
-                            <div className="mt-2 flex items-center space-x-2">
-                                <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" />
-                                <div
-                                    className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"
-                                    style={{ animationDelay: "0.2s" }}
-                                />
-                                <div
-                                    className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"
-                                    style={{ animationDelay: "0.4s" }}
-                                />
-                            </div>
                         </div>
-                    </div>
-                )}
+                    )}
                 <div ref={messagesEndRef} />
             </div>
 
@@ -207,7 +245,11 @@ export default function ChatInterface({
                                 autoCorrect="on"
                                 spellCheck="true"
                                 inputMode="text"
-                                disabled={isLoading || blockOldVersionChat}
+                                disabled={
+                                    isLoading ||
+                                    isStreaming ||
+                                    blockOldVersionChat
+                                }
                             />
                         </div>
                     </div>
@@ -218,11 +260,12 @@ export default function ChatInterface({
                                 disabled={
                                     !inputMessage.trim() ||
                                     isLoading ||
+                                    isStreaming ||
                                     blockOldVersionChat
                                 }
                                 className="text-base rtl:rotate-180 text-emerald-500 hover:text-emerald-600 disabled:text-gray-300 active:text-gray-800 dark:bg-zinc-100 flex items-center justify-center"
                             >
-                                {isLoading ? (
+                                {isLoading || isStreaming ? (
                                     <div className="w-4 h-4 border-2 border-sky-600 border-t-transparent rounded-full animate-spin" />
                                 ) : (
                                     <RiSendPlane2Fill />
