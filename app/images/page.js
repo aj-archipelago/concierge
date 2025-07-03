@@ -1,5 +1,5 @@
-import ImagesPage from "../../src/components/images/ImagesPage";
+import MediaPage from "../../src/components/images/MediaPage";
 
-export default function write() {
-    return <ImagesPage></ImagesPage>;
+export default function Page() {
+    return <MediaPage></MediaPage>;
 }
