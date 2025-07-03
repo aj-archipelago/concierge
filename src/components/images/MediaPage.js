@@ -246,7 +246,7 @@ const getDefaultModelSettings = (modelName) => {
             cameraFixed: false,
         },
     };
-    return defaults[modelName] || defaults["replicate-flux-1-schnell"];
+    return defaults[modelName] || defaults["replicate-flux-11-pro"];
 };
 
 // Function to migrate old settings to new structure
@@ -306,12 +306,12 @@ const migrateSettings = (oldSettings) => {
         },
         // Keep legacy settings for backward compatibility
         image: oldSettings.image || {
-            defaultQuality: "draft",
-            defaultModel: "replicate-flux-1-schnell",
+            defaultQuality: "high",
+            defaultModel: "replicate-flux-11-pro",
             defaultAspectRatio: "1:1",
         },
         video: oldSettings.video || {
-            defaultModel: "veo-2.0-generate",
+            defaultModel: "replicate-seedance-1-pro",
             defaultAspectRatio: "16:9",
             defaultDuration: 5,
             defaultGenerateAudio: false,
@@ -329,8 +329,8 @@ function MediaPage() {
     const [quality, setQuality] = useState("draft");
     const [outputType, setOutputType] = useState("image"); // "image" or "video"
     const [selectedModel, setSelectedModel] = useState(
-        "replicate-flux-1-schnell",
-    ); // Current selected model
+        "replicate-flux-11-pro",
+    ); // Current selected model - Flux Pro as default
     const [showSettings, setShowSettings] = useState(false);
     const [settings, setSettings] = useState({
         models: {
@@ -383,12 +383,12 @@ function MediaPage() {
         },
         // Legacy support - will be migrated
         image: {
-            defaultQuality: "draft",
-            defaultModel: "replicate-flux-1-schnell",
+            defaultQuality: "high",
+            defaultModel: "replicate-flux-11-pro",
             defaultAspectRatio: "1:1",
         },
         video: {
-            defaultModel: "veo-2.0-generate",
+            defaultModel: "replicate-seedance-1-pro",
             defaultAspectRatio: "16:9",
             defaultDuration: 5,
             defaultGenerateAudio: false,
@@ -429,27 +429,80 @@ function MediaPage() {
         );
     }, [settings]);
 
-    // Apply default settings when output type changes
-    useEffect(() => {
-        if (outputType === "image") {
-            // Use the first image model's quality setting
-            const firstImageModel = Object.keys(settings.models || {}).find(
-                (model) => settings.models[model]?.type === "image",
-            );
-            if (firstImageModel) {
-                setSelectedModel(firstImageModel);
-                setQuality(settings.models[firstImageModel].quality || "draft");
+    // Get available models based on current input conditions (for validation only)
+    const getAvailableModels = useCallback(() => {
+        const hasInputImage = selectedImages.size === 1;
+        const hasTwoInputImages = selectedImages.size === 2;
+        
+        const allModels = Object.keys(settings.models || {});
+        const availableModels = allModels.filter(modelName => {
+            const modelSettings = settings.models[modelName];
+            const modelType = modelSettings?.type || "image";
+            
+            // Apply input condition restrictions
+            if (modelType === "image") {
+                if (hasTwoInputImages) {
+                    // Only multi-image models for 2 input images
+                    return modelName === "replicate-multi-image-kontext-max";
+                } else if (hasInputImage) {
+                    // Only kontext-max for 1 input image
+                    return modelName === "replicate-flux-kontext-max";
+                } else {
+                    // Only regular image models for text-only
+                    return ["replicate-flux-1-schnell", "replicate-flux-11-pro"].includes(modelName);
+                }
+            } else {
+                // Video models - only available for 0 or 1 input images
+                if (hasTwoInputImages) {
+                    return false; // No video models support 2 input images
+                } else if (hasInputImage) {
+                    // Only Veo 2.0 and Seedance support input images
+                    return ["veo-2.0-generate", "replicate-seedance-1-pro"].includes(modelName);
+                } else {
+                    // All video models available for text-only
+                    return true;
+                }
             }
+        });
+        
+        return availableModels;
+    }, [selectedImages.size, settings]);
+
+    // Get default model for current output type
+    const getDefaultModel = useCallback((type) => {
+        if (type === "image") {
+            return "replicate-flux-11-pro"; // Flux Pro as default for images
         } else {
-            // Use the first video model
-            const firstVideoModel = Object.keys(settings.models || {}).find(
-                (model) => settings.models[model]?.type === "video",
-            );
-            if (firstVideoModel) {
-                setSelectedModel(firstVideoModel);
+            return "replicate-seedance-1-pro"; // Seedance as default for videos
+        }
+    }, []);
+
+    // Apply intelligent model selection based on input conditions
+    useEffect(() => {
+        const availableModels = getAvailableModels();
+        const currentModelSettings = getModelSettings(settings, selectedModel);
+        const currentModelType = currentModelSettings?.type || "image";
+        
+        // Check if current model is still available for current input conditions
+        const isCurrentModelAvailable = availableModels.includes(selectedModel);
+        
+        if (!isCurrentModelAvailable) {
+            // Current model is no longer available, switch to appropriate model
+            const newModel = availableModels[0];
+                
+            if (newModel) {
+                setSelectedModel(newModel);
+                // Update output type based on the new model
+                const newModelSettings = getModelSettings(settings, newModel);
+                if (newModelSettings.type === "image") {
+                    setOutputType("image");
+                    setQuality(newModelSettings.quality || "draft");
+                } else {
+                    setOutputType("video");
+                }
             }
         }
-    }, [outputType, settings]);
+    }, [selectedImages.size, settings, selectedModel, getAvailableModels]);
 
     useEffect(() => {
         const mediaInStorage = localStorage.getItem("generated-media");
@@ -1258,6 +1311,15 @@ function MediaPage() {
                                         : data?.result?.output;
                                 }
 
+                                // Set uploading state before starting upload
+                                newImages[imageIndex] = {
+                                    ...newImages[imageIndex],
+                                    ...data,
+                                    regenerating: false,
+                                    uploading: true, // Start upload
+                                };
+                                setImages([...newImages]); // Update immediately to show upload state
+
                                 // Upload to cloud storage if we have a valid URL
                                 let cloudUrls = null;
                                 if (mediaUrl && typeof mediaUrl === "string") {
@@ -1285,6 +1347,7 @@ function MediaPage() {
                                     azureUrl: cloudUrls?.azureUrl,
                                     gcsUrl: cloudUrls?.gcsUrl,
                                     regenerating: false,
+                                    uploading: false, // Upload is complete
                                 };
                             }
                             setImages(newImages);
@@ -1494,7 +1557,7 @@ function MediaPage() {
                                     }
                                 }}
                             >
-                                {Object.keys(settings.models || {}).map(
+                                {getAvailableModels().map(
                                     (modelName) => {
                                         const modelSettings =
                                             settings.models[modelName];
@@ -1987,6 +2050,7 @@ function Progress({
     onDataReceived,
     inputImageUrl,
     outputType,
+    mode,
 }) {
     const [data] = useState(null);
     const { t } = useTranslation();
@@ -2000,7 +2064,7 @@ function Progress({
             <ProgressUpdate
                 initialText={t("Generating...")}
                 requestId={requestId}
-                mode={outputType === "video" ? "spinner" : "progress"}
+                mode={mode || (outputType === "video" ? "spinner" : "progress")}
                 setFinalData={(data) => {
                     // If data is already an object with error, pass it through
                     if (data?.result?.error) {
@@ -2053,7 +2117,7 @@ function ImageTile({
     const url = image?.azureUrl || image?.url;
     const { t } = useTranslation();
     const expired = image?.expires < Date.now() / 1000;
-    const { cortexRequestId, prompt, result, regenerating } = image || {};
+    const { cortexRequestId, prompt, result, regenerating, uploading } = image || {};
     const { code, message } = result?.error || {};
     const isSelected = selectedImages.has(cortexRequestId);
 
@@ -2106,6 +2170,10 @@ function ImageTile({
                 {regenerating ? (
                     <div className="h-full bg-gray-50 p-4 text-sm flex items-center justify-center">
                         <ProgressComponent />
+                    </div>
+                ) : uploading ? (
+                    <div className="h-full bg-gray-50 p-4 text-sm flex items-center justify-center">
+                        <UploadComponent />
                     </div>
                 ) : !expired && url && !loadError ? (
                     image.type === "video" ? (
@@ -2188,6 +2256,18 @@ function ImageTile({
                     }
                     inputImageUrl={image?.inputImageUrl}
                     outputType={image?.type || "image"}
+                    mode="spinner"
+                />
+            </div>
+        );
+    }
+
+    function UploadComponent() {
+        return (
+            <div className="flex flex-col items-center gap-2 text-gray-500">
+                <ProgressUpdate
+                    initialText={t("Uploading to cloud...")}
+                    mode="spinner"
                 />
             </div>
         );
