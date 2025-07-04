@@ -42,7 +42,7 @@ export const navigation = [
         href: "/workspaces",
         collapsed: true,
     },
-    { name: "Images", icon: PhotoIcon, href: "/images" },
+    { name: "Media", icon: PhotoIcon, href: "/media" },
     { name: "Jira", icon: CodeBracketIcon, href: "/code/jira" },
 ];
 

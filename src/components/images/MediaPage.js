@@ -1,9 +1,17 @@
 "use client";
 
 import { useApolloClient } from "@apollo/client";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+    useCallback,
+    useContext,
+    useEffect,
+    useMemo,
+    useRef,
+    useState,
+} from "react";
 import { useTranslation } from "react-i18next";
 import { FaDownload, FaTrash, FaCheck, FaPlus, FaCog } from "react-icons/fa";
+import { LanguageContext } from "../../contexts/LanguageProvider";
 import { Modal } from "../../../@/components/ui/modal";
 import { QUERIES } from "../../graphql";
 import LoadingButton from "../editor/LoadingButton";
@@ -233,7 +241,7 @@ const getDefaultModelSettings = (modelName) => {
             type: "video",
             aspectRatio: "16:9",
             duration: 8,
-            generateAudio: false,
+            generateAudio: true,
             resolution: "1080p",
             cameraFixed: false,
         },
@@ -246,7 +254,7 @@ const getDefaultModelSettings = (modelName) => {
             cameraFixed: false,
         },
     };
-    return defaults[modelName] || defaults["replicate-flux-1-schnell"];
+    return defaults[modelName] || defaults["replicate-flux-11-pro"];
 };
 
 // Function to migrate old settings to new structure
@@ -291,7 +299,8 @@ const migrateSettings = (oldSettings) => {
                 type: "video",
                 aspectRatio: oldSettings.video?.defaultAspectRatio || "16:9",
                 duration: 8,
-                generateAudio: oldSettings.video?.defaultGenerateAudio || false,
+                generateAudio:
+                    oldSettings.video?.defaultGenerateAudio !== false, // Default to true for Veo 3.0
                 resolution: oldSettings.video?.defaultResolution || "1080p",
                 cameraFixed: oldSettings.video?.defaultCameraFixed || false,
             },
@@ -306,12 +315,12 @@ const migrateSettings = (oldSettings) => {
         },
         // Keep legacy settings for backward compatibility
         image: oldSettings.image || {
-            defaultQuality: "draft",
-            defaultModel: "replicate-flux-1-schnell",
+            defaultQuality: "high",
+            defaultModel: "replicate-flux-11-pro",
             defaultAspectRatio: "1:1",
         },
         video: oldSettings.video || {
-            defaultModel: "veo-2.0-generate",
+            defaultModel: "replicate-seedance-1-pro",
             defaultAspectRatio: "16:9",
             defaultDuration: 5,
             defaultGenerateAudio: false,
@@ -324,13 +333,12 @@ const migrateSettings = (oldSettings) => {
 };
 
 function MediaPage() {
+    const { direction } = useContext(LanguageContext);
     const [prompt, setPrompt] = useState("");
     const [generationPrompt, setGenerationPrompt] = useState("");
     const [quality, setQuality] = useState("draft");
     const [outputType, setOutputType] = useState("image"); // "image" or "video"
-    const [selectedModel, setSelectedModel] = useState(
-        "replicate-flux-1-schnell",
-    ); // Current selected model
+    const [selectedModel, setSelectedModel] = useState("replicate-flux-11-pro"); // Current selected model - Flux Pro as default
     const [showSettings, setShowSettings] = useState(false);
     const [settings, setSettings] = useState({
         models: {
@@ -368,7 +376,7 @@ function MediaPage() {
                 type: "video",
                 aspectRatio: "16:9",
                 duration: 8,
-                generateAudio: false,
+                generateAudio: true,
                 resolution: "1080p",
                 cameraFixed: false,
             },
@@ -383,12 +391,12 @@ function MediaPage() {
         },
         // Legacy support - will be migrated
         image: {
-            defaultQuality: "draft",
-            defaultModel: "replicate-flux-1-schnell",
+            defaultQuality: "high",
+            defaultModel: "replicate-flux-11-pro",
             defaultAspectRatio: "1:1",
         },
         video: {
-            defaultModel: "veo-2.0-generate",
+            defaultModel: "replicate-seedance-1-pro",
             defaultAspectRatio: "16:9",
             defaultDuration: 5,
             defaultGenerateAudio: false,
@@ -429,27 +437,80 @@ function MediaPage() {
         );
     }, [settings]);
 
-    // Apply default settings when output type changes
-    useEffect(() => {
-        if (outputType === "image") {
-            // Use the first image model's quality setting
-            const firstImageModel = Object.keys(settings.models || {}).find(
-                (model) => settings.models[model]?.type === "image",
-            );
-            if (firstImageModel) {
-                setSelectedModel(firstImageModel);
-                setQuality(settings.models[firstImageModel].quality || "draft");
+    // Get available models based on current input conditions (for validation only)
+    const getAvailableModels = useCallback(() => {
+        // Filter out videos from selected images - only count images as input
+        const selectedImageObjects = images.filter(
+            (img) =>
+                selectedImages.has(img.cortexRequestId) && img.type === "image",
+        );
+        const hasInputImage = selectedImageObjects.length === 1;
+        const hasTwoInputImages = selectedImageObjects.length === 2;
+
+        const allModels = Object.keys(settings.models || {});
+        const availableModels = allModels.filter((modelName) => {
+            const modelSettings = settings.models[modelName];
+            const modelType = modelSettings?.type || "image";
+
+            // Apply input condition restrictions
+            if (modelType === "image") {
+                if (hasTwoInputImages) {
+                    // Only multi-image models for 2 input images
+                    return modelName === "replicate-multi-image-kontext-max";
+                } else if (hasInputImage) {
+                    // Only kontext-max for 1 input image
+                    return modelName === "replicate-flux-kontext-max";
+                } else {
+                    // Only regular image models for text-only
+                    return [
+                        "replicate-flux-1-schnell",
+                        "replicate-flux-11-pro",
+                    ].includes(modelName);
+                }
+            } else {
+                // Video models - only available for 0 or 1 input images
+                if (hasTwoInputImages) {
+                    return false; // No video models support 2 input images
+                } else if (hasInputImage) {
+                    // Only Veo 2.0 and Seedance support input images
+                    return [
+                        "veo-2.0-generate",
+                        "replicate-seedance-1-pro",
+                    ].includes(modelName);
+                } else {
+                    // All video models available for text-only
+                    return true;
+                }
             }
-        } else {
-            // Use the first video model
-            const firstVideoModel = Object.keys(settings.models || {}).find(
-                (model) => settings.models[model]?.type === "video",
-            );
-            if (firstVideoModel) {
-                setSelectedModel(firstVideoModel);
+        });
+
+        return availableModels;
+    }, [selectedImages, images, settings]);
+
+    // Apply intelligent model selection based on input conditions
+    useEffect(() => {
+        const availableModels = getAvailableModels();
+
+        // Check if current model is still available for current input conditions
+        const isCurrentModelAvailable = availableModels.includes(selectedModel);
+
+        if (!isCurrentModelAvailable) {
+            // Current model is no longer available, switch to appropriate model
+            const newModel = availableModels[0];
+
+            if (newModel) {
+                setSelectedModel(newModel);
+                // Update output type based on the new model
+                const newModelSettings = getModelSettings(settings, newModel);
+                if (newModelSettings.type === "image") {
+                    setOutputType("image");
+                    setQuality(newModelSettings.quality || "draft");
+                } else {
+                    setOutputType("video");
+                }
             }
         }
-    }, [outputType, settings]);
+    }, [selectedImages, images, settings, selectedModel, getAvailableModels]);
 
     useEffect(() => {
         const mediaInStorage = localStorage.getItem("generated-media");
@@ -576,8 +637,16 @@ function MediaPage() {
     );
 
     useEffect(() => {
-        setIsModifyMode(selectedImages.size === 1 || selectedImages.size === 2);
-    }, [selectedImages]);
+        // Only consider images for modify mode, not videos
+        const selectedImageObjects = images.filter(
+            (img) =>
+                selectedImages.has(img.cortexRequestId) && img.type === "image",
+        );
+        setIsModifyMode(
+            selectedImageObjects.length === 1 ||
+                selectedImageObjects.length === 2,
+        );
+    }, [selectedImages, images]);
 
     const handleModifySelected = useCallback(async () => {
         if (!prompt.trim() || selectedImages.size === 0) return;
@@ -585,7 +654,10 @@ function MediaPage() {
         const newSelectedIds = [];
 
         const selectedImageObjects = images.filter(
-            (img) => selectedImages.has(img.cortexRequestId) && img.url,
+            (img) =>
+                selectedImages.has(img.cortexRequestId) &&
+                img.url &&
+                img.type === "image",
         );
 
         for (const image of selectedImageObjects) {
@@ -716,7 +788,10 @@ function MediaPage() {
         if (!prompt.trim() || selectedImages.size !== 2) return;
 
         const selectedImageObjects = images.filter(
-            (img) => selectedImages.has(img.cortexRequestId) && img.url,
+            (img) =>
+                selectedImages.has(img.cortexRequestId) &&
+                img.url &&
+                img.type === "image",
         );
 
         if (selectedImageObjects.length !== 2) return;
@@ -1019,340 +1094,33 @@ function MediaPage() {
     }, []);
 
     const mediaTiles = useMemo(() => {
-        return [
-            <div key="upload-tile" className="media-tile">
-                <label className="media-wrapper cursor-pointer flex items-center justify-center bg-gray-50 hover:bg-gray-100 transition-colors">
-                    <input
-                        type="file"
-                        className="hidden"
-                        accept="image/*"
-                        onChange={handleFileSelect}
-                        disabled={isUploading}
-                    />
-                    {isUploading ? (
-                        <div className="flex flex-col items-center gap-2 text-gray-500">
-                            <ProgressUpdate
-                                initialText={t("Uploading...")}
-                                progress={uploadProgress}
-                                autoDuration={0}
-                            />
-                        </div>
-                    ) : (
-                        <div className="flex flex-col items-center gap-2 text-gray-500">
-                            <FaPlus className="text-2xl" />
-                            <span className="text-sm">{t("Upload Image")}</span>
-                        </div>
-                    )}
-                </label>
-            </div>,
-            ...images.map((image) => {
-                const key = image?.cortexRequestId;
+        return images.map((image) => {
+            const key = image?.cortexRequestId;
 
-                return (
-                    <ImageTile
-                        key={`image-${key}`}
-                        image={image}
-                        quality={quality}
-                        selectedImages={selectedImages}
-                        setSelectedImages={setSelectedImages}
-                        lastSelectedImage={lastSelectedImage}
-                        setLastSelectedImage={setLastSelectedImage}
-                        images={images}
-                        onClick={() => {
-                            if (image?.url) {
-                                setSelectedImage(image);
-                                setShowModal(true);
-                            }
-                        }}
-                        onRegenerate={async () => {
-                            // Remove the old tile first (regenerate replaces it)
-                            setImages((prevImages) => {
-                                const newImages = prevImages.filter(
-                                    (img) =>
-                                        img.cortexRequestId !==
-                                        image.cortexRequestId,
-                                );
-
-                                // Clean data before storing in localStorage
-                                try {
-                                    const cleanImages = newImages.map(
-                                        cleanMediaDataForStorage,
-                                    );
-                                    localStorage.setItem(
-                                        "generated-media",
-                                        JSON.stringify(cleanImages),
-                                    );
-                                } catch (error) {
-                                    console.warn(
-                                        "Failed to save to localStorage:",
-                                        error,
-                                    );
-                                }
-
-                                return newImages;
-                            });
-
-                            if (image.inputImageUrl) {
-                                // Regenerate modification with same input image
-                                await generateMedia(
-                                    image.prompt,
-                                    image.azureUrl ||
-                                        image.inputImageUrl ||
-                                        image.url,
-                                );
-                            } else {
-                                // Regular regenerate
-                                await generateMedia(image.prompt);
-                            }
-                        }}
-                        onGenerationComplete={async (requestId, data) => {
-                            const newImages = [...images];
-
-                            const imageIndex = newImages.findIndex(
-                                (img) => img.cortexRequestId === requestId,
-                            );
-
-                            if (imageIndex !== -1) {
-                                let mediaUrl = null;
-
-                                // Handle different response structures based on media type
-                                if (
-                                    newImages[imageIndex]?.type === "video" &&
-                                    newImages[imageIndex]?.model?.includes(
-                                        "veo",
-                                    )
-                                ) {
-                                    // Veo video response structure
-                                    console.log("Veo response data:", data);
-
-                                    // Check for the direct Veo response structure
-                                    if (
-                                        data?.result?.response?.videos &&
-                                        Array.isArray(
-                                            data.result.response.videos,
-                                        ) &&
-                                        data.result.response.videos.length > 0
-                                    ) {
-                                        const video =
-                                            data.result.response.videos[0];
-                                        if (video.bytesBase64Encoded) {
-                                            mediaUrl = `data:video/mp4;base64,${video.bytesBase64Encoded}`;
-                                            console.log(
-                                                "Found Veo video with base64 data",
-                                            );
-                                        } else if (video.gcsUri) {
-                                            mediaUrl = video.gcsUri.replace(
-                                                "gs://",
-                                                "https://storage.googleapis.com/",
-                                            );
-                                            console.log(
-                                                "Found Veo video with GCS URI:",
-                                                mediaUrl,
-                                            );
-                                        }
-                                    }
-                                    // Fallback: check if data.result.output is a string that needs parsing
-                                    else if (
-                                        data?.result?.output &&
-                                        typeof data.result.output === "string"
-                                    ) {
-                                        try {
-                                            const parsed = JSON.parse(
-                                                data.result.output,
-                                            );
-                                            console.log(
-                                                "Parsed Veo response:",
-                                                parsed,
-                                            );
-
-                                            // Try different possible response structures
-                                            let videoUrl = null;
-
-                                            // Structure 1: parsed.response.videos[0].gcsUri
-                                            if (
-                                                parsed.response?.videos &&
-                                                Array.isArray(
-                                                    parsed.response.videos,
-                                                ) &&
-                                                parsed.response.videos.length >
-                                                    0
-                                            ) {
-                                                const video =
-                                                    parsed.response.videos[0];
-                                                if (video.gcsUri) {
-                                                    videoUrl =
-                                                        video.gcsUri.replace(
-                                                            "gs://",
-                                                            "https://storage.googleapis.com/",
-                                                        );
-                                                } else if (
-                                                    video.bytesBase64Encoded
-                                                ) {
-                                                    videoUrl = `data:video/mp4;base64,${video.bytesBase64Encoded}`;
-                                                }
-                                            }
-
-                                            // Structure 2: parsed.videos[0].gcsUri (no response wrapper)
-                                            if (
-                                                !videoUrl &&
-                                                parsed.videos &&
-                                                Array.isArray(parsed.videos) &&
-                                                parsed.videos.length > 0
-                                            ) {
-                                                const video = parsed.videos[0];
-                                                if (video.gcsUri) {
-                                                    videoUrl =
-                                                        video.gcsUri.replace(
-                                                            "gs://",
-                                                            "https://storage.googleapis.com/",
-                                                        );
-                                                } else if (
-                                                    video.bytesBase64Encoded
-                                                ) {
-                                                    videoUrl = `data:video/mp4;base64,${video.bytesBase64Encoded}`;
-                                                }
-                                            }
-
-                                            // Structure 3: direct gcsUri in parsed
-                                            if (!videoUrl && parsed.gcsUri) {
-                                                videoUrl =
-                                                    parsed.gcsUri.replace(
-                                                        "gs://",
-                                                        "https://storage.googleapis.com/",
-                                                    );
-                                            }
-
-                                            // Structure 4: direct URL in parsed
-                                            if (!videoUrl && parsed.url) {
-                                                videoUrl = parsed.url;
-                                            }
-
-                                            if (videoUrl) {
-                                                mediaUrl = videoUrl;
-                                                console.log(
-                                                    "Found Veo video URL:",
-                                                    videoUrl,
-                                                );
-                                            } else {
-                                                console.log(
-                                                    "No video URL found in Veo response",
-                                                );
-                                            }
-                                        } catch (e) {
-                                            console.error(
-                                                "Error parsing Veo video response:",
-                                                e,
-                                            );
-                                        }
-                                    } else {
-                                        console.log(
-                                            "No output string found in Veo response",
-                                        );
-                                    }
-                                } else {
-                                    // Standard image/video response structure
-                                    mediaUrl = Array.isArray(
-                                        data?.result?.output,
-                                    )
-                                        ? data?.result?.output?.[0]
-                                        : data?.result?.output;
-                                }
-
-                                // Upload to cloud storage if we have a valid URL
-                                let cloudUrls = null;
-                                if (mediaUrl && typeof mediaUrl === "string") {
-                                    try {
-                                        cloudUrls =
-                                            await uploadMediaToCloud(mediaUrl);
-                                    } catch (error) {
-                                        console.error(
-                                            "Failed to upload media to cloud:",
-                                            error,
-                                        );
-                                        // Continue without cloud URLs if upload fails
-                                    }
-                                }
-
-                                newImages[imageIndex] = {
-                                    ...newImages[imageIndex],
-                                    ...data,
-                                    url:
-                                        cloudUrls?.azureUrl ||
-                                        (mediaUrl &&
-                                        !mediaUrl.startsWith("data:")
-                                            ? mediaUrl
-                                            : undefined),
-                                    azureUrl: cloudUrls?.azureUrl,
-                                    gcsUrl: cloudUrls?.gcsUrl,
-                                    regenerating: false,
-                                };
-                            }
-                            setImages(newImages);
-
-                            // Clean data before storing in localStorage to avoid quota issues
-                            try {
-                                const cleanImages = newImages.map(
-                                    cleanMediaDataForStorage,
-                                );
-                                localStorage.setItem(
-                                    "generated-media",
-                                    JSON.stringify(cleanImages),
-                                );
-                            } catch (error) {
-                                console.warn(
-                                    "Failed to save to localStorage, data may be too large:",
-                                    error,
-                                );
-                                // Try to save a minimal version with just essential data
-                                try {
-                                    const minimalImages = newImages.map(
-                                        (img) => ({
-                                            cortexRequestId:
-                                                img.cortexRequestId,
-                                            prompt: img.prompt,
-                                            created: img.created,
-                                            inputImageUrl: img.inputImageUrl,
-                                            type: img.type,
-                                            model: img.model,
-                                            azureUrl: img.azureUrl,
-                                            gcsUrl: img.gcsUrl,
-                                            url:
-                                                img.azureUrl ||
-                                                (img.url &&
-                                                !img.url.startsWith("data:")
-                                                    ? img.url
-                                                    : undefined),
-                                            regenerating: img.regenerating,
-                                            result: img.result?.error
-                                                ? img.result
-                                                : undefined,
-                                        }),
-                                    );
-                                    localStorage.setItem(
-                                        "generated-media",
-                                        JSON.stringify(minimalImages),
-                                    );
-                                } catch (minimalError) {
-                                    console.error(
-                                        "Failed to save even minimal data to localStorage:",
-                                        minimalError,
-                                    );
-                                }
-                            }
-                        }}
-                        onDelete={(image) => {
-                            const newImages = images.filter((img) => {
-                                return (
+            return (
+                <ImageTile
+                    key={`image-${key}`}
+                    image={image}
+                    quality={quality}
+                    selectedImages={selectedImages}
+                    setSelectedImages={setSelectedImages}
+                    lastSelectedImage={lastSelectedImage}
+                    setLastSelectedImage={setLastSelectedImage}
+                    images={images}
+                    onClick={() => {
+                        if (image?.url) {
+                            setSelectedImage(image);
+                            setShowModal(true);
+                        }
+                    }}
+                    onRegenerate={async () => {
+                        // Remove the old tile first (regenerate replaces it)
+                        setImages((prevImages) => {
+                            const newImages = prevImages.filter(
+                                (img) =>
                                     img.cortexRequestId !==
-                                    image.cortexRequestId
-                                );
-                            });
-
-                            if (generationPrompt === image.prompt) {
-                                setGenerationPrompt("");
-                            }
-
-                            setImages(newImages);
+                                    image.cortexRequestId,
+                            );
 
                             // Clean data before storing in localStorage
                             try {
@@ -1370,29 +1138,299 @@ function MediaPage() {
                                 );
                             }
 
-                            // Clear selection if the deleted image was selected
-                            if (selectedImages.has(image.cortexRequestId)) {
-                                const newSelectedImages = new Set(
-                                    selectedImages,
-                                );
-                                newSelectedImages.delete(image.cortexRequestId);
-                                setSelectedImages(newSelectedImages);
+                            return newImages;
+                        });
+
+                        if (image.inputImageUrl) {
+                            // Regenerate modification with same input image
+                            await generateMedia(
+                                image.prompt,
+                                image.azureUrl ||
+                                    image.inputImageUrl ||
+                                    image.url,
+                            );
+                        } else {
+                            // Regular regenerate
+                            await generateMedia(image.prompt);
+                        }
+                    }}
+                    onGenerationComplete={async (requestId, data) => {
+                        const newImages = [...images];
+
+                        const imageIndex = newImages.findIndex(
+                            (img) => img.cortexRequestId === requestId,
+                        );
+
+                        if (imageIndex !== -1) {
+                            let mediaUrl = null;
+
+                            // Handle different response structures based on media type
+                            if (
+                                newImages[imageIndex]?.type === "video" &&
+                                newImages[imageIndex]?.model?.includes("veo")
+                            ) {
+                                // Veo video response structure
+                                console.log("Veo response data:", data);
+
+                                // Check for the direct Veo response structure
+                                if (
+                                    data?.result?.response?.videos &&
+                                    Array.isArray(
+                                        data.result.response.videos,
+                                    ) &&
+                                    data.result.response.videos.length > 0
+                                ) {
+                                    const video =
+                                        data.result.response.videos[0];
+                                    if (video.bytesBase64Encoded) {
+                                        mediaUrl = `data:video/mp4;base64,${video.bytesBase64Encoded}`;
+                                        console.log(
+                                            "Found Veo video with base64 data",
+                                        );
+                                    } else if (video.gcsUri) {
+                                        mediaUrl = video.gcsUri.replace(
+                                            "gs://",
+                                            "https://storage.googleapis.com/",
+                                        );
+                                        console.log(
+                                            "Found Veo video with GCS URI:",
+                                            mediaUrl,
+                                        );
+                                    }
+                                }
+                                // Fallback: check if data.result.output is a string that needs parsing
+                                else if (
+                                    data?.result?.output &&
+                                    typeof data.result.output === "string"
+                                ) {
+                                    try {
+                                        const parsed = JSON.parse(
+                                            data.result.output,
+                                        );
+                                        console.log(
+                                            "Parsed Veo response:",
+                                            parsed,
+                                        );
+
+                                        // Try different possible response structures
+                                        let videoUrl = null;
+
+                                        // Structure 1: parsed.response.videos[0].gcsUri
+                                        if (
+                                            parsed.response?.videos &&
+                                            Array.isArray(
+                                                parsed.response.videos,
+                                            ) &&
+                                            parsed.response.videos.length > 0
+                                        ) {
+                                            const video =
+                                                parsed.response.videos[0];
+                                            if (video.gcsUri) {
+                                                videoUrl = video.gcsUri.replace(
+                                                    "gs://",
+                                                    "https://storage.googleapis.com/",
+                                                );
+                                            } else if (
+                                                video.bytesBase64Encoded
+                                            ) {
+                                                videoUrl = `data:video/mp4;base64,${video.bytesBase64Encoded}`;
+                                            }
+                                        }
+
+                                        // Structure 2: parsed.videos[0].gcsUri (no response wrapper)
+                                        if (
+                                            !videoUrl &&
+                                            parsed.videos &&
+                                            Array.isArray(parsed.videos) &&
+                                            parsed.videos.length > 0
+                                        ) {
+                                            const video = parsed.videos[0];
+                                            if (video.gcsUri) {
+                                                videoUrl = video.gcsUri.replace(
+                                                    "gs://",
+                                                    "https://storage.googleapis.com/",
+                                                );
+                                            } else if (
+                                                video.bytesBase64Encoded
+                                            ) {
+                                                videoUrl = `data:video/mp4;base64,${video.bytesBase64Encoded}`;
+                                            }
+                                        }
+
+                                        // Structure 3: direct gcsUri in parsed
+                                        if (!videoUrl && parsed.gcsUri) {
+                                            videoUrl = parsed.gcsUri.replace(
+                                                "gs://",
+                                                "https://storage.googleapis.com/",
+                                            );
+                                        }
+
+                                        // Structure 4: direct URL in parsed
+                                        if (!videoUrl && parsed.url) {
+                                            videoUrl = parsed.url;
+                                        }
+
+                                        if (videoUrl) {
+                                            mediaUrl = videoUrl;
+                                            console.log(
+                                                "Found Veo video URL:",
+                                                videoUrl,
+                                            );
+                                        } else {
+                                            console.log(
+                                                "No video URL found in Veo response",
+                                            );
+                                        }
+                                    } catch (e) {
+                                        console.error(
+                                            "Error parsing Veo video response:",
+                                            e,
+                                        );
+                                    }
+                                } else {
+                                    console.log(
+                                        "No output string found in Veo response",
+                                    );
+                                }
+                            } else {
+                                // Standard image/video response structure
+                                mediaUrl = Array.isArray(data?.result?.output)
+                                    ? data?.result?.output?.[0]
+                                    : data?.result?.output;
                             }
-                        }}
-                    />
-                );
-            }),
-        ];
+
+                            // Set uploading state before starting upload
+                            newImages[imageIndex] = {
+                                ...newImages[imageIndex],
+                                ...data,
+                                regenerating: false,
+                                uploading: true, // Start upload
+                            };
+                            setImages([...newImages]); // Update immediately to show upload state
+
+                            // Upload to cloud storage if we have a valid URL
+                            let cloudUrls = null;
+                            if (mediaUrl && typeof mediaUrl === "string") {
+                                try {
+                                    cloudUrls =
+                                        await uploadMediaToCloud(mediaUrl);
+                                } catch (error) {
+                                    console.error(
+                                        "Failed to upload media to cloud:",
+                                        error,
+                                    );
+                                    // Continue without cloud URLs if upload fails
+                                }
+                            }
+
+                            newImages[imageIndex] = {
+                                ...newImages[imageIndex],
+                                ...data,
+                                url:
+                                    cloudUrls?.azureUrl ||
+                                    (mediaUrl && !mediaUrl.startsWith("data:")
+                                        ? mediaUrl
+                                        : undefined),
+                                azureUrl: cloudUrls?.azureUrl,
+                                gcsUrl: cloudUrls?.gcsUrl,
+                                regenerating: false,
+                                uploading: false, // Upload is complete
+                            };
+                        }
+                        setImages(newImages);
+
+                        // Clean data before storing in localStorage to avoid quota issues
+                        try {
+                            const cleanImages = newImages.map(
+                                cleanMediaDataForStorage,
+                            );
+                            localStorage.setItem(
+                                "generated-media",
+                                JSON.stringify(cleanImages),
+                            );
+                        } catch (error) {
+                            console.warn(
+                                "Failed to save to localStorage, data may be too large:",
+                                error,
+                            );
+                            // Try to save a minimal version with just essential data
+                            try {
+                                const minimalImages = newImages.map((img) => ({
+                                    cortexRequestId: img.cortexRequestId,
+                                    prompt: img.prompt,
+                                    created: img.created,
+                                    inputImageUrl: img.inputImageUrl,
+                                    type: img.type,
+                                    model: img.model,
+                                    azureUrl: img.azureUrl,
+                                    gcsUrl: img.gcsUrl,
+                                    url:
+                                        img.azureUrl ||
+                                        (img.url && !img.url.startsWith("data:")
+                                            ? img.url
+                                            : undefined),
+                                    regenerating: img.regenerating,
+                                    result: img.result?.error
+                                        ? img.result
+                                        : undefined,
+                                }));
+                                localStorage.setItem(
+                                    "generated-media",
+                                    JSON.stringify(minimalImages),
+                                );
+                            } catch (minimalError) {
+                                console.error(
+                                    "Failed to save even minimal data to localStorage:",
+                                    minimalError,
+                                );
+                            }
+                        }
+                    }}
+                    onDelete={(image) => {
+                        const newImages = images.filter((img) => {
+                            return (
+                                img.cortexRequestId !== image.cortexRequestId
+                            );
+                        });
+
+                        if (generationPrompt === image.prompt) {
+                            setGenerationPrompt("");
+                        }
+
+                        setImages(newImages);
+
+                        // Clean data before storing in localStorage
+                        try {
+                            const cleanImages = newImages.map(
+                                cleanMediaDataForStorage,
+                            );
+                            localStorage.setItem(
+                                "generated-media",
+                                JSON.stringify(cleanImages),
+                            );
+                        } catch (error) {
+                            console.warn(
+                                "Failed to save to localStorage:",
+                                error,
+                            );
+                        }
+
+                        // Clear selection if the deleted image was selected
+                        if (selectedImages.has(image.cortexRequestId)) {
+                            const newSelectedImages = new Set(selectedImages);
+                            newSelectedImages.delete(image.cortexRequestId);
+                            setSelectedImages(newSelectedImages);
+                        }
+                    }}
+                />
+            );
+        });
     }, [
         images,
         generationPrompt,
         generateMedia,
         quality,
         selectedImages,
-        t,
-        handleFileSelect,
-        isUploading,
-        uploadProgress,
         lastSelectedImage,
         setLastSelectedImage,
     ]);
@@ -1425,7 +1463,7 @@ function MediaPage() {
                             placeholder={
                                 selectedImages.size > 0
                                     ? t(
-                                          "Describe what you want to do with the selected images",
+                                          "Describe what you want to do with the selected media",
                                       )
                                     : t("Describe what you want to generate")
                             }
@@ -1456,6 +1494,36 @@ function MediaPage() {
                             <TooltipProvider>
                                 <Tooltip>
                                     <TooltipTrigger asChild>
+                                        <label className="lb-input flex items-center justify-center settings-btn-square text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 cursor-pointer">
+                                            <input
+                                                type="file"
+                                                className="hidden"
+                                                accept="image/*"
+                                                onChange={handleFileSelect}
+                                                disabled={isUploading}
+                                            />
+                                            {isUploading ? (
+                                                <ProgressUpdate
+                                                    initialText={t(
+                                                        "Uploading...",
+                                                    )}
+                                                    progress={uploadProgress}
+                                                    mode="spinner"
+                                                />
+                                            ) : (
+                                                <FaPlus />
+                                            )}
+                                        </label>
+                                    </TooltipTrigger>
+                                    <TooltipContent>
+                                        {t("Upload Image")}
+                                    </TooltipContent>
+                                </Tooltip>
+                            </TooltipProvider>
+
+                            <TooltipProvider>
+                                <Tooltip>
+                                    <TooltipTrigger asChild>
                                         <button
                                             type="button"
                                             className="lb-input flex items-center justify-center settings-btn-square text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
@@ -1475,6 +1543,7 @@ function MediaPage() {
                             <select
                                 className="lb-input flex-1 media-toolbar-dropdown"
                                 value={selectedModel}
+                                dir={direction}
                                 onChange={(e) => {
                                     const newSelectedModel = e.target.value;
                                     const modelSettings = getModelSettings(
@@ -1494,39 +1563,36 @@ function MediaPage() {
                                     }
                                 }}
                             >
-                                {Object.keys(settings.models || {}).map(
-                                    (modelName) => {
-                                        const modelSettings =
-                                            settings.models[modelName];
-                                        const displayName =
-                                            {
-                                                "replicate-flux-1-schnell":
-                                                    "Flux Draft",
-                                                "replicate-flux-11-pro":
-                                                    "Flux Pro",
-                                                "replicate-flux-kontext-max":
-                                                    "Flux Kontext Max",
-                                                "replicate-multi-image-kontext-max":
-                                                    "Multi-Image Kontext Max",
-                                                "veo-2.0-generate": "Veo 2.0",
-                                                "veo-3.0-generate": "Veo 3.0",
-                                                "replicate-seedance-1-pro":
-                                                    "Seedance 1.0",
-                                            }[modelName] || modelName;
+                                {getAvailableModels().map((modelName) => {
+                                    const modelSettings =
+                                        settings.models[modelName];
+                                    const displayName =
+                                        {
+                                            "replicate-flux-1-schnell":
+                                                "Flux Draft",
+                                            "replicate-flux-11-pro": "Flux Pro",
+                                            "replicate-flux-kontext-max":
+                                                "Flux Kontext Max",
+                                            "replicate-multi-image-kontext-max":
+                                                "Multi-Image Kontext Max",
+                                            "veo-2.0-generate": "Veo 2.0",
+                                            "veo-3.0-generate": "Veo 3.0",
+                                            "replicate-seedance-1-pro":
+                                                "Seedance 1.0",
+                                        }[modelName] || modelName;
 
-                                        return (
-                                            <option
-                                                key={modelName}
-                                                value={modelName}
-                                            >
-                                                {modelSettings?.type === "image"
-                                                    ? "Image"
-                                                    : "Video"}{" "}
-                                                ({displayName})
-                                            </option>
-                                        );
-                                    },
-                                )}
+                                    return (
+                                        <option
+                                            key={modelName}
+                                            value={modelName}
+                                        >
+                                            {modelSettings?.type === "image"
+                                                ? "Image"
+                                                : "Video"}{" "}
+                                            ({displayName})
+                                        </option>
+                                    );
+                                })}
                             </select>
 
                             <LoadingButton
@@ -1681,6 +1747,7 @@ function MediaPage() {
 
 function SettingsDialog({ show, settings, setSettings, onHide }) {
     const { t } = useTranslation();
+    const { direction } = useContext(LanguageContext);
     const [localSettings, setLocalSettings] = useState(settings);
     const [selectedModel, setSelectedModel] = useState(
         "replicate-flux-1-schnell",
@@ -1804,6 +1871,7 @@ function SettingsDialog({ show, settings, setSettings, onHide }) {
                     <select
                         className="lb-input w-full"
                         value={selectedModel}
+                        dir={direction}
                         onChange={(e) => setSelectedModel(e.target.value)}
                     >
                         {modelNames.map((modelName) => (
@@ -1831,6 +1899,7 @@ function SettingsDialog({ show, settings, setSettings, onHide }) {
                                 value={
                                     currentModelSettings.aspectRatio || "1:1"
                                 }
+                                dir={direction}
                                 onChange={(e) =>
                                     updateModelSetting(
                                         selectedModel,
@@ -1864,6 +1933,7 @@ function SettingsDialog({ show, settings, setSettings, onHide }) {
                                         value={
                                             currentModelSettings.duration || 5
                                         }
+                                        dir={direction}
                                         onChange={(e) =>
                                             updateModelSetting(
                                                 selectedModel,
@@ -1899,6 +1969,7 @@ function SettingsDialog({ show, settings, setSettings, onHide }) {
                                             currentModelSettings.resolution ||
                                             "1080p"
                                         }
+                                        dir={direction}
                                         onChange={(e) =>
                                             updateModelSetting(
                                                 selectedModel,
@@ -1921,8 +1992,11 @@ function SettingsDialog({ show, settings, setSettings, onHide }) {
                                         type="checkbox"
                                         className="lb-checkbox"
                                         checked={
-                                            currentModelSettings.generateAudio ||
-                                            false
+                                            selectedModel === "veo-3.0-generate"
+                                                ? currentModelSettings.generateAudio !==
+                                                  false // Default to true for Veo 3.0
+                                                : currentModelSettings.generateAudio ||
+                                                  false
                                         }
                                         onChange={(e) =>
                                             updateModelSetting(
@@ -1987,6 +2061,7 @@ function Progress({
     onDataReceived,
     inputImageUrl,
     outputType,
+    mode,
 }) {
     const [data] = useState(null);
     const { t } = useTranslation();
@@ -2000,7 +2075,7 @@ function Progress({
             <ProgressUpdate
                 initialText={t("Generating...")}
                 requestId={requestId}
-                mode={outputType === "video" ? "spinner" : "progress"}
+                mode={mode || (outputType === "video" ? "spinner" : "progress")}
                 setFinalData={(data) => {
                     // If data is already an object with error, pass it through
                     if (data?.result?.error) {
@@ -2050,10 +2125,12 @@ function ImageTile({
     images,
 }) {
     const [loadError, setLoadError] = useState(false);
+    const [retryCount, setRetryCount] = useState(0);
     const url = image?.azureUrl || image?.url;
     const { t } = useTranslation();
     const expired = image?.expires < Date.now() / 1000;
-    const { cortexRequestId, prompt, result, regenerating } = image || {};
+    const { cortexRequestId, prompt, result, regenerating, uploading } =
+        image || {};
     const { code, message } = result?.error || {};
     const isSelected = selectedImages.has(cortexRequestId);
 
@@ -2107,15 +2184,43 @@ function ImageTile({
                     <div className="h-full bg-gray-50 p-4 text-sm flex items-center justify-center">
                         <ProgressComponent />
                     </div>
+                ) : uploading ? (
+                    <div className="h-full bg-gray-50 p-4 text-sm flex items-center justify-center">
+                        <UploadComponent />
+                    </div>
                 ) : !expired && url && !loadError ? (
                     image.type === "video" ? (
-                        <video
-                            src={url}
-                            className="w-full h-full object-cover object-center"
-                            controls
-                            onError={() => setLoadError(true)}
-                            onLoad={() => setLoadError(false)}
-                        />
+                        <div className="relative w-full h-full">
+                            <video
+                                src={url}
+                                className="w-full h-full object-cover object-center"
+                                preload="metadata"
+                                onError={() => {
+                                    if (retryCount < 2) {
+                                        setRetryCount((prev) => prev + 1);
+                                        // Reset loadError to allow retry
+                                        setLoadError(false);
+                                    } else {
+                                        setLoadError(true);
+                                    }
+                                }}
+                                onLoad={() => {
+                                    setLoadError(false);
+                                    setRetryCount(0);
+                                }}
+                            />
+                            <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-20 hover:bg-opacity-30 transition-all duration-200">
+                                <div className="w-12 h-12 bg-white bg-opacity-50 rounded-full flex items-center justify-center shadow-lg">
+                                    <svg
+                                        className="w-6 h-6 text-gray-800 ml-1"
+                                        fill="currentColor"
+                                        viewBox="0 0 24 24"
+                                    >
+                                        <path d="M8 5v14l11-7z" />
+                                    </svg>
+                                </div>
+                            </div>
+                        </div>
                     ) : (
                         <ChatImage
                             src={url}
@@ -2188,6 +2293,18 @@ function ImageTile({
                     }
                     inputImageUrl={image?.inputImageUrl}
                     outputType={image?.type || "image"}
+                    mode="spinner"
+                />
+            </div>
+        );
+    }
+
+    function UploadComponent() {
+        return (
+            <div className="flex flex-col items-center gap-2 text-gray-500">
+                <ProgressUpdate
+                    initialText={t("Uploading to cloud...")}
+                    mode="spinner"
                 />
             </div>
         );
@@ -2210,15 +2327,28 @@ function ImageTile({
             <div className="text-center flex flex-col items-center justify-center h-full">
                 <div>{`${t(`${image.type === "video" ? "Video" : "Image"} Error: `)} ${message}`}</div>
                 <div className="mt-4">
-                    <button
-                        className="lb-primary"
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            onRegenerate();
-                        }}
-                    >
-                        {t("Regenerate")}
-                    </button>
+                    {image.type === "video" ? (
+                        <button
+                            className="lb-primary"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                // For videos, just reload the page to retry
+                                window.location.reload();
+                            }}
+                        >
+                            {t("Reload")}
+                        </button>
+                    ) : (
+                        <button
+                            className="lb-primary"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                onRegenerate();
+                            }}
+                        >
+                            {t("Regenerate")}
+                        </button>
+                    )}
                 </div>
             </div>
         );
@@ -2233,15 +2363,28 @@ function ImageTile({
                     )}
                 </div>
                 <div>
-                    <button
-                        className="lb-primary"
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            onRegenerate();
-                        }}
-                    >
-                        {t("Regenerate")}
-                    </button>
+                    {image.type === "video" ? (
+                        <button
+                            className="lb-primary"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                // For videos, just reload the page to retry
+                                window.location.reload();
+                            }}
+                        >
+                            {t("Reload")}
+                        </button>
+                    ) : (
+                        <button
+                            className="lb-primary"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                onRegenerate();
+                            }}
+                        >
+                            {t("Regenerate")}
+                        </button>
+                    )}
                 </div>
             </div>
         );
@@ -2256,15 +2399,28 @@ function ImageTile({
                     )}
                 </div>
                 <div className="mt-4">
-                    <button
-                        className="lb-primary"
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            onRegenerate();
-                        }}
-                    >
-                        {t("Regenerate")}
-                    </button>
+                    {image.type === "video" ? (
+                        <button
+                            className="lb-primary"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                // For videos, just reload the page to retry
+                                window.location.reload();
+                            }}
+                        >
+                            {t("Reload")}
+                        </button>
+                    ) : (
+                        <button
+                            className="lb-primary"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                onRegenerate();
+                            }}
+                        >
+                            {t("Regenerate")}
+                        </button>
+                    )}
                 </div>
             </div>
         );
@@ -2287,6 +2443,7 @@ function ImageModal({ show, image, onHide }) {
                             className="rounded-md w-full"
                             src={image?.azureUrl || image?.url}
                             controls
+                            preload="metadata"
                         />
                     ) : (
                         <ChatImage
@@ -2332,6 +2489,19 @@ function ImageModal({ show, image, onHide }) {
 function ImageInfo({ data, type }) {
     const { t } = useTranslation();
 
+    const getModelDisplayName = (modelName) => {
+        const names = {
+            "replicate-flux-1-schnell": "Flux Draft",
+            "replicate-flux-11-pro": "Flux Pro",
+            "replicate-flux-kontext-max": "Flux Kontext Max",
+            "replicate-multi-image-kontext-max": "Multi-Image Kontext Max",
+            "veo-2.0-generate": "Veo 2.0",
+            "veo-3.0-generate": "Veo 3.0",
+            "replicate-seedance-1-pro": "Seedance 1.0",
+        };
+        return names[modelName] || modelName;
+    };
+
     return (
         <div>
             <div className="mb-2">
@@ -2346,6 +2516,16 @@ function ImageInfo({ data, type }) {
                         : t("(not found)")}
                 </div>
             </div>
+            {data?.model && (
+                <div className="mb-2">
+                    <div>
+                        <div className="font-semibold text-gray-500">
+                            {t("Model")}
+                        </div>
+                    </div>
+                    <div>{getModelDisplayName(data.model)}</div>
+                </div>
+            )}
             <div className="mb-2">
                 <div>
                     <div className="font-semibold text-gray-500">
