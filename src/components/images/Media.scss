@@ -259,3 +259,32 @@ $image-container-height: 200px;
 .media-toolbar-row {
     /* This will be set by JS if needed for perfect sync, but fallback works for most cases */
 }
+
+/* RTL support for select elements */
+html[dir="rtl"] {
+    select {
+        background-position: left 0.5rem center;
+        padding-left: 2.5rem;
+        padding-right: 0.75rem;
+    }
+
+    .lb-input[dir="rtl"] {
+        background-position: left 0.5rem center;
+        padding-left: 2.5rem;
+        padding-right: 0.75rem;
+    }
+}
+
+html[dir="ltr"] {
+    select {
+        background-position: right 0.5rem center;
+        padding-right: 2.5rem;
+        padding-left: 0.75rem;
+    }
+
+    .lb-input[dir="ltr"] {
+        background-position: right 0.5rem center;
+        padding-right: 2.5rem;
+        padding-left: 0.75rem;
+    }
+}
