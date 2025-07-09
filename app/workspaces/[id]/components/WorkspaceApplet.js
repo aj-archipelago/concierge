@@ -57,6 +57,7 @@ export default function WorkspaceApplet() {
     const streamingMessageRef = useRef("");
     const messageQueueRef = useRef([]);
     const processingRef = useRef(false);
+    const hasStreamingVersionRef = useRef(false); // Track if we've created a temporary streaming version
 
     // Queries and mutations
     const appletQuery = useWorkspaceApplet(id);
@@ -124,6 +125,41 @@ export default function WorkspaceApplet() {
         setIsStreaming(false);
         messageQueueRef.current = [];
         processingRef.current = false;
+        hasStreamingVersionRef.current = false; // Reset streaming version flag
+    };
+
+    // Helper function to update HTML versions during streaming
+    const updateHtmlVersions = (htmlContent) => {
+        const newVersions = [...htmlVersions];
+
+        // During streaming, create or update a temporary version
+        if (isStreaming) {
+            if (!hasStreamingVersionRef.current) {
+                // Create a temporary streaming version for the first time
+                newVersions.push(htmlContent);
+                setActiveVersionIndex(newVersions.length - 1);
+                hasStreamingVersionRef.current = true;
+            } else {
+                // Update the existing temporary streaming version
+                newVersions[newVersions.length - 1] = htmlContent;
+            }
+        } else {
+            // For non-streaming updates, use the current logic
+            const currentVersionIndex =
+                activeVersionIndex >= 0 ? activeVersionIndex : 0;
+
+            if (newVersions.length <= currentVersionIndex) {
+                newVersions.push(htmlContent);
+            } else {
+                newVersions[currentVersionIndex] = htmlContent;
+            }
+
+            if (activeVersionIndex === -1) {
+                setActiveVersionIndex(0);
+            }
+        }
+
+        setHtmlVersions(newVersions);
     };
 
     // Process message queue for streaming
@@ -186,21 +222,7 @@ export default function WorkspaceApplet() {
 
                     if (htmlContent && htmlContent.html) {
                         // Update the preview with the partial HTML content
-                        const newVersions = [...htmlVersions];
-                        const currentVersionIndex =
-                            activeVersionIndex >= 0 ? activeVersionIndex : 0;
-
-                        // Create a temporary version for streaming preview
-                        if (newVersions.length <= currentVersionIndex) {
-                            newVersions.push(htmlContent.html);
-                        } else {
-                            newVersions[currentVersionIndex] = htmlContent.html;
-                        }
-
-                        setHtmlVersions(newVersions);
-                        if (activeVersionIndex === -1) {
-                            setActiveVersionIndex(0);
-                        }
+                        updateHtmlVersions(htmlContent.html);
                     }
 
                     // If this is the first chunk and progress is 1, simulate streaming
@@ -237,23 +259,7 @@ export default function WorkspaceApplet() {
                                     cleanedChunkContent,
                                 );
                             if (chunkHtmlContent && chunkHtmlContent.html) {
-                                const newVersions = [...htmlVersions];
-                                const currentVersionIndex =
-                                    activeVersionIndex >= 0
-                                        ? activeVersionIndex
-                                        : 0;
-
-                                if (newVersions.length <= currentVersionIndex) {
-                                    newVersions.push(chunkHtmlContent.html);
-                                } else {
-                                    newVersions[currentVersionIndex] =
-                                        chunkHtmlContent.html;
-                                }
-
-                                setHtmlVersions(newVersions);
-                                if (activeVersionIndex === -1) {
-                                    setActiveVersionIndex(0);
-                                }
+                                updateHtmlVersions(chunkHtmlContent.html);
                             }
 
                             // Add a small delay between chunks (except for the last one)
@@ -270,10 +276,11 @@ export default function WorkspaceApplet() {
             if (progress === 1) {
                 // Finalize the streaming message
                 const finalContent = streamingMessageRef.current;
+                const wasStreaming = isStreaming; // Capture streaming state before clearing
                 clearStreamingState();
 
                 // Process the final response
-                await processFinalResponse(finalContent);
+                await processFinalResponse(finalContent, wasStreaming);
             }
         } catch (e) {
             clearStreamingState();
@@ -289,7 +296,7 @@ export default function WorkspaceApplet() {
     };
 
     // Process final response from streaming
-    const processFinalResponse = async (finalContent) => {
+    const processFinalResponse = async (finalContent, wasStreaming) => {
         try {
             let aiMessage = {
                 content: finalContent,
@@ -307,10 +314,21 @@ export default function WorkspaceApplet() {
 
             if (htmlContent && htmlContent.html) {
                 // We have valid HTML content
-                newVersions = [
-                    ...htmlVersions.slice(0, activeVersionIndex + 1),
-                    htmlContent.html,
-                ];
+                // If we were streaming, we need to replace the temporary streaming version
+                // Otherwise, create a new version after the current active version
+                if (wasStreaming) {
+                    // Replace the last version (temporary streaming version) with the final version
+                    newVersions = [
+                        ...htmlVersions.slice(0, -1),
+                        htmlContent.html,
+                    ];
+                } else {
+                    // Create a new version after the current active version
+                    newVersions = [
+                        ...htmlVersions.slice(0, activeVersionIndex + 1),
+                        htmlContent.html,
+                    ];
+                }
                 setHtmlVersions(newVersions);
                 setActiveVersionIndex(newVersions.length - 1);
 
@@ -324,10 +342,21 @@ export default function WorkspaceApplet() {
                     typeof finalContent.html === "string" &&
                     typeof finalContent.changes === "string"
                 ) {
-                    newVersions = [
-                        ...htmlVersions.slice(0, activeVersionIndex + 1),
-                        finalContent.html,
-                    ];
+                    // If we were streaming, we need to replace the temporary streaming version
+                    // Otherwise, create a new version after the current active version
+                    if (wasStreaming) {
+                        // Replace the last version (temporary streaming version) with the final version
+                        newVersions = [
+                            ...htmlVersions.slice(0, -1),
+                            finalContent.html,
+                        ];
+                    } else {
+                        // Create a new version after the current active version
+                        newVersions = [
+                            ...htmlVersions.slice(0, activeVersionIndex + 1),
+                            finalContent.html,
+                        ];
+                    }
                     setHtmlVersions(newVersions);
                     setActiveVersionIndex(newVersions.length - 1);
 
@@ -411,34 +440,33 @@ export default function WorkspaceApplet() {
     const handleSendMessage = async () => {
         if (!inputMessage.trim() || !selectedLLM || !isOwner) return;
 
-        let truncatedAllMessages = allMessagesRef.current;
-        let truncatedHtmlVersions = htmlVersions;
-
-        // If continuing from an old version, truncate arrays
-        if (isContinuingFromOldVersion) {
-            truncatedAllMessages = getMessagesUpToVersion(
-                allMessagesRef.current,
-                activeVersionIndex,
-            );
-            truncatedHtmlVersions = htmlVersions.slice(
-                0,
-                activeVersionIndex + 1,
-            );
-        }
-
         const newMessage = {
             content: inputMessage,
             role: "user",
             timestamp: new Date().toISOString(),
         };
 
-        const updatedMessages = [...truncatedAllMessages, newMessage];
+        const updatedMessages = [...allMessagesRef.current, newMessage];
         setMessages(updatedMessages);
         setInputMessage("");
         setIsLoading(true);
 
         try {
-            const currentHtml = truncatedHtmlVersions[activeVersionIndex] || "";
+            // Ensure we're using the correct HTML version
+            // When continuing from an old version, we want to use that version's HTML
+            let currentHtml = "";
+            if (
+                isContinuingFromOldVersion &&
+                activeVersionIndex >= 0 &&
+                activeVersionIndex < htmlVersions.length
+            ) {
+                // Use the active version's HTML (the one we're continuing from)
+                currentHtml = htmlVersions[activeVersionIndex] || "";
+            } else {
+                // Use the latest version's HTML
+                currentHtml = htmlVersions[htmlVersions.length - 1] || "";
+            }
+
             const response = await chatMutation.mutateAsync({
                 messages: updatedMessages,
                 currentHtml,
@@ -449,6 +477,7 @@ export default function WorkspaceApplet() {
             setIsStreaming(true);
             setStreamingContent("");
             streamingMessageRef.current = "";
+            hasStreamingVersionRef.current = false; // Reset streaming version flag for new session
 
             // Add a temporary streaming message
             const streamingMessage = {
@@ -509,7 +538,68 @@ export default function WorkspaceApplet() {
 
     const handleContinueFromOldVersion = () => {
         if (!isOwner) return;
+        // Find the highest published version index that comes after the current active version
+        let maxPublishedIndex = -1;
+        if (
+            publishedVersionIndex !== null &&
+            publishedVersionIndex > activeVersionIndex
+        ) {
+            maxPublishedIndex = publishedVersionIndex;
+        }
+
+        // Determine the cutoff index - keep versions up to the active version,
+        // but also preserve any published versions that come after it
+        // This ensures that:
+        // 1. If continuing from version 2 with no published versions after it, keep versions 0,1,2
+        // 2. If continuing from version 2 but version 3 is published, keep versions 0,1,2,3
+        const cutoffIndex = Math.max(activeVersionIndex, maxPublishedIndex);
+
+        // Truncate HTML versions
+        const newHtmlVersions = htmlVersions.slice(0, cutoffIndex + 1);
+
+        // Truncate messages - find the last message that links to the cutoff version or earlier
+        // This ensures we keep all messages that were part of versions up to the cutoff version
+        let lastMessageIndex = -1;
+        for (let i = allMessagesRef.current.length - 1; i >= 0; i--) {
+            const message = allMessagesRef.current[i];
+            if (
+                message.linkToVersion !== undefined &&
+                message.linkToVersion <= cutoffIndex
+            ) {
+                lastMessageIndex = i;
+                break;
+            }
+        }
+
+        // If no message links to the cutoff version or earlier, keep all messages
+        const newMessages =
+            lastMessageIndex >= 0
+                ? allMessagesRef.current.slice(0, lastMessageIndex + 1)
+                : allMessagesRef.current;
+
+        // Keep the active version as the one we're continuing from (don't jump to published version)
+        // The active version should remain the same as when "continue from here" was clicked
+        // But ensure it doesn't exceed the new array length
+        const newActiveVersionIndex = Math.min(
+            activeVersionIndex,
+            newHtmlVersions.length - 1,
+        );
+
+        // Update all state synchronously
+        setHtmlVersions(newHtmlVersions);
+        setMessages(newMessages);
+        allMessagesRef.current = newMessages;
+        setActiveVersionIndex(newActiveVersionIndex);
         setIsContinuingFromOldVersion(true);
+
+        // Update the server with the truncated data
+        updateApplet.mutate({
+            id,
+            data: {
+                messages: newMessages,
+                htmlVersions: newHtmlVersions,
+            },
+        });
     };
 
     const handleMessageClick = (versionIndex) => {
@@ -585,6 +675,9 @@ export default function WorkspaceApplet() {
                                 onHtmlChange={handleHtmlChange}
                                 isStreaming={isStreaming}
                                 isOwner={isOwner}
+                                hasStreamingVersion={
+                                    hasStreamingVersionRef.current
+                                }
                             />
                         </div>
                     )}

@@ -154,6 +154,10 @@ export function extractHtmlFromStreamingContent(content) {
         return null;
     }
 
+    if (content.endsWith("\\")) {
+        content = content.slice(0, -1);
+    }
+
     // Clean the content by removing ```json blocks completely
     let cleanedContent = cleanJsonCodeBlocks(content);
 

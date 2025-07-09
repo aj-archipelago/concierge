@@ -56,6 +56,7 @@ export default function PreviewTabs({
     onHtmlChange,
     isStreaming = false,
     isOwner = true,
+    hasStreamingVersion = false,
 }) {
     if (!htmlVersions.length) return null;
 
@@ -73,7 +74,7 @@ export default function PreviewTabs({
                 <div className="flex flex-col h-full">
                     <div className="flex-1 p-4">
                         <TabsContent value="preview" className="h-full m-0">
-                            {isStreaming ? (
+                            {isStreaming && hasStreamingVersion ? (
                                 <StreamingPreview
                                     content={htmlVersions[activeVersionIndex]}
                                 />
