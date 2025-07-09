@@ -1,24 +1,28 @@
 import {
     ChatBubbleLeftIcon,
     CodeBracketIcon,
-    GlobeAltIcon,
-    NewspaperIcon,
-    PencilSquareIcon,
-    PhotoIcon,
+    HomeIcon,
     PlusIcon,
 } from "@heroicons/react/24/outline";
-import { HelpCircle, VideoIcon, PinIcon, PinOffIcon } from "lucide-react";
+import {
+    HelpCircle,
+    PinIcon,
+    PinOffIcon,
+    Settings,
+    AppWindow,
+} from "lucide-react";
+import * as Icons from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import React, { useContext, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { MdOutlineWorkspaces } from "react-icons/md";
 import {
     useAddChat,
     useDeleteChat,
     useGetActiveChats,
     useSetActiveChatId,
 } from "../../app/queries/chats";
+import { useCurrentUser } from "../../app/queries/users";
 import classNames from "../../app/utils/class-names";
 import config from "../../config";
 import SendFeedbackModal from "../components/help/SendFeedbackModal";
@@ -26,27 +30,60 @@ import { LanguageContext } from "../contexts/LanguageProvider";
 import ChatNavigationItem from "./ChatNavigationItem";
 import { cn } from "@/lib/utils";
 
-export const navigation = [
-    {
+// Helper function to get icon component
+const getIconComponent = (iconName) => {
+    if (!iconName) return AppWindow; // Default fallback
+
+    // Check if it's a Lucide icon
+    if (Icons[iconName]) {
+        return Icons[iconName];
+    }
+
+    // Fallback to default icon
+    return AppWindow;
+};
+
+// App slug to navigation item mapping
+const appNavigationMap = {
+    home: {
         name: "Home",
-        icon: NewspaperIcon,
         href: "/home",
     },
-    { name: "Chat", icon: ChatBubbleLeftIcon, href: "/chat", children: [] },
-    { name: "Translate", icon: GlobeAltIcon, href: "/translate" },
-    { name: "Video", icon: VideoIcon, href: "/video" },
-    { name: "Write", icon: PencilSquareIcon, href: "/write" },
-    {
-        name: "Workspaces",
-        icon: MdOutlineWorkspaces,
-        href: "/workspaces",
-        collapsed: true,
+    chat: {
+        name: "Chat",
+        href: "/chat",
+        children: [],
     },
-    { name: "Media", icon: PhotoIcon, href: "/media" },
-    { name: "Jira", icon: CodeBracketIcon, href: "/code/jira" },
-];
+    translate: {
+        name: "Translate",
+        href: "/translate",
+    },
+    video: {
+        name: "Video",
+        href: "/video",
+    },
+    write: {
+        name: "Write",
+        href: "/write",
+    },
+    workspaces: {
+        name: "Workspaces",
+        href: "/workspaces",
+    },
+    media: {
+        name: "Media",
+        href: "/media",
+    },
+    jira: {
+        name: "Jira",
+        href: "/code/jira",
+    },
+};
 
-const routesToCollapseSidebarFor = ["/published"];
+// Legacy navigation for backward compatibility
+export const navigation = Object.values(appNavigationMap);
+
+const routesToCollapseSidebarFor = ["/workspaces/"];
 
 export const shouldForceCollapse = (pathname) => {
     return (
@@ -68,6 +105,7 @@ export default React.forwardRef(function Sidebar(
     const { t } = useTranslation();
     const { data: chatsData = [] } = useGetActiveChats();
     const chats = chatsData || [];
+    const { data: currentUser } = useCurrentUser();
 
     const deleteChat = useDeleteChat();
     const setActiveChatId = useSetActiveChatId();
@@ -99,7 +137,76 @@ export default React.forwardRef(function Sidebar(
         }
     };
 
-    const updatedNavigation = navigation.map((item) => {
+    // Create navigation based on user's apps
+    const getUserNavigation = () => {
+        // Always start with Home and Chat
+        const coreNavigation = [
+            { ...appNavigationMap.home, icon: Icons.HomeIcon },
+            { ...appNavigationMap.chat, icon: Icons.MessageCircleIcon },
+        ];
+
+        if (!currentUser?.apps || currentUser.apps.length === 0) {
+            // Fallback to default navigation if user has no apps
+            return coreNavigation;
+        }
+
+        // Sort user apps by order
+        const sortedUserApps = [...currentUser.apps].sort(
+            (a, b) => a.order - b.order,
+        );
+
+        // Create navigation items based on user's apps (excluding home and chat)
+        const userAppNavigation = sortedUserApps
+            .map((userApp) => {
+                const app = userApp.appId; // This is now populated with app details
+
+                if (!app || !app.slug) {
+                    return null;
+                }
+
+                // Skip home and chat as they're always included
+                if (app.slug === "home" || app.slug === "chat") {
+                    return null;
+                }
+
+                // Handle applet apps differently
+                if (app.type === "applet" && app.workspaceId) {
+                    return {
+                        name: app.name || "Applet",
+                        icon: Icons[app.icon] || AppWindow,
+                        href: `/published/workspaces/${app.workspaceId}/applet`,
+                        appId: userApp.appId._id || userApp.appId,
+                    };
+                }
+
+                // Find the navigation item for this app
+                const navItem = appNavigationMap[app.slug];
+
+                if (!navItem) {
+                    return null;
+                }
+
+                // Use icon from database, fallback to default AppWindow icon
+                const iconComponent =
+                    app.icon && app.icon.trim()
+                        ? getIconComponent(app.icon)
+                        : AppWindow;
+
+                return {
+                    ...navItem,
+                    icon: iconComponent,
+                    appId: userApp.appId._id || userApp.appId,
+                };
+            })
+            .filter(Boolean); // Remove null items
+
+        // Combine core navigation with user apps
+        return [...coreNavigation, ...userAppNavigation];
+    };
+
+    const userNavigation = getUserNavigation();
+
+    const updatedNavigation = userNavigation.map((item) => {
         if (item.name === "Chat" && Array.isArray(chats)) {
             const items = chats.slice(0, 3);
             return {
@@ -332,6 +439,25 @@ export default React.forwardRef(function Sidebar(
                                 </li>
                             ))}
                         </ul>
+                    </li>
+                    <li>
+                        <div className="py-3 bg-gray-50 -mx-5 px-5 text-gray-700">
+                            <button
+                                className="flex gap-2 items-center text-sm w-full"
+                                onClick={() => router.push("/apps")}
+                            >
+                                <Settings className="h-6 w-6 shrink-0 text-gray-400" />
+                                <span
+                                    className={cn(
+                                        "text-sm text-gray-500",
+                                        isCollapsed &&
+                                            "hidden group-hover:block",
+                                    )}
+                                >
+                                    {t("Manage Apps")}
+                                </span>
+                            </button>
+                        </div>
                     </li>
                     <li>
                         <div className="py-3 bg-gray-50 -mx-5 px-5 text-gray-700">

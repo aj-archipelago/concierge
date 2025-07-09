@@ -14,7 +14,9 @@ export default function PublishedAppletPage() {
         if (appletQuery.isLoading) return;
 
         if (appletQuery.error) {
-            setError("Failed to load applet.");
+            setError(
+                "Failed to load applet. Please ensure that you have the correct link.",
+            );
             return;
         }
 
@@ -28,7 +30,7 @@ export default function PublishedAppletPage() {
             !htmlVersions ||
             !htmlVersions[publishedVersionIndex]
         ) {
-            setError("This applet is not published yet.");
+            setError("This applet is not published.");
             setPublishedHtml(null);
         } else {
             setError(null);

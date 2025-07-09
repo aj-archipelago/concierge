@@ -32,6 +32,7 @@ import {
     cleanJsonCodeBlocks,
 } from "./utils";
 import VersionNavigator from "./VersionNavigator";
+import { toast } from "react-toastify";
 
 export default function WorkspaceApplet() {
     const { id } = useParams();
@@ -498,11 +499,29 @@ export default function WorkspaceApplet() {
         }
     };
 
-    const handlePublishVersion = (versionIdx) => {
+    const handlePublishVersion = (
+        versionIdx,
+        publishToAppStore,
+        appName,
+        appIcon,
+    ) => {
         if (!isOwner) return;
         updateApplet.mutate(
-            { id, data: { publishedVersionIndex: versionIdx } },
-            { onSuccess: () => setPublishedVersionIndex(versionIdx) },
+            {
+                id,
+                data: {
+                    publishedVersionIndex: versionIdx,
+                    publishToAppStore,
+                    appName,
+                    appIcon,
+                },
+            },
+            {
+                onSuccess: () => setPublishedVersionIndex(versionIdx),
+                onError: (error) => {
+                    toast.error(error?.response?.data?.error || error.message);
+                },
+            },
         );
     };
 

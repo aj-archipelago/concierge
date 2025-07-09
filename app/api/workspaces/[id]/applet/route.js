@@ -3,6 +3,7 @@ import { connectToDatabase } from "@/src/db.mjs";
 import Workspace from "@/app/api/models/workspace";
 import Applet from "@/app/api/models/applet";
 import { getWorkspace } from "../db.js";
+import App, { APP_TYPES, APP_STATUS } from "@/app/api/models/app";
 
 // GET: fetch or create applet (already implemented)
 export async function GET(request, { params }) {
@@ -128,6 +129,60 @@ export async function PUT(request, { params }) {
                 runValidators: true,
             },
         );
+
+        // Handle App creation/deactivation based on publishedVersionIndex and publishToAppStore preference
+        if (body.publishedVersionIndex !== undefined) {
+            if (body.publishedVersionIndex !== null && body.publishToAppStore) {
+                // Applet is being published to app store - upsert an App
+                const appName =
+                    body.appName ||
+                    body.name ||
+                    updatedApplet.name ||
+                    `${workspace.name} Applet`;
+
+                // Check if app name conflicts with built-in native apps
+                const nativeAppNames = [
+                    "Translate",
+                    "Video",
+                    "Write",
+                    "Workspaces",
+                    "Images",
+                    "Jira",
+                ];
+                if (nativeAppNames.includes(appName)) {
+                    return NextResponse.json(
+                        {
+                            error: `App name "${appName}" is reserved for built-in apps. Please use another name.`,
+                        },
+                        { status: 400 },
+                    );
+                }
+
+                await App.findOneAndUpdate(
+                    { workspaceId: workspace._id },
+                    {
+                        name: appName,
+                        author: workspace.owner,
+                        type: APP_TYPES.APPLET,
+                        status: APP_STATUS.ACTIVE,
+                        workspaceId: workspace._id,
+                        icon: body.appIcon || null,
+                    },
+                    {
+                        new: true,
+                        upsert: true,
+                        runValidators: true,
+                    },
+                );
+            } else {
+                // Applet is being unpublished or not published to app store - deactivate the App
+                await App.findOneAndUpdate(
+                    { workspaceId: workspace._id },
+                    { status: APP_STATUS.INACTIVE },
+                    { new: true },
+                );
+            }
+        }
 
         return NextResponse.json(updatedApplet);
     } catch (error) {

@@ -67,6 +67,28 @@ const userSchema = new mongoose.Schema(
             enum: ["user", "admin"],
             default: "user",
         },
+        apps: {
+            type: [
+                {
+                    appId: {
+                        type: mongoose.Schema.Types.ObjectId,
+                        ref: "App",
+                        required: true,
+                    },
+                    order: {
+                        type: Number,
+                        required: true,
+                        min: 0,
+                    },
+                    addedAt: {
+                        type: Date,
+                        default: Date.now,
+                    },
+                },
+            ],
+            required: false,
+            default: [],
+        },
     },
     {
         timestamps: true,
@@ -78,13 +100,14 @@ const userSchema = new mongoose.Schema(
 
 userSchema.virtual("initials").get(function () {
     return this.name
-        .split(" ")
+        ?.split(" ")
         .map((n) => n[0]?.toUpperCase() || "")
         .join("");
 });
 
 // index for createdAt descending
 userSchema.index({ createdAt: -1 });
+userSchema.index({ "apps.appId": 1 });
 
 // Create the User model from the schema
 const User = mongoose.models?.User || mongoose.model("User", userSchema);

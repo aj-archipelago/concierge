@@ -18,6 +18,7 @@ import { Link2Icon } from "lucide-react";
 import { ServerContext } from "../../../../src/App";
 import { useState } from "react";
 import { useParams } from "next/navigation";
+import PublishConfirmDialog from "./PublishConfirmDialog";
 
 function CopyPublishedLinkButton() {
     const [copied, setCopied] = useState(false);
@@ -89,6 +90,7 @@ export default function VersionNavigator({
     isOwner = true,
 }) {
     const { direction } = useContext(LanguageContext);
+    const [showPublishDialog, setShowPublishDialog] = useState(false);
 
     const handleDuplicateVersion = () => {
         if (!isOwner) return;
@@ -147,6 +149,24 @@ export default function VersionNavigator({
                 return newVersions;
             });
         }
+    };
+
+    const handlePublishClick = () => {
+        setShowPublishDialog(true);
+    };
+
+    const handlePublishConfirm = (publishToAppStore, appName, selectedIcon) => {
+        onPublishVersion(
+            activeVersionIndex,
+            publishToAppStore,
+            appName,
+            selectedIcon,
+        );
+        setShowPublishDialog(false);
+    };
+
+    const handlePublishCancel = () => {
+        setShowPublishDialog(false);
     };
 
     return (
@@ -251,6 +271,13 @@ export default function VersionNavigator({
                         )}
                 </div>
             </div>
+            <PublishConfirmDialog
+                isOpen={showPublishDialog}
+                onClose={handlePublishCancel}
+                onConfirm={handlePublishConfirm}
+                isPending={updateApplet.isPending}
+                versionNumber={activeVersionIndex + 1}
+            />
         </div>
     );
 }
