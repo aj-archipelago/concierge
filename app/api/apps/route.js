@@ -15,7 +15,7 @@ export async function GET() {
     } catch (error) {
         console.error("Error fetching apps:", error);
         return Response.json(
-            { error: "Failed to fetch apps" },
+            { error: "Failed to fetch apps: " + error.message },
             { status: 500 },
         );
     }

@@ -63,6 +63,7 @@ if (mongoose.models) {
     appSchema.index({ type: 1 });
     appSchema.index({ workspaceId: 1 });
     appSchema.index({ status: 1 });
+    appSchema.index({ name: 1 });
 }
 
 // Create the App model from the schema

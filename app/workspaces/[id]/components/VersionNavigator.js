@@ -244,9 +244,7 @@ export default function VersionNavigator({
                             <>
                                 <button
                                     className="px-3 py-1.5 rounded-full text-xs font-bold bg-gradient-to-r from-emerald-500 to-emerald-600 text-white shadow-md hover:from-emerald-600 hover:to-emerald-700 transition focus:ring-2 focus:ring-emerald-200 focus:outline-none whitespace-nowrap"
-                                    onClick={() =>
-                                        onPublishVersion(activeVersionIndex)
-                                    }
+                                    onClick={handlePublishClick}
                                     disabled={updateApplet.isPending}
                                     type="button"
                                 >

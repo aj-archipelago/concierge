@@ -395,78 +395,80 @@ export default function AppsPage() {
                             </div>
 
                             {/* User-Created Apps Section */}
-                            <div className="mb-6">
-                                <h3 className="text-md font-medium text-gray-800 mb-3">
-                                    {t("User-Created Apps")}
-                                </h3>
-                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                                    {appletApps.map((app) => {
-                                        const isInstalled = isAppInstalled(
-                                            app._id,
-                                        );
-                                        const IconComponent = app.icon
-                                            ? Icons[app.icon] || AppWindow
-                                            : AppWindow;
-                                        return (
-                                            <div
-                                                key={app._id}
-                                                className="p-4 border border-gray-200 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors"
-                                            >
-                                                <div className="flex items-start justify-between gap-2">
-                                                    <div className="flex items-start gap-3 flex-1">
-                                                        <div className="flex items-center justify-center w-10 h-10 bg-white border border-gray-200 rounded-lg flex-shrink-0">
-                                                            <IconComponent className="w-5 h-5 text-gray-600" />
+                            {appletApps.length > 0 && (
+                                <div className="mb-6">
+                                    <h3 className="text-md font-medium text-gray-800 mb-3">
+                                        {t("User-Created Apps")}
+                                    </h3>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                        {appletApps.map((app) => {
+                                            const isInstalled = isAppInstalled(
+                                                app._id,
+                                            );
+                                            const IconComponent = app.icon
+                                                ? Icons[app.icon] || AppWindow
+                                                : AppWindow;
+                                            return (
+                                                <div
+                                                    key={app._id}
+                                                    className="p-4 border border-gray-200 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors"
+                                                >
+                                                    <div className="flex items-start justify-between gap-2">
+                                                        <div className="flex items-start gap-3 flex-1">
+                                                            <div className="flex items-center justify-center w-10 h-10 bg-white border border-gray-200 rounded-lg flex-shrink-0">
+                                                                <IconComponent className="w-5 h-5 text-gray-600" />
+                                                            </div>
+                                                            <div className="flex-1">
+                                                                <h3 className="font-medium text-gray-900">
+                                                                    {app.name}
+                                                                </h3>
+                                                                {app.author && (
+                                                                    <p className="text-sm text-gray-500 mt-1">
+                                                                        by{" "}
+                                                                        {
+                                                                            app
+                                                                                .author
+                                                                                .username
+                                                                        }
+                                                                    </p>
+                                                                )}
+                                                                {app.updatedAt && (
+                                                                    <p className="text-xs text-gray-400 mt-1">
+                                                                        Updated{" "}
+                                                                        {new Date(
+                                                                            app.updatedAt,
+                                                                        ).toLocaleString()}
+                                                                    </p>
+                                                                )}
+                                                            </div>
                                                         </div>
-                                                        <div className="flex-1">
-                                                            <h3 className="font-medium text-gray-900">
-                                                                {app.name}
-                                                            </h3>
-                                                            {app.author && (
-                                                                <p className="text-sm text-gray-500 mt-1">
-                                                                    by{" "}
-                                                                    {
-                                                                        app
-                                                                            .author
-                                                                            .username
-                                                                    }
-                                                                </p>
-                                                            )}
-                                                            {app.updatedAt && (
-                                                                <p className="text-xs text-gray-400 mt-1">
-                                                                    Updated{" "}
-                                                                    {new Date(
-                                                                        app.updatedAt,
-                                                                    ).toLocaleString()}
-                                                                </p>
-                                                            )}
-                                                        </div>
+                                                        <button
+                                                            onClick={() =>
+                                                                isInstalled
+                                                                    ? handleRemoveApp(
+                                                                          app._id,
+                                                                      )
+                                                                    : handleAddApp(
+                                                                          app._id,
+                                                                      )
+                                                            }
+                                                            className={`px-2 py-1 text-xs rounded-full border transition-colors ${
+                                                                isInstalled
+                                                                    ? "border-red-300 text-red-600 hover:bg-red-50"
+                                                                    : "border-sky-300 text-sky-600 hover:bg-sky-50"
+                                                            }`}
+                                                        >
+                                                            {isInstalled
+                                                                ? "Remove"
+                                                                : "Add"}
+                                                        </button>
                                                     </div>
-                                                    <button
-                                                        onClick={() =>
-                                                            isInstalled
-                                                                ? handleRemoveApp(
-                                                                      app._id,
-                                                                  )
-                                                                : handleAddApp(
-                                                                      app._id,
-                                                                  )
-                                                        }
-                                                        className={`px-2 py-1 text-xs rounded-full border transition-colors ${
-                                                            isInstalled
-                                                                ? "border-red-300 text-red-600 hover:bg-red-50"
-                                                                : "border-sky-300 text-sky-600 hover:bg-sky-50"
-                                                        }`}
-                                                    >
-                                                        {isInstalled
-                                                            ? "Remove"
-                                                            : "Add"}
-                                                    </button>
                                                 </div>
-                                            </div>
-                                        );
-                                    })}
+                                            );
+                                        })}
+                                    </div>
                                 </div>
-                            </div>
+                            )}
                         </div>
                     </div>
                 </div>

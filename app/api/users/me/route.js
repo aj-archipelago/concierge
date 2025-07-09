@@ -51,7 +51,7 @@ async function initializeUserApps(user) {
         "video",
         "write",
         "workspaces",
-        "images",
+        "media",
         "jira",
     ];
 
