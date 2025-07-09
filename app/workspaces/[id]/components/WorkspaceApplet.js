@@ -12,15 +12,17 @@ import {
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { useParams } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useContext } from "react";
 import { RiSendPlane2Fill } from "react-icons/ri";
 import TextareaAutosize from "react-textarea-autosize";
 import { useSubscription } from "@apollo/client";
 import { SUBSCRIPTIONS } from "../../../../src/graphql";
+import { AuthContext } from "../../../../src/App";
 import {
     useUpdateWorkspaceApplet,
     useWorkspaceApplet,
     useWorkspaceChat,
+    useWorkspace,
 } from "../../../queries/workspaces";
 import ChatInterface from "./ChatInterface";
 import PreviewTabs from "./PreviewTabs";
@@ -33,6 +35,8 @@ import VersionNavigator from "./VersionNavigator";
 
 export default function WorkspaceApplet() {
     const { id } = useParams();
+    const { user } = useContext(AuthContext);
+    const { data: workspace } = useWorkspace(id);
     const selectedLLM = "o3mini"; // This will be the default model
     const [messages, setMessages] = useState([]);
     const [inputMessage, setInputMessage] = useState("");
@@ -58,6 +62,9 @@ export default function WorkspaceApplet() {
     const appletQuery = useWorkspaceApplet(id);
     const updateApplet = useUpdateWorkspaceApplet();
     const chatMutation = useWorkspaceChat(id);
+
+    // Check if user is the owner of the workspace
+    const isOwner = user?._id?.toString() === workspace?.owner?.toString();
 
     // Reset continuing flag when version changes
     useEffect(() => {
@@ -402,7 +409,7 @@ export default function WorkspaceApplet() {
     });
 
     const handleSendMessage = async () => {
-        if (!inputMessage.trim() || !selectedLLM) return;
+        if (!inputMessage.trim() || !selectedLLM || !isOwner) return;
 
         let truncatedAllMessages = allMessagesRef.current;
         let truncatedHtmlVersions = htmlVersions;
@@ -463,6 +470,7 @@ export default function WorkspaceApplet() {
     };
 
     const handlePublishVersion = (versionIdx) => {
+        if (!isOwner) return;
         updateApplet.mutate(
             { id, data: { publishedVersionIndex: versionIdx } },
             { onSuccess: () => setPublishedVersionIndex(versionIdx) },
@@ -470,6 +478,7 @@ export default function WorkspaceApplet() {
     };
 
     const handleUnpublish = () => {
+        if (!isOwner) return;
         updateApplet.mutate(
             { id, data: { publishedVersionIndex: null } },
             { onSuccess: () => setPublishedVersionIndex(null) },
@@ -477,12 +486,14 @@ export default function WorkspaceApplet() {
     };
 
     const handleClearChat = () => {
+        if (!isOwner) return;
         allMessagesRef.current = [];
         setMessages([]);
         updateApplet.mutate({ id, data: { messages: [] } });
     };
 
     const handleHtmlChange = (value, versionIndex) => {
+        if (!isOwner) return;
         const newVersions = [...htmlVersions];
         newVersions[versionIndex] = value;
         setHtmlVersions(newVersions);
@@ -497,6 +508,7 @@ export default function WorkspaceApplet() {
     };
 
     const handleContinueFromOldVersion = () => {
+        if (!isOwner) return;
         setIsContinuingFromOldVersion(true);
     };
 
@@ -505,6 +517,7 @@ export default function WorkspaceApplet() {
     };
 
     const handleReplayMessage = (messageIndex) => {
+        if (!isOwner) return;
         // Get all messages up to and including the selected message
         const messageToReplay = allMessagesRef.current[messageIndex];
         const content = messageToReplay.content;
@@ -537,6 +550,17 @@ export default function WorkspaceApplet() {
     return (
         <TooltipProvider>
             <div className="flex flex-col h-full overflow-auto">
+                {!isOwner && (
+                    <div className="bg-blue-50 border-b border-blue-200 px-4 py-2">
+                        <div className="flex items-center gap-2 text-blue-800 text-sm">
+                            <span className="text-blue-600">👁️</span>
+                            <span>
+                                Read-only mode - Only the workspace owner can
+                                make changes
+                            </span>
+                        </div>
+                    </div>
+                )}
                 <div className="flex justify-between gap-4 h-full overflow-auto bg-gray-100 p-4">
                     {htmlVersions.length > 0 && (
                         <div className="flex flex-col grow overflow-auto">
@@ -553,12 +577,14 @@ export default function WorkspaceApplet() {
                                 onUnpublish={handleUnpublish}
                                 updateApplet={updateApplet}
                                 workspaceId={id}
+                                isOwner={isOwner}
                             />
                             <PreviewTabs
                                 htmlVersions={htmlVersions}
                                 activeVersionIndex={activeVersionIndex}
                                 onHtmlChange={handleHtmlChange}
                                 isStreaming={isStreaming}
+                                isOwner={isOwner}
                             />
                         </div>
                     )}
@@ -571,7 +597,7 @@ export default function WorkspaceApplet() {
                     >
                         {/* Remove model selector and keep only Clear button */}
                         <div className="mb-4 flex items-center justify-end gap-4">
-                            {messages && messages.length > 0 && (
+                            {messages && messages.length > 0 && isOwner && (
                                 <button
                                     className={cn(
                                         "lb-outline-secondary lb-sm",
@@ -594,7 +620,7 @@ export default function WorkspaceApplet() {
                                     "relative flex-1 grow overflow-hidden",
                                 )}
                             >
-                                {blockOldVersionChat && (
+                                {blockOldVersionChat && isOwner && (
                                     <>
                                         <div className="absolute inset-0 bg-white/80 backdrop-blur-sm flex items-center justify-center z-10">
                                             <button
@@ -681,11 +707,13 @@ export default function WorkspaceApplet() {
                                         onReplayMessage={handleReplayMessage}
                                         streamingContent={streamingContent}
                                         isStreaming={isStreaming}
+                                        isOwner={isOwner}
                                     />
                                 </div>
                             </div>
                         ) : (
-                            selectedLLM && (
+                            selectedLLM &&
+                            isOwner && (
                                 <div className="rounded-md border dark:border-zinc-200 mt-3">
                                     <form
                                         className="flex items-center rounded-md dark:bg-zinc-100"

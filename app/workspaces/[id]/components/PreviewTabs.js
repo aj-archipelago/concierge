@@ -3,7 +3,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import OutputSandbox from "@/src/components/sandbox/OutputSandbox";
 import MonacoEditor from "@monaco-editor/react";
 
-function HtmlEditor({ value, onChange }) {
+function HtmlEditor({ value, onChange, options }) {
     return (
         <MonacoEditor
             height="100%"
@@ -13,6 +13,7 @@ function HtmlEditor({ value, onChange }) {
             options={{
                 fontSize: 12,
                 fontWeight: "normal",
+                ...options,
             }}
             value={value}
             onChange={onChange}
@@ -54,6 +55,7 @@ export default function PreviewTabs({
     activeVersionIndex,
     onHtmlChange,
     isStreaming = false,
+    isOwner = true,
 }) {
     if (!htmlVersions.length) return null;
 
@@ -85,8 +87,18 @@ export default function PreviewTabs({
                         <TabsContent value="code" className="h-full m-0">
                             <HtmlEditor
                                 value={htmlVersions[activeVersionIndex]}
-                                onChange={(value) => {
-                                    onHtmlChange(value, activeVersionIndex);
+                                onChange={
+                                    isOwner
+                                        ? (value) => {
+                                              onHtmlChange(
+                                                  value,
+                                                  activeVersionIndex,
+                                              );
+                                          }
+                                        : undefined
+                                }
+                                options={{
+                                    readOnly: !isOwner,
                                 }}
                             />
                         </TabsContent>

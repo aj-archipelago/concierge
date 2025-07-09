@@ -1,17 +1,27 @@
 import { NextResponse } from "next/server";
 import { getClient, QUERIES } from "../../../../../../src/graphql";
 import Workspace from "../../../../models/workspace";
+import { getWorkspace } from "../../db.js";
 
 export async function POST(request, { params }) {
     try {
         const { messages, currentHtml, promptEndpoint, stream } =
             await request.json();
 
-        // Get the workspace and its prompts
-        const workspace = await Workspace.findById(params.id).populate(
+        // Get the workspace and its prompts using getWorkspace
+        const workspace = await getWorkspace(params.id);
+        if (!workspace) {
+            return NextResponse.json(
+                { error: "Workspace not found" },
+                { status: 404 },
+            );
+        }
+
+        // Find the workspace document to access the prompts
+        const workspaceDoc = await Workspace.findById(workspace._id).populate(
             "prompts",
         );
-        if (!workspace) {
+        if (!workspaceDoc) {
             return NextResponse.json(
                 { error: "Workspace not found" },
                 { status: 404 },
@@ -27,7 +37,7 @@ export async function POST(request, { params }) {
             .join("\n");
 
         const promptDetails = JSON.stringify(
-            workspace.prompts.map((prompt) => ({
+            workspaceDoc.prompts.map((prompt) => ({
                 title: prompt.title,
                 text: prompt.text,
                 id: prompt._id,
@@ -95,7 +105,7 @@ export async function POST(request, { params }) {
     } catch (error) {
         console.error(
             "Error in chat endpoint:",
-            error.networkError.result.errors,
+            error.networkError?.result?.errors || error,
         );
         return NextResponse.json(
             { error: "Failed to process chat message" },

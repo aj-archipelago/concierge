@@ -86,10 +86,12 @@ export default function VersionNavigator({
     onUnpublish,
     updateApplet,
     workspaceId,
+    isOwner = true,
 }) {
     const { direction } = useContext(LanguageContext);
 
     const handleDuplicateVersion = () => {
+        if (!isOwner) return;
         setHtmlVersions((prev) => {
             const newVersions = [...prev];
             const currentVersion = newVersions[activeVersionIndex];
@@ -109,6 +111,7 @@ export default function VersionNavigator({
     };
 
     const handleDeleteVersion = () => {
+        if (!isOwner) return;
         if (window.confirm("Are you sure you want to delete this version?")) {
             setHtmlVersions((prev) => {
                 const newVersions = prev.filter(
@@ -193,14 +196,16 @@ export default function VersionNavigator({
                                     Published
                                 </span>
                                 <CopyPublishedLinkButton />
-                                <button
-                                    className=" px-3 py-1 rounded-full text-xs font-bold border border-red-300 text-red-600 bg-white hover:bg-red-50 hover:border-red-400 transition focus:ring-2 focus:ring-red-200 focus:outline-none shadow-sm"
-                                    onClick={onUnpublish}
-                                    disabled={updateApplet.isPending}
-                                    type="button"
-                                >
-                                    Unpublish
-                                </button>
+                                {isOwner && (
+                                    <button
+                                        className=" px-3 py-1 rounded-full text-xs font-bold border border-red-300 text-red-600 bg-white hover:bg-red-50 hover:border-red-400 transition focus:ring-2 focus:ring-red-200 focus:outline-none shadow-sm"
+                                        onClick={onUnpublish}
+                                        disabled={updateApplet.isPending}
+                                        type="button"
+                                    >
+                                        Unpublish
+                                    </button>
+                                )}
                             </>
                         ) : (
                             <button
@@ -214,35 +219,36 @@ export default function VersionNavigator({
                                 Published: v{publishedVersionIndex + 1}
                             </button>
                         ))}
-                    {activeVersionIndex !== publishedVersionIndex && (
-                        <>
-                            <button
-                                className="px-3 py-1.5 rounded-full text-xs font-bold bg-gradient-to-r from-emerald-500 to-emerald-600 text-white shadow-md hover:from-emerald-600 hover:to-emerald-700 transition focus:ring-2 focus:ring-emerald-200 focus:outline-none whitespace-nowrap"
-                                onClick={() =>
-                                    onPublishVersion(activeVersionIndex)
-                                }
-                                disabled={updateApplet.isPending}
-                                type="button"
-                            >
-                                {publishedVersionIndex === null
-                                    ? "Publish"
-                                    : "Publish this version"}
-                            </button>
-                            <button
-                                className="px-3 py-1 rounded-full text-xs font-bold border lb-outline-secondary bg-white"
-                                onClick={handleDuplicateVersion}
-                                title="Duplicate this version"
-                            >
-                                <CopyIcon className="w-4 h-4" />
-                            </button>
-                            <button
-                                className="px-3 py-1 rounded-full text-xs font-bold border lb-outline-secondary bg-white"
-                                onClick={handleDeleteVersion}
-                            >
-                                <TrashIcon className="w-4 h-4" />
-                            </button>
-                        </>
-                    )}
+                    {activeVersionIndex !== publishedVersionIndex &&
+                        isOwner && (
+                            <>
+                                <button
+                                    className="px-3 py-1.5 rounded-full text-xs font-bold bg-gradient-to-r from-emerald-500 to-emerald-600 text-white shadow-md hover:from-emerald-600 hover:to-emerald-700 transition focus:ring-2 focus:ring-emerald-200 focus:outline-none whitespace-nowrap"
+                                    onClick={() =>
+                                        onPublishVersion(activeVersionIndex)
+                                    }
+                                    disabled={updateApplet.isPending}
+                                    type="button"
+                                >
+                                    {publishedVersionIndex === null
+                                        ? "Publish"
+                                        : "Publish this version"}
+                                </button>
+                                <button
+                                    className="px-3 py-1 rounded-full text-xs font-bold border lb-outline-secondary bg-white"
+                                    onClick={handleDuplicateVersion}
+                                    title="Duplicate this version"
+                                >
+                                    <CopyIcon className="w-4 h-4" />
+                                </button>
+                                <button
+                                    className="px-3 py-1 rounded-full text-xs font-bold border lb-outline-secondary bg-white"
+                                    onClick={handleDeleteVersion}
+                                >
+                                    <TrashIcon className="w-4 h-4" />
+                                </button>
+                            </>
+                        )}
                 </div>
             </div>
         </div>

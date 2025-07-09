@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { connectToDatabase } from "@/src/db.mjs";
 import Workspace from "@/app/api/models/workspace";
 import Applet from "@/app/api/models/applet";
+import { getWorkspace } from "../db.js";
 
 // GET: fetch or create applet (already implemented)
 export async function GET(request, { params }) {
@@ -9,20 +10,32 @@ export async function GET(request, { params }) {
     const { id } = params;
 
     try {
-        let workspace = await Workspace.findById(id).populate("applet");
-        if (!workspace.applet) {
+        const workspace = await getWorkspace(id);
+        if (!workspace) {
+            return NextResponse.json(
+                { error: "Workspace not found" },
+                { status: 404 },
+            );
+        }
+
+        // Find the workspace document to access the applet reference
+        const workspaceDoc = await Workspace.findById(workspace._id).populate(
+            "applet",
+        );
+
+        if (!workspaceDoc.applet) {
             const newApplet = await Applet.create({
-                owner: workspace.owner,
+                owner: workspaceDoc.owner,
                 html: "",
                 messages: [],
                 suggestions: [],
-                name: `${workspace.name} Applet`,
+                name: `${workspaceDoc.name} Applet`,
             });
-            workspace.applet = newApplet._id;
-            await workspace.save();
-            workspace = await Workspace.findById(id).populate("applet");
+            workspaceDoc.applet = newApplet._id;
+            await workspaceDoc.save();
+            await workspaceDoc.populate("applet");
         }
-        return NextResponse.json(workspace.applet);
+        return NextResponse.json(workspaceDoc.applet);
     } catch (error) {
         console.error(error);
         return NextResponse.json(
@@ -39,10 +52,19 @@ export async function PUT(request, { params }) {
     const body = await request.json();
 
     try {
-        const workspace = await Workspace.findById(id);
+        const workspace = await getWorkspace(id);
         if (!workspace) {
             return NextResponse.json(
                 { error: "Workspace not found" },
+                { status: 404 },
+            );
+        }
+
+        // Find the workspace document to access the applet reference
+        const workspaceDoc = await Workspace.findById(workspace._id);
+        if (!workspaceDoc.applet) {
+            return NextResponse.json(
+                { error: "Applet not found" },
                 { status: 404 },
             );
         }
@@ -98,7 +120,7 @@ export async function PUT(request, { params }) {
 
         // Use findOneAndUpdate with atomic operations
         const updatedApplet = await Applet.findOneAndUpdate(
-            { _id: workspace.applet },
+            { _id: workspaceDoc.applet },
             updateObj,
             {
                 new: true,

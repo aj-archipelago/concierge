@@ -87,6 +87,7 @@ export default function ChatInterface({
     onReplayMessage,
     streamingContent,
     isStreaming,
+    isOwner = true,
 }) {
     const messagesEndRef = useRef(null);
 
@@ -100,12 +101,16 @@ export default function ChatInterface({
 
     const handleSubmit = (e) => {
         e.preventDefault();
-        onSendMessage();
+        if (isOwner) {
+            onSendMessage();
+        }
     };
 
     const placeholder =
         (messages && messages.length > 0) || htmlVersions.length > 0
-            ? "Type your message here..."
+            ? isOwner
+                ? "Type your message here..."
+                : "Read-only mode"
             : "Describe your desired UI in natural language...";
 
     return (
@@ -133,7 +138,7 @@ export default function ChatInterface({
                                         ? "You"
                                         : "Assistant"}
                                 </div>
-                                {message.role === "user" && (
+                                {message.role === "user" && isOwner && (
                                     <button
                                         onClick={(e) => {
                                             e.stopPropagation();
@@ -225,7 +230,7 @@ export default function ChatInterface({
                             <TextareaAutosize
                                 className={cn(
                                     "w-full border-0 outline-none focus:shadow-none text-sm focus:ring-0 py-3 resize-none dark:bg-zinc-100 px-3 rounded-s max-h-24 overflow-y-auto",
-                                    blockOldVersionChat &&
+                                    (blockOldVersionChat || !isOwner) &&
                                         "opacity-50 cursor-not-allowed",
                                 )}
                                 rows={1}
@@ -237,7 +242,9 @@ export default function ChatInterface({
                                 onKeyDown={(e) => {
                                     if (e.key === "Enter" && !e.shiftKey) {
                                         e.preventDefault();
-                                        onSendMessage();
+                                        if (isOwner) {
+                                            onSendMessage();
+                                        }
                                     }
                                 }}
                                 autoComplete="on"
@@ -248,7 +255,8 @@ export default function ChatInterface({
                                 disabled={
                                     isLoading ||
                                     isStreaming ||
-                                    blockOldVersionChat
+                                    blockOldVersionChat ||
+                                    !isOwner
                                 }
                             />
                         </div>
@@ -261,7 +269,8 @@ export default function ChatInterface({
                                     !inputMessage.trim() ||
                                     isLoading ||
                                     isStreaming ||
-                                    blockOldVersionChat
+                                    blockOldVersionChat ||
+                                    !isOwner
                                 }
                                 className="text-base rtl:rotate-180 text-emerald-500 hover:text-emerald-600 disabled:text-gray-300 active:text-gray-800 dark:bg-zinc-100 flex items-center justify-center"
                             >
