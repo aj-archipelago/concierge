@@ -23,8 +23,6 @@ export async function GET(request, { params }) {
 
         const logs = await taskQueue.getJobLogs(id);
 
-        console.log("job.name", job.name);
-
         const jobName = job.name === "task" ? job.data.type : job.name;
 
         // You can customize which job properties to return

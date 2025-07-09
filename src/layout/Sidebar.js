@@ -160,7 +160,7 @@ export default React.forwardRef(function Sidebar(
             .map((userApp) => {
                 const app = userApp.appId; // This is now populated with app details
 
-                if (!app || !app.slug) {
+                if (!app) {
                     return null;
                 }
 
