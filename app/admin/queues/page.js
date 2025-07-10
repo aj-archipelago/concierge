@@ -50,13 +50,11 @@ import {
     Search,
     User,
     XCircle,
-    Type,
     Hash as HashIcon,
     FileCode,
     BarChart3,
 } from "lucide-react";
 import { useEffect, useState } from "react";
-import { toast } from "react-toastify";
 import { Progress } from "../../../@/components/ui/progress";
 import stringcase from "stringcase";
 
@@ -67,17 +65,6 @@ async function fetchQueueStats(queueName, page, pageSize, status, search) {
         `/api/queues?queue=${queueName}&page=${page}&pageSize=${pageSize}&status=${status}&search=${search}`,
     );
     if (!response.ok) throw new Error("Failed to fetch queue stats");
-    return response.json();
-}
-
-async function performQueueAction(queueName, action, params = {}) {
-    const searchParams = new URLSearchParams({
-        queue: queueName,
-        action,
-        ...params,
-    });
-    const response = await fetch(`/api/queues?${searchParams}`);
-    if (!response.ok) throw new Error("Failed to perform action");
     return response.json();
 }
 
@@ -310,7 +297,7 @@ export default function QueuesPage() {
     const [status, setStatus] = useState("all");
     const [search, setSearch] = useState("");
 
-    const { data: queueStats, refetch } = useQuery({
+    const { data: queueStats } = useQuery({
         queryKey: [
             "queueStats",
             selectedQueue,
@@ -329,16 +316,6 @@ export default function QueuesPage() {
             ),
         refetchInterval: 5000,
     });
-
-    const handleAction = async (action, params = {}) => {
-        try {
-            await performQueueAction(selectedQueue, action, params);
-            toast.success("Action completed successfully");
-            refetch();
-        } catch (error) {
-            toast.error(error.message);
-        }
-    };
 
     useEffect(() => {
         setCurrentPage(1);

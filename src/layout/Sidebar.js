@@ -1,9 +1,4 @@
-import {
-    ChatBubbleLeftIcon,
-    CodeBracketIcon,
-    HomeIcon,
-    PlusIcon,
-} from "@heroicons/react/24/outline";
+import { PlusIcon } from "@heroicons/react/24/outline";
 import {
     HelpCircle,
     PinIcon,
@@ -278,8 +273,8 @@ export default React.forwardRef(function Sidebar(
                 <Link className="flex items-center gap-2" href="/">
                     <img
                         className={cn(
-                            "w-auto",
-                            isCollapsed ? "group-hover:h-12" : "block h-12",
+                            "w-auto object-contain",
+                            isCollapsed ? "max-h-12 group-hover:h-12" : "h-12",
                         )}
                         src={getLogo(language)}
                         alt="Your Company"
