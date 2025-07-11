@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState, forwardRef } from "react";
 import { createPortal } from "react-dom";
 import { convertMessageToMarkdown } from "../chat/ChatMessage";
 
-const OutputSandbox = forwardRef(({ content, height = "300px" }, ref) => {
+const OutputSandbox = forwardRef(({ content, height = "300px", theme = "light" }, ref) => {
     const iframeRef = useRef(null);
     const [isLoading, setIsLoading] = useState(true);
     const resizeObserverRef = useRef(null);
@@ -167,10 +167,10 @@ const OutputSandbox = forwardRef(({ content, height = "300px" }, ref) => {
                 const base = document.createElement("base");
                 base.href = window.location.origin;
 
-                // Create proper HTML structure
+                // Create proper HTML structure with theme information
                 const html = `
                     <!DOCTYPE html>
-                    <html>
+                    <html data-theme="${theme}">
                         <head>
                             <meta charset="utf-8">
                             <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -181,7 +181,36 @@ const OutputSandbox = forwardRef(({ content, height = "300px" }, ref) => {
                                 }
                                 /* Ensure images don't overflow */
                                 img { max-width: 100%; height: auto; }
+                                
+                                /* Theme-aware styles for applets */
+                                html[data-theme="dark"] {
+                                    color-scheme: dark;
+                                }
+                                html[data-theme="light"] {
+                                    color-scheme: light;
+                                }
+                                
+                                /* CSS custom property for applets to use */
+                                :root {
+                                    --prefers-color-scheme: ${theme};
+                                }
                             </style>
+                            <script>
+                                // Make theme available to applets via JavaScript
+                                window.LABEEB_THEME = "${theme}";
+                                window.LABEEB_PREFERS_COLOR_SCHEME = "${theme}";
+                                
+                                // Listen for theme changes from parent
+                                window.addEventListener('message', function(event) {
+                                    if (event.data && event.data.type === 'theme-change') {
+                                        const newTheme = event.data.theme;
+                                        document.documentElement.setAttribute('data-theme', newTheme);
+                                        document.documentElement.style.setProperty('--prefers-color-scheme', newTheme);
+                                        window.LABEEB_THEME = newTheme;
+                                        window.LABEEB_PREFERS_COLOR_SCHEME = newTheme;
+                                    }
+                                });
+                            </script>
                         </head>
                         <body>${content}</body>
                     </html>
@@ -351,7 +380,24 @@ const OutputSandbox = forwardRef(({ content, height = "300px" }, ref) => {
                 iframe.contentWindow.removeEventListener("message", () => {});
             }
         };
-    }, [content]);
+    }, [content, theme]);
+
+    // Send theme change messages to iframe when theme changes
+    useEffect(() => {
+        if (iframeRef.current && iframeRef.current.contentWindow) {
+            try {
+                iframeRef.current.contentWindow.postMessage(
+                    {
+                        type: 'theme-change',
+                        theme: theme
+                    },
+                    window.location.origin
+                );
+            } catch (error) {
+                console.warn('Could not send theme change message to iframe:', error);
+            }
+        }
+    }, [theme]);
 
     return (
         <div className="relative">

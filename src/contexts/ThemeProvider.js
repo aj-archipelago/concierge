@@ -19,6 +19,14 @@ export function ThemeProvider({ children, savedTheme = "light" }) {
         } else {
             document.body.classList.remove("dark");
         }
+
+        // Set CSS custom property for applets to detect color scheme
+        // This allows applets to use CSS like: @media (prefers-color-scheme: dark) { ... }
+        // by checking the --prefers-color-scheme property
+        document.documentElement.style.setProperty(
+            "--prefers-color-scheme", 
+            theme === "dark" ? "dark" : "light"
+        );
     }, [theme]);
 
     if (typeof document === "undefined") {

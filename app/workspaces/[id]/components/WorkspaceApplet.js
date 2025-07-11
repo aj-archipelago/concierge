@@ -12,7 +12,7 @@ import {
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { useParams } from "next/navigation";
-import { useEffect, useRef, useState, useContext } from "react";
+import { useEffect, useRef, useState, useContext, useCallback } from "react";
 import { RiSendPlane2Fill } from "react-icons/ri";
 import TextareaAutosize from "react-textarea-autosize";
 import { useSubscription } from "@apollo/client";
@@ -50,6 +50,7 @@ export default function WorkspaceApplet() {
     const [showContinueConfirm, setShowContinueConfirm] = useState(false);
     const [isContinuingFromOldVersion, setIsContinuingFromOldVersion] =
         useState(false);
+    const [showCreatingDialog, setShowCreatingDialog] = useState(false);
 
     // Streaming state
     const [subscriptionId, setSubscriptionId] = useState(null);
@@ -126,7 +127,19 @@ export default function WorkspaceApplet() {
         setIsStreaming(false);
         messageQueueRef.current = [];
         processingRef.current = false;
-        hasStreamingVersionRef.current = false; // Reset streaming version flag
+        setShowCreatingDialog(false); // Hide the creating dialog
+
+        // If we had a streaming version, remove it and fix the active index
+        if (hasStreamingVersionRef.current) {
+            setHtmlVersions((prev) => {
+                const newVersions = prev.slice(0, -1); // Remove the last (streaming) version
+                return newVersions;
+            });
+            hasStreamingVersionRef.current = false;
+        }
+
+        // Validate and fix version state after clearing streaming
+        setTimeout(() => validateVersionState(), 0);
     };
 
     // Helper function to update HTML versions during streaming
@@ -138,30 +151,52 @@ export default function WorkspaceApplet() {
             if (!hasStreamingVersionRef.current) {
                 // Create a temporary streaming version for the first time
                 newVersions.push(htmlContent);
-                setActiveVersionIndex(newVersions.length - 1);
+                const newActiveIndex = newVersions.length - 1;
+                setActiveVersionIndex(newActiveIndex);
                 hasStreamingVersionRef.current = true;
+
+                // Show the "Creating applet..." dialog when we first detect HTML content
+                setShowCreatingDialog(true);
             } else {
                 // Update the existing temporary streaming version
                 newVersions[newVersions.length - 1] = htmlContent;
             }
         } else {
-            // For non-streaming updates, use the current logic
-            const currentVersionIndex =
-                activeVersionIndex >= 0 ? activeVersionIndex : 0;
-
-            if (newVersions.length <= currentVersionIndex) {
-                newVersions.push(htmlContent);
-            } else {
-                newVersions[currentVersionIndex] = htmlContent;
-            }
-
-            if (activeVersionIndex === -1) {
-                setActiveVersionIndex(0);
-            }
+            // For non-streaming updates, always create a new version
+            // This ensures we don't replace existing versions
+            newVersions.push(htmlContent);
+            const newActiveIndex = newVersions.length - 1;
+            setActiveVersionIndex(newActiveIndex);
         }
 
         setHtmlVersions(newVersions);
     };
+
+    // Helper function to validate and fix version state
+    const validateVersionState = useCallback(() => {
+        if (htmlVersions.length === 0) {
+            // No versions exist, reset active index
+            setActiveVersionIndex(-1);
+            return;
+        }
+
+        const maxValidIndex = htmlVersions.length - 1;
+        if (activeVersionIndex > maxValidIndex) {
+            // Active index is out of bounds, fix it
+            console.warn(
+                `Fixing invalid activeVersionIndex: ${activeVersionIndex} > ${maxValidIndex}`,
+            );
+            setActiveVersionIndex(maxValidIndex);
+        } else if (activeVersionIndex < 0 && htmlVersions.length > 0) {
+            // Active index is -1 but we have versions, set to latest
+            setActiveVersionIndex(maxValidIndex);
+        }
+    }, [htmlVersions.length, activeVersionIndex]);
+
+    // Validate version state whenever htmlVersions changes
+    useEffect(() => {
+        validateVersionState();
+    }, [htmlVersions.length, validateVersionState, activeVersionIndex]);
 
     // Process message queue for streaming
     const processMessageQueue = async () => {
@@ -172,7 +207,7 @@ export default function WorkspaceApplet() {
         const message = messageQueueRef.current.shift();
 
         try {
-            const { progress, result, info } = message;
+            const { progress, result } = message;
 
             if (result) {
                 let content = null;
@@ -299,6 +334,9 @@ export default function WorkspaceApplet() {
     // Process final response from streaming
     const processFinalResponse = async (finalContent, wasStreaming) => {
         try {
+            // Validate version state before processing
+            validateVersionState();
+
             let aiMessage = {
                 content: finalContent,
                 role: "assistant",
@@ -306,6 +344,7 @@ export default function WorkspaceApplet() {
             };
 
             let newVersions = htmlVersions;
+            let finalVersionIndex = newVersions.length - 1; // Default to current versions length
 
             // Clean the content for HTML extraction (remove code blocks)
             const cleanedContent = cleanJsonCodeBlocks(finalContent);
@@ -315,26 +354,20 @@ export default function WorkspaceApplet() {
 
             if (htmlContent && htmlContent.html) {
                 // We have valid HTML content
-                // If we were streaming, we need to replace the temporary streaming version
-                // Otherwise, create a new version after the current active version
-                if (wasStreaming) {
-                    // Replace the last version (temporary streaming version) with the final version
-                    newVersions = [
-                        ...htmlVersions.slice(0, -1),
-                        htmlContent.html,
-                    ];
+                if (wasStreaming && hasStreamingVersionRef.current) {
+                    // Finalize the existing streaming version instead of creating a new one
+                    newVersions[newVersions.length - 1] = htmlContent.html;
+                    setHtmlVersions([...newVersions]); // Trigger re-render
+                    setActiveVersionIndex(newVersions.length - 1);
                 } else {
-                    // Create a new version after the current active version
-                    newVersions = [
-                        ...htmlVersions.slice(0, activeVersionIndex + 1),
-                        htmlContent.html,
-                    ];
+                    // Create a new version for non-streaming responses
+                    newVersions = [...htmlVersions, htmlContent.html];
+                    setHtmlVersions(newVersions);
+                    setActiveVersionIndex(newVersions.length - 1);
                 }
-                setHtmlVersions(newVersions);
-                setActiveVersionIndex(newVersions.length - 1);
 
                 aiMessage.content = `HTML code generated. Check the preview pane\n\n\n#### Summary of changes:**\n${htmlContent.changes}`;
-                aiMessage.linkToVersion = newVersions.length - 1;
+                aiMessage.linkToVersion = finalVersionIndex;
             } else {
                 // Check if the response contains HTML and changes (legacy format)
                 if (
@@ -343,32 +376,26 @@ export default function WorkspaceApplet() {
                     typeof finalContent.html === "string" &&
                     typeof finalContent.changes === "string"
                 ) {
-                    // If we were streaming, we need to replace the temporary streaming version
-                    // Otherwise, create a new version after the current active version
-                    if (wasStreaming) {
-                        // Replace the last version (temporary streaming version) with the final version
-                        newVersions = [
-                            ...htmlVersions.slice(0, -1),
-                            finalContent.html,
-                        ];
+                    if (wasStreaming && hasStreamingVersionRef.current) {
+                        // Finalize the existing streaming version instead of creating a new one
+                        newVersions[newVersions.length - 1] = finalContent.html;
+                        setHtmlVersions([...newVersions]); // Trigger re-render
+                        setActiveVersionIndex(newVersions.length - 1);
                     } else {
-                        // Create a new version after the current active version
-                        newVersions = [
-                            ...htmlVersions.slice(0, activeVersionIndex + 1),
-                            finalContent.html,
-                        ];
+                        // Create a new version for non-streaming responses
+                        newVersions = [...htmlVersions, finalContent.html];
+                        setHtmlVersions(newVersions);
+                        setActiveVersionIndex(newVersions.length - 1);
                     }
-                    setHtmlVersions(newVersions);
-                    setActiveVersionIndex(newVersions.length - 1);
 
                     aiMessage.content = `HTML code generated. Check the preview pane\n\n\n#### Summary of changes:**\n${finalContent.changes}`;
-                    aiMessage.linkToVersion = newVersions.length - 1;
+                    aiMessage.linkToVersion = finalVersionIndex;
                 } else {
                     aiMessage.content = finalContent;
                     if (finalContent.includes("`")) {
                         aiMessage.content = finalContent.replace(/`/g, "");
                     }
-                    aiMessage.linkToVersion = newVersions.length - 1;
+                    aiMessage.linkToVersion = finalVersionIndex;
                 }
             }
 
@@ -378,8 +405,11 @@ export default function WorkspaceApplet() {
             );
             const finalMessages = [...messagesWithoutStreaming, aiMessage];
 
+            // Update finalVersionIndex based on the actual new versions length
+            finalVersionIndex = newVersions.length - 1;
+
             setMessages(
-                getMessagesUpToVersion(finalMessages, newVersions.length - 1),
+                getMessagesUpToVersion(finalMessages, finalVersionIndex),
             );
             setIsContinuingFromOldVersion(false);
 
@@ -432,9 +462,13 @@ export default function WorkspaceApplet() {
         },
         onError: (error) => {
             // Handle subscription error silently
+            console.error("Subscription error:", error);
+            clearStreamingState();
+            setIsLoading(false);
         },
         onComplete: () => {
             // Handle subscription completion silently
+            // Don't clear streaming state here as it might be handled in processMessageQueue
         },
     });
 
@@ -697,6 +731,7 @@ export default function WorkspaceApplet() {
                                 hasStreamingVersion={
                                     hasStreamingVersionRef.current
                                 }
+                                showCreatingDialog={showCreatingDialog}
                             />
                         </div>
                     )}

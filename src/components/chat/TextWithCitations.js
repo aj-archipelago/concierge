@@ -3,11 +3,11 @@ import {
     PopoverContent,
     PopoverTrigger,
 } from "@/components/ui/popover";
-import { useRef, useState } from "react";
+import { useRef, useState, useEffect } from "react";
 import CopyButton from "../CopyButton";
 
 function TextWithCitations({ index, citation }) {
-    const [show, setShow] = useState(false);
+    const [open, setOpen] = useState(false);
     const target = useRef(null);
     const { title, url, content, path, wireid, source, slugline, date } =
         citation;
@@ -23,14 +23,79 @@ function TextWithCitations({ index, citation }) {
         .join(" ")
         .trim();
 
+    // Handle click outside for portal contexts
+    useEffect(() => {
+        if (!open) return;
+
+        const handleClickOutside = (event) => {
+            // Get the popover content element
+            const popoverContent = document.querySelector('[data-radix-popper-content-wrapper]');
+            const trigger = target.current;
+            
+            if (!popoverContent || !trigger) return;
+            
+            // Check if the click target is in a different document context (iframe)
+            const targetDocument = event.target.ownerDocument || event.target.document;
+            const currentDocument = document;
+            
+            // If the click is in a different document, close the popover
+            if (targetDocument !== currentDocument) {
+                setOpen(false);
+                return;
+            }
+            
+            // Check if click is outside the popover content and trigger
+            const isClickInsidePopover = popoverContent.contains(event.target);
+            const isClickOnTrigger = trigger.contains(event.target);
+            
+            if (!isClickInsidePopover && !isClickOnTrigger) {
+                setOpen(false);
+            }
+        };
+
+        // Use capture phase to ensure we catch events before they bubble
+        document.addEventListener('mousedown', handleClickOutside, true);
+        document.addEventListener('touchstart', handleClickOutside, true);
+        
+        // Also listen for clicks in iframes if they exist
+        const iframes = document.querySelectorAll('iframe');
+        iframes.forEach(iframe => {
+            try {
+                if (iframe.contentDocument) {
+                    iframe.contentDocument.addEventListener('mousedown', handleClickOutside, true);
+                    iframe.contentDocument.addEventListener('touchstart', handleClickOutside, true);
+                }
+            } catch (e) {
+                // Cross-origin iframe, can't access contentDocument
+            }
+        });
+
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutside, true);
+            document.removeEventListener('touchstart', handleClickOutside, true);
+            
+            // Clean up iframe listeners
+            iframes.forEach(iframe => {
+                try {
+                    if (iframe.contentDocument) {
+                        iframe.contentDocument.removeEventListener('mousedown', handleClickOutside, true);
+                        iframe.contentDocument.removeEventListener('touchstart', handleClickOutside, true);
+                    }
+                } catch (e) {
+                    // Cross-origin iframe
+                }
+            });
+        };
+    }, [open]);
+
     return (
-        <Popover id="popover-contained">
-            <PopoverTrigger>
+        <Popover open={open} onOpenChange={setOpen}>
+            <PopoverTrigger asChild>
                 <span
                     key={index}
                     ref={target}
-                    onClick={() => setShow(!show)}
-                    className="text-with-citations"
+                    onClick={() => setOpen(!open)}
+                    className="text-with-citations cursor-pointer"
                 >
                     <sup>{index}</sup>
                 </span>

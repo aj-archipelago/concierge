@@ -8,7 +8,7 @@ import {
     CheckIcon,
     CopyIcon,
 } from "lucide-react";
-import { useContext } from "react";
+import { useContext, useEffect } from "react";
 import {
     Tooltip,
     TooltipTrigger,
@@ -91,6 +91,26 @@ export default function VersionNavigator({
 }) {
     const { direction } = useContext(LanguageContext);
     const [showPublishDialog, setShowPublishDialog] = useState(false);
+
+    // Validate and fix activeVersionIndex if it's out of bounds
+    useEffect(() => {
+        if (htmlVersions.length === 0) {
+            if (activeVersionIndex !== -1) {
+                setActiveVersionIndex(-1);
+            }
+            return;
+        }
+
+        const maxValidIndex = htmlVersions.length - 1;
+        if (activeVersionIndex > maxValidIndex) {
+            console.warn(
+                `VersionNavigator: Fixing invalid activeVersionIndex: ${activeVersionIndex} > ${maxValidIndex}`,
+            );
+            setActiveVersionIndex(maxValidIndex);
+        } else if (activeVersionIndex < 0 && htmlVersions.length > 0) {
+            setActiveVersionIndex(maxValidIndex);
+        }
+    }, [activeVersionIndex, htmlVersions.length, setActiveVersionIndex]);
 
     const handleDuplicateVersion = () => {
         if (!isOwner) return;
@@ -201,7 +221,12 @@ export default function VersionNavigator({
                     )}
                 </button>
                 <span className="text-sm text-gray-600 whitespace-nowrap">
-                    Version {activeVersionIndex + 1} of {htmlVersions.length}
+                    Version{" "}
+                    {Math.max(
+                        1,
+                        Math.min(activeVersionIndex + 1, htmlVersions.length),
+                    )}{" "}
+                    of {Math.max(1, htmlVersions.length)}
                 </span>
                 <div className="flex items-center gap-2">
                     {publishedVersionIndex !== null &&

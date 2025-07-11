@@ -1,6 +1,5 @@
 import { getCurrentUser } from "../../utils/auth";
 import App, { APP_TYPES, APP_STATUS } from "../../models/app";
-import User from "../../models/user";
 
 export async function GET() {
     const user = await getCurrentUser(false); // Get the mongoose object, not JSON
