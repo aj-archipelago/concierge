@@ -24,8 +24,8 @@ export function ThemeProvider({ children, savedTheme = "light" }) {
         // This allows applets to use CSS like: @media (prefers-color-scheme: dark) { ... }
         // by checking the --prefers-color-scheme property
         document.documentElement.style.setProperty(
-            "--prefers-color-scheme", 
-            theme === "dark" ? "dark" : "light"
+            "--prefers-color-scheme",
+            theme === "dark" ? "dark" : "light",
         );
     }, [theme]);
 

@@ -29,41 +29,52 @@ function TextWithCitations({ index, citation }) {
 
         const handleClickOutside = (event) => {
             // Get the popover content element
-            const popoverContent = document.querySelector('[data-radix-popper-content-wrapper]');
+            const popoverContent = document.querySelector(
+                "[data-radix-popper-content-wrapper]",
+            );
             const trigger = target.current;
-            
+
             if (!popoverContent || !trigger) return;
-            
+
             // Check if the click target is in a different document context (iframe)
-            const targetDocument = event.target.ownerDocument || event.target.document;
+            const targetDocument =
+                event.target.ownerDocument || event.target.document;
             const currentDocument = document;
-            
+
             // If the click is in a different document, close the popover
             if (targetDocument !== currentDocument) {
                 setOpen(false);
                 return;
             }
-            
+
             // Check if click is outside the popover content and trigger
             const isClickInsidePopover = popoverContent.contains(event.target);
             const isClickOnTrigger = trigger.contains(event.target);
-            
+
             if (!isClickInsidePopover && !isClickOnTrigger) {
                 setOpen(false);
             }
         };
 
         // Use capture phase to ensure we catch events before they bubble
-        document.addEventListener('mousedown', handleClickOutside, true);
-        document.addEventListener('touchstart', handleClickOutside, true);
-        
+        document.addEventListener("mousedown", handleClickOutside, true);
+        document.addEventListener("touchstart", handleClickOutside, true);
+
         // Also listen for clicks in iframes if they exist
-        const iframes = document.querySelectorAll('iframe');
-        iframes.forEach(iframe => {
+        const iframes = document.querySelectorAll("iframe");
+        iframes.forEach((iframe) => {
             try {
                 if (iframe.contentDocument) {
-                    iframe.contentDocument.addEventListener('mousedown', handleClickOutside, true);
-                    iframe.contentDocument.addEventListener('touchstart', handleClickOutside, true);
+                    iframe.contentDocument.addEventListener(
+                        "mousedown",
+                        handleClickOutside,
+                        true,
+                    );
+                    iframe.contentDocument.addEventListener(
+                        "touchstart",
+                        handleClickOutside,
+                        true,
+                    );
                 }
             } catch (e) {
                 // Cross-origin iframe, can't access contentDocument
@@ -71,15 +82,27 @@ function TextWithCitations({ index, citation }) {
         });
 
         return () => {
-            document.removeEventListener('mousedown', handleClickOutside, true);
-            document.removeEventListener('touchstart', handleClickOutside, true);
-            
+            document.removeEventListener("mousedown", handleClickOutside, true);
+            document.removeEventListener(
+                "touchstart",
+                handleClickOutside,
+                true,
+            );
+
             // Clean up iframe listeners
-            iframes.forEach(iframe => {
+            iframes.forEach((iframe) => {
                 try {
                     if (iframe.contentDocument) {
-                        iframe.contentDocument.removeEventListener('mousedown', handleClickOutside, true);
-                        iframe.contentDocument.removeEventListener('touchstart', handleClickOutside, true);
+                        iframe.contentDocument.removeEventListener(
+                            "mousedown",
+                            handleClickOutside,
+                            true,
+                        );
+                        iframe.contentDocument.removeEventListener(
+                            "touchstart",
+                            handleClickOutside,
+                            true,
+                        );
                     }
                 } catch (e) {
                     // Cross-origin iframe

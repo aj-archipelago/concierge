@@ -1,9 +1,4 @@
-import {
-    ChatBubbleLeftIcon,
-    CodeBracketIcon,
-    HomeIcon,
-    PlusIcon,
-} from "@heroicons/react/24/outline";
+import { PlusIcon } from "@heroicons/react/24/outline";
 import {
     HelpCircle,
     PinIcon,
