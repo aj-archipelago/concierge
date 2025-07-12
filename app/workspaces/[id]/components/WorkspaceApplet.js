@@ -520,6 +520,22 @@ export default function WorkspaceApplet() {
         appIcon,
     ) => {
         if (!isOwner) return;
+
+        // Validate the version index before publishing
+        if (versionIdx < 0 || versionIdx >= htmlVersions.length) {
+            console.error(
+                `Invalid version index for publishing: ${versionIdx}, available versions: 0-${htmlVersions.length - 1}`,
+            );
+            toast.error(
+                `Cannot publish version ${versionIdx + 1} - it doesn't exist`,
+            );
+            return;
+        }
+
+        console.log(
+            `Publishing version ${versionIdx + 1} (index ${versionIdx}) of ${htmlVersions.length} total versions`,
+        );
+
         updateApplet.mutate(
             {
                 id,

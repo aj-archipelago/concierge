@@ -163,6 +163,21 @@ export default function VersionNavigator({
     };
 
     const handlePublishConfirm = (publishToAppStore, appName, selectedIcon) => {
+        // Validate that we're publishing a valid version
+        if (
+            activeVersionIndex < 0 ||
+            activeVersionIndex >= htmlVersions.length
+        ) {
+            console.error(
+                `Cannot publish invalid version index: ${activeVersionIndex}, available: 0-${htmlVersions.length - 1}`,
+            );
+            return;
+        }
+
+        console.log(
+            `VersionNavigator: Publishing version ${activeVersionIndex + 1} (index ${activeVersionIndex})`,
+        );
+
         onPublishVersion(
             activeVersionIndex,
             publishToAppStore,
