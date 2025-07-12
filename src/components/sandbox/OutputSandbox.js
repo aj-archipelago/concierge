@@ -32,10 +32,50 @@ const OutputSandbox = forwardRef(
                     if (frameDoc.contains(value.container)) {
                         newMap.set(key, value);
                     } else {
-                        console.log("Removing old portal container:", key);
+                        console.log(
+                            "Removing old portal container from state:",
+                            key,
+                        );
                     }
                 });
                 return newMap;
+            });
+        }, []);
+
+        // Function to clear all portal containers (used when iframe is recreated)
+        const clearAllPortals = useCallback(() => {
+            setPortalContainers(new Map());
+        }, []);
+
+        // Function to remove old portal containers from DOM
+        const removeOldPortalContainers = useCallback((frameDoc) => {
+            const oldContainers = frameDoc.querySelectorAll(
+                ".react-portal-container",
+            );
+            oldContainers.forEach((container) => {
+                // Only remove containers that don't have a corresponding processed pre element
+                const portalId = container.dataset.portalId;
+                const correspondingPre = frameDoc.querySelector(
+                    `pre[data-portal-id="${portalId}"]`,
+                );
+
+                if (
+                    !correspondingPre ||
+                    correspondingPre.dataset.processed !== "true"
+                ) {
+                    if (container.parentNode) {
+                        console.log(
+                            "Removing orphaned portal container from DOM:",
+                            portalId,
+                        );
+                        container.remove();
+                    }
+                } else {
+                    console.log(
+                        "Keeping portal container with valid pre element:",
+                        portalId,
+                    );
+                }
             });
         }, []);
 
@@ -47,16 +87,25 @@ const OutputSandbox = forwardRef(
                     return;
                 }
 
-                // Clean up old portal containers first
+                console.log("processPreElements called, frameDoc:", frameDoc);
+
+                // Clean up old portal containers from DOM first
+                removeOldPortalContainers(frameDoc);
+
+                // Clean up old portal containers from state
                 cleanupOldPortals(frameDoc);
 
                 const preElements = frameDoc.querySelectorAll("pre.llm-output");
                 console.log("Found pre elements:", preElements.length);
 
-                preElements.forEach((preElement) => {
+                preElements.forEach((preElement, index) => {
+                    console.log(`Processing pre element ${index}:`, preElement);
+
                     // Check if this element was already processed
                     const wasProcessed =
                         preElement.dataset.processed === "true";
+
+                    let existingContainer = null; // Declare outside the if block
 
                     // If it was processed, check if the content has changed
                     if (wasProcessed) {
@@ -75,14 +124,13 @@ const OutputSandbox = forwardRef(
                         // If content has changed, we need to reprocess
                         console.log("Content changed, reprocessing element");
 
-                        // Find and remove the existing portal container
-                        const existingContainer = frameDoc.querySelector(
+                        // Find the existing portal container but don't remove it yet
+                        existingContainer = frameDoc.querySelector(
                             `[data-portal-id="${preElement.dataset.portalId}"]`,
                         );
                         if (existingContainer) {
-                            existingContainer.parentNode.replaceChild(
-                                preElement,
-                                existingContainer,
+                            console.log(
+                                "Found existing container, will remove after creating new one",
                             );
                         }
 
@@ -90,6 +138,14 @@ const OutputSandbox = forwardRef(
                         delete preElement.dataset.processed;
                         delete preElement.dataset.portalId;
                         delete preElement.dataset.lastContent;
+
+                        // Verify the pre element is still in the DOM before proceeding
+                        if (!preElement.parentNode) {
+                            console.warn(
+                                "Pre element has no parent, skipping reprocessing",
+                            );
+                            return;
+                        }
                     }
 
                     try {
@@ -116,9 +172,19 @@ const OutputSandbox = forwardRef(
                             const portalId = `portal-${Date.now()}-${Math.random()}`;
                             container.dataset.portalId = portalId;
 
-                            // Replace the pre element with the container
-                            preElement.parentNode.replaceChild(
+                            // Insert the container after the pre element instead of replacing it
+                            if (!preElement.parentNode) {
+                                console.error(
+                                    "Pre element has no parent, cannot insert portal container",
+                                );
+                                return;
+                            }
+                            preElement.parentNode.insertBefore(
                                 container,
+                                preElement.nextSibling,
+                            );
+                            console.log(
+                                "Inserted portal container after pre element:",
                                 preElement,
                             );
 
@@ -165,6 +231,14 @@ const OutputSandbox = forwardRef(
                                 );
                                 return newMap;
                             });
+
+                            // Don't remove the old container immediately - let the cleanup function handle it
+                            // This prevents DOM manipulation issues that could affect the pre element
+                            if (existingContainer) {
+                                console.log(
+                                    "Old portal container will be cleaned up by cleanupOldPortals",
+                                );
+                            }
                         } else {
                             console.log(
                                 "JSON missing required fields:",
@@ -179,7 +253,7 @@ const OutputSandbox = forwardRef(
                     }
                 });
             },
-            [cleanupOldPortals],
+            [cleanupOldPortals, clearAllPortals, removeOldPortalContainers],
         );
 
         useEffect(() => {
@@ -187,8 +261,8 @@ const OutputSandbox = forwardRef(
 
             const iframe = iframeRef.current;
 
-            // Clear existing portal containers when content changes
-            setPortalContainers(new Map());
+            // Clear all portal containers when iframe is being recreated
+            clearAllPortals();
 
             const setupFrame = async () => {
                 try {
@@ -308,6 +382,11 @@ const OutputSandbox = forwardRef(
                                     background-color: #ffffff !important;
                                     color: #000000 !important;
                                 }
+                                
+                                /* Hide pre elements with llm-output class - they're replaced by React portals */
+                                pre.llm-output {
+                                    display: none !important;
+                                }
                             </style>
                             <script>
                                 // Make theme available to applets via JavaScript
@@ -388,12 +467,23 @@ const OutputSandbox = forwardRef(
                                 let shouldProcess = false;
 
                                 mutations.forEach((mutation) => {
+                                    // Skip mutations caused by our own portal containers
                                     if (mutation.type === "childList") {
                                         mutation.addedNodes.forEach((node) => {
                                             if (
                                                 node.nodeType ===
                                                 Node.ELEMENT_NODE
                                             ) {
+                                                // Skip if it's our own portal container
+                                                if (
+                                                    node.classList &&
+                                                    node.classList.contains(
+                                                        "react-portal-container",
+                                                    )
+                                                ) {
+                                                    return;
+                                                }
+
                                                 // Check if the added node is a pre element or contains pre elements
                                                 if (
                                                     node.tagName === "PRE" ||
@@ -417,6 +507,17 @@ const OutputSandbox = forwardRef(
                                             target.nodeType === Node.TEXT_NODE
                                         ) {
                                             target = target.parentNode;
+                                        }
+
+                                        // Skip if it's our own portal container
+                                        if (
+                                            target &&
+                                            target.classList &&
+                                            target.classList.contains(
+                                                "react-portal-container",
+                                            )
+                                        ) {
+                                            return;
                                         }
 
                                         // Check if the target is a pre element with llm-output class
