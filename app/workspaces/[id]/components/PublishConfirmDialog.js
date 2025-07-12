@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { AlertTriangle, Search } from "lucide-react";
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import * as Icons from "lucide-react";
 import { getUniqueLucideIcons } from "@/lib/utils";
 
@@ -23,6 +24,7 @@ export default function PublishConfirmDialog({
     isPending = false,
     versionNumber,
 }) {
+    const { t } = useTranslation();
     const [publishToAppStore, setPublishToAppStore] = useState(false);
     const [appName, setAppName] = useState("");
     const [selectedIcon, setSelectedIcon] = useState("AppWindow");
@@ -56,12 +58,14 @@ export default function PublishConfirmDialog({
                 <DialogHeader>
                     <DialogTitle className="flex items-center gap-2">
                         <AlertTriangle className="w-5 h-5 text-amber-500" />
-                        Confirm Publish
+                        {t("Confirm Publish")}
                     </DialogTitle>
                     <DialogDescription className="space-y-3">
                         <p>
-                            Are you sure you want to publish version{" "}
-                            {versionNumber}?
+                            {t(
+                                "Are you sure you want to publish version {{versionNumber}}?",
+                                { versionNumber },
+                            )}
                         </p>
                         <div className="flex items-start space-x-2 pt-2">
                             <Checkbox
@@ -73,8 +77,9 @@ export default function PublishConfirmDialog({
                                 htmlFor="publish-to-app-store"
                                 className="text-sm leading-relaxed cursor-pointer"
                             >
-                                Publish to app store (everyone using this site
-                                will be able to access the app)
+                                {t(
+                                    "Publish to app store (everyone using this site will be able to access the app)",
+                                )}
                             </label>
                         </div>
                         {publishToAppStore && (
@@ -84,7 +89,7 @@ export default function PublishConfirmDialog({
                                         htmlFor="app-name"
                                         className="text-sm font-medium"
                                     >
-                                        App Name *
+                                        {t("App Name *")}
                                     </Label>
                                     <Input
                                         id="app-name"
@@ -92,14 +97,16 @@ export default function PublishConfirmDialog({
                                         onChange={(e) =>
                                             setAppName(e.target.value)
                                         }
-                                        placeholder="Enter a name for your app"
+                                        placeholder={t(
+                                            "Enter a name for your app",
+                                        )}
                                         className="w-full"
                                     />
                                 </div>
 
                                 <div className="space-y-2">
                                     <Label className="text-sm font-medium">
-                                        App Icon
+                                        {t("App Icon")}
                                     </Label>
                                     <div className="flex items-center gap-2">
                                         <div className="flex items-center justify-center w-10 h-10 border rounded-lg bg-gray-50">
@@ -116,8 +123,8 @@ export default function PublishConfirmDialog({
                                             }
                                         >
                                             {showIconSelector
-                                                ? "Hide Icons"
-                                                : "Choose Icon"}
+                                                ? t("Hide Icons")
+                                                : t("Choose Icon")}
                                         </Button>
                                     </div>
 
@@ -126,7 +133,9 @@ export default function PublishConfirmDialog({
                                             <div className="relative">
                                                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
                                                 <Input
-                                                    placeholder="Search icons..."
+                                                    placeholder={t(
+                                                        "Search icons...",
+                                                    )}
                                                     value={iconSearch}
                                                     onChange={(e) =>
                                                         setIconSearch(
@@ -173,8 +182,13 @@ export default function PublishConfirmDialog({
                                                     )
                                                 ) : (
                                                     <div className="col-span-8 flex items-center justify-center py-8 text-gray-500 text-sm">
-                                                        No icons found matching
-                                                        "{iconSearch}"
+                                                        {t(
+                                                            'No icons found matching "{{searchTerm}}"',
+                                                            {
+                                                                searchTerm:
+                                                                    iconSearch,
+                                                            },
+                                                        )}
                                                     </div>
                                                 )}
                                             </div>
@@ -185,8 +199,12 @@ export default function PublishConfirmDialog({
                         )}
                         <p className="text-xs text-muted-foreground">
                             {publishToAppStore
-                                ? "Your app will be publicly available to all users of this platform."
-                                : "Your app will only be accessible to people you share the link with."}
+                                ? t(
+                                      "Your app will be publicly available to all users of this platform.",
+                                  )
+                                : t(
+                                      "Your app will only be accessible to people you share the link with.",
+                                  )}
                         </p>
                     </DialogDescription>
                 </DialogHeader>
@@ -196,14 +214,14 @@ export default function PublishConfirmDialog({
                         onClick={onClose}
                         disabled={isPending}
                     >
-                        Cancel
+                        {t("Cancel")}
                     </Button>
                     <Button
                         onClick={handleConfirm}
                         disabled={isPending || !isFormValid}
                         className="bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700"
                     >
-                        {isPending ? "Publishing..." : "Publish"}
+                        {isPending ? t("Publishing...") : t("Publish")}
                     </Button>
                 </DialogFooter>
             </DialogContent>

@@ -253,7 +253,7 @@ const OutputSandbox = forwardRef(
                     }
                 });
             },
-            [cleanupOldPortals, clearAllPortals, removeOldPortalContainers],
+            [cleanupOldPortals, removeOldPortalContainers],
         );
 
         useEffect(() => {
@@ -611,7 +611,7 @@ const OutputSandbox = forwardRef(
                     );
                 }
             };
-        }, [content, theme, processPreElements]);
+        }, [content, theme, processPreElements, clearAllPortals]);
 
         // Send theme change messages to iframe when theme changes
         useEffect(() => {

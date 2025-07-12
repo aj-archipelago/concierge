@@ -16,6 +16,7 @@ import { useEffect, useRef, useState, useContext, useCallback } from "react";
 import { RiSendPlane2Fill } from "react-icons/ri";
 import TextareaAutosize from "react-textarea-autosize";
 import { useSubscription } from "@apollo/client";
+import { useTranslation } from "react-i18next";
 import { SUBSCRIPTIONS } from "../../../../src/graphql";
 import { AuthContext } from "../../../../src/App";
 import {
@@ -35,6 +36,7 @@ import VersionNavigator from "./VersionNavigator";
 import { toast } from "react-toastify";
 
 export default function WorkspaceApplet() {
+    const { t } = useTranslation();
     const { id } = useParams();
     const { user } = useContext(AuthContext);
     const { data: workspace } = useWorkspace(id);
@@ -344,7 +346,7 @@ export default function WorkspaceApplet() {
                     aiMessage.linkToVersion = newVersionIndex;
                 }
 
-                aiMessage.content = `HTML code generated. Check the preview pane\n\n\n#### Summary of changes:**\n${htmlContent.changes}`;
+                aiMessage.content = `${t("HTML code generated. Check the preview pane")}\n\n\n#### ${t("Summary of changes:")}**\n${htmlContent.changes}`;
             } else {
                 // Check if the response contains HTML and changes (legacy format)
                 if (
@@ -370,7 +372,7 @@ export default function WorkspaceApplet() {
                         aiMessage.linkToVersion = newVersionIndex;
                     }
 
-                    aiMessage.content = `HTML code generated. Check the preview pane\n\n\n#### Summary of changes:**\n${finalContent.changes}`;
+                    aiMessage.content = `${t("HTML code generated. Check the preview pane")}\n\n\n#### ${t("Summary of changes:")}**\n${finalContent.changes}`;
                 } else {
                     aiMessage.content = finalContent;
                     if (finalContent.includes("`")) {
@@ -683,8 +685,9 @@ export default function WorkspaceApplet() {
                         <div className="flex items-center gap-2 text-blue-800 text-sm">
                             <span className="text-blue-600">👁️</span>
                             <span>
-                                Read-only mode - Only the workspace owner can
-                                make changes
+                                {t(
+                                    "Read-only mode - Only the workspace owner can make changes",
+                                )}
                             </span>
                         </div>
                     </div>
@@ -739,7 +742,7 @@ export default function WorkspaceApplet() {
                                     onClick={() => setShowClearConfirm(true)}
                                     disabled={blockOldVersionChat}
                                 >
-                                    Clear chat
+                                    {t("Clear chat")}
                                 </button>
                             )}
                         </div>
@@ -761,7 +764,7 @@ export default function WorkspaceApplet() {
                                                     setShowContinueConfirm(true)
                                                 }
                                             >
-                                                Continue from here
+                                                {t("Continue from here")}
                                             </button>
                                         </div>
                                         <AlertDialog
@@ -773,26 +776,26 @@ export default function WorkspaceApplet() {
                                             <AlertDialogContent>
                                                 <AlertDialogHeader>
                                                     <AlertDialogTitle>
-                                                        Continue from this
-                                                        version?
+                                                        {t(
+                                                            "Continue from this version?",
+                                                        )}
                                                     </AlertDialogTitle>
                                                     <AlertDialogDescription>
-                                                        Continuing from this
-                                                        version will remove all
-                                                        future versions. This
-                                                        action cannot be undone.
+                                                        {t(
+                                                            "Continuing from this version will remove all future versions. This action cannot be undone.",
+                                                        )}
                                                         <br />
                                                         <br />
                                                         <span className="text-emerald-600 font-medium">
-                                                            Note: Published
-                                                            versions are never
-                                                            lost.
+                                                            {t(
+                                                                "Note: Published versions are never lost.",
+                                                            )}
                                                         </span>
                                                     </AlertDialogDescription>
                                                 </AlertDialogHeader>
                                                 <AlertDialogFooter>
                                                     <AlertDialogCancel>
-                                                        Cancel
+                                                        {t("Cancel")}
                                                     </AlertDialogCancel>
                                                     <AlertDialogAction
                                                         autoFocus
@@ -803,7 +806,7 @@ export default function WorkspaceApplet() {
                                                             );
                                                         }}
                                                     >
-                                                        Continue
+                                                        {t("Continue")}
                                                     </AlertDialogAction>
                                                 </AlertDialogFooter>
                                             </AlertDialogContent>
@@ -865,7 +868,9 @@ export default function WorkspaceApplet() {
                                                             e.target.value,
                                                         )
                                                     }
-                                                    placeholder="Describe your desired UI in natural language..."
+                                                    placeholder={t(
+                                                        "Describe your desired UI in natural language...",
+                                                    )}
                                                     onKeyDown={(e) => {
                                                         if (
                                                             e.key === "Enter" &&

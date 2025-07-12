@@ -3,6 +3,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import OutputSandbox from "@/src/components/sandbox/OutputSandbox";
 import MonacoEditor from "@monaco-editor/react";
 import { useContext } from "react";
+import { useTranslation } from "react-i18next";
 import { ThemeContext } from "@/src/contexts/ThemeProvider";
 
 function HtmlEditor({ value, onChange, options }) {
@@ -25,6 +26,8 @@ function HtmlEditor({ value, onChange, options }) {
 
 // Creating Applet Dialog Component
 function CreatingAppletDialog({ isVisible }) {
+    const { t } = useTranslation();
+
     if (!isVisible) return null;
 
     return (
@@ -33,12 +36,13 @@ function CreatingAppletDialog({ isVisible }) {
                 <div className="flex items-center gap-3 mb-3">
                     <div className="w-5 h-5 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin" />
                     <h3 className="text-lg font-semibold text-gray-900">
-                        Creating Applet...
+                        {t("Creating Applet...")}
                     </h3>
                 </div>
                 <p className="text-sm text-gray-600">
-                    The AI is generating your applet. You can see the preview
-                    updating in real-time as the code is being written.
+                    {t(
+                        "The AI is generating your applet. You can see the preview updating in real-time as the code is being written.",
+                    )}
                 </p>
             </div>
         </div>
@@ -101,6 +105,7 @@ export default function PreviewTabs({
     hasStreamingVersion = false,
     showCreatingDialog = false,
 }) {
+    const { t } = useTranslation();
     const { theme } = useContext(ThemeContext);
 
     if (!htmlVersions.length) return null;
@@ -111,8 +116,8 @@ export default function PreviewTabs({
             className="flex flex-col grow overflow-auto"
         >
             <TabsList>
-                <TabsTrigger value="preview">Preview</TabsTrigger>
-                <TabsTrigger value="code">Code</TabsTrigger>
+                <TabsTrigger value="preview">{t("Preview")}</TabsTrigger>
+                <TabsTrigger value="code">{t("Code")}</TabsTrigger>
             </TabsList>
 
             <div className="border rounded-md shadow-md bg-white mb-4 grow overflow-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent hover:scrollbar-thumb-gray-400 relative">

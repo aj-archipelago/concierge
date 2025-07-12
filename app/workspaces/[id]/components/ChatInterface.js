@@ -3,8 +3,9 @@ import { cn } from "@/lib/utils";
 import { RiSendPlane2Fill } from "react-icons/ri";
 import ReactMarkdown from "react-markdown";
 import TextareaAutosize from "react-textarea-autosize";
-import React, { useRef, useEffect } from "react";
+import React, { useRef, useEffect, useContext } from "react";
 import { RotateCcw } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import {
     AlertDialog,
     AlertDialogContent,
@@ -16,9 +17,10 @@ import {
     AlertDialogCancel,
 } from "@/components/ui/alert-dialog";
 import { extractHtmlFromStreamingContent } from "./utils";
+import { LanguageContext } from "@/src/contexts/LanguageProvider";
 
 // Helper function to get display content for streaming messages
-function getStreamingDisplayContent(content, isStreaming) {
+function getStreamingDisplayContent(content, isStreaming, t) {
     if (!isStreaming || !content) return content;
 
     // Use the existing detection mechanism to check if content contains HTML
@@ -26,7 +28,7 @@ function getStreamingDisplayContent(content, isStreaming) {
 
     // If HTML is detected, show a placeholder
     if (htmlContent && htmlContent.html) {
-        return "🔄 **Generating HTML...**";
+        return "🔄 **" + t("Generating HTML...") + "**";
     }
 
     return content;
@@ -89,7 +91,9 @@ export default function ChatInterface({
     isStreaming,
     isOwner = true,
 }) {
+    const { t } = useTranslation();
     const messagesEndRef = useRef(null);
+    const { direction } = useContext(LanguageContext);
 
     const scrollToBottom = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -109,9 +113,9 @@ export default function ChatInterface({
     const placeholder =
         (messages && messages.length > 0) || htmlVersions.length > 0
             ? isOwner
-                ? "Type your message here..."
-                : "Read-only mode"
-            : "Describe your desired UI in natural language...";
+                ? t("Type your message here...")
+                : t("Read-only mode")
+            : t("Describe your desired UI in natural language...");
 
     return (
         <div className="flex flex-col grow overflow-auto h-full">
@@ -135,8 +139,8 @@ export default function ChatInterface({
                             <div className="flex items-center justify-between mb-1">
                                 <div className="text-xs text-gray-600 capitalize">
                                     {message.role === "user"
-                                        ? "You"
-                                        : "Assistant"}
+                                        ? t("You")
+                                        : t("Assistant")}
                                 </div>
                                 {message.role === "user" && isOwner && (
                                     <button
@@ -145,7 +149,7 @@ export default function ChatInterface({
                                             onReplayMessage(index);
                                         }}
                                         className="text-xs text-sky-600 hover:text-sky-700 transition-colors p-1 hover:bg-sky-50 rounded-full"
-                                        title="Replay from this message"
+                                        title={t("Replay from this message")}
                                     >
                                         <RotateCcw className="w-3 h-3" />
                                     </button>
@@ -173,6 +177,7 @@ export default function ChatInterface({
                                     ? getStreamingDisplayContent(
                                           streamingContent || message.content,
                                           isStreaming,
+                                          t,
                                       )
                                     : message.content}
                             </ReactMarkdown>
@@ -199,7 +204,7 @@ export default function ChatInterface({
                             <div className="max-w-[80%] rounded-md p-3 bg-gray-100 text-gray-900">
                                 <div className="flex items-center justify-between mb-1">
                                     <div className="text-xs text-gray-600 capitalize">
-                                        Assistant
+                                        {t("Assistant")}
                                     </div>
                                 </div>
                                 <div className="mt-2 flex items-center space-x-2">
@@ -222,7 +227,10 @@ export default function ChatInterface({
             {/* Chat input section */}
             <div className="rounded-md border dark:border-zinc-200 flex-shrink-0">
                 <form
-                    className="flex items-center rounded-md dark:bg-zinc-100"
+                    className={cn(
+                        "flex items-center rounded-md dark:bg-zinc-100",
+                        direction === "rtl" ? "flex-row-reverse" : "flex-row",
+                    )}
                     onSubmit={handleSubmit}
                 >
                     <div className="relative grow">
@@ -230,6 +238,9 @@ export default function ChatInterface({
                             <TextareaAutosize
                                 className={cn(
                                     "w-full border-0 outline-none focus:shadow-none text-sm focus:ring-0 py-3 resize-none dark:bg-zinc-100 px-3 rounded-s max-h-24 overflow-y-auto",
+                                    direction === "rtl"
+                                        ? "direction-rtl"
+                                        : "direction-ltr",
                                     (blockOldVersionChat || !isOwner) &&
                                         "opacity-50 cursor-not-allowed",
                                 )}
@@ -292,14 +303,15 @@ export default function ChatInterface({
             >
                 <AlertDialogContent>
                     <AlertDialogHeader>
-                        <AlertDialogTitle>Clear Chat?</AlertDialogTitle>
+                        <AlertDialogTitle>{t("Clear Chat?")}</AlertDialogTitle>
                         <AlertDialogDescription>
-                            Are you sure you want to clear the chat? This action
-                            cannot be undone.
+                            {t(
+                                "Are you sure you want to clear the chat? This action cannot be undone.",
+                            )}
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
-                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogCancel>{t("Cancel")}</AlertDialogCancel>
                         <AlertDialogAction
                             autoFocus
                             onClick={() => {
@@ -307,7 +319,7 @@ export default function ChatInterface({
                                 setShowClearConfirm(false);
                             }}
                         >
-                            Clear
+                            {t("Clear")}
                         </AlertDialogAction>
                     </AlertDialogFooter>
                 </AlertDialogContent>
