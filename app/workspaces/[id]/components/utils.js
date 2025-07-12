@@ -141,11 +141,17 @@ export function cleanJsonCodeBlocks(content) {
         return content;
     }
 
-    return content.replace(/```json\s*/g, "").replace(/```\s*/g, "");
+    // Remove only code block markers, then trim the result
+    let cleaned = content
+        .replace(/```json[ \t]*\n?/g, '')
+        .replace(/```[ \t]*\n?/g, '')
+        .replace(/[ \t]*```/g, '')
+        .trim();
+    return cleaned;
 }
 
 /**
- * Extracts HTML content from JSON response, handling both complete and partial JSON
+ * Extracts HTML content from code block response, handling both complete and partial code blocks
  * @param {string} content - The streaming content
  * @returns {object|null} - Object with html and changes properties, or null
  */
@@ -154,64 +160,116 @@ export function extractHtmlFromStreamingContent(content) {
         return null;
     }
 
-    if (content.endsWith("\\")) {
-        content = content.slice(0, -1);
+    // Look for code blocks anywhere in the content
+    const codeBlockRegex = /```(?:html)?\s*([\s\S]*?)```/g;
+    let match;
+    let lastMatch = null;
+
+    // Find all code blocks and use the last one (most complete)
+    while ((match = codeBlockRegex.exec(content)) !== null) {
+        lastMatch = match;
     }
 
-    // Clean the content by removing ```json blocks completely
-    let cleanedContent = cleanJsonCodeBlocks(content);
-
-    // Try to parse the cleaned content as JSON
-    const parsed = safeParseJson(cleanedContent);
-
-    if (parsed && typeof parsed === "object") {
-        // Check if it has the expected structure
-        if (parsed.html && typeof parsed.html === "string") {
+    if (lastMatch) {
+        const htmlContent = lastMatch[1].trim();
+        if (htmlContent) {
             return {
-                html: parsed.html,
-                changes: parsed.changes || "HTML content updated",
+                html: htmlContent,
+                changes: "HTML code generated from code block",
                 isComplete: true,
             };
         }
-
-        // Check for nested structures
-        if (parsed.content && typeof parsed.content === "object") {
-            if (
-                parsed.content.html &&
-                typeof parsed.content.html === "string"
-            ) {
-                return {
-                    html: parsed.content.html,
-                    changes:
-                        parsed.content.changes ||
-                        parsed.changes ||
-                        "HTML content updated",
-                    isComplete: true,
-                };
-            }
-        }
     }
 
-    // If no valid JSON structure found, return null
+    // If no valid code block found, return null
     return null;
 }
 
-/*
-Test cases for the JSON utilities:
+/**
+ * Detects if content contains a code block and extracts partial HTML content during streaming
+ * @param {string} content - The streaming content
+ * @returns {object|null} - Object with html (partial), isInCodeBlock, changes, and chatContent properties, or null
+ */
+export function detectCodeBlockInStream(content) {
+    if (!content || typeof content !== "string") {
+        return null;
+    }
 
-1. JSON code block removal:
-   extractAndParseJson('```json\n{"html": "<div>test</div>", "changes": "Added div"}\n```')
-   // Returns: {html: "<div>test</div>", changes: "Added div"}
+    // Check if we're inside a code block
+    const codeBlockStartRegex = /```(?:html)?\s*$/;
+    const codeBlockEndRegex = /```$/;
 
-2. Partial JSON completion:
-   completePartialJson('{"html": "<div>test</div>", "changes": "Added div')
-   // Returns: '{"html": "<div>test</div>", "changes": "Added div"}'
+    // Split content by lines to analyze
+    const lines = content.split("\n");
+    let isInCodeBlock = false;
+    let codeBlockContent = [];
+    let chatContent = [];
 
-3. Safe parsing with fallbacks:
-   safeParseJson('{"html": "<div>test</div>", "changes": "Added div')
-   // Returns: {html: "<div>test</div>", changes: "Added div"}
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
 
-4. HTML extraction from streaming:
-   extractHtmlFromStreamingContent('{"html": "<div>test</div>", "changes": "Added div"}')
-   // Returns: {html: "<div>test</div>", changes: "Added div", isComplete: true}
-*/
+        // Check if this line starts a code block
+        if (codeBlockStartRegex.test(line)) {
+            isInCodeBlock = true;
+            // Add a placeholder where the code block starts
+            chatContent.push(
+                "[Code applied to applet. Check the preview pane.]",
+            );
+            continue;
+        }
+
+        // Check if this line ends a code block
+        if (isInCodeBlock && codeBlockEndRegex.test(line)) {
+            isInCodeBlock = false;
+            continue;
+        }
+
+        // If we're in a code block, collect the content
+        if (isInCodeBlock) {
+            codeBlockContent.push(line);
+        } else {
+            // Not in a code block, collect for chat display
+            chatContent.push(line);
+        }
+    }
+
+    // If we're in a code block or have collected code block content
+    if (isInCodeBlock || codeBlockContent.length > 0) {
+        const htmlContent = codeBlockContent.join("\n").trim();
+        const chatText = chatContent.join("\n").trim();
+
+        if (htmlContent) {
+            return {
+                html: htmlContent,
+                isInCodeBlock: isInCodeBlock,
+                changes: "HTML code being generated...",
+                isComplete: !isInCodeBlock, // Complete if we're not in a code block anymore
+                chatContent: chatText || null, // Text to show in chat (explanatory content)
+            };
+        }
+    }
+
+    return null;
+}
+
+/**
+ * Extracts chat content (non-code-block text) from a complete response
+ * @param {string} content - The complete response content
+ * @returns {string} - The chat content with placeholders for code blocks
+ */
+export function extractChatContent(content) {
+    if (!content || typeof content !== "string") {
+        return content;
+    }
+
+    // Replace code blocks with placeholders
+    const codeBlockRegex = /```(?:html)?\s*[\s\S]*?```/g;
+    const chatContent = content
+        .replace(
+            codeBlockRegex,
+            "[Code applied to applet. Check the preview pane.]",
+        )
+        .trim();
+
+    return chatContent || content; // Return original content if nothing remains
+}

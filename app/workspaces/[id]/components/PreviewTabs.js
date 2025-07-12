@@ -53,7 +53,7 @@ function CreatingAppletDialog({ isVisible }) {
 function StreamingPreview({ content, theme }) {
     return (
         <div
-            className="w-full h-full overflow-auto"
+            className="w-full h-full overflow-auto min-w-0"
             dangerouslySetInnerHTML={{
                 __html: `
                     <!DOCTYPE html>
@@ -120,11 +120,14 @@ export default function PreviewTabs({
                 <TabsTrigger value="code">{t("Code")}</TabsTrigger>
             </TabsList>
 
-            <div className="border rounded-md shadow-md bg-white mb-4 grow overflow-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent hover:scrollbar-thumb-gray-400 relative">
+            <div className="border rounded-md shadow-md bg-white mb-4 flex-1 min-w-0 overflow-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent hover:scrollbar-thumb-gray-400 relative">
                 <CreatingAppletDialog isVisible={showCreatingDialog} />
                 <div className="flex flex-col h-full">
                     <div className="flex-1 p-4">
-                        <TabsContent value="preview" className="h-full m-0">
+                        <TabsContent
+                            value="preview"
+                            className="h-full m-0 min-w-0"
+                        >
                             {isStreaming && hasStreamingVersion ? (
                                 <StreamingPreview
                                     content={htmlVersions[activeVersionIndex]}
@@ -138,7 +141,10 @@ export default function PreviewTabs({
                                 />
                             )}
                         </TabsContent>
-                        <TabsContent value="code" className="h-full m-0">
+                        <TabsContent
+                            value="code"
+                            className="h-full m-0 min-w-0"
+                        >
                             <HtmlEditor
                                 value={htmlVersions[activeVersionIndex]}
                                 onChange={

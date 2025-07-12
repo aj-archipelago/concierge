@@ -30,7 +30,8 @@ import PreviewTabs from "./PreviewTabs";
 import {
     getMessagesUpToVersion,
     extractHtmlFromStreamingContent,
-    cleanJsonCodeBlocks,
+    detectCodeBlockInStream,
+    extractChatContent,
 } from "./utils";
 import VersionNavigator from "./VersionNavigator";
 import { toast } from "react-toastify";
@@ -230,18 +231,22 @@ export default function WorkspaceApplet() {
                     // Accumulate the raw content for display
                     const newContent = streamingMessageRef.current + content;
                     streamingMessageRef.current = newContent;
-                    setStreamingContent(newContent);
 
-                    // Clean the content for HTML extraction
-                    const cleanedContent = cleanJsonCodeBlocks(newContent);
+                    // Check if we're in a code block or entering one
+                    const codeBlockInfo = detectCodeBlockInStream(newContent);
 
-                    // Check if this content contains HTML that we can extract and display
-                    const htmlContent =
-                        extractHtmlFromStreamingContent(cleanedContent);
+                    if (codeBlockInfo && codeBlockInfo.html) {
+                        // We're in a code block - route to preview instead of chat
+                        updateStreamingVersion(codeBlockInfo.html);
 
-                    if (htmlContent && htmlContent.html) {
-                        // Update the preview with the partial HTML content
-                        updateStreamingVersion(htmlContent.html);
+                        // Show explanatory text in chat, or placeholder if no explanatory text
+                        const chatText =
+                            codeBlockInfo.chatContent ||
+                            "🔄 **" + t("Generating HTML code...") + "**";
+                        setStreamingContent(chatText);
+                    } else {
+                        // Not in a code block - show content in chat
+                        setStreamingContent(newContent);
                     }
 
                     // If this is the first chunk and progress is 1, simulate streaming
@@ -266,19 +271,25 @@ export default function WorkspaceApplet() {
                             const newContent =
                                 streamingMessageRef.current + chunk;
                             streamingMessageRef.current = newContent;
-                            setStreamingContent(newContent);
 
-                            // Clean the content for HTML extraction
-                            const cleanedChunkContent =
-                                cleanJsonCodeBlocks(newContent);
+                            // Check if we're in a code block or entering one
+                            const codeBlockInfo =
+                                detectCodeBlockInStream(newContent);
 
-                            // Check for HTML content in each chunk
-                            const chunkHtmlContent =
-                                extractHtmlFromStreamingContent(
-                                    cleanedChunkContent,
-                                );
-                            if (chunkHtmlContent && chunkHtmlContent.html) {
-                                updateStreamingVersion(chunkHtmlContent.html);
+                            if (codeBlockInfo && codeBlockInfo.html) {
+                                // We're in a code block - route to preview instead of chat
+                                updateStreamingVersion(codeBlockInfo.html);
+
+                                // Show explanatory text in chat, or placeholder if no explanatory text
+                                const chatText =
+                                    codeBlockInfo.chatContent ||
+                                    "🔄 **" +
+                                        t("Generating HTML code...") +
+                                        "**";
+                                setStreamingContent(chatText);
+                            } else {
+                                // Not in a code block - show content in chat
+                                setStreamingContent(newContent);
                             }
 
                             // Add a small delay between chunks (except for the last one)
@@ -323,11 +334,8 @@ export default function WorkspaceApplet() {
                 timestamp: new Date().toISOString(),
             };
 
-            // Clean the content for HTML extraction (remove code blocks)
-            const cleanedContent = cleanJsonCodeBlocks(finalContent);
-
             // Try to extract HTML content from the final response
-            const htmlContent = extractHtmlFromStreamingContent(cleanedContent);
+            const htmlContent = extractHtmlFromStreamingContent(finalContent);
 
             if (htmlContent && htmlContent.html) {
                 // We have valid HTML content
@@ -346,34 +354,23 @@ export default function WorkspaceApplet() {
                     aiMessage.linkToVersion = newVersionIndex;
                 }
 
-                aiMessage.content = `${t("HTML code generated. Check the preview pane")}\n\n\n#### ${t("Summary of changes:")}**\n${htmlContent.changes}`;
+                // Extract the explanatory text for the chat
+                const chatText = extractChatContent(finalContent);
+                aiMessage.content =
+                    chatText ||
+                    `${t("HTML code generated. Check the preview pane")}`;
             } else {
-                // Check if the response contains HTML and changes (legacy format)
-                if (
-                    typeof finalContent === "object" &&
-                    finalContent !== null &&
-                    typeof finalContent.html === "string" &&
-                    typeof finalContent.changes === "string"
-                ) {
-                    if (wasStreaming && streamingVersionRef.current !== null) {
-                        // Finalize the existing streaming version
-                        setHtmlVersions((prev) => {
-                            const newVersions = [...prev];
-                            newVersions[streamingVersionRef.current] =
-                                finalContent.html;
-                            return newVersions;
-                        });
-                        aiMessage.linkToVersion = streamingVersionRef.current;
-                    } else {
-                        // Create a new version for non-streaming responses
-                        const newVersionIndex = createNewVersion(
-                            finalContent.html,
-                        );
-                        aiMessage.linkToVersion = newVersionIndex;
-                    }
-
-                    aiMessage.content = `${t("HTML code generated. Check the preview pane")}\n\n\n#### ${t("Summary of changes:")}**\n${finalContent.changes}`;
+                // Check if we were in a code block during streaming
+                if (wasStreaming && streamingVersionRef.current !== null) {
+                    // We were generating HTML but didn't get a complete code block
+                    // Extract any explanatory text that was provided
+                    const chatText = extractChatContent(finalContent);
+                    aiMessage.content =
+                        chatText ||
+                        `${t("HTML code generated. Check the preview pane")}`;
+                    aiMessage.linkToVersion = streamingVersionRef.current;
                 } else {
+                    // No HTML code block found - this is just a chat response
                     aiMessage.content = finalContent;
                     if (finalContent.includes("`")) {
                         aiMessage.content = finalContent.replace(/`/g, "");
@@ -710,7 +707,7 @@ export default function WorkspaceApplet() {
                 )}
                 <div className="flex justify-between gap-4 h-full overflow-auto bg-gray-100 p-4">
                     {htmlVersions.length > 0 && (
-                        <div className="flex flex-col grow overflow-auto">
+                        <div className="flex flex-col flex-1 min-w-0 overflow-auto">
                             <VersionNavigator
                                 activeVersionIndex={activeVersionIndex}
                                 setActiveVersionIndex={setActiveVersionIndex}
@@ -743,7 +740,9 @@ export default function WorkspaceApplet() {
                     <div
                         className={cn(
                             "flex h-full overflow-auto flex-col",
-                            htmlVersions.length > 0 ? "w-80" : "w-full",
+                            htmlVersions.length > 0
+                                ? "w-80 flex-shrink-0"
+                                : "w-full",
                         )}
                     >
                         {/* Remove model selector and keep only Clear button */}
