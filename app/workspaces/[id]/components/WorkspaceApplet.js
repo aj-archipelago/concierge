@@ -172,7 +172,7 @@ export default function WorkspaceApplet() {
         const message = messageQueueRef.current.shift();
 
         try {
-            const { progress, result, info } = message;
+            const { progress, result } = message;
 
             if (result) {
                 let content = null;

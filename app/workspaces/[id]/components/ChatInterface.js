@@ -3,7 +3,7 @@ import { cn } from "@/lib/utils";
 import { RiSendPlane2Fill } from "react-icons/ri";
 import ReactMarkdown from "react-markdown";
 import TextareaAutosize from "react-textarea-autosize";
-import React, { useRef, useEffect, useState } from "react";
+import React, { useRef, useEffect } from "react";
 import { RotateCcw } from "lucide-react";
 import {
     AlertDialog,

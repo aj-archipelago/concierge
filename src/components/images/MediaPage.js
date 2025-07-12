@@ -10,7 +10,14 @@ import {
     useState,
 } from "react";
 import { useTranslation } from "react-i18next";
-import { FaDownload, FaTrash, FaCheck, FaPlus, FaCog } from "react-icons/fa";
+import {
+    FaDownload,
+    FaTrash,
+    FaCheck,
+    FaPlus,
+    FaCog,
+    FaSpinner,
+} from "react-icons/fa";
 import { LanguageContext } from "../../contexts/LanguageProvider";
 import { Modal } from "../../../@/components/ui/modal";
 import { QUERIES } from "../../graphql";
@@ -413,7 +420,6 @@ function MediaPage() {
     const [lastSelectedImage, setLastSelectedImage] = useState(null);
     const [isModifyMode, setIsModifyMode] = useState(false);
     const [isUploading, setIsUploading] = useState(false);
-    const [uploadProgress, setUploadProgress] = useState(0);
     const [showDeleteAllConfirm, setShowDeleteAllConfirm] = useState(false);
     const [showDeleteSelectedConfirm, setShowDeleteSelectedConfirm] =
         useState(false);
@@ -522,15 +528,20 @@ function MediaPage() {
     const apolloClient = useApolloClient();
 
     const generateMedia = useCallback(
-        async (prompt, inputImageUrl = null) => {
+        async (prompt, inputImageUrl = null, modelOverride = null) => {
             let variables = {};
             let query = null;
 
+            // Determine which model to use
+            const modelToUse = modelOverride || selectedModel;
+
             if (outputType === "image") {
-                // Use the selected model, or kontext-max for modifications
-                const modelName = inputImageUrl
-                    ? "replicate-flux-kontext-max"
-                    : selectedModel;
+                // Use the model override if provided, otherwise use the selected model, or kontext-max for modifications
+                const modelName =
+                    modelOverride ||
+                    (inputImageUrl
+                        ? "replicate-flux-kontext-max"
+                        : selectedModel);
                 const modelSettings = getModelSettings(settings, modelName);
 
                 variables = {
@@ -545,13 +556,13 @@ function MediaPage() {
                 query = QUERIES.IMAGE_FLUX;
             } else {
                 // Video generation
-                const modelSettings = getModelSettings(settings, selectedModel);
+                const modelSettings = getModelSettings(settings, modelToUse);
 
-                if (selectedModel === "replicate-seedance-1-pro") {
+                if (modelToUse === "replicate-seedance-1-pro") {
                     variables = {
                         text: prompt,
                         async: true,
-                        model: selectedModel,
+                        model: modelToUse,
                         resolution: modelSettings.resolution,
                         aspectRatio: modelSettings.aspectRatio,
                         duration: modelSettings.duration,
@@ -568,7 +579,7 @@ function MediaPage() {
                         image: formatImageForVeo(inputImageUrl),
                         video: "",
                         lastFrame: "",
-                        model: selectedModel,
+                        model: modelToUse,
                         aspectRatio: modelSettings.aspectRatio,
                         durationSeconds: modelSettings.duration,
                         enhancePrompt: true,
@@ -596,7 +607,7 @@ function MediaPage() {
                 const resultKey =
                     outputType === "image"
                         ? "image_flux"
-                        : selectedModel === "replicate-seedance-1-pro"
+                        : modelToUse === "replicate-seedance-1-pro"
                           ? "video_seedance"
                           : "video_veo";
 
@@ -613,7 +624,7 @@ function MediaPage() {
                             created: Math.floor(Date.now() / 1000),
                             inputImageUrl: inputImageUrl,
                             type: outputType,
-                            model: selectedModel,
+                            model: modelToUse,
                         };
                         const updatedImages = [newImage, ...filteredImages];
                         localStorage.setItem(
@@ -764,16 +775,10 @@ function MediaPage() {
             }
         }
 
-        // Select the newly created modified images and focus prompt box
-        if (newSelectedIds.length > 0) {
-            setSelectedImages(new Set(newSelectedIds));
-            setTimeout(() => {
-                promptRef.current && promptRef.current.focus();
-            }, 0);
-        } else {
-            // If no new ids (shouldn't happen), clear selection
-            setSelectedImages(new Set());
-        }
+        // Keep existing selection and focus prompt box
+        setTimeout(() => {
+            promptRef.current && promptRef.current.focus();
+        }, 0);
     }, [
         prompt,
         selectedImages,
@@ -922,7 +927,6 @@ function MediaPage() {
             if (!file) return;
 
             setIsUploading(true);
-            setUploadProgress(0);
             const serverUrl = "/media-helper?useGoogle=true";
 
             try {
@@ -961,7 +965,6 @@ function MediaPage() {
                             return updatedImages;
                         });
                         setIsUploading(false);
-                        setUploadProgress(0);
                         return;
                     }
                 } catch (err) {
@@ -983,11 +986,7 @@ function MediaPage() {
                             "Content-Type": "multipart/form-data",
                         },
                         onUploadProgress: (progressEvent) => {
-                            const percentCompleted = Math.round(
-                                (progressEvent.loaded * 100) /
-                                    progressEvent.total,
-                            );
-                            setUploadProgress(percentCompleted);
+                            // Progress tracking removed - using generic upload message
                         },
                     },
                 );
@@ -1021,7 +1020,6 @@ function MediaPage() {
                 console.error("Error uploading file:", error);
             } finally {
                 setIsUploading(false);
-                setUploadProgress(0);
             }
         },
         [t],
@@ -1107,6 +1105,7 @@ function MediaPage() {
                     lastSelectedImage={lastSelectedImage}
                     setLastSelectedImage={setLastSelectedImage}
                     images={images}
+                    setShowDeleteSelectedConfirm={setShowDeleteSelectedConfirm}
                     onClick={() => {
                         if (image?.url) {
                             setSelectedImage(image);
@@ -1141,17 +1140,26 @@ function MediaPage() {
                             return newImages;
                         });
 
+                        // Use the original model and prompt for regeneration
+                        const originalModel = image.model || selectedModel;
+                        const originalPrompt = image.prompt;
+
                         if (image.inputImageUrl) {
-                            // Regenerate modification with same input image
+                            // Regenerate modification with same input image and original model
                             await generateMedia(
-                                image.prompt,
+                                originalPrompt,
                                 image.azureUrl ||
                                     image.inputImageUrl ||
                                     image.url,
+                                originalModel,
                             );
                         } else {
-                            // Regular regenerate
-                            await generateMedia(image.prompt);
+                            // Regular regenerate with original model
+                            await generateMedia(
+                                originalPrompt,
+                                null,
+                                originalModel,
+                            );
                         }
                     }}
                     onGenerationComplete={async (requestId, data) => {
@@ -1433,6 +1441,8 @@ function MediaPage() {
         selectedImages,
         lastSelectedImage,
         setLastSelectedImage,
+        setShowDeleteSelectedConfirm,
+        selectedModel,
     ]);
 
     return (
@@ -1488,6 +1498,7 @@ function MediaPage() {
                                 }
                             }}
                             ref={promptRef}
+                            onFocus={(e) => e.target.select()}
                         />
 
                         <div className="flex gap-2 items-center media-toolbar-row">
@@ -1503,13 +1514,7 @@ function MediaPage() {
                                                 disabled={isUploading}
                                             />
                                             {isUploading ? (
-                                                <ProgressUpdate
-                                                    initialText={t(
-                                                        "Uploading...",
-                                                    )}
-                                                    progress={uploadProgress}
-                                                    mode="spinner"
-                                                />
+                                                <FaSpinner className="animate-spin" />
                                             ) : (
                                                 <FaPlus />
                                             )}
@@ -2123,6 +2128,7 @@ function ImageTile({
     lastSelectedImage,
     setLastSelectedImage,
     images,
+    setShowDeleteSelectedConfirm,
 }) {
     const [loadError, setLoadError] = useState(false);
     const [retryCount, setRetryCount] = useState(0);
@@ -2179,7 +2185,33 @@ function ImageTile({
                 />
             </div>
 
-            <div className="media-wrapper" onClick={onClick}>
+            <div className="media-wrapper relative" onClick={onClick}>
+                {/* Action buttons overlay - top left */}
+                <div className="absolute top-2 left-2 z-10 flex gap-1 opacity-0 hover:opacity-100 transition-opacity duration-200">
+                    <button
+                        className="lb-icon-button bg-white bg-opacity-80 hover:bg-opacity-100 text-gray-700 hover:text-gray-900 dark:bg-gray-800 dark:bg-opacity-80 dark:hover:bg-opacity-100 dark:text-gray-200 dark:hover:text-white shadow-sm"
+                        title={t("Download")}
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            window.open(url, "_blank");
+                        }}
+                    >
+                        <FaDownload />
+                    </button>
+                    <button
+                        className="lb-icon-button bg-white bg-opacity-80 hover:bg-opacity-100 text-gray-700 hover:text-gray-900 dark:bg-gray-800 dark:bg-opacity-80 dark:hover:bg-opacity-100 dark:text-gray-200 dark:hover:text-white shadow-sm"
+                        title={t("Delete")}
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            // Select this image and trigger delete selected dialog
+                            setSelectedImages(new Set([image.cortexRequestId]));
+                            setShowDeleteSelectedConfirm(true);
+                        }}
+                    >
+                        <FaTrash />
+                    </button>
+                </div>
+
                 {regenerating ? (
                     <div className="h-full bg-gray-50 p-4 text-sm flex items-center justify-center">
                         <ProgressComponent />
@@ -2247,37 +2279,6 @@ function ImageTile({
             <div className="media-prompt" title={prompt}>
                 {prompt}
             </div>
-
-            <div className="media-actions">
-                <button
-                    className="lb-icon-button text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 dark:bg-transparent dark:border-gray-600 dark:hover:border-gray-500"
-                    title={t("Download")}
-                    onClick={(e) => {
-                        e.stopPropagation();
-                        window.open(url, "_blank");
-                    }}
-                >
-                    <FaDownload />
-                </button>
-                <button
-                    className="lb-icon-button text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 dark:bg-transparent dark:border-gray-600 dark:hover:border-gray-500"
-                    title={t("Delete")}
-                    onClick={(e) => {
-                        if (
-                            window.confirm(
-                                t(
-                                    `Are you sure you want to delete this ${image.type === "video" ? "video" : "image"}?`,
-                                ),
-                            )
-                        ) {
-                            onDelete(image);
-                        }
-                        e.stopPropagation();
-                    }}
-                >
-                    <FaTrash />
-                </button>
-            </div>
         </div>
     );
 
@@ -2338,7 +2339,7 @@ function ImageTile({
                         >
                             {t("Reload")}
                         </button>
-                    ) : (
+                    ) : !image.model ? null : (
                         <button
                             className="lb-primary"
                             onClick={(e) => {
@@ -2374,7 +2375,7 @@ function ImageTile({
                         >
                             {t("Reload")}
                         </button>
-                    ) : (
+                    ) : !image.model ? null : (
                         <button
                             className="lb-primary"
                             onClick={(e) => {
@@ -2410,7 +2411,7 @@ function ImageTile({
                         >
                             {t("Reload")}
                         </button>
-                    ) : (
+                    ) : !image.model ? null : (
                         <button
                             className="lb-primary"
                             onClick={(e) => {

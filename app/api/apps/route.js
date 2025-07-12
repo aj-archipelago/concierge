@@ -1,4 +1,4 @@
-import App, { APP_TYPES, APP_STATUS } from "../models/app";
+import App, { APP_STATUS } from "../models/app";
 
 export async function GET() {
     try {
