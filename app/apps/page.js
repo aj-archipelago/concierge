@@ -36,6 +36,7 @@ function SortableAppItem({ app, onRemove, isCollapsed }) {
     } = useSortable({
         id: typeof app.appId === "object" ? app.appId._id : app.appId,
     });
+    const { t } = useTranslation();
 
     const style = {
         transform: CSS.Transform.toString(transform),
@@ -72,7 +73,9 @@ function SortableAppItem({ app, onRemove, isCollapsed }) {
                     <div className="flex items-center justify-center w-8 h-8 bg-gray-100 rounded-lg">
                         <IconComponent className="w-4 h-4 text-gray-600" />
                     </div>
-                    <span className="font-medium text-gray-900">{appName}</span>
+                    <span className="font-medium text-gray-900">
+                        {t(appName)}
+                    </span>
                 </div>
             </div>
             <button
@@ -363,7 +366,7 @@ export default function AppsPage() {
                                                         </div>
                                                         <div>
                                                             <h3 className="font-medium text-gray-900">
-                                                                {app.name}
+                                                                {t(app.name)}
                                                             </h3>
                                                         </div>
                                                     </div>
@@ -420,7 +423,9 @@ export default function AppsPage() {
                                                             </div>
                                                             <div className="flex-1">
                                                                 <h3 className="font-medium text-gray-900">
-                                                                    {app.name}
+                                                                    {t(
+                                                                        app.name,
+                                                                    )}
                                                                 </h3>
                                                                 {app.author && (
                                                                     <p className="text-sm text-gray-500 mt-1">

@@ -600,5 +600,14 @@
     "Publishing...": "جاري النشر...",
     "Preview": "معاينة",
     "Creating Applet...": "جاري إنشاء التطبيق الصغير...",
-    "The AI is generating your applet. You can see the preview updating in real-time as the code is being written.": "الذكاء الاصطناعي يقوم بإنشاء تطبيقك الصغير. يمكنك رؤية المعاينة تتحدث في الوقت الفعلي أثناء كتابة الكود."
+    "The AI is generating your applet. You can see the preview updating in real-time as the code is being written.": "الذكاء الاصطناعي يقوم بإنشاء تطبيقك الصغير. يمكنك رؤية المعاينة تتحدث في الوقت الفعلي أثناء كتابة الكود.",
+    "Manage Apps": "إدارة التطبيقات",
+    "Drag and drop to reorder your apps": "اسحب وأسقط لإعادة ترتيب تطبيقاتك",
+    "Your Apps": "تطبيقاتك",
+    "No apps added yet": "لم يتم إضافة تطبيقات بعد",
+    "Available Apps": "التطبيقات المتاحة",
+    "Built-in Apps": "التطبيقات المدمجة",
+    "User-Created Apps": "التطبيقات المنشأة من قبل المستخدمين",
+    "Loading...": "جار التحميل...",
+    "Unknown App": "تطبيق غير معروف"
 }

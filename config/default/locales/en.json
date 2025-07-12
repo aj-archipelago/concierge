@@ -59,5 +59,16 @@
     "Preview": "Preview",
     "Code": "Code",
     "Creating Applet...": "Creating Applet...",
-    "The AI is generating your applet. You can see the preview updating in real-time as the code is being written.": "The AI is generating your applet. You can see the preview updating in real-time as the code is being written."
+    "The AI is generating your applet. You can see the preview updating in real-time as the code is being written.": "The AI is generating your applet. You can see the preview updating in real-time as the code is being written.",
+    "Manage Apps": "Manage Apps",
+    "Drag and drop to reorder your apps": "Drag and drop to reorder your apps",
+    "Your Apps": "Your Apps",
+    "No apps added yet": "No apps added yet",
+    "Available Apps": "Available Apps",
+    "Built-in Apps": "Built-in Apps",
+    "User-Created Apps": "User-Created Apps",
+    "Remove": "Remove",
+    "Add": "Add",
+    "Loading...": "Loading...",
+    "Unknown App": "Unknown App"
 }
