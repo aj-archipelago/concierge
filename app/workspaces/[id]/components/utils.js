@@ -213,7 +213,7 @@ export function detectCodeBlockInStream(content) {
             isInCodeBlock = true;
             // Add a placeholder where the code block starts
             chatContent.push(
-                "[Code applied to applet. Check the preview pane.]",
+                "**Generating applet code...**",
             );
             continue;
         }
@@ -267,7 +267,7 @@ export function extractChatContent(content) {
     const chatContent = content
         .replace(
             codeBlockRegex,
-            "[Code applied to applet. Check the preview pane.]",
+            "**Applet code generated and applied.**",
         )
         .trim();
 

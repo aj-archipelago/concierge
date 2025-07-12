@@ -314,7 +314,7 @@ describe("Workspace Utils", () => {
                 isInCodeBlock: true,
                 changes: "HTML code being generated...",
                 isComplete: false,
-                chatContent: "[Code applied to applet. Check the preview pane.]\n[Code applied to applet. Check the preview pane.]",
+                chatContent: "**Generating applet code...**\n**Generating applet code...**",
             });
         });
 
@@ -326,7 +326,7 @@ describe("Workspace Utils", () => {
                 isInCodeBlock: true,
                 changes: "HTML code being generated...",
                 isComplete: false,
-                chatContent: "[Code applied to applet. Check the preview pane.]",
+                chatContent: "**Generating applet code...**",
             });
         });
 
@@ -338,7 +338,7 @@ describe("Workspace Utils", () => {
                 isInCodeBlock: true,
                 changes: "HTML code being generated...",
                 isComplete: false,
-                chatContent: "Here is some explanation.\n[Code applied to applet. Check the preview pane.]\n[Code applied to applet. Check the preview pane.]",
+                chatContent: "Here is some explanation.\n**Generating applet code...**\n**Generating applet code...**",
             });
         });
 
@@ -350,7 +350,7 @@ describe("Workspace Utils", () => {
                 isInCodeBlock: true,
                 changes: "HTML code being generated...",
                 isComplete: false,
-                chatContent: "Here is the explanation.\n[Code applied to applet. Check the preview pane.]",
+                chatContent: "Here is the explanation.\n**Generating applet code...**",
             });
         });
 
@@ -362,7 +362,7 @@ describe("Workspace Utils", () => {
                 isInCodeBlock: true,
                 changes: "HTML code being generated...",
                 isComplete: false,
-                chatContent: "[Code applied to applet. Check the preview pane.]\n[Code applied to applet. Check the preview pane.]\n[Code applied to applet. Check the preview pane.]",
+                chatContent: "**Generating applet code...**\n**Generating applet code...**\n**Generating applet code...**",
             });
         });
 
@@ -392,7 +392,7 @@ describe("Workspace Utils", () => {
                 isInCodeBlock: true,
                 changes: "HTML code being generated...",
                 isComplete: false,
-                chatContent: "Let me create a simple HTML page for you.\n[Code applied to applet. Check the preview pane.]",
+                chatContent: "Let me create a simple HTML page for you.\n**Generating applet code...**",
             });
         });
     });
@@ -407,13 +407,13 @@ describe("Workspace Utils", () => {
         it("should replace code blocks with placeholders", () => {
             const content = 'Here is the explanation.\n```html\n<div>Hello</div>\n```\nAnd more text.';
             const result = extractChatContent(content);
-            expect(result).toBe('Here is the explanation.\n[Code applied to applet. Check the preview pane.]\nAnd more text.');
+            expect(result).toBe('Here is the explanation.\n**Applet code generated and applied.**\nAnd more text.');
         });
 
         it("should handle multiple code blocks", () => {
             const content = '```html\n<div>First</div>\n```\n```html\n<div>Second</div>\n```';
             const result = extractChatContent(content);
-            expect(result).toBe('[Code applied to applet. Check the preview pane.]\n[Code applied to applet. Check the preview pane.]');
+            expect(result).toBe('**Applet code generated and applied.**\n**Applet code generated and applied.**');
         });
 
         it("should handle content without code blocks", () => {
@@ -431,25 +431,25 @@ describe("Workspace Utils", () => {
         it("should handle content with only code blocks", () => {
             const content = '```html\n<div>Hello</div>\n```';
             const result = extractChatContent(content);
-            expect(result).toBe('[Code applied to applet. Check the preview pane.]');
+            expect(result).toBe('**Applet code generated and applied.**');
         });
 
         it("should handle whitespace around code blocks", () => {
             const content = '  ```html\n  <div>Hello</div>\n  ```  ';
             const result = extractChatContent(content);
-            expect(result).toBe('[Code applied to applet. Check the preview pane.]');
+            expect(result).toBe('**Applet code generated and applied.**');
         });
 
         it("should handle complex content with mixed code blocks", () => {
             const content = 'First explanation.\n```html\n<div>First</div>\n```\nSecond explanation.\n```html\n<div>Second</div>\n```\nFinal text.';
             const result = extractChatContent(content);
-            expect(result).toBe('First explanation.\n[Code applied to applet. Check the preview pane.]\nSecond explanation.\n[Code applied to applet. Check the preview pane.]\nFinal text.');
+            expect(result).toBe('First explanation.\n**Applet code generated and applied.**\nSecond explanation.\n**Applet code generated and applied.**\nFinal text.');
         });
 
         it("should return original content if nothing remains after replacement", () => {
             const content = '```html\n<div>Hello</div>\n```';
             const result = extractChatContent(content);
-            expect(result).toBe('[Code applied to applet. Check the preview pane.]');
+            expect(result).toBe('**Applet code generated and applied.**');
         });
     });
 }); 
