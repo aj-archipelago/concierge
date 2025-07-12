@@ -225,6 +225,89 @@ const OutputSandbox = forwardRef(
                                 :root {
                                     --prefers-color-scheme: ${theme};
                                 }
+                                
+                                /* Override prefers-color-scheme media queries based on theme */
+                                html[data-theme="dark"] {
+                                    /* Force dark mode regardless of system preference */
+                                    color-scheme: dark;
+                                }
+                                
+                                html[data-theme="light"] {
+                                    /* Force light mode regardless of system preference */
+                                    color-scheme: light;
+                                }
+                                
+                                /* Override any prefers-color-scheme media queries */
+                                html[data-theme="dark"] * {
+                                    /* Override any light mode styles from prefers-color-scheme: light */
+                                }
+                                
+                                html[data-theme="light"] * {
+                                    /* Override any dark mode styles from prefers-color-scheme: dark */
+                                }
+                                
+                                /* Specific overrides for common elements that might use prefers-color-scheme */
+                                html[data-theme="dark"] {
+                                    background-color: #1a1a1a !important;
+                                    color: #ffffff !important;
+                                }
+                                
+                                html[data-theme="light"] {
+                                    background-color: #ffffff !important;
+                                    color: #000000 !important;
+                                }
+                                
+                                /* Override prefers-color-scheme media queries */
+                                /* Force dark mode when theme is dark, regardless of system preference */
+                                html[data-theme="dark"] {
+                                    --force-dark-mode: true;
+                                }
+                                
+                                /* Force light mode when theme is light, regardless of system preference */
+                                html[data-theme="light"] {
+                                    --force-light-mode: true;
+                                }
+                                
+                                /* Override any prefers-color-scheme: light styles when theme is dark */
+                                @media (prefers-color-scheme: light) {
+                                    html[data-theme="dark"] {
+                                        background-color: #1a1a1a !important;
+                                        color: #ffffff !important;
+                                    }
+                                    html[data-theme="dark"] * {
+                                        background-color: inherit !important;
+                                        color: inherit !important;
+                                    }
+                                }
+                                
+                                /* Override any prefers-color-scheme: dark styles when theme is light */
+                                @media (prefers-color-scheme: dark) {
+                                    html[data-theme="light"] {
+                                        background-color: #ffffff !important;
+                                        color: #000000 !important;
+                                    }
+                                    html[data-theme="light"] * {
+                                        background-color: inherit !important;
+                                        color: inherit !important;
+                                    }
+                                }
+                                
+                                /* Additional specificity for common elements */
+                                html[data-theme="dark"] body,
+                                html[data-theme="dark"] div,
+                                html[data-theme="dark"] p,
+                                html[data-theme="dark"] span {
+                                    background-color: #1a1a1a !important;
+                                    color: #ffffff !important;
+                                }
+                                
+                                html[data-theme="light"] body,
+                                html[data-theme="light"] div,
+                                html[data-theme="light"] p,
+                                html[data-theme="light"] span {
+                                    background-color: #ffffff !important;
+                                    color: #000000 !important;
+                                }
                             </style>
                             <script>
                                 // Make theme available to applets via JavaScript

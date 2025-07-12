@@ -26,7 +26,7 @@ function getStreamingDisplayContent(content, isStreaming) {
 
     // If HTML is detected, show a placeholder
     if (htmlContent && htmlContent.html) {
-        return "🔄 **Generating HTML...**\n\n*Please check the preview pane.*";
+        return "🔄 **Generating HTML...**";
     }
 
     return content;

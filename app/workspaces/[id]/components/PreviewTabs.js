@@ -28,7 +28,7 @@ function CreatingAppletDialog({ isVisible }) {
     if (!isVisible) return null;
 
     return (
-        <div className="absolute inset-0 bg-white/60 backdrop-blur-sm flex items-center justify-center z-10">
+        <div className="absolute inset-0 bg-white/5 backdrop-blur-sm flex items-center justify-center z-10">
             <div className="bg-white rounded-lg shadow-lg p-6 max-w-sm mx-4">
                 <div className="flex items-center gap-3 mb-3">
                     <div className="w-5 h-5 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin" />

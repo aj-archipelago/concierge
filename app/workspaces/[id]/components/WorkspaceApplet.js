@@ -59,7 +59,7 @@ export default function WorkspaceApplet() {
     const streamingMessageRef = useRef("");
     const messageQueueRef = useRef([]);
     const processingRef = useRef(false);
-    const hasStreamingVersionRef = useRef(false); // Track if we've created a temporary streaming version
+    const streamingVersionRef = useRef(null); // Track the streaming version index
 
     // Queries and mutations
     const appletQuery = useWorkspaceApplet(id);
@@ -120,6 +120,39 @@ export default function WorkspaceApplet() {
     }, [activeVersionIndex]);
 
     // Clear streaming state
+    // Simple and bulletproof version management
+    const createNewVersion = useCallback(
+        (htmlContent) => {
+            const newVersions = [...htmlVersions, htmlContent];
+            const newVersionIndex = newVersions.length - 1;
+
+            setHtmlVersions(newVersions);
+            setActiveVersionIndex(newVersionIndex);
+
+            return newVersionIndex;
+        },
+        [htmlVersions],
+    );
+
+    const updateStreamingVersion = useCallback(
+        (htmlContent) => {
+            if (streamingVersionRef.current === null) {
+                // First time streaming - create a new version
+                const newVersionIndex = createNewVersion(htmlContent);
+                streamingVersionRef.current = newVersionIndex;
+                setShowCreatingDialog(true);
+            } else {
+                // Update existing streaming version
+                setHtmlVersions((prev) => {
+                    const newVersions = [...prev];
+                    newVersions[streamingVersionRef.current] = htmlContent;
+                    return newVersions;
+                });
+            }
+        },
+        [createNewVersion],
+    );
+
     const clearStreamingState = () => {
         streamingMessageRef.current = "";
         setStreamingContent("");
@@ -127,76 +160,24 @@ export default function WorkspaceApplet() {
         setIsStreaming(false);
         messageQueueRef.current = [];
         processingRef.current = false;
-        setShowCreatingDialog(false); // Hide the creating dialog
+        setShowCreatingDialog(false);
 
-        // If we had a streaming version, remove it and fix the active index
-        if (hasStreamingVersionRef.current) {
-            setHtmlVersions((prev) => {
-                const newVersions = prev.slice(0, -1); // Remove the last (streaming) version
-                return newVersions;
-            });
-            hasStreamingVersionRef.current = false;
-        }
-
-        // Validate and fix version state after clearing streaming
-        setTimeout(() => validateVersionState(), 0);
+        // Reset streaming version tracking
+        streamingVersionRef.current = null;
     };
 
-    // Helper function to update HTML versions during streaming
-    const updateHtmlVersions = (htmlContent) => {
-        const newVersions = [...htmlVersions];
-
-        // During streaming, create or update a temporary version
-        if (isStreaming) {
-            if (!hasStreamingVersionRef.current) {
-                // Create a temporary streaming version for the first time
-                newVersions.push(htmlContent);
-                const newActiveIndex = newVersions.length - 1;
-                setActiveVersionIndex(newActiveIndex);
-                hasStreamingVersionRef.current = true;
-
-                // Show the "Creating applet..." dialog when we first detect HTML content
-                setShowCreatingDialog(true);
-            } else {
-                // Update the existing temporary streaming version
-                newVersions[newVersions.length - 1] = htmlContent;
-            }
-        } else {
-            // For non-streaming updates, always create a new version
-            // This ensures we don't replace existing versions
-            newVersions.push(htmlContent);
-            const newActiveIndex = newVersions.length - 1;
-            setActiveVersionIndex(newActiveIndex);
-        }
-
-        setHtmlVersions(newVersions);
-    };
-
-    // Helper function to validate and fix version state
-    const validateVersionState = useCallback(() => {
+    // Simple validation to ensure activeVersionIndex is always valid
+    useEffect(() => {
         if (htmlVersions.length === 0) {
-            // No versions exist, reset active index
-            setActiveVersionIndex(-1);
-            return;
-        }
-
-        const maxValidIndex = htmlVersions.length - 1;
-        if (activeVersionIndex > maxValidIndex) {
-            // Active index is out of bounds, fix it
-            console.warn(
-                `Fixing invalid activeVersionIndex: ${activeVersionIndex} > ${maxValidIndex}`,
-            );
-            setActiveVersionIndex(maxValidIndex);
-        } else if (activeVersionIndex < 0 && htmlVersions.length > 0) {
-            // Active index is -1 but we have versions, set to latest
-            setActiveVersionIndex(maxValidIndex);
+            if (activeVersionIndex !== -1) {
+                setActiveVersionIndex(-1);
+            }
+        } else if (activeVersionIndex < 0) {
+            setActiveVersionIndex(htmlVersions.length - 1);
+        } else if (activeVersionIndex >= htmlVersions.length) {
+            setActiveVersionIndex(htmlVersions.length - 1);
         }
     }, [htmlVersions.length, activeVersionIndex]);
-
-    // Validate version state whenever htmlVersions changes
-    useEffect(() => {
-        validateVersionState();
-    }, [htmlVersions.length, validateVersionState, activeVersionIndex]);
 
     // Process message queue for streaming
     const processMessageQueue = async () => {
@@ -258,7 +239,7 @@ export default function WorkspaceApplet() {
 
                     if (htmlContent && htmlContent.html) {
                         // Update the preview with the partial HTML content
-                        updateHtmlVersions(htmlContent.html);
+                        updateStreamingVersion(htmlContent.html);
                     }
 
                     // If this is the first chunk and progress is 1, simulate streaming
@@ -295,7 +276,7 @@ export default function WorkspaceApplet() {
                                     cleanedChunkContent,
                                 );
                             if (chunkHtmlContent && chunkHtmlContent.html) {
-                                updateHtmlVersions(chunkHtmlContent.html);
+                                updateStreamingVersion(chunkHtmlContent.html);
                             }
 
                             // Add a small delay between chunks (except for the last one)
@@ -334,17 +315,11 @@ export default function WorkspaceApplet() {
     // Process final response from streaming
     const processFinalResponse = async (finalContent, wasStreaming) => {
         try {
-            // Validate version state before processing
-            validateVersionState();
-
             let aiMessage = {
                 content: finalContent,
                 role: "assistant",
                 timestamp: new Date().toISOString(),
             };
-
-            let newVersions = htmlVersions;
-            let finalVersionIndex = newVersions.length - 1; // Default to current versions length
 
             // Clean the content for HTML extraction (remove code blocks)
             const cleanedContent = cleanJsonCodeBlocks(finalContent);
@@ -354,20 +329,22 @@ export default function WorkspaceApplet() {
 
             if (htmlContent && htmlContent.html) {
                 // We have valid HTML content
-                if (wasStreaming && hasStreamingVersionRef.current) {
-                    // Finalize the existing streaming version instead of creating a new one
-                    newVersions[newVersions.length - 1] = htmlContent.html;
-                    setHtmlVersions([...newVersions]); // Trigger re-render
-                    setActiveVersionIndex(newVersions.length - 1);
+                if (wasStreaming && streamingVersionRef.current !== null) {
+                    // Finalize the existing streaming version
+                    setHtmlVersions((prev) => {
+                        const newVersions = [...prev];
+                        newVersions[streamingVersionRef.current] =
+                            htmlContent.html;
+                        return newVersions;
+                    });
+                    aiMessage.linkToVersion = streamingVersionRef.current;
                 } else {
                     // Create a new version for non-streaming responses
-                    newVersions = [...htmlVersions, htmlContent.html];
-                    setHtmlVersions(newVersions);
-                    setActiveVersionIndex(newVersions.length - 1);
+                    const newVersionIndex = createNewVersion(htmlContent.html);
+                    aiMessage.linkToVersion = newVersionIndex;
                 }
 
                 aiMessage.content = `HTML code generated. Check the preview pane\n\n\n#### Summary of changes:**\n${htmlContent.changes}`;
-                aiMessage.linkToVersion = finalVersionIndex;
             } else {
                 // Check if the response contains HTML and changes (legacy format)
                 if (
@@ -376,26 +353,30 @@ export default function WorkspaceApplet() {
                     typeof finalContent.html === "string" &&
                     typeof finalContent.changes === "string"
                 ) {
-                    if (wasStreaming && hasStreamingVersionRef.current) {
-                        // Finalize the existing streaming version instead of creating a new one
-                        newVersions[newVersions.length - 1] = finalContent.html;
-                        setHtmlVersions([...newVersions]); // Trigger re-render
-                        setActiveVersionIndex(newVersions.length - 1);
+                    if (wasStreaming && streamingVersionRef.current !== null) {
+                        // Finalize the existing streaming version
+                        setHtmlVersions((prev) => {
+                            const newVersions = [...prev];
+                            newVersions[streamingVersionRef.current] =
+                                finalContent.html;
+                            return newVersions;
+                        });
+                        aiMessage.linkToVersion = streamingVersionRef.current;
                     } else {
                         // Create a new version for non-streaming responses
-                        newVersions = [...htmlVersions, finalContent.html];
-                        setHtmlVersions(newVersions);
-                        setActiveVersionIndex(newVersions.length - 1);
+                        const newVersionIndex = createNewVersion(
+                            finalContent.html,
+                        );
+                        aiMessage.linkToVersion = newVersionIndex;
                     }
 
                     aiMessage.content = `HTML code generated. Check the preview pane\n\n\n#### Summary of changes:**\n${finalContent.changes}`;
-                    aiMessage.linkToVersion = finalVersionIndex;
                 } else {
                     aiMessage.content = finalContent;
                     if (finalContent.includes("`")) {
                         aiMessage.content = finalContent.replace(/`/g, "");
                     }
-                    aiMessage.linkToVersion = finalVersionIndex;
+                    aiMessage.linkToVersion = htmlVersions.length - 1;
                 }
             }
 
@@ -405,11 +386,8 @@ export default function WorkspaceApplet() {
             );
             const finalMessages = [...messagesWithoutStreaming, aiMessage];
 
-            // Update finalVersionIndex based on the actual new versions length
-            finalVersionIndex = newVersions.length - 1;
-
             setMessages(
-                getMessagesUpToVersion(finalMessages, finalVersionIndex),
+                getMessagesUpToVersion(finalMessages, aiMessage.linkToVersion),
             );
             setIsContinuingFromOldVersion(false);
 
@@ -419,7 +397,7 @@ export default function WorkspaceApplet() {
                 id,
                 data: {
                     messages: finalMessages,
-                    htmlVersions: newVersions,
+                    htmlVersions: htmlVersions,
                 },
             });
         } catch (error) {
@@ -512,7 +490,7 @@ export default function WorkspaceApplet() {
             setIsStreaming(true);
             setStreamingContent("");
             streamingMessageRef.current = "";
-            hasStreamingVersionRef.current = false; // Reset streaming version flag for new session
+            streamingVersionRef.current = null; // Reset streaming version tracking for new session
 
             // Add a temporary streaming message
             const streamingMessage = {
@@ -656,7 +634,14 @@ export default function WorkspaceApplet() {
     };
 
     const handleMessageClick = (versionIndex) => {
-        setActiveVersionIndex(versionIndex);
+        // Ensure the version index is within bounds
+        if (versionIndex >= 0 && versionIndex < htmlVersions.length) {
+            setActiveVersionIndex(versionIndex);
+        } else {
+            console.warn(
+                `Invalid version index: ${versionIndex}, max: ${htmlVersions.length - 1}`,
+            );
+        }
     };
 
     const handleReplayMessage = (messageIndex) => {
@@ -729,7 +714,7 @@ export default function WorkspaceApplet() {
                                 isStreaming={isStreaming}
                                 isOwner={isOwner}
                                 hasStreamingVersion={
-                                    hasStreamingVersionRef.current
+                                    streamingVersionRef.current !== null
                                 }
                                 showCreatingDialog={showCreatingDialog}
                             />
@@ -769,7 +754,7 @@ export default function WorkspaceApplet() {
                             >
                                 {blockOldVersionChat && isOwner && (
                                     <>
-                                        <div className="absolute inset-0 bg-white/80 backdrop-blur-sm flex items-center justify-center z-10">
+                                        <div className="absolute inset-0 bg-white/5 backdrop-blur-sm flex items-center justify-center z-10">
                                             <button
                                                 className="px-4 py-2 bg-emerald-500 text-white rounded-md hover:bg-emerald-600 transition-colors"
                                                 onClick={() =>

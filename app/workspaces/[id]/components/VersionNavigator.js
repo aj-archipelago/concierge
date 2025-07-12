@@ -8,7 +8,7 @@ import {
     CheckIcon,
     CopyIcon,
 } from "lucide-react";
-import { useContext, useEffect } from "react";
+import { useContext } from "react";
 import {
     Tooltip,
     TooltipTrigger,
@@ -92,25 +92,7 @@ export default function VersionNavigator({
     const { direction } = useContext(LanguageContext);
     const [showPublishDialog, setShowPublishDialog] = useState(false);
 
-    // Validate and fix activeVersionIndex if it's out of bounds
-    useEffect(() => {
-        if (htmlVersions.length === 0) {
-            if (activeVersionIndex !== -1) {
-                setActiveVersionIndex(-1);
-            }
-            return;
-        }
-
-        const maxValidIndex = htmlVersions.length - 1;
-        if (activeVersionIndex > maxValidIndex) {
-            console.warn(
-                `VersionNavigator: Fixing invalid activeVersionIndex: ${activeVersionIndex} > ${maxValidIndex}`,
-            );
-            setActiveVersionIndex(maxValidIndex);
-        } else if (activeVersionIndex < 0 && htmlVersions.length > 0) {
-            setActiveVersionIndex(maxValidIndex);
-        }
-    }, [activeVersionIndex, htmlVersions.length, setActiveVersionIndex]);
+    // Note: Version validation is handled in WorkspaceApplet.js to avoid duplicate validation
 
     const handleDuplicateVersion = () => {
         if (!isOwner) return;
