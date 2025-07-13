@@ -636,7 +636,7 @@
     "Preview": "معاينة",
     "Code": "كود",
     "Creating Applet...": "جاري إنشاء التطبيق الصغير...",
-    "The AI is generating your applet. You can see the preview updating in real-time as the code is being written.": "الذكاء الاصطناعي يقوم بإنشاء تطبيقك الصغير. يمكنك رؤية المعاينة تتحدث في الوقت الفعلي أثناء كتابة الكود.",
+    "The AI is generating your applet. The preview will update in real-time as the code is being written.": "الذكاء الاصطناعي يقوم بإنشاء التطبيق الصغير. سيتم تحديث لوحة المعاينة في الوقت الفعلي كما يتم كتابة الكود.",
     "Manage Apps": "إدارة التطبيقات",
     "Drag and drop to reorder your apps": "اسحب وأسقط لإعادة ترتيب تطبيقاتك",
     "Your Apps": "تطبيقاتك",

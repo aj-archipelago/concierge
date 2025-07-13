@@ -41,7 +41,7 @@ function CreatingAppletDialog({ isVisible }) {
                 </div>
                 <p className="text-sm text-gray-600">
                     {t(
-                        "The AI is generating your applet. You can see the preview updating in real-time as the code is being written.",
+                        "The AI is generating your applet. The preview will update in real-time as the code is being written.",
                     )}
                 </p>
             </div>
