@@ -143,9 +143,9 @@ export function cleanJsonCodeBlocks(content) {
 
     // Remove only code block markers, then trim the result
     let cleaned = content
-        .replace(/```json[ \t]*\n?/g, '')
-        .replace(/```[ \t]*\n?/g, '')
-        .replace(/[ \t]*```/g, '')
+        .replace(/```json[ \t]*\n?/g, "")
+        .replace(/```[ \t]*\n?/g, "")
+        .replace(/[ \t]*```/g, "")
         .trim();
     return cleaned;
 }
@@ -212,9 +212,7 @@ export function detectCodeBlockInStream(content) {
         if (codeBlockStartRegex.test(line)) {
             isInCodeBlock = true;
             // Add a placeholder where the code block starts
-            chatContent.push(
-                "**Generating applet code...**",
-            );
+            chatContent.push("**Generating applet code...**");
             continue;
         }
 
@@ -265,10 +263,7 @@ export function extractChatContent(content) {
     // Replace code blocks with placeholders
     const codeBlockRegex = /```(?:html)?\s*[\s\S]*?```/g;
     const chatContent = content
-        .replace(
-            codeBlockRegex,
-            "**Applet code generated and applied.**",
-        )
+        .replace(codeBlockRegex, "**Applet code generated and applied.**")
         .trim();
 
     return chatContent || content; // Return original content if nothing remains

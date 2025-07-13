@@ -93,7 +93,7 @@ describe("Workspace Utils", () => {
         });
 
         it("should return null for non-JSON content in code blocks", () => {
-            const content = '```json\nThis is not JSON\n```';
+            const content = "```json\nThis is not JSON\n```";
             const result = extractAndParseJson(content);
             expect(result).toBeNull();
         });
@@ -127,7 +127,9 @@ describe("Workspace Utils", () => {
         it("should handle multiple nested structures", () => {
             const partial = '{"key": {"nested": [1, 2, {"deep": "value"';
             const result = completePartialJson(partial);
-            expect(result).toBe('{"key": {"nested": [1, 2, {"deep": "value"}]}}');
+            expect(result).toBe(
+                '{"key": {"nested": [1, 2, {"deep": "value"}]}}',
+            );
         });
 
         it("should complete unclosed strings", () => {
@@ -149,9 +151,12 @@ describe("Workspace Utils", () => {
         });
 
         it("should handle complex nested structures", () => {
-            const partial = '{"users": [{"name": "John", "age": 30, "hobbies": ["reading"';
+            const partial =
+                '{"users": [{"name": "John", "age": 30, "hobbies": ["reading"';
             const result = completePartialJson(partial);
-            expect(result).toBe('{"users": [{"name": "John", "age": 30, "hobbies": ["reading"]}]}');
+            expect(result).toBe(
+                '{"users": [{"name": "John", "age": 30, "hobbies": ["reading"]}]}',
+            );
         });
     });
 
@@ -187,7 +192,7 @@ describe("Workspace Utils", () => {
         });
 
         it("should return null when all parsing attempts fail", () => {
-            const invalid = 'This is not JSON at all';
+            const invalid = "This is not JSON at all";
             const result = safeParseJson(invalid);
             expect(result).toBeNull();
         });
@@ -213,13 +218,14 @@ describe("Workspace Utils", () => {
         });
 
         it("should remove multiple code blocks", () => {
-            const content = '```json\n{"key1": "value1"}\n```\n```\n{"key2": "value2"}\n```';
+            const content =
+                '```json\n{"key1": "value1"}\n```\n```\n{"key2": "value2"}\n```';
             const result = cleanJsonCodeBlocks(content);
             expect(result).toBe('{"key1": "value1"}\n{"key2": "value2"}');
         });
 
         it("should handle content without code blocks", () => {
-            const content = 'This is plain text';
+            const content = "This is plain text";
             const result = cleanJsonCodeBlocks(content);
             expect(result).toBe(content);
         });
@@ -239,63 +245,65 @@ describe("Workspace Utils", () => {
         });
 
         it("should extract HTML from ```html code blocks", () => {
-            const content = '```html\n<div>Hello World</div>\n```';
+            const content = "```html\n<div>Hello World</div>\n```";
             const result = extractHtmlFromStreamingContent(content);
             expect(result).toEqual({
-                html: '<div>Hello World</div>',
+                html: "<div>Hello World</div>",
                 changes: "HTML code generated from code block",
                 isComplete: true,
             });
         });
 
         it("should extract HTML from ``` code blocks", () => {
-            const content = '```\n<div>Hello World</div>\n```';
+            const content = "```\n<div>Hello World</div>\n```";
             const result = extractHtmlFromStreamingContent(content);
             expect(result).toEqual({
-                html: '<div>Hello World</div>',
+                html: "<div>Hello World</div>",
                 changes: "HTML code generated from code block",
                 isComplete: true,
             });
         });
 
         it("should use the last code block when multiple exist", () => {
-            const content = '```html\n<div>First</div>\n```\n```html\n<div>Second</div>\n```';
+            const content =
+                "```html\n<div>First</div>\n```\n```html\n<div>Second</div>\n```";
             const result = extractHtmlFromStreamingContent(content);
             expect(result).toEqual({
-                html: '<div>Second</div>',
+                html: "<div>Second</div>",
                 changes: "HTML code generated from code block",
                 isComplete: true,
             });
         });
 
         it("should handle whitespace in code blocks", () => {
-            const content = '```html\n  <div>Hello World</div>  \n```';
+            const content = "```html\n  <div>Hello World</div>  \n```";
             const result = extractHtmlFromStreamingContent(content);
             expect(result).toEqual({
-                html: '<div>Hello World</div>',
+                html: "<div>Hello World</div>",
                 changes: "HTML code generated from code block",
                 isComplete: true,
             });
         });
 
         it("should return null for empty code blocks", () => {
-            const content = '```html\n\n```';
+            const content = "```html\n\n```";
             const result = extractHtmlFromStreamingContent(content);
             expect(result).toBeNull();
         });
 
         it("should return null when no code blocks found", () => {
-            const content = 'This is plain text without code blocks';
+            const content = "This is plain text without code blocks";
             const result = extractHtmlFromStreamingContent(content);
             expect(result).toBeNull();
         });
 
         it("should handle complex HTML content", () => {
-            const content = '```html\n<!DOCTYPE html>\n<html>\n<head><title>Test</title></head>\n<body><h1>Hello</h1></body>\n</html>\n```';
+            const content =
+                "```html\n<!DOCTYPE html>\n<html>\n<head><title>Test</title></head>\n<body><h1>Hello</h1></body>\n</html>\n```";
             const result = extractHtmlFromStreamingContent(content);
-            expect(result.html).toContain('<!DOCTYPE html>');
-            expect(result.html).toContain('<html>');
-            expect(result.html).toContain('<h1>Hello</h1>');
+            expect(result.html).toContain("<!DOCTYPE html>");
+            expect(result.html).toContain("<html>");
+            expect(result.html).toContain("<h1>Hello</h1>");
         });
     });
 
@@ -307,22 +315,23 @@ describe("Workspace Utils", () => {
         });
 
         it("should detect complete code blocks", () => {
-            const content = '```html\n<div>Hello</div>\n```';
+            const content = "```html\n<div>Hello</div>\n```";
             const result = detectCodeBlockInStream(content);
             expect(result).toEqual({
-                html: '<div>Hello</div>',
+                html: "<div>Hello</div>",
                 isInCodeBlock: true,
                 changes: "HTML code being generated...",
                 isComplete: false,
-                chatContent: "**Generating applet code...**\n**Generating applet code...**",
+                chatContent:
+                    "**Generating applet code...**\n**Generating applet code...**",
             });
         });
 
         it("should detect incomplete code blocks", () => {
-            const content = '```html\n<div>Hello';
+            const content = "```html\n<div>Hello";
             const result = detectCodeBlockInStream(content);
             expect(result).toEqual({
-                html: '<div>Hello',
+                html: "<div>Hello",
                 isInCodeBlock: true,
                 changes: "HTML code being generated...",
                 isComplete: false,
@@ -331,68 +340,75 @@ describe("Workspace Utils", () => {
         });
 
         it("should handle mixed content with code blocks", () => {
-            const content = 'Here is some explanation.\n```html\n<div>Hello</div>\n```\nAnd more text.';
+            const content =
+                "Here is some explanation.\n```html\n<div>Hello</div>\n```\nAnd more text.";
             const result = detectCodeBlockInStream(content);
             expect(result).toEqual({
-                html: '<div>Hello</div>\nAnd more text.',
+                html: "<div>Hello</div>\nAnd more text.",
                 isInCodeBlock: true,
                 changes: "HTML code being generated...",
                 isComplete: false,
-                chatContent: "Here is some explanation.\n**Generating applet code...**\n**Generating applet code...**",
+                chatContent:
+                    "Here is some explanation.\n**Generating applet code...**\n**Generating applet code...**",
             });
         });
 
         it("should handle incomplete code blocks with chat content", () => {
-            const content = 'Here is the explanation.\n```html\n<div>Hello';
+            const content = "Here is the explanation.\n```html\n<div>Hello";
             const result = detectCodeBlockInStream(content);
             expect(result).toEqual({
-                html: '<div>Hello',
+                html: "<div>Hello",
                 isInCodeBlock: true,
                 changes: "HTML code being generated...",
                 isComplete: false,
-                chatContent: "Here is the explanation.\n**Generating applet code...**",
+                chatContent:
+                    "Here is the explanation.\n**Generating applet code...**",
             });
         });
 
         it("should handle multiple code blocks", () => {
-            const content = '```html\n<div>First</div>\n```\n```html\n<div>Second</div>';
+            const content =
+                "```html\n<div>First</div>\n```\n```html\n<div>Second</div>";
             const result = detectCodeBlockInStream(content);
             expect(result).toEqual({
-                html: '<div>First</div>\n<div>Second</div>',
+                html: "<div>First</div>\n<div>Second</div>",
                 isInCodeBlock: true,
                 changes: "HTML code being generated...",
                 isComplete: false,
-                chatContent: "**Generating applet code...**\n**Generating applet code...**\n**Generating applet code...**",
+                chatContent:
+                    "**Generating applet code...**\n**Generating applet code...**\n**Generating applet code...**",
             });
         });
 
         it("should return null when no code blocks detected", () => {
-            const content = 'This is plain text without any code blocks';
+            const content = "This is plain text without any code blocks";
             const result = detectCodeBlockInStream(content);
             expect(result).toBeNull();
         });
 
         it("should handle empty code blocks", () => {
-            const content = '```html\n\n```';
+            const content = "```html\n\n```";
             const result = detectCodeBlockInStream(content);
             expect(result).toBeNull();
         });
 
         it("should handle code blocks with only whitespace", () => {
-            const content = '```html\n   \n```';
+            const content = "```html\n   \n```";
             const result = detectCodeBlockInStream(content);
             expect(result).toBeNull();
         });
 
         it("should handle complex streaming scenarios", () => {
-            const content = 'Let me create a simple HTML page for you.\n```html\n<!DOCTYPE html>\n<html>\n<head>\n<title>My Page</title>\n</head>\n<body>\n<h1>Welcome</h1>\n<p>This is a paragraph.</p>';
+            const content =
+                "Let me create a simple HTML page for you.\n```html\n<!DOCTYPE html>\n<html>\n<head>\n<title>My Page</title>\n</head>\n<body>\n<h1>Welcome</h1>\n<p>This is a paragraph.</p>";
             const result = detectCodeBlockInStream(content);
             expect(result).toEqual({
-                html: '<!DOCTYPE html>\n<html>\n<head>\n<title>My Page</title>\n</head>\n<body>\n<h1>Welcome</h1>\n<p>This is a paragraph.</p>',
+                html: "<!DOCTYPE html>\n<html>\n<head>\n<title>My Page</title>\n</head>\n<body>\n<h1>Welcome</h1>\n<p>This is a paragraph.</p>",
                 isInCodeBlock: true,
                 changes: "HTML code being generated...",
                 isComplete: false,
-                chatContent: "Let me create a simple HTML page for you.\n**Generating applet code...**",
+                chatContent:
+                    "Let me create a simple HTML page for you.\n**Generating applet code...**",
             });
         });
     });
@@ -405,51 +421,60 @@ describe("Workspace Utils", () => {
         });
 
         it("should replace code blocks with placeholders", () => {
-            const content = 'Here is the explanation.\n```html\n<div>Hello</div>\n```\nAnd more text.';
+            const content =
+                "Here is the explanation.\n```html\n<div>Hello</div>\n```\nAnd more text.";
             const result = extractChatContent(content);
-            expect(result).toBe('Here is the explanation.\n**Applet code generated and applied.**\nAnd more text.');
+            expect(result).toBe(
+                "Here is the explanation.\n**Applet code generated and applied.**\nAnd more text.",
+            );
         });
 
         it("should handle multiple code blocks", () => {
-            const content = '```html\n<div>First</div>\n```\n```html\n<div>Second</div>\n```';
+            const content =
+                "```html\n<div>First</div>\n```\n```html\n<div>Second</div>\n```";
             const result = extractChatContent(content);
-            expect(result).toBe('**Applet code generated and applied.**\n**Applet code generated and applied.**');
+            expect(result).toBe(
+                "**Applet code generated and applied.**\n**Applet code generated and applied.**",
+            );
         });
 
         it("should handle content without code blocks", () => {
-            const content = 'This is plain text without code blocks';
+            const content = "This is plain text without code blocks";
             const result = extractChatContent(content);
             expect(result).toBe(content);
         });
 
         it("should handle empty content", () => {
-            const content = '';
+            const content = "";
             const result = extractChatContent(content);
-            expect(result).toBe('');
+            expect(result).toBe("");
         });
 
         it("should handle content with only code blocks", () => {
-            const content = '```html\n<div>Hello</div>\n```';
+            const content = "```html\n<div>Hello</div>\n```";
             const result = extractChatContent(content);
-            expect(result).toBe('**Applet code generated and applied.**');
+            expect(result).toBe("**Applet code generated and applied.**");
         });
 
         it("should handle whitespace around code blocks", () => {
-            const content = '  ```html\n  <div>Hello</div>\n  ```  ';
+            const content = "  ```html\n  <div>Hello</div>\n  ```  ";
             const result = extractChatContent(content);
-            expect(result).toBe('**Applet code generated and applied.**');
+            expect(result).toBe("**Applet code generated and applied.**");
         });
 
         it("should handle complex content with mixed code blocks", () => {
-            const content = 'First explanation.\n```html\n<div>First</div>\n```\nSecond explanation.\n```html\n<div>Second</div>\n```\nFinal text.';
+            const content =
+                "First explanation.\n```html\n<div>First</div>\n```\nSecond explanation.\n```html\n<div>Second</div>\n```\nFinal text.";
             const result = extractChatContent(content);
-            expect(result).toBe('First explanation.\n**Applet code generated and applied.**\nSecond explanation.\n**Applet code generated and applied.**\nFinal text.');
+            expect(result).toBe(
+                "First explanation.\n**Applet code generated and applied.**\nSecond explanation.\n**Applet code generated and applied.**\nFinal text.",
+            );
         });
 
         it("should return original content if nothing remains after replacement", () => {
-            const content = '```html\n<div>Hello</div>\n```';
+            const content = "```html\n<div>Hello</div>\n```";
             const result = extractChatContent(content);
-            expect(result).toBe('**Applet code generated and applied.**');
+            expect(result).toBe("**Applet code generated and applied.**");
         });
     });
-}); 
+});
