@@ -307,10 +307,15 @@ export default function WorkspaceApplet() {
                 // Finalize the streaming message
                 const finalContent = streamingMessageRef.current;
                 const wasStreaming = isStreaming; // Capture streaming state before clearing
+                const streamingVersionIndex = streamingVersionRef.current; // Capture streaming version index before clearing
                 clearStreamingState();
 
                 // Process the final response
-                await processFinalResponse(finalContent, wasStreaming);
+                await processFinalResponse(
+                    finalContent,
+                    wasStreaming,
+                    streamingVersionIndex,
+                );
             }
         } catch (e) {
             clearStreamingState();
@@ -326,7 +331,11 @@ export default function WorkspaceApplet() {
     };
 
     // Process final response from streaming
-    const processFinalResponse = async (finalContent, wasStreaming) => {
+    const processFinalResponse = async (
+        finalContent,
+        wasStreaming,
+        streamingVersionIndex,
+    ) => {
         try {
             let aiMessage = {
                 content: finalContent,
@@ -339,15 +348,14 @@ export default function WorkspaceApplet() {
 
             if (htmlContent && htmlContent.html) {
                 // We have valid HTML content
-                if (wasStreaming && streamingVersionRef.current !== null) {
+                if (wasStreaming && streamingVersionIndex !== null) {
                     // Finalize the existing streaming version
                     setHtmlVersions((prev) => {
                         const newVersions = [...prev];
-                        newVersions[streamingVersionRef.current] =
-                            htmlContent.html;
+                        newVersions[streamingVersionIndex] = htmlContent.html;
                         return newVersions;
                     });
-                    aiMessage.linkToVersion = streamingVersionRef.current;
+                    aiMessage.linkToVersion = streamingVersionIndex;
                 } else {
                     // Create a new version for non-streaming responses
                     const newVersionIndex = createNewVersion(htmlContent.html);
@@ -361,14 +369,14 @@ export default function WorkspaceApplet() {
                     `${t("HTML code generated. Check the preview pane")}`;
             } else {
                 // Check if we were in a code block during streaming
-                if (wasStreaming && streamingVersionRef.current !== null) {
+                if (wasStreaming && streamingVersionIndex !== null) {
                     // We were generating HTML but didn't get a complete code block
                     // Extract any explanatory text that was provided
                     const chatText = extractChatContent(finalContent);
                     aiMessage.content =
                         chatText ||
                         `${t("HTML code generated. Check the preview pane")}`;
-                    aiMessage.linkToVersion = streamingVersionRef.current;
+                    aiMessage.linkToVersion = streamingVersionIndex;
                 } else {
                     // No HTML code block found - this is just a chat response
                     aiMessage.content = finalContent;
@@ -392,11 +400,21 @@ export default function WorkspaceApplet() {
 
             allMessagesRef.current = finalMessages;
 
+            // Get the current HTML versions to ensure we have the latest state
+            const currentHtmlVersions =
+                wasStreaming && streamingVersionIndex !== null
+                    ? htmlVersions.map((version, index) =>
+                          index === streamingVersionIndex
+                              ? htmlContent?.html || version
+                              : version,
+                      )
+                    : htmlVersions;
+
             updateApplet.mutate({
                 id,
                 data: {
                     messages: finalMessages,
-                    htmlVersions: htmlVersions,
+                    htmlVersions: currentHtmlVersions,
                 },
             });
         } catch (error) {
