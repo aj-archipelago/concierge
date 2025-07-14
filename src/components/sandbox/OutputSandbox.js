@@ -352,16 +352,22 @@ const OutputSandbox = forwardRef(
                                 html[data-theme="dark"] p,
                                 html[data-theme="dark"] span,
                                 html[data-theme="dark"] label {
-                                    background-color: inherit !important;
-                                    color: #ffffff !important;
+                                    background-color: inherit;
+                                    border-color: #efeff1;
+                                    color: #ffffff;
                                 }
                                 
-                                html[data-theme="light"] body,
+                                html[data-theme="light"] body {
+                                    background-color: #ffffff;
+                                    color: #000000;
+                                }
+
                                 html[data-theme="light"] div,
                                 html[data-theme="light"] p,
-                                html[data-theme="light"] span {
-                                    background-color: #ffffff !important;
-                                    color: #000000 !important;
+                                html[data-theme="light"] span,
+                                html[data-theme="light"] label {
+                                    background-color: inherit;
+                                    color: #000000;
                                 }
                                 
                                 /* Hide pre elements with llm-output class - they're replaced by React portals */
