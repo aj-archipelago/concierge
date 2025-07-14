@@ -342,36 +342,17 @@ const OutputSandbox = forwardRef(
                                     --force-light-mode: true;
                                 }
                                 
-                                /* Override any prefers-color-scheme: light styles when theme is dark */
-                                @media (prefers-color-scheme: light) {
-                                    html[data-theme="dark"] {
-                                        background-color: #1a1a1a !important;
-                                        color: #ffffff !important;
-                                    }
-                                    html[data-theme="dark"] * {
-                                        background-color: inherit !important;
-                                        color: inherit !important;
-                                    }
-                                }
-                                
-                                /* Override any prefers-color-scheme: dark styles when theme is light */
-                                @media (prefers-color-scheme: dark) {
-                                    html[data-theme="light"] {
-                                        background-color: #ffffff !important;
-                                        color: #000000 !important;
-                                    }
-                                    html[data-theme="light"] * {
-                                        background-color: inherit !important;
-                                        color: inherit !important;
-                                    }
-                                }
-                                
                                 /* Additional specificity for common elements */
-                                html[data-theme="dark"] body,
+                                html[data-theme="dark"] body {
+                                    background-color: #1a1a1a !important;
+                                    color: #ffffff !important;
+                                }
+
                                 html[data-theme="dark"] div,
                                 html[data-theme="dark"] p,
-                                html[data-theme="dark"] span {
-                                    background-color: #1a1a1a !important;
+                                html[data-theme="dark"] span,
+                                html[data-theme="dark"] label {
+                                    background-color: inherit !important;
                                     color: #ffffff !important;
                                 }
                                 
