@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import { connectToDatabase } from "@/src/db.mjs";
 import Workspace from "@/app/api/models/workspace";
 import Applet from "@/app/api/models/applet";
 import { getWorkspace } from "../db.js";
@@ -7,7 +6,6 @@ import App, { APP_TYPES, APP_STATUS } from "@/app/api/models/app";
 
 // GET: fetch or create applet (already implemented)
 export async function GET(request, { params }) {
-    await connectToDatabase();
     const { id } = params;
 
     try {
