@@ -50,6 +50,58 @@ function CreatingAppletDialog({ isVisible }) {
     );
 }
 
+// Empty state placeholder component
+function EmptyStatePlaceholder() {
+    const { t } = useTranslation();
+
+    return (
+        <div className="flex flex-col items-center justify-center h-full text-center p-8">
+            <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">
+                <svg
+                    className="w-8 h-8 text-gray-400"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                >
+                    <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                    />
+                </svg>
+            </div>
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                {t("No applet created yet")}
+            </h3>
+            <p className="text-gray-600 max-w-md">
+                {t(
+                    "Use the chat interface to describe your desired UI, or paste HTML code directly in the Code tab to create your first version.",
+                )}
+            </p>
+        </div>
+    );
+}
+
+// Loading state component
+function LoadingStatePlaceholder() {
+    const { t } = useTranslation();
+
+    return (
+        <div className="flex flex-col items-center justify-center h-full text-center p-8">
+            <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">
+                <div className="w-8 h-8 border-2 border-gray-300 border-t-blue-600 rounded-full animate-spin" />
+            </div>
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                {t("Loading applet...")}
+            </h3>
+            <p className="text-gray-600 max-w-md">
+                {t("Please wait while we load your applet data.")}
+            </p>
+        </div>
+    );
+}
+
 // Streaming preview component that uses dangerouslySetInnerHTML for smooth updates
 function StreamingPreview({ content, theme }) {
     // Generate the filtered HTML document using the shared template
@@ -73,11 +125,13 @@ export default function PreviewTabs({
     isOwner = true,
     hasStreamingVersion = false,
     showCreatingDialog = false,
+    isLoading = false,
 }) {
     const { t } = useTranslation();
     const { theme } = useContext(ThemeContext);
 
-    if (!htmlVersions.length) return null;
+    const hasVersions = htmlVersions.length > 0;
+    const currentContent = hasVersions ? htmlVersions[activeVersionIndex] : "";
 
     return (
         <Tabs
@@ -97,14 +151,18 @@ export default function PreviewTabs({
                             value="preview"
                             className="h-full m-0 min-w-0"
                         >
-                            {isStreaming && hasStreamingVersion ? (
+                            {isLoading ? (
+                                <LoadingStatePlaceholder />
+                            ) : !hasVersions ? (
+                                <EmptyStatePlaceholder />
+                            ) : isStreaming && hasStreamingVersion ? (
                                 <StreamingPreview
-                                    content={htmlVersions[activeVersionIndex]}
+                                    content={currentContent}
                                     theme={theme}
                                 />
                             ) : (
                                 <OutputSandbox
-                                    content={htmlVersions[activeVersionIndex]}
+                                    content={currentContent}
                                     height="100%"
                                     theme={theme}
                                 />
@@ -114,22 +172,26 @@ export default function PreviewTabs({
                             value="code"
                             className="h-full m-0 min-w-0"
                         >
-                            <HtmlEditor
-                                value={htmlVersions[activeVersionIndex]}
-                                onChange={
-                                    isOwner
-                                        ? (value) => {
-                                              onHtmlChange(
-                                                  value,
-                                                  activeVersionIndex,
-                                              );
-                                          }
-                                        : undefined
-                                }
-                                options={{
-                                    readOnly: !isOwner,
-                                }}
-                            />
+                            {isLoading ? (
+                                <LoadingStatePlaceholder />
+                            ) : (
+                                <HtmlEditor
+                                    value={currentContent}
+                                    onChange={
+                                        isOwner
+                                            ? (value) => {
+                                                  onHtmlChange(
+                                                      value,
+                                                      activeVersionIndex,
+                                                  );
+                                              }
+                                            : undefined
+                                    }
+                                    options={{
+                                        readOnly: !isOwner,
+                                    }}
+                                />
+                            )}
                         </TabsContent>
                     </div>
                 </div>

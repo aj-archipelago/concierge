@@ -87,10 +87,10 @@ export function generateFilteredSandboxHtml(content, theme) {
                         @apply text-sky-500 hover:underline dark:text-sky-400;
                     }
                     .chat-message ul, .chat-message ol {
-                        @apply my-4 pl-5 space-y-1 list-inside;
+                        @apply my-4 pl-5 space-y-1;
                     }
-                    .chat-message ul { @apply list-disc; }
-                    .chat-message ol { @apply list-decimal; }
+                    .chat-message ul { @apply list-disc list-outside; }
+                    .chat-message ol { @apply list-decimal list-outside; }
                     .chat-message li::marker {
                         @apply text-gray-500;
                     }
