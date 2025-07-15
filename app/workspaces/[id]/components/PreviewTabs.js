@@ -49,8 +49,21 @@ function CreatingAppletDialog({ isVisible }) {
     );
 }
 
+// Function to filter out dark classes from HTML content
+function filterDarkClasses(content, theme) {
+    if (theme === "dark") {
+        return content; // Keep all classes for dark theme
+    }
+
+    // Remove all dark: classes from the HTML content
+    return content.replace(/\bdark:[^\s"'`>]+/g, "");
+}
+
 // Streaming preview component that uses dangerouslySetInnerHTML for smooth updates
 function StreamingPreview({ content, theme }) {
+    // Filter out dark classes when theme is light
+    const filteredContent = filterDarkClasses(content, theme);
+
     return (
         <div
             className="w-full h-full overflow-auto min-w-0"
@@ -81,14 +94,41 @@ function StreamingPreview({ content, theme }) {
                                 :root {
                                     --prefers-color-scheme: ${theme};
                                 }
+                                
+                                /* Override prefers-color-scheme media queries based on theme */
+                                html[data-theme="dark"] {
+                                    /* Force dark mode regardless of system preference */
+                                    color-scheme: dark;
+                                }
+                                
+                                html[data-theme="light"] {
+                                    /* Force light mode regardless of system preference */
+                                    color-scheme: light;
+                                }
+                                
+                                /* Hide pre elements with llm-output class - they're replaced by React portals */
+                                pre.llm-output {
+                                    display: none !important;
+                                }
                             </style>
                             <script>
                                 // Make theme available to applets via JavaScript
                                 window.LABEEB_THEME = "${theme}";
                                 window.LABEEB_PREFERS_COLOR_SCHEME = "${theme}";
+                                
+                                // Listen for theme changes from parent
+                                window.addEventListener('message', function(event) {
+                                    if (event.data && event.data.type === 'theme-change') {
+                                        const newTheme = event.data.theme;
+                                        document.documentElement.setAttribute('data-theme', newTheme);
+                                        document.documentElement.style.setProperty('--prefers-color-scheme', newTheme);
+                                        window.LABEEB_THEME = newTheme;
+                                        window.LABEEB_PREFERS_COLOR_SCHEME = newTheme;
+                                    }
+                                });
                             </script>
                         </head>
-                        <body>${content}</body>
+                        <body>${filteredContent}</body>
                     </html>
                 `,
             }}

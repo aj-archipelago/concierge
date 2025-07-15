@@ -268,6 +268,19 @@ const OutputSandbox = forwardRef(
                 try {
                     setIsLoading(true);
 
+                    // Function to filter out dark classes from HTML content
+                    const filterDarkClasses = (content, theme) => {
+                        if (theme === "dark") {
+                            return content; // Keep all classes for dark theme
+                        }
+
+                        // Remove all dark: classes from the HTML content
+                        return content.replace(/\bdark:[^\s"'`>]+/g, "");
+                    };
+
+                    // Filter out dark classes when theme is light
+                    const filteredContent = filterDarkClasses(content, theme);
+
                     // Create a base tag to handle relative URLs
                     const base = document.createElement("base");
                     base.href = window.location.origin;
@@ -311,65 +324,6 @@ const OutputSandbox = forwardRef(
                                     color-scheme: light;
                                 }
                                 
-                                /* Override any prefers-color-scheme media queries */
-                                html[data-theme="dark"] * {
-                                    /* Override any light mode styles from prefers-color-scheme: light */
-                                }
-                                
-                                html[data-theme="light"] * {
-                                    /* Override any dark mode styles from prefers-color-scheme: dark */
-                                }
-                                
-                                /* Specific overrides for common elements that might use prefers-color-scheme */
-                                html[data-theme="dark"] {
-                                    background-color: #1a1a1a !important;
-                                    color: #ffffff !important;
-                                }
-                                
-                                html[data-theme="light"] {
-                                    background-color: #ffffff !important;
-                                    color: #000000 !important;
-                                }
-                                
-                                /* Override prefers-color-scheme media queries */
-                                /* Force dark mode when theme is dark, regardless of system preference */
-                                html[data-theme="dark"] {
-                                    --force-dark-mode: true;
-                                }
-                                
-                                /* Force light mode when theme is light, regardless of system preference */
-                                html[data-theme="light"] {
-                                    --force-light-mode: true;
-                                }
-                                
-                                /* Additional specificity for common elements */
-                                html[data-theme="dark"] body {
-                                    background-color: #1a1a1a !important;
-                                    color: #ffffff !important;
-                                }
-
-                                html[data-theme="dark"] div,
-                                html[data-theme="dark"] p,
-                                html[data-theme="dark"] span,
-                                html[data-theme="dark"] label {
-                                    background-color: inherit;
-                                    border-color: #efeff1;
-                                    color: #ffffff;
-                                }
-                                
-                                html[data-theme="light"] body {
-                                    background-color: #ffffff;
-                                    color: #000000;
-                                }
-
-                                html[data-theme="light"] div,
-                                html[data-theme="light"] p,
-                                html[data-theme="light"] span,
-                                html[data-theme="light"] label {
-                                    background-color: inherit;
-                                    color: #000000;
-                                }
-                                
                                 /* Hide pre elements with llm-output class - they're replaced by React portals */
                                 pre.llm-output {
                                     display: none !important;
@@ -392,7 +346,7 @@ const OutputSandbox = forwardRef(
                                 });
                             </script>
                         </head>
-                        <body>${content}</body>
+                        <body>${filteredContent}</body>
                     </html>
                 `;
 
