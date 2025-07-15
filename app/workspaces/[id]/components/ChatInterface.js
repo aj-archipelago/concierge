@@ -123,21 +123,21 @@ export default function ChatInterface({
                 {messages.map((message, index) => (
                     <div
                         key={index}
-                        className={`mb-4 ${
+                        className={`mb-6 ${
                             message.role === "user"
                                 ? "flex justify-end"
                                 : "flex justify-start"
                         }`}
                     >
                         <div
-                            className={`max-w-[80%] rounded-md p-3 ${
+                            className={`max-w-[100%] rounded-lg p-4 shadow-sm ${
                                 message.role === "user"
-                                    ? "bg-sky-100 text-sky-900"
-                                    : "bg-gray-100 text-gray-900"
+                                    ? "bg-sky-100 text-sky-900 border border-sky-200"
+                                    : "bg-gray-50 text-gray-900 border border-gray-200"
                             }`}
                         >
-                            <div className="flex items-center justify-between mb-1">
-                                <div className="text-xs text-gray-600 capitalize">
+                            <div className="flex items-center justify-between mb-2">
+                                <div className="text-xs font-medium text-gray-600 capitalize">
                                     {message.role === "user"
                                         ? t("You")
                                         : t("Assistant")}
@@ -155,59 +155,134 @@ export default function ChatInterface({
                                     </button>
                                 )}
                             </div>
-                            <ReactMarkdown
-                                className="prose dark:prose-invert text-sm break-words"
-                                components={{
-                                    p: ({ children }) => (
-                                        <p className="m-0">
-                                            {React.Children.toArray(
-                                                children,
-                                            ).map((child, idx) =>
-                                                typeof child === "string"
-                                                    ? renderWithColorPreviews(
-                                                          child,
-                                                      )
-                                                    : child,
-                                            )}
-                                        </p>
-                                    ),
-                                }}
-                            >
-                                {message.isStreaming && isStreaming
-                                    ? getStreamingDisplayContent(
-                                          streamingContent || message.content,
-                                          isStreaming,
-                                          t,
-                                      )
-                                    : message.content}
-                            </ReactMarkdown>
-                            {message.isStreaming && isStreaming && (
-                                <div className="mt-2 flex items-center space-x-2">
-                                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" />
-                                    <div
-                                        className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"
-                                        style={{ animationDelay: "0.2s" }}
-                                    />
-                                    <div
-                                        className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"
-                                        style={{ animationDelay: "0.4s" }}
-                                    />
-                                </div>
-                            )}
+                            <div className="chat-message-content">
+                                <ReactMarkdown
+                                    className="prose dark:prose-invert text-sm break-words leading-relaxed"
+                                    components={{
+                                        p: ({ children }) => (
+                                            <p className="m-0 mb-3 last:mb-0">
+                                                {React.Children.toArray(
+                                                    children,
+                                                ).map((child, idx) =>
+                                                    typeof child === "string"
+                                                        ? renderWithColorPreviews(
+                                                              child,
+                                                          )
+                                                        : child,
+                                                )}
+                                            </p>
+                                        ),
+                                        h1: ({ children }) => (
+                                            <h1 className="text-xl font-bold mb-3 mt-4 first:mt-0 text-gray-900">
+                                                {children}
+                                            </h1>
+                                        ),
+                                        h2: ({ children }) => (
+                                            <h2 className="text-lg font-semibold mb-2 mt-3 first:mt-0 text-gray-900">
+                                                {children}
+                                            </h2>
+                                        ),
+                                        h3: ({ children }) => (
+                                            <h3 className="text-base font-semibold mb-2 mt-3 first:mt-0 text-gray-900">
+                                                {children}
+                                            </h3>
+                                        ),
+                                        ul: ({ children }) => (
+                                            <ul className="list-disc list-inside mb-3 space-y-1">
+                                                {children}
+                                            </ul>
+                                        ),
+                                        ol: ({ children }) => (
+                                            <ol className="list-decimal list-inside mb-3 space-y-1">
+                                                {children}
+                                            </ol>
+                                        ),
+                                        li: ({ children }) => (
+                                            <li className="text-sm leading-relaxed">
+                                                {children}
+                                            </li>
+                                        ),
+                                        blockquote: ({ children }) => (
+                                            <blockquote className="border-l-4 border-gray-300 pl-4 py-2 my-3 bg-gray-50 rounded-r">
+                                                {children}
+                                            </blockquote>
+                                        ),
+                                        code: ({ children, className }) => {
+                                            const isInline = !className;
+                                            return isInline ? (
+                                                <code className="bg-gray-200 px-1 py-0.5 rounded text-sm font-mono">
+                                                    {children}
+                                                </code>
+                                            ) : (
+                                                <code className={className}>
+                                                    {children}
+                                                </code>
+                                            );
+                                        },
+                                        pre: ({ children }) => (
+                                            <pre className="bg-gray-100 p-3 rounded-md overflow-x-auto text-sm font-mono mb-3">
+                                                {children}
+                                            </pre>
+                                        ),
+                                        a: ({ children, href }) => (
+                                            <a
+                                                href={href}
+                                                className="text-sky-600 hover:text-sky-700 underline"
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                            >
+                                                {children}
+                                            </a>
+                                        ),
+                                        strong: ({ children }) => (
+                                            <strong className="font-semibold text-gray-900">
+                                                {children}
+                                            </strong>
+                                        ),
+                                        em: ({ children }) => (
+                                            <em className="italic text-gray-800">
+                                                {children}
+                                            </em>
+                                        ),
+                                    }}
+                                >
+                                    {message.isStreaming && isStreaming
+                                        ? getStreamingDisplayContent(
+                                              streamingContent ||
+                                                  message.content,
+                                              isStreaming,
+                                              t,
+                                          )
+                                        : message.content}
+                                </ReactMarkdown>
+                                {message.isStreaming && isStreaming && (
+                                    <div className="mt-3 flex items-center space-x-2">
+                                        <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" />
+                                        <div
+                                            className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"
+                                            style={{ animationDelay: "0.2s" }}
+                                        />
+                                        <div
+                                            className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"
+                                            style={{ animationDelay: "0.4s" }}
+                                        />
+                                    </div>
+                                )}
+                            </div>
                         </div>
                     </div>
                 ))}
                 {isLoading &&
                     !isStreaming &&
                     !messages.some((m) => m.isStreaming) && (
-                        <div className="flex justify-start mb-4">
-                            <div className="max-w-[80%] rounded-md p-3 bg-gray-100 text-gray-900">
-                                <div className="flex items-center justify-between mb-1">
-                                    <div className="text-xs text-gray-600 capitalize">
+                        <div className="flex justify-start mb-6">
+                            <div className="max-w-[85%] rounded-lg p-4 bg-gray-50 text-gray-900 border border-gray-200 shadow-sm">
+                                <div className="flex items-center justify-between mb-2">
+                                    <div className="text-xs font-medium text-gray-600 capitalize">
                                         {t("Assistant")}
                                     </div>
                                 </div>
-                                <div className="mt-2 flex items-center space-x-2">
+                                <div className="mt-3 flex items-center space-x-2">
                                     <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" />
                                     <div
                                         className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"

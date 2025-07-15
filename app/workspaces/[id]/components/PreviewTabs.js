@@ -160,7 +160,7 @@ export default function PreviewTabs({
                 <TabsTrigger value="code">{t("Code")}</TabsTrigger>
             </TabsList>
 
-            <div className="border rounded-md shadow-md bg-white mb-4 flex-1 min-w-0 overflow-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent hover:scrollbar-thumb-gray-400 relative">
+            <div className="border rounded-md shadow-md bg-white flex-1 min-w-0 overflow-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent hover:scrollbar-thumb-gray-400 relative">
                 <CreatingAppletDialog isVisible={showCreatingDialog} />
                 <div className="flex flex-col h-full">
                     <div className="flex-1 p-4">
