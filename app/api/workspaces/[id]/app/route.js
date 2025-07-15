@@ -1,11 +1,9 @@
 import { NextResponse } from "next/server";
-import { connectToDatabase } from "@/src/db.mjs";
 import { getWorkspace } from "../db.js";
 import App from "@/app/api/models/app";
 
 // GET: fetch existing app for workspace
 export async function GET(request, { params }) {
-    await connectToDatabase();
     const { id } = params;
 
     try {
