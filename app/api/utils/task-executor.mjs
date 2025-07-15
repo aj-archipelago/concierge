@@ -121,7 +121,7 @@ class CortexRequestTracker {
     setupCancellationCheck() {
         const interval = setInterval(async () => {
             try {
-                const updatedRequest = await retryDbOperation(() =>
+                const updatedRequest = await this.retryDbOperation(() =>
                     Task.findOne({
                         _id: this.job.data.taskId,
                     }),
@@ -203,13 +203,13 @@ class CortexRequestTracker {
     }
 
     async updateProgress(progress, taskId, info) {
-        const currentDoc = await retryDbOperation(() =>
+        const currentDoc = await this.retryDbOperation(() =>
             Task.findOne({ _id: taskId }),
         );
 
         if (currentDoc && progress < currentDoc.progress) {
             if (info) {
-                await retryDbOperation(() =>
+                await this.retryDbOperation(() =>
                     Task.findOneAndUpdate(
                         { _id: taskId },
                         { statusText: info },
@@ -220,7 +220,7 @@ class CortexRequestTracker {
             return currentDoc.progress;
         }
 
-        await retryDbOperation(() =>
+        await this.retryDbOperation(() =>
             Task.findOneAndUpdate(
                 { _id: taskId },
                 { progress, ...(info && { statusText: info }) },
@@ -300,7 +300,7 @@ class CortexRequestTracker {
             ...(progress !== null && { progress }),
             lastHeartbeat: new Date(),
         };
-        return await retryDbOperation(() =>
+        return await this.retryDbOperation(() =>
             Task.findOneAndUpdate({ _id: this.job.data.taskId }, update, {
                 new: true,
             }),
@@ -391,7 +391,7 @@ class CortexRequestTracker {
     setupHeartbeat() {
         const interval = setInterval(async () => {
             try {
-                await retryDbOperation(() =>
+                await this.retryDbOperation(() =>
                     Task.findOneAndUpdate(
                         { _id: this.job.data.taskId },
                         { lastHeartbeat: new Date() },
@@ -405,81 +405,85 @@ class CortexRequestTracker {
         this.intervals.add(interval);
         return interval;
     }
-}
 
-// Add a helper function for DB operations with retries
-async function retryDbOperation(operation, maxRetries = 3, retryDelay = 1000) {
-    let lastError;
-    for (let attempt = 1; attempt <= maxRetries; attempt++) {
-        try {
-            const result = await operation();
-            return result;
-        } catch (error) {
-            console.error(
-                `[DEBUG] DB operation failed attempt ${attempt}:`,
-                error.stack,
-            );
-            lastError = error;
-            console.warn(
-                `DB operation attempt ${attempt}/${maxRetries} failed: ${error.message}`,
-            );
-
-            // Check explicitly for MongoNotConnectedError and other connection issues
-            if (
-                error.name === "MongoNotConnectedError" ||
-                ((error.name === "MongooseError" ||
-                    error.name === "MongoError") &&
-                    error.message &&
-                    (error.message.includes("buffering") ||
-                        error.message.includes("disconnected") ||
-                        error.message.includes("timeout") ||
-                        error.message.includes("not connected") ||
-                        error.message.includes("must be connected")))
-            ) {
-                this.logger.log(
-                    "Detected MongoDB connection issue, attempting to reconnect...",
+    // Add a helper method for DB operations with retries
+    async retryDbOperation(operation, maxRetries = 3, retryDelay = 1000) {
+        let lastError;
+        for (let attempt = 1; attempt <= maxRetries; attempt++) {
+            try {
+                const result = await operation();
+                return result;
+            } catch (error) {
+                console.error(
+                    `[DEBUG] DB operation failed attempt ${attempt}:`,
+                    error.stack,
                 );
-                // Use the global mongoose instance to check connection state
-                const mongoose = (await import("mongoose")).default;
-                if (mongoose.connection.readyState !== 1) {
-                    try {
-                        // First try to close any existing connection
-                        if (mongoose.connection.readyState !== 0) {
-                            await mongoose.connection
-                                .close()
-                                .catch((err) =>
-                                    console.warn(
-                                        "Error closing existing connection:",
-                                        err.message,
-                                    ),
-                                );
-                        }
+                lastError = error;
+                console.warn(
+                    `DB operation attempt ${attempt}/${maxRetries} failed: ${error.message}`,
+                );
 
-                        // Get a fresh database connection
-                        const { connectToDatabase } = await import(
-                            "../../../src/db.mjs"
-                        );
-                        await connectToDatabase();
-                        this.logger.log("Successfully reconnected to MongoDB");
-                    } catch (reconnectError) {
-                        console.error(
-                            "Failed to reconnect to MongoDB:",
-                            reconnectError.message,
-                        );
+                // Check explicitly for MongoNotConnectedError and other connection issues
+                if (
+                    error.name === "MongoNotConnectedError" ||
+                    ((error.name === "MongooseError" ||
+                        error.name === "MongoError") &&
+                        error.message &&
+                        (error.message.includes("buffering") ||
+                            error.message.includes("disconnected") ||
+                            error.message.includes("timeout") ||
+                            error.message.includes("not connected") ||
+                            error.message.includes("must be connected")))
+                ) {
+                    this.logger.log(
+                        "Detected MongoDB connection issue, attempting to reconnect...",
+                    );
+                    // Use the global mongoose instance to check connection state
+                    const mongoose = (await import("mongoose")).default;
+                    if (mongoose.connection.readyState !== 1) {
+                        try {
+                            // First try to close any existing connection
+                            if (mongoose.connection.readyState !== 0) {
+                                await mongoose.connection
+                                    .close()
+                                    .catch((err) =>
+                                        console.warn(
+                                            "Error closing existing connection:",
+                                            err.message,
+                                        ),
+                                    );
+                            }
+
+                            // Get a fresh database connection
+                            const { connectToDatabase } = await import(
+                                "../../../src/db.mjs"
+                            );
+                            await connectToDatabase();
+                            this.logger.log(
+                                "Successfully reconnected to MongoDB",
+                            );
+                        } catch (reconnectError) {
+                            console.error(
+                                "Failed to reconnect to MongoDB:",
+                                reconnectError.message,
+                            );
+                        }
                     }
                 }
-            }
 
-            if (attempt < maxRetries) {
-                const waitTime = Math.min(retryDelay, 30000); // Cap at 30 seconds max
-                this.logger.log(
-                    `Waiting ${waitTime / 1000}s before retry ${attempt + 1}/${maxRetries}...`,
-                );
-                await new Promise((resolve) => setTimeout(resolve, waitTime));
-                // Increase delay for next retry (exponential backoff)
-                retryDelay *= 2;
+                if (attempt < maxRetries) {
+                    const waitTime = Math.min(retryDelay, 30000); // Cap at 30 seconds max
+                    this.logger.log(
+                        `Waiting ${waitTime / 1000}s before retry ${attempt + 1}/${maxRetries}...`,
+                    );
+                    await new Promise((resolve) =>
+                        setTimeout(resolve, waitTime),
+                    );
+                    // Increase delay for next retry (exponential backoff)
+                    retryDelay *= 2;
+                }
             }
         }
+        throw lastError;
     }
-    throw lastError;
 }

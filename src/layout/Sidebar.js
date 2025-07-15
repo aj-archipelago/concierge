@@ -3,8 +3,8 @@ import {
     HelpCircle,
     PinIcon,
     PinOffIcon,
-    Settings,
     AppWindow,
+    Grid3X3,
 } from "lucide-react";
 import * as Icons from "lucide-react";
 import Link from "next/link";
@@ -436,15 +436,15 @@ export default React.forwardRef(function Sidebar(
                         </ul>
                     </li>
                     <li>
-                        <div className="py-3 bg-gray-50 -mx-5 px-5 text-gray-700">
+                        <div className="pt-3 pb-2 bg-gray-50 -mx-5 px-5 text-gray-700">
                             <button
-                                className="flex gap-2 items-center text-sm w-full"
+                                className="flex gap-2 items-center text-xs w-full"
                                 onClick={() => router.push("/apps")}
                             >
-                                <Settings className="h-6 w-6 shrink-0 text-gray-400" />
+                                <Grid3X3 className="h-4 w-4 shrink-0 text-gray-400" />
                                 <span
                                     className={cn(
-                                        "text-sm text-gray-500",
+                                        "text-xs text-gray-500",
                                         isCollapsed &&
                                             "hidden group-hover:block",
                                     )}
@@ -453,9 +453,7 @@ export default React.forwardRef(function Sidebar(
                                 </span>
                             </button>
                         </div>
-                    </li>
-                    <li>
-                        <div className="py-3 bg-gray-50 -mx-5 px-5 text-gray-700">
+                        <div className="pt-2 pb-3 bg-gray-50 -mx-5 px-5 text-gray-700">
                             <SendFeedbackButton
                                 ref={ref}
                                 isCollapsed={isCollapsed}
@@ -485,10 +483,10 @@ const SendFeedbackButton = React.forwardRef(function SendFeedbackButton(
                 onHide={() => setShow(false)}
             />
             <button
-                className="flex gap-2 items-center text-sm"
+                className="flex gap-2 items-center text-xs"
                 onClick={handleClick}
             >
-                <HelpCircle className="h-6 w-6 shrink-0 text-gray-400" />
+                <HelpCircle className="h-4 w-4 shrink-0 text-gray-400" />
                 {!isCollapsed && t("Send feedback")}
             </button>
         </>

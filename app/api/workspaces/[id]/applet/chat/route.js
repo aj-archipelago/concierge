@@ -66,36 +66,32 @@ export async function POST(request, { params }) {
             });
         }
 
-        // Remove markdown code blocks if present
-        let cleanedResponse = aiResponse;
-        const codeBlockRegex = /```(?:json)?\s*([\s\S]*?)```/g;
-        const match = codeBlockRegex.exec(aiResponse);
-        if (match) {
-            cleanedResponse = match[1].trim();
+        // Check if response contains a code block with HTML anywhere in the text
+        const codeBlockRegex = /```(?:html)?\s*([\s\S]*?)```/g;
+        let match;
+        let lastMatch = null;
+
+        // Find all code blocks and use the last one (most complete)
+        while ((match = codeBlockRegex.exec(aiResponse)) !== null) {
+            lastMatch = match;
         }
 
         let message;
-        try {
-            // Try to parse as JSON
-            const parsed = JSON.parse(cleanedResponse);
-            // Check for expected structure
-            if (
-                typeof parsed === "object" &&
-                parsed !== null &&
-                typeof parsed.html === "string" &&
-                typeof parsed.changes === "string"
-            ) {
+        if (lastMatch) {
+            // Extract HTML from code block
+            const htmlContent = lastMatch[1].trim();
+            if (htmlContent) {
                 message = {
-                    html: parsed.html,
-                    changes: parsed.changes,
+                    html: htmlContent,
+                    changes: "HTML code generated from code block",
                 };
             } else {
-                // Not the expected structure, treat as plain message
-                message = cleanedResponse;
+                // Empty code block, treat as plain message
+                message = aiResponse;
             }
-        } catch (e) {
-            // Not JSON, treat as plain message
-            message = cleanedResponse;
+        } else {
+            // No code block found, treat as plain message
+            message = aiResponse;
         }
 
         // Return the response in the expected format

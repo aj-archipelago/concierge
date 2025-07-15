@@ -12,6 +12,10 @@ const DEFAULT_CONNECTION_OPTIONS = {
     connectTimeoutMS: 30000, // Increase connection timeout
     maxPoolSize: 10, // Control the maximum number of connections in the pool
     bufferCommands: false, // Prevent buffering commands when disconnected
+    retryWrites: true, // Enable retryable writes
+    retryReads: true, // Enable retryable reads
+    maxIdleTimeMS: 30000, // Close connections after 30 seconds of inactivity
+    heartbeatFrequencyMS: 10000, // Send heartbeat every 10 seconds
 };
 
 export async function connectToDatabase() {

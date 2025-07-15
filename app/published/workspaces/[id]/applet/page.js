@@ -1,11 +1,13 @@
 "use client";
 import OutputSandbox from "@/src/components/sandbox/OutputSandbox";
 import { useParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useContext } from "react";
 import { useWorkspaceApplet } from "../../../../queries/workspaces";
+import { ThemeContext } from "@/src/contexts/ThemeProvider";
 
 export default function PublishedAppletPage() {
     const { id } = useParams();
+    const { theme } = useContext(ThemeContext);
     const appletQuery = useWorkspaceApplet(id);
     const [error, setError] = useState(null);
     const [publishedHtml, setPublishedHtml] = useState(null);
@@ -57,7 +59,11 @@ export default function PublishedAppletPage() {
     return (
         <div className="w-full h-full bg-gray-100 flex items-center justify-center">
             <div className="w-full h-full bg-white">
-                <OutputSandbox content={publishedHtml} height="100%" />
+                <OutputSandbox
+                    content={publishedHtml}
+                    height="100%"
+                    theme={theme}
+                />
             </div>
         </div>
     );

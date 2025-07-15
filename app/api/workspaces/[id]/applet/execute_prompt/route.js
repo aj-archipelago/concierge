@@ -56,9 +56,21 @@ export async function POST(request, { params }) {
         // Extract the AI's response
         const aiResponse = response.data[pathwayName].result;
 
+        // Extract citations from the tool field if available
+        let citations = [];
+        if (response.data[pathwayName].tool) {
+            try {
+                const toolData = JSON.parse(response.data[pathwayName].tool);
+                citations = toolData.citations || [];
+            } catch (e) {
+                console.error("Error parsing tool data:", e);
+            }
+        }
+
         // Return the response
         return NextResponse.json({
             output: aiResponse,
+            citations,
         });
     } catch (error) {
         console.error("Error in execute endpoint:", error);

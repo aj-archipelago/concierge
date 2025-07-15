@@ -261,6 +261,19 @@ export function useUpdateWorkspaceApplet() {
     return mutation;
 }
 
+export function useWorkspaceApp(id) {
+    const query = useQuery({
+        queryKey: ["workspaceApp", id],
+        queryFn: async () => {
+            const { data } = await axios.get(`/api/workspaces/${id}/app`);
+            return data;
+        },
+        enabled: !!id,
+    });
+
+    return query;
+}
+
 export function useWorkspaceChat(id) {
     const mutation = useMutation({
         mutationFn: async ({ messages, model, currentHtml }) => {

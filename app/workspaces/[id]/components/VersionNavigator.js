@@ -18,9 +18,11 @@ import { Link2Icon } from "lucide-react";
 import { ServerContext } from "../../../../src/App";
 import { useState } from "react";
 import { useParams } from "next/navigation";
+import { useTranslation } from "react-i18next";
 import PublishConfirmDialog from "./PublishConfirmDialog";
 
 function CopyPublishedLinkButton() {
+    const { t } = useTranslation();
     const [copied, setCopied] = useState(false);
     const serverContext = useContext(ServerContext);
     const { id } = useParams();
@@ -45,13 +47,13 @@ function CopyPublishedLinkButton() {
                     <button
                         className={`flex items-center px-2 py-0.5 rounded-full border border-emerald-200 bg-white hover:bg-emerald-50 transition shadow-sm ${copied ? "border-emerald-400 bg-emerald-50" : ""}`}
                         type="button"
-                        aria-label="Copy or open published link"
+                        aria-label={t("Copy or open published link")}
                         tabIndex={0}
                     >
                         <span
                             className={`p-1 rounded-full transition cursor-pointer ${copied ? "bg-emerald-100" : "hover:bg-emerald-100"}`}
                             onClick={handleCopy}
-                            title="Copy link"
+                            title={t("Copy link")}
                         >
                             {copied ? (
                                 <CheckIcon className="w-4 h-4 text-emerald-700" />
@@ -62,15 +64,15 @@ function CopyPublishedLinkButton() {
                         <span
                             className="px-1 py-1 rounded-full text-xs font-bold text-emerald-700 underline hover:text-emerald-900 transition cursor-pointer"
                             onClick={handleOpen}
-                            title="Open link"
+                            title={t("Open link")}
                         >
-                            {copied ? "Copied!" : "Open"}
+                            {copied ? t("Copied!") : t("Open")}
                         </span>
                     </button>
                 </span>
             </TooltipTrigger>
             <TooltipContent side="bottom" sideOffset={10}>
-                {copied ? "Copied!" : placeholderLink}
+                {copied ? t("Copied!") : placeholderLink}
             </TooltipContent>
         </Tooltip>
     );
@@ -89,8 +91,11 @@ export default function VersionNavigator({
     workspaceId,
     isOwner = true,
 }) {
+    const { t } = useTranslation();
     const { direction } = useContext(LanguageContext);
     const [showPublishDialog, setShowPublishDialog] = useState(false);
+
+    // Note: Version validation is handled in WorkspaceApplet.js to avoid duplicate validation
 
     const handleDuplicateVersion = () => {
         if (!isOwner) return;
@@ -114,7 +119,9 @@ export default function VersionNavigator({
 
     const handleDeleteVersion = () => {
         if (!isOwner) return;
-        if (window.confirm("Are you sure you want to delete this version?")) {
+        if (
+            window.confirm(t("Are you sure you want to delete this version?"))
+        ) {
             setHtmlVersions((prev) => {
                 const newVersions = prev.filter(
                     (_, index) => index !== activeVersionIndex,
@@ -156,6 +163,21 @@ export default function VersionNavigator({
     };
 
     const handlePublishConfirm = (publishToAppStore, appName, selectedIcon) => {
+        // Validate that we're publishing a valid version
+        if (
+            activeVersionIndex < 0 ||
+            activeVersionIndex >= htmlVersions.length
+        ) {
+            console.error(
+                `Cannot publish invalid version index: ${activeVersionIndex}, available: 0-${htmlVersions.length - 1}`,
+            );
+            return;
+        }
+
+        console.log(
+            `VersionNavigator: Publishing version ${activeVersionIndex + 1} (index ${activeVersionIndex})`,
+        );
+
         onPublishVersion(
             activeVersionIndex,
             publishToAppStore,
@@ -171,7 +193,12 @@ export default function VersionNavigator({
 
     return (
         <div className="flex flex-col lg:flex-row justify-between items-center mb-2">
-            <div className="flex items-center gap-2">
+            <div
+                className={cn(
+                    "flex items-center gap-2",
+                    direction === "rtl" ? "flex-row-reverse" : "flex-row",
+                )}
+            >
                 <button
                     className={cn("lb-outline-secondary", "bg-white")}
                     onClick={() =>
@@ -201,7 +228,12 @@ export default function VersionNavigator({
                     )}
                 </button>
                 <span className="text-sm text-gray-600 whitespace-nowrap">
-                    Version {activeVersionIndex + 1} of {htmlVersions.length}
+                    {t("Version")}{" "}
+                    {Math.max(
+                        1,
+                        Math.min(activeVersionIndex + 1, htmlVersions.length),
+                    )}{" "}
+                    {t("of")} {Math.max(1, htmlVersions.length)}
                 </span>
                 <div className="flex items-center gap-2">
                     {publishedVersionIndex !== null &&
@@ -213,7 +245,7 @@ export default function VersionNavigator({
                                         letterSpacing: "0.03em",
                                     }}
                                 >
-                                    Published
+                                    {t("Published")}
                                 </span>
                                 <CopyPublishedLinkButton />
                                 {isOwner && (
@@ -223,7 +255,7 @@ export default function VersionNavigator({
                                         disabled={updateApplet.isPending}
                                         type="button"
                                     >
-                                        Unpublish
+                                        {t("Unpublish")}
                                     </button>
                                 )}
                             </>
@@ -233,10 +265,15 @@ export default function VersionNavigator({
                                 onClick={() =>
                                     setActiveVersionIndex(publishedVersionIndex)
                                 }
-                                title={`Go to published version (v${publishedVersionIndex + 1})`}
+                                title={t(
+                                    "Go to published version (v{{version}})",
+                                    { version: publishedVersionIndex + 1 },
+                                )}
                                 type="button"
                             >
-                                Published: v{publishedVersionIndex + 1}
+                                {t("Published: v{{version}}", {
+                                    version: publishedVersionIndex + 1,
+                                })}
                             </button>
                         ))}
                     {activeVersionIndex !== publishedVersionIndex &&
@@ -249,13 +286,13 @@ export default function VersionNavigator({
                                     type="button"
                                 >
                                     {publishedVersionIndex === null
-                                        ? "Publish"
-                                        : "Publish this version"}
+                                        ? t("Publish")
+                                        : t("Publish this version")}
                                 </button>
                                 <button
                                     className="px-3 py-1 rounded-full text-xs font-bold border lb-outline-secondary bg-white"
                                     onClick={handleDuplicateVersion}
-                                    title="Duplicate this version"
+                                    title={t("Duplicate this version")}
                                 >
                                     <CopyIcon className="w-4 h-4" />
                                 </button>
@@ -275,6 +312,7 @@ export default function VersionNavigator({
                 onConfirm={handlePublishConfirm}
                 isPending={updateApplet.isPending}
                 versionNumber={activeVersionIndex + 1}
+                workspaceId={workspaceId}
             />
         </div>
     );

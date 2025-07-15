@@ -12,10 +12,11 @@ import {
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { useParams } from "next/navigation";
-import { useEffect, useRef, useState, useContext } from "react";
+import { useEffect, useRef, useState, useContext, useCallback } from "react";
 import { RiSendPlane2Fill } from "react-icons/ri";
 import TextareaAutosize from "react-textarea-autosize";
 import { useSubscription } from "@apollo/client";
+import { useTranslation } from "react-i18next";
 import { SUBSCRIPTIONS } from "../../../../src/graphql";
 import { AuthContext } from "../../../../src/App";
 import {
@@ -29,12 +30,14 @@ import PreviewTabs from "./PreviewTabs";
 import {
     getMessagesUpToVersion,
     extractHtmlFromStreamingContent,
-    cleanJsonCodeBlocks,
+    detectCodeBlockInStream,
+    extractChatContent,
 } from "./utils";
 import VersionNavigator from "./VersionNavigator";
 import { toast } from "react-toastify";
 
 export default function WorkspaceApplet() {
+    const { t } = useTranslation();
     const { id } = useParams();
     const { user } = useContext(AuthContext);
     const { data: workspace } = useWorkspace(id);
@@ -50,6 +53,7 @@ export default function WorkspaceApplet() {
     const [showContinueConfirm, setShowContinueConfirm] = useState(false);
     const [isContinuingFromOldVersion, setIsContinuingFromOldVersion] =
         useState(false);
+    const [showCreatingDialog, setShowCreatingDialog] = useState(false);
 
     // Streaming state
     const [subscriptionId, setSubscriptionId] = useState(null);
@@ -58,7 +62,7 @@ export default function WorkspaceApplet() {
     const streamingMessageRef = useRef("");
     const messageQueueRef = useRef([]);
     const processingRef = useRef(false);
-    const hasStreamingVersionRef = useRef(false); // Track if we've created a temporary streaming version
+    const streamingVersionRef = useRef(null); // Track the streaming version index
 
     // Queries and mutations
     const appletQuery = useWorkspaceApplet(id);
@@ -74,9 +78,40 @@ export default function WorkspaceApplet() {
     }, [activeVersionIndex]);
 
     // Load initial data
+    const dataLoadedRef = useRef(false);
+    const lastDataRef = useRef(null);
+
     useEffect(() => {
+        if (!appletQuery.data) return;
+
+        // Check if the data has changed significantly (e.g., after clearing chat)
+        const currentDataKey = JSON.stringify({
+            htmlVersionsLength: appletQuery.data.htmlVersions?.length || 0,
+            messagesLength: appletQuery.data.messages?.length || 0,
+            publishedVersionIndex: appletQuery.data.publishedVersionIndex,
+        });
+
+        if (lastDataRef.current !== currentDataKey) {
+            dataLoadedRef.current = false;
+            lastDataRef.current = currentDataKey;
+        }
+
+        if (dataLoadedRef.current) return;
+
+        // Always load HTML versions if they exist and we don't have any loaded
         if (
-            appletQuery.data?.messages?.length > 0 &&
+            appletQuery.data.htmlVersions?.length > 0 &&
+            htmlVersions.length === 0
+        ) {
+            setHtmlVersions(
+                appletQuery.data.htmlVersions.map((v) => v.content),
+            );
+            setActiveVersionIndex(appletQuery.data.htmlVersions.length - 1);
+        }
+
+        // Load messages if they exist and we don't have any loaded
+        if (
+            appletQuery.data.messages?.length > 0 &&
             !allMessagesRef.current?.length
         ) {
             allMessagesRef.current = appletQuery.data.messages || [];
@@ -86,21 +121,23 @@ export default function WorkspaceApplet() {
                     activeVersionIndex,
                 ),
             );
-
-            if (appletQuery.data.htmlVersions?.length > 0) {
-                setHtmlVersions(
-                    appletQuery.data.htmlVersions.map((v) => v.content),
-                );
-                setActiveVersionIndex(appletQuery.data.htmlVersions.length - 1);
-            }
-
-            setPublishedVersionIndex(
-                typeof appletQuery.data.publishedVersionIndex === "number"
-                    ? appletQuery.data.publishedVersionIndex
-                    : null,
-            );
         }
-    }, [appletQuery.data, activeVersionIndex]);
+
+        // Load published version index if it exists and we don't have one set
+        if (
+            typeof appletQuery.data.publishedVersionIndex === "number" &&
+            publishedVersionIndex === null
+        ) {
+            setPublishedVersionIndex(appletQuery.data.publishedVersionIndex);
+        }
+
+        dataLoadedRef.current = true;
+    }, [
+        appletQuery.data,
+        activeVersionIndex,
+        publishedVersionIndex,
+        htmlVersions.length,
+    ]);
 
     // Update messages when version changes
     useEffect(() => {
@@ -119,6 +156,39 @@ export default function WorkspaceApplet() {
     }, [activeVersionIndex]);
 
     // Clear streaming state
+    // Simple and bulletproof version management
+    const createNewVersion = useCallback(
+        (htmlContent) => {
+            const newVersions = [...htmlVersions, htmlContent];
+            const newVersionIndex = newVersions.length - 1;
+
+            setHtmlVersions(newVersions);
+            setActiveVersionIndex(newVersionIndex);
+
+            return newVersionIndex;
+        },
+        [htmlVersions],
+    );
+
+    const updateStreamingVersion = useCallback(
+        (htmlContent) => {
+            if (streamingVersionRef.current === null) {
+                // First time streaming - create a new version
+                const newVersionIndex = createNewVersion(htmlContent);
+                streamingVersionRef.current = newVersionIndex;
+                setShowCreatingDialog(true);
+            } else {
+                // Update existing streaming version
+                setHtmlVersions((prev) => {
+                    const newVersions = [...prev];
+                    newVersions[streamingVersionRef.current] = htmlContent;
+                    return newVersions;
+                });
+            }
+        },
+        [createNewVersion],
+    );
+
     const clearStreamingState = () => {
         streamingMessageRef.current = "";
         setStreamingContent("");
@@ -126,42 +196,24 @@ export default function WorkspaceApplet() {
         setIsStreaming(false);
         messageQueueRef.current = [];
         processingRef.current = false;
-        hasStreamingVersionRef.current = false; // Reset streaming version flag
+        setShowCreatingDialog(false);
+
+        // Reset streaming version tracking
+        streamingVersionRef.current = null;
     };
 
-    // Helper function to update HTML versions during streaming
-    const updateHtmlVersions = (htmlContent) => {
-        const newVersions = [...htmlVersions];
-
-        // During streaming, create or update a temporary version
-        if (isStreaming) {
-            if (!hasStreamingVersionRef.current) {
-                // Create a temporary streaming version for the first time
-                newVersions.push(htmlContent);
-                setActiveVersionIndex(newVersions.length - 1);
-                hasStreamingVersionRef.current = true;
-            } else {
-                // Update the existing temporary streaming version
-                newVersions[newVersions.length - 1] = htmlContent;
+    // Simple validation to ensure activeVersionIndex is always valid
+    useEffect(() => {
+        if (htmlVersions.length === 0) {
+            if (activeVersionIndex !== -1) {
+                setActiveVersionIndex(-1);
             }
-        } else {
-            // For non-streaming updates, use the current logic
-            const currentVersionIndex =
-                activeVersionIndex >= 0 ? activeVersionIndex : 0;
-
-            if (newVersions.length <= currentVersionIndex) {
-                newVersions.push(htmlContent);
-            } else {
-                newVersions[currentVersionIndex] = htmlContent;
-            }
-
-            if (activeVersionIndex === -1) {
-                setActiveVersionIndex(0);
-            }
+        } else if (activeVersionIndex < 0) {
+            setActiveVersionIndex(htmlVersions.length - 1);
+        } else if (activeVersionIndex >= htmlVersions.length) {
+            setActiveVersionIndex(htmlVersions.length - 1);
         }
-
-        setHtmlVersions(newVersions);
-    };
+    }, [htmlVersions.length, activeVersionIndex]);
 
     // Process message queue for streaming
     const processMessageQueue = async () => {
@@ -212,18 +264,22 @@ export default function WorkspaceApplet() {
                     // Accumulate the raw content for display
                     const newContent = streamingMessageRef.current + content;
                     streamingMessageRef.current = newContent;
-                    setStreamingContent(newContent);
 
-                    // Clean the content for HTML extraction
-                    const cleanedContent = cleanJsonCodeBlocks(newContent);
+                    // Check if we're in a code block or entering one
+                    const codeBlockInfo = detectCodeBlockInStream(newContent);
 
-                    // Check if this content contains HTML that we can extract and display
-                    const htmlContent =
-                        extractHtmlFromStreamingContent(cleanedContent);
+                    if (codeBlockInfo && codeBlockInfo.html) {
+                        // We're in a code block - route to preview instead of chat
+                        updateStreamingVersion(codeBlockInfo.html);
 
-                    if (htmlContent && htmlContent.html) {
-                        // Update the preview with the partial HTML content
-                        updateHtmlVersions(htmlContent.html);
+                        // Show explanatory text in chat, or placeholder if no explanatory text
+                        const chatText =
+                            codeBlockInfo.chatContent ||
+                            "🔄 **" + t("Generating HTML code...") + "**";
+                        setStreamingContent(chatText);
+                    } else {
+                        // Not in a code block - show content in chat
+                        setStreamingContent(newContent);
                     }
 
                     // If this is the first chunk and progress is 1, simulate streaming
@@ -248,19 +304,25 @@ export default function WorkspaceApplet() {
                             const newContent =
                                 streamingMessageRef.current + chunk;
                             streamingMessageRef.current = newContent;
-                            setStreamingContent(newContent);
 
-                            // Clean the content for HTML extraction
-                            const cleanedChunkContent =
-                                cleanJsonCodeBlocks(newContent);
+                            // Check if we're in a code block or entering one
+                            const codeBlockInfo =
+                                detectCodeBlockInStream(newContent);
 
-                            // Check for HTML content in each chunk
-                            const chunkHtmlContent =
-                                extractHtmlFromStreamingContent(
-                                    cleanedChunkContent,
-                                );
-                            if (chunkHtmlContent && chunkHtmlContent.html) {
-                                updateHtmlVersions(chunkHtmlContent.html);
+                            if (codeBlockInfo && codeBlockInfo.html) {
+                                // We're in a code block - route to preview instead of chat
+                                updateStreamingVersion(codeBlockInfo.html);
+
+                                // Show explanatory text in chat, or placeholder if no explanatory text
+                                const chatText =
+                                    codeBlockInfo.chatContent ||
+                                    "🔄 **" +
+                                        t("Generating HTML code...") +
+                                        "**";
+                                setStreamingContent(chatText);
+                            } else {
+                                // Not in a code block - show content in chat
+                                setStreamingContent(newContent);
                             }
 
                             // Add a small delay between chunks (except for the last one)
@@ -278,10 +340,15 @@ export default function WorkspaceApplet() {
                 // Finalize the streaming message
                 const finalContent = streamingMessageRef.current;
                 const wasStreaming = isStreaming; // Capture streaming state before clearing
+                const streamingVersionIndex = streamingVersionRef.current; // Capture streaming version index before clearing
                 clearStreamingState();
 
                 // Process the final response
-                await processFinalResponse(finalContent, wasStreaming);
+                await processFinalResponse(
+                    finalContent,
+                    wasStreaming,
+                    streamingVersionIndex,
+                );
             }
         } catch (e) {
             clearStreamingState();
@@ -297,7 +364,11 @@ export default function WorkspaceApplet() {
     };
 
     // Process final response from streaming
-    const processFinalResponse = async (finalContent, wasStreaming) => {
+    const processFinalResponse = async (
+        finalContent,
+        wasStreaming,
+        streamingVersionIndex,
+    ) => {
         try {
             let aiMessage = {
                 content: finalContent,
@@ -305,70 +376,47 @@ export default function WorkspaceApplet() {
                 timestamp: new Date().toISOString(),
             };
 
-            let newVersions = htmlVersions;
-
-            // Clean the content for HTML extraction (remove code blocks)
-            const cleanedContent = cleanJsonCodeBlocks(finalContent);
-
             // Try to extract HTML content from the final response
-            const htmlContent = extractHtmlFromStreamingContent(cleanedContent);
+            const htmlContent = extractHtmlFromStreamingContent(finalContent);
 
             if (htmlContent && htmlContent.html) {
                 // We have valid HTML content
-                // If we were streaming, we need to replace the temporary streaming version
-                // Otherwise, create a new version after the current active version
-                if (wasStreaming) {
-                    // Replace the last version (temporary streaming version) with the final version
-                    newVersions = [
-                        ...htmlVersions.slice(0, -1),
-                        htmlContent.html,
-                    ];
+                if (wasStreaming && streamingVersionIndex !== null) {
+                    // Finalize the existing streaming version
+                    setHtmlVersions((prev) => {
+                        const newVersions = [...prev];
+                        newVersions[streamingVersionIndex] = htmlContent.html;
+                        return newVersions;
+                    });
+                    aiMessage.linkToVersion = streamingVersionIndex;
                 } else {
-                    // Create a new version after the current active version
-                    newVersions = [
-                        ...htmlVersions.slice(0, activeVersionIndex + 1),
-                        htmlContent.html,
-                    ];
+                    // Create a new version for non-streaming responses
+                    const newVersionIndex = createNewVersion(htmlContent.html);
+                    aiMessage.linkToVersion = newVersionIndex;
                 }
-                setHtmlVersions(newVersions);
-                setActiveVersionIndex(newVersions.length - 1);
 
-                aiMessage.content = `HTML code generated. Check the preview pane\n\n\n#### Summary of changes:**\n${htmlContent.changes}`;
-                aiMessage.linkToVersion = newVersions.length - 1;
+                // Extract the explanatory text for the chat
+                const chatText = extractChatContent(finalContent);
+                aiMessage.content =
+                    chatText ||
+                    `${t("HTML code generated. Check the preview pane")}`;
             } else {
-                // Check if the response contains HTML and changes (legacy format)
-                if (
-                    typeof finalContent === "object" &&
-                    finalContent !== null &&
-                    typeof finalContent.html === "string" &&
-                    typeof finalContent.changes === "string"
-                ) {
-                    // If we were streaming, we need to replace the temporary streaming version
-                    // Otherwise, create a new version after the current active version
-                    if (wasStreaming) {
-                        // Replace the last version (temporary streaming version) with the final version
-                        newVersions = [
-                            ...htmlVersions.slice(0, -1),
-                            finalContent.html,
-                        ];
-                    } else {
-                        // Create a new version after the current active version
-                        newVersions = [
-                            ...htmlVersions.slice(0, activeVersionIndex + 1),
-                            finalContent.html,
-                        ];
-                    }
-                    setHtmlVersions(newVersions);
-                    setActiveVersionIndex(newVersions.length - 1);
-
-                    aiMessage.content = `HTML code generated. Check the preview pane\n\n\n#### Summary of changes:**\n${finalContent.changes}`;
-                    aiMessage.linkToVersion = newVersions.length - 1;
+                // Check if we were in a code block during streaming
+                if (wasStreaming && streamingVersionIndex !== null) {
+                    // We were generating HTML but didn't get a complete code block
+                    // Extract any explanatory text that was provided
+                    const chatText = extractChatContent(finalContent);
+                    aiMessage.content =
+                        chatText ||
+                        `${t("HTML code generated. Check the preview pane")}`;
+                    aiMessage.linkToVersion = streamingVersionIndex;
                 } else {
+                    // No HTML code block found - this is just a chat response
                     aiMessage.content = finalContent;
                     if (finalContent.includes("`")) {
                         aiMessage.content = finalContent.replace(/`/g, "");
                     }
-                    aiMessage.linkToVersion = newVersions.length - 1;
+                    aiMessage.linkToVersion = htmlVersions.length - 1;
                 }
             }
 
@@ -379,17 +427,27 @@ export default function WorkspaceApplet() {
             const finalMessages = [...messagesWithoutStreaming, aiMessage];
 
             setMessages(
-                getMessagesUpToVersion(finalMessages, newVersions.length - 1),
+                getMessagesUpToVersion(finalMessages, aiMessage.linkToVersion),
             );
             setIsContinuingFromOldVersion(false);
 
             allMessagesRef.current = finalMessages;
 
+            // Get the current HTML versions to ensure we have the latest state
+            const currentHtmlVersions =
+                wasStreaming && streamingVersionIndex !== null
+                    ? htmlVersions.map((version, index) =>
+                          index === streamingVersionIndex
+                              ? htmlContent?.html || version
+                              : version,
+                      )
+                    : htmlVersions;
+
             updateApplet.mutate({
                 id,
                 data: {
                     messages: finalMessages,
-                    htmlVersions: newVersions,
+                    htmlVersions: currentHtmlVersions,
                 },
             });
         } catch (error) {
@@ -432,9 +490,13 @@ export default function WorkspaceApplet() {
         },
         onError: (error) => {
             // Handle subscription error silently
+            console.error("Subscription error:", error);
+            clearStreamingState();
+            setIsLoading(false);
         },
         onComplete: () => {
             // Handle subscription completion silently
+            // Don't clear streaming state here as it might be handled in processMessageQueue
         },
     });
 
@@ -478,7 +540,7 @@ export default function WorkspaceApplet() {
             setIsStreaming(true);
             setStreamingContent("");
             streamingMessageRef.current = "";
-            hasStreamingVersionRef.current = false; // Reset streaming version flag for new session
+            streamingVersionRef.current = null; // Reset streaming version tracking for new session
 
             // Add a temporary streaming message
             const streamingMessage = {
@@ -506,6 +568,22 @@ export default function WorkspaceApplet() {
         appIcon,
     ) => {
         if (!isOwner) return;
+
+        // Validate the version index before publishing
+        if (versionIdx < 0 || versionIdx >= htmlVersions.length) {
+            console.error(
+                `Invalid version index for publishing: ${versionIdx}, available versions: 0-${htmlVersions.length - 1}`,
+            );
+            toast.error(
+                `Cannot publish version ${versionIdx + 1} - it doesn't exist`,
+            );
+            return;
+        }
+
+        console.log(
+            `Publishing version ${versionIdx + 1} (index ${versionIdx}) of ${htmlVersions.length} total versions`,
+        );
+
         updateApplet.mutate(
             {
                 id,
@@ -622,7 +700,14 @@ export default function WorkspaceApplet() {
     };
 
     const handleMessageClick = (versionIndex) => {
-        setActiveVersionIndex(versionIndex);
+        // Ensure the version index is within bounds
+        if (versionIndex >= 0 && versionIndex < htmlVersions.length) {
+            setActiveVersionIndex(versionIndex);
+        } else {
+            console.warn(
+                `Invalid version index: ${versionIndex}, max: ${htmlVersions.length - 1}`,
+            );
+        }
     };
 
     const handleReplayMessage = (messageIndex) => {
@@ -664,15 +749,16 @@ export default function WorkspaceApplet() {
                         <div className="flex items-center gap-2 text-blue-800 text-sm">
                             <span className="text-blue-600">👁️</span>
                             <span>
-                                Read-only mode - Only the workspace owner can
-                                make changes
+                                {t(
+                                    "Read-only mode - Only the workspace owner can make changes",
+                                )}
                             </span>
                         </div>
                     </div>
                 )}
                 <div className="flex justify-between gap-4 h-full overflow-auto bg-gray-100 p-4">
                     {htmlVersions.length > 0 && (
-                        <div className="flex flex-col grow overflow-auto">
+                        <div className="flex flex-col flex-1 min-w-0 overflow-auto">
                             <VersionNavigator
                                 activeVersionIndex={activeVersionIndex}
                                 setActiveVersionIndex={setActiveVersionIndex}
@@ -695,8 +781,9 @@ export default function WorkspaceApplet() {
                                 isStreaming={isStreaming}
                                 isOwner={isOwner}
                                 hasStreamingVersion={
-                                    hasStreamingVersionRef.current
+                                    streamingVersionRef.current !== null
                                 }
+                                showCreatingDialog={showCreatingDialog}
                             />
                         </div>
                     )}
@@ -704,7 +791,9 @@ export default function WorkspaceApplet() {
                     <div
                         className={cn(
                             "flex h-full overflow-auto flex-col",
-                            htmlVersions.length > 0 ? "w-80" : "w-full",
+                            htmlVersions.length > 0
+                                ? "w-80 flex-shrink-0"
+                                : "w-full",
                         )}
                     >
                         {/* Remove model selector and keep only Clear button */}
@@ -719,7 +808,7 @@ export default function WorkspaceApplet() {
                                     onClick={() => setShowClearConfirm(true)}
                                     disabled={blockOldVersionChat}
                                 >
-                                    Clear chat
+                                    {t("Clear chat")}
                                 </button>
                             )}
                         </div>
@@ -734,14 +823,14 @@ export default function WorkspaceApplet() {
                             >
                                 {blockOldVersionChat && isOwner && (
                                     <>
-                                        <div className="absolute inset-0 bg-white/80 backdrop-blur-sm flex items-center justify-center z-10">
+                                        <div className="absolute inset-0 bg-white/5 backdrop-blur-sm flex items-center justify-center z-10">
                                             <button
                                                 className="px-4 py-2 bg-emerald-500 text-white rounded-md hover:bg-emerald-600 transition-colors"
                                                 onClick={() =>
                                                     setShowContinueConfirm(true)
                                                 }
                                             >
-                                                Continue from here
+                                                {t("Continue from here")}
                                             </button>
                                         </div>
                                         <AlertDialog
@@ -753,26 +842,26 @@ export default function WorkspaceApplet() {
                                             <AlertDialogContent>
                                                 <AlertDialogHeader>
                                                     <AlertDialogTitle>
-                                                        Continue from this
-                                                        version?
+                                                        {t(
+                                                            "Continue from this version?",
+                                                        )}
                                                     </AlertDialogTitle>
                                                     <AlertDialogDescription>
-                                                        Continuing from this
-                                                        version will remove all
-                                                        future versions. This
-                                                        action cannot be undone.
+                                                        {t(
+                                                            "Continuing from this version will remove all future versions. This action cannot be undone.",
+                                                        )}
                                                         <br />
                                                         <br />
                                                         <span className="text-emerald-600 font-medium">
-                                                            Note: Published
-                                                            versions are never
-                                                            lost.
+                                                            {t(
+                                                                "Note: Published versions are never lost.",
+                                                            )}
                                                         </span>
                                                     </AlertDialogDescription>
                                                 </AlertDialogHeader>
                                                 <AlertDialogFooter>
                                                     <AlertDialogCancel>
-                                                        Cancel
+                                                        {t("Cancel")}
                                                     </AlertDialogCancel>
                                                     <AlertDialogAction
                                                         autoFocus
@@ -783,7 +872,7 @@ export default function WorkspaceApplet() {
                                                             );
                                                         }}
                                                     >
-                                                        Continue
+                                                        {t("Continue")}
                                                     </AlertDialogAction>
                                                 </AlertDialogFooter>
                                             </AlertDialogContent>
@@ -845,7 +934,9 @@ export default function WorkspaceApplet() {
                                                             e.target.value,
                                                         )
                                                     }
-                                                    placeholder="Describe your desired UI in natural language..."
+                                                    placeholder={t(
+                                                        "Describe your desired UI in natural language...",
+                                                    )}
                                                     onKeyDown={(e) => {
                                                         if (
                                                             e.key === "Enter" &&
