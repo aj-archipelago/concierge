@@ -435,7 +435,9 @@ class CortexRequestTracker {
                             error.message.includes("not connected") ||
                             error.message.includes("must be connected")))
                 ) {
-                    this.logger.log("Detected MongoDB connection issue, attempting to reconnect...");
+                    this.logger.log(
+                        "Detected MongoDB connection issue, attempting to reconnect...",
+                    );
                     // Use the global mongoose instance to check connection state
                     const mongoose = (await import("mongoose")).default;
                     if (mongoose.connection.readyState !== 1) {
@@ -457,7 +459,9 @@ class CortexRequestTracker {
                                 "../../../src/db.mjs"
                             );
                             await connectToDatabase();
-                            this.logger.log("Successfully reconnected to MongoDB");
+                            this.logger.log(
+                                "Successfully reconnected to MongoDB",
+                            );
                         } catch (reconnectError) {
                             console.error(
                                 "Failed to reconnect to MongoDB:",
@@ -472,7 +476,9 @@ class CortexRequestTracker {
                     this.logger.log(
                         `Waiting ${waitTime / 1000}s before retry ${attempt + 1}/${maxRetries}...`,
                     );
-                    await new Promise((resolve) => setTimeout(resolve, waitTime));
+                    await new Promise((resolve) =>
+                        setTimeout(resolve, waitTime),
+                    );
                     // Increase delay for next retry (exponential backoff)
                     retryDelay *= 2;
                 }
