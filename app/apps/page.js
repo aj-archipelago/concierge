@@ -416,35 +416,17 @@ export default function AppsPage() {
                                                     key={app._id}
                                                     className="p-4 border border-gray-200 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors"
                                                 >
-                                                    <div className="flex items-start justify-between gap-2">
-                                                        <div className="flex items-start gap-3 flex-1">
+                                                    <div className="flex items-center justify-between mb-2">
+                                                        <div className="flex items-center gap-3 min-w-0 flex-1">
                                                             <div className="flex items-center justify-center w-10 h-10 bg-white border border-gray-200 rounded-lg flex-shrink-0">
                                                                 <IconComponent className="w-5 h-5 text-gray-600" />
                                                             </div>
-                                                            <div className="flex-1">
-                                                                <h3 className="font-medium text-gray-900">
+                                                            <div className="min-w-0 flex-1">
+                                                                <h3 className="font-medium text-gray-900 truncate">
                                                                     {t(
                                                                         app.name,
                                                                     )}
                                                                 </h3>
-                                                                {app.author && (
-                                                                    <p className="text-sm text-gray-500 mt-1">
-                                                                        by{" "}
-                                                                        {
-                                                                            app
-                                                                                .author
-                                                                                .username
-                                                                        }
-                                                                    </p>
-                                                                )}
-                                                                {app.updatedAt && (
-                                                                    <p className="text-xs text-gray-400 mt-1">
-                                                                        Updated{" "}
-                                                                        {new Date(
-                                                                            app.updatedAt,
-                                                                        ).toLocaleString()}
-                                                                    </p>
-                                                                )}
                                                             </div>
                                                         </div>
                                                         <button
@@ -468,6 +450,29 @@ export default function AppsPage() {
                                                                 : "Add"}
                                                         </button>
                                                     </div>
+                                                    {(app.author ||
+                                                        app.updatedAt) && (
+                                                        <div className="ml-13">
+                                                            {app.author && (
+                                                                <p className="text-xs text-gray-500 whitespace-nowrap">
+                                                                    by{" "}
+                                                                    {
+                                                                        app
+                                                                            .author
+                                                                            .username
+                                                                    }
+                                                                </p>
+                                                            )}
+                                                            {app.updatedAt && (
+                                                                <p className="text-xs text-gray-400 mt-1 truncate">
+                                                                    Updated{" "}
+                                                                    {new Date(
+                                                                        app.updatedAt,
+                                                                    ).toLocaleString()}
+                                                                </p>
+                                                            )}
+                                                        </div>
+                                                    )}
                                                 </div>
                                             );
                                         })}
