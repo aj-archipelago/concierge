@@ -234,92 +234,15 @@ const OutputSandbox = forwardRef(
                 try {
                     setIsLoading(true);
 
-                    // Function to filter out dark classes from HTML content
-                    const filterDarkClasses = (content, theme) => {
-                        // Handle null or undefined content
-                        if (!content) {
-                            return "";
-                        }
-                        
-                        if (theme === "dark") {
-                            return content; // Keep all classes for dark theme
-                        }
-
-                        // Remove all dark: classes from the HTML content
-                        return content.replace(/\bdark:[^\s"'`>]+/g, "");
-                    };
-
-                    // Filter out dark classes when theme is light
-                    const filteredContent = filterDarkClasses(content, theme);
-
                     // Create a base tag to handle relative URLs
                     const base = document.createElement("base");
                     base.href = window.location.origin;
 
-                    // Create proper HTML structure with theme information
-                    const html = `
-                    <!DOCTYPE html>
-                    <html data-theme="${theme}">
-                        <head>
-                            <meta charset="utf-8">
-                            <meta name="viewport" content="width=device-width, initial-scale=1">
-                            <style>
-                                body { 
-                                    margin: 0; 
-                                    font-family: system-ui, -apple-system, sans-serif;
-                                }
-                                /* Ensure images don't overflow */
-                                img { max-width: 100%; height: auto; }
-                                
-                                /* Theme-aware styles for applets */
-                                html[data-theme="dark"] {
-                                    color-scheme: dark;
-                                }
-                                html[data-theme="light"] {
-                                    color-scheme: light;
-                                }
-                                
-                                /* CSS custom property for applets to use */
-                                :root {
-                                    --prefers-color-scheme: ${theme};
-                                }
-                                
-                                /* Override prefers-color-scheme media queries based on theme */
-                                html[data-theme="dark"] {
-                                    /* Force dark mode regardless of system preference */
-                                    color-scheme: dark;
-                                }
-                                
-                                html[data-theme="light"] {
-                                    /* Force light mode regardless of system preference */
-                                    color-scheme: light;
-                                }
-                                
-                                /* Hide pre elements with llm-output class - they're replaced by React portals */
-                                pre.llm-output {
-                                    display: none !important;
-                                }
-                            </style>
-                            <script>
-                                // Make theme available to applets via JavaScript
-                                window.LABEEB_THEME = "${theme}";
-                                window.LABEEB_PREFERS_COLOR_SCHEME = "${theme}";
-                                
-                                // Listen for theme changes from parent
-                                window.addEventListener('message', function(event) {
-                                    if (event.data && event.data.type === 'theme-change') {
-                                        const newTheme = event.data.theme;
-                                        document.documentElement.setAttribute('data-theme', newTheme);
-                                        document.documentElement.style.setProperty('--prefers-color-scheme', newTheme);
-                                        window.LABEEB_THEME = newTheme;
-                                        window.LABEEB_PREFERS_COLOR_SCHEME = newTheme;
-                                    }
-                                });
-                            </script>
-                        </head>
-                        <body>${filteredContent}</body>
-                    </html>
-                `;
+                    // Import the shared utility function
+                    const { generateFilteredSandboxHtml } = await import('@/src/utils/themeUtils');
+                    
+                    // Generate the filtered HTML document using the shared template
+                    const html = generateFilteredSandboxHtml(content, theme);
 
                     // Use srcdoc for better security and performance
                     iframe.srcdoc = html;
