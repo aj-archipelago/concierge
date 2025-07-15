@@ -1,5 +1,5 @@
 import React from "react";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import "@testing-library/jest-dom";
 import OutputSandbox from "./OutputSandbox";
 
@@ -24,24 +24,33 @@ describe("OutputSandbox", () => {
         jest.clearAllMocks();
     });
 
-    it("should render iframe with content", () => {
+    it("should render iframe with content", async () => {
         const content = "<div>Test content</div>";
         render(<OutputSandbox content={content} />);
 
         const iframe = screen.getByTitle("Output Sandbox");
         expect(iframe).toBeInTheDocument();
-        expect(iframe).toHaveAttribute("srcdoc");
+
+        // Wait for the async setupFrame to complete
+        await waitFor(() => {
+            expect(iframe).toHaveAttribute("srcdoc");
+        });
     });
 
-    it("should render loading state initially", () => {
+    it("should render loading state initially", async () => {
         const content = "<div>Test content</div>";
         render(<OutputSandbox content={content} />);
 
         const loadingText = screen.getByText("Loading...");
         expect(loadingText).toBeInTheDocument();
+        
+        // Wait for loading to complete to avoid act warnings
+        await waitFor(() => {
+            expect(screen.getByTitle("Output Sandbox")).toHaveAttribute("srcdoc");
+        });
     });
 
-    it("should include pre elements in srcdoc", () => {
+    it("should include pre elements in srcdoc", async () => {
         const jsonContent = {
             markdown: "# Test Heading\n\nThis is a test paragraph.",
             citations: [
@@ -61,14 +70,20 @@ describe("OutputSandbox", () => {
         render(<OutputSandbox content={content} />);
 
         const iframe = screen.getByTitle("Output Sandbox");
-        const srcdoc = iframe.getAttribute("srcdoc");
 
-        // Check that the pre element is included in the srcdoc
+        // Wait for the async setupFrame to complete
+        await waitFor(() => {
+            const srcdoc = iframe.getAttribute("srcdoc");
+            expect(srcdoc).toBeTruthy();
+        });
+
+        // Now check the content
+        const srcdoc = iframe.getAttribute("srcdoc");
         expect(srcdoc).toContain('pre class="llm-output"');
         expect(srcdoc).toContain(JSON.stringify(jsonContent));
     });
 
-    it("should have proper iframe attributes", () => {
+    it("should have proper iframe attributes", async () => {
         const content = "<div>Test content</div>";
         render(<OutputSandbox content={content} />);
 
@@ -78,14 +93,24 @@ describe("OutputSandbox", () => {
             "allow-scripts allow-popups allow-forms allow-same-origin allow-downloads allow-presentation",
         );
         expect(iframe).toHaveAttribute("title", "Output Sandbox");
+        
+        // Wait for async operations to complete
+        await waitFor(() => {
+            expect(iframe).toHaveAttribute("srcdoc");
+        });
     });
 
-    it("should accept custom height prop", () => {
+    it("should accept custom height prop", async () => {
         const content = "<div>Test content</div>";
         const customHeight = "500px";
         render(<OutputSandbox content={content} height={customHeight} />);
 
         const iframe = screen.getByTitle("Output Sandbox");
         expect(iframe).toHaveStyle(`height: ${customHeight}`);
+        
+        // Wait for async operations to complete
+        await waitFor(() => {
+            expect(iframe).toHaveAttribute("srcdoc");
+        });
     });
 });
