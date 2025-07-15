@@ -13,8 +13,6 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { useParams } from "next/navigation";
 import { useEffect, useRef, useState, useContext, useCallback } from "react";
-import { RiSendPlane2Fill } from "react-icons/ri";
-import TextareaAutosize from "react-textarea-autosize";
 import { useSubscription } from "@apollo/client";
 import { useTranslation } from "react-i18next";
 import { SUBSCRIPTIONS } from "../../../../src/graphql";
@@ -620,17 +618,34 @@ export default function WorkspaceApplet() {
 
     const handleHtmlChange = (value, versionIndex) => {
         if (!isOwner) return;
-        const newVersions = [...htmlVersions];
-        newVersions[versionIndex] = value;
-        setHtmlVersions(newVersions);
 
-        // Update the server with the new HTML versions
-        updateApplet.mutate({
-            id,
-            data: {
-                htmlVersions: newVersions,
-            },
-        });
+        // If there are no versions and we're getting content, create the first version
+        if (htmlVersions.length === 0 && value.trim()) {
+            const newVersions = [value];
+            setHtmlVersions(newVersions);
+            setActiveVersionIndex(0);
+
+            // Update the server with the new HTML versions
+            updateApplet.mutate({
+                id,
+                data: {
+                    htmlVersions: newVersions,
+                },
+            });
+        } else if (htmlVersions.length > 0) {
+            // Update existing version
+            const newVersions = [...htmlVersions];
+            newVersions[versionIndex] = value;
+            setHtmlVersions(newVersions);
+
+            // Update the server with the new HTML versions
+            updateApplet.mutate({
+                id,
+                data: {
+                    htmlVersions: newVersions,
+                },
+            });
+        }
     };
 
     const handleContinueFromOldVersion = () => {
@@ -757,8 +772,8 @@ export default function WorkspaceApplet() {
                     </div>
                 )}
                 <div className="flex justify-between gap-4 h-full overflow-auto bg-gray-100 p-4">
-                    {htmlVersions.length > 0 && (
-                        <div className="flex flex-col flex-1 min-w-0 overflow-auto">
+                    <div className="flex flex-col flex-1 min-w-0 overflow-auto">
+                        {htmlVersions.length > 0 && (
                             <VersionNavigator
                                 activeVersionIndex={activeVersionIndex}
                                 setActiveVersionIndex={setActiveVersionIndex}
@@ -774,28 +789,21 @@ export default function WorkspaceApplet() {
                                 workspaceId={id}
                                 isOwner={isOwner}
                             />
-                            <PreviewTabs
-                                htmlVersions={htmlVersions}
-                                activeVersionIndex={activeVersionIndex}
-                                onHtmlChange={handleHtmlChange}
-                                isStreaming={isStreaming}
-                                isOwner={isOwner}
-                                hasStreamingVersion={
-                                    streamingVersionRef.current !== null
-                                }
-                                showCreatingDialog={showCreatingDialog}
-                            />
-                        </div>
-                    )}
-
-                    <div
-                        className={cn(
-                            "flex h-full overflow-auto flex-col",
-                            htmlVersions.length > 0
-                                ? "w-80 flex-shrink-0"
-                                : "w-full",
                         )}
-                    >
+                        <PreviewTabs
+                            htmlVersions={htmlVersions}
+                            activeVersionIndex={activeVersionIndex}
+                            onHtmlChange={handleHtmlChange}
+                            isStreaming={isStreaming}
+                            isOwner={isOwner}
+                            hasStreamingVersion={
+                                streamingVersionRef.current !== null
+                            }
+                            showCreatingDialog={showCreatingDialog}
+                        />
+                    </div>
+
+                    <div className="w-80 flex-shrink-0 flex h-full overflow-auto flex-col">
                         {/* Remove model selector and keep only Clear button */}
                         <div className="mb-4 flex items-center justify-end gap-4">
                             {messages && messages.length > 0 && isOwner && (
@@ -813,170 +821,95 @@ export default function WorkspaceApplet() {
                             )}
                         </div>
 
-                        {/* Chat or Message Input */}
-                        {(messages && messages.length > 0) ||
-                        htmlVersions.length > 0 ? (
-                            <div
-                                className={cn(
-                                    "relative flex-1 grow overflow-hidden",
-                                )}
-                            >
-                                {blockOldVersionChat && isOwner && (
-                                    <>
-                                        <div className="absolute inset-0 bg-white/5 backdrop-blur-sm flex items-center justify-center z-10">
-                                            <button
-                                                className="px-4 py-2 bg-emerald-500 text-white rounded-md hover:bg-emerald-600 transition-colors"
-                                                onClick={() =>
-                                                    setShowContinueConfirm(true)
-                                                }
-                                            >
-                                                {t("Continue from here")}
-                                            </button>
-                                        </div>
-                                        <AlertDialog
-                                            open={showContinueConfirm}
-                                            onOpenChange={
-                                                setShowContinueConfirm
+                        {/* Chat Interface - Always show */}
+                        <div
+                            className={cn(
+                                "relative flex-1 grow overflow-hidden",
+                            )}
+                        >
+                            {blockOldVersionChat && isOwner && (
+                                <>
+                                    <div className="absolute inset-0 bg-white/5 backdrop-blur-sm flex items-center justify-center z-10">
+                                        <button
+                                            className="px-4 py-2 bg-emerald-500 text-white rounded-md hover:bg-emerald-600 transition-colors"
+                                            onClick={() =>
+                                                setShowContinueConfirm(true)
                                             }
                                         >
-                                            <AlertDialogContent>
-                                                <AlertDialogHeader>
-                                                    <AlertDialogTitle>
-                                                        {t(
-                                                            "Continue from this version?",
-                                                        )}
-                                                    </AlertDialogTitle>
-                                                    <AlertDialogDescription>
-                                                        {t(
-                                                            "Continuing from this version will remove all future versions. This action cannot be undone.",
-                                                        )}
-                                                        <br />
-                                                        <br />
-                                                        <span className="text-emerald-600 font-medium">
-                                                            {t(
-                                                                "Note: Published versions are never lost.",
-                                                            )}
-                                                        </span>
-                                                    </AlertDialogDescription>
-                                                </AlertDialogHeader>
-                                                <AlertDialogFooter>
-                                                    <AlertDialogCancel>
-                                                        {t("Cancel")}
-                                                    </AlertDialogCancel>
-                                                    <AlertDialogAction
-                                                        autoFocus
-                                                        onClick={() => {
-                                                            handleContinueFromOldVersion();
-                                                            setShowContinueConfirm(
-                                                                false,
-                                                            );
-                                                        }}
-                                                    >
-                                                        {t("Continue")}
-                                                    </AlertDialogAction>
-                                                </AlertDialogFooter>
-                                            </AlertDialogContent>
-                                        </AlertDialog>
-                                    </>
-                                )}
-                                <div className="overflow-auto h-full">
-                                    <ChatInterface
-                                        messages={messages}
-                                        inputMessage={inputMessage}
-                                        setInputMessage={setInputMessage}
-                                        onSendMessage={handleSendMessage}
-                                        isLoading={isLoading}
-                                        blockOldVersionChat={
-                                            blockOldVersionChat
-                                        }
-                                        showContinueConfirm={
-                                            showContinueConfirm
-                                        }
-                                        setShowContinueConfirm={
-                                            setShowContinueConfirm
-                                        }
-                                        showClearConfirm={showClearConfirm}
-                                        setShowClearConfirm={
-                                            setShowClearConfirm
-                                        }
-                                        onContinueFromOldVersion={
-                                            handleContinueFromOldVersion
-                                        }
-                                        onClearChat={handleClearChat}
-                                        onMessageClick={handleMessageClick}
-                                        htmlVersions={htmlVersions}
-                                        onReplayMessage={handleReplayMessage}
-                                        streamingContent={streamingContent}
-                                        isStreaming={isStreaming}
-                                        isOwner={isOwner}
-                                    />
-                                </div>
-                            </div>
-                        ) : (
-                            selectedLLM &&
-                            isOwner && (
-                                <div className="rounded-md border dark:border-zinc-200 mt-3">
-                                    <form
-                                        className="flex items-center rounded-md dark:bg-zinc-100"
-                                        onSubmit={(e) => {
-                                            e.preventDefault();
-                                            handleSendMessage();
-                                        }}
+                                            {t("Continue from here")}
+                                        </button>
+                                    </div>
+                                    <AlertDialog
+                                        open={showContinueConfirm}
+                                        onOpenChange={setShowContinueConfirm}
                                     >
-                                        <div className="relative grow">
-                                            <div className="flex items-center">
-                                                <TextareaAutosize
-                                                    className="w-full border-0 outline-none focus:shadow-none text-sm focus:ring-0 py-3 resize-none dark:bg-zinc-100 px-3 rounded-s max-h-24 overflow-y-auto"
-                                                    rows={1}
-                                                    value={inputMessage}
-                                                    onChange={(e) =>
-                                                        setInputMessage(
-                                                            e.target.value,
-                                                        )
-                                                    }
-                                                    placeholder={t(
-                                                        "Describe your desired UI in natural language...",
+                                        <AlertDialogContent>
+                                            <AlertDialogHeader>
+                                                <AlertDialogTitle>
+                                                    {t(
+                                                        "Continue from this version?",
                                                     )}
-                                                    onKeyDown={(e) => {
-                                                        if (
-                                                            e.key === "Enter" &&
-                                                            !e.shiftKey
-                                                        ) {
-                                                            e.preventDefault();
-                                                            handleSendMessage();
-                                                        }
+                                                </AlertDialogTitle>
+                                                <AlertDialogDescription>
+                                                    {t(
+                                                        "Continuing from this version will remove all future versions. This action cannot be undone.",
+                                                    )}
+                                                    <br />
+                                                    <br />
+                                                    <span className="text-emerald-600 font-medium">
+                                                        {t(
+                                                            "Note: Published versions are never lost.",
+                                                        )}
+                                                    </span>
+                                                </AlertDialogDescription>
+                                            </AlertDialogHeader>
+                                            <AlertDialogFooter>
+                                                <AlertDialogCancel>
+                                                    {t("Cancel")}
+                                                </AlertDialogCancel>
+                                                <AlertDialogAction
+                                                    autoFocus
+                                                    onClick={() => {
+                                                        handleContinueFromOldVersion();
+                                                        setShowContinueConfirm(
+                                                            false,
+                                                        );
                                                     }}
-                                                    autoComplete="on"
-                                                    autoCapitalize="sentences"
-                                                    autoCorrect="on"
-                                                    spellCheck="true"
-                                                    inputMode="text"
-                                                    disabled={isLoading}
-                                                />
-                                            </div>
-                                        </div>
-                                        <div className="px-3 bg-white self-stretch flex items-center rounded-e">
-                                            <div>
-                                                <button
-                                                    type="submit"
-                                                    disabled={
-                                                        !inputMessage.trim() ||
-                                                        isLoading
-                                                    }
-                                                    className="text-base rtl:rotate-180 text-emerald-500 hover:text-emerald-600 disabled:text-gray-300 active:text-gray-800 dark:bg-zinc-100 flex items-center justify-center"
                                                 >
-                                                    {isLoading ? (
-                                                        <div className="w-4 h-4 border-2 border-sky-600 border-t-transparent rounded-full animate-spin" />
-                                                    ) : (
-                                                        <RiSendPlane2Fill />
-                                                    )}
-                                                </button>
-                                            </div>
-                                        </div>
-                                    </form>
-                                </div>
-                            )
-                        )}
+                                                    {t("Continue")}
+                                                </AlertDialogAction>
+                                            </AlertDialogFooter>
+                                        </AlertDialogContent>
+                                    </AlertDialog>
+                                </>
+                            )}
+                            <div className="overflow-auto h-full">
+                                <ChatInterface
+                                    messages={messages}
+                                    inputMessage={inputMessage}
+                                    setInputMessage={setInputMessage}
+                                    onSendMessage={handleSendMessage}
+                                    isLoading={isLoading}
+                                    blockOldVersionChat={blockOldVersionChat}
+                                    showContinueConfirm={showContinueConfirm}
+                                    setShowContinueConfirm={
+                                        setShowContinueConfirm
+                                    }
+                                    showClearConfirm={showClearConfirm}
+                                    setShowClearConfirm={setShowClearConfirm}
+                                    onContinueFromOldVersion={
+                                        handleContinueFromOldVersion
+                                    }
+                                    onClearChat={handleClearChat}
+                                    onMessageClick={handleMessageClick}
+                                    htmlVersions={htmlVersions}
+                                    onReplayMessage={handleReplayMessage}
+                                    streamingContent={streamingContent}
+                                    isStreaming={isStreaming}
+                                    isOwner={isOwner}
+                                />
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>

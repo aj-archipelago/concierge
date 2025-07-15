@@ -609,5 +609,8 @@
     "Built-in Apps": "التطبيقات المدمجة",
     "User-Created Apps": "التطبيقات المنشأة من قبل المستخدمين",
     "Loading...": "جار التحميل...",
-    "Unknown App": "تطبيق غير معروف"
+    "Unknown App": "تطبيق غير معروف",
+    "No applet created yet": "لم يتم إنشاء تطبيق صغير بعد",
+    "Use the chat interface to describe your desired UI, or paste HTML code directly in the Code tab to create your first version.": "استخدم واجهة الدردشة لوصف واجهة المستخدم المطلوبة، أو الصق كود HTML مباشرة في تبويب الكود لإنشاء إصدارك الأول.",
+    "Applet": "التطبيق الصغير"
 }

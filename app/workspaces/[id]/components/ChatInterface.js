@@ -358,7 +358,7 @@ export default function ChatInterface({
                                     blockOldVersionChat ||
                                     !isOwner
                                 }
-                                className="text-base rtl:rotate-180 text-emerald-500 hover:text-emerald-600 disabled:text-gray-300 active:text-gray-800 dark:bg-zinc-100 flex items-center justify-center"
+                                className="text-base rtl:rotate-180 text-emerald-500 hover:text-emerald-600 disabled:text-gray-300 active:text-gray-800 flex items-center justify-center"
                             >
                                 {isLoading || isStreaming ? (
                                     <div className="w-4 h-4 border-2 border-sky-600 border-t-transparent rounded-full animate-spin" />

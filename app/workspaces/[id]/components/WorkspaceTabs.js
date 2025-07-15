@@ -15,7 +15,7 @@ export default function WorkspaceTabs({ idOrSlug, user }) {
         >
             <TabsList className="w-full justify-start">
                 <TabsTrigger value="prompts">{t("Prompts")}</TabsTrigger>
-                <TabsTrigger value="ui">{t("UI")}</TabsTrigger>
+                <TabsTrigger value="ui">{t("Applet")}</TabsTrigger>
             </TabsList>
             <TabsContent value="prompts">
                 <WorkspaceContent idOrSlug={idOrSlug} user={user} />
