@@ -236,6 +236,11 @@ const OutputSandbox = forwardRef(
 
                     // Function to filter out dark classes from HTML content
                     const filterDarkClasses = (content, theme) => {
+                        // Handle null or undefined content
+                        if (!content) {
+                            return "";
+                        }
+                        
                         if (theme === "dark") {
                             return content; // Keep all classes for dark theme
                         }
