@@ -46,7 +46,6 @@ export async function GET(request, { params }) {
 
 // PUT: update applet (html, messages, etc)
 export async function PUT(request, { params }) {
-    await connectToDatabase();
     const { id } = params;
     const body = await request.json();
 
