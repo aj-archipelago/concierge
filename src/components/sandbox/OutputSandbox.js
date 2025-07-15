@@ -70,11 +70,6 @@ const OutputSandbox = forwardRef(
                         );
                         container.remove();
                     }
-                } else {
-                    console.log(
-                        "Keeping portal container with valid pre element:",
-                        portalId,
-                    );
                 }
             });
         }, []);
@@ -87,8 +82,6 @@ const OutputSandbox = forwardRef(
                     return;
                 }
 
-                console.log("processPreElements called, frameDoc:", frameDoc);
-
                 // Clean up old portal containers from DOM first
                 removeOldPortalContainers(frameDoc);
 
@@ -96,11 +89,14 @@ const OutputSandbox = forwardRef(
                 cleanupOldPortals(frameDoc);
 
                 const preElements = frameDoc.querySelectorAll("pre.llm-output");
-                console.log("Found pre elements:", preElements.length);
+                if (preElements.length === 0) {
+                    console.log(
+                        "No pre elements found - skipping portal processing",
+                    );
+                    return;
+                }
 
                 preElements.forEach((preElement, index) => {
-                    console.log(`Processing pre element ${index}:`, preElement);
-
                     // Check if this element was already processed
                     const wasProcessed =
                         preElement.dataset.processed === "true";
@@ -121,18 +117,10 @@ const OutputSandbox = forwardRef(
                             return;
                         }
 
-                        // If content has changed, we need to reprocess
-                        console.log("Content changed, reprocessing element");
-
                         // Find the existing portal container but don't remove it yet
                         existingContainer = frameDoc.querySelector(
                             `[data-portal-id="${preElement.dataset.portalId}"]`,
                         );
-                        if (existingContainer) {
-                            console.log(
-                                "Found existing container, will remove after creating new one",
-                            );
-                        }
 
                         // Clear the processed flag
                         delete preElement.dataset.processed;
@@ -149,11 +137,11 @@ const OutputSandbox = forwardRef(
                     }
 
                     try {
+                        if (!preElement.textContent) {
+                            return;
+                        }
+
                         const textContent = preElement.textContent.trim();
-                        console.log(
-                            "Processing pre element with content:",
-                            textContent.substring(0, 100) + "...",
-                        );
 
                         const jsonData = JSON.parse(textContent);
 
@@ -162,10 +150,6 @@ const OutputSandbox = forwardRef(
                             jsonData.markdown &&
                             Array.isArray(jsonData.citations)
                         ) {
-                            console.log(
-                                "Valid JSON found, creating portal container",
-                            );
-
                             // Create a container for the React component
                             const container = frameDoc.createElement("div");
                             container.className = "react-portal-container";
@@ -183,10 +167,6 @@ const OutputSandbox = forwardRef(
                                 container,
                                 preElement.nextSibling,
                             );
-                            console.log(
-                                "Inserted portal container after pre element:",
-                                preElement,
-                            );
 
                             // Mark as processed and store content hash
                             preElement.dataset.processed = "true";
@@ -201,20 +181,10 @@ const OutputSandbox = forwardRef(
                                 }),
                             };
 
-                            console.log(
-                                "Calling convertMessageToMarkdown with:",
-                                message,
-                            );
-
                             // Convert to React component
                             const reactComponent = convertMessageToMarkdown(
                                 message,
                                 true,
-                            );
-
-                            console.log(
-                                "React component created:",
-                                reactComponent,
                             );
 
                             // Store the portal container for rendering
@@ -225,10 +195,6 @@ const OutputSandbox = forwardRef(
                                     component: reactComponent,
                                     frameDoc,
                                 });
-                                console.log(
-                                    "Portal containers updated, total:",
-                                    newMap.size,
-                                );
                                 return newMap;
                             });
 
@@ -486,9 +452,6 @@ const OutputSandbox = forwardRef(
                                 });
 
                                 if (shouldProcess) {
-                                    console.log(
-                                        "Mutation detected, processing pre elements",
-                                    );
                                     processPreElements(frameDoc);
                                 }
                             },
@@ -597,14 +560,6 @@ const OutputSandbox = forwardRef(
                 {/* Render React portals for detected pre elements */}
                 {Array.from(portalContainers.entries()).map(
                     ([portalId, { container, component, frameDoc }]) => {
-                        console.log(
-                            "Rendering portal:",
-                            portalId,
-                            "container:",
-                            container,
-                            "component:",
-                            component,
-                        );
                         if (container && frameDoc) {
                             return (
                                 <React.Fragment key={portalId}>
