@@ -12,10 +12,11 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { AlertTriangle, Search } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import * as Icons from "lucide-react";
 import { getUniqueLucideIcons } from "@/lib/utils";
+import { useWorkspaceApp } from "../../../queries/workspaces";
 
 export default function PublishConfirmDialog({
     isOpen,
@@ -23,6 +24,7 @@ export default function PublishConfirmDialog({
     onConfirm,
     isPending = false,
     versionNumber,
+    workspaceId,
 }) {
     const { t } = useTranslation();
     const [publishToAppStore, setPublishToAppStore] = useState(false);
@@ -30,6 +32,38 @@ export default function PublishConfirmDialog({
     const [selectedIcon, setSelectedIcon] = useState("AppWindow");
     const [iconSearch, setIconSearch] = useState("");
     const [showIconSelector, setShowIconSelector] = useState(false);
+    const searchInputRef = useRef(null);
+
+    // Fetch existing app data to prefill app name
+    const { data: existingApp } = useWorkspaceApp(workspaceId);
+
+    // Prefill app name when dialog opens and existing app data is available
+    useEffect(() => {
+        if (isOpen && existingApp?.name) {
+            setAppName(existingApp.name);
+        }
+        if (isOpen && existingApp?.icon) {
+            setSelectedIcon(existingApp.icon);
+        }
+    }, [isOpen, existingApp]);
+
+    // Reset form when dialog closes
+    useEffect(() => {
+        if (!isOpen) {
+            setAppName("");
+            setSelectedIcon("AppWindow");
+            setPublishToAppStore(false);
+            setIconSearch("");
+            setShowIconSelector(false);
+        }
+    }, [isOpen]);
+
+    // Focus search input when icon selector opens
+    useEffect(() => {
+        if (showIconSelector && searchInputRef.current) {
+            searchInputRef.current.focus();
+        }
+    }, [showIconSelector]);
 
     const handleConfirm = () => {
         if (publishToAppStore && !appName.trim()) {
@@ -133,6 +167,7 @@ export default function PublishConfirmDialog({
                                             <div className="relative">
                                                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
                                                 <Input
+                                                    ref={searchInputRef}
                                                     placeholder={t(
                                                         "Search icons...",
                                                     )}

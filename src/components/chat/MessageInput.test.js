@@ -1,5 +1,11 @@
 import React from "react";
-import { render, screen, fireEvent, act, waitFor } from "@testing-library/react";
+import {
+    render,
+    screen,
+    fireEvent,
+    act,
+    waitFor,
+} from "@testing-library/react";
 import "@testing-library/jest-dom";
 import MessageInput from "./MessageInput";
 import { AuthContext } from "../../App";
@@ -777,7 +783,7 @@ describe("MessageInput", () => {
             const input = screen.getByPlaceholderText("Send a message");
             fireEvent.change(input, { target: { value: "Test message" } });
             fireEvent.keyDown(input, { key: "Enter", shiftKey: false });
-            
+
             await waitFor(() => {
                 expect(mockOnSend).toHaveBeenCalledWith("Test message");
             });

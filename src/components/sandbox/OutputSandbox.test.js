@@ -43,10 +43,12 @@ describe("OutputSandbox", () => {
 
         const loadingText = screen.getByText("Loading...");
         expect(loadingText).toBeInTheDocument();
-        
+
         // Wait for loading to complete to avoid act warnings
         await waitFor(() => {
-            expect(screen.getByTitle("Output Sandbox")).toHaveAttribute("srcdoc");
+            expect(screen.getByTitle("Output Sandbox")).toHaveAttribute(
+                "srcdoc",
+            );
         });
     });
 
@@ -93,7 +95,7 @@ describe("OutputSandbox", () => {
             "allow-scripts allow-popups allow-forms allow-same-origin allow-downloads allow-presentation",
         );
         expect(iframe).toHaveAttribute("title", "Output Sandbox");
-        
+
         // Wait for async operations to complete
         await waitFor(() => {
             expect(iframe).toHaveAttribute("srcdoc");
@@ -107,7 +109,7 @@ describe("OutputSandbox", () => {
 
         const iframe = screen.getByTitle("Output Sandbox");
         expect(iframe).toHaveStyle(`height: ${customHeight}`);
-        
+
         // Wait for async operations to complete
         await waitFor(() => {
             expect(iframe).toHaveAttribute("srcdoc");

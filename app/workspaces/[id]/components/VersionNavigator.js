@@ -312,6 +312,7 @@ export default function VersionNavigator({
                 onConfirm={handlePublishConfirm}
                 isPending={updateApplet.isPending}
                 versionNumber={activeVersionIndex + 1}
+                workspaceId={workspaceId}
             />
         </div>
     );
