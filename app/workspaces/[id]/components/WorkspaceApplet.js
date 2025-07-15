@@ -800,6 +800,7 @@ export default function WorkspaceApplet() {
                                 streamingVersionRef.current !== null
                             }
                             showCreatingDialog={showCreatingDialog}
+                            isLoading={appletQuery.isLoading}
                         />
                     </div>
 
