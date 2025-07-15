@@ -50,8 +50,6 @@ function CreatingAppletDialog({ isVisible }) {
     );
 }
 
-
-
 // Streaming preview component that uses dangerouslySetInnerHTML for smooth updates
 function StreamingPreview({ content, theme }) {
     // Generate the filtered HTML document using the shared template

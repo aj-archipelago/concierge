@@ -9,7 +9,7 @@ export function filterDarkClasses(content, theme) {
     if (!content) {
         return "";
     }
-    
+
     if (theme === "dark") {
         return content; // Keep all classes for dark theme
     }
@@ -139,4 +139,4 @@ export function generateFilteredSandboxHtml(content, theme) {
 
     // Apply filtering to the entire HTML document
     return filterDarkClasses(fullHtml, theme);
-} 
+}

@@ -239,8 +239,10 @@ const OutputSandbox = forwardRef(
                     base.href = window.location.origin;
 
                     // Import the shared utility function
-                    const { generateFilteredSandboxHtml } = await import('@/src/utils/themeUtils');
-                    
+                    const { generateFilteredSandboxHtml } = await import(
+                        "@/src/utils/themeUtils"
+                    );
+
                     // Generate the filtered HTML document using the shared template
                     const html = generateFilteredSandboxHtml(content, theme);
 

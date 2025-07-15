@@ -3,9 +3,7 @@ import {
     HelpCircle,
     PinIcon,
     PinOffIcon,
-    Settings,
     AppWindow,
-    Store,
     Grid3X3,
 } from "lucide-react";
 import * as Icons from "lucide-react";
