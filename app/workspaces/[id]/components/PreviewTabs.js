@@ -5,7 +5,7 @@ import MonacoEditor from "@monaco-editor/react";
 import { useContext } from "react";
 import { useTranslation } from "react-i18next";
 import { ThemeContext } from "@/src/contexts/ThemeProvider";
-import { generateFilteredSandboxHtml } from "../../../src/utils/themeUtils";
+import { generateFilteredSandboxHtml } from "../../../../src/utils/themeUtils";
 
 function HtmlEditor({ value, onChange, options }) {
     return (
