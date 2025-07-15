@@ -78,9 +78,40 @@ export default function WorkspaceApplet() {
     }, [activeVersionIndex]);
 
     // Load initial data
+    const dataLoadedRef = useRef(false);
+    const lastDataRef = useRef(null);
+
     useEffect(() => {
+        if (!appletQuery.data) return;
+
+        // Check if the data has changed significantly (e.g., after clearing chat)
+        const currentDataKey = JSON.stringify({
+            htmlVersionsLength: appletQuery.data.htmlVersions?.length || 0,
+            messagesLength: appletQuery.data.messages?.length || 0,
+            publishedVersionIndex: appletQuery.data.publishedVersionIndex,
+        });
+
+        if (lastDataRef.current !== currentDataKey) {
+            dataLoadedRef.current = false;
+            lastDataRef.current = currentDataKey;
+        }
+
+        if (dataLoadedRef.current) return;
+
+        // Always load HTML versions if they exist and we don't have any loaded
         if (
-            appletQuery.data?.messages?.length > 0 &&
+            appletQuery.data.htmlVersions?.length > 0 &&
+            htmlVersions.length === 0
+        ) {
+            setHtmlVersions(
+                appletQuery.data.htmlVersions.map((v) => v.content),
+            );
+            setActiveVersionIndex(appletQuery.data.htmlVersions.length - 1);
+        }
+
+        // Load messages if they exist and we don't have any loaded
+        if (
+            appletQuery.data.messages?.length > 0 &&
             !allMessagesRef.current?.length
         ) {
             allMessagesRef.current = appletQuery.data.messages || [];
@@ -90,21 +121,23 @@ export default function WorkspaceApplet() {
                     activeVersionIndex,
                 ),
             );
-
-            if (appletQuery.data.htmlVersions?.length > 0) {
-                setHtmlVersions(
-                    appletQuery.data.htmlVersions.map((v) => v.content),
-                );
-                setActiveVersionIndex(appletQuery.data.htmlVersions.length - 1);
-            }
-
-            setPublishedVersionIndex(
-                typeof appletQuery.data.publishedVersionIndex === "number"
-                    ? appletQuery.data.publishedVersionIndex
-                    : null,
-            );
         }
-    }, [appletQuery.data, activeVersionIndex]);
+
+        // Load published version index if it exists and we don't have one set
+        if (
+            typeof appletQuery.data.publishedVersionIndex === "number" &&
+            publishedVersionIndex === null
+        ) {
+            setPublishedVersionIndex(appletQuery.data.publishedVersionIndex);
+        }
+
+        dataLoadedRef.current = true;
+    }, [
+        appletQuery.data,
+        activeVersionIndex,
+        publishedVersionIndex,
+        htmlVersions.length,
+    ]);
 
     // Update messages when version changes
     useEffect(() => {
