@@ -19,6 +19,16 @@ import { ServerContext } from "../../../../src/App";
 import { useState } from "react";
 import { useParams } from "next/navigation";
 import { useTranslation } from "react-i18next";
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import PublishConfirmDialog from "./PublishConfirmDialog";
 
 function CopyPublishedLinkButton() {
@@ -94,6 +104,8 @@ export default function VersionNavigator({
     const { t } = useTranslation();
     const { direction } = useContext(LanguageContext);
     const [showPublishDialog, setShowPublishDialog] = useState(false);
+    const [deleteVersionDialogOpen, setDeleteVersionDialogOpen] =
+        useState(false);
 
     // Note: Version validation is handled in WorkspaceApplet.js to avoid duplicate validation
 
@@ -119,43 +131,44 @@ export default function VersionNavigator({
 
     const handleDeleteVersion = () => {
         if (!isOwner) return;
-        if (
-            window.confirm(t("Are you sure you want to delete this version?"))
-        ) {
-            setHtmlVersions((prev) => {
-                const newVersions = prev.filter(
-                    (_, index) => index !== activeVersionIndex,
-                );
+        setDeleteVersionDialogOpen(true);
+    };
 
-                let newPublishedVersionIndex = publishedVersionIndex;
+    const confirmDeleteVersion = () => {
+        setDeleteVersionDialogOpen(false);
+        setHtmlVersions((prev) => {
+            const newVersions = prev.filter(
+                (_, index) => index !== activeVersionIndex,
+            );
 
-                if (activeVersionIndex === publishedVersionIndex) {
-                    newPublishedVersionIndex = null;
-                }
+            let newPublishedVersionIndex = publishedVersionIndex;
 
-                if (activeVersionIndex < publishedVersionIndex) {
-                    newPublishedVersionIndex = publishedVersionIndex - 1;
-                }
+            if (activeVersionIndex === publishedVersionIndex) {
+                newPublishedVersionIndex = null;
+            }
 
-                if (
-                    newPublishedVersionIndex !== null &&
-                    newPublishedVersionIndex >= newVersions.length
-                ) {
-                    newPublishedVersionIndex = newVersions.length - 1;
-                }
+            if (activeVersionIndex < publishedVersionIndex) {
+                newPublishedVersionIndex = publishedVersionIndex - 1;
+            }
 
-                updateApplet.mutate({
-                    id: workspaceId,
-                    data: {
-                        htmlVersions: newVersions,
-                        publishedVersionIndex: newPublishedVersionIndex,
-                    },
-                });
-                setPublishedVersionIndex(newPublishedVersionIndex);
-                setActiveVersionIndex(Math.max(0, activeVersionIndex - 1));
-                return newVersions;
+            if (
+                newPublishedVersionIndex !== null &&
+                newPublishedVersionIndex >= newVersions.length
+            ) {
+                newPublishedVersionIndex = newVersions.length - 1;
+            }
+
+            updateApplet.mutate({
+                id: workspaceId,
+                data: {
+                    htmlVersions: newVersions,
+                    publishedVersionIndex: newPublishedVersionIndex,
+                },
             });
-        }
+            setPublishedVersionIndex(newPublishedVersionIndex);
+            setActiveVersionIndex(Math.max(0, activeVersionIndex - 1));
+            return newVersions;
+        });
     };
 
     const handlePublishClick = () => {
@@ -314,6 +327,37 @@ export default function VersionNavigator({
                 versionNumber={activeVersionIndex + 1}
                 workspaceId={workspaceId}
             />
+
+            <AlertDialog
+                open={deleteVersionDialogOpen}
+                onOpenChange={setDeleteVersionDialogOpen}
+            >
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>
+                            {t("Delete Version")}
+                        </AlertDialogTitle>
+                        <AlertDialogDescription>
+                            {t("Are you sure you want to delete this version?")}
+                            <br />
+                            <span className="text-red-600 font-medium">
+                                {t("This action cannot be undone.")}
+                            </span>
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>{t("Cancel")}</AlertDialogCancel>
+                        <AlertDialogAction
+                            onClick={confirmDeleteVersion}
+                            disabled={updateApplet.isPending}
+                        >
+                            {updateApplet.isPending
+                                ? t("Deleting...")
+                                : t("Delete")}
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </div>
     );
 }

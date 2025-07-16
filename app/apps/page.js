@@ -19,9 +19,10 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import * as Icons from "lucide-react";
-import { AppWindow, GripVertical, X, Plus } from "lucide-react";
+import { AppWindow, GripVertical, X, Plus, Edit } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { useRouter } from "next/navigation";
 import { useCurrentUser, useUpdateCurrentUser } from "../queries/users";
 import axios from "../utils/axios-client";
 
@@ -96,6 +97,7 @@ function SortableAppItem({ app, onRemove, isCollapsed }) {
 
 export default function AppsPage() {
     const { t } = useTranslation();
+    const router = useRouter();
     const { data: currentUser, isLoading } = useCurrentUser();
     const updateUser = useUpdateCurrentUser();
     const [userApps, setUserApps] = useState([]);
@@ -411,34 +413,54 @@ export default function AppsPage() {
                                             const IconComponent = app.icon
                                                 ? Icons[app.icon] || AppWindow
                                                 : AppWindow;
+                                            const isOwner =
+                                                currentUser?._id ===
+                                                app.author?._id;
                                             return (
                                                 <div
                                                     key={app._id}
                                                     className="relative p-3 border border-gray-200 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors"
                                                 >
-                                                    <button
-                                                        onClick={() =>
-                                                            isInstalled
-                                                                ? handleRemoveApp(
-                                                                      app._id,
-                                                                  )
-                                                                : handleAddApp(
-                                                                      app._id,
-                                                                  )
-                                                        }
-                                                        className={`absolute top-2 right-2 w-6 h-6 flex items-center justify-center rounded-full border transition-colors ${
-                                                            isInstalled
-                                                                ? "border-red-300 text-red-600 hover:bg-red-50"
-                                                                : "border-sky-300 text-sky-600 hover:bg-sky-50"
-                                                        }`}
-                                                    >
-                                                        {isInstalled ? (
-                                                            <X className="w-3 h-3" />
-                                                        ) : (
-                                                            <Plus className="w-3 h-3" />
+                                                    <div className="absolute top-2 right-2 flex gap-1">
+                                                        {isOwner && (
+                                                            <button
+                                                                onClick={() =>
+                                                                    router.push(
+                                                                        `/workspaces/${app.workspaceId}`,
+                                                                    )
+                                                                }
+                                                                className="w-6 h-6 flex items-center justify-center rounded-full border border-gray-300 text-gray-600 hover:bg-gray-50 transition-colors"
+                                                                title={t(
+                                                                    "Edit",
+                                                                )}
+                                                            >
+                                                                <Edit className="w-3 h-3" />
+                                                            </button>
                                                         )}
-                                                    </button>
-                                                    <div className="flex items-center gap-2 pe-4 mb-2">
+                                                        <button
+                                                            onClick={() =>
+                                                                isInstalled
+                                                                    ? handleRemoveApp(
+                                                                          app._id,
+                                                                      )
+                                                                    : handleAddApp(
+                                                                          app._id,
+                                                                      )
+                                                            }
+                                                            className={`w-6 h-6 flex items-center justify-center rounded-full border transition-colors ${
+                                                                isInstalled
+                                                                    ? "border-red-300 text-red-600 hover:bg-red-50"
+                                                                    : "border-sky-300 text-sky-600 hover:bg-sky-50"
+                                                            }`}
+                                                        >
+                                                            {isInstalled ? (
+                                                                <X className="w-3 h-3" />
+                                                            ) : (
+                                                                <Plus className="w-3 h-3" />
+                                                            )}
+                                                        </button>
+                                                    </div>
+                                                    <div className="flex items-center gap-2 pe-16 mb-2">
                                                         <div className="flex items-center justify-center w-10 h-10 bg-white border border-gray-200 rounded-lg flex-shrink-0">
                                                             <IconComponent className="w-5 h-5 text-gray-600" />
                                                         </div>

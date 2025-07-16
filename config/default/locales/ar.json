@@ -612,5 +612,14 @@
     "Unknown App": "تطبيق غير معروف",
     "No applet created yet": "لم يتم إنشاء تطبيق صغير بعد",
     "Use the chat interface to describe your desired UI, or paste HTML code directly in the Code tab to create your first version.": "استخدم واجهة الدردشة لوصف واجهة المستخدم المطلوبة، أو الصق كود HTML مباشرة في تبويب الكود لإنشاء إصدارك الأول.",
-    "Applet": "التطبيق الصغير"
+    "Applet": "التطبيق الصغير",
+    "Cannot delete workspace with published applet": "لا يمكن حذف مساحة العمل مع التطبيق الصغير المنشور",
+    "Please unpublish the applet first by going to the Applet tab and unpublishing it.": "يرجى إلغاء نشر التطبيق الصغير أولاً بالذهاب إلى علامة التبويب التطبيق الصغير وإلغاء نشره.",
+    "Failed to delete workspace": "فشل في حذف مساحة العمل",
+    "Delete Workspace": "حذف مساحة العمل",
+    "This action cannot be undone.": "لا يمكن التراجع عن هذا الإجراء.",
+    "Error": "خطأ",
+    "OK": "موافق",
+    "Delete All Outputs": "حذف جميع المخرجات",
+    "Delete Version": "حذف الإصدار"
 }

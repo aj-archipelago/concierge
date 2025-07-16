@@ -73,5 +73,18 @@
     "Unknown App": "Unknown App",
     "No applet created yet": "No applet created yet",
     "Use the chat interface to describe your desired UI, or paste HTML code directly in the Code tab to create your first version.": "Use the chat interface to describe your desired UI, or paste HTML code directly in the Code tab to create your first version.",
-    "Applet": "Applet"
+    "Applet": "Applet",
+    "Cannot delete workspace with published applet": "Cannot delete workspace with published applet",
+    "Please unpublish the applet first by going to the Applet tab and unpublishing it.": "Please unpublish the applet first by going to the Applet tab and unpublishing it.",
+    "Failed to delete workspace": "Failed to delete workspace",
+    "Edit": "Edit",
+    "Delete Workspace": "Delete Workspace",
+    "This action cannot be undone.": "This action cannot be undone.",
+    "Deleting...": "Deleting...",
+    "Delete": "Delete",
+    "Error": "Error",
+    "OK": "OK",
+    "Delete All Outputs": "Delete All Outputs",
+    "Delete All": "Delete All",
+    "Delete Version": "Delete Version"
 }

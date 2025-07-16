@@ -1,5 +1,15 @@
 "use client";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { createContext, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import LoadingButton from "../../../src/components/editor/LoadingButton";
@@ -17,6 +27,7 @@ export default function WorkspaceContent({ idOrSlug, user }) {
     const { data: workspace } = useWorkspace(idOrSlug);
     const { data: outputs } = useWorkspaceRuns(workspace?._id);
     const [error, setError] = useState(null);
+    const [deleteAllDialogOpen, setDeleteAllDialogOpen] = useState(false);
     const createRun = useCreateRun();
     const deleteRun = useDeleteRun();
     const deleteWorkspaceRuns = useDeleteWorkspaceRuns();
@@ -128,21 +139,11 @@ export default function WorkspaceContent({ idOrSlug, user }) {
                                             <div>
                                                 <LoadingButton
                                                     text="Deleting"
-                                                    onClick={async () => {
-                                                        if (
-                                                            window.confirm(
-                                                                t(
-                                                                    "Are you sure you want to delete all outputs?",
-                                                                ),
-                                                            )
-                                                        ) {
-                                                            await deleteWorkspaceRuns.mutateAsync(
-                                                                {
-                                                                    id: workspace?._id,
-                                                                },
-                                                            );
-                                                        }
-                                                    }}
+                                                    onClick={() =>
+                                                        setDeleteAllDialogOpen(
+                                                            true,
+                                                        )
+                                                    }
                                                     className="lb-sm lb-outline-secondary"
                                                 >
                                                     {t("Delete all")}
@@ -170,6 +171,44 @@ export default function WorkspaceContent({ idOrSlug, user }) {
                         </div>
                     </div>
                 </Tabs>
+
+                <AlertDialog
+                    open={deleteAllDialogOpen}
+                    onOpenChange={setDeleteAllDialogOpen}
+                >
+                    <AlertDialogContent>
+                        <AlertDialogHeader>
+                            <AlertDialogTitle>
+                                {t("Delete All Outputs")}
+                            </AlertDialogTitle>
+                            <AlertDialogDescription>
+                                {t(
+                                    "Are you sure you want to delete all outputs?",
+                                )}
+                                <br />
+                                <span className="text-red-600 font-medium">
+                                    {t("This action cannot be undone.")}
+                                </span>
+                            </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                            <AlertDialogCancel>{t("Cancel")}</AlertDialogCancel>
+                            <AlertDialogAction
+                                onClick={async () => {
+                                    setDeleteAllDialogOpen(false);
+                                    await deleteWorkspaceRuns.mutateAsync({
+                                        id: workspace?._id,
+                                    });
+                                }}
+                                disabled={deleteWorkspaceRuns.isPending}
+                            >
+                                {deleteWorkspaceRuns.isPending
+                                    ? t("Deleting...")
+                                    : t("Delete All")}
+                            </AlertDialogAction>
+                        </AlertDialogFooter>
+                    </AlertDialogContent>
+                </AlertDialog>
             </>
         </WorkspaceContext.Provider>
     );
