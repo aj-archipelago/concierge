@@ -801,6 +801,10 @@ export default function WorkspaceApplet() {
                             }
                             showCreatingDialog={showCreatingDialog}
                             isLoading={appletQuery.isLoading}
+                            isCurrentVersionPublished={
+                                publishedVersionIndex !== null &&
+                                activeVersionIndex === publishedVersionIndex
+                            }
                         />
                     </div>
 

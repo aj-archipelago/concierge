@@ -262,14 +262,23 @@ export default function VersionNavigator({
                                 </span>
                                 <CopyPublishedLinkButton />
                                 {isOwner && (
-                                    <button
-                                        className=" px-3 py-1 rounded-full text-xs font-bold border border-red-300 text-red-600 bg-white hover:bg-red-50 hover:border-red-400 transition focus:ring-2 focus:ring-red-200 focus:outline-none shadow-sm"
-                                        onClick={onUnpublish}
-                                        disabled={updateApplet.isPending}
-                                        type="button"
-                                    >
-                                        {t("Unpublish")}
-                                    </button>
+                                    <>
+                                        <button
+                                            className=" px-3 py-1 rounded-full text-xs font-bold border border-red-300 text-red-600 bg-white hover:bg-red-50 hover:border-red-400 transition focus:ring-2 focus:ring-red-200 focus:outline-none shadow-sm"
+                                            onClick={onUnpublish}
+                                            disabled={updateApplet.isPending}
+                                            type="button"
+                                        >
+                                            {t("Unpublish")}
+                                        </button>
+                                        <button
+                                            className="px-3 py-1 rounded-full text-xs font-bold border lb-outline-secondary bg-white"
+                                            onClick={handleDuplicateVersion}
+                                            title={t("Duplicate this version")}
+                                        >
+                                            <CopyIcon className="w-4 h-4" />
+                                        </button>
+                                    </>
                                 )}
                             </>
                         ) : (
@@ -348,6 +357,7 @@ export default function VersionNavigator({
                     <AlertDialogFooter>
                         <AlertDialogCancel>{t("Cancel")}</AlertDialogCancel>
                         <AlertDialogAction
+                            autoFocus
                             onClick={confirmDeleteVersion}
                             disabled={updateApplet.isPending}
                         >
