@@ -86,5 +86,6 @@
     "OK": "OK",
     "Delete All Outputs": "Delete All Outputs",
     "Delete All": "Delete All",
-    "Delete Version": "Delete Version"
+    "Delete Version": "Delete Version",
+    "This version is published and cannot be edited": "This version is published and cannot be edited"
 }

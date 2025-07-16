@@ -659,5 +659,6 @@
     "Error": "Error",
     "OK": "OK",
     "Delete All Outputs": "Delete All Outputs",
-    "Delete Version": "Delete Version"
+    "Delete Version": "Delete Version",
+    "This version is published and cannot be edited": "هذا الإصدار منشور ولا يمكن تحريره"
 }

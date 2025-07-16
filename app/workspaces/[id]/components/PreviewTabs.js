@@ -126,6 +126,7 @@ export default function PreviewTabs({
     hasStreamingVersion = false,
     showCreatingDialog = false,
     isLoading = false,
+    isCurrentVersionPublished = false,
 }) {
     const { t } = useTranslation();
     const { theme } = useContext(ThemeContext);
@@ -175,22 +176,41 @@ export default function PreviewTabs({
                             {isLoading ? (
                                 <LoadingStatePlaceholder />
                             ) : (
-                                <HtmlEditor
-                                    value={currentContent}
-                                    onChange={
-                                        isOwner
-                                            ? (value) => {
-                                                  onHtmlChange(
-                                                      value,
-                                                      activeVersionIndex,
-                                                  );
-                                              }
-                                            : undefined
-                                    }
-                                    options={{
-                                        readOnly: !isOwner,
-                                    }}
-                                />
+                                <>
+                                    {isCurrentVersionPublished && (
+                                        <div className="mb-3 p-2 bg-blue-50 border border-blue-200 rounded-md">
+                                            <div className="flex items-center gap-2 text-blue-800 text-sm">
+                                                <span className="text-blue-600">
+                                                    🔒
+                                                </span>
+                                                <span>
+                                                    {t(
+                                                        "This version is published and cannot be edited",
+                                                    )}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    )}
+                                    <HtmlEditor
+                                        value={currentContent}
+                                        onChange={
+                                            isOwner &&
+                                            !isCurrentVersionPublished
+                                                ? (value) => {
+                                                      onHtmlChange(
+                                                          value,
+                                                          activeVersionIndex,
+                                                      );
+                                                  }
+                                                : undefined
+                                        }
+                                        options={{
+                                            readOnly:
+                                                !isOwner ||
+                                                isCurrentVersionPublished,
+                                        }}
+                                    />
+                                </>
                             )}
                         </TabsContent>
                     </div>
