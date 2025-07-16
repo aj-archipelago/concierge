@@ -23,15 +23,15 @@ export async function DELETE(req, { params }) {
     const publishedApp = await App.findOne({
         workspaceId: workspace._id,
         type: "applet",
-        status: "active"
+        status: "active",
     });
 
     if (publishedApp) {
         return Response.json(
-            { 
+            {
                 error: "Cannot delete workspace with published applet. Please unpublish the applet first.",
                 hasPublishedApplet: true,
-                appName: publishedApp.name
+                appName: publishedApp.name,
             },
             { status: 400 },
         );

@@ -139,7 +139,11 @@ export default function WorkspaceContent({ idOrSlug, user }) {
                                             <div>
                                                 <LoadingButton
                                                     text="Deleting"
-                                                    onClick={() => setDeleteAllDialogOpen(true)}
+                                                    onClick={() =>
+                                                        setDeleteAllDialogOpen(
+                                                            true,
+                                                        )
+                                                    }
                                                     className="lb-sm lb-outline-secondary"
                                                 >
                                                     {t("Delete all")}
@@ -167,13 +171,20 @@ export default function WorkspaceContent({ idOrSlug, user }) {
                         </div>
                     </div>
                 </Tabs>
-                
-                <AlertDialog open={deleteAllDialogOpen} onOpenChange={setDeleteAllDialogOpen}>
+
+                <AlertDialog
+                    open={deleteAllDialogOpen}
+                    onOpenChange={setDeleteAllDialogOpen}
+                >
                     <AlertDialogContent>
                         <AlertDialogHeader>
-                            <AlertDialogTitle>{t("Delete All Outputs")}</AlertDialogTitle>
+                            <AlertDialogTitle>
+                                {t("Delete All Outputs")}
+                            </AlertDialogTitle>
                             <AlertDialogDescription>
-                                {t("Are you sure you want to delete all outputs?")}
+                                {t(
+                                    "Are you sure you want to delete all outputs?",
+                                )}
                                 <br />
                                 <span className="text-red-600 font-medium">
                                     {t("This action cannot be undone.")}
@@ -191,7 +202,9 @@ export default function WorkspaceContent({ idOrSlug, user }) {
                                 }}
                                 disabled={deleteWorkspaceRuns.isPending}
                             >
-                                {deleteWorkspaceRuns.isPending ? t("Deleting...") : t("Delete All")}
+                                {deleteWorkspaceRuns.isPending
+                                    ? t("Deleting...")
+                                    : t("Delete All")}
                             </AlertDialogAction>
                         </AlertDialogFooter>
                     </AlertDialogContent>

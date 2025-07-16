@@ -104,7 +104,8 @@ export default function VersionNavigator({
     const { t } = useTranslation();
     const { direction } = useContext(LanguageContext);
     const [showPublishDialog, setShowPublishDialog] = useState(false);
-    const [deleteVersionDialogOpen, setDeleteVersionDialogOpen] = useState(false);
+    const [deleteVersionDialogOpen, setDeleteVersionDialogOpen] =
+        useState(false);
 
     // Note: Version validation is handled in WorkspaceApplet.js to avoid duplicate validation
 
@@ -326,11 +327,16 @@ export default function VersionNavigator({
                 versionNumber={activeVersionIndex + 1}
                 workspaceId={workspaceId}
             />
-            
-            <AlertDialog open={deleteVersionDialogOpen} onOpenChange={setDeleteVersionDialogOpen}>
+
+            <AlertDialog
+                open={deleteVersionDialogOpen}
+                onOpenChange={setDeleteVersionDialogOpen}
+            >
                 <AlertDialogContent>
                     <AlertDialogHeader>
-                        <AlertDialogTitle>{t("Delete Version")}</AlertDialogTitle>
+                        <AlertDialogTitle>
+                            {t("Delete Version")}
+                        </AlertDialogTitle>
                         <AlertDialogDescription>
                             {t("Are you sure you want to delete this version?")}
                             <br />
@@ -345,7 +351,9 @@ export default function VersionNavigator({
                             onClick={confirmDeleteVersion}
                             disabled={updateApplet.isPending}
                         >
-                            {updateApplet.isPending ? t("Deleting...") : t("Delete")}
+                            {updateApplet.isPending
+                                ? t("Deleting...")
+                                : t("Delete")}
                         </AlertDialogAction>
                     </AlertDialogFooter>
                 </AlertDialogContent>

@@ -308,7 +308,7 @@ function Actions({ user, workspace }) {
     const handleDelete = async () => {
         setDeleteDialogOpen(false);
         setDeleteError(null);
-        
+
         try {
             await deleteWorkspace.mutateAsync({ id: workspace._id });
             router.push("/workspaces");
@@ -316,12 +316,18 @@ function Actions({ user, workspace }) {
             if (error?.response?.data?.hasPublishedApplet) {
                 const appName = error.response.data.appName;
                 setDeleteError(
-                    t("Cannot delete workspace with published applet") + 
-                    ` "${appName}". ` + 
-                    t("Please unpublish the applet first by going to the Applet tab and unpublishing it.")
+                    t("Cannot delete workspace with published applet") +
+                        ` "${appName}". ` +
+                        t(
+                            "Please unpublish the applet first by going to the Applet tab and unpublishing it.",
+                        ),
                 );
             } else {
-                setDeleteError(error?.response?.data?.error || error.message || t("Failed to delete workspace"));
+                setDeleteError(
+                    error?.response?.data?.error ||
+                        error.message ||
+                        t("Failed to delete workspace"),
+                );
             }
         }
     };
@@ -344,12 +350,19 @@ function Actions({ user, workspace }) {
                     setOpen={setPublishModalOpen}
                     workspace={workspace}
                 />
-                <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+                <AlertDialog
+                    open={deleteDialogOpen}
+                    onOpenChange={setDeleteDialogOpen}
+                >
                     <AlertDialogContent>
                         <AlertDialogHeader>
-                            <AlertDialogTitle>{t("Delete Workspace")}</AlertDialogTitle>
+                            <AlertDialogTitle>
+                                {t("Delete Workspace")}
+                            </AlertDialogTitle>
                             <AlertDialogDescription>
-                                {t("Are you sure you want to delete this workspace?")}
+                                {t(
+                                    "Are you sure you want to delete this workspace?",
+                                )}
                                 <br />
                                 <span className="text-red-600 font-medium">
                                     {t("This action cannot be undone.")}
@@ -362,13 +375,18 @@ function Actions({ user, workspace }) {
                                 onClick={handleDelete}
                                 disabled={deleteWorkspace.isPending}
                             >
-                                {deleteWorkspace.isPending ? t("Deleting...") : t("Delete")}
+                                {deleteWorkspace.isPending
+                                    ? t("Deleting...")
+                                    : t("Delete")}
                             </AlertDialogAction>
                         </AlertDialogFooter>
                     </AlertDialogContent>
                 </AlertDialog>
                 {deleteError && (
-                    <AlertDialog open={!!deleteError} onOpenChange={() => setDeleteError(null)}>
+                    <AlertDialog
+                        open={!!deleteError}
+                        onOpenChange={() => setDeleteError(null)}
+                    >
                         <AlertDialogContent>
                             <AlertDialogHeader>
                                 <AlertDialogTitle className="text-red-600">
@@ -379,7 +397,9 @@ function Actions({ user, workspace }) {
                                 </AlertDialogDescription>
                             </AlertDialogHeader>
                             <AlertDialogFooter>
-                                <AlertDialogAction onClick={() => setDeleteError(null)}>
+                                <AlertDialogAction
+                                    onClick={() => setDeleteError(null)}
+                                >
                                     {t("OK")}
                                 </AlertDialogAction>
                             </AlertDialogFooter>
@@ -411,7 +431,10 @@ function Actions({ user, workspace }) {
                                 </DropdownMenuItem>
                             )}
                             <DropdownMenuItem>
-                                <button className="p-1" onClick={() => setDeleteDialogOpen(true)}>
+                                <button
+                                    className="p-1"
+                                    onClick={() => setDeleteDialogOpen(true)}
+                                >
                                     {t("Delete this workspace")}
                                 </button>
                             </DropdownMenuItem>

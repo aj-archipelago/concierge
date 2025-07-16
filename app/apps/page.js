@@ -413,7 +413,9 @@ export default function AppsPage() {
                                             const IconComponent = app.icon
                                                 ? Icons[app.icon] || AppWindow
                                                 : AppWindow;
-                                            const isOwner = currentUser?._id === app.author?._id;
+                                            const isOwner =
+                                                currentUser?._id ===
+                                                app.author?._id;
                                             return (
                                                 <div
                                                     key={app._id}
@@ -422,9 +424,15 @@ export default function AppsPage() {
                                                     <div className="absolute top-2 right-2 flex gap-1">
                                                         {isOwner && (
                                                             <button
-                                                                onClick={() => router.push(`/workspaces/${app.workspaceId}`)}
+                                                                onClick={() =>
+                                                                    router.push(
+                                                                        `/workspaces/${app.workspaceId}`,
+                                                                    )
+                                                                }
                                                                 className="w-6 h-6 flex items-center justify-center rounded-full border border-gray-300 text-gray-600 hover:bg-gray-50 transition-colors"
-                                                                title={t("Edit")}
+                                                                title={t(
+                                                                    "Edit",
+                                                                )}
                                                             >
                                                                 <Edit className="w-3 h-3" />
                                                             </button>
