@@ -650,5 +650,14 @@
     "Built-in Apps": "التطبيقات المدمجة",
     "User-Created Apps": "التطبيقات المنشأة من قبل المستخدمين",
     "Loading...": "جار التحميل...",
-    "Unknown App": "تطبيق غير معروف"
+    "Unknown App": "تطبيق غير معروف",
+    "Cannot delete workspace with published applet": "Cannot delete workspace with published applet",
+    "Please unpublish the applet first by going to the Applet tab and unpublishing it.": "Please unpublish the applet first by going to the Applet tab and unpublishing it.",
+    "Failed to delete workspace": "Failed to delete workspace",
+    "Delete Workspace": "Delete Workspace",
+    "This action cannot be undone.": "This action cannot be undone.",
+    "Error": "Error",
+    "OK": "OK",
+    "Delete All Outputs": "Delete All Outputs",
+    "Delete Version": "Delete Version"
 }
