@@ -2,8 +2,14 @@
 import OutputSandbox from "@/src/components/sandbox/OutputSandbox";
 import { useParams } from "next/navigation";
 import { useEffect, useState, useContext } from "react";
-import { useWorkspaceApplet, useWorkspaceApp } from "../../../../queries/workspaces";
-import { useCurrentUser, useUpdateCurrentUser } from "../../../../queries/users";
+import {
+    useWorkspaceApplet,
+    useWorkspaceApp,
+} from "../../../../queries/workspaces";
+import {
+    useCurrentUser,
+    useUpdateCurrentUser,
+} from "../../../../queries/users";
 import { ThemeContext } from "@/src/contexts/ThemeProvider";
 import { Plus, Check } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -57,12 +63,14 @@ export default function PublishedAppletPage() {
     const isAppInstalled = currentUser?.apps?.some(
         (userApp) =>
             userApp.appId === app?._id ||
-            (typeof userApp.appId === "object" && userApp.appId && userApp.appId._id === app?._id),
+            (typeof userApp.appId === "object" &&
+                userApp.appId &&
+                userApp.appId._id === app?._id),
     );
 
     const handleAddApp = async () => {
         if (!app || isAdding) return;
-        
+
         setIsAdding(true);
         try {
             const newApp = {
@@ -75,7 +83,7 @@ export default function PublishedAppletPage() {
             await updateUser.mutateAsync({
                 data: { apps: updatedApps },
             });
-            
+
             // Show success indicator for 3 seconds then fade out
             setShowSuccess(true);
             setTimeout(() => {
@@ -121,14 +129,14 @@ export default function PublishedAppletPage() {
                     )}
                 </button>
             )}
-            
+
             {/* Success indicator */}
             {app && app._id && isAppInstalled && showSuccess && (
                 <div className="absolute top-4 right-4 z-10 w-10 h-10 flex items-center justify-center rounded-full bg-green-500 text-white shadow-lg transition-opacity duration-500">
                     <Check className="w-5 h-5" />
                 </div>
             )}
-            
+
             <div className="w-full h-full bg-white">
                 <OutputSandbox
                     content={publishedHtml}
