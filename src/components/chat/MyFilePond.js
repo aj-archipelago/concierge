@@ -18,9 +18,9 @@ import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
     hashMediaFile,
-    DOC_MIME_TYPES,
     ACCEPTED_FILE_TYPES,
-    isMediaUrl,
+    RAG_MIME_TYPES,
+    isSupportedFileUrl,
     getFilename,
     getVideoDuration,
 } from "../../utils/mediaUtils";
@@ -387,6 +387,10 @@ function MyFilePond({
                                         type: "video/youtube",
                                         filename: getFilename(fileUrl),
                                     };
+                                    // Explicitly snap progress to 100% so the FilePond UI shows the check-mark
+                                    if (typeof progress === "function") {
+                                        progress(true, 100, 100);
+                                    }
                                     load(response);
                                     return;
                                 }
@@ -406,6 +410,10 @@ function MyFilePond({
                                                 type,
                                             }),
                                         );
+                                        // Ensure progress shows complete before marking load done
+                                        if (typeof progress === "function") {
+                                            progress(true, 100, 100);
+                                        }
                                         addUrl(response.data);
                                         setIsUploadingMedia(false);
                                         return;
@@ -449,7 +457,10 @@ function MyFilePond({
 
                                 const isRemote = !(file instanceof File);
                                 if (isRemote) {
+                                    // Remote files have already been fetched, so instantly mark progress complete
+                                    progress(true, 100, 100);
                                     load(file.source);
+                                    setIsUploadingMedia(false);
                                     return;
                                 }
 
@@ -487,7 +498,7 @@ function MyFilePond({
                                     }
                                 }
 
-                                if (isMediaUrl(file?.name)) {
+                                if (isSupportedFileUrl(file?.name)) {
                                     setIsUploadingMedia(true);
                                 }
 
@@ -504,7 +515,7 @@ function MyFilePond({
                                         response.status === 200 &&
                                         response.data?.url
                                     ) {
-                                        if (isMediaUrl(file?.name)) {
+                                        if (isSupportedFileUrl(file?.name)) {
                                             const hasAzureUrl =
                                                 response.data.url &&
                                                 response.data.url.includes(
@@ -638,7 +649,7 @@ function MyFilePond({
                                         }
 
                                         // Add validation for media files requiring both Azure and GCS URLs
-                                        if (isMediaUrl(file?.name)) {
+                                        if (isSupportedFileUrl(file?.name)) {
                                             const hasAzureUrl =
                                                 responseData.url &&
                                                 responseData.url.includes(
@@ -714,7 +725,7 @@ function MyFilePond({
                             } else {
                                 const filetype = file.file.type;
                                 // For document files, wait 10 seconds for indexing
-                                if (DOC_MIME_TYPES.includes(filetype)) {
+                                if (RAG_MIME_TYPES.includes(filetype)) {
                                     // Remove the file from FilePond after processing
                                     setFiles((oldFiles) =>
                                         oldFiles.filter(

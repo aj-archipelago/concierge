@@ -55,12 +55,6 @@ export default function PromptList({
             return;
         }
 
-        console.log(
-            "result.source.index",
-            result.source.index,
-            "result.destination.index",
-            result.destination.index,
-        );
         const items = Array.from(promptIds);
         const [reorderedItem] = items.splice(result.source.index, 1);
         items.splice(result.destination.index, 0, reorderedItem);

@@ -17,6 +17,7 @@ import {
     getFilename,
     isAudioUrl,
     isVideoUrl,
+    DOC_EXTENSIONS,
 } from "../../utils/mediaUtils";
 import CopyButton from "../CopyButton";
 import ReplayButton from "../ReplayButton";
@@ -186,7 +187,7 @@ const MessageListContent = React.memo(function MessageListContent({
                         const filename = decodeURIComponent(getFilename(src));
                         const ext = getExtension(src);
 
-                        if ([".pdf", ".txt", ".csv"].includes(ext)) {
+                        if (DOC_EXTENSIONS.includes(ext)) {
                             const Icon = ext === ".pdf" ? FileImage : FileText;
                             return (
                                 <a

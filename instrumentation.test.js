@@ -2,6 +2,8 @@ import mongoose from "mongoose";
 import { MongoMemoryServer } from "mongodb-memory-server";
 import LLM from "./app/api/models/llm";
 import Prompt from "./app/api/models/prompt";
+import App, { APP_TYPES, APP_STATUS } from "./app/api/models/app";
+import User from "./app/api/models/user.mjs";
 import { seed } from "./instrumentation";
 import config from "./config/index";
 
@@ -37,6 +39,8 @@ afterAll(async () => {
 beforeEach(async () => {
     await LLM.deleteMany({});
     await Prompt.deleteMany({});
+    await App.deleteMany({});
+    await User.deleteMany({});
 });
 
 describe("LLM Initialization", () => {
@@ -176,5 +180,53 @@ describe("LLM Initialization", () => {
         // Verify the LLM was updated with correct identifier from config
         const updatedLLM = await LLM.findById(llmWithoutIdentifier._id);
         expect(updatedLLM.identifier).toBe(targetConfigLLM.identifier);
+    });
+});
+
+describe("Native Apps Seeding", () => {
+    test("should seed native apps with icons", async () => {
+        await seed();
+
+        const nativeApps = await App.find({ type: APP_TYPES.NATIVE });
+
+        // Should have 6 native apps
+        expect(nativeApps.length).toBe(6);
+
+        // Check that each app has the expected properties
+        const expectedApps = [
+            { name: "Translate", slug: "translate", icon: "Globe" },
+            { name: "Video", slug: "video", icon: "Video" },
+            { name: "Write", slug: "write", icon: "Pencil" },
+            { name: "Workspaces", slug: "workspaces", icon: "AppWindow" },
+            { name: "Media", slug: "media", icon: "Image" },
+            { name: "Jira", slug: "jira", icon: "Bug" },
+        ];
+
+        expectedApps.forEach((expectedApp) => {
+            const app = nativeApps.find((a) => a.slug === expectedApp.slug);
+            expect(app).toBeTruthy();
+            expect(app.name).toBe(expectedApp.name);
+            expect(app.icon).toBe(expectedApp.icon);
+            expect(app.type).toBe(APP_TYPES.NATIVE);
+            expect(app.status).toBe(APP_STATUS.ACTIVE);
+        });
+    });
+
+    test("should create system user for native apps", async () => {
+        await seed();
+
+        const systemUser = await User.findOne({ role: "admin" });
+        expect(systemUser).toBeTruthy();
+        expect(systemUser.userId).toBe("system");
+        expect(systemUser.username).toBe("system");
+        expect(systemUser.name).toBe("System");
+    });
+
+    test("should not duplicate native apps on multiple seed runs", async () => {
+        await seed();
+        await seed();
+
+        const nativeApps = await App.find({ type: APP_TYPES.NATIVE });
+        expect(nativeApps.length).toBe(6);
     });
 });

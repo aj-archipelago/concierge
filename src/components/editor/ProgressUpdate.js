@@ -1,10 +1,11 @@
 import { useState, useEffect, useRef } from "react";
 import { useApolloClient, useSubscription } from "@apollo/client";
 import { Progress } from "@/components/ui/progress";
-import ProgressTimer from "react-progress-timer";
+import ReactProgressTimer from "react-progress-timer";
 import ReactTimeAgo from "react-time-ago";
 import { SUBSCRIPTIONS, CODE_HUMAN_INPUT } from "../../graphql";
 import { MdCancel } from "react-icons/md";
+import { FaSpinner } from "react-icons/fa";
 
 const ProgressUpdate = ({
     requestId,
@@ -12,10 +13,13 @@ const ProgressUpdate = ({
     initialText = "Processing...",
     codeAgent = false,
     autoDuration = null,
+    mode = "progress", // "progress" or "spinner"
 }) => {
     const { data } = useSubscription(SUBSCRIPTIONS.REQUEST_PROGRESS, {
         variables: { requestIds: [requestId] },
     });
+
+    const ProgressTimer = ReactProgressTimer.default;
 
     const apolloClient = useApolloClient();
     const [cancelButtonDisabled, setCancelButtonDisabled] = useState(false);
@@ -45,8 +49,15 @@ const ProgressUpdate = ({
 
         // Check for error in the requestProgress data
         if (data?.requestProgress?.error) {
-            // Handle the error by setting an error message in the UI
-            setInfo(`Error: ${data.requestProgress.error}`);
+            // Pass the error through setFinalData instead of just setting info
+            setFinalData({
+                result: {
+                    error: {
+                        code: "REQUEST_ERROR",
+                        message: data.requestProgress.error,
+                    },
+                },
+            });
             return;
         }
 
@@ -110,34 +121,63 @@ const ProgressUpdate = ({
 
     return (
         <>
-            <div className="mb-2">
-                <div className="flex items-center">
-                    <Progress value={progress} />
+            {mode === "spinner" ? (
+                <div className="mb-2">
+                    <div className="flex items-center">
+                        <div className="flex items-center gap-2">
+                            <FaSpinner className="animate-spin text-blue-500" />
+                            <span className="text-sm text-gray-600">
+                                {initialText}
+                            </span>
+                        </div>
 
-                    {codeAgent && (
-                        <button
-                            disabled={cancelButtonDisabled}
-                            className={`px-2 py-1 m-0 ml-2 rounded flex justify-center items-center text-xs ${
-                                cancelButtonDisabled
-                                    ? " animate-pulse bg-red-600"
-                                    : "bg-red-500 hover:bg-red-600"
-                            }`}
-                            onClick={handleCancel}
-                        >
-                            <MdCancel />
-                        </button>
-                    )}
+                        {codeAgent && (
+                            <button
+                                disabled={cancelButtonDisabled}
+                                className={`px-2 py-1 m-0 ml-2 rounded flex justify-center items-center text-xs ${
+                                    cancelButtonDisabled
+                                        ? " animate-pulse bg-red-600"
+                                        : "bg-red-500 hover:bg-red-600"
+                                }`}
+                                onClick={handleCancel}
+                            >
+                                <MdCancel />
+                            </button>
+                        )}
+                    </div>
                 </div>
-            </div>
-            <div className="mb-1">
-                <ProgressTimer
-                    initialText={initialText}
-                    percentage={progress}
-                    calculateByAverage={true}
-                    rollingWindowAverageSize={3}
-                    decreaseTime={false}
-                />
-            </div>
+            ) : (
+                <>
+                    <div className="mb-2">
+                        <div className="flex items-center">
+                            <Progress value={progress} />
+
+                            {codeAgent && (
+                                <button
+                                    disabled={cancelButtonDisabled}
+                                    className={`px-2 py-1 m-0 ml-2 rounded flex justify-center items-center text-xs ${
+                                        cancelButtonDisabled
+                                            ? " animate-pulse bg-red-600"
+                                            : "bg-red-500 hover:bg-red-600"
+                                    }`}
+                                    onClick={handleCancel}
+                                >
+                                    <MdCancel />
+                                </button>
+                            )}
+                        </div>
+                    </div>
+                    <div className="mb-1">
+                        <ProgressTimer
+                            initialText={initialText}
+                            percentage={progress}
+                            calculateByAverage={true}
+                            rollingWindowAverageSize={3}
+                            decreaseTime={false}
+                        />
+                    </div>
+                </>
+            )}
             <div className="flex flex-col">
                 {completionTime && (
                     <div>

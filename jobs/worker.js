@@ -1,16 +1,19 @@
-const pkg = require("bullmq");
-const { Worker, Queue } = pkg;
-const {
-    buildDigestsForAllUsers,
-    buildDigestForSingleUser,
-} = require("./digest-build.js");
-const Redis = require("ioredis");
+import { Queue, Worker } from "bullmq";
+import "dotenv/config";
+import Redis from "ioredis";
+import cortexRequestWorker from "./cortex-request-worker.js";
+import { buildDigestsForAllUsers } from "./digest-build.js";
+import { Logger } from "./logger.js";
+
 const queueName = "digest-build";
 const { REDIS_CONNECTION_STRING } = process.env;
-const { Logger } = require("./logger.js");
 const { DIGEST_REBUILD_INTERVAL_HOURS = 4 } = process.env;
-const cortexRequestWorker = require("./cortex-request-worker.js");
-require("dotenv").config();
+
+// Import the queue monitor
+import("../app/api/utils/queue-monitor.mjs").then(({ queueMonitor }) => {
+    // Start monitoring queues
+    queueMonitor.startMonitoring();
+});
 
 const connection = new Redis(
     REDIS_CONNECTION_STRING || "redis://localhost:6379",
@@ -28,7 +31,6 @@ const nHourlyRepeat = {
 };
 
 const PERIODIC_BUILD_JOB = "periodic-build";
-const SINGLE_BUILD_JOB = "build-digest";
 
 (async function main() {
     // wait between 10 and 30 seconds to avoid race condition with other workers
@@ -65,14 +67,11 @@ const worker = new Worker(
         try {
             await connectToDatabase();
 
-            const logger = new Logger(job);
+            const logger = new Logger(job, digestBuild);
 
             if (job.name === PERIODIC_BUILD_JOB) {
                 logger.log("building digests for all users");
                 await buildDigestsForAllUsers(logger, job);
-            } else if (job.name === SINGLE_BUILD_JOB) {
-                logger.log(`building digest for user`, job.data.userId);
-                await buildDigestForSingleUser(job.data.userId, logger, job);
             }
         } finally {
             await closeDatabaseConnection();
@@ -85,12 +84,12 @@ const worker = new Worker(
 );
 
 worker.on("completed", (job) => {
-    const logger = new Logger(job);
+    const logger = new Logger(job, digestBuild);
     logger.log("job completed");
 });
 
 worker.on("failed", (job, error) => {
-    const logger = new Logger(job);
+    const logger = new Logger(job, digestBuild);
     logger.log("job failed with error: " + error.message);
 });
 
@@ -219,8 +218,4 @@ async function startWorkers() {
 
 // Start the workers
 startWorkers();
-
-module.exports = {
-    run: startWorkers,
-    ensureDbConnection,
-};
+export { ensureDbConnection, startWorkers as run };

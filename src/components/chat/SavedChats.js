@@ -174,11 +174,6 @@ function SavedChats({ displayState }) {
                                     <h3
                                         onClick={async () => {
                                             if (editingId !== chat._id) {
-                                                console.log(
-                                                    "chat._od",
-                                                    editingId,
-                                                    chat._id,
-                                                );
                                                 try {
                                                     const chatId = chat._id;
                                                     if (

@@ -1,4 +1,5 @@
 import { getTosContent } from "./global/tos";
+import { getPrivacyContent } from "./global/privacy";
 import { getSidebarLogo } from "./global/sidebar";
 import { FaFileImport } from "react-icons/fa";
 import { ImportSuggestions } from "./write/actions/ImportSuggestions";
@@ -45,6 +46,7 @@ const config = {
             (basePath || "") +
             `/app/assets/labeeb-logo-${language === "ar" ? "ar" : "en"}.png`,
         getTosContent,
+        getPrivacyContent,
         getSidebarLogo,
         getPublicGraphQLEndpoint: (graphQLEndpoint = "") => {
             if (graphQLEndpoint.includes("cortex-internal-dev")) {

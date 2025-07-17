@@ -20,6 +20,7 @@ const ChatNavigationItem = ({
     router,
     setActiveChatId,
     handleDeleteChat,
+    isCollapsed,
 }) => {
     const [editingId, setEditingId] = useState(null);
     const [editedName, setEditedName] = useState("");
@@ -113,7 +114,12 @@ const ChatNavigationItem = ({
                             <>
                                 <div className="basis-3 hidden sm:block">
                                     <EditIcon
-                                        className="h-3 w-3 text-gray-400 hover:text-gray-600 cursor-pointer invisible group-hover:visible"
+                                        className={classNames(
+                                            "h-3 w-3 text-gray-400 hover:text-gray-600 cursor-pointer",
+                                            !isCollapsed
+                                                ? "invisible group-hover:visible"
+                                                : "invisible",
+                                        )}
                                         onClick={(e) => {
                                             e.stopPropagation();
                                             setEditingId(subItem.key);
@@ -130,7 +136,12 @@ const ChatNavigationItem = ({
                     {editingId !== subItem.key && (
                         <div className="basis-3 text-end hidden sm:block">
                             <Trash2
-                                className="h-3 w-3 text-gray-400 cursor-pointer invisible group-hover:visible hover:text-red-600"
+                                className={classNames(
+                                    "h-3 w-3 text-gray-400 cursor-pointer hover:text-red-600",
+                                    !isCollapsed
+                                        ? "invisible group-hover:visible"
+                                        : "invisible",
+                                )}
                                 aria-hidden="true"
                                 onClick={(e) => {
                                     e.stopPropagation();
