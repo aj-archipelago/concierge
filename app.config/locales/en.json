@@ -92,5 +92,11 @@
     "Delete All Outputs": "Delete All Outputs",
     "Delete All": "Delete All",
     "Delete Version": "Delete Version",
-    "This version is published and cannot be edited": "This version is published and cannot be edited"
+    "This version is published and cannot be edited": "This version is published and cannot be edited",
+    "Add to my apps": "Add to my apps",
+    "Search apps by name or author...": "Search apps by name or author...",
+    "Click to run": "Click to run",
+    "by": "by",
+    "by {{author}}": "by {{author}}",
+    "Updated": "Updated"
 }

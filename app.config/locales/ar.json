@@ -335,7 +335,6 @@
     "Shared by": "مشترك بواسطة",
     "Welcome,": "مرحبا",
     "Here's what's happening in your world today.": "ها هو ما يحدث في عالمك اليوم",
-    "Updated": "تم التحديث",
     "Edit dashboard": "تحرير لوحة التحكم",
     "Building": "جاري البناء",
     "Home": "الصفحة الرئيسية",
@@ -660,5 +659,11 @@
     "OK": "OK",
     "Delete All Outputs": "Delete All Outputs",
     "Delete Version": "Delete Version",
-    "This version is published and cannot be edited": "هذا الإصدار منشور ولا يمكن تحريره"
+    "This version is published and cannot be edited": "هذا الإصدار منشور ولا يمكن تحريره",
+    "Add to my apps": "إضافة إلى تطبيقاتي",
+    "Search apps by name or author...": "البحث في التطبيقات بالاسم أو المؤلف...",
+    "Click to run": "انقر للتشغيل",
+    "by": "بواسطة",
+    "by {{author}}": "بواسطة {{author}}",
+    "Updated": "تم التحديث"
 }
