@@ -97,7 +97,8 @@ const AppletEditButton = ({ workspaceId, router, isCollapsed }) => {
     const { data: workspace } = useWorkspace(workspaceId);
 
     // Check if user is the owner of the workspace
-    const isOwner = currentUser?._id?.toString() === workspace?.owner?.toString();
+    const isOwner =
+        currentUser?._id?.toString() === workspace?.owner?.toString();
 
     if (!isOwner) {
         return null;
@@ -381,13 +382,16 @@ export default React.forwardRef(function Sidebar(
                                                 }}
                                             />
                                         )}
-                                        {item.type === "applet" && item.workspaceId && (
-                                            <AppletEditButton
-                                                workspaceId={item.workspaceId}
-                                                router={router}
-                                                isCollapsed={isCollapsed}
-                                            />
-                                        )}
+                                        {item.type === "applet" &&
+                                            item.workspaceId && (
+                                                <AppletEditButton
+                                                    workspaceId={
+                                                        item.workspaceId
+                                                    }
+                                                    router={router}
+                                                    isCollapsed={isCollapsed}
+                                                />
+                                            )}
                                     </div>
                                     {item.children?.length > 0 && (
                                         <ul
