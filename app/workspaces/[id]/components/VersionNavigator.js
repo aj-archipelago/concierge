@@ -108,7 +108,6 @@ export default function VersionNavigator({
         useState(false);
 
     // Note: Version validation is handled in WorkspaceApplet.js to avoid duplicate validation
-
     const handleDuplicateVersion = () => {
         if (!isOwner) return;
         setHtmlVersions((prev) => {
@@ -116,14 +115,24 @@ export default function VersionNavigator({
             const currentVersion = newVersions[activeVersionIndex];
             newVersions.splice(activeVersionIndex + 1, 0, currentVersion);
 
+            // Adjust publishedVersionIndex if the published version comes after the duplicated version
+            let newPublishedVersionIndex = publishedVersionIndex;
+            if (
+                publishedVersionIndex !== null &&
+                publishedVersionIndex > activeVersionIndex
+            ) {
+                newPublishedVersionIndex = publishedVersionIndex + 1;
+            }
+
             updateApplet.mutate({
                 id: workspaceId,
                 data: {
                     htmlVersions: newVersions,
-                    publishedVersionIndex,
+                    publishedVersionIndex: newPublishedVersionIndex,
                 },
             });
 
+            setPublishedVersionIndex(newPublishedVersionIndex);
             setActiveVersionIndex(activeVersionIndex + 1);
             return newVersions;
         });
