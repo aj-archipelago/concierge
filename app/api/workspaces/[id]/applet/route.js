@@ -128,8 +128,11 @@ export async function PUT(request, { params }) {
         );
 
         // Handle App creation/deactivation based on publishedVersionIndex and publishToAppStore preference
-        if (body.publishedVersionIndex !== undefined) {
-            if (body.publishedVersionIndex !== null && body.publishToAppStore) {
+        if (body.publishToAppStore !== undefined) {
+            if (
+                body.publishToAppStore &&
+                body.publishedVersionIndex !== undefined
+            ) {
                 // Applet is being published to app store - upsert an App
                 const appName =
                     body.appName ||

@@ -120,7 +120,6 @@ export default function VersionNavigator({
                 id: workspaceId,
                 data: {
                     htmlVersions: newVersions,
-                    publishedVersionIndex,
                 },
             });
 

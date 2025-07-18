@@ -604,7 +604,13 @@ export default function WorkspaceApplet() {
     const handleUnpublish = () => {
         if (!isOwner) return;
         updateApplet.mutate(
-            { id, data: { publishedVersionIndex: null } },
+            {
+                id,
+                data: {
+                    publishToAppStore: false,
+                    publishedVersionIndex: null,
+                },
+            },
             { onSuccess: () => setPublishedVersionIndex(null) },
         );
     };
