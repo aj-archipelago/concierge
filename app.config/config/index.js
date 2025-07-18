@@ -1,7 +1,7 @@
 import { getTosContent } from "./global/tos";
 import { getPrivacyContent } from "./global/privacy";
 import { getSidebarLogo } from "./global/sidebar";
-import { FaFileImport } from "react-icons/fa";
+import { FileDown } from "lucide-react";
 import { ImportSuggestions } from "./write/actions/ImportSuggestions";
 import { getTags, getTaxonomySets, getTopics } from "./data/taxonomySets";
 import { basePath } from "../../src/utils/constants";
@@ -154,7 +154,7 @@ const config = {
     write: {
         actions: {
             import: {
-                Icon: FaFileImport,
+                Icon: FileDown,
                 type: "always-available",
                 title: "Import from UCMS",
                 dialogClassName: "modal-narrow",

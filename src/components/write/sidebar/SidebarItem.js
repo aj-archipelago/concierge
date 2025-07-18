@@ -7,10 +7,9 @@ import * as amplitude from "@amplitude/analytics-browser";
 import { useApolloClient } from "@apollo/client";
 import { useCallback, useContext, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { FiRefreshCcw } from "react-icons/fi";
 import stringcase from "stringcase";
 import { SidebarContext } from "../Sidebar";
-import { Loader2Icon } from "lucide-react";
+import { Loader2Icon, RotateCcw } from "lucide-react";
 
 const INPUT_THRESHOLD = 1;
 
@@ -125,7 +124,7 @@ export default function SidebarItem({
                                     className="animate-spin"
                                 />
                             ) : (
-                                <FiRefreshCcw className="text-gray-500" />
+                                <RotateCcw className="text-gray-500" />
                             )}
                         </div>
                     )}

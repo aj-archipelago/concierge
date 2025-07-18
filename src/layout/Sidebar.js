@@ -1,4 +1,3 @@
-import { PlusIcon } from "@heroicons/react/24/outline";
 import {
     HelpCircle,
     PinIcon,
@@ -6,6 +5,7 @@ import {
     AppWindow,
     Grid3X3,
     EditIcon,
+    Plus,
 } from "lucide-react";
 import * as Icons from "lucide-react";
 import Link from "next/link";
@@ -369,7 +369,7 @@ export default React.forwardRef(function Sidebar(
                                             </span>
                                         </div>
                                         {item.name === "Chat" && (
-                                            <PlusIcon
+                                            <Plus
                                                 className={cn(
                                                     "h-6 w-6 ml-auto p-1 rounded-full bg-blue-100 text-blue-600 hover:bg-blue-200 hover:text-blue-800 cursor-pointer",
                                                     isCollapsed
