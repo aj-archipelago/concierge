@@ -27,8 +27,6 @@ export default function PublishedAppletPage() {
     const [isAdding, setIsAdding] = useState(false);
     const [showSuccess, setShowSuccess] = useState(false);
 
-    // Debug logging (removed for production)
-
     useEffect(() => {
         if (appletQuery.isLoading) return;
 
