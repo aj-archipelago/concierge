@@ -2,58 +2,10 @@
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import OutputSandbox from "@/src/components/sandbox/OutputSandbox";
 import MonacoEditor from "@monaco-editor/react";
-import { useContext, useCallback, useEffect, useState } from "react";
+import { useContext, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ThemeContext } from "@/src/contexts/ThemeProvider";
 import { generateFilteredSandboxHtml } from "../../../../src/utils/themeUtils";
-import stringcase from "stringcase";
-
-// Function to convert unpkg.com Lucide icon URLs to local routes
-const convertLucideIconsToLocalRoutes = async (htmlContent) => {
-    // Create a temporary DOM element to parse the HTML
-    const parser = new DOMParser();
-    const doc = parser.parseFromString(htmlContent, "text/html");
-
-    let hasChanges = false;
-    const lucideIconPattern =
-        /^https:\/\/unpkg\.com\/lucide-static@latest\/icons\/([^.]+)\.svg$/;
-
-    // Find all img tags
-    const images = doc.querySelectorAll("img");
-
-    if (images.length === 0) {
-        return { html: htmlContent, hasChanges: false };
-    }
-
-    // Process each image
-    images.forEach((img, index) => {
-        const src = img.getAttribute("src");
-
-        if (!src) {
-            return;
-        }
-
-        const match = src.match(lucideIconPattern);
-        if (!match) {
-            return;
-        }
-
-        const spinalCaseIconName = match[1];
-
-        // Replace unpkg.com URLs with local route
-        // The API will handle closest matches automatically
-        const localSrc = `/api/icons/${spinalCaseIconName}`;
-        img.setAttribute("src", localSrc);
-        hasChanges = true;
-    });
-
-    // Return the updated HTML if changes were made
-    if (hasChanges) {
-        return { html: doc.documentElement.outerHTML, hasChanges: true };
-    }
-
-    return { html: htmlContent, hasChanges: false };
-};
 
 // Function to convert unpkg.com Lucide icon URLs to local routes
 const convertLucideIconsToLocalRoutes = async (htmlContent) => {
