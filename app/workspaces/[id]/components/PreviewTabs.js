@@ -2,11 +2,10 @@
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import OutputSandbox from "@/src/components/sandbox/OutputSandbox";
 import MonacoEditor from "@monaco-editor/react";
-import { useContext, useCallback, useEffect, useState } from "react";
+import { useContext, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ThemeContext } from "@/src/contexts/ThemeProvider";
 import { generateFilteredSandboxHtml } from "../../../../src/utils/themeUtils";
-import stringcase from "stringcase";
 
 // Function to convert unpkg.com Lucide icon URLs to local routes
 const convertLucideIconsToLocalRoutes = async (htmlContent) => {
