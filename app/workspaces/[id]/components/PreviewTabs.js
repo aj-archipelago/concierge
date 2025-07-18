@@ -26,10 +26,6 @@ const convertLucideIconsToLocalRoutes = async (htmlContent) => {
     }
 
     // Process each image
-    let processedCount = 0;
-    let lucideIconCount = 0;
-    let fixedCount = 0;
-
     images.forEach((img, index) => {
         const src = img.getAttribute("src");
 
@@ -42,7 +38,6 @@ const convertLucideIconsToLocalRoutes = async (htmlContent) => {
             return;
         }
 
-        lucideIconCount++;
         const spinalCaseIconName = match[1];
 
         // Replace unpkg.com URLs with local route
@@ -50,9 +45,6 @@ const convertLucideIconsToLocalRoutes = async (htmlContent) => {
         const localSrc = `/api/icons/${spinalCaseIconName}`;
         img.setAttribute("src", localSrc);
         hasChanges = true;
-        fixedCount++;
-
-        processedCount++;
     });
 
     // Return the updated HTML if changes were made
