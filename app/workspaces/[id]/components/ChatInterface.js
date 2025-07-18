@@ -1,10 +1,9 @@
 "use client";
 import { cn } from "@/lib/utils";
-import { RiSendPlane2Fill } from "react-icons/ri";
 import ReactMarkdown from "react-markdown";
 import TextareaAutosize from "react-textarea-autosize";
 import React, { useRef, useEffect, useContext } from "react";
-import { RotateCcw } from "lucide-react";
+import { RotateCcw, Send } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import {
     AlertDialog,
@@ -363,7 +362,7 @@ export default function ChatInterface({
                                 {isLoading || isStreaming ? (
                                     <div className="w-4 h-4 border-2 border-sky-600 border-t-transparent rounded-full animate-spin" />
                                 ) : (
-                                    <RiSendPlane2Fill />
+                                    <Send />
                                 )}
                             </button>
                         </div>
