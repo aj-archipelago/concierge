@@ -2,8 +2,7 @@ import axios from "../../../app/utils/axios-client";
 import FilePondPluginFileValidateType from "filepond-plugin-file-validate-type";
 import mime from "mime-types";
 import { FilePond, registerPlugin } from "react-filepond";
-import { AiOutlineClose } from "react-icons/ai";
-import { FaLink } from "react-icons/fa";
+import { X, Link } from "lucide-react";
 
 // Import FilePond styles
 import "filepond/dist/filepond.min.css";
@@ -61,7 +60,7 @@ function RemoteUrlInputUI({
                     onClick={() => setShowInputUI(!showInputUI)}
                 >
                     <span className="inline-block px-1">
-                        <FaLink />
+                        <Link />
                     </span>
                     <span className="underline px-1">
                         {t("Add File from Url")}
@@ -77,7 +76,7 @@ function RemoteUrlInputUI({
                 className="font-bold py-1 px-1 rounded-full mx-1 border-gray-300"
                 onClick={() => setShowInputUI(false)}
             >
-                <AiOutlineClose />
+                <X />
             </button>
             <input
                 className="lb-input flex-grow flex focus:outline-none mx-2 p-2 border-2 border-gray-300 rounded-md shadow-lg text-xs"

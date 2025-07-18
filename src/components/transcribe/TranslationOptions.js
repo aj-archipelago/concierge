@@ -5,7 +5,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
-import { LanguageIcon } from "@heroicons/react/24/outline";
+import { Languages } from "lucide-react";
 import dayjs from "dayjs";
 import { useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -184,7 +184,7 @@ function TranslationOptions({
                 }}
                 text={t("Translating...")}
             >
-                <LanguageIcon className="h-4 w-4" /> {t("Translate")}
+                <Languages className="h-4 w-4" /> {t("Translate")}
             </LoadingButton>
         </div>
     );

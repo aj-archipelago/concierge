@@ -1,12 +1,15 @@
 import { useTranslation } from "react-i18next";
-import { BiNews } from "react-icons/bi";
-import { BsArrowsExpand, BsBook } from "react-icons/bs";
-import { FaEdit, FaLanguage, FaSpellCheck } from "react-icons/fa";
 import {
-    MdOutlineListAlt,
-    MdOutlineSummarize,
-    MdOutlineTopic,
-} from "react-icons/md";
+    FileText,
+    Expand,
+    BookOpen,
+    Edit,
+    Languages,
+    CheckCircle,
+    List,
+    FileText as Summarize,
+    Tag,
+} from "lucide-react";
 import config from "../../../config";
 import CopyButton from "../CopyButton";
 import ExpandStoryContent from "./ExpandStoryContent";
@@ -34,7 +37,7 @@ const customActions = config.write?.actions || {};
 
 const actions = {
     grammar: {
-        Icon: FaSpellCheck,
+        Icon: CheckCircle,
         title: "Spelling and grammar",
         dialogClassName: "modal-wide",
         SuggestionsComponent: getTextSuggestionsComponent({
@@ -44,14 +47,14 @@ const actions = {
         commitLabel: "Use Corrected Version",
     },
     headline: {
-        Icon: BiNews,
+        Icon: FileText,
         title: "Headline creator",
         dialogClassName: "modal-wide",
         SuggestionsComponent: HeadlineModal,
         commitLabel: "Use selected headline and subhead",
     },
     styleguide: {
-        Icon: BsBook,
+        Icon: BookOpen,
         title: "Apply style guide",
         dialogClassName: "modal-wide",
         SuggestionsComponent: getTextSuggestionsComponent({
@@ -62,7 +65,7 @@ const actions = {
         commitLabel: "Use Corrected Text",
     },
     summarize: {
-        Icon: MdOutlineSummarize,
+        Icon: Summarize,
         title: "Summarize",
         dialogClassName: "modal-narrow",
         SuggestionsComponent: getTextSuggestionsComponent({
@@ -133,7 +136,7 @@ const actions = {
         }),
     },
     paraphrase: {
-        Icon: FaEdit,
+        Icon: Edit,
         title: "Rewrite text",
         dialogClassName: "modal-wide",
         type: "selection",
@@ -148,7 +151,7 @@ const actions = {
         commitLabel: "Use Updated Text",
     },
     remove_content: {
-        Icon: FaSpellCheck,
+        Icon: CheckCircle,
         title: "Remove content",
         dialogClassName: "modal-wide",
         SuggestionsComponent: getTextSuggestionsComponent({
@@ -167,7 +170,7 @@ const actions = {
     //     postApply: "clear-headline",
     // },
     topics: {
-        Icon: MdOutlineTopic,
+        Icon: Tag,
         title: "Get topics",
         dialogClassName: "modal-narrow",
         SuggestionsComponent: getTextSuggestionsComponent({
@@ -177,7 +180,7 @@ const actions = {
         }),
     },
     keywords: {
-        Icon: MdOutlineTopic,
+        Icon: Tag,
         title: "Get search keywords",
         dialogClassName: "modal-narrow",
         SuggestionsComponent: getTextSuggestionsComponent({
@@ -187,7 +190,7 @@ const actions = {
         }),
     },
     tags: {
-        Icon: MdOutlineTopic,
+        Icon: Tag,
         title: "Get tags",
         dialogClassName: "modal-narrow",
         SuggestionsComponent: getTextSuggestionsComponent({
@@ -197,7 +200,7 @@ const actions = {
         }),
     },
     translate: {
-        Icon: FaLanguage,
+        Icon: Languages,
         title: "Translate",
         dialogClassName: "modal-narrow",
         commitLabel: "Use Translated Text",
@@ -205,7 +208,7 @@ const actions = {
         postApply: "clear-headline",
     },
     entities: {
-        Icon: MdOutlineListAlt,
+        Icon: List,
         title: "Extract entities",
         dialogClassName: "modal-narrow",
         SuggestionsComponent: getTextSuggestionsComponent({
@@ -230,7 +233,7 @@ const actions = {
         }),
     },
     expand: {
-        Icon: BsArrowsExpand,
+        Icon: Expand,
         title: "Expand this story",
         dialogClassName: "modal-wide",
         SuggestionsComponent: ExpandStoryContent,

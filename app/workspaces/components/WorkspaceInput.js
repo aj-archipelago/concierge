@@ -1,6 +1,6 @@
 import { useContext, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { FaEdit } from "react-icons/fa";
+import { Edit } from "lucide-react";
 import LoadingButton from "../../../src/components/editor/LoadingButton";
 import { useLLMs } from "../../queries/llms";
 import {
@@ -189,7 +189,7 @@ function SystemPrompt({ editing, setEditing }) {
                             }}
                             title={t("Edit prompt")}
                         >
-                            <FaEdit />
+                            <Edit />
                         </div>
                     )}
                 </div>

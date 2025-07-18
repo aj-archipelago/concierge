@@ -1,7 +1,7 @@
 import { useLazyQuery } from "@apollo/client";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { AiOutlineTag } from "react-icons/ai";
+import { Tag } from "lucide-react";
 import config from "../../../config";
 import { QUERIES } from "../../graphql";
 import CopyButton from "../CopyButton";
@@ -143,7 +143,7 @@ function TaxonomySelector({ text }) {
                     className="lb-primary"
                     onClick={() => handleSelect()}
                 >
-                    <AiOutlineTag /> {t("Select")}
+                    <Tag /> {t("Select")}
                 </LoadingButton>
             </div>
 
