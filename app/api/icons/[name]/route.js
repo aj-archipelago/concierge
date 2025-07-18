@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import stringcase from "stringcase";
 import * as LucideIcons from "lucide-react";
+import React from "react";
+import ReactDOMServer from "react-dom/server";
 
 // Function to calculate Levenshtein distance between two strings
 const levenshteinDistance = (str1, str2) => {
@@ -92,7 +94,6 @@ export async function GET(request, { params }) {
                 const closestSpinalCaseName = stringcase.spinalcase(bestMatch);
 
                 // Create a temporary React element to render the SVG
-                const React = await import("react");
                 const iconElement = React.createElement(closestIconComponent, {
                     size: 24,
                     strokeWidth: 2,
@@ -100,7 +101,6 @@ export async function GET(request, { params }) {
                 });
 
                 // Convert React element to SVG string
-                const ReactDOMServer = await import("react-dom/server");
                 const svgContent = ReactDOMServer.renderToString(iconElement);
 
                 // Return the SVG content with appropriate headers and a warning about the substitution
@@ -133,7 +133,6 @@ export async function GET(request, { params }) {
         }
 
         // Create a temporary React element to render the SVG
-        const React = await import("react");
         const iconElement = React.createElement(IconComponent, {
             size: 24,
             strokeWidth: 2,
@@ -141,7 +140,6 @@ export async function GET(request, { params }) {
         });
 
         // Convert React element to SVG string
-        const ReactDOMServer = await import("react-dom/server");
         const svgContent = ReactDOMServer.renderToString(iconElement);
 
         // Return the SVG content with appropriate headers
