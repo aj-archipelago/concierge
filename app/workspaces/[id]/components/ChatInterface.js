@@ -1,9 +1,10 @@
 "use client";
 import { cn } from "@/lib/utils";
+import { Send } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import TextareaAutosize from "react-textarea-autosize";
 import React, { useRef, useEffect, useContext } from "react";
-import { RotateCcw, Send } from "lucide-react";
+import { RotateCcw, StopCircle } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import {
     AlertDialog,
@@ -75,6 +76,7 @@ export default function ChatInterface({
     inputMessage,
     setInputMessage,
     onSendMessage,
+    onStopStreaming,
     isLoading,
     blockOldVersionChat,
     showContinueConfirm,
@@ -346,26 +348,33 @@ export default function ChatInterface({
                             />
                         </div>
                     </div>
-                    <div className="px-3 bg-white self-stretch flex items-center rounded-e">
-                        <div>
-                            <button
-                                type="submit"
-                                disabled={
-                                    !inputMessage.trim() ||
-                                    isLoading ||
-                                    isStreaming ||
+                    <div className="px-3 bg-white self-stretch flex items-center rounded-e gap-1">
+                        <button
+                            type={
+                                isStreaming || isLoading ? "button" : "submit"
+                            }
+                            onClick={
+                                isStreaming || isLoading
+                                    ? onStopStreaming
+                                    : undefined
+                            }
+                            disabled={
+                                !isStreaming &&
+                                !isLoading &&
+                                (!inputMessage.trim() ||
                                     blockOldVersionChat ||
-                                    !isOwner
-                                }
-                                className="text-base rtl:rotate-180 text-emerald-500 hover:text-emerald-600 disabled:text-gray-300 active:text-gray-800 flex items-center justify-center"
-                            >
-                                {isLoading || isStreaming ? (
-                                    <div className="w-4 h-4 border-2 border-sky-600 border-t-transparent rounded-full animate-spin" />
-                                ) : (
-                                    <Send />
-                                )}
-                            </button>
-                        </div>
+                                    !isOwner)
+                            }
+                            className="text-base rtl:rotate-180 text-emerald-500 hover:text-emerald-600 disabled:text-gray-300 active:text-gray-800 flex items-center justify-center"
+                        >
+                            {isStreaming || isLoading ? (
+                                <StopCircle className="w-5 h-5 text-red-500" />
+                            ) : (
+                                <span className="rtl:scale-x-[-1]">
+                                    <Send className="w-5 h-5 text-gray-400" />
+                                </span>
+                            )}
+                        </button>
                     </div>
                 </form>
             </div>
