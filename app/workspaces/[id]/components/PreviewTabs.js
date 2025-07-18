@@ -2,10 +2,58 @@
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import OutputSandbox from "@/src/components/sandbox/OutputSandbox";
 import MonacoEditor from "@monaco-editor/react";
-import { useContext } from "react";
+import { useContext, useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ThemeContext } from "@/src/contexts/ThemeProvider";
 import { generateFilteredSandboxHtml } from "../../../../src/utils/themeUtils";
+import stringcase from "stringcase";
+
+// Function to convert unpkg.com Lucide icon URLs to local routes
+const convertLucideIconsToLocalRoutes = async (htmlContent) => {
+    // Create a temporary DOM element to parse the HTML
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(htmlContent, "text/html");
+
+    let hasChanges = false;
+    const lucideIconPattern =
+        /^https:\/\/unpkg\.com\/lucide-static@latest\/icons\/([^.]+)\.svg$/;
+
+    // Find all img tags
+    const images = doc.querySelectorAll("img");
+
+    if (images.length === 0) {
+        return { html: htmlContent, hasChanges: false };
+    }
+
+    // Process each image
+    images.forEach((img, index) => {
+        const src = img.getAttribute("src");
+
+        if (!src) {
+            return;
+        }
+
+        const match = src.match(lucideIconPattern);
+        if (!match) {
+            return;
+        }
+
+        const spinalCaseIconName = match[1];
+
+        // Replace unpkg.com URLs with local route
+        // The API will handle closest matches automatically
+        const localSrc = `/api/icons/${spinalCaseIconName}`;
+        img.setAttribute("src", localSrc);
+        hasChanges = true;
+    });
+
+    // Return the updated HTML if changes were made
+    if (hasChanges) {
+        return { html: doc.documentElement.outerHTML, hasChanges: true };
+    }
+
+    return { html: htmlContent, hasChanges: false };
+};
 
 function HtmlEditor({ value, onChange, options }) {
     return (
@@ -130,9 +178,51 @@ export default function PreviewTabs({
 }) {
     const { t } = useTranslation();
     const { theme } = useContext(ThemeContext);
+    const [processedContent, setProcessedContent] = useState("");
 
     const hasVersions = htmlVersions.length > 0;
     const currentContent = hasVersions ? htmlVersions[activeVersionIndex] : "";
+
+    // Process content to convert Lucide icons to local routes when content changes
+    useEffect(() => {
+        if (!currentContent) {
+            setProcessedContent("");
+            return;
+        }
+
+        const processContent = async () => {
+            try {
+                const result =
+                    await convertLucideIconsToLocalRoutes(currentContent);
+                setProcessedContent(result.html);
+
+                // If changes were made and we have an onChange handler, update the HTML
+                if (
+                    result.hasChanges &&
+                    onHtmlChange &&
+                    isOwner &&
+                    !isCurrentVersionPublished
+                ) {
+                    onHtmlChange(result.html, activeVersionIndex);
+                }
+            } catch (error) {
+                console.error("Error processing Lucide icons:", error);
+                setProcessedContent(currentContent);
+                // Optionally, add user feedback here (e.g., toast notification)
+            }
+        };
+
+        processContent();
+    }, [
+        currentContent,
+        onHtmlChange,
+        isOwner,
+        isCurrentVersionPublished,
+        activeVersionIndex,
+    ]);
+
+    // Use processed content for display
+    const displayContent = processedContent || currentContent;
 
     return (
         <Tabs
@@ -158,12 +248,12 @@ export default function PreviewTabs({
                                 <EmptyStatePlaceholder />
                             ) : isStreaming && hasStreamingVersion ? (
                                 <StreamingPreview
-                                    content={currentContent}
+                                    content={displayContent}
                                     theme={theme}
                                 />
                             ) : (
                                 <OutputSandbox
-                                    content={currentContent}
+                                    content={displayContent}
                                     height="100%"
                                     theme={theme}
                                 />
@@ -192,7 +282,7 @@ export default function PreviewTabs({
                                         </div>
                                     )}
                                     <HtmlEditor
-                                        value={currentContent}
+                                        value={displayContent}
                                         onChange={
                                             isOwner &&
                                             !isCurrentVersionPublished
