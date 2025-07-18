@@ -200,6 +200,21 @@ export default function WorkspaceApplet() {
         streamingVersionRef.current = null;
     };
 
+    const handleStopStreaming = async () => {
+        if (!isOwner) return;
+
+        // Clear streaming state immediately
+        clearStreamingState();
+        setIsLoading(false);
+
+        // Remove the streaming message from the chat
+        const messagesWithoutStreaming = allMessagesRef.current.filter(
+            (msg) => !msg.isStreaming,
+        );
+        setMessages(messagesWithoutStreaming);
+        allMessagesRef.current = messagesWithoutStreaming;
+    };
+
     // Simple validation to ensure activeVersionIndex is always valid
     useEffect(() => {
         if (htmlVersions.length === 0) {
@@ -894,6 +909,7 @@ export default function WorkspaceApplet() {
                                     inputMessage={inputMessage}
                                     setInputMessage={setInputMessage}
                                     onSendMessage={handleSendMessage}
+                                    onStopStreaming={handleStopStreaming}
                                     isLoading={isLoading}
                                     blockOldVersionChat={blockOldVersionChat}
                                     showContinueConfirm={showContinueConfirm}
