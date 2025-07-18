@@ -206,7 +206,9 @@ export default function PreviewTabs({
                     onHtmlChange(result.html, activeVersionIndex);
                 }
             } catch (error) {
+                console.error("Error processing Lucide icons:", error);
                 setProcessedContent(currentContent);
+                // Optionally, add user feedback here (e.g., toast notification)
             }
         };
 
