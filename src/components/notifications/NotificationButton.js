@@ -13,15 +13,23 @@ import {
     PopoverContent,
     PopoverTrigger,
 } from "@/components/ui/popover";
-import { BellIcon } from "@heroicons/react/24/outline";
-import { BanIcon, Check, Clock, EyeOff, XIcon, RotateCcw } from "lucide-react";
+import {
+    Bell,
+    BanIcon,
+    Check,
+    Clock,
+    EyeOff,
+    RotateCcw,
+    XIcon,
+} from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { useCallback, useContext, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import TimeAgo from "react-time-ago";
 import stringcase from "stringcase";
 import Loader from "../../../app/components/loader";
 import { useSetActiveChatId } from "../../../app/queries/chats";
+import { useJob } from "../../../app/queries/jobs";
 import {
     useCancelTask,
     useDismissTask,
@@ -30,8 +38,7 @@ import {
 } from "../../../app/queries/notifications";
 import { LanguageContext } from "../../contexts/LanguageProvider";
 import { useNotificationsContext } from "../../contexts/NotificationContext";
-import { getTaskInfo } from "../../utils/task-loader.mjs";
-import { useJob } from "../../../app/queries/jobs";
+import { TASK_INFO } from "../../utils/task-info";
 const getLocaleShortName = (locale, usersLanguage) => {
     try {
         return new Intl.DisplayNames([usersLanguage], { type: "language" }).of(
@@ -297,22 +304,8 @@ export default function NotificationButton() {
     const { language } = useContext(LanguageContext);
     const router = useRouter();
     const cancelRequest = useCancelTask();
-    const [handlerInfo, setHandlerInfo] = useState({});
     const setActiveChatId = useSetActiveChatId();
     const retryTask = useRetryTask();
-
-    // Load handler info when notifications change
-    useEffect(() => {
-        const loadTaskDefinitionInfo = async () => {
-            const uniqueTypes = [...new Set(notifications.map((n) => n.type))];
-            const info = {};
-            for (const type of uniqueTypes) {
-                info[type] = await getTaskInfo(type);
-            }
-            setHandlerInfo(info);
-        };
-        loadTaskDefinitionInfo();
-    }, [notifications]);
 
     const handleDismiss = (_id) => {
         setDismissingIds((prev) => new Set([...prev, _id]));
@@ -348,7 +341,7 @@ export default function NotificationButton() {
                 onOpenChange={setIsNotificationOpen}
             >
                 <PopoverTrigger className="relative">
-                    <BellIcon
+                    <Bell
                         className="h-6 w-6 text-gray-500 hover:text-gray-700"
                         stroke="#0284c7"
                         fill={isNotificationOpen ? "#0284c7" : "none"}
@@ -387,7 +380,7 @@ export default function NotificationButton() {
                                             key={notification._id}
                                             notification={notification}
                                             handlerDisplayNames={Object.fromEntries(
-                                                Object.entries(handlerInfo).map(
+                                                Object.entries(TASK_INFO).map(
                                                     ([type, info]) => [
                                                         type,
                                                         info.displayName,
@@ -395,7 +388,7 @@ export default function NotificationButton() {
                                                 ),
                                             )}
                                             isRetryable={
-                                                handlerInfo[notification.type]
+                                                TASK_INFO[notification.type]
                                                     ?.isRetryable
                                             }
                                             language={language}

@@ -1,6 +1,6 @@
 import { useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { AiOutlineMinusCircle, AiOutlinePlusCircle } from "react-icons/ai";
+import { MinusCircle, PlusCircle } from "lucide-react";
 import TextareaAutosize from "react-textarea-autosize";
 import AIModal from "../../AIModal";
 
@@ -100,8 +100,8 @@ function HeadlineEditor({ articleText, headline, subhead, onChange }) {
                     }}
                     style={{ cursor: "pointer" }}
                 >
-                    {!expanded && <AiOutlinePlusCircle />}
-                    {expanded && <AiOutlineMinusCircle />}
+                    {!expanded && <PlusCircle />}
+                    {expanded && <MinusCircle />}
                 </button>
             )}
         </div>

@@ -1,6 +1,6 @@
 import { useContext, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { FaEdit } from "react-icons/fa";
+import { Edit } from "lucide-react";
 import LoadingButton from "../../../src/components/editor/LoadingButton";
 import { useLLMs } from "../../queries/llms";
 import {
@@ -73,7 +73,7 @@ export default function WorkspaceInput({ onRun, onRunMany }) {
     return (
         <div className="h-full overflow-auto flex flex-col gap-2">
             <>
-                <div className="basis-4/12 min-h-[150px] flex flex-col gap-3 p-1 overflow-auto">
+                <div className="basis-4/12 min-h-[150px] max-h-[200px] flex flex-col gap-3 p-1 overflow-auto">
                     <textarea
                         placeholder={t("Enter some text here")}
                         value={text}
@@ -189,7 +189,7 @@ function SystemPrompt({ editing, setEditing }) {
                             }}
                             title={t("Edit prompt")}
                         >
-                            <FaEdit />
+                            <Edit />
                         </div>
                     )}
                 </div>

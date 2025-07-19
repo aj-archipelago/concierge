@@ -28,6 +28,19 @@ global.navigator = {
     userAgent: "node.js",
 };
 
+// Mock ResizeObserver
+global.ResizeObserver = jest.fn().mockImplementation(() => ({
+    observe: jest.fn(),
+    unobserve: jest.fn(),
+    disconnect: jest.fn(),
+}));
+
+// Mock MutationObserver
+global.MutationObserver = jest.fn().mockImplementation(() => ({
+    observe: jest.fn(),
+    disconnect: jest.fn(),
+}));
+
 // Add any missing window properties that might be needed
 Object.defineProperty(window, "matchMedia", {
     writable: true,

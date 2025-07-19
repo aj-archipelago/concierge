@@ -2,8 +2,7 @@ import axios from "../../../app/utils/axios-client";
 import FilePondPluginFileValidateType from "filepond-plugin-file-validate-type";
 import mime from "mime-types";
 import { FilePond, registerPlugin } from "react-filepond";
-import { AiOutlineClose } from "react-icons/ai";
-import { FaLink } from "react-icons/fa";
+import { X, Link } from "lucide-react";
 
 // Import FilePond styles
 import "filepond/dist/filepond.min.css";
@@ -18,9 +17,9 @@ import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
     hashMediaFile,
-    DOC_MIME_TYPES,
     ACCEPTED_FILE_TYPES,
-    isMediaUrl,
+    RAG_MIME_TYPES,
+    isSupportedFileUrl,
     getFilename,
     getVideoDuration,
 } from "../../utils/mediaUtils";
@@ -61,7 +60,7 @@ function RemoteUrlInputUI({
                     onClick={() => setShowInputUI(!showInputUI)}
                 >
                     <span className="inline-block px-1">
-                        <FaLink />
+                        <Link />
                     </span>
                     <span className="underline px-1">
                         {t("Add File from Url")}
@@ -77,7 +76,7 @@ function RemoteUrlInputUI({
                 className="font-bold py-1 px-1 rounded-full mx-1 border-gray-300"
                 onClick={() => setShowInputUI(false)}
             >
-                <AiOutlineClose />
+                <X />
             </button>
             <input
                 className="lb-input flex-grow flex focus:outline-none mx-2 p-2 border-2 border-gray-300 rounded-md shadow-lg text-xs"
@@ -387,6 +386,10 @@ function MyFilePond({
                                         type: "video/youtube",
                                         filename: getFilename(fileUrl),
                                     };
+                                    // Explicitly snap progress to 100% so the FilePond UI shows the check-mark
+                                    if (typeof progress === "function") {
+                                        progress(true, 100, 100);
+                                    }
                                     load(response);
                                     return;
                                 }
@@ -406,6 +409,10 @@ function MyFilePond({
                                                 type,
                                             }),
                                         );
+                                        // Ensure progress shows complete before marking load done
+                                        if (typeof progress === "function") {
+                                            progress(true, 100, 100);
+                                        }
                                         addUrl(response.data);
                                         setIsUploadingMedia(false);
                                         return;
@@ -449,7 +456,10 @@ function MyFilePond({
 
                                 const isRemote = !(file instanceof File);
                                 if (isRemote) {
+                                    // Remote files have already been fetched, so instantly mark progress complete
+                                    progress(true, 100, 100);
                                     load(file.source);
+                                    setIsUploadingMedia(false);
                                     return;
                                 }
 
@@ -487,7 +497,7 @@ function MyFilePond({
                                     }
                                 }
 
-                                if (isMediaUrl(file?.name)) {
+                                if (isSupportedFileUrl(file?.name)) {
                                     setIsUploadingMedia(true);
                                 }
 
@@ -504,7 +514,7 @@ function MyFilePond({
                                         response.status === 200 &&
                                         response.data?.url
                                     ) {
-                                        if (isMediaUrl(file?.name)) {
+                                        if (isSupportedFileUrl(file?.name)) {
                                             const hasAzureUrl =
                                                 response.data.url &&
                                                 response.data.url.includes(
@@ -638,7 +648,7 @@ function MyFilePond({
                                         }
 
                                         // Add validation for media files requiring both Azure and GCS URLs
-                                        if (isMediaUrl(file?.name)) {
+                                        if (isSupportedFileUrl(file?.name)) {
                                             const hasAzureUrl =
                                                 responseData.url &&
                                                 responseData.url.includes(
@@ -714,7 +724,7 @@ function MyFilePond({
                             } else {
                                 const filetype = file.file.type;
                                 // For document files, wait 10 seconds for indexing
-                                if (DOC_MIME_TYPES.includes(filetype)) {
+                                if (RAG_MIME_TYPES.includes(filetype)) {
                                     // Remove the file from FilePond after processing
                                     setFiles((oldFiles) =>
                                         oldFiles.filter(

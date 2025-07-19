@@ -22,6 +22,9 @@ const clientSideCompletionHandlers = {
     "video-translate": async ({ refetchUserState }) => {
         refetchUserState();
     },
+    "build-digest": async ({ queryClient }) => {
+        queryClient.invalidateQueries({ queryKey: ["currentUserDigest"] });
+    },
 };
 
 export function useTask(id) {

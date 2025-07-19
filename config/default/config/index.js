@@ -1,6 +1,7 @@
 import { getTaxonomySets, getTags, getTopics } from "./data/taxonomySets";
 import { getSidebarLogo } from "./global/sidebar";
 import { getTosContent } from "./global/tos";
+import { getPrivacyContent } from "./global/privacy";
 
 // The entire Labeeb application can be configured here
 const basePath = process.env.NEXT_PUBLIC_BASE_PATH || "";
@@ -34,6 +35,7 @@ export default {
         siteTitle: "Concierge",
         getLogo: () => "/app/assets/logo.png",
         getTosContent,
+        getPrivacyContent,
         getSidebarLogo,
         initialize: async () => {},
         getPublicGraphQLEndpoint: (graphQLEndpoint) => graphQLEndpoint,
@@ -134,7 +136,12 @@ export default {
     },
     endpoints: {
         mediaHelper: (serverUrl) => `${serverUrl}${basePath}/media-helper`,
-        graphql: (serverUrl) => `${serverUrl}${basePath}/graphql`,
+        graphql: (serverUrl, useBlueGraphQL) => {
+            if (useBlueGraphQL) {
+                return `${serverUrl}${basePath}/graphql-blue`;
+            }
+            return `${serverUrl}${basePath}/graphql`;
+        },
     },
     auth: {
         provider: null, // only one value is supported: "entra"

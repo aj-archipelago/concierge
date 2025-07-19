@@ -57,6 +57,8 @@ module.exports = {
     plugins: [
         require("tailwindcss-animate"),
         require("@tailwindcss/forms"),
+        require("tailwind-scrollbar"),
+        require("tailwind-typography"),
         require("nightwind"),
         plugin(function ({ addVariant, e }) {
             addVariant("rtl", ({ modifySelectors, separator }) => {

@@ -1,10 +1,14 @@
 import { Accordion } from "@/components/ui/accordion";
 import { createContext, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { AiOutlineClose } from "react-icons/ai";
-import { BiNews } from "react-icons/bi";
-import { MdOutlineListAlt, MdOutlineSummarize, MdSearch } from "react-icons/md";
-import { RiTimeLine } from "react-icons/ri";
+import {
+    X,
+    FileText,
+    List,
+    FileText as Summarize,
+    Search,
+    Clock,
+} from "lucide-react";
 import { QUERIES } from "../../graphql";
 import CopyButton from "../CopyButton";
 import LoadingButton from "../editor/LoadingButton";
@@ -18,7 +22,7 @@ function Highlights({ inputText, onAction }) {
 
     return (
         <SidebarItem
-            icon={<BiNews />}
+            icon={<FileText />}
             inputText={inputText}
             name="Highlights"
             output={highlights}
@@ -40,7 +44,7 @@ function Highlights({ inputText, onAction }) {
                                             });
                                         }}
                                     >
-                                        <AiOutlineClose />
+                                        <X />
                                     </button>
                                 </div>
                             </div>
@@ -76,7 +80,7 @@ function TimelineBox({ inputText }) {
 
     return (
         <SidebarItem
-            icon={<RiTimeLine />}
+            icon={<Clock />}
             inputText={inputText}
             name="Timeline"
             output={timeline}
@@ -155,7 +159,7 @@ function Summary({ inputText }) {
         <SidebarItem
             inputText={inputText}
             name="Summary"
-            icon={<MdOutlineSummarize />}
+            icon={<Summarize />}
             output={summary}
             defaultParameters={{ targetLength: 120 }}
             Options={(props) => (
@@ -183,7 +187,7 @@ function SearchKeywords({ inputText }) {
 
     return (
         <SidebarItem
-            icon={<MdSearch />}
+            icon={<Search />}
             inputText={inputText}
             name="Search keywords"
             output={keywords}
@@ -214,7 +218,7 @@ function Entities({ inputText }) {
 
     return (
         <SidebarItem
-            icon={<MdOutlineListAlt />}
+            icon={<List />}
             inputText={inputText}
             name="Entities"
             output={entities}

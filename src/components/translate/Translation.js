@@ -3,7 +3,7 @@ import { useApolloClient } from "@apollo/client";
 import { useRouter } from "next/navigation";
 import { useContext, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { FaChevronLeft, FaChevronRight } from "react-icons/fa";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import classNames from "../../../app/utils/class-names";
 import { AuthContext } from "../../App";
 import { LanguageContext } from "../../contexts/LanguageProvider";
@@ -275,9 +275,9 @@ function Translation({
                                 {t("Start editing")}
                                 <span>
                                     {language === "ar" ? (
-                                        <FaChevronLeft />
+                                        <ChevronLeft />
                                     ) : (
-                                        <FaChevronRight />
+                                        <ChevronRight />
                                     )}
                                 </span>
                             </button>

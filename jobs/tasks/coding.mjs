@@ -36,10 +36,7 @@ class CodingTask extends BaseTask {
     }
 
     async handleCompletion(taskId, dataObject, metadata, client) {
-        console.log("[CodingTask] Starting handleCompletion", {
-            taskId,
-            metadata,
-        });
+        console.log("[CodingTask] Starting handleCompletion. Task ID:", taskId);
 
         const task = await Task.findById(taskId);
         const { chatId } = task.invokedFrom;
@@ -49,10 +46,10 @@ class CodingTask extends BaseTask {
             throw new Error("Chat ID is required in metadata");
         }
 
-        console.log("[CodingTask] Retrieving chat to check message position", {
+        console.log(
+            "[CodingTask] Retrieving chat to check message position. Chat ID:",
             chatId,
-            taskId,
-        });
+        );
 
         // Find the chat and check if the task message is the last one
         const chat = await Chat.findOne({
@@ -75,12 +72,6 @@ class CodingTask extends BaseTask {
         }
 
         const isLastMessage = taskMessageIndex === chat.messages.length - 1;
-
-        console.log("[CodingTask] Updating message in chat", {
-            taskMessageIndex,
-            isLastMessage,
-            dataObject,
-        });
 
         // Update the message in the messages array in memory first
         chat.messages[taskMessageIndex].payload =
@@ -124,7 +115,10 @@ class CodingTask extends BaseTask {
             );
         }
 
-        console.log("[CodingTask] Successfully completed handling", { chatId });
+        console.log(
+            "[CodingTask] Successfully completed handling chat ID:",
+            chatId,
+        );
         return dataObject;
     }
 

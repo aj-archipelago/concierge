@@ -28,10 +28,10 @@ function triggerReauth() {
     }
 }
 
-const getClient = (serverUrl) => {
+const getClient = (serverUrl, useBlueGraphQL) => {
     let graphqlEndpoint;
     if (serverUrl) {
-        graphqlEndpoint = config.endpoints.graphql(serverUrl);
+        graphqlEndpoint = config.endpoints.graphql(serverUrl, useBlueGraphQL);
     } else {
         graphqlEndpoint = CORTEX_GRAPHQL_API_URL;
     }
@@ -644,8 +644,92 @@ const IMAGE = gql`
 `;
 
 const IMAGE_FLUX = gql`
-    query ImageFlux($text: String!, $model: String, $async: Boolean) {
-        image_flux(text: $text, model: $model, async: $async) {
+    query ImageFlux(
+        $text: String!
+        $model: String
+        $async: Boolean
+        $input_image: String
+        $input_image_2: String
+        $aspectRatio: String
+    ) {
+        image_flux(
+            text: $text
+            model: $model
+            async: $async
+            input_image: $input_image
+            input_image_2: $input_image_2
+            aspectRatio: $aspectRatio
+        ) {
+            result
+        }
+    }
+`;
+
+const VIDEO_VEO = gql`
+    query VideoVeo(
+        $text: String!
+        $async: Boolean
+        $image: String
+        $video: String
+        $lastFrame: String
+        $model: String
+        $aspectRatio: String
+        $durationSeconds: Int
+        $enhancePrompt: Boolean
+        $generateAudio: Boolean
+        $negativePrompt: String
+        $personGeneration: String
+        $sampleCount: Int
+        $storageUri: String
+        $location: String
+        $seed: Int
+    ) {
+        video_veo(
+            text: $text
+            async: $async
+            image: $image
+            video: $video
+            lastFrame: $lastFrame
+            model: $model
+            aspectRatio: $aspectRatio
+            durationSeconds: $durationSeconds
+            enhancePrompt: $enhancePrompt
+            generateAudio: $generateAudio
+            negativePrompt: $negativePrompt
+            personGeneration: $personGeneration
+            sampleCount: $sampleCount
+            storageUri: $storageUri
+            location: $location
+            seed: $seed
+        ) {
+            result
+        }
+    }
+`;
+
+const VIDEO_SEEDANCE = gql`
+    query VideoSeedance(
+        $text: String!
+        $async: Boolean
+        $model: String
+        $resolution: String
+        $aspectRatio: String
+        $duration: Int
+        $image: String
+        $seed: Int
+        $camera_fixed: Boolean
+    ) {
+        video_seedance(
+            text: $text
+            async: $async
+            model: $model
+            resolution: $resolution
+            aspectRatio: $aspectRatio
+            duration: $duration
+            image: $image
+            seed: $seed
+            camera_fixed: $camera_fixed
+        ) {
             result
         }
     }
@@ -726,6 +810,28 @@ const SYS_GET_ENTITIES = gql`
     }
 `;
 
+const WORKSPACE_APPLET_EDIT = gql`
+    query WorkspaceAppletEdit(
+        $text: String!
+        $async: Boolean
+        $stream: Boolean
+        $promptEndpoint: String
+        $currentHtml: String
+        $promptDetails: String
+    ) {
+        workspace_applet_edit(
+            text: $text
+            promptEndpoint: $promptEndpoint
+            currentHtml: $currentHtml
+            async: $async
+            stream: $stream
+            promptDetails: $promptDetails
+        ) {
+            result
+        }
+    }
+`;
+
 const QUERIES = {
     AZURE_VIDEO_TRANSLATE,
     CHAT_TITLE,
@@ -734,6 +840,8 @@ const QUERIES = {
     COGNITIVE_INSERT,
     IMAGE,
     IMAGE_FLUX,
+    VIDEO_VEO,
+    VIDEO_SEEDANCE,
     SYS_READ_MEMORY,
     SYS_SAVE_MEMORY,
     SYS_ENTITY_AGENT,
@@ -775,6 +883,7 @@ const QUERIES = {
     HEADLINE_CUSTOM,
     SUBHEAD,
     VISION,
+    WORKSPACE_APPLET_EDIT,
 };
 
 const SUBSCRIPTIONS = {
@@ -836,6 +945,8 @@ export {
     HASHTAGS,
     HEADLINE,
     IMAGE_FLUX,
+    VIDEO_VEO,
+    VIDEO_SEEDANCE,
     GRAMMAR,
     SPELLING,
     PARAPHRASE,
@@ -860,4 +971,5 @@ export {
     REMOVE_CONTENT,
     JIRA_STORY,
     VISION,
+    WORKSPACE_APPLET_EDIT,
 };

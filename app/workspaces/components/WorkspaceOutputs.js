@@ -3,6 +3,8 @@ import ReactTimeAgo from "react-time-ago";
 import CopyButton from "../../../src/components/CopyButton";
 import { convertMessageToMarkdown } from "../../../src/components/chat/ChatMessage";
 import OutputSandbox from "../../../src/components/sandbox/OutputSandbox";
+import { useContext } from "react";
+import { ThemeContext } from "../../../src/contexts/ThemeProvider";
 
 export default function WorkspaceOutputs({ outputs = [], onDelete }) {
     return (
@@ -16,6 +18,7 @@ export default function WorkspaceOutputs({ outputs = [], onDelete }) {
 
 function Output({ output, onDelete }) {
     const { t } = useTranslation();
+    const { theme } = useContext(ThemeContext);
 
     // Check if the output is HTML content
     const isHtmlContent =
@@ -34,7 +37,7 @@ function Output({ output, onDelete }) {
                     />
                 </div>
                 {isHtmlContent ? (
-                    <OutputSandbox content={output.output} />
+                    <OutputSandbox content={output.output} theme={theme} />
                 ) : (
                     <div className="chat-message-bot">
                         {convertMessageToMarkdown({

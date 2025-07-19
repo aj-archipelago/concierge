@@ -6,6 +6,7 @@ export async function createWorkspace({
     ownerId,
     prompts = [],
     systemPrompt,
+    applet = null,
 }) {
     // Use workspace name as is
     const name = workspaceName;
@@ -39,6 +40,7 @@ export async function createWorkspace({
         owner: ownerId,
         prompts,
         systemPrompt,
+        applet,
     });
     return workspace;
 }

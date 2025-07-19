@@ -1,5 +1,11 @@
 import React from "react";
-import { render, screen, fireEvent, act } from "@testing-library/react";
+import {
+    render,
+    screen,
+    fireEvent,
+    act,
+    waitFor,
+} from "@testing-library/react";
 import "@testing-library/jest-dom";
 import MessageInput from "./MessageInput";
 import { AuthContext } from "../../App";
@@ -125,8 +131,8 @@ jest.mock("../../graphql", () => ({
 // Mock the mediaUtils
 jest.mock("../../utils/mediaUtils", () => ({
     getFilename: jest.fn(),
-    isDocumentUrl: jest.fn(),
-    isMediaUrl: jest.fn(),
+    isRagFileUrl: jest.fn(),
+    isSupportedFileUrl: jest.fn(),
     ACCEPTED_FILE_TYPES: ["image/png", "image/jpeg", "image/gif"],
 }));
 
@@ -173,7 +179,10 @@ const createMockClipboardData = ({ plain = "", html = "", items = [] }) => ({
 });
 
 describe("MessageInput", () => {
-    const mockOnSend = jest.fn();
+    const mockOnSend = jest.fn().mockImplementation(() => {
+        // Mock implementation that doesn't trigger state updates
+        return Promise.resolve();
+    });
     const mockOnStopStreaming = jest.fn();
     const mockDebouncedUpdateUserState = jest.fn();
     const mockUser = {
@@ -670,7 +679,7 @@ describe("MessageInput", () => {
     });
 
     describe("Form submission", () => {
-        it("should submit form with text input", () => {
+        it("should submit form with text input", async () => {
             renderMessageInput({ isStreaming: false });
             const input = screen.getByPlaceholderText("Send a message");
             const submitButton = screen.getByTestId("send-button");
@@ -678,7 +687,9 @@ describe("MessageInput", () => {
             fireEvent.change(input, { target: { value: "Test message" } });
             fireEvent.click(submitButton);
 
-            expect(mockOnSend).toHaveBeenCalledWith("Test message");
+            await waitFor(() => {
+                expect(mockOnSend).toHaveBeenCalledWith("Test message");
+            });
         });
 
         it("should not submit when loading", () => {
@@ -701,14 +712,16 @@ describe("MessageInput", () => {
             expect(mockOnSend).not.toHaveBeenCalled();
         });
 
-        it("should handle Enter key submission", () => {
+        it("should handle Enter key submission", async () => {
             renderMessageInput();
             const input = screen.getByPlaceholderText("Send a message");
 
             fireEvent.change(input, { target: { value: "Test message" } });
             fireEvent.keyDown(input, { key: "Enter", shiftKey: false });
 
-            expect(mockOnSend).toHaveBeenCalledWith("Test message");
+            await waitFor(() => {
+                expect(mockOnSend).toHaveBeenCalledWith("Test message");
+            });
             expect(input.value).toBe("");
         });
 
@@ -765,11 +778,15 @@ describe("MessageInput", () => {
             expect(input.value).toBe("New message");
         });
 
-        it("should clear input after submission", () => {
+        it("should clear input after submission", async () => {
             renderMessageInput();
             const input = screen.getByPlaceholderText("Send a message");
             fireEvent.change(input, { target: { value: "Test message" } });
             fireEvent.keyDown(input, { key: "Enter", shiftKey: false });
+
+            await waitFor(() => {
+                expect(mockOnSend).toHaveBeenCalledWith("Test message");
+            });
             expect(input.value).toBe("");
         });
 
@@ -835,7 +852,7 @@ describe("MessageInput", () => {
     });
 
     describe("URL handling", () => {
-        it("should correctly process various YouTube URL formats", () => {
+        it("should correctly process various YouTube URL formats", async () => {
             const youtubeUrls = [
                 "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
                 "https://youtu.be/dQw4w9WgXcQ",
@@ -891,7 +908,9 @@ describe("MessageInput", () => {
                 expect(input.value).toBe(""); // Input cleared
             }
 
-            expect(mockOnSend).toHaveBeenCalledTimes(youtubeUrls.length);
+            await waitFor(() => {
+                expect(mockOnSend).toHaveBeenCalledTimes(youtubeUrls.length);
+            });
             youtubeUrls.forEach((url) => {
                 expect(mockOnSend).toHaveBeenCalledWith(url); // Assuming onSend receives the raw URL for YouTube links
             });
@@ -901,7 +920,7 @@ describe("MessageInput", () => {
         it("should handle document URLs", async () => {
             jest.spyOn(
                 require("../../utils/mediaUtils"),
-                "isDocumentUrl",
+                "isRagFileUrl",
             ).mockImplementation(() => true);
             const mockQuery = jest.fn().mockResolvedValue({});
             const mockApolloClient = { query: mockQuery };
@@ -943,11 +962,11 @@ describe("MessageInput", () => {
         it("should handle media URLs by adding to urlsData and enabling send", async () => {
             jest.spyOn(
                 require("../../utils/mediaUtils"),
-                "isMediaUrl",
+                "isSupportedFileUrl",
             ).mockImplementation(() => true);
             jest.spyOn(
                 require("../../utils/mediaUtils"),
-                "isDocumentUrl",
+                "isRagFileUrl",
             ).mockImplementation(() => false); // Ensure it's not treated as doc
 
             const setUrlsDataMock = jest.fn();

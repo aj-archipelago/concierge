@@ -109,7 +109,13 @@ function DigestEditor({ value, onChange, onCancel }) {
 
     return (
         <div>
-            <h2 className="text-lg font-semibold mb-4">{t("Edit Digest")}</h2>
+            <h2 className="text-lg font-semibold mb-4">
+                {t("Edit dashboard")}
+            </h2>
+            <p className="text-sm text-gray-500 mb-4">
+                Configure the blocks that appear in your dashboard here. You can
+                add or delete blocks and edit the prompts for each block.
+            </p>
             <div className="grid sm:grid-cols-2 gap-4 mb-2">
                 {blocks?.map((p) => {
                     return (

@@ -1,6 +1,6 @@
 "use client";
 import { useContext, useEffect, useState } from "react";
-import { MdOutlineTopic } from "react-icons/md";
+import { Tag } from "lucide-react";
 import config from "../../../../config";
 import { LanguageContext } from "../../../contexts/LanguageProvider";
 import { QUERIES } from "../../../graphql";
@@ -23,7 +23,7 @@ export default function Topics({ inputText }) {
 
     return (
         <SidebarItem
-            icon={<MdOutlineTopic />}
+            icon={<Tag />}
             inputText={inputText}
             name="Topics"
             output={topics}

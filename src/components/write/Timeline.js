@@ -1,6 +1,6 @@
-import * as dayjs from "dayjs";
+import dayjs from "dayjs";
 import * as chrono from "chrono-node";
-const { useTranslation } = require("react-i18next");
+import { useTranslation } from "react-i18next";
 
 const getLastOccurrenceOfMonth = (monthName) => {
     const month = [
