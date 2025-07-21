@@ -111,7 +111,7 @@ export default React.forwardRef(function SendFeedbackModal(
     return (
         <Modal show={show && !isCapturing} onHide={onHide}>
             <div className="p-6">
-                <div className="text-xl font-semibold mb-6 text-gray-900">
+                <div className="text-xl font-semibold mb-6 text-gray-900 dark:text-gray-100">
                     {t("Send us a message")}
                 </div>
                 <div className="flex gap-6 mb-6">
@@ -188,7 +188,7 @@ export default React.forwardRef(function SendFeedbackModal(
                     </div>
                 </div>
                 {error && (
-                    <div className="bg-red-50 p-4 rounded-lg text-red-500 mb-6 flex items-center justify-between border border-red-100">
+                    <div className="bg-red-50 dark:bg-red-900/20 p-4 rounded-lg text-red-500 dark:text-red-400 mb-6 flex items-center justify-between border border-red-100 dark:border-red-800">
                         <span className="text-sm">{error}</span>
                         <button
                             className="text-red-500 hover:text-red-700 p-1 rounded-full hover:bg-red-100 transition-colors"

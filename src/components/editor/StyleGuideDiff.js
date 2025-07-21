@@ -607,7 +607,7 @@ const StyleGuideDiff = ({ styleGuideResult = "", setSelectedText }) => {
 
     return (
         <div
-            className="ai-diff overflow-auto h-full gap-2"
+            className="overflow-auto h-full gap-2"
             onKeyDown={(e) => {
                 if (
                     typeof document !== "undefined" &&

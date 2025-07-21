@@ -139,7 +139,7 @@ function SystemPrompt({ editing, setEditing }) {
             <div className="p-1 flex gap-2">
                 <h4 className="font-medium mt-1 mb-1">{t("Context")}</h4>
                 <div className="flex gap-2 items-center text-sm">
-                    <div className="text-gray-500">{t("(None)")}</div>
+                    <div className="text-gray-500 dark:text-gray-400">{t("(None)")}</div>
                     <div
                         className="text-sky-500 hover:text-gray-700 active:text-gray-900 cursor-pointer"
                         onClick={(e) => {
@@ -171,11 +171,11 @@ function SystemPrompt({ editing, setEditing }) {
             </Modal>
             <h4 className="font-medium mb-1">{t("Context")}</h4>
 
-            <div className="overflow-auto text-start bg-gray-50 p-2 rounded-md border w-full">
+                            <div className="overflow-auto text-start bg-gray-50 dark:bg-gray-800 p-2 rounded-md border dark:border-gray-600 w-full">
                 <div className="flex gap-2 items-center justify-between w-full">
                     <div className="min-w-0 flex-1">
                         <div
-                            className="truncate min-w-0 text-gray-500 text-xs"
+                            className="truncate min-w-0 text-gray-500 dark:text-gray-400 text-xs"
                             title={value}
                         >
                             {value}
@@ -183,7 +183,7 @@ function SystemPrompt({ editing, setEditing }) {
                     </div>
                     {isOwner && (
                         <div
-                            className="text-gray-500 hover:text-gray-700 active:text-gray-900 cursor-pointer"
+                            className="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 active:text-gray-900 dark:active:text-gray-200 cursor-pointer"
                             onClick={(e) => {
                                 setEditing(true);
                             }}
@@ -333,7 +333,7 @@ function PromptEditor({ selectedPrompt, onBack }) {
                     </select>
 
                     {isPublished && (
-                        <div className="text-xs text-gray-400 mb-4">
+                        <div className="text-xs text-gray-400 dark:text-gray-500 mb-4">
                             {t(
                                 "The model cannot be modified because this workspace is published to Cortex.",
                             )}

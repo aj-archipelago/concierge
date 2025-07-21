@@ -133,7 +133,7 @@ export default function PublishedAppletPage() {
                 </div>
             )}
 
-            <div className="w-full h-full bg-white">
+            <div className="w-full h-full bg-white dark:bg-gray-800">
                 <OutputSandbox
                     content={publishedHtml}
                     height="100%"

@@ -149,7 +149,7 @@ export default function ChatInterface({
                                             e.stopPropagation();
                                             onReplayMessage(index);
                                         }}
-                                        className="text-xs text-sky-600 hover:text-sky-700 transition-colors p-1 hover:bg-sky-50 rounded-full"
+                                        className="text-xs text-sky-600 hover:text-sky-700 transition-colors p-1 hover:bg-sky-50 dark:hover:bg-sky-900/20 rounded-full"
                                         title={t("Replay from this message")}
                                     >
                                         <RotateCcw className="w-3 h-3" />

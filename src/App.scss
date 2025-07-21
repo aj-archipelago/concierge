@@ -43,7 +43,7 @@ $chat-secondary: #002425;
 @import "components/editor/ImportSuggestions";
 @import "components/write/Timeline";
 @import "components/write/Sidebar";
-@import "components/editor/Diff";
+
 @import "components/images/Media";
 
 @include meta.load-css("highlight.js/styles/github");

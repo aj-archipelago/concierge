@@ -310,50 +310,7 @@ body.dark {
         color: $text-color-dark-dim;
     }
 
-    .transcribe-output {
-        background-color: $bg-color-dark;
-        color: $text-color-dark;
-        border-color: $border-color-dark;
-    }
 
-    .options-section {
-        background-color: $bg-color-dark-dim;
-        color: $text-color-dark;
-        border-color: $border-color-dark;
-    }
-
-    .selection-section {
-        .custom-file-input {
-            background-color: $bg-color-dark-dim;
-            color: $text-color-dark;
-            border-color: $border-color-dark;
-        }
-    }
-    .transcribe-output {
-        background-color: $bg-color-dark-dim;
-        color: $text-color-dark;
-        border-color: $border-color-dark;
-    }
-
-    .ai-diff .change-button {
-        background-color: $bg-color-dark;
-        color: $text-color-dark;
-        border-color: $border-color-dark;
-
-        &.active {
-            background-color: #3b2d00;
-        }
-    }
-
-    .add-highlight::before {
-        background-color: #8d6700;
-    }
-
-    .story-angles {
-        background-color: $bg-color-dark;
-        color: $text-color-dark;
-        border-color: $border-color-dark;
-    }
 
     .react-select {
         .react-select__control {

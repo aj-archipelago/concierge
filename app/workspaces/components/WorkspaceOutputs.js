@@ -29,7 +29,7 @@ function Output({ output, onDelete }) {
     return (
         <div key={output._id} className="relative mb-3">
             <div className="font-semibold text-lg">{output.title}</div>
-            <div className="mt-3 mb-1 p-4 bg-gray-50 border rounded-md relative">
+            <div className="mt-3 mb-1 p-4 bg-gray-50 dark:bg-gray-800 border dark:border-gray-600 rounded-md relative">
                 <div className="absolute top-3 right-3">
                     <CopyButton
                         item={output.output}

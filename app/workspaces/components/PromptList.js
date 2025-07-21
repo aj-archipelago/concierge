@@ -168,7 +168,7 @@ function PromptListItem({ prompt, onEdit, onRun, isRunning, inputValid }) {
 
     return (
         <div key={prompt._id} className="mb-2 relative">
-            <div className="w-full text-start bg-gray-50 rounded-md border flex">
+            <div className="w-full text-start bg-gray-50 dark:bg-gray-800 rounded-md border dark:border-gray-600 flex">
                 <div className="p-2 relative border-e border-gray-300 overflow-auto basis-[calc(100%-5em)]">
                     <div className="flex gap-2 items-center justify-between mb-1">
                         <div className="font-medium">
@@ -189,7 +189,7 @@ function PromptListItem({ prompt, onEdit, onRun, isRunning, inputValid }) {
                             )}
                             {!isRunning && isOwner && (
                                 <button
-                                    className="text-gray-500 hover:text-gray-700 active:text-gray-900 cursor-pointer"
+                                    className="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 active:text-gray-900 dark:active:text-gray-200 cursor-pointer"
                                     onClick={(e) => {
                                         onEdit(prompt);
                                         e.stopPropagation();
@@ -203,7 +203,7 @@ function PromptListItem({ prompt, onEdit, onRun, isRunning, inputValid }) {
                         </div>
                     </div>
 
-                    <div className="text-gray-500 text-xs">{prompt.text}</div>
+                    <div className="text-gray-500 dark:text-gray-400 text-xs">{prompt.text}</div>
                 </div>
                 <button
                     className="disabled:opacity-50 enabled:hover:bg-gray-100 enabled:active:bg-gray-200 p-2 basis-[5em] slef-stretch flex items-center justify-center"

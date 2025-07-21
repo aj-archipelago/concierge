@@ -486,13 +486,13 @@ export default React.forwardRef(function Sidebar(
                     <li>
                         <div className="pt-3 pb-2 bg-gray-50 dark:bg-gray-700 -mx-5 px-5 text-gray-700 dark:text-gray-200">
                             <button
-                                className="flex gap-2 items-center text-xs w-full"
+                                className="flex gap-2 items-center text-xs w-full hover:opacity-80 transition-opacity"
                                 onClick={() => router.push("/apps")}
                             >
-                                <Grid3X3 className="h-4 w-4 shrink-0 text-gray-400" />
+                                <Grid3X3 className="h-4 w-4 shrink-0 text-gray-400 dark:text-gray-300" />
                                 <span
                                     className={cn(
-                                        "text-xs text-gray-500",
+                                        "text-xs text-gray-500 dark:text-gray-300",
                                         isCollapsed &&
                                             "hidden group-hover:block",
                                     )}

@@ -693,7 +693,7 @@ export default function QueuesPage() {
                                                                             className={`px-3 py-2 text-sm ${
                                                                                 currentPage ===
                                                                                 page
-                                                                                    ? "bg-neutral-100 font-bold"
+                                                                                    ? "bg-neutral-100 dark:bg-gray-700 font-bold"
                                                                                     : "hover:bg-muted"
                                                                             } rounded-md`}
                                                                         >

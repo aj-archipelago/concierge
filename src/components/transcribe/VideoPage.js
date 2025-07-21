@@ -624,7 +624,7 @@ function EditableTranscriptSelect({
                                                 </DropdownMenuItem>
                                             )}
                                             <DropdownMenuItem
-                                                className="text-red-600 focus:text-red-600 focus:bg-red-50 text-xs"
+                                                className="text-red-600 focus:text-red-600 focus:bg-red-50 dark:focus:bg-red-900/20 text-xs"
                                                 onClick={() => {
                                                     if (
                                                         window.confirm(
@@ -773,7 +773,7 @@ function VideoPlayer({
                 )}
             >
                 {videoError ? (
-                    <div className="w-full p-6 bg-gray-50">
+                    <div className="w-full p-6 bg-gray-50 dark:bg-gray-800">
                         <div className="text-gray-600 font-medium mb-2 flex items-center gap-2">
                             <AlertTriangle className="h-4 w-4" />
                             {t("Video Unavailable")}
@@ -961,9 +961,9 @@ function VideoInformationBox({
                     <div className="grid grid-cols-[40px_1fr] gap-2 items-center">
                         <div className="text-xs text-gray-500">{t("URL")}</div>
                         <div className="w-full flex gap-2 overflow-hidden items-center py-1 px-2 rounded-md bg-gray-100 dark:bg-gray-800">
-                            <div className="text-xs text-gray-600 truncate grow">
-                                {currentUrl}
-                            </div>
+                                                    <div className="text-xs text-gray-600 dark:text-gray-400 truncate grow">
+                            {currentUrl}
+                        </div>
                             <button
                                 onClick={() => handleCopy(currentUrl)}
                                 className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors flex-shrink-0"
@@ -1595,7 +1595,7 @@ function VideoPage() {
 
                                                     return (
                                                         <div className="border rounded-lg border-gray-200/50 dark:border-gray-600/50 p-3 space-y-3">
-                                                            <div className="text-sm text-sky-600 font-semibold text-gray-500 flex items-center gap-2">
+                                                            <div className="text-sm text-sky-600 font-semibold flex items-center gap-2">
                                                                 <Volume2Icon className="h-4 w-4" />
                                                                 {t(
                                                                     "Audio tracks",
@@ -1746,7 +1746,7 @@ function VideoPage() {
                                                                                         );
                                                                                     }}
                                                                                     className={`grow truncate text-start text-xs px-3 py-1.5 hover:bg-sky-100 active:bg-sky-200 transition-colors
-                                                                            ${activeLanguage === idx ? "bg-sky-50 text-gray-900" : "text-gray-600"}`}
+                                                                            ${activeLanguage === idx ? "bg-sky-50 dark:bg-sky-900/20 text-gray-900 dark:text-gray-100" : "text-gray-600 dark:text-gray-400"}`}
                                                                                 >
                                                                                     {lang.label ||
                                                                                         new Intl.DisplayNames(
@@ -1794,7 +1794,7 @@ function VideoPage() {
                                                                                                         );
                                                                                                     }
                                                                                                 }}
-                                                                                                className="px-2 bg-sky-50 text-gray-500 hover:text-red-500 transition-colors border-gray-200 dark:border-gray-600 flex items-center cursor-pointer"
+                                                                                                className="px-2 bg-sky-50 dark:bg-sky-900/20 text-gray-500 dark:text-gray-400 hover:text-red-500 transition-colors border-gray-200 dark:border-gray-600 flex items-center cursor-pointer"
                                                                                                 title={t(
                                                                                                     "Delete language",
                                                                                                 )}
@@ -1809,7 +1809,7 @@ function VideoPage() {
                                                                                             lang.url
                                                                                         }
                                                                                         download={`video-${lang.code}.mp4`}
-                                                                                        className="px-2 hover:bg-sky-50 transition-colors border-l border-gray-200 dark:border-gray-600 flex items-center cursor-pointer"
+                                                                                        className="px-2 hover:bg-sky-50 dark:hover:bg-sky-900/20 transition-colors border-l border-gray-200 dark:border-gray-600 flex items-center cursor-pointer"
                                                                                         onClick={(
                                                                                             e,
                                                                                         ) =>
