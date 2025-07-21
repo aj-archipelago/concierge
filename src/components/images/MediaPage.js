@@ -10,14 +10,7 @@ import {
     useState,
 } from "react";
 import { useTranslation } from "react-i18next";
-import {
-    FaDownload,
-    FaTrash,
-    FaCheck,
-    FaPlus,
-    FaCog,
-    FaSpinner,
-} from "react-icons/fa";
+import { Download, Trash2, Check, Plus, Settings, Loader2 } from "lucide-react";
 import { LanguageContext } from "../../contexts/LanguageProvider";
 import { Modal } from "../../../@/components/ui/modal";
 import { QUERIES } from "../../graphql";
@@ -1514,9 +1507,9 @@ function MediaPage() {
                                                 disabled={isUploading}
                                             />
                                             {isUploading ? (
-                                                <FaSpinner className="animate-spin" />
+                                                <Loader2 className="animate-spin" />
                                             ) : (
-                                                <FaPlus />
+                                                <Plus />
                                             )}
                                         </label>
                                     </TooltipTrigger>
@@ -1536,7 +1529,7 @@ function MediaPage() {
                                                 setShowSettings(true)
                                             }
                                         >
-                                            <FaCog />
+                                            <Settings />
                                         </button>
                                     </TooltipTrigger>
                                     <TooltipContent>
@@ -1635,7 +1628,7 @@ function MediaPage() {
                                     disabled={selectedImages.size === 0}
                                     onClick={() => handleBulkAction("download")}
                                 >
-                                    <FaDownload />
+                                    <Download />
                                 </button>
                             </TooltipTrigger>
                             <TooltipContent>
@@ -1650,7 +1643,7 @@ function MediaPage() {
                                     disabled={selectedImages.size === 0}
                                     onClick={() => handleBulkAction("delete")}
                                 >
-                                    <FaTrash />
+                                    <Trash2 />
                                 </button>
                             </TooltipTrigger>
                             <TooltipContent>
@@ -1668,7 +1661,7 @@ function MediaPage() {
                                         setShowDeleteAllConfirm(true)
                                     }
                                 >
-                                    <FaTrash />
+                                    <Trash2 />
                                 </button>
                             </TooltipTrigger>
                             <TooltipContent>{t("Delete All")}</TooltipContent>
@@ -2180,7 +2173,7 @@ function ImageTile({
                 className={`selection-checkbox ${isSelected ? "selected" : ""}`}
                 onClick={handleSelection}
             >
-                <FaCheck
+                <Check
                     className={`text-sm ${isSelected ? "opacity-100" : "opacity-0"}`}
                 />
             </div>
@@ -2196,7 +2189,7 @@ function ImageTile({
                             window.open(url, "_blank");
                         }}
                     >
-                        <FaDownload />
+                        <Download />
                     </button>
                     <button
                         className="lb-icon-button bg-white bg-opacity-80 hover:bg-opacity-100 text-gray-700 hover:text-gray-900 dark:bg-gray-800 dark:bg-opacity-80 dark:hover:bg-opacity-100 dark:text-gray-200 dark:hover:text-white shadow-sm"
@@ -2208,7 +2201,7 @@ function ImageTile({
                             setShowDeleteSelectedConfirm(true);
                         }}
                     >
-                        <FaTrash />
+                        <Trash2 />
                     </button>
                 </div>
 

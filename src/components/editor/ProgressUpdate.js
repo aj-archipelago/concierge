@@ -4,8 +4,7 @@ import { Progress } from "@/components/ui/progress";
 import ReactProgressTimer from "react-progress-timer";
 import ReactTimeAgo from "react-time-ago";
 import { SUBSCRIPTIONS, CODE_HUMAN_INPUT } from "../../graphql";
-import { MdCancel } from "react-icons/md";
-import { FaSpinner } from "react-icons/fa";
+import { X, Loader2 } from "lucide-react";
 
 const ProgressUpdate = ({
     requestId,
@@ -125,7 +124,7 @@ const ProgressUpdate = ({
                 <div className="mb-2">
                     <div className="flex items-center">
                         <div className="flex items-center gap-2">
-                            <FaSpinner className="animate-spin text-blue-500" />
+                            <Loader2 className="animate-spin text-blue-500" />
                             <span className="text-sm text-gray-600">
                                 {initialText}
                             </span>
@@ -141,7 +140,7 @@ const ProgressUpdate = ({
                                 }`}
                                 onClick={handleCancel}
                             >
-                                <MdCancel />
+                                <X />
                             </button>
                         )}
                     </div>
@@ -162,7 +161,7 @@ const ProgressUpdate = ({
                                     }`}
                                     onClick={handleCancel}
                                 >
-                                    <MdCancel />
+                                    <X />
                                 </button>
                             )}
                         </div>

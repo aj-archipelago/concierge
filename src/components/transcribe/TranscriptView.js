@@ -2,7 +2,7 @@
 
 import React, { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { FaEdit } from "react-icons/fa";
+import { Edit } from "lucide-react";
 import TextareaAutosize from "react-textarea-autosize";
 import CopyButton from "../CopyButton";
 import { parse, formatTimestamp } from "@aj-archipelago/subvibe";
@@ -169,7 +169,7 @@ function EditableSubtitleText({ text, onSave, className = "" }) {
             className={`group cursor-pointer flex items-center gap-2 ${className}`}
         >
             <div className="hover:underline w-[calc(100%-20px)]">{text}</div>
-            <FaEdit className="w-3 h-3 text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity hover:text-sky-600" />
+            <Edit className="w-3 h-3 text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity hover:text-sky-600" />
         </div>
     );
 }

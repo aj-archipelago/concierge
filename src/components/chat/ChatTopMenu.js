@@ -1,15 +1,14 @@
 import { useSelector } from "react-redux";
 import { useTranslation } from "react-i18next";
-import { MdOutlineSdStorage } from "react-icons/md";
 import { Popover } from "@headlessui/react";
-import { IoIosTrash } from "react-icons/io";
-import { Microscope } from "lucide-react";
 import {
-    BsFiletypeDocx,
-    BsFiletypePdf,
-    BsFiletypeTxt,
-    BsFiletypeXlsx,
-} from "react-icons/bs";
+    Microscope,
+    Database,
+    Trash2,
+    FileImage,
+    FileText,
+    FileSpreadsheet,
+} from "lucide-react";
 import { COGNITIVE_DELETE } from "../../graphql";
 import { useLazyQuery } from "@apollo/client";
 import { useContext, useState, useEffect } from "react";
@@ -26,15 +25,15 @@ function getFileIcon(filename) {
     const extension = filename?.split(".").pop().toLowerCase();
     switch (extension) {
         case "pdf":
-            return <BsFiletypePdf />;
+            return <FileImage />;
         case "docx":
         case "doc":
-            return <BsFiletypeDocx />;
+            return <FileText />;
         case "xlsx":
         case "xls":
-            return <BsFiletypeXlsx />;
+            return <FileSpreadsheet />;
         default:
-            return <BsFiletypeTxt />;
+            return <FileText />;
     }
 }
 
@@ -126,7 +125,7 @@ function ChatTopMenu({ displayState = "full" }) {
                 <Popover className="relative">
                     {/* bg-slate-50  hover:bg-slate-300 */}
                     <Popover.Button className="flex gap-0 focus:outline-none items-center rounded-md underline hover:text-sky-500 active:text-sky-700">
-                        <MdOutlineSdStorage />
+                        <Database />
                         {displayStateFull
                             ? t("Files indexed in this conversation")
                             : t("Files")}{" "}
@@ -172,7 +171,7 @@ function ChatTopMenu({ displayState = "full" }) {
                                             <button
                                                 onClick={() => handleDelete(id)}
                                             >
-                                                <IoIosTrash className="text-lg" />
+                                                <Trash2 className="text-lg" />
                                             </button>
                                         )}
                                     </div>

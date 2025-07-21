@@ -22,12 +22,12 @@ import { useRouter } from "next/navigation";
 import { useContext, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
-    FaArrowLeft,
-    FaArrowRight,
-    FaEdit,
-    FaEllipsisH,
-    FaLink,
-} from "react-icons/fa";
+    ArrowLeft,
+    ArrowRight,
+    Edit,
+    MoreHorizontal,
+    Link,
+} from "lucide-react";
 import stringcase from "stringcase";
 import { Modal } from "../../../../@/components/ui/modal";
 import { AuthContext, ServerContext } from "../../../../src/App";
@@ -61,9 +61,9 @@ export default function WorkspaceActions({ idOrSlug, user }) {
                             onClick={() => router.push("/workspaces")}
                         >
                             {direction === "rtl" ? (
-                                <FaArrowRight />
+                                <ArrowRight />
                             ) : (
-                                <FaArrowLeft />
+                                <ArrowLeft />
                             )}
                         </button>
                     </div>
@@ -186,7 +186,7 @@ function Name({ workspace, user }) {
                     </div>
                     <div className=" flex items-center" dir="ltr">
                         <div className=" flex gap-2 text-xs sm:text-sm items-center text-gray-500">
-                            <FaLink />
+                            <Link />
                             {serverContext?.serverUrl}/workspaces/
                         </div>
                         <input
@@ -258,7 +258,7 @@ function Name({ workspace, user }) {
                                 setShowCopiedMessage(true);
                             }}
                         >
-                            <FaLink />
+                            <Link />
                         </button>
                         {showCopiedMessage && (
                             <div className="bg-white text-gray-400">
@@ -288,7 +288,7 @@ function Name({ workspace, user }) {
                         className="lb-outline-secondary self-start"
                         onClick={() => setEditing(true)}
                     >
-                        <FaEdit />
+                        <Edit />
                     </button>
                 )}
             </div>
@@ -410,7 +410,7 @@ function Actions({ user, workspace }) {
                     <DropdownMenu>
                         <DropdownMenuTrigger>
                             <div className="lb-outline-secondary">
-                                <FaEllipsisH />
+                                <MoreHorizontal />
                             </div>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent>

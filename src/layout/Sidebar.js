@@ -1,10 +1,11 @@
-import { PlusIcon } from "@heroicons/react/24/outline";
 import {
     HelpCircle,
     PinIcon,
     PinOffIcon,
     AppWindow,
     Grid3X3,
+    EditIcon,
+    Plus,
 } from "lucide-react";
 import * as Icons from "lucide-react";
 import Link from "next/link";
@@ -18,6 +19,7 @@ import {
     useSetActiveChatId,
 } from "../../app/queries/chats";
 import { useCurrentUser } from "../../app/queries/users";
+import { useWorkspace } from "../../app/queries/workspaces";
 import classNames from "../../app/utils/class-names";
 import config from "../../config";
 import SendFeedbackModal from "../components/help/SendFeedbackModal";
@@ -86,6 +88,40 @@ export const shouldForceCollapse = (pathname) => {
             (item) => item.collapsed && pathname?.startsWith(item.href),
         ) ||
         routesToCollapseSidebarFor.some((route) => pathname?.startsWith(route))
+    );
+};
+
+const AppletEditButton = ({ workspaceId, router, isCollapsed }) => {
+    const { t } = useTranslation();
+    const { data: currentUser } = useCurrentUser();
+    const { data: workspace } = useWorkspace(workspaceId);
+
+    // Check if user is the owner of the workspace
+    const isOwner =
+        currentUser?._id?.toString() === workspace?.owner?.toString();
+
+    if (!isOwner) {
+        return null;
+    }
+
+    const handleEditClick = (e) => {
+        e.stopPropagation();
+        if (workspaceId) {
+            router.push(`/workspaces/${workspaceId}`);
+        }
+    };
+
+    return (
+        <EditIcon
+            className={cn(
+                "h-4 w-4 ml-auto text-gray-400 hover:text-gray-600 cursor-pointer",
+                isCollapsed
+                    ? "hidden group-hover:inline"
+                    : "invisible group-hover:visible",
+            )}
+            onClick={handleEditClick}
+            title={t("Edit applet")}
+        />
     );
 };
 
@@ -171,6 +207,8 @@ export default React.forwardRef(function Sidebar(
                         icon: Icons[app.icon] || AppWindow,
                         href: `/published/workspaces/${app.workspaceId}/applet`,
                         appId: userApp.appId._id || userApp.appId,
+                        workspaceId: app.workspaceId,
+                        type: "applet",
                     };
                 }
 
@@ -296,7 +334,7 @@ export default React.forwardRef(function Sidebar(
                             {updatedNavigation.map((item) => (
                                 <li
                                     key={item.name}
-                                    className="rounded-md cursor-pointer"
+                                    className="rounded-md cursor-pointer group"
                                 >
                                     <div
                                         className={classNames(
@@ -331,7 +369,7 @@ export default React.forwardRef(function Sidebar(
                                             </span>
                                         </div>
                                         {item.name === "Chat" && (
-                                            <PlusIcon
+                                            <Plus
                                                 className={cn(
                                                     "h-6 w-6 ml-auto p-1 rounded-full bg-blue-100 text-blue-600 hover:bg-blue-200 hover:text-blue-800 cursor-pointer",
                                                     isCollapsed
@@ -344,6 +382,16 @@ export default React.forwardRef(function Sidebar(
                                                 }}
                                             />
                                         )}
+                                        {item.type === "applet" &&
+                                            item.workspaceId && (
+                                                <AppletEditButton
+                                                    workspaceId={
+                                                        item.workspaceId
+                                                    }
+                                                    router={router}
+                                                    isCollapsed={isCollapsed}
+                                                />
+                                            )}
                                     </div>
                                     {item.children?.length > 0 && (
                                         <ul

@@ -42,7 +42,7 @@ import {
 } from "lucide-react";
 import { useCallback, useContext, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { FaEdit, FaYoutube } from "react-icons/fa";
+import { Edit, Youtube } from "lucide-react";
 import ReactTimeAgo from "react-time-ago";
 import classNames from "../../../app/utils/class-names";
 import { AuthContext } from "../../App";
@@ -659,7 +659,7 @@ function EditableTranscriptSelect({
                             className="ms-0.5 text-gray-400 hover:text-gray-600"
                             onClick={() => setEditing(true)}
                         >
-                            <FaEdit className="h-4 w-4" />
+                            <Edit className="h-4 w-4" />
                         </button>
                     </span>
                 </div>
@@ -854,7 +854,7 @@ function VideoInformationBox({
         if (isYoutubeUrl(currentUrl)) {
             setMediaInfo({
                 type: "youtube",
-                icon: <FaYoutube className="h-4 w-4 text-red-500" />,
+                icon: <Youtube className="h-4 w-4 text-red-500" />,
                 label: t("YouTube Video"),
             });
             return;

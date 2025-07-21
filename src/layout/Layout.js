@@ -1,7 +1,6 @@
 "use client";
 import { Dialog, Transition } from "@headlessui/react";
-import { Bars3Icon, XMarkIcon } from "@heroicons/react/24/outline";
-import { MessageCircle } from "lucide-react";
+import { Menu, X, MessageCircle } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { Fragment, useContext, useEffect, useRef, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
@@ -139,7 +138,7 @@ export default function Layout({ children }) {
                                                 <span className="sr-only">
                                                     Close sidebar
                                                 </span>
-                                                <XMarkIcon
+                                                <X
                                                     className="h-6 w-6 text-white dark:text-gray-900"
                                                     aria-hidden="true"
                                                 />
@@ -181,7 +180,7 @@ export default function Layout({ children }) {
                             onClick={() => setSidebarOpen(true)}
                         >
                             <span className="sr-only">Open sidebar</span>
-                            <Bars3Icon className="h-6 w-6" aria-hidden="true" />
+                            <Menu className="h-6 w-6" aria-hidden="true" />
                         </button>
 
                         {/* Separator */}

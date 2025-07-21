@@ -4,7 +4,6 @@ import {
     DropdownMenuItem,
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { PlusIcon } from "@heroicons/react/24/outline";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
 import i18next from "i18next";
@@ -14,6 +13,7 @@ import {
     XIcon,
     UserCircle,
     Trash2,
+    Plus,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
@@ -369,7 +369,7 @@ function SavedChats({ displayState }) {
                         onClick={handleCreateNewChat}
                         className="lb-primary flex items-center gap-2 "
                     >
-                        <PlusIcon className="h-4 w-4" />
+                        <Plus className="h-4 w-4" />
                         {t("New Chat")}
                     </button>
                 </div>

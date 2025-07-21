@@ -10,7 +10,7 @@ import {
 } from "lucide-react";
 import { useCallback, useContext, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { FaVideo } from "react-icons/fa";
+
 import { AuthContext } from "../../App";
 import { LanguageContext } from "../../contexts/LanguageProvider";
 import { useNotificationsContext } from "../../contexts/NotificationContext";
@@ -509,7 +509,7 @@ export default function TranscribeVideo({
                     text={t(currentOperation)}
                     onClick={() => handleSubmit()}
                 >
-                    <FaVideo className="text-lg" /> {t("Transcribe")}
+                    <VideoIcon className="text-lg" /> {t("Transcribe")}
                 </LoadingButton>
             </div>
         </>
