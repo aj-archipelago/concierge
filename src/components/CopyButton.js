@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { MdOutlineContentCopy } from "react-icons/md";
+import { Copy } from "lucide-react";
 import classNames from "../../app/utils/class-names";
 import { marked } from "marked";
 
@@ -53,7 +53,7 @@ function CopyButton({ item, className = "absolute top-1 end-1 " }) {
                         {t("Copied to clipboard")}
                     </div>
                 )}
-                <MdOutlineContentCopy />
+                <Copy />
             </div>
         </button>
     );

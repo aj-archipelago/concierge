@@ -1,7 +1,6 @@
 "use client";
 import { Dialog, Transition } from "@headlessui/react";
-import { Bars3Icon, XMarkIcon } from "@heroicons/react/24/outline";
-import { MessageCircle } from "lucide-react";
+import { Menu, X, MessageCircle } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { Fragment, useContext, useEffect, useRef, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
@@ -19,10 +18,13 @@ import { setChatBoxPosition } from "../stores/chatSlice";
 import Footer from "./Footer";
 import ProfileDropdown from "./ProfileDropdown";
 import Sidebar from "./Sidebar";
+import { cn } from "@/lib/utils";
+import { shouldForceCollapse } from "./Sidebar";
 
 export default function Layout({ children }) {
     const [showOptions, setShowOptions] = useState(false);
     const [sidebarOpen, setSidebarOpen] = useState(false);
+    const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
     const [showTos, setShowTos] = useState(false);
     const statePosition = useSelector((state) => state.chat?.chatBox?.position);
     const dispatch = useDispatch();
@@ -58,6 +60,15 @@ export default function Layout({ children }) {
         // Clean up the event listener
         return () => window.removeEventListener("resize", setViewportHeight);
     }, []);
+
+    // Update toggle handler to use the helper function
+    const handleToggleCollapse = () => {
+        if (!shouldForceCollapse(pathname)) {
+            setSidebarCollapsed(!sidebarCollapsed);
+        }
+    };
+
+    const isCollapsed = shouldForceCollapse(pathname) || sidebarCollapsed;
 
     return (
         <>
@@ -127,7 +138,7 @@ export default function Layout({ children }) {
                                                 <span className="sr-only">
                                                     Close sidebar
                                                 </span>
-                                                <XMarkIcon
+                                                <X
                                                     className="h-6 w-6 text-white dark:text-gray-900"
                                                     aria-hidden="true"
                                                 />
@@ -135,7 +146,7 @@ export default function Layout({ children }) {
                                         </div>
                                     </Transition.Child>
                                     {/* Sidebar component, swap this element with another sidebar if you like */}
-                                    <Sidebar ref={contentRef} />
+                                    <Sidebar ref={contentRef} isMobile={true} />
                                 </Dialog.Panel>
                             </Transition.Child>
                         </div>
@@ -143,12 +154,25 @@ export default function Layout({ children }) {
                 </Transition.Root>
 
                 {/* Static sidebar for desktop */}
-                <div className="hidden lg:fixed lg:inset-y-0 lg:z-50 lg:flex lg:w-56 lg:flex-col">
-                    {/* Sidebar component, swap this element with another sidebar if you like */}
-                    <Sidebar ref={contentRef} />
+                <div
+                    className={cn(
+                        "hidden lg:fixed lg:inset-y-0 lg:z-[41] lg:flex lg:flex-col transition-all duration-300",
+                        isCollapsed ? "lg:w-16" : "lg:w-56",
+                    )}
+                >
+                    <Sidebar
+                        ref={contentRef}
+                        isCollapsed={isCollapsed}
+                        onToggleCollapse={handleToggleCollapse}
+                    />
                 </div>
 
-                <div className="lg:ps-56 overflow-hidden">
+                <div
+                    className={cn(
+                        "transition-all duration-300",
+                        isCollapsed ? "lg:ps-16" : "lg:ps-56",
+                    )}
+                >
                     <div className="sticky top-0 z-40 flex h-12 shrink-0 items-center gap-x-4 border-b border-gray-200 bg-white px-2 shadow-sm sm:gap-x-6 sm:px-3 lg:px-4">
                         <button
                             type="button"
@@ -156,7 +180,7 @@ export default function Layout({ children }) {
                             onClick={() => setSidebarOpen(true)}
                         >
                             <span className="sr-only">Open sidebar</span>
-                            <Bars3Icon className="h-6 w-6" aria-hidden="true" />
+                            <Menu className="h-6 w-6" aria-hidden="true" />
                         </button>
 
                         {/* Separator */}

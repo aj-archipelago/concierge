@@ -6,18 +6,28 @@ import {
     DropdownMenuItem,
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import axios from "../../../utils/axios-client";
 import { useRouter } from "next/navigation";
 import { useContext, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
-    FaArrowLeft,
-    FaArrowRight,
-    FaEdit,
-    FaEllipsisH,
-    FaLink,
-} from "react-icons/fa";
+    ArrowLeft,
+    ArrowRight,
+    Edit,
+    MoreHorizontal,
+    Link,
+} from "lucide-react";
 import stringcase from "stringcase";
 import { Modal } from "../../../../@/components/ui/modal";
 import { AuthContext, ServerContext } from "../../../../src/App";
@@ -51,9 +61,9 @@ export default function WorkspaceActions({ idOrSlug, user }) {
                             onClick={() => router.push("/workspaces")}
                         >
                             {direction === "rtl" ? (
-                                <FaArrowRight />
+                                <ArrowRight />
                             ) : (
-                                <FaArrowLeft />
+                                <ArrowLeft />
                             )}
                         </button>
                     </div>
@@ -176,7 +186,7 @@ function Name({ workspace, user }) {
                     </div>
                     <div className=" flex items-center" dir="ltr">
                         <div className=" flex gap-2 text-xs sm:text-sm items-center text-gray-500">
-                            <FaLink />
+                            <Link />
                             {serverContext?.serverUrl}/workspaces/
                         </div>
                         <input
@@ -248,7 +258,7 @@ function Name({ workspace, user }) {
                                 setShowCopiedMessage(true);
                             }}
                         >
-                            <FaLink />
+                            <Link />
                         </button>
                         {showCopiedMessage && (
                             <div className="bg-white text-gray-400">
@@ -278,7 +288,7 @@ function Name({ workspace, user }) {
                         className="lb-outline-secondary self-start"
                         onClick={() => setEditing(true)}
                     >
-                        <FaEdit />
+                        <Edit />
                     </button>
                 )}
             </div>
@@ -292,16 +302,34 @@ function Actions({ user, workspace }) {
     const deleteWorkspace = useDeleteWorkspace();
     const { t } = useTranslation();
     const [publishModalOpen, setPublishModalOpen] = useState(false);
+    const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+    const [deleteError, setDeleteError] = useState(null);
 
     const handleDelete = async () => {
-        if (
-            !window.confirm(
-                t("Are you sure you want to delete this workspace?"),
-            )
-        )
-            return;
-        await deleteWorkspace.mutateAsync({ id: workspace._id });
-        router.push("/workspaces");
+        setDeleteDialogOpen(false);
+        setDeleteError(null);
+
+        try {
+            await deleteWorkspace.mutateAsync({ id: workspace._id });
+            router.push("/workspaces");
+        } catch (error) {
+            if (error?.response?.data?.hasPublishedApplet) {
+                const appName = error.response.data.appName;
+                setDeleteError(
+                    t("Cannot delete workspace with published applet") +
+                        ` "${appName}". ` +
+                        t(
+                            "Please unpublish the applet first by going to the Applet tab and unpublishing it.",
+                        ),
+                );
+            } else {
+                setDeleteError(
+                    error?.response?.data?.error ||
+                        error.message ||
+                        t("Failed to delete workspace"),
+                );
+            }
+        }
     };
 
     if (isUserOwner) {
@@ -322,11 +350,67 @@ function Actions({ user, workspace }) {
                     setOpen={setPublishModalOpen}
                     workspace={workspace}
                 />
+                <AlertDialog
+                    open={deleteDialogOpen}
+                    onOpenChange={setDeleteDialogOpen}
+                >
+                    <AlertDialogContent>
+                        <AlertDialogHeader>
+                            <AlertDialogTitle>
+                                {t("Delete Workspace")}
+                            </AlertDialogTitle>
+                            <AlertDialogDescription>
+                                {t(
+                                    "Are you sure you want to delete this workspace?",
+                                )}
+                                <br />
+                                <span className="text-red-600 font-medium">
+                                    {t("This action cannot be undone.")}
+                                </span>
+                            </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                            <AlertDialogCancel>{t("Cancel")}</AlertDialogCancel>
+                            <AlertDialogAction
+                                onClick={handleDelete}
+                                disabled={deleteWorkspace.isPending}
+                            >
+                                {deleteWorkspace.isPending
+                                    ? t("Deleting...")
+                                    : t("Delete")}
+                            </AlertDialogAction>
+                        </AlertDialogFooter>
+                    </AlertDialogContent>
+                </AlertDialog>
+                {deleteError && (
+                    <AlertDialog
+                        open={!!deleteError}
+                        onOpenChange={() => setDeleteError(null)}
+                    >
+                        <AlertDialogContent>
+                            <AlertDialogHeader>
+                                <AlertDialogTitle className="text-red-600">
+                                    {t("Error")}
+                                </AlertDialogTitle>
+                                <AlertDialogDescription>
+                                    {deleteError}
+                                </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                                <AlertDialogAction
+                                    onClick={() => setDeleteError(null)}
+                                >
+                                    {t("OK")}
+                                </AlertDialogAction>
+                            </AlertDialogFooter>
+                        </AlertDialogContent>
+                    </AlertDialog>
+                )}
                 <div>
                     <DropdownMenu>
                         <DropdownMenuTrigger>
                             <div className="lb-outline-secondary">
-                                <FaEllipsisH />
+                                <MoreHorizontal />
                             </div>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent>
@@ -347,7 +431,10 @@ function Actions({ user, workspace }) {
                                 </DropdownMenuItem>
                             )}
                             <DropdownMenuItem>
-                                <button className="p-1" onClick={handleDelete}>
+                                <button
+                                    className="p-1"
+                                    onClick={() => setDeleteDialogOpen(true)}
+                                >
                                     {t("Delete this workspace")}
                                 </button>
                             </DropdownMenuItem>

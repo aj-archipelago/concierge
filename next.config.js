@@ -1,4 +1,8 @@
-const path = require("path");
+import path from "path";
+import { fileURLToPath } from "url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const basePath = process.env.NEXT_PUBLIC_BASE_PATH;
 
@@ -42,7 +46,7 @@ const anonymizeUrl = (urlString) => {
     return url.toString();
 };
 
-module.exports = {
+const config = {
     async rewrites() {
         const rewrites = [
             {
@@ -57,6 +61,14 @@ module.exports = {
                     process.env.CORTEX_MEDIA_API_URL || "http://localhost:5000",
             },
         ];
+
+        // If you have a blue/green deployment, you can use this to switch between the two
+        if (process.env.CORTEX_GRAPHQL_API_BLUE_URL) {
+            rewrites.push({
+                source: "/graphql-blue",
+                destination: process.env.CORTEX_GRAPHQL_API_BLUE_URL,
+            });
+        }
 
         // Log the URLs to console
         rewrites.forEach((rewrite) => {
@@ -89,3 +101,5 @@ module.exports = {
         return config;
     },
 };
+
+export default config;

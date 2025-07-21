@@ -2,8 +2,7 @@ import { getCurrentUser } from "../../../utils/auth";
 
 import { NextResponse } from "next/server";
 import Digest from "../../../models/digest";
-import { enqueueBuildDigest, getJob } from "./utils";
-import { DigestGenerationStatus } from "../../../models/digest.mjs";
+import { enqueueBuildDigest } from "./utils";
 
 export async function GET(req, { params }) {
     const user = await getCurrentUser();
@@ -23,9 +22,6 @@ export async function GET(req, { params }) {
                     {
                         prompt: `What's going on in the world today? If you know my profession, give me updates specific to my profession and preferences. Otherwise, give me general updates.`,
                         title: "Daily digest",
-                        state: {
-                            status: DigestGenerationStatus.PENDING,
-                        },
                     },
                 ],
             },
@@ -54,16 +50,6 @@ export async function GET(req, { params }) {
 
     digest = digest.toJSON();
 
-    for (const block of digest.blocks) {
-        if (block.state.status === DigestGenerationStatus.IN_PROGRESS) {
-            const jobId = block.state.jobId;
-
-            // get progress update status from job
-            const job = await getJob(jobId);
-            block.state.progress = job?.progress;
-        }
-    }
-
     return NextResponse.json(digest);
 }
 
@@ -71,48 +57,54 @@ export async function PATCH(req, { params }) {
     const user = await getCurrentUser();
     const { blocks } = await req.json();
 
-    let digest = await Digest.findOne({
+    const oldDigest = await Digest.findOne({
         owner: user._id,
     });
 
-    const existingBlocks = digest.blocks;
+    const oldBlocks = oldDigest?.blocks;
 
-    const newBlocks = blocks.map((block) => {
-        const existingBlock = existingBlocks.find(
-            (b) => b._id?.toString() === block._id?.toString(),
-        );
-
-        if (existingBlock && existingBlock.prompt !== block.prompt) {
-            existingBlock.content = null;
-            existingBlock.updatedAt = null;
-            block.state = {
-                status: DigestGenerationStatus.PENDING,
-            };
-        }
-
-        const newBlock = {
-            ...existingBlock?.toJSON(),
-            ...block,
-        };
-
-        return newBlock;
-    });
-
-    digest = await Digest.findOneAndUpdate(
+    let newDigest = await Digest.findOneAndUpdate(
         {
             owner: user._id,
         },
         {
             owner: user._id,
-            blocks: newBlocks,
+            blocks: blocks,
         },
         {
-            upsert: true,
             new: true,
         },
     );
 
-    await enqueueBuildDigest(user._id);
+    const newBlocks = newDigest.blocks;
 
-    return NextResponse.json(digest);
+    for (const newBlock of newBlocks) {
+        const oldBlock = oldBlocks.find(
+            (b) => b._id?.toString() === newBlock._id?.toString(),
+        );
+
+        //   if the prompt has changed or if there's no content,
+        // we need to regenerate the block
+        if (
+            !oldBlock ||
+            oldBlock?.prompt !== newBlock.prompt ||
+            !newBlock.content
+        ) {
+            const { taskId } = await enqueueBuildDigest(user._id, newBlock._id);
+            newBlock.taskId = taskId;
+            newBlock.updatedAt = null;
+            newBlock.content = null;
+        }
+    }
+
+    await Digest.findOneAndUpdate(
+        {
+            owner: user._id,
+        },
+        {
+            blocks: newBlocks,
+        },
+    );
+
+    return NextResponse.json(newDigest);
 }

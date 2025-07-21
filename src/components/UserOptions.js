@@ -2,7 +2,7 @@ import { Modal } from "@/components/ui/modal";
 import { useApolloClient, useQuery } from "@apollo/client";
 import { useContext, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { FiDownload, FiUpload } from "react-icons/fi";
+import { Download, Upload } from "lucide-react";
 import { useUpdateAiOptions } from "../../app/queries/options";
 import { QUERIES } from "../../src/graphql";
 import { AuthContext } from "../App";
@@ -282,7 +282,7 @@ const UserOptions = ({ show, handleClose }) => {
                                         onClick={handleDownloadMemory}
                                         title={t("Download memory backup")}
                                     >
-                                        <FiDownload className="w-4 h-4" />
+                                        <Download className="w-4 h-4" />
                                     </button>
                                     <button
                                         className="lb-outline-secondary"
@@ -291,7 +291,7 @@ const UserOptions = ({ show, handleClose }) => {
                                         }
                                         title={t("Upload memory from backup")}
                                     >
-                                        <FiUpload className="w-4 h-4" />
+                                        <Upload className="w-4 h-4" />
                                     </button>
                                     <input
                                         ref={fileInputRef}

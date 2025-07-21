@@ -1,5 +1,6 @@
 import { Queue } from "bullmq";
 import { getRedisConnection } from "../../../utils/redis";
+import { createBackgroundTask } from "../../../utils/tasks";
 
 const queueName = "digest-build";
 
@@ -11,20 +12,14 @@ export async function getJob(jobId) {
     return await digestBuild.getJob(jobId);
 }
 
-export async function enqueueBuildDigest(userId) {
-    await digestBuild.add(
-        "build-digest",
-        {
+export async function enqueueBuildDigest(userId, blockId) {
+    return await createBackgroundTask({
+        userId,
+        type: "build-digest",
+        metadata: {
             userId,
+            blockId,
         },
-        {
-            removeOnComplete: {
-                age: 60 * 60 * 24, // keep up to 24 hours
-                count: 1000, // keep up to 1000 jobs
-            },
-            removeOnFail: {
-                age: 60 * 60 * 24, // keep up to 24 hours
-            },
-        },
-    );
+        timeout: 60 * 60 * 1000, // 1 hour timeout
+    });
 }

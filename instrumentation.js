@@ -3,6 +3,8 @@ import LLM from "./app/api/models/llm";
 import config from "./config/index";
 import { connectToDatabase } from "./src/db.mjs";
 import Prompt from "./app/api/models/prompt";
+import App, { APP_STATUS, APP_TYPES } from "./app/api/models/app";
+import User from "./app/api/models/user.mjs";
 
 export async function register() {
     if (!mongoose?.connect) return;
@@ -101,4 +103,75 @@ export async function seed() {
             `Deleted ${llmsMissingFromConfig.length} LLMs that don't exist in config.`,
         );
     }
+
+    // Seed native apps
+    await seedNativeApps();
+}
+
+async function seedNativeApps() {
+    // Get or create a system admin user for native apps
+    let systemUser = await User.findOne({ role: "admin" });
+
+    if (!systemUser) {
+        // Create a system user if none exists
+        systemUser = await User.create({
+            userId: "system",
+            username: "system",
+            name: "System",
+            contextId: "system",
+            role: "admin",
+        });
+        console.log("Created system user for native apps");
+    }
+
+    // Define the main native apps based on navigation
+    const nativeApps = [
+        {
+            name: "Translate",
+            slug: "translate",
+            type: APP_TYPES.NATIVE,
+            icon: "Globe",
+        },
+        { name: "Video", slug: "video", type: APP_TYPES.NATIVE, icon: "Video" },
+        {
+            name: "Write",
+            slug: "write",
+            type: APP_TYPES.NATIVE,
+            icon: "Pencil",
+        },
+        {
+            name: "Workspaces",
+            slug: "workspaces",
+            type: APP_TYPES.NATIVE,
+            icon: "AppWindow",
+        },
+        {
+            name: "Media",
+            slug: "media",
+            type: APP_TYPES.NATIVE,
+            icon: "Image",
+        },
+        { name: "Jira", slug: "jira", type: APP_TYPES.NATIVE, icon: "Bug" },
+    ];
+
+    // Upsert each native app
+    for (const appData of nativeApps) {
+        await App.findOneAndUpdate(
+            {
+                slug: appData.slug,
+                type: APP_TYPES.NATIVE,
+            },
+            {
+                ...appData,
+                status: APP_STATUS.ACTIVE,
+                author: systemUser._id,
+            },
+            {
+                upsert: true,
+                new: true,
+            },
+        );
+    }
+
+    console.log(`Seeded ${nativeApps.length} native apps`);
 }

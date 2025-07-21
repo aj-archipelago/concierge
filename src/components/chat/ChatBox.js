@@ -2,12 +2,7 @@
 
 import { useCallback, useContext, useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
-import {
-    FaWindowClose,
-    FaWindowMaximize,
-    FaWindowMinimize,
-    FaWindowRestore,
-} from "react-icons/fa";
+import { X, Maximize2, Minimize2, Square } from "lucide-react";
 import { useDispatch, useSelector } from "react-redux";
 import { LanguageContext } from "../../contexts/LanguageProvider";
 import { setChatBoxPosition } from "../../stores/chatSlice"; // Ensure you have this action in your slice
@@ -94,14 +89,14 @@ function ChatBox() {
             case "opened":
                 return (
                     <>
-                        <FaWindowMinimize
+                        <Minimize2
                             onClick={(e) => {
                                 e.stopPropagation();
                                 updateChatBox({ position: "closed" });
                             }}
                         />
                         &nbsp;&nbsp;
-                        <FaWindowMaximize
+                        <Maximize2
                             onClick={(e) => {
                                 e.stopPropagation();
                                 updateChatBox({ position: "docked" });
@@ -112,7 +107,7 @@ function ChatBox() {
             case "docked":
                 return (
                     <>
-                        <FaWindowMaximize
+                        <Maximize2
                             onClick={(e) => {
                                 e.stopPropagation();
                                 const chatId = activeChat?._id;
@@ -121,7 +116,7 @@ function ChatBox() {
                                 );
                             }}
                         />
-                        <FaWindowClose
+                        <X
                             onClick={(e) => {
                                 e.stopPropagation();
                                 updateChatBox({ position: "closed" });
@@ -132,14 +127,14 @@ function ChatBox() {
             case "full":
                 return (
                     <>
-                        <FaWindowRestore
+                        <Square
                             onClick={(e) => {
                                 e.stopPropagation();
                                 updateChatBox({ position: "docked" });
                             }}
                         />
                         &nbsp;&nbsp;
-                        <FaWindowClose
+                        <X
                             onClick={(e) => {
                                 e.stopPropagation();
                                 updateChatBox({ position: "closed" });

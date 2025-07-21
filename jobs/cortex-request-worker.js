@@ -1,29 +1,23 @@
-const { Worker } = require("bullmq");
+import { Worker } from "bullmq";
+import { getRedisConnection } from "../app/api/utils/redis.mjs";
+import { ensureDbConnection } from "./worker.js";
+import { executeTask } from "../app/api/utils/task-executor.mjs";
 
 let worker;
 
-import("../app/api/utils/redis.mjs").then((module) => {
-    const { getRedisConnection } = module;
+const initializeWorker = async () => {
     const connection = getRedisConnection();
-    // Ensure the worker has a database connection before starting operations
     worker = new Worker(
         "task",
         async (job) => {
             console.log(`Worker processing job ${job.id}`);
-            const { ensureDbConnection } = require("./worker.js");
             await ensureDbConnection();
-
-            const { executeTask } = await import(
-                "../app/api/utils/task-executor.mjs"
-            );
-
-            return await executeTask(job.data);
+            return await executeTask(job.data, job);
         },
         {
             connection,
             autorun: false,
-            concurrency: 5,
-            stalledInterval: 300000,
+            concurrency: 20,
         },
     );
 
@@ -34,11 +28,12 @@ import("../app/api/utils/redis.mjs").then((module) => {
     worker.on("failed", (job, error) => {
         console.error(`Job ${job.id} failed with error:`, error);
     });
-});
+};
 
 async function safelyStartWorker() {
     try {
         console.log("Starting task worker...");
+        await initializeWorker();
         worker.run();
         console.log("task worker is now running");
     } catch (error) {
@@ -48,6 +43,5 @@ async function safelyStartWorker() {
     }
 }
 
-module.exports = {
-    run: safelyStartWorker,
-};
+// eslint-disable-next-line import/no-anonymous-default-export
+export default { run: safelyStartWorker };

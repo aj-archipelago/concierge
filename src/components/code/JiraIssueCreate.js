@@ -1,10 +1,9 @@
 "use client";
 
-import { AiOutlineReload } from "react-icons/ai";
+import { RotateCcw, Trash2 } from "lucide-react";
 import ConnectJiraButton from "./ConnectJiraButton";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { FaTrash } from "react-icons/fa";
 import CreateStorySection from "./CreateStorySection";
 import { useTranslation } from "react-i18next";
 
@@ -43,7 +42,7 @@ export default function JiraIssueCreate({ clientSecret }) {
                             }
                         }}
                     >
-                        <AiOutlineReload />
+                        <RotateCcw />
                         {t("Start over")}
                     </button>
                 </div>
@@ -105,7 +104,7 @@ function JiraTicketContent({ value, token, onDelete }) {
                         }
                     }}
                 >
-                    <FaTrash />
+                    <Trash2 />
                 </button>
             </div>
             <div className="grid grid-cols-[130px_1fr] gap-2 p-4">

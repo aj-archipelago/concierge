@@ -1,5 +1,6 @@
 "use client";
 
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
     Card,
@@ -8,7 +9,18 @@ import {
     CardHeader,
     CardTitle,
 } from "@/components/ui/card";
+import {
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import {
+    Pagination,
+    PaginationContent,
+    PaginationItem,
+} from "@/components/ui/pagination";
 import {
     Select,
     SelectContent,
@@ -25,20 +37,26 @@ import {
     TableRow,
 } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
-import { toast } from "react-toastify";
-import {
-    Pagination,
-    PaginationContent,
-    PaginationItem,
-    PaginationNext,
-    PaginationPrevious,
-} from "@/components/ui/pagination";
 import { cn } from "@/lib/utils";
-import { Badge } from "@/components/ui/badge";
+import { useQuery } from "@tanstack/react-query";
+import {
+    CheckCircle,
+    Clock,
+    Cpu,
+    FileText,
+    Filter,
+    Hash,
+    Loader2,
+    Search,
+    User,
+    XCircle,
+    Hash as HashIcon,
+    FileCode,
+    BarChart3,
+} from "lucide-react";
+import { useEffect, useState } from "react";
 import { Progress } from "../../../@/components/ui/progress";
-import { Clock, Cpu } from "lucide-react";
+import stringcase from "stringcase";
 
 const QUEUE_NAMES = ["task", "digest-build"];
 
@@ -47,17 +65,6 @@ async function fetchQueueStats(queueName, page, pageSize, status, search) {
         `/api/queues?queue=${queueName}&page=${page}&pageSize=${pageSize}&status=${status}&search=${search}`,
     );
     if (!response.ok) throw new Error("Failed to fetch queue stats");
-    return response.json();
-}
-
-async function performQueueAction(queueName, action, params = {}) {
-    const searchParams = new URLSearchParams({
-        queue: queueName,
-        action,
-        ...params,
-    });
-    const response = await fetch(`/api/queues?${searchParams}`);
-    if (!response.ok) throw new Error("Failed to perform action");
     return response.json();
 }
 
@@ -86,32 +93,48 @@ function StatusBadge({ status }) {
 }
 
 function DataCell({ data }) {
-    const [isExpanded, setIsExpanded] = useState(false);
-    const stringifiedData = JSON.stringify(data, null, 2);
-    const isLong = stringifiedData?.length > 100;
+    const [isOpen, setIsOpen] = useState(false);
 
-    return stringifiedData ? (
-        <div className=" bg-gray-50 p-2 rounded-md max-w-[300px] border">
-            <pre
-                className={cn(
-                    "whitespace-pre-wrap text-xs",
-                    !isExpanded && isLong && "max-h-[100px] overflow-hidden",
-                )}
+    // Prepare the display content
+    let displayContent;
+    let dialogContent;
+
+    if (Array.isArray(data)) {
+        displayContent = data.join("\n");
+        dialogContent = data.join("\n");
+    } else {
+        const stringifiedData =
+            typeof data === "string" ? data : JSON.stringify(data, null, 2);
+        if (!stringifiedData) return "-";
+        displayContent = stringifiedData;
+        dialogContent = stringifiedData;
+    }
+
+    return (
+        <>
+            <div
+                className="bg-gray-50 p-2 rounded-md max-w-[300px] border max-h-[150px] overflow-auto cursor-pointer hover:bg-gray-100"
+                onClick={() => setIsOpen(true)}
             >
-                {stringifiedData}
-            </pre>
-
-            {isLong && (
-                <button
-                    onClick={() => setIsExpanded(!isExpanded)}
-                    className="text-xs text-blue-500 hover:text-blue-600 mt-1 font-medium"
+                <pre className="text-xs whitespace-pre-wrap">
+                    {displayContent}
+                </pre>
+            </div>
+            <Dialog open={isOpen} onOpenChange={setIsOpen}>
+                <DialogContent
+                    className={Array.isArray(data) ? "max-w-7xl" : "max-w-3xl"}
                 >
-                    {isExpanded ? "Show less" : "Show more"}
-                </button>
-            )}
-        </div>
-    ) : (
-        "-"
+                    <DialogHeader>
+                        <DialogTitle>Data Details</DialogTitle>
+                    </DialogHeader>
+                    <div className="bg-gray-50 p-4 rounded-md w-full overflow-auto">
+                        <pre className="w-full whitespace-pre-wrap text-sm overflow-auto max-h-[60vh]">
+                            {dialogContent}
+                        </pre>
+                    </div>
+                </DialogContent>
+            </Dialog>
+        </>
     );
 }
 
@@ -194,6 +217,78 @@ function WorkerStatus({ worker }) {
     );
 }
 
+function ReturnValueCell({ returnValue }) {
+    if (!returnValue) {
+        return (
+            <div className="text-sm text-muted-foreground italic">
+                No output
+            </div>
+        );
+    }
+
+    const { type, charCount, lineCount, hasContent, keys } = returnValue;
+
+    return (
+        <div className="bg-green-50 border border-green-200 rounded-lg p-3 space-y-2">
+            <div className="flex items-center gap-2 text-sm font-medium text-green-800">
+                <CheckCircle className="h-4 w-4" />
+                <span className="capitalize">{type} Output</span>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 text-xs">
+                <div className="flex items-center gap-2">
+                    <BarChart3 className="h-3 w-3 text-green-600" />
+                    <span className="text-green-700">
+                        {charCount.toLocaleString()} chars
+                    </span>
+                </div>
+
+                <div className="flex items-center gap-2">
+                    <FileCode className="h-3 w-3 text-green-600" />
+                    <span className="text-green-700">
+                        {lineCount} line{lineCount !== 1 ? "s" : ""}
+                    </span>
+                </div>
+            </div>
+
+            {type === "object" && keys && keys.length > 0 && (
+                <div className="mt-2">
+                    <div className="text-xs font-medium text-green-700 mb-1 flex items-center gap-1">
+                        <HashIcon className="h-3 w-3" />
+                        Properties:
+                    </div>
+                    <div className="flex flex-wrap gap-1">
+                        {keys.slice(0, 5).map((key, index) => (
+                            <span
+                                key={index}
+                                className="px-2 py-1 bg-green-100 text-green-800 text-xs rounded-md"
+                            >
+                                {key}
+                            </span>
+                        ))}
+                        {keys.length > 5 && (
+                            <span className="px-2 py-1 bg-green-100 text-green-800 text-xs rounded-md">
+                                +{keys.length - 5} more
+                            </span>
+                        )}
+                    </div>
+                </div>
+            )}
+
+            <div className="flex items-center gap-2 text-xs">
+                <div
+                    className={`w-2 h-2 rounded-full ${hasContent ? "bg-green-500" : "bg-gray-300"}`}
+                />
+                <span
+                    className={hasContent ? "text-green-700" : "text-gray-500"}
+                >
+                    {hasContent ? "Content available" : "Empty output"}
+                </span>
+            </div>
+        </div>
+    );
+}
+
 export default function QueuesPage() {
     const [currentPage, setCurrentPage] = useState(1);
     // eslint-disable-next-line no-unused-vars
@@ -202,7 +297,7 @@ export default function QueuesPage() {
     const [status, setStatus] = useState("all");
     const [search, setSearch] = useState("");
 
-    const { data: queueStats, refetch } = useQuery({
+    const { data: queueStats } = useQuery({
         queryKey: [
             "queueStats",
             selectedQueue,
@@ -222,15 +317,9 @@ export default function QueuesPage() {
         refetchInterval: 5000,
     });
 
-    const handleAction = async (action, params = {}) => {
-        try {
-            await performQueueAction(selectedQueue, action, params);
-            toast.success("Action completed successfully");
-            refetch();
-        } catch (error) {
-            toast.error(error.message);
-        }
-    };
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [status, search]);
 
     return (
         <div>
@@ -260,7 +349,8 @@ export default function QueuesPage() {
                                     {queueStats && (
                                         <div className="grid grid-cols-4 gap-4">
                                             <div className="p-4 bg-background rounded-lg border">
-                                                <div className="text-sm font-medium">
+                                                <div className="flex items-center gap-2 text-sm font-medium">
+                                                    <Clock className="h-4 w-4" />
                                                     Waiting
                                                 </div>
                                                 <div className="text-2xl font-bold">
@@ -268,7 +358,8 @@ export default function QueuesPage() {
                                                 </div>
                                             </div>
                                             <div className="p-4 bg-background rounded-lg border">
-                                                <div className="text-sm font-medium">
+                                                <div className="flex items-center gap-2 text-sm font-medium">
+                                                    <Loader2 className="h-4 w-4" />
                                                     Active
                                                 </div>
                                                 <div className="text-2xl font-bold">
@@ -276,7 +367,8 @@ export default function QueuesPage() {
                                                 </div>
                                             </div>
                                             <div className="p-4 bg-background rounded-lg border">
-                                                <div className="text-sm font-medium">
+                                                <div className="flex items-center gap-2 text-sm font-medium">
+                                                    <CheckCircle className="h-4 w-4" />
                                                     Completed
                                                 </div>
                                                 <div className="text-2xl font-bold">
@@ -287,7 +379,8 @@ export default function QueuesPage() {
                                                 </div>
                                             </div>
                                             <div className="p-4 bg-background rounded-lg border">
-                                                <div className="text-sm font-medium">
+                                                <div className="flex items-center gap-2 text-sm font-medium">
+                                                    <XCircle className="h-4 w-4" />
                                                     Failed
                                                 </div>
                                                 <div className="text-2xl font-bold">
@@ -337,115 +430,164 @@ export default function QueuesPage() {
                                 </CardHeader>
                                 <CardContent>
                                     <div className="flex gap-4 mb-4">
-                                        <Input
-                                            placeholder="Search jobs..."
-                                            value={search}
-                                            onChange={(e) =>
-                                                setSearch(e.target.value)
-                                            }
-                                            className="max-w-sm"
-                                        />
-                                        <Select
-                                            value={status}
-                                            onValueChange={setStatus}
-                                        >
-                                            <SelectTrigger className="w-[180px]">
-                                                <SelectValue placeholder="Select status" />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem value="all">
-                                                    All
-                                                </SelectItem>
-                                                <SelectItem value="waiting">
-                                                    Waiting
-                                                </SelectItem>
-                                                <SelectItem value="active">
-                                                    Active
-                                                </SelectItem>
-                                                <SelectItem value="completed">
-                                                    Completed
-                                                </SelectItem>
-                                                <SelectItem value="failed">
-                                                    Failed
-                                                </SelectItem>
-                                            </SelectContent>
-                                        </Select>
+                                        <div className="relative max-w-sm">
+                                            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                                            <Input
+                                                placeholder="Search jobs..."
+                                                value={search}
+                                                onChange={(e) =>
+                                                    setSearch(e.target.value)
+                                                }
+                                                className="pl-10"
+                                            />
+                                        </div>
+                                        <div className="relative">
+                                            <Filter className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+                                            <Select
+                                                value={status}
+                                                onValueChange={setStatus}
+                                            >
+                                                <SelectTrigger className="w-[180px] pl-10">
+                                                    <SelectValue placeholder="Select status" />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="all">
+                                                        All
+                                                    </SelectItem>
+                                                    <SelectItem value="waiting">
+                                                        Waiting
+                                                    </SelectItem>
+                                                    <SelectItem value="active">
+                                                        Active
+                                                    </SelectItem>
+                                                    <SelectItem value="completed">
+                                                        Completed
+                                                    </SelectItem>
+                                                    <SelectItem value="failed">
+                                                        Failed
+                                                    </SelectItem>
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
                                     </div>
 
                                     <Table>
                                         <TableHeader>
                                             <TableRow>
-                                                <TableHead>Job ID</TableHead>
-                                                <TableHead>Name</TableHead>
-                                                <TableHead>User</TableHead>
+                                                <TableHead>Job Info</TableHead>
                                                 <TableHead>Status</TableHead>
-                                                <TableHead>Progress</TableHead>
-                                                <TableHead>Timestamp</TableHead>
-                                                <TableHead>Details</TableHead>
-                                                <TableHead>Data</TableHead>
+                                                <TableHead>Input</TableHead>
+                                                <TableHead>
+                                                    Data & Results
+                                                </TableHead>
                                             </TableRow>
                                         </TableHeader>
                                         <TableBody>
                                             {queueStats?.jobs.map((job) => (
                                                 <TableRow key={job.id}>
-                                                    <TableCell>
-                                                        {job.id}
+                                                    <TableCell className="align-top">
+                                                        <div className="space-y-1">
+                                                            <div className="text-sm flex gap-1 font-semibold items-center">
+                                                                <FileText className="h-4 w-4 mr-1" />
+                                                                {stringcase.sentencecase(
+                                                                    job.name,
+                                                                )}
+                                                            </div>
+                                                            <div className="text-sm text-gray-500">
+                                                                <User className="h-4 w-4 inline me-1" />
+                                                                {job.username ||
+                                                                    "-"}
+                                                            </div>
+                                                            <div className="text-gray-500 flex items-center gap-2">
+                                                                <Hash className="h-4 w-4" />
+                                                                {job.id}
+                                                            </div>
+                                                        </div>
                                                     </TableCell>
-                                                    <TableCell>
-                                                        {job.name}
-                                                    </TableCell>
-                                                    <TableCell>
-                                                        {job.username || "-"}
-                                                    </TableCell>
-                                                    <TableCell>
-                                                        <StatusBadge
-                                                            status={job.status}
-                                                        />
-                                                    </TableCell>
-                                                    <TableCell>
-                                                        {job.status ===
-                                                        "active" ? (
-                                                            <Progress
-                                                                value={
-                                                                    job.progress
+                                                    <TableCell className="align-top">
+                                                        <div className="space-y-2">
+                                                            <div className="text-sm text-muted-foreground flex items-center gap-2">
+                                                                <Clock className="h-4 w-4" />
+                                                                {formatTimestamp(
+                                                                    job.timestamp,
+                                                                )}
+                                                            </div>
+                                                            <StatusBadge
+                                                                status={
+                                                                    job.status
                                                                 }
                                                             />
-                                                        ) : (
-                                                            "-"
-                                                        )}
+                                                            {job.status ===
+                                                                "active" && (
+                                                                <div className="w-full">
+                                                                    <Progress
+                                                                        value={
+                                                                            job.progress
+                                                                        }
+                                                                    />
+                                                                </div>
+                                                            )}
+                                                            <div className="text-xs text-gray-500 flex items-center gap-1">
+                                                                Attempts:{" "}
+                                                                {job.attemptsMade ||
+                                                                    0}
+                                                            </div>
+                                                        </div>
                                                     </TableCell>
-                                                    <TableCell
-                                                        className="whitespace-nowrap"
-                                                        title={new Date(
-                                                            job.timestamp,
-                                                        ).toLocaleString()}
-                                                    >
-                                                        {formatTimestamp(
-                                                            job.timestamp,
-                                                        )}
-                                                    </TableCell>
-                                                    <TableCell>
-                                                        {job.status ===
-                                                            "failed" && (
-                                                            <DataCell
-                                                                data={
-                                                                    job.failedReason
-                                                                }
-                                                            />
-                                                        )}
-                                                        {job.status ===
-                                                            "completed" && (
-                                                            <DataCell
-                                                                data={
-                                                                    job.returnvalue
-                                                                }
-                                                            />
-                                                        )}
-                                                    </TableCell>
-                                                    <TableCell>
+                                                    <TableCell className="align-top">
                                                         <DataCell
                                                             data={job.data}
                                                         />
+                                                    </TableCell>
+                                                    <TableCell className="align-top">
+                                                        <div className="space-y-2">
+                                                            {job.status ===
+                                                                "failed" && (
+                                                                <div>
+                                                                    <div className="text-xs font-medium text-muted-foreground mb-1 flex items-center gap-1">
+                                                                        <XCircle className="h-3 w-3" />
+                                                                        Error:
+                                                                    </div>
+                                                                    <DataCell
+                                                                        data={
+                                                                            job.failedReason
+                                                                        }
+                                                                    />
+                                                                </div>
+                                                            )}
+                                                            {job.status ===
+                                                                "completed" && (
+                                                                <div>
+                                                                    <div className="text-xs font-medium text-muted-foreground mb-1 flex items-center gap-1">
+                                                                        <CheckCircle className="h-3 w-3" />
+                                                                        Output:
+                                                                    </div>
+                                                                    <ReturnValueCell
+                                                                        returnValue={
+                                                                            job.returnvalue
+                                                                        }
+                                                                    />
+                                                                </div>
+                                                            )}
+                                                            <div>
+                                                                <div className="text-xs font-medium text-muted-foreground mb-1 flex items-center gap-1">
+                                                                    <FileText className="h-3 w-3" />
+                                                                    Logs:
+                                                                </div>
+                                                                <DataCell
+                                                                    data={
+                                                                        job.logs
+                                                                            ?.logs
+                                                                            ?.length >
+                                                                        0
+                                                                            ? job
+                                                                                  .logs
+                                                                                  ?.logs
+                                                                            : "No logs available"
+                                                                    }
+                                                                />
+                                                            </div>
+                                                        </div>
                                                     </TableCell>
                                                 </TableRow>
                                             ))}
@@ -457,7 +599,7 @@ export default function QueuesPage() {
                                         <Pagination>
                                             <PaginationContent>
                                                 <PaginationItem>
-                                                    <PaginationPrevious
+                                                    <button
                                                         onClick={() =>
                                                             setCurrentPage(
                                                                 (p) =>
@@ -470,74 +612,130 @@ export default function QueuesPage() {
                                                         disabled={
                                                             currentPage === 1
                                                         }
-                                                    />
+                                                        className={`px-3 py-2 text-sm rounded-md transition-colors ${
+                                                            currentPage === 1
+                                                                ? "text-muted-foreground cursor-not-allowed opacity-50"
+                                                                : "hover:bg-muted"
+                                                        }`}
+                                                    >
+                                                        Previous
+                                                    </button>
                                                 </PaginationItem>
-                                                {/* Add pagination items based on totalPages */}
+
+                                                {/* Page numbers */}
+                                                {queueStats?.pagination &&
+                                                    (() => {
+                                                        const { totalPages } =
+                                                            queueStats.pagination;
+                                                        const pages = [];
+
+                                                        // Show up to 5 pages around current page
+                                                        const start = Math.max(
+                                                            1,
+                                                            currentPage - 2,
+                                                        );
+                                                        const end = Math.min(
+                                                            totalPages,
+                                                            currentPage + 2,
+                                                        );
+
+                                                        // Add first page if not in range
+                                                        if (start > 1) {
+                                                            pages.push(1);
+                                                            if (start > 2)
+                                                                pages.push(
+                                                                    "...",
+                                                                );
+                                                        }
+
+                                                        // Add pages in range
+                                                        for (
+                                                            let i = start;
+                                                            i <= end;
+                                                            i++
+                                                        ) {
+                                                            pages.push(i);
+                                                        }
+
+                                                        // Add last page if not in range
+                                                        if (end < totalPages) {
+                                                            if (
+                                                                end <
+                                                                totalPages - 1
+                                                            )
+                                                                pages.push(
+                                                                    "...",
+                                                                );
+                                                            pages.push(
+                                                                totalPages,
+                                                            );
+                                                        }
+
+                                                        return pages.map(
+                                                            (page, index) => (
+                                                                <PaginationItem
+                                                                    key={index}
+                                                                >
+                                                                    {page ===
+                                                                    "..." ? (
+                                                                        <span className="px-3 py-2 text-sm text-muted-foreground">
+                                                                            {
+                                                                                page
+                                                                            }
+                                                                        </span>
+                                                                    ) : (
+                                                                        <button
+                                                                            onClick={() =>
+                                                                                setCurrentPage(
+                                                                                    page,
+                                                                                )
+                                                                            }
+                                                                            className={`px-3 py-2 text-sm ${
+                                                                                currentPage ===
+                                                                                page
+                                                                                    ? "bg-neutral-100 font-bold"
+                                                                                    : "hover:bg-muted"
+                                                                            } rounded-md`}
+                                                                        >
+                                                                            {
+                                                                                page
+                                                                            }
+                                                                        </button>
+                                                                    )}
+                                                                </PaginationItem>
+                                                            ),
+                                                        );
+                                                    })()}
+
                                                 <PaginationItem>
-                                                    <PaginationNext
+                                                    <button
                                                         onClick={() =>
                                                             setCurrentPage(
                                                                 (p) => p + 1,
                                                             )
                                                         }
                                                         disabled={
-                                                            currentPage ===
-                                                            queueStats
-                                                                ?.pagination
-                                                                .totalPages
+                                                            !queueStats?.pagination ||
+                                                            currentPage >=
+                                                                queueStats
+                                                                    .pagination
+                                                                    .totalPages
                                                         }
-                                                    />
+                                                        className={`px-3 py-2 text-sm rounded-md transition-colors ${
+                                                            !queueStats?.pagination ||
+                                                            currentPage >=
+                                                                queueStats
+                                                                    .pagination
+                                                                    .totalPages
+                                                                ? "text-muted-foreground cursor-not-allowed opacity-50"
+                                                                : "hover:bg-muted"
+                                                        }`}
+                                                    >
+                                                        Next
+                                                    </button>
                                                 </PaginationItem>
                                             </PaginationContent>
                                         </Pagination>
-                                    </div>
-                                </CardContent>
-                            </Card>
-
-                            {/* Queue Actions */}
-                            <Card>
-                                <CardHeader>
-                                    <CardTitle>Queue Actions</CardTitle>
-                                    <CardDescription>
-                                        Manage queue and jobs
-                                    </CardDescription>
-                                </CardHeader>
-                                <CardContent>
-                                    <div className="flex gap-4">
-                                        <Button
-                                            onClick={() =>
-                                                handleAction("retry")
-                                            }
-                                            disabled={
-                                                !queueStats?.counts.failed
-                                            }
-                                        >
-                                            Retry Failed Jobs
-                                        </Button>
-                                        <Button
-                                            onClick={() =>
-                                                handleAction("clean", {
-                                                    type: "completed",
-                                                })
-                                            }
-                                            disabled={
-                                                !queueStats?.counts.completed
-                                            }
-                                        >
-                                            Clean Completed Jobs
-                                        </Button>
-                                        <Button
-                                            onClick={() =>
-                                                handleAction("clean", {
-                                                    type: "failed",
-                                                })
-                                            }
-                                            disabled={
-                                                !queueStats?.counts.failed
-                                            }
-                                        >
-                                            Clean Failed Jobs
-                                        </Button>
                                     </div>
                                 </CardContent>
                             </Card>

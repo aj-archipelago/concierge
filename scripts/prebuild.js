@@ -1,4 +1,4 @@
-const fs = require("fs-extra");
+import fs from "fs-extra";
 
 const copyStaticFiles = (sourceDir, destDir) => {
     if (!fs.existsSync(sourceDir)) {

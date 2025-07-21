@@ -2,6 +2,7 @@ import mongoose from "mongoose";
 import stringcase from "stringcase";
 import Workspace, { workspaceSchema } from "../../models/workspace";
 import WorkspaceState from "../../models/workspace-state";
+import App from "../../models/app";
 import { getCurrentUser } from "../../utils/auth";
 import { getWorkspace } from "./db";
 import { republishWorkspace, unpublishWorkspace } from "./publish/utils";
@@ -15,6 +16,24 @@ export async function DELETE(req, { params }) {
         return Response.json(
             { error: "You are not the owner of this workspace" },
             { status: 403 },
+        );
+    }
+
+    // Check if there are any published applets for this workspace
+    const publishedApp = await App.findOne({
+        workspaceId: workspace._id,
+        type: "applet",
+        status: "active",
+    });
+
+    if (publishedApp) {
+        return Response.json(
+            {
+                error: "Cannot delete workspace with published applet. Please unpublish the applet first.",
+                hasPublishedApplet: true,
+                appName: publishedApp.name,
+            },
+            { status: 400 },
         );
     }
 

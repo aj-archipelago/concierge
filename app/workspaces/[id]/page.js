@@ -4,9 +4,9 @@ import {
     QueryClient,
 } from "@tanstack/react-query";
 import { getCurrentUser } from "../../api/utils/auth";
-import WorkspaceContent from "../components/WorkspaceContent";
 import WorkspaceActions from "./components/WorkspaceActions";
 import { getWorkspace } from "../../api/workspaces/[id]/db";
+import WorkspaceTabs from "./components/WorkspaceTabs";
 
 export default async function Page({ params }) {
     const id = params.id;
@@ -27,7 +27,7 @@ export default async function Page({ params }) {
             <div className="flex flex-col h-full">
                 <WorkspaceActions idOrSlug={id} user={user} />
                 <div className="h-full overflow-auto">
-                    <WorkspaceContent idOrSlug={id} user={user} />
+                    <WorkspaceTabs idOrSlug={id} user={user} />
                 </div>
             </div>
         </HydrationBoundary>

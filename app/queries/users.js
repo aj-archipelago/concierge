@@ -19,9 +19,8 @@ export function useUpdateCurrentUser() {
 
     const mutation = useMutation({
         mutationFn: async ({ data }) => {
-            // insert mutation code
-            // const response = await axios.put(`/api/users/me`, data);
-            // return response.data;
+            const response = await axios.put(`/api/users/me`, data);
+            return response.data;
         },
         onSettled: () => {
             queryClient.invalidateQueries({ queryKey: ["currentUser"] });

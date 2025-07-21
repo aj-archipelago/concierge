@@ -1,30 +1,43 @@
-const taxonomySetsContext = require.context(
-    "./taxonomy-sets",
-    false,
-    /\.json$/,
-);
-
 let dedupedFileNames = [];
+let taxonomySets = [];
 
-const taxonomySets = taxonomySetsContext
-    .keys()
-    .map((filename) => {
-        const filenameOnly = filename.split("/").pop();
+const initializeTaxonomySets = async () => {
+    if (typeof window === "undefined") {
+        try {
+            // Define the taxonomy sets we want to load
+            const taxonomyFiles = ["news.json"]; // Add other taxonomy files as needed
 
-        // This is needed because the require.context keys
-        // will include the same file with two paths:
-        // ./filename.json and <absolute-path>/filename.json
-        if (dedupedFileNames.includes(filenameOnly)) {
-            return null;
+            taxonomySets = await Promise.all(
+                taxonomyFiles.map(async (filename) => {
+                    // Simple string manipulation instead of path.basename
+                    const filenameOnly = filename.split("/").pop();
+
+                    if (dedupedFileNames.includes(filenameOnly)) {
+                        return null;
+                    }
+
+                    // Remove .json extension
+                    const setName = filenameOnly.replace(".json", "");
+                    // Use dynamic import with the public directory
+                    const content = await import(
+                        `/config/default/config/data/taxonomy-sets/${filename}`
+                    );
+
+                    dedupedFileNames.push(filenameOnly);
+                    return { setName, ...content.default };
+                }),
+            ).then((sets) => sets.filter(Boolean));
+        } catch (error) {
+            console.error("Error loading taxonomy sets:", error);
+            taxonomySets = [];
         }
+    }
+};
 
-        const setName = filename.slice(2, -5); // Remove './' and '.json' from the file name
-        const content = taxonomySetsContext(filename);
-
-        dedupedFileNames.push(filenameOnly);
-        return { setName, ...content };
-    })
-    .filter(Boolean);
+// Initialize the taxonomy sets
+initializeTaxonomySets().catch((error) => {
+    console.error("Failed to initialize taxonomy sets:", error);
+});
 
 export const getTaxonomySets = async function () {
     return taxonomySets;

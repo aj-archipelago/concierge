@@ -1,7 +1,7 @@
 import { DragDropContext, Draggable, Droppable } from "@hello-pangea/dnd";
 import { useContext, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { FaEdit, FaPlay } from "react-icons/fa";
+import { Edit, Play } from "lucide-react";
 import LoadingButton from "../../../src/components/editor/LoadingButton";
 import { LanguageContext } from "../../../src/contexts/LanguageProvider";
 import Loader from "../../components/loader";
@@ -55,12 +55,6 @@ export default function PromptList({
             return;
         }
 
-        console.log(
-            "result.source.index",
-            result.source.index,
-            "result.destination.index",
-            result.destination.index,
-        );
         const items = Array.from(promptIds);
         const [reorderedItem] = items.splice(result.source.index, 1);
         items.splice(result.destination.index, 0, reorderedItem);
@@ -95,7 +89,7 @@ export default function PromptList({
                         <span
                             className={direction === "rtl" ? "rotate-180" : ""}
                         >
-                            <FaPlay size={9} />
+                            <Play size={9} />
                         </span>
                         {t("Run all")}
                     </LoadingButton>
@@ -203,7 +197,7 @@ function PromptListItem({ prompt, onEdit, onRun, isRunning, inputValid }) {
                                     }}
                                     title={t("Edit prompt")}
                                 >
-                                    <FaEdit />
+                                    <Edit />
                                 </button>
                             )}
                         </div>
@@ -224,7 +218,7 @@ function PromptListItem({ prompt, onEdit, onRun, isRunning, inputValid }) {
                                     direction === "rtl" ? "rotate-180" : ""
                                 }
                             >
-                                <FaPlay size={9} />
+                                <Play size={9} />
                             </span>
                             {t("Run")}
                         </div>
