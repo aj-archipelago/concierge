@@ -20,6 +20,7 @@ import {
 } from "../../app/queries/chats";
 import { useCurrentUser } from "../../app/queries/users";
 import { useWorkspace } from "../../app/queries/workspaces";
+
 import classNames from "../../app/utils/class-names";
 import config from "../../config";
 import SendFeedbackModal from "../components/help/SendFeedbackModal";
@@ -137,6 +138,13 @@ export default React.forwardRef(function Sidebar(
     const { data: chatsData = [] } = useGetActiveChats();
     const chats = chatsData || [];
     const { data: currentUser } = useCurrentUser();
+
+    // Check if user is authenticated
+    const isAuthenticated =
+        currentUser && currentUser.userId && currentUser.userId !== "anonymous";
+
+    // Check if we're on the login page
+    const isOnLoginPage = pathname === "/auth/login";
 
     const deleteChat = useDeleteChat();
     const setActiveChatId = useSetActiveChatId();
@@ -328,187 +336,225 @@ export default React.forwardRef(function Sidebar(
                 </Link>
             </div>
             <nav className="flex flex-1 flex-col">
-                <ul className="flex flex-1 flex-col gap-y-4">
-                    <li className="grow">
-                        <ul className="-mx-2 space-y-1 overflow-x-hidden scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
-                            {updatedNavigation.map((item) => (
-                                <li
-                                    key={item.name}
-                                    className="rounded-md cursor-pointer group"
-                                >
-                                    <div
-                                        className={classNames(
-                                            "flex items-center justify-between",
-                                            item.href &&
-                                                pathname.includes(item.href) &&
-                                                pathname === item.href
-                                                ? "bg-gray-100"
-                                                : "hover:bg-gray-100",
-                                            "rounded-md p-2 text-sm leading-6 font-semibold text-gray-700",
-                                        )}
-                                        onClick={() => {
-                                            if (item.href) {
-                                                router.push(item.href);
-                                            }
-                                        }}
+                {!isAuthenticated ? (
+                    // Signed out state
+                    <div className="flex flex-1 flex-col items-center justify-center p-4 text-center">
+                        <div className="mb-4">
+                            <Icons.UserX className="h-12 w-12 text-gray-400 mx-auto" />
+                        </div>
+                        <h3 className="text-sm font-medium text-gray-900 mb-2">
+                            {isOnLoginPage
+                                ? t("Sign in to continue")
+                                : t("Not signed in")}
+                        </h3>
+                        <p className="text-xs text-gray-500 mb-4">
+                            {isOnLoginPage
+                                ? t("Complete the form to access your account")
+                                : t(
+                                      "Please sign in to access your apps and chats",
+                                  )}
+                        </p>
+                        {!isOnLoginPage && (
+                            <Link
+                                href="/auth/login"
+                                className="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-white bg-sky-600 hover:bg-sky-600/90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-sky-500"
+                            >
+                                {t("Sign in")}
+                            </Link>
+                        )}
+                    </div>
+                ) : (
+                    // Authenticated state - show normal navigation
+                    <ul className="flex flex-1 flex-col gap-y-4">
+                        <li className="grow">
+                            <ul className="-mx-2 space-y-1 overflow-x-hidden scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
+                                {updatedNavigation.map((item) => (
+                                    <li
+                                        key={item.name}
+                                        className="rounded-md cursor-pointer group"
                                     >
-                                        <div className="flex items-center grow gap-x-3">
-                                            <item.icon
-                                                className="h-6 w-6 shrink-0 text-gray-400"
-                                                aria-hidden="true"
-                                            />
-                                            <span
-                                                className={cn(
-                                                    "select-none",
-                                                    isCollapsed
-                                                        ? "hidden group-hover:inline"
-                                                        : "inline",
-                                                )}
-                                            >
-                                                {t(item.name)}
-                                            </span>
-                                        </div>
-                                        {item.name === "Chat" && (
-                                            <Plus
-                                                className={cn(
-                                                    "h-6 w-6 ml-auto p-1 rounded-full bg-blue-100 text-blue-600 hover:bg-blue-200 hover:text-blue-800 cursor-pointer",
-                                                    isCollapsed
-                                                        ? "hidden group-hover:inline"
-                                                        : "inline",
-                                                )}
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    handleNewChat();
-                                                }}
-                                            />
-                                        )}
-                                        {item.type === "applet" &&
-                                            item.workspaceId && (
-                                                <AppletEditButton
-                                                    workspaceId={
-                                                        item.workspaceId
-                                                    }
-                                                    router={router}
-                                                    isCollapsed={isCollapsed}
+                                        <div
+                                            className={classNames(
+                                                "flex items-center justify-between",
+                                                item.href &&
+                                                    pathname.includes(
+                                                        item.href,
+                                                    ) &&
+                                                    pathname === item.href
+                                                    ? "bg-gray-100"
+                                                    : "hover:bg-gray-100",
+                                                "rounded-md p-2 text-sm leading-6 font-semibold text-gray-700",
+                                            )}
+                                            onClick={() => {
+                                                if (item.href) {
+                                                    router.push(item.href);
+                                                }
+                                            }}
+                                        >
+                                            <div className="flex items-center grow gap-x-3">
+                                                <item.icon
+                                                    className="h-6 w-6 shrink-0 text-gray-400"
+                                                    aria-hidden="true"
+                                                />
+                                                <span
+                                                    className={cn(
+                                                        "select-none",
+                                                        isCollapsed
+                                                            ? "hidden group-hover:inline"
+                                                            : "inline",
+                                                    )}
+                                                >
+                                                    {t(item.name)}
+                                                </span>
+                                            </div>
+                                            {item.name === "Chat" && (
+                                                <Plus
+                                                    className={cn(
+                                                        "h-6 w-6 ml-auto p-1 rounded-full bg-blue-100 text-blue-600 hover:bg-blue-200 hover:text-blue-800 cursor-pointer",
+                                                        isCollapsed
+                                                            ? "hidden group-hover:inline"
+                                                            : "inline",
+                                                    )}
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        handleNewChat();
+                                                    }}
                                                 />
                                             )}
-                                    </div>
-                                    {item.children?.length > 0 && (
-                                        <ul
-                                            className={cn(
-                                                "mt-1 px-1",
-                                                isCollapsed
-                                                    ? "hidden group-hover:block"
-                                                    : "block",
-                                            )}
-                                        >
-                                            {item.children.map(
-                                                (subItem, index) =>
-                                                    item.name === "Chat" ? (
-                                                        <ChatNavigationItem
-                                                            key={
-                                                                subItem.key ||
-                                                                `${item.name}-${index}`
-                                                            }
-                                                            subItem={subItem}
-                                                            pathname={pathname}
-                                                            router={router}
-                                                            setActiveChatId={
-                                                                setActiveChatId
-                                                            }
-                                                            handleDeleteChat={
-                                                                handleDeleteChat
-                                                            }
-                                                            isCollapsed={
-                                                                isCollapsed
-                                                            }
-                                                        />
-                                                    ) : (
-                                                        <li
-                                                            key={
-                                                                subItem.key ||
-                                                                `${item.name}-${index}`
-                                                            }
-                                                            className={classNames(
-                                                                "group flex items-center justify-between rounded-md cursor-pointer hover:bg-gray-100 my-0.5",
-                                                                pathname ===
-                                                                    subItem?.href
-                                                                    ? "bg-gray-100"
-                                                                    : "",
-                                                            )}
-                                                            onClick={() => {
-                                                                if (
-                                                                    subItem.href
-                                                                ) {
-                                                                    router.push(
-                                                                        subItem.href,
-                                                                    );
+                                            {item.type === "applet" &&
+                                                item.workspaceId && (
+                                                    <AppletEditButton
+                                                        workspaceId={
+                                                            item.workspaceId
+                                                        }
+                                                        router={router}
+                                                        isCollapsed={
+                                                            isCollapsed
+                                                        }
+                                                    />
+                                                )}
+                                        </div>
+                                        {item.children?.length > 0 && (
+                                            <ul
+                                                className={cn(
+                                                    "mt-1 px-1",
+                                                    isCollapsed
+                                                        ? "hidden group-hover:block"
+                                                        : "block",
+                                                )}
+                                            >
+                                                {item.children.map(
+                                                    (subItem, index) =>
+                                                        item.name === "Chat" ? (
+                                                            <ChatNavigationItem
+                                                                key={
+                                                                    subItem.key ||
+                                                                    `${item.name}-${index}`
                                                                 }
-                                                            }}
-                                                        >
-                                                            <div
-                                                                className={`relative block py-2 pe-1 ${"text-xs ps-4 pe-4"} leading-6 text-gray-700 w-full select-none flex items-center justify-between`}
-                                                                dir={
-                                                                    document
-                                                                        .documentElement
-                                                                        .dir
+                                                                subItem={
+                                                                    subItem
                                                                 }
+                                                                pathname={
+                                                                    pathname
+                                                                }
+                                                                router={router}
+                                                                setActiveChatId={
+                                                                    setActiveChatId
+                                                                }
+                                                                handleDeleteChat={
+                                                                    handleDeleteChat
+                                                                }
+                                                                isCollapsed={
+                                                                    isCollapsed
+                                                                }
+                                                            />
+                                                        ) : (
+                                                            <li
+                                                                key={
+                                                                    subItem.key ||
+                                                                    `${item.name}-${index}`
+                                                                }
+                                                                className={classNames(
+                                                                    "group flex items-center justify-between rounded-md cursor-pointer hover:bg-gray-100 my-0.5",
+                                                                    pathname ===
+                                                                        subItem?.href
+                                                                        ? "bg-gray-100"
+                                                                        : "",
+                                                                )}
+                                                                onClick={() => {
+                                                                    if (
+                                                                        subItem.href
+                                                                    ) {
+                                                                        router.push(
+                                                                            subItem.href,
+                                                                        );
+                                                                    }
+                                                                }}
                                                             >
-                                                                <span
-                                                                    className={`${
+                                                                <div
+                                                                    className={`relative block py-2 pe-1 ${"text-xs ps-4 pe-4"} leading-6 text-gray-700 w-full select-none flex items-center justify-between`}
+                                                                    dir={
                                                                         document
                                                                             .documentElement
-                                                                            .dir ===
-                                                                        "rtl"
-                                                                            ? "pe-3"
-                                                                            : "ps-3"
-                                                                    } truncate whitespace-nowrap overflow-hidden max-w-[150px]`}
-                                                                    title={t(
-                                                                        subItem.name ||
-                                                                            "",
-                                                                    )}
+                                                                            .dir
+                                                                    }
                                                                 >
-                                                                    {t(
-                                                                        subItem.name ||
-                                                                            "",
-                                                                    )}
-                                                                </span>
-                                                            </div>
-                                                        </li>
-                                                    ),
-                                            )}
-                                        </ul>
-                                    )}
-                                </li>
-                            ))}
-                        </ul>
-                    </li>
-                    <li>
-                        <div className="pt-3 pb-2 bg-gray-50 -mx-5 px-5 text-gray-700">
-                            <button
-                                className="flex gap-2 items-center text-xs w-full"
-                                onClick={() => router.push("/apps")}
-                            >
-                                <Grid3X3 className="h-4 w-4 shrink-0 text-gray-400" />
-                                <span
-                                    className={cn(
-                                        "text-xs text-gray-500",
-                                        isCollapsed &&
-                                            "hidden group-hover:block",
-                                    )}
+                                                                    <span
+                                                                        className={`${
+                                                                            document
+                                                                                .documentElement
+                                                                                .dir ===
+                                                                            "rtl"
+                                                                                ? "pe-3"
+                                                                                : "ps-3"
+                                                                        } truncate whitespace-nowrap overflow-hidden max-w-[150px]`}
+                                                                        title={t(
+                                                                            subItem.name ||
+                                                                                "",
+                                                                        )}
+                                                                    >
+                                                                        {t(
+                                                                            subItem.name ||
+                                                                                "",
+                                                                        )}
+                                                                    </span>
+                                                                </div>
+                                                            </li>
+                                                        ),
+                                                )}
+                                            </ul>
+                                        )}
+                                    </li>
+                                ))}
+                            </ul>
+                        </li>
+                        <li>
+                            <div className="pt-3 pb-2 bg-gray-50 -mx-5 px-5 text-gray-700">
+                                <button
+                                    className="flex gap-2 items-center text-xs w-full"
+                                    onClick={() => router.push("/apps")}
                                 >
-                                    {t("Manage Apps")}
-                                </span>
-                            </button>
-                        </div>
-                        <div className="pt-2 pb-3 bg-gray-50 -mx-5 px-5 text-gray-700">
-                            <SendFeedbackButton
-                                ref={ref}
-                                isCollapsed={isCollapsed}
-                            />
-                        </div>
-                    </li>
-                </ul>
+                                    <Grid3X3 className="h-4 w-4 shrink-0 text-gray-400" />
+                                    <span
+                                        className={cn(
+                                            "text-xs text-gray-500",
+                                            isCollapsed &&
+                                                "hidden group-hover:block",
+                                        )}
+                                    >
+                                        {t("Manage Apps")}
+                                    </span>
+                                </button>
+                            </div>
+                            <div className="pt-2 pb-3 bg-gray-50 -mx-5 px-5 text-gray-700">
+                                <SendFeedbackButton
+                                    ref={ref}
+                                    isCollapsed={isCollapsed}
+                                />
+                            </div>
+                        </li>
+                    </ul>
+                )}
             </nav>
         </div>
     );

@@ -13,20 +13,63 @@ import config from "../config";
 const CORTEX_GRAPHQL_API_URL =
     process.env.CORTEX_GRAPHQL_API_URL || "http://localhost:4000/graphql";
 
-// Add a function to trigger reauth, similar to axios-client.js
-function triggerReauth() {
-    if (typeof window !== "undefined") {
-        if (window.location.search.indexOf("reauth=true") !== -1) {
-            return;
-        }
+// Track authentication state for GraphQL
+let isGraphQLRefreshing = false;
 
-        window.location.href =
-            window.location.pathname +
-            window.location.search +
-            (window.location.search ? "&" : "?") +
-            "reauth=true";
+// Function to check if we're running in Azure App Service
+const isAzureAppService = () => {
+    return (
+        typeof window !== "undefined" &&
+        (window.location.hostname.includes("azurewebsites.net") ||
+            window.location.hostname.includes("azure.com") ||
+            process.env.NODE_ENV === "production")
+    );
+};
+
+// Function to trigger proper authentication refresh
+const triggerAuthRefresh = () => {
+    if (typeof window === "undefined") return;
+
+    // Check if we're in Azure App Service or local development
+    if (isAzureAppService()) {
+        // For Azure App Service, redirect to the auth endpoint
+        const currentUrl = window.location.href;
+        const authUrl = `${window.location.origin}/.auth/login/aad?post_login_redirect_url=${encodeURIComponent(currentUrl)}`;
+
+        // Store the current URL to return to after auth
+        sessionStorage.setItem("auth_redirect_url", currentUrl);
+
+        window.location.href = authUrl;
+    } else {
+        // For local development, use local auth system
+        console.log("Using local authentication for local development");
+
+        // Redirect to local auth endpoint
+        const currentUrl = window.location.href;
+        const localAuthUrl = `${window.location.origin}/api/auth/local?post_login_redirect_url=${encodeURIComponent(currentUrl)}`;
+
+        window.location.href = localAuthUrl;
     }
-}
+};
+
+// Function to check if authentication headers are present and valid
+const checkAuthHeaders = () => {
+    if (typeof window === "undefined") return Promise.resolve(true);
+
+    // Make a lightweight request to check auth status
+    return new Promise((resolve) => {
+        fetch("/api/auth/status", {
+            method: "HEAD",
+            credentials: "include",
+        })
+            .then((response) => {
+                resolve(response.ok);
+            })
+            .catch(() => {
+                resolve(false);
+            });
+    });
+};
 
 const getClient = (serverUrl, useBlueGraphQL) => {
     let graphqlEndpoint;
@@ -47,25 +90,65 @@ const getClient = (serverUrl, useBlueGraphQL) => {
     );
 
     // Add error handling link for authentication errors
-    const errorLink = onError(({ networkError, graphQLErrors }) => {
-        // Handle 401 Unauthorized errors
-        if (networkError && networkError.statusCode === 401) {
-            triggerReauth();
-        }
+    const errorLink = onError(
+        async ({ networkError, graphQLErrors, operation, forward }) => {
+            // Skip auth error handling for auth-related endpoints
+            if (
+                operation.operationName?.includes("auth") ||
+                operation.operationName?.includes("Auth") ||
+                operation.operationName?.includes("login")
+            ) {
+                return;
+            }
 
-        // Handle GraphQL errors that might indicate auth issues
-        if (graphQLErrors) {
-            graphQLErrors.forEach(({ message, extensions }) => {
-                if (
-                    extensions?.code === "UNAUTHENTICATED" ||
-                    message?.toLowerCase().includes("unauthorized") ||
-                    message?.toLowerCase().includes("authentication")
-                ) {
-                    triggerReauth();
+            // Handle 401 Unauthorized errors
+            if (networkError && networkError.statusCode === 401) {
+                if (!isGraphQLRefreshing) {
+                    isGraphQLRefreshing = true;
+
+                    // Check if we need to refresh auth
+                    const isAuthenticated = await checkAuthHeaders();
+                    if (!isAuthenticated) {
+                        triggerAuthRefresh();
+                    }
+
+                    isGraphQLRefreshing = false;
                 }
-            });
-        }
-    });
+            }
+
+            // Handle 401 Unauthorized errors
+            if (networkError && networkError.statusCode === 401) {
+                if (!isGraphQLRefreshing) {
+                    isGraphQLRefreshing = true;
+
+                    // Check if we need to refresh auth
+                    const isAuthenticated = await checkAuthHeaders();
+                    if (!isAuthenticated) {
+                        triggerAuthRefresh();
+                    }
+
+                    isGraphQLRefreshing = false;
+                }
+            }
+
+            // Handle GraphQL errors that might indicate auth issues
+            if (graphQLErrors) {
+                graphQLErrors.forEach(({ message, extensions }) => {
+                    if (
+                        extensions?.code === "UNAUTHENTICATED" ||
+                        message?.toLowerCase().includes("unauthorized") ||
+                        message?.toLowerCase().includes("authentication")
+                    ) {
+                        if (!isGraphQLRefreshing) {
+                            isGraphQLRefreshing = true;
+                            triggerAuthRefresh();
+                            isGraphQLRefreshing = false;
+                        }
+                    }
+                });
+            }
+        },
+    );
 
     // The split function takes three parameters:
     //
@@ -87,12 +170,18 @@ const getClient = (serverUrl, useBlueGraphQL) => {
     // Combine the error link with the split link
     const link = from([errorLink, splitLink]);
 
-    const client = new ApolloClient({
+    return new ApolloClient({
         link,
         cache: new InMemoryCache(),
+        defaultOptions: {
+            watchQuery: {
+                errorPolicy: "all",
+            },
+            query: {
+                errorPolicy: "all",
+            },
+        },
     });
-
-    return client;
 };
 
 const SUMMARY = gql`

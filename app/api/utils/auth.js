@@ -15,20 +15,71 @@ export const getCurrentUser = async (convertToJsonObj = true) => {
     let id = null;
     let username = null;
 
-    if (auth.provider) {
-        if (auth.provider !== "entra") {
-            throw new Error(`Unsupported auth provider: ${auth.provider}`);
-        }
+    // Check for Azure App Service authentication headers
+    const headerList = headers();
+    id = headerList.get("X-MS-CLIENT-PRINCIPAL-ID");
+    username = headerList.get("X-MS-CLIENT-PRINCIPAL-NAME");
 
-        const headerList = headers();
-        id = headerList.get("X-MS-CLIENT-PRINCIPAL-ID");
-        username = headerList.get("X-MS-CLIENT-PRINCIPAL-NAME");
+    // Check for local authentication token (overrides Azure headers in local development)
+    let localAuthToken = null;
+    try {
+        const cookieStore = await import("next/headers").then((m) =>
+            m.cookies(),
+        );
+        const tokenCookie = cookieStore.get("local_auth_token");
+
+        if (tokenCookie?.value) {
+            try {
+                localAuthToken = JSON.parse(tokenCookie.value);
+
+                // Check if token is expired
+                const now = Math.floor(Date.now() / 1000);
+                if (
+                    localAuthToken.expires_at &&
+                    localAuthToken.expires_at < now
+                ) {
+                    console.log("Local auth token expired");
+                    localAuthToken = null;
+                } else {
+                    console.log(
+                        `Using local auth token for user: ${localAuthToken.user.email}`,
+                    );
+                    id = localAuthToken.user.id;
+                    username = localAuthToken.user.email;
+                }
+            } catch (error) {
+                console.error("Error parsing local auth token:", error);
+                localAuthToken = null;
+            }
+        }
+    } catch (error) {
+        console.error("Error reading local auth token:", error);
+    }
+
+    // Validate auth provider if specified
+    if (auth.provider && auth.provider !== "entra") {
+        throw new Error(`Unsupported auth provider: ${auth.provider}`);
     }
 
     id = id || "anonymous";
     username = username || "Anonymous";
 
     let user = await User.findOne({ userId: id });
+
+    // If not found by userId, try to find by username (for local auth with existing users)
+    if (!user && localAuthToken) {
+        console.log(`Looking for existing user by username: ${username}`);
+        user = await User.findOne({ username: username });
+        if (user) {
+            console.log(
+                `Found existing user by username: ${username}, reusing with local userId: ${id}`,
+            );
+            // Update the userId to the local ID for this session
+            user.userId = id;
+        } else {
+            console.log(`No existing user found with username: ${username}`);
+        }
+    }
 
     if (!user) {
         console.log("User not found in DB: ", id);
