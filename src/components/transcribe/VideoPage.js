@@ -952,7 +952,7 @@ function VideoInformationBox({
                             {mediaInfo.icon}
                             <span>{mediaInfo.label}</span>
                             {mediaInfo.extension && (
-                                <span className="px-1.5 py-0.5 bg-gray-100 rounded text-[10px] font-medium">
+                                <span className="px-1.5 py-0.5 bg-gray-100 dark:bg-gray-700 rounded text-[10px] font-medium">
                                     {mediaInfo.extension}
                                 </span>
                             )}
@@ -960,13 +960,13 @@ function VideoInformationBox({
                     </div>
                     <div className="grid grid-cols-[40px_1fr] gap-2 items-center">
                         <div className="text-xs text-gray-500">{t("URL")}</div>
-                        <div className="w-full flex gap-2 overflow-hidden items-center py-1 px-2 rounded-md bg-gray-100">
+                        <div className="w-full flex gap-2 overflow-hidden items-center py-1 px-2 rounded-md bg-gray-100 dark:bg-gray-800">
                             <div className="text-xs text-gray-600 truncate grow">
                                 {currentUrl}
                             </div>
                             <button
                                 onClick={() => handleCopy(currentUrl)}
-                                className="p-1 hover:bg-gray-100 rounded transition-colors flex-shrink-0"
+                                className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors flex-shrink-0"
                                 title={t("Copy URL")}
                             >
                                 {copied ? (

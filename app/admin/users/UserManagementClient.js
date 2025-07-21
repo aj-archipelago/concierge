@@ -122,7 +122,7 @@ export default function UserManagementClient({
             <div className="overflow-x-auto mb-6">
                 <table className="min-w-full bg-white border border-gray-300">
                     <thead>
-                        <tr className="bg-gray-100">
+                        <tr className="bg-gray-100 dark:bg-gray-800">
                             <th className="px-6 py-3 border-b text-left">
                                 Name
                             </th>

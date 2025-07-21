@@ -292,7 +292,7 @@ export default function VersionNavigator({
                             </>
                         ) : (
                             <button
-                                className="px-3 py-1 rounded-full text-xs font-bold border border-gray-300 bg-gray-100 text-gray-600 hover:bg-gray-200 transition shadow-sm whitespace-nowrap"
+                                className="px-3 py-1 rounded-full text-xs font-bold border border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 transition shadow-sm whitespace-nowrap"
                                 onClick={() =>
                                     setActiveVersionIndex(publishedVersionIndex)
                                 }

@@ -338,7 +338,7 @@ function Actions({ user, workspace }) {
                 <div className="text-sm">
                     {workspace.published && (
                         <div
-                            className="text-sm text-gray-600 font-mono bg-gray-100 p-2 rounded-md overflow-x-auto cursor-pointer"
+                            className="text-sm text-gray-600 dark:text-gray-300 font-mono bg-gray-100 dark:bg-gray-800 p-2 rounded-md overflow-x-auto cursor-pointer"
                             onClick={() => setPublishModalOpen(true)}
                         >
                             <span className="">{t("Published")}</span>{" "}
@@ -498,7 +498,7 @@ function PublishedWorkspace({ workspace }) {
                 </span>
             </div>
 
-            <div className="mb-4 bg-gray-100 p-2 rounded-md text-sm">
+                            <div className="mb-4 bg-gray-100 dark:bg-gray-800 p-2 rounded-md text-sm">
                 <pre>
                     {`
 QUERY:

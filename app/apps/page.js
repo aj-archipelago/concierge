@@ -71,14 +71,14 @@ function SortableAppItem({ app, onRemove, isCollapsed }) {
                 <button
                     {...attributes}
                     {...listeners}
-                    className="cursor-grab active:cursor-grabbing p-1 hover:bg-gray-100 rounded"
+                    className="cursor-grab active:cursor-grabbing p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
                 >
                     <GripVertical className="h-4 w-4 text-gray-400" />
                 </button>
                 <div className="flex items-center gap-2">
-                    <div className="flex items-center justify-center w-8 h-8 bg-gray-100 rounded-lg">
-                        <IconComponent className="w-4 h-4 text-gray-600" />
-                    </div>
+                                    <div className="flex items-center justify-center w-8 h-8 bg-gray-100 dark:bg-gray-700 rounded-lg">
+                    <IconComponent className="w-4 h-4 text-gray-600 dark:text-gray-300" />
+                </div>
                     <span className="font-medium text-gray-900">
                         {t(appName)}
                     </span>
@@ -340,9 +340,9 @@ export default function AppsPage() {
                                                             <GripVertical className="h-4 w-4 text-gray-400" />
                                                         </div>
                                                         <div className="flex items-center gap-2">
-                                                            <div className="flex items-center justify-center w-8 h-8 bg-gray-100 rounded-lg">
-                                                                <AppWindow className="w-4 h-4 text-gray-600" />
-                                                            </div>
+                                                                            <div className="flex items-center justify-center w-8 h-8 bg-gray-100 dark:bg-gray-700 rounded-lg">
+                    <AppWindow className="w-4 h-4 text-gray-600 dark:text-gray-300" />
+                </div>
                                                             <span className="font-medium text-gray-900">
                                                                 {userApps.find(
                                                                     (app) => {
