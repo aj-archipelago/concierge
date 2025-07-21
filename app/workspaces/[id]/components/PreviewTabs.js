@@ -103,9 +103,9 @@ function EmptyStatePlaceholder() {
 
     return (
         <div className="flex flex-col items-center justify-center h-full text-center p-8">
-            <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">
+            <div className="w-16 h-16 bg-gray-100 dark:bg-gray-700 rounded-full flex items-center justify-center mb-4">
                 <svg
-                    className="w-8 h-8 text-gray-400"
+                    className="w-8 h-8 text-gray-400 dark:text-gray-500"
                     fill="none"
                     stroke="currentColor"
                     viewBox="0 0 24 24"
@@ -118,10 +118,10 @@ function EmptyStatePlaceholder() {
                     />
                 </svg>
             </div>
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">
                 {t("No applet created yet")}
             </h3>
-            <p className="text-gray-600 max-w-md">
+            <p className="text-gray-600 dark:text-gray-400 max-w-md">
                 {t(
                     "Use the chat interface to describe your desired UI, or paste HTML code directly in the Code tab to create your first version.",
                 )}
@@ -136,13 +136,13 @@ function LoadingStatePlaceholder() {
 
     return (
         <div className="flex flex-col items-center justify-center h-full text-center p-8">
-            <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">
-                <div className="w-8 h-8 border-2 border-gray-300 border-t-blue-600 rounded-full animate-spin" />
+            <div className="w-16 h-16 bg-gray-100 dark:bg-gray-700 rounded-full flex items-center justify-center mb-4">
+                <div className="w-8 h-8 border-2 border-gray-300 dark:border-gray-600 border-t-blue-600 rounded-full animate-spin" />
             </div>
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">
                 {t("Loading applet...")}
             </h3>
-            <p className="text-gray-600 max-w-md">
+            <p className="text-gray-600 dark:text-gray-400 max-w-md">
                 {t("Please wait while we load your applet data.")}
             </p>
         </div>
@@ -233,7 +233,7 @@ export default function PreviewTabs({
                 <TabsTrigger value="code">{t("Code")}</TabsTrigger>
             </TabsList>
 
-            <div className="border rounded-md shadow-md bg-white flex-1 min-w-0 overflow-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent hover:scrollbar-thumb-gray-400 relative">
+            <div className="border rounded-md shadow-md bg-white dark:bg-gray-800 dark:border-gray-600 flex-1 min-w-0 overflow-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent hover:scrollbar-thumb-gray-400 relative">
                 <CreatingAppletDialog isVisible={showCreatingDialog} />
                 <div className="flex flex-col h-full">
                     <div className="flex-1 p-4">

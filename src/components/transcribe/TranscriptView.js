@@ -213,11 +213,11 @@ function TranscriptView({
         <div className="transcription-taxonomy-container flex flex-col gap-2 overflow-y-auto mt-2">
             <div className="transcription-section relative">
                 {isEditing ? (
-                    <div className="border border-gray-300 rounded-md p-2.5 bg-gray-50 mb-4">
+                    <div className="border border-gray-300 dark:border-gray-600 rounded-md p-2.5 bg-gray-50 dark:bg-gray-700 mb-4">
                         <textarea
                             value={editableText}
                             onChange={(e) => setEditableText(e.target.value)}
-                            className="w-full h-[400px] focus:outline-none border rounded-md bg-white"
+                            className="w-full h-[400px] focus:outline-none border rounded-md bg-white dark:bg-gray-800 dark:border-gray-600"
                         />
                         <div className="flex justify-end gap-2 mt-2">
                             <button
@@ -235,7 +235,7 @@ function TranscriptView({
                         </div>
                     </div>
                 ) : (
-                    <div className="border border-gray-300 rounded-md py-2.5 px-2.5 bg-gray-50 mb-4">
+                    <div className="border border-gray-300 dark:border-gray-600 rounded-md py-2.5 px-2.5 bg-gray-50 dark:bg-gray-700 mb-4">
                         {format === "vtt" && text ? (
                             <VttSubtitles
                                 name={name}
@@ -245,7 +245,7 @@ function TranscriptView({
                                 onTextChange={onTextChange}
                             />
                         ) : text ? (
-                            <pre className="whitespace-pre-wrap text-sm">
+                            <pre className="whitespace-pre-wrap text-sm text-gray-800 dark:text-gray-200">
                                 {text.replace(/\n/g, "\n\n")}
                             </pre>
                         ) : (
@@ -253,7 +253,7 @@ function TranscriptView({
                         )}
                     </div>
                 )}
-                <div className="absolute top-3 end-3 flex gap-1 bg-gray-50 opacity-80 hover:opacity-100 text-sm">
+                <div className="absolute top-3 end-3 flex gap-1 bg-gray-50 dark:bg-gray-700 opacity-80 hover:opacity-100 text-sm">
                     {!isEditing && text && (
                         <CopyButton
                             item={text}

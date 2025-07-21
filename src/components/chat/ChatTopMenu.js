@@ -107,7 +107,7 @@ function ChatTopMenu({ displayState = "full" }) {
                 className={`flex items-center gap-1 px-3 py-1.5 rounded-md transition-colors border ${
                     isResearchMode
                         ? "bg-blue-500 text-white border-blue-600 hover:bg-blue-700 dark:hover:bg-blue-600 dark:hover:text-white"
-                        : "bg-white text-gray-700 border-gray-200 hover:bg-gray-100"
+                        : "bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 border-gray-200 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-600"
                 }`}
                 title={t("Toggle Research Mode")}
             >
@@ -180,7 +180,7 @@ function ChatTopMenu({ displayState = "full" }) {
                         </div>
 
                         <div
-                            className="chat-option text-center justify-center pt-2.5 text-white dark:text-black"
+                            className="chat-option text-center justify-center pt-2.5 text-white dark:text-gray-100"
                             onClick={() => handleDeleteAll()}
                         >
                             {t("Delete all uploads")}

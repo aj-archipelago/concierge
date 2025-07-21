@@ -61,7 +61,7 @@ function HeadlineModal({ text, onSelect, args }) {
             <div className="relative">
                 <div className="flex gap-6">
                     <div className="flex-1">
-                        <div className="mb-4 bg-gray-50 rounded-md border p-2">
+                        <div className="mb-4 bg-gray-50 dark:bg-gray-700 rounded-md border dark:border-gray-600 p-2">
                             <label className="flex items-center mb-2 text-sm font-medium">
                                 <input
                                     type="checkbox"
@@ -89,7 +89,7 @@ function HeadlineModal({ text, onSelect, args }) {
                             />
                         </div>
 
-                        <div className="bg-gray-50 rounded-md border p-2">
+                        <div className="bg-gray-50 dark:bg-gray-700 rounded-md border dark:border-gray-600 p-2">
                             <div>
                                 <label className="flex items-center mb-2 text-sm font-medium">
                                     <input
@@ -132,7 +132,7 @@ function HeadlineModal({ text, onSelect, args }) {
                             </div>
                         </div>
 
-                        <div className="bg-gray-50 rounded-md border p-2 mt-4 text-sm">
+                        <div className="bg-gray-50 dark:bg-gray-700 rounded-md border dark:border-gray-600 p-2 mt-4 text-sm">
                             <label className="flex items-center mb-2">
                                 <input
                                     type="checkbox"
@@ -173,17 +173,17 @@ function HeadlineModal({ text, onSelect, args }) {
                         >
                             {t("Generate Headlines")}
                         </LoadingButton>
-                        <h6 className="font-bold mb-0">{t("Headlines")}</h6>
-                        <p className="text-gray-600 text-sm">
+                        <h6 className="font-bold mb-0 dark:text-gray-100">{t("Headlines")}</h6>
+                        <p className="text-gray-600 dark:text-gray-400 text-sm">
                             <small>
                                 {t("Max length")}: {targetLength}{" "}
                                 {t("characters")}
                             </small>
                         </p>
                         {error && (
-                            <p className="text-red-500">
-                                {t("Error")}: {error.message}
-                            </p>
+                                                    <p className="text-red-500 dark:text-red-400">
+                            {t("Error")}: {error.message}
+                        </p>
                         )}
                         {!error && (
                             <GeneratedHeadlines

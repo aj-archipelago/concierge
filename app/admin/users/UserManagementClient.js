@@ -140,7 +140,7 @@ export default function UserManagementClient({
                     <tbody>
                         {users.length > 0 ? (
                             users.map((user) => (
-                                <tr key={user._id} className="hover:bg-gray-50">
+                                <tr key={user._id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
                                     <td className="px-6 py-4 border-b">
                                         {user.name}
                                     </td>

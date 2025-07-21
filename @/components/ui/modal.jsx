@@ -15,9 +15,7 @@ export function Modal({
             <Dialog
                 as="div"
                 className="relative z-50"
-                onClose={() => {
-                    null;
-                }}
+                onClose={() => {}}
             >
                 <Transition.Child
                     as={Fragment}
@@ -43,18 +41,18 @@ export function Modal({
                             leaveTo="opacity-0 scale-95"
                         >
                             <Dialog.Panel
-                                className={`w-full ${widthClassName} transform overflow-hidden rounded-md bg-white dark:bg-gray-100 dark:border-gray-300 border p-6 text-start align-middle shadow-xl transition-all`}
+                                className={`w-full ${widthClassName} transform overflow-hidden rounded-md bg-white dark:bg-gray-800 dark:border-gray-600 border p-6 text-start align-middle shadow-xl transition-all`}
                             >
                                 <Dialog.Title
                                     as="h3"
-                                    className="text-lg font-medium leading-6 text-gray-900 mb-4"
+                                    className="text-lg font-medium leading-6 text-gray-900 dark:text-gray-100 mb-4"
                                 >
                                     <div className="justify-between flex">
                                         <div>{title}</div>
                                         <div>
                                             <button
                                                 onClick={onHide}
-                                                className="p-1 rounded-full hover:bg-gray-100"
+                                                className="p-1 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700"
                                             >
                                                 <X size={16} />
                                             </button>

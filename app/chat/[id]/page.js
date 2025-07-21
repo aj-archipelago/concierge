@@ -23,11 +23,11 @@ export default async function ChatPage({ params }) {
     if (!chat) {
         return (
             <div className="flex items-center justify-center">
-                <div className="text-center p-8 bg-white rounded-lg shadow-md">
-                    <h1 className="text-2xl font-bold text-red-600 mb-2">
+                <div className="text-center p-8 bg-white dark:bg-gray-800 rounded-lg shadow-md">
+                    <h1 className="text-2xl font-bold text-red-600 dark:text-red-400 mb-2">
                         Chat not found!
                     </h1>
-                    <p className="text-gray-600">
+                    <p className="text-gray-600 dark:text-gray-400">
                         The requested chat does not exist or has been deleted.
                     </p>
                 </div>

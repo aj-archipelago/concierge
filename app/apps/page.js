@@ -255,7 +255,7 @@ export default function AppsPage() {
 
     if (isLoading) {
         return (
-            <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+            <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
                 <div className="text-center">
                     <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-sky-600 mx-auto"></div>
                     <p className="mt-2 text-gray-600">{t("Loading...")}</p>
@@ -265,7 +265,7 @@ export default function AppsPage() {
     }
 
     return (
-        <div className="min-h-screen bg-gray-50">
+        <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
             <div className="py-8 px-4">
                 <div className="bg-white rounded-lg shadow-sm border border-gray-200">
                     <div className="px-6 py-4 border-b border-gray-200">
@@ -388,7 +388,7 @@ export default function AppsPage() {
                                             onChange={(e) =>
                                                 setSearchQuery(e.target.value)
                                             }
-                                            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-transparent rtl:pl-4 rtl:pr-10 rtl:text-right bg-white dark:bg-gray-100 dark:border-gray-300 dark:text-gray-800 dark:placeholder-gray-400"
+                                            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-transparent rtl:pl-4 rtl:pr-10 rtl:text-right bg-white dark:bg-gray-800 dark:border-gray-600 dark:text-gray-100 dark:placeholder-gray-400"
                                         />
                                     </div>
                                 </div>
@@ -409,7 +409,7 @@ export default function AppsPage() {
                                             return (
                                                 <div
                                                     key={app._id}
-                                                    className="relative p-3 border border-gray-200 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors cursor-pointer"
+                                                    className="relative p-3 border border-gray-200 rounded-lg bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors cursor-pointer"
                                                     onClick={() => {
                                                         if (
                                                             app.type ===
@@ -485,7 +485,7 @@ export default function AppsPage() {
                                                 return (
                                                     <div
                                                         key={app._id}
-                                                        className="relative p-3 border border-gray-200 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors cursor-pointer"
+                                                        className="relative p-3 border border-gray-200 rounded-lg bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors cursor-pointer"
                                                         onClick={() => {
                                                             if (
                                                                 app.type ===

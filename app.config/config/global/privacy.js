@@ -7,15 +7,15 @@ export const getPrivacyContent = (language) => {
 
 function getEnglish() {
     const html = `
-    <main class="min-h-screen bg-gray-100 py-8">
+    <main class="min-h-screen bg-gray-100 dark:bg-gray-900 py-8">
         <section class="w-full">
             <div class="max-w-6xl mx-auto px-4">
                 <div class="mb-8 text-center">
-                    <h1 class="text-xl font-medium mb-3 text-gray-800">Privacy Notice</h1>
+                    <h1 class="text-xl font-medium mb-3 text-gray-800 dark:text-gray-200">Privacy Notice</h1>
                 </div>
                 <div class="flex flex-wrap justify-center">
                     <div class="w-full">
-                        <div class="bg-white p-6 sm:p-8 rounded-lg shadow-md">
+                        <div class="bg-white dark:bg-gray-800 p-6 sm:p-8 rounded-lg shadow-md">
                             <!-- OneTrust Privacy Notice start -->
                             <div class="otnotice-language-dropdown-container" style="display:none">
                                <select id="otnotice-language-dropdown" aria-label="language selector"></select>
@@ -72,9 +72,9 @@ function getEnglish() {
                     max-width:100%!important;
                 }
             }
-            body.dark .otnotice-menu{background:#1f2937!important;border-color:#374151!important;}
-            body.dark .otnotice-menu>.otnotice-menu-section a{color:#e5e7eb!important;}
-            body.dark .otnotice-sections>.otnotice-section>h2.otnotice-section-header{color:#e5e7eb!important;}
+            body.dark .otnotice-menu{background:#374151!important;border-color:#4b5563!important;}
+            body.dark .otnotice-menu>.otnotice-menu-section a{color:#f3f4f6!important;}
+            body.dark .otnotice-sections>.otnotice-section>h2.otnotice-section-header{color:#f3f4f6!important;}
         </style>
     </main>`;
 
@@ -349,7 +349,7 @@ function getArabic() {
     }
     /* -- DARK MODE (enabled by <body class="dark">, matches English page logic) -- */
     body.dark, .dark .page.inner-page, .dark .bright-gray-bg, .dark .container, .dark .container-overlap-top {
-      background: #16191e !important;
+      background: #111827 !important;
     }
     body.dark .card,
     body.dark .white-bg,
@@ -358,8 +358,8 @@ function getArabic() {
     .dark .white-bg,
     .dark .main-row {
         background: #1f2937 !important;
-        color: #e5e7eb !important;
-        box-shadow: 0 2px 14px rgba(20,24,35,0.22) !important;
+        color: #f3f4f6 !important;
+        box-shadow: 0 2px 14px rgba(0,0,0,0.3) !important;
     }
     body.dark .page-title,
     body.dark .block-heading h1,
@@ -371,7 +371,7 @@ function getArabic() {
     .dark .privacy-content h1,
     .dark .privacy-content h2,
     .dark .privacy-content h3 {
-        color: #e5e7eb !important;
+        color: #f3f4f6 !important;
     }
     body.dark .privacy-content p,
     body.dark .privacy-content ul,
@@ -383,12 +383,12 @@ function getArabic() {
     }
     body.dark .notice-menu,
     .dark .notice-menu {
-        background: #232946 !important;
-        border-color: #374151 !important;
+        background: #374151 !important;
+        border-color: #4b5563 !important;
     }
     body.dark .notice-menu a,
     .dark .notice-menu a {
-        color: #e5e7eb !important;
+        color: #f3f4f6 !important;
     }
     body.dark .notice-menu a:hover,
     body.dark .notice-menu a:focus,
@@ -404,12 +404,12 @@ function getArabic() {
     }
     body.dark .ms-rteTable-default td,
     .dark .ms-rteTable-default td {
-        background: #232946 !important;
-        color: #e5e7eb !important;
+        background: #374151 !important;
+        color: #f3f4f6 !important;
     }
     body.dark .ms-rteTable-default tr:nth-child(even) td,
     .dark .ms-rteTable-default tr:nth-child(even) td {
-        background: #1f232d !important;
+        background: #4b5563 !important;
     }
     `;
 

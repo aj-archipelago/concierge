@@ -223,7 +223,7 @@ const TaskPlaceholder = ({ message }) => {
                 )}
             </div>
             {expanded && (
-                <div className="text-gray-600 mt-1 ps-3 border-s-2 border-gray-400 bg-gray-100 py-2 px-3 rounded-r-md">
+                <div className="text-gray-600 dark:text-gray-300 mt-1 ps-3 border-s-2 border-gray-400 dark:border-gray-600 bg-gray-100 dark:bg-gray-800 py-2 px-3 rounded-r-md">
                     {!isInProgress && status !== "completed" && (
                         <div className="flex items-center gap-2 my-2">
                             <span
@@ -232,18 +232,18 @@ const TaskPlaceholder = ({ message }) => {
                                 {sentenceCase(status)}
                             </span>
                             {status === "cancelled" && (
-                                <span className="text-sm text-gray-600">
-                                    This task was cancelled by the user
-                                </span>
+                                                            <span className="text-sm text-gray-600 dark:text-gray-300">
+                                This task was cancelled by the user
+                            </span>
                             )}
                         </div>
                     )}
                     {statusText && (
                         <div>
-                            <div className="text-gray-600 text-sm font-semibold">
+                            <div className="text-gray-600 dark:text-gray-300 text-sm font-semibold">
                                 Output
                             </div>
-                            <pre className="my-1 p-2 text-xs border bg-gray-50 rounded-md relative whitespace-pre-wrap font-sans max-h-[140px] overflow-y-auto">
+                            <pre className="my-1 p-2 text-xs border bg-gray-50 dark:bg-gray-700 rounded-md relative whitespace-pre-wrap font-sans max-h-[140px] overflow-y-auto">
                                 {showFullOutput || statusText.length <= 150 ? (
                                     statusText?.trim()
                                 ) : (
@@ -287,7 +287,7 @@ const TaskPlaceholder = ({ message }) => {
                                     style={{ width: `${progress * 100}%` }}
                                 ></div>
                             </div>
-                            <span className="text-xs text-gray-500">
+                            <span className="text-xs text-gray-500 dark:text-gray-400">
                                 {Math.round(progress * 100)}% completed
                             </span>
                         </div>
@@ -338,7 +338,7 @@ export const EphemeralContent = React.memo(
                     </svg>
                 </div>
                 {expanded && (
-                    <div className="text-gray-600 mt-1 ps-3 border-s-2 border-gray-400 bg-gray-100 py-2 px-3 rounded-r-md text-[12px]">
+                    <div className="text-gray-600 dark:text-gray-300 mt-1 ps-3 border-s-2 border-gray-400 dark:border-gray-600 bg-gray-100 dark:bg-gray-800 py-2 px-3 rounded-r-md text-[12px]">
                         {convertMessageToMarkdown({
                             payload: content,
                             sender: "labeeb",
@@ -468,7 +468,7 @@ const BotMessage = ({
     return (
         <div
             key={message.id}
-            className="flex bg-sky-50 ps-1 pt-1 relative group"
+            className="flex bg-sky-50 dark:bg-gray-700 ps-1 pt-1 relative group"
         >
             <div className="flex items-center gap-2 absolute top-3 end-3">
                 <CopyButton

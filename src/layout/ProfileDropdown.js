@@ -36,17 +36,17 @@ export default function ProfileDropdown({
                 <Menu.Items
                     className={classNames(
                         direction === "ltr" ? "right-0" : "left-0",
-                        "absolute z-10 mt-2 w-56 origin-top-right rounded-md bg-white dark:bg-gray-50 dark:border-gray-300 border shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none",
+                        "absolute z-10 mt-2 w-56 origin-top-right rounded-md bg-white dark:bg-gray-800 dark:border-gray-600 border shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none",
                     )}
                 >
                     <div className="py-1">
                         <Menu.Item>
                             {({ active }) => (
-                                <div className="px-4 py-2 text-gray-700 text-sm">
-                                    <div className="text-xs text-gray-400">
+                                <div className="px-4 py-2 text-gray-700 dark:text-gray-300 text-sm">
+                                    <div className="text-xs text-gray-400 dark:text-gray-500">
                                         {t("Signed in as")}
                                     </div>
-                                    <div className="font-medium">{name}</div>
+                                    <div className="font-medium text-gray-900 dark:text-gray-100">{name}</div>
                                 </div>
                             )}
                         </Menu.Item>
@@ -57,8 +57,8 @@ export default function ProfileDropdown({
                                 <div
                                     className={classNames(
                                         active
-                                            ? "bg-gray-100 text-gray-900"
-                                            : "text-gray-700",
+                                            ? "bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                                            : "text-gray-700 dark:text-gray-300",
                                     )}
                                 >
                                     <a
@@ -83,8 +83,8 @@ export default function ProfileDropdown({
                                 <div
                                     className={classNames(
                                         active
-                                            ? "bg-gray-100 text-gray-900"
-                                            : "text-gray-700",
+                                            ? "bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                                            : "text-gray-700 dark:text-gray-300",
                                     )}
                                 >
                                     <a
@@ -109,8 +109,8 @@ export default function ProfileDropdown({
                                 <a
                                     className={classNames(
                                         active
-                                            ? "bg-gray-100 text-gray-900"
-                                            : "text-gray-700",
+                                            ? "bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                                            : "text-gray-700 dark:text-gray-300",
                                         "block w-full px-4 py-2 text-start text-sm",
                                     )}
                                     href="/.auth/logout"

@@ -44,7 +44,7 @@ const StatusText = ({ text, id, t }) => {
 
     return (
         <div>
-            <pre className="my-1 p-2 text-xs border bg-gray-50 rounded-md relative whitespace-pre-wrap font-sans max-h-[150px] overflow-y-auto">
+            <pre className="my-1 p-2 text-xs border bg-gray-50 dark:bg-gray-700 rounded-md relative whitespace-pre-wrap font-sans max-h-[150px] overflow-y-auto text-gray-800 dark:text-gray-200">
                 {isExpanded || (text?.length || 0) <= 150 ? (
                     text?.trim()
                 ) : (
@@ -81,9 +81,9 @@ const JobInfoBox = ({ job }) => {
     if (!job) return null;
 
     return (
-        <div className="ms-8 bg-gray-50 border rounded p-2 mt-2 text-xs text-gray-700 overflow-auto max-h-40">
+        <div className="ms-8 bg-gray-50 dark:bg-gray-700 border rounded p-2 mt-2 text-xs text-gray-700 dark:text-gray-300 overflow-auto max-h-40">
             <div
-                className="flex items-center justify-between cursor-pointer font-medium text-gray-800"
+                className="flex items-center justify-between cursor-pointer font-medium text-gray-800 dark:text-gray-200"
                 onClick={() => setExpanded((prev) => !prev)}
                 title={expanded ? "Collapse" : "Expand"}
             >
@@ -128,7 +128,7 @@ function NotificationItem({
     return (
         <div
             key={notification._id}
-            className="space-y-2 bg-gray-100 p-3 rounded-md"
+            className="space-y-2 bg-gray-100 dark:bg-gray-700 p-3 rounded-md"
         >
             <div className="flex gap-3">
                 <div className="ps-1 pt-1">
@@ -136,7 +136,7 @@ function NotificationItem({
                 </div>
                 <div className="flex flex-col grow overflow-hidden">
                     <div className="flex justify-between items-start">
-                        <span className="font-semibold">
+                        <span className="font-semibold text-gray-900 dark:text-gray-100">
                             {displayType(notification.type)}
                         </span>
                         <div className="flex gap-2">
@@ -145,7 +145,7 @@ function NotificationItem({
                                     onClick={() =>
                                         handleCancelRequest(notification._id)
                                     }
-                                    className="p-1 rounded flex items-center gap-1 text-sm text-gray-500 hover:text-red-500"
+                                    className="p-1 rounded flex items-center gap-1 text-sm text-gray-500 dark:text-gray-400 hover:text-red-500 dark:hover:text-red-400"
                                     title={t("Cancel")}
                                 >
                                     <XIcon className="h-4 w-4" />
@@ -159,7 +159,7 @@ function NotificationItem({
                                     onClick={() =>
                                         handleDelete(notification._id)
                                     }
-                                    className="p-1 rounded flex items-center gap-1 text-sm text-gray-500 hover:text-red-500"
+                                    className="p-1 rounded flex items-center gap-1 text-sm text-gray-500 dark:text-gray-400 hover:text-red-500 dark:hover:text-red-400"
                                     title={t("Delete")}
                                 >
                                     <TrashIcon className="h-4 w-4" />
@@ -168,7 +168,7 @@ function NotificationItem({
                         </div>
                     </div>
                     {notification.createdAt && (
-                        <span className="text-xs text-gray-500">
+                        <span className="text-xs text-gray-500 dark:text-gray-400">
                             {t("Created ")}{" "}
                             <TimeAgo date={notification.createdAt} />
                         </span>
@@ -191,7 +191,7 @@ function NotificationItem({
                     />
 
                     {notification.status === "in_progress" && (
-                        <div className="my-2 h-2 w-full bg-gray-200 rounded-full">
+                        <div className="my-2 h-2 w-full bg-gray-200 dark:bg-gray-600 rounded-full">
                             <div
                                 className="h-full bg-sky-600 rounded-full transition-all duration-300"
                                 style={{
@@ -276,14 +276,14 @@ export default function NotificationsPage() {
     return (
         <div className="p-2">
             <div className="flex justify-between items-center mb-6">
-                <h1 className="text-2xl font-bold">{t("All notifications")}</h1>
+                <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">{t("All notifications")}</h1>
                 <button
                     onClick={() => setShowDeleteOldDialog(true)}
                     disabled={deleteOldTasks.isPending}
-                    className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-sky-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-sky-500 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                     {deleteOldTasks.isPending ? (
-                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-900" />
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-900 dark:border-gray-100" />
                     ) : (
                         <ClockIcon className="h-4 w-4" />
                     )}
@@ -293,10 +293,10 @@ export default function NotificationsPage() {
             <div className="space-y-4">
                 {status === "pending" ? (
                     <div className="flex justify-center">
-                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900" />
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 dark:border-gray-100" />
                     </div>
                 ) : notifications.length === 0 ? (
-                    <p className="text-sm text-gray-500">
+                    <p className="text-sm text-gray-500 dark:text-gray-400">
                         {t("No notifications")}
                     </p>
                 ) : (
@@ -315,7 +315,7 @@ export default function NotificationsPage() {
                         <div ref={ref} className="py-4">
                             {isFetchingNextPage && (
                                 <div className="flex justify-center">
-                                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900" />
+                                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 dark:border-gray-100" />
                                 </div>
                             )}
                         </div>

@@ -113,7 +113,7 @@ function DataCell({ data }) {
     return (
         <>
             <div
-                className="bg-gray-50 p-2 rounded-md max-w-[300px] border max-h-[150px] overflow-auto cursor-pointer hover:bg-gray-100"
+                className="bg-gray-50 dark:bg-gray-700 p-2 rounded-md max-w-[300px] border max-h-[150px] overflow-auto cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600"
                 onClick={() => setIsOpen(true)}
             >
                 <pre className="text-xs whitespace-pre-wrap">
@@ -127,7 +127,7 @@ function DataCell({ data }) {
                     <DialogHeader>
                         <DialogTitle>Data Details</DialogTitle>
                     </DialogHeader>
-                    <div className="bg-gray-50 p-4 rounded-md w-full overflow-auto">
+                    <div className="bg-gray-50 dark:bg-gray-700 p-4 rounded-md w-full overflow-auto">
                         <pre className="w-full whitespace-pre-wrap text-sm overflow-auto max-h-[60vh]">
                             {dialogContent}
                         </pre>
@@ -206,7 +206,7 @@ function WorkerStatus({ worker }) {
                 </Button>
 
                 {showDebug && (
-                    <div className="mt-2 bg-gray-50 p-2 rounded-md">
+                    <div className="mt-2 bg-gray-50 dark:bg-gray-700 p-2 rounded-md">
                         <pre className="text-xs whitespace-pre-wrap">
                             {JSON.stringify(worker.debug, null, 2)}
                         </pre>

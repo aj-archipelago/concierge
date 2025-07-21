@@ -107,7 +107,7 @@ const NotificationItem = ({
             key={notification._id}
             data-request-id={notification._id}
             className={`
-            space-y-2 bg-gray-100 p-2 rounded-md mb-2 
+            space-y-2 bg-gray-100 dark:bg-gray-700 p-2 rounded-md mb-2 
             transform transition-all duration-300 ease-in-out
             ${dismissingIds.has(notification._id) ? "opacity-0 -translate-y-2" : "opacity-100 translate-y-0"}
         `}
@@ -118,7 +118,7 @@ const NotificationItem = ({
                 </div>
                 <div className="flex flex-col overflow-hidden grow">
                     <span
-                        className={`font-semibold text-gray-800 ${notification.invokedFrom?.source ? "cursor-pointer hover:text-sky-600" : ""}`}
+                        className={`font-semibold text-gray-800 dark:text-gray-200 ${notification.invokedFrom?.source ? "cursor-pointer hover:text-sky-600" : ""}`}
                         onClick={() => {
                             if (notification.invokedFrom?.source === "chat") {
                                 setActiveChatId
@@ -152,7 +152,7 @@ const NotificationItem = ({
                     </span>
                     {notification.metadata && (
                         <div
-                            className="text-xs text-gray-600 truncate"
+                            className="text-xs text-gray-600 dark:text-gray-400 truncate"
                             title={notification.statusText}
                         >
                             {notification.type === "video-translate" && (
@@ -222,7 +222,7 @@ const NotificationItem = ({
                     )}
                     {(notification.status === "in_progress" ||
                         notification.status === "pending") && (
-                        <div className="my-1 h-2 w-full bg-gray-200 rounded-full">
+                        <div className="my-1 h-2 w-full bg-gray-200 dark:bg-gray-600 rounded-full">
                             <div
                                 className={`h-full rounded-full transition-all  ${
                                     notification.status === "pending"
@@ -252,7 +252,7 @@ const NotificationItem = ({
                             onClick={() =>
                                 handleCancelRequest(notification._id)
                             }
-                            className="p-1 hover:bg-gray-100 rounded flex items-start"
+                            className="p-1 hover:bg-gray-100 dark:hover:bg-gray-600 rounded flex items-start"
                             title={t("Cancel")}
                         >
                             <XIcon className="h-4 w-4 text-gray-500" />
@@ -264,7 +264,7 @@ const NotificationItem = ({
                         notification.status === "abandoned") && (
                         <button
                             onClick={() => handleDismiss(notification._id)}
-                            className="p-1 hover:bg-gray-100 rounded flex items-start"
+                            className="p-1 hover:bg-gray-100 dark:hover:bg-gray-600 rounded flex items-start"
                             title={t("Hide")}
                         >
                             <EyeOff className="h-4 w-4 text-gray-500" />
@@ -277,7 +277,7 @@ const NotificationItem = ({
                         isRetryable && (
                             <button
                                 onClick={() => handleRetry(notification._id)}
-                                className="p-1 hover:bg-gray-100 rounded flex items-start"
+                                className="p-1 hover:bg-gray-100 dark:hover:bg-gray-600 rounded flex items-start"
                                 title={t("Retry")}
                             >
                                 <RotateCcw className="h-4 w-4 text-gray-500" />
@@ -367,7 +367,7 @@ export default function NotificationButton() {
                 </PopoverTrigger>
                 <PopoverContent className="w-80">
                     <div className="space-y-4">
-                        <h3 className="font-medium">{t("Notifications")}</h3>
+                        <h3 className="font-medium text-gray-900 dark:text-gray-100">{t("Notifications")}</h3>
                         <div className="max-h-[300px] overflow-y-auto">
                             {notifications.length === 0 ? (
                                 <p className="text-sm text-gray-500">

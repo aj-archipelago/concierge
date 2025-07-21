@@ -154,7 +154,7 @@ function TextWithCitations({ index, citation }) {
                         )}
                     </div>
                     {strippedContent && (
-                        <pre className="text-sm font-sans">
+                        <pre className="text-sm font-sans text-gray-800 dark:text-gray-200">
                             {strippedContent}
                         </pre>
                     )}

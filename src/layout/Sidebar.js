@@ -275,7 +275,7 @@ export default React.forwardRef(function Sidebar(
     return (
         <div
             className={cn(
-                "flex grow flex-col gap-y-5 overflow-y-auto border-r border-gray-200 bg-white px-5 relative z-[41]",
+                "flex grow flex-col gap-y-5 overflow-y-auto border-r border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-5 relative z-[41]",
                 isCollapsed &&
                     "group overflow-y-hidden hover:overflow-y-auto hover:w-56 w-16 transition-[width] duration-100 shadow-xl",
                 !isCollapsed && "w-56 overflow-y-auto",
@@ -285,7 +285,7 @@ export default React.forwardRef(function Sidebar(
                 <button
                     onClick={onToggleCollapse}
                     className={cn(
-                        "hidden bg-white border border-gray-200 rounded-full p-1 shadow-sm hover:bg-gray-50",
+                        "hidden bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-full p-1 shadow-sm hover:bg-gray-50 dark:hover:bg-gray-600",
                         shouldForceCollapse(pathname)
                             ? "lg:hidden"
                             : "group-hover:block",
@@ -342,9 +342,9 @@ export default React.forwardRef(function Sidebar(
                                             item.href &&
                                                 pathname.includes(item.href) &&
                                                 pathname === item.href
-                                                ? "bg-gray-100"
-                                                : "hover:bg-gray-100",
-                                            "rounded-md p-2 text-sm leading-6 font-semibold text-gray-700",
+                                                ? "bg-gray-100 dark:bg-gray-700"
+                                                : "hover:bg-gray-100 dark:hover:bg-gray-700",
+                                            "rounded-md p-2 text-sm leading-6 font-semibold text-gray-700 dark:text-gray-200",
                                         )}
                                         onClick={() => {
                                             if (item.href) {
@@ -371,7 +371,7 @@ export default React.forwardRef(function Sidebar(
                                         {item.name === "Chat" && (
                                             <Plus
                                                 className={cn(
-                                                    "h-6 w-6 ml-auto p-1 rounded-full bg-blue-100 text-blue-600 hover:bg-blue-200 hover:text-blue-800 cursor-pointer",
+                                                    "h-6 w-6 ml-auto p-1 rounded-full bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-400 hover:bg-blue-200 dark:hover:bg-blue-800 hover:text-blue-800 dark:hover:text-blue-300 cursor-pointer",
                                                     isCollapsed
                                                         ? "hidden group-hover:inline"
                                                         : "inline",
@@ -484,7 +484,7 @@ export default React.forwardRef(function Sidebar(
                         </ul>
                     </li>
                     <li>
-                        <div className="pt-3 pb-2 bg-gray-50 -mx-5 px-5 text-gray-700">
+                        <div className="pt-3 pb-2 bg-gray-50 dark:bg-gray-700 -mx-5 px-5 text-gray-700 dark:text-gray-200">
                             <button
                                 className="flex gap-2 items-center text-xs w-full"
                                 onClick={() => router.push("/apps")}
@@ -501,7 +501,7 @@ export default React.forwardRef(function Sidebar(
                                 </span>
                             </button>
                         </div>
-                        <div className="pt-2 pb-3 bg-gray-50 -mx-5 px-5 text-gray-700">
+                        <div className="pt-2 pb-3 bg-gray-50 dark:bg-gray-700 -mx-5 px-5 text-gray-700 dark:text-gray-200">
                             <SendFeedbackButton
                                 ref={ref}
                                 isCollapsed={isCollapsed}

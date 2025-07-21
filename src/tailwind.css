@@ -20,7 +20,7 @@
     }
 
     .lb-primary {
-        @apply rounded-md bg-sky-600 disabled:bg-sky-400 px-2.5 py-1.5 text-sm font-medium text-white disabled:text-gray-200 shadow-sm enabled:hover:bg-sky-500 enabled:active:bg-sky-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-600 flex items-center gap-1 focus:ring-2 focus:ring-offset-2 focus:ring-sky-500 disabled:opacity-50 enabled:active:bg-sky-900;
+        @apply rounded-md bg-sky-600 disabled:bg-gray-300 dark:disabled:bg-gray-700 px-2.5 py-1.5 text-sm font-medium text-white disabled:text-gray-500 dark:disabled:text-gray-400 shadow-sm enabled:hover:bg-sky-500 enabled:active:bg-sky-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-600 flex items-center gap-1 focus:ring-2 focus:ring-offset-2 focus:ring-sky-500 disabled:opacity-50 enabled:active:bg-sky-900;
     }
 
     .lb-success {
@@ -56,7 +56,7 @@
     }
 
     .lb-input {
-        @apply border rounded-md border-gray-300 px-2.5 py-1.5 text-sm w-full text-gray-700 shadow-sm focus:ring-1 focus:ring-sky-600 focus:outline-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-300 bg-white dark:bg-neutral-100 placeholder-neutral-400 focus:border-sky-600;
+        @apply border rounded-md border-gray-300 dark:border-gray-600 px-2.5 py-1.5 text-sm w-full text-gray-700 shadow-sm focus:ring-1 focus:ring-sky-600 focus:outline-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-300 bg-white dark:bg-gray-800 dark:text-gray-100 placeholder-neutral-400 focus:border-sky-600;
     }
 
     .lb-radio {
@@ -72,7 +72,7 @@
     }
 
     .lb-select {
-        @apply text-sm block w-full border rounded-md py-1 text-gray-900 shadow-sm placeholder:text-gray-400 focus:outline-2 focus:outline-gray-300 sm:leading-6 bg-white dark:bg-zinc-100 focus:ring-1 focus:ring-sky-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 disabled:opacity-50;
+        @apply text-sm block w-full border rounded-md py-1 text-gray-900 shadow-sm placeholder:text-gray-400 focus:outline-2 focus:outline-gray-300 sm:leading-6 bg-white dark:bg-gray-800 dark:text-gray-100 focus:ring-1 focus:ring-sky-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 disabled:opacity-50;
     }
 }
 

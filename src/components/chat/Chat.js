@@ -183,7 +183,7 @@ function Chat({ viewingChat = null }) {
                     </Select>
                     <button
                         disabled={readOnly}
-                        className="flex items-center gap-1 px-3 py-1.5 rounded-md transition-colors border bg-white text-gray-700 border-gray-200 hover:bg-gray-100 text-xs"
+                        className="flex items-center gap-1 px-3 py-1.5 rounded-md transition-colors border bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 border-gray-200 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-600 text-xs"
                         onClick={handleShareOrCopy}
                         title={
                             chat?.isPublic ? t("Copy Share URL") : t("Share")
@@ -200,7 +200,7 @@ function Chat({ viewingChat = null }) {
                     </button>
                     <button
                         disabled={readOnly}
-                        className="flex items-center gap-1 px-3 py-1.5 rounded-md transition-colors border bg-white text-gray-700 border-gray-200 hover:bg-gray-100 text-xs"
+                        className="flex items-center gap-1 px-3 py-1.5 rounded-md transition-colors border bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 border-gray-200 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-600 text-xs"
                         onClick={() => {
                             setShowDeleteConfirm(true);
                         }}

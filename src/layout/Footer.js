@@ -17,12 +17,12 @@ export default function Footer() {
     const { theme, changeTheme } = useContext(ThemeContext);
 
     return (
-        <div className="h-10 flex gap-1 justify-between sm:gap-8 bottom-0 items-center text-xs text-sky-700 px-4 py-2 bg-zinc-200">
+        <div className="h-10 flex gap-1 justify-between sm:gap-8 bottom-0 items-center text-xs text-sky-700 dark:text-sky-400 px-4 py-2 bg-zinc-200 dark:bg-gray-800">
             <div className="flex items-center gap-4">
                 <div className="truncate">{t("footer_copyright")}</div>
                 <Link
                     href="/privacy"
-                    className="text-sky-700 hover:text-sky-700 hidden sm:block"
+                    className="text-sky-700 dark:text-sky-400 hover:text-sky-700 dark:hover:text-sky-300 hidden sm:block"
                 >
                     {t("footer_privacy_policy")}
                 </Link>
@@ -31,7 +31,7 @@ export default function Footer() {
             <div className="flex gap-8 items-center">
                 <DropdownMenu>
                     <DropdownMenuTrigger>
-                        <span className="text-sky-700">{t("Settings")}</span>
+                        <span className="text-sky-700 dark:text-sky-400">{t("Settings")}</span>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent side="top">
                         <DropdownMenuItem>

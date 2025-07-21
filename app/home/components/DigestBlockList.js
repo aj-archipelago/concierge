@@ -54,7 +54,7 @@ export default function DigestBlockList() {
                 )}
                 <DropdownMenu>
                     <DropdownMenuTrigger>
-                        <SettingsIcon className="h-4 w-4 text-gray-500" />
+                        <SettingsIcon className="h-4 w-4 text-gray-500 dark:text-gray-400" />
                     </DropdownMenuTrigger>
                     <DropdownMenuContent sideOffset={8}>
                         <DropdownMenuItem onClick={() => setEditing(true)}>
@@ -109,10 +109,10 @@ function DigestEditor({ value, onChange, onCancel }) {
 
     return (
         <div>
-            <h2 className="text-lg font-semibold mb-4">
+            <h2 className="text-lg font-semibold mb-4 text-gray-900 dark:text-gray-100">
                 {t("Edit dashboard")}
             </h2>
-            <p className="text-sm text-gray-500 mb-4">
+            <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
                 Configure the blocks that appear in your dashboard here. You can
                 add or delete blocks and edit the prompts for each block.
             </p>
@@ -121,9 +121,9 @@ function DigestEditor({ value, onChange, onCancel }) {
                     return (
                         <div
                             key={p.id}
-                            className=" bg-gray-50 p-4 rounded-md border"
+                            className=" bg-gray-50 dark:bg-gray-700 p-4 rounded-md border"
                         >
-                            <div className="justify-end flex mb-2 text-gray-400">
+                            <div className="justify-end flex mb-2 text-gray-400 dark:text-gray-500">
                                 <button
                                     onClick={() => {
                                         setDigestBlocks(
@@ -153,7 +153,7 @@ function DigestEditor({ value, onChange, onCancel }) {
                     );
                 })}
                 <button
-                    className=" flex justify-center items-center h-24 border default white-button rounded-md"
+                    className=" flex justify-center items-center h-24 border default white-button rounded-md bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-600"
                     onClick={() => {
                         setDigestBlocks([
                             ...blocks,
@@ -165,7 +165,7 @@ function DigestEditor({ value, onChange, onCancel }) {
                         ]);
                     }}
                 >
-                    <PlusIcon className="h-6 w-6 text-gray-400" />
+                    <PlusIcon className="h-6 w-6 text-gray-400 dark:text-gray-500" />
                 </button>
             </div>
             <div className="flex gap-2 ">
