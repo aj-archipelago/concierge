@@ -75,6 +75,29 @@ confirm() {
     fi
 }
 
+# Function to get version from package.json
+get_version() {
+    if [[ -f "package.json" ]]; then
+        # Try to use node to parse JSON (most reliable)
+        if command_exists node; then
+            VERSION=$(node -p "require('./package.json').version" 2>/dev/null)
+        else
+            # Fallback to grep/sed if node is not available
+            VERSION=$(grep '"version"' package.json | sed 's/.*"version": *"\([^"]*\)".*/\1/')
+        fi
+        
+        if [[ -n "$VERSION" ]]; then
+            log_info "Found version: $VERSION"
+        else
+            log_warning "Could not extract version from package.json, using 'unknown'"
+            VERSION="unknown"
+        fi
+    else
+        log_warning "package.json not found, using 'unknown' version"
+        VERSION="unknown"
+    fi
+}
+
 # Function to get temp branch name from user
 get_temp_branch_name() {
     echo -e "${CYAN}Enter temporary branch name (default: $DEFAULT_TEMP_BRANCH):${NC}"
@@ -134,6 +157,9 @@ main() {
     check_git_repo
     check_current_branch
     check_uncommitted_changes
+    
+    # Get version from package.json
+    get_version
     
     # Get temp branch name from user
     get_temp_branch_name
@@ -232,12 +258,6 @@ main() {
     # Ensure app.config/config directory exists
     mkdir -p app.config/config
     
-    # Create backup of current config file if it exists
-    if [[ -f "$CONFIG_FILE" ]]; then
-        cp "$CONFIG_FILE" "${CONFIG_FILE}.backup"
-        log_info "Created backup of current config file"
-    fi
-    
     # Download the vanilla config file from GitHub
     if curl -s -o "$CONFIG_FILE" "$CONFIG_URL"; then
         log_success "Downloaded vanilla config file from GitHub"
@@ -268,8 +288,23 @@ EOF
     
     log_step "6. Creating Pull Request..."
     
-    # Generate PR URL
-    local pr_url="https://github.com/aj-archipelago/concierge/compare/$TARGET_BRANCH...$TEMP_BRANCH"
+    # Generate PR URL with default title and description
+    local pr_title="Update from dev branch v$VERSION"
+    local pr_body="## Summary
+This PR merges the latest changes from the dev branch into the open source version.
+
+## Changes
+- Merged latest development changes
+
+## Review Notes
+Please review the changes and ensure all configurations are appropriate for the open source version."
+    
+    # URL encode the parameters
+    local encoded_title=$(printf '%s' "$pr_title" | sed 's/ /%20/g' | sed 's/-/%2D/g')
+    local encoded_body=$(printf '%s' "$pr_body" | sed 's/ /%20/g' | sed 's/\n/%0A/g' | sed 's/#/%23/g' | sed 's/-/%2D/g' | sed 's/:/%3A/g')
+    local encoded_labels="sync,dev-merge"
+    
+    local pr_url="https://github.com/aj-archipelago/concierge/compare/$TARGET_BRANCH...$TEMP_BRANCH?title=$encoded_title&body=$encoded_body&labels=$encoded_labels"
     
     log_success "Branch '$TEMP_BRANCH' has been pushed successfully!"
     log_info "To create a Pull Request, visit:"
@@ -285,10 +320,6 @@ EOF
     fi
     
     log_success "Push to opensource process completed successfully!"
-    
-    # Cleanup
-    log_info "Cleaning up backup file..."
-    rm -f "${CONFIG_FILE}.backup"
     
     log_info "You can now switch back to your original branch:"
     echo -e "${CYAN}git checkout $SOURCE_BRANCH${NC}"
