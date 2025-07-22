@@ -31,9 +31,12 @@ const Tos = ({ showTos, setShowTos }) => {
 
     const handleScroll = (e) => {
         const { scrollTop, scrollHeight, clientHeight } = e.target;
-        const isAtBottom =
-            Math.abs(scrollHeight - scrollTop - clientHeight) < 1;
-        setHasScrolledToBottom(isAtBottom);
+        // More forgiving scroll detection - allow 50px buffer from bottom
+        const isAtBottom = scrollHeight - scrollTop - clientHeight < 50;
+
+        if (isAtBottom) {
+            setHasScrolledToBottom(true);
+        }
     };
 
     useEffect(() => {
@@ -80,6 +83,62 @@ const Tos = ({ showTos, setShowTos }) => {
                     </div>
                     <AlertDialogDescription asChild>
                         <div className="space-y-3">
+                            {/* Scroll instruction */}
+                            <div
+                                className={`rounded-md p-3 mb-2 ${
+                                    hasScrolledToBottom
+                                        ? "bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800"
+                                        : "bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800"
+                                }`}
+                            >
+                                <div
+                                    className={`flex items-center gap-2 ${
+                                        hasScrolledToBottom
+                                            ? "text-green-700 dark:text-green-300"
+                                            : "text-blue-700 dark:text-blue-300"
+                                    }`}
+                                >
+                                    {hasScrolledToBottom ? (
+                                        <svg
+                                            className="w-4 h-4"
+                                            fill="none"
+                                            stroke="currentColor"
+                                            viewBox="0 0 24 24"
+                                        >
+                                            <path
+                                                strokeLinecap="round"
+                                                strokeLinejoin="round"
+                                                strokeWidth={2}
+                                                d="M5 13l4 4L19 7"
+                                            />
+                                        </svg>
+                                    ) : (
+                                        <svg
+                                            className="w-4 h-4"
+                                            fill="none"
+                                            stroke="currentColor"
+                                            viewBox="0 0 24 24"
+                                        >
+                                            <path
+                                                strokeLinecap="round"
+                                                strokeLinejoin="round"
+                                                strokeWidth={2}
+                                                d="M19 14l-7 7m0 0l-7-7m7 7V3"
+                                            />
+                                        </svg>
+                                    )}
+                                    <span className="text-sm font-medium">
+                                        {hasScrolledToBottom
+                                            ? t(
+                                                  "Terms of Service read completely",
+                                              )
+                                            : t(
+                                                  "Please scroll to the bottom to read the complete Terms of Service",
+                                              )}
+                                    </span>
+                                </div>
+                            </div>
+
                             <div
                                 className="alert-text prose prose-sm max-w-none dark:prose-invert h-[400px] overflow-y-auto pr-4 border-2 border-gray-200 dark:border-gray-700 rounded-md p-4 scrollbar-thin scrollbar-thumb-gray-400 dark:scrollbar-thumb-gray-600 scrollbar-track-gray-100 dark:scrollbar-track-gray-800"
                                 onScroll={handleScroll}

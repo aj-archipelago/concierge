@@ -260,12 +260,12 @@ export default function PreviewTabs({
                         </TabsContent>
                         <TabsContent
                             value="code"
-                            className="h-full m-0 min-w-0"
+                            className="h-full m-0 min-w-0 overflow-hidden"
                         >
                             {isLoading ? (
                                 <LoadingStatePlaceholder />
                             ) : (
-                                <>
+                                <div className="h-full flex flex-col">
                                     {isCurrentVersionPublished && (
                                         <div className="mb-3 p-2 bg-blue-50 border border-blue-200 rounded-md">
                                             <div className="flex items-center gap-2 text-blue-800 text-sm">
@@ -280,26 +280,28 @@ export default function PreviewTabs({
                                             </div>
                                         </div>
                                     )}
-                                    <HtmlEditor
-                                        value={displayContent}
-                                        onChange={
-                                            isOwner &&
-                                            !isCurrentVersionPublished
-                                                ? (value) => {
-                                                      onHtmlChange(
-                                                          value,
-                                                          activeVersionIndex,
-                                                      );
-                                                  }
-                                                : undefined
-                                        }
-                                        options={{
-                                            readOnly:
-                                                !isOwner ||
-                                                isCurrentVersionPublished,
-                                        }}
-                                    />
-                                </>
+                                    <div className="flex-1 overflow-auto">
+                                        <HtmlEditor
+                                            value={displayContent}
+                                            onChange={
+                                                isOwner &&
+                                                !isCurrentVersionPublished
+                                                    ? (value) => {
+                                                          onHtmlChange(
+                                                              value,
+                                                              activeVersionIndex,
+                                                          );
+                                                      }
+                                                    : undefined
+                                            }
+                                            options={{
+                                                readOnly:
+                                                    !isOwner ||
+                                                    isCurrentVersionPublished,
+                                            }}
+                                        />
+                                    </div>
+                                </div>
                             )}
                         </TabsContent>
                     </div>
