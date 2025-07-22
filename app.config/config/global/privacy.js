@@ -15,7 +15,7 @@ function getEnglish() {
                 </div>
                 <div class="flex flex-wrap justify-center">
                     <div class="w-full">
-                        <div class="bg-white dark:bg-gray-800 p-6 sm:p-8 rounded-lg shadow-md">
+                        <div class="bg-white dark:bg-gray-800 p-6 sm:p-8 rounded-lg shadow-md overflow-x-auto">
                             <!-- OneTrust Privacy Notice start -->
                             <div class="otnotice-language-dropdown-container" style="display:none">
                                <select id="otnotice-language-dropdown" aria-label="language selector"></select>

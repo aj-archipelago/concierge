@@ -115,13 +115,7 @@ function ChatTopMenu({ displayState = "full" }) {
                 <span className="hidden md:inline">{t("Research Mode")}</span>
             </button>
 
-            {!docs || docs?.length === 0 ? (
-                <>
-                    <span className="text-gray-400">
-                        {displayStateFull && t("No indexed files")}
-                    </span>
-                </>
-            ) : (
+            {docs && docs.length > 0 && (
                 <Popover className="relative">
                     {/* bg-slate-50  hover:bg-slate-300 */}
                     <Popover.Button className="flex gap-0 focus:outline-none items-center rounded-md underline hover:text-sky-500 active:text-sky-700">

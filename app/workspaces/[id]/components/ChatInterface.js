@@ -301,10 +301,10 @@ export default function ChatInterface({
             </div>
 
             {/* Chat input section */}
-            <div className="rounded-md border dark:border-zinc-200 flex-shrink-0">
+            <div className="rounded-md border dark:border-zinc-200 flex-shrink-0 transition-colors duration-200 focus-within:border-gray-400 dark:focus-within:border-gray-500">
                 <form
                     className={cn(
-                        "flex items-center rounded-md dark:bg-gray-800",
+                        "flex items-center rounded-md dark:bg-gray-800 transition-colors duration-200",
                         direction === "rtl" ? "flex-row-reverse" : "flex-row",
                     )}
                     onSubmit={handleSubmit}
@@ -348,7 +348,7 @@ export default function ChatInterface({
                             />
                         </div>
                     </div>
-                    <div className="px-3 bg-white dark:bg-gray-800 self-stretch flex items-center rounded-e gap-1">
+                    <div className="px-3 bg-white dark:bg-gray-800 self-stretch flex items-center rounded-e gap-1 transition-colors duration-200">
                         <button
                             type={
                                 isStreaming || isLoading ? "button" : "submit"

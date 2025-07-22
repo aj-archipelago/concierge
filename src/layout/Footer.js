@@ -18,20 +18,21 @@ export default function Footer() {
 
     return (
         <div className="h-10 flex gap-1 justify-between sm:gap-8 bottom-0 items-center text-xs text-sky-700 dark:text-sky-400 px-4 py-2 bg-zinc-200 dark:bg-gray-800">
-            <div className="flex items-center gap-4">
-                <div className="truncate">{t("footer_copyright")}</div>
+            <div className="flex items-center gap-2 sm:gap-4 min-w-0">
+                <div className="truncate text-xs">{t("footer_copyright")}</div>
                 <Link
                     href="/privacy"
-                    className="text-sky-700 dark:text-sky-400 hover:text-sky-700 dark:hover:text-sky-300 hidden sm:block"
+                    className="text-sky-700 dark:text-sky-400 hover:text-sky-700 dark:hover:text-sky-300 text-xs hidden md:block"
                 >
                     {t("footer_privacy_policy")}
                 </Link>
             </div>
 
-            <div className="flex gap-8 items-center">
+            <div className="flex gap-2 sm:gap-8 items-center flex-shrink-0">
                 <DropdownMenu>
-                    <DropdownMenuTrigger>
-                        <span className="text-sky-700 dark:text-sky-400">{t("Settings")}</span>
+                    <DropdownMenuTrigger className="text-sky-700 dark:text-sky-400 hover:text-sky-700 dark:hover:text-sky-300 text-xs">
+                        <span className="hidden sm:inline">{t("Settings")}</span>
+                        <span className="sm:hidden">⚙️</span>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent side="top">
                         <DropdownMenuItem>
@@ -69,13 +70,14 @@ export default function Footer() {
                     </DropdownMenuContent>
                 </DropdownMenu>
 
-                <div className="gap-2 items-center hidden sm:flex">
-                    {t("Powered by")}
+                <div className="flex gap-1 items-center text-xs hidden sm:flex">
+                    <span className="hidden lg:inline">{t("Powered by")}</span>
                     <img
                         src={`${basePath || ""}/assets/azure-openai-logo.png`}
                         alt="azure openai logo"
-                        style={{ height: 20 }}
-                        height="20px"
+                        style={{ height: 16 }}
+                        height="16px"
+                        className="h-4 w-auto"
                     />
                 </div>
             </div>

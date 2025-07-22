@@ -928,12 +928,12 @@ function VideoInformationBox({
     }, [currentUrl, t]);
 
     return (
-                        <div className="p-2 border border-gray-200/50 dark:border-gray-600/50 rounded-lg">
+                        <div className="p-3 border border-gray-200 dark:border-gray-600 rounded-lg bg-gray-50/50 dark:bg-gray-800/50">
             <button
                 onClick={() => setIsExpanded(!isExpanded)}
                 className={classNames(
-                    "w-full flex items-center justify-between text-xs font-medium text-gray-500 hover:text-sky-700",
-                    isExpanded ? "mb-4" : "",
+                    "w-full flex items-center justify-between text-xs font-medium text-gray-600 dark:text-gray-300 hover:text-sky-700 dark:hover:text-sky-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded px-2 py-1 transition-colors",
+                    isExpanded ? "mb-3" : "",
                 )}
             >
                 <div className="flex items-center gap-1.5">
@@ -944,29 +944,29 @@ function VideoInformationBox({
                     className={`h-4 w-4 transition-transform ${isExpanded ? "rotate-180" : ""}`}
                 />
             </button>
-            {isExpanded && mediaInfo && (
-                <div className="space-y-2">
-                    <div className="grid grid-cols-[40px_1fr] gap-2 items-center">
-                        <div className="text-xs text-gray-500">{t("Type")}</div>
-                        <div className="flex items-center gap-1 text-xs text-gray-600">
+                        {isExpanded && mediaInfo && (
+                <div className="space-y-3">
+                    <div className="grid grid-cols-[50px_1fr] gap-3 items-center">
+                        <div className="text-xs text-gray-500 dark:text-gray-400 font-medium">{t("Type")}</div>
+                        <div className="flex items-center gap-2 text-xs text-gray-700 dark:text-gray-300">
                             {mediaInfo.icon}
                             <span>{mediaInfo.label}</span>
                             {mediaInfo.extension && (
-                                <span className="px-1.5 py-0.5 bg-gray-100 dark:bg-gray-700 rounded text-[10px] font-medium">
+                                <span className="px-2 py-0.5 bg-gray-200 dark:bg-gray-600 rounded text-[10px] font-medium text-gray-700 dark:text-gray-300">
                                     {mediaInfo.extension}
                                 </span>
                             )}
                         </div>
                     </div>
-                    <div className="grid grid-cols-[40px_1fr] gap-2 items-center">
-                        <div className="text-xs text-gray-500">{t("URL")}</div>
-                        <div className="w-full flex gap-2 overflow-hidden items-center py-1 px-2 rounded-md bg-gray-100 dark:bg-gray-800">
-                                                    <div className="text-xs text-gray-600 dark:text-gray-400 truncate grow">
-                            {currentUrl}
-                        </div>
+                    <div className="grid grid-cols-[50px_1fr] gap-3 items-center">
+                        <div className="text-xs text-gray-500 dark:text-gray-400 font-medium">{t("URL")}</div>
+                        <div className="w-full flex gap-2 overflow-hidden items-center py-2 px-3 rounded-md bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600">
+                            <div className="text-xs text-gray-700 dark:text-gray-300 truncate grow">
+                                {currentUrl}
+                            </div>
                             <button
                                 onClick={() => handleCopy(currentUrl)}
-                                className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors flex-shrink-0"
+                                className="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-600 rounded transition-colors flex-shrink-0"
                                 title={t("Copy URL")}
                             >
                                 {copied ? (
