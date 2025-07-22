@@ -290,21 +290,17 @@ EOF
     
     # Generate PR URL with default title and description
     local pr_title="Update from dev branch v$VERSION"
-    local pr_body="## Summary
-This PR merges the latest changes from the dev branch into the open source version.
+    local pr_body="This PR merges the latest changes from the dev branch into the open source version.
 
-## Changes
+Changes:
 - Merged latest development changes
+- Cleaned up app.config directory  
+- Reset configuration to vanilla state
 
-## Review Notes
 Please review the changes and ensure all configurations are appropriate for the open source version."
     
-    # URL encode the parameters (selective encoding for GitHub)
-    local encoded_title=$(printf '%s' "$pr_title" | sed 's/ /%20/g')
-    local encoded_body=$(printf '%s' "$pr_body" | sed 's/ /%20/g' | sed 's/\n/%0A/g' | sed 's/&/%26/g' | sed 's/#/%23/g')
-    local encoded_labels="sync,dev-merge"
-    
-    local pr_url="https://github.com/aj-archipelago/concierge/compare/$TARGET_BRANCH...$TEMP_BRANCH?title=$encoded_title&body=$encoded_body&labels=$encoded_labels"
+    # No encoding - keep it simple
+    local pr_url="https://github.com/aj-archipelago/concierge/compare/$TARGET_BRANCH...$TEMP_BRANCH?title=$pr_title&body=$pr_body&labels=sync,dev-merge"
     
     log_success "Branch '$TEMP_BRANCH' has been pushed successfully!"
     log_info "To create a Pull Request, visit:"
