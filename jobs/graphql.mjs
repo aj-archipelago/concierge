@@ -578,6 +578,98 @@ const IMAGE = gql`
     }
 `;
 
+const IMAGE_FLUX = gql`
+    query ImageFlux(
+        $text: String!
+        $model: String
+        $async: Boolean
+        $input_image: String
+        $input_image_2: String
+        $aspectRatio: String
+    ) {
+        image_flux(
+            text: $text
+            model: $model
+            async: $async
+            input_image: $input_image
+            input_image_2: $input_image_2
+            aspectRatio: $aspectRatio
+        ) {
+            result
+        }
+    }
+`;
+
+const VIDEO_VEO = gql`
+    query VideoVeo(
+        $text: String!
+        $async: Boolean
+        $image: String
+        $video: String
+        $lastFrame: String
+        $model: String
+        $aspectRatio: String
+        $durationSeconds: Int
+        $enhancePrompt: Boolean
+        $generateAudio: Boolean
+        $negativePrompt: String
+        $personGeneration: String
+        $sampleCount: Int
+        $storageUri: String
+        $location: String
+        $seed: Int
+    ) {
+        video_veo(
+            text: $text
+            async: $async
+            image: $image
+            video: $video
+            lastFrame: $lastFrame
+            model: $model
+            aspectRatio: $aspectRatio
+            durationSeconds: $durationSeconds
+            enhancePrompt: $enhancePrompt
+            generateAudio: $generateAudio
+            negativePrompt: $negativePrompt
+            personGeneration: $personGeneration
+            sampleCount: $sampleCount
+            storageUri: $storageUri
+            location: $location
+            seed: $seed
+        ) {
+            result
+        }
+    }
+`;
+
+const VIDEO_SEEDANCE = gql`
+    query VideoSeedance(
+        $text: String!
+        $async: Boolean
+        $model: String
+        $resolution: String
+        $aspectRatio: String
+        $duration: Int
+        $image: String
+        $seed: Int
+        $camera_fixed: Boolean
+    ) {
+        video_seedance(
+            text: $text
+            async: $async
+            model: $model
+            resolution: $resolution
+            aspectRatio: $aspectRatio
+            duration: $duration
+            image: $image
+            seed: $seed
+            camera_fixed: $camera_fixed
+        ) {
+            result
+        }
+    }
+`;
+
 const JIRA_STORY = gql`
     query JiraStory(
         $text: String!
@@ -642,6 +734,9 @@ const QUERIES = {
     COGNITIVE_DELETE,
     COGNITIVE_INSERT,
     IMAGE,
+    IMAGE_FLUX,
+    VIDEO_VEO,
+    VIDEO_SEEDANCE,
     SYS_SAVE_MEMORY,
     SYS_ENTITY_AGENT,
     EXPAND_STORY,
@@ -703,6 +798,9 @@ export {
     SUMMARY,
     HASHTAGS,
     HEADLINE,
+    IMAGE_FLUX,
+    VIDEO_VEO,
+    VIDEO_SEEDANCE,
     GRAMMAR,
     SPELLING,
     PARAPHRASE,
