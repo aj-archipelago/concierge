@@ -38,7 +38,9 @@ export default function GeneratedHeadlines({
                     }}
                 />
                 <div className="list-group-item">
-                    <h6 className="font-bold mt-2 mb-0 dark:text-gray-100">Subheads</h6>
+                    <h6 className="font-bold mt-2 mb-0 dark:text-gray-100">
+                        Subheads
+                    </h6>
                     <p className="text-gray-600 dark:text-gray-400 text-sm">
                         <small>Max length: 120 characters</small>
                     </p>
@@ -80,7 +82,7 @@ function SelectableListItem({ loading, checked = false, onSelect, headline }) {
             <div className="flex items-center gap-3 headline-display">
                 <input
                     type="checkbox"
-                                                    className="form-checkbox mt-1 dark:bg-gray-700 dark:border-gray-600 dark:checked:bg-sky-600 dark:checked:border-sky-600"
+                    className="form-checkbox mt-1 dark:bg-gray-700 dark:border-gray-600 dark:checked:bg-sky-600 dark:checked:border-sky-600"
                     checked={checked}
                     onChange={(e) => onSelect(e.target.checked)}
                 />

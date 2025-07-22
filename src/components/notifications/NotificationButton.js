@@ -367,7 +367,9 @@ export default function NotificationButton() {
                 </PopoverTrigger>
                 <PopoverContent className="w-80">
                     <div className="space-y-4">
-                        <h3 className="font-medium text-gray-900 dark:text-gray-100">{t("Notifications")}</h3>
+                        <h3 className="font-medium text-gray-900 dark:text-gray-100">
+                            {t("Notifications")}
+                        </h3>
                         <div className="max-h-[300px] overflow-y-auto">
                             {notifications.length === 0 ? (
                                 <p className="text-sm text-gray-500">

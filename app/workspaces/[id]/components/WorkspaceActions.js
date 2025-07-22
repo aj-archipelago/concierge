@@ -268,7 +268,9 @@ function Name({ workspace, user }) {
                         {!showCopiedMessage && (
                             <span dir="ltr">
                                 {serverContext?.serverUrl}/workspaces/
-                                <span className="text-gray-900 dark:text-gray-100">{slug}</span>
+                                <span className="text-gray-900 dark:text-gray-100">
+                                    {slug}
+                                </span>
                             </span>
                         )}
                     </div>
@@ -498,7 +500,7 @@ function PublishedWorkspace({ workspace }) {
                 </span>
             </div>
 
-                            <div className="mb-4 bg-gray-100 dark:bg-gray-800 p-2 rounded-md text-sm">
+            <div className="mb-4 bg-gray-100 dark:bg-gray-800 p-2 rounded-md text-sm">
                 <pre>
                     {`
 QUERY:

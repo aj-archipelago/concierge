@@ -173,7 +173,9 @@ function HeadlineModal({ text, onSelect, args }) {
                         >
                             {t("Generate Headlines")}
                         </LoadingButton>
-                        <h6 className="font-bold mb-0 dark:text-gray-100">{t("Headlines")}</h6>
+                        <h6 className="font-bold mb-0 dark:text-gray-100">
+                            {t("Headlines")}
+                        </h6>
                         <p className="text-gray-600 dark:text-gray-400 text-sm">
                             <small>
                                 {t("Max length")}: {targetLength}{" "}
@@ -181,9 +183,9 @@ function HeadlineModal({ text, onSelect, args }) {
                             </small>
                         </p>
                         {error && (
-                                                    <p className="text-red-500 dark:text-red-400">
-                            {t("Error")}: {error.message}
-                        </p>
+                            <p className="text-red-500 dark:text-red-400">
+                                {t("Error")}: {error.message}
+                            </p>
                         )}
                         {!error && (
                             <GeneratedHeadlines

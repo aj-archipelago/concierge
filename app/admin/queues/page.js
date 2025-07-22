@@ -72,7 +72,7 @@ function StatusBadge({ status }) {
     const statusStyles = {
         waiting:
             "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200",
-                        active: "bg-sky-100 text-sky-800 dark:bg-sky-900 dark:text-sky-200",
+        active: "bg-sky-100 text-sky-800 dark:bg-sky-900 dark:text-sky-200",
         completed:
             "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200",
         failed: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200",

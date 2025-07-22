@@ -453,7 +453,7 @@ export default function TranscribeVideo({
                 </span>
             </div> */}
 
-                            <div className="options-section flex flex-col justify-between gap-2 mb-5 p-2.5 border border-gray-300 rounded-md bg-neutral-100 dark:bg-gray-700 w-full">
+            <div className="options-section flex flex-col justify-between gap-2 mb-5 p-2.5 border border-gray-300 rounded-md bg-neutral-100 dark:bg-gray-700 w-full">
                 <div className="flex flex-col">
                     <h5 className="font-semibold text-xs text-gray-400 mb-1">
                         {t("Output format")}

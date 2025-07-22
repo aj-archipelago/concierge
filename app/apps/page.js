@@ -340,9 +340,9 @@ export default function AppsPage() {
                                                             <GripVertical className="h-4 w-4 text-gray-400" />
                                                         </div>
                                                         <div className="flex items-center gap-2">
-                                                                            <div className="flex items-center justify-center w-8 h-8 bg-gray-100 dark:bg-gray-700 rounded-lg">
-                    <AppWindow className="w-4 h-4 text-gray-600 dark:text-gray-300" />
-                </div>
+                                                            <div className="flex items-center justify-center w-8 h-8 bg-gray-100 dark:bg-gray-700 rounded-lg">
+                                                                <AppWindow className="w-4 h-4 text-gray-600 dark:text-gray-300" />
+                                                            </div>
                                                             <span className="font-medium text-gray-900 dark:text-gray-100">
                                                                 {userApps.find(
                                                                     (app) => {
@@ -449,16 +449,16 @@ export default function AppsPage() {
                                                             <Plus className="w-3 h-3" />
                                                         )}
                                                     </button>
-                                                                                                            <div className="flex items-center gap-2 pe-4 rtl:flex-row-reverse rtl:pe-0 rtl:ps-4">
-                                                            <div className="flex items-center justify-center w-10 h-10 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg flex-shrink-0">
-                                                                <IconComponent className="w-5 h-5 text-gray-600 dark:text-gray-300" />
-                                                            </div>
-                                                            <div className="min-w-0 flex-1 rtl:text-right">
-                                                                <h3 className="font-medium text-gray-900 dark:text-gray-100 truncate">
-                                                                    {t(app.name)}
-                                                                </h3>
-                                                            </div>
+                                                    <div className="flex items-center gap-2 pe-4 rtl:flex-row-reverse rtl:pe-0 rtl:ps-4">
+                                                        <div className="flex items-center justify-center w-10 h-10 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg flex-shrink-0">
+                                                            <IconComponent className="w-5 h-5 text-gray-600 dark:text-gray-300" />
                                                         </div>
+                                                        <div className="min-w-0 flex-1 rtl:text-right">
+                                                            <h3 className="font-medium text-gray-900 dark:text-gray-100 truncate">
+                                                                {t(app.name)}
+                                                            </h3>
+                                                        </div>
+                                                    </div>
                                                 </div>
                                             );
                                         })}
@@ -553,36 +553,38 @@ export default function AppsPage() {
                                                             <div className="flex items-center justify-center w-10 h-10 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg flex-shrink-0">
                                                                 <IconComponent className="w-5 h-5 text-gray-600 dark:text-gray-300" />
                                                             </div>
-                                                                                                                    <div className="min-w-0 flex-1 rtl:text-right">
-                                                            <h3 className="font-medium text-gray-900 dark:text-gray-100 truncate">
-                                                                {t(
-                                                                    app.name,
-                                                                )}
-                                                            </h3>
+                                                            <div className="min-w-0 flex-1 rtl:text-right">
+                                                                <h3 className="font-medium text-gray-900 dark:text-gray-100 truncate">
+                                                                    {t(
+                                                                        app.name,
+                                                                    )}
+                                                                </h3>
+                                                            </div>
                                                         </div>
-                                                    </div>
-                                                    <div className="mt-2 space-y-1">
-                                                        {app.author && (
-                                                            <div className="text-xs text-gray-500 dark:text-gray-400 rtl:text-right">
-                                                                {t(
-                                                                    "by {{author}}",
-                                                                    {
-                                                                        author: app
-                                                                            .author
-                                                                            .username,
-                                                                    },
-                                                                )}
-                                                            </div>
-                                                        )}
-                                                        {app.updatedAt && (
-                                                            <div className="text-xs text-gray-400 dark:text-gray-500 rtl:text-right truncate">
-                                                                {t("Updated")}{" "}
-                                                                {new Date(
-                                                                    app.updatedAt,
-                                                                ).toLocaleString()}
-                                                            </div>
-                                                        )}
-                                                    </div>
+                                                        <div className="mt-2 space-y-1">
+                                                            {app.author && (
+                                                                <div className="text-xs text-gray-500 dark:text-gray-400 rtl:text-right">
+                                                                    {t(
+                                                                        "by {{author}}",
+                                                                        {
+                                                                            author: app
+                                                                                .author
+                                                                                .username,
+                                                                        },
+                                                                    )}
+                                                                </div>
+                                                            )}
+                                                            {app.updatedAt && (
+                                                                <div className="text-xs text-gray-400 dark:text-gray-500 rtl:text-right truncate">
+                                                                    {t(
+                                                                        "Updated",
+                                                                    )}{" "}
+                                                                    {new Date(
+                                                                        app.updatedAt,
+                                                                    ).toLocaleString()}
+                                                                </div>
+                                                            )}
+                                                        </div>
                                                     </div>
                                                 );
                                             })}

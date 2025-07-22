@@ -42,7 +42,9 @@ const ChatNavigationItem = ({
             <li
                 className={classNames(
                     "group flex items-center justify-between rounded-md cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 my-0.5",
-                    pathname === subItem?.href ? "bg-gray-100 dark:bg-gray-700" : "",
+                    pathname === subItem?.href
+                        ? "bg-gray-100 dark:bg-gray-700"
+                        : "",
                 )}
                 onClick={() => {
                     if (subItem.href && editingId !== subItem.key) {

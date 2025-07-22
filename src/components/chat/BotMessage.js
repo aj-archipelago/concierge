@@ -232,9 +232,9 @@ const TaskPlaceholder = ({ message }) => {
                                 {sentenceCase(status)}
                             </span>
                             {status === "cancelled" && (
-                                                            <span className="text-sm text-gray-600 dark:text-gray-300">
-                                This task was cancelled by the user
-                            </span>
+                                <span className="text-sm text-gray-600 dark:text-gray-300">
+                                    This task was cancelled by the user
+                                </span>
                             )}
                         </div>
                     )}

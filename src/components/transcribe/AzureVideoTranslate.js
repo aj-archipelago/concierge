@@ -40,7 +40,7 @@ export default function AzureVideoTranslate({ url, onQueued }) {
 
     return (
         <>
-                            <div className="mt-2 p-2 border-t border-b rounded border-gray-200 pt-4 bg-opacity-90 bg-neutral-100 dark:bg-gray-700 shadow">
+            <div className="mt-2 p-2 border-t border-b rounded border-gray-200 pt-4 bg-opacity-90 bg-neutral-100 dark:bg-gray-700 shadow">
                 <div className="flex items-end gap-3">
                     <div className="flex flex-col gap-1">
                         <label className="text-sm" htmlFor="sourceLocaleSelect">

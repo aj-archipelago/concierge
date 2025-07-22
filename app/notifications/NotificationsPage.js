@@ -276,7 +276,9 @@ export default function NotificationsPage() {
     return (
         <div className="p-2">
             <div className="flex justify-between items-center mb-6">
-                <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">{t("All notifications")}</h1>
+                <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
+                    {t("All notifications")}
+                </h1>
                 <button
                     onClick={() => setShowDeleteOldDialog(true)}
                     disabled={deleteOldTasks.isPending}

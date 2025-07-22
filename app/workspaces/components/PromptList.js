@@ -203,7 +203,9 @@ function PromptListItem({ prompt, onEdit, onRun, isRunning, inputValid }) {
                         </div>
                     </div>
 
-                    <div className="text-gray-500 dark:text-gray-400 text-xs">{prompt.text}</div>
+                    <div className="text-gray-500 dark:text-gray-400 text-xs">
+                        {prompt.text}
+                    </div>
                 </div>
                 <button
                     className="disabled:opacity-50 enabled:hover:bg-gray-100 enabled:active:bg-gray-200 p-2 basis-[5em] slef-stretch flex items-center justify-center"

@@ -124,7 +124,7 @@ export function ImportSuggestions({ text, onSelect, diffEditorRef }) {
                 </ToggleGroupItem>
             </ToggleGroup>
             {error && (
-                                    <div className="mt-2 text-red-700 dark:text-red-400 p-4 rounded bg-red-50 dark:bg-red-900/20">
+                <div className="mt-2 text-red-700 dark:text-red-400 p-4 rounded bg-red-50 dark:bg-red-900/20">
                     {t(
                         "Unable to connect to the UCMS. Please make sure that you're connected to the VPN. The error received was:",
                     )}{" "}

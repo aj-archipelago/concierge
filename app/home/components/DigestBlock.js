@@ -64,9 +64,14 @@ export default function DigestBlock({ block, contentClassName }) {
     };
 
     return (
-        <div key={block._id} className="bg-gray-50 dark:bg-gray-700 p-4 rounded-md border">
+        <div
+            key={block._id}
+            className="bg-gray-50 dark:bg-gray-700 p-4 rounded-md border"
+        >
             <div className="flex justify-between gap-2 items-center mb-4">
-                <h4 className="font-semibold text-gray-900 dark:text-gray-100">{block.title}</h4>
+                <h4 className="font-semibold text-gray-900 dark:text-gray-100">
+                    {block.title}
+                </h4>
                 <div className="flex items-center gap-2">
                     {block.content && (
                         <button
@@ -81,7 +86,7 @@ export default function DigestBlock({ block, contentClassName }) {
                         <div
                             className={classNames(
                                 "text-xs flex items-center gap-2 rounded-full px-3 py-2 border bg-gray-50 dark:bg-gray-600 whitespace-nowrap",
-                                                                    task?.status !== "pending" &&
+                                task?.status !== "pending" &&
                                     task?.status !== "in_progress" &&
                                     "cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-500",
                             )}

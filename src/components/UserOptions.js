@@ -216,7 +216,9 @@ const UserOptions = ({ show, handleClose }) => {
             onHide={handleClose}
         >
             <div className="text-sm">
-                <h4 className="text-base font-semibold mb-2 text-gray-900 dark:text-gray-100">{t("AI Name")}</h4>
+                <h4 className="text-base font-semibold mb-2 text-gray-900 dark:text-gray-100">
+                    {t("AI Name")}
+                </h4>
                 <input
                     type="text"
                     value={aiName}
@@ -257,7 +259,10 @@ const UserOptions = ({ show, handleClose }) => {
                         }
                         style={{ margin: "0.5rem 0" }}
                     />
-                    <label htmlFor="aiMemorySelfModify" className="text-gray-900 dark:text-gray-100">
+                    <label
+                        htmlFor="aiMemorySelfModify"
+                        className="text-gray-900 dark:text-gray-100"
+                    >
                         {t("Allow the AI to modify its own memory")}
                     </label>
                 </div>

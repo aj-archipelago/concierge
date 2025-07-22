@@ -21,20 +21,20 @@ export default function Subheads({ headline, text, onSelect }) {
 
     if (loading) {
         return (
-                    <p className="flex items-center dark:text-gray-300">
-            <span className="loader mr-2"></span> Loading subhead
-            suggestions
-        </p>
+            <p className="flex items-center dark:text-gray-300">
+                <span className="loader mr-2"></span> Loading subhead
+                suggestions
+            </p>
         );
     }
 
     if (error) {
         console.error("error", error);
         return (
-                    <p className="dark:text-red-400">
-            Error loading subhead suggestions:{" "}
-            {error.message || error.toString()}
-        </p>
+            <p className="dark:text-red-400">
+                Error loading subhead suggestions:{" "}
+                {error.message || error.toString()}
+            </p>
         );
     }
 
@@ -44,7 +44,7 @@ export default function Subheads({ headline, text, onSelect }) {
         <div key={subhead} className="flex items-center gap-3 mb-2">
             <input
                 type="checkbox"
-                                                className="form-checkbox dark:bg-gray-700 dark:border-gray-600 dark:checked:bg-sky-600 dark:checked:border-sky-600"
+                className="form-checkbox dark:bg-gray-700 dark:border-gray-600 dark:checked:bg-sky-600 dark:checked:border-sky-600"
                 value={subhead}
                 checked={selectedSubhead === subhead}
                 onChange={(e) => {

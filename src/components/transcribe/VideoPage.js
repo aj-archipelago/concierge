@@ -265,7 +265,7 @@ function EditableTranscriptSelect({
                     <input
                         autoFocus
                         type="text"
-                                                    className="w-[300px] text-sm font-medium rounded-md py-1 my-[1px] px-3 border border-gray-300 dark:border-gray-600"
+                        className="w-[300px] text-sm font-medium rounded-md py-1 my-[1px] px-3 border border-gray-300 dark:border-gray-600"
                         value={tempName}
                         onChange={(e) => setTempName(e.target.value)}
                         onKeyDown={(e) => {
@@ -928,7 +928,7 @@ function VideoInformationBox({
     }, [currentUrl, t]);
 
     return (
-                        <div className="p-3 border border-gray-200 dark:border-gray-600 rounded-lg bg-gray-50/50 dark:bg-gray-800/50">
+        <div className="p-3 border border-gray-200 dark:border-gray-600 rounded-lg bg-gray-50/50 dark:bg-gray-800/50">
             <button
                 onClick={() => setIsExpanded(!isExpanded)}
                 className={classNames(
@@ -944,10 +944,12 @@ function VideoInformationBox({
                     className={`h-4 w-4 transition-transform ${isExpanded ? "rotate-180" : ""}`}
                 />
             </button>
-                        {isExpanded && mediaInfo && (
+            {isExpanded && mediaInfo && (
                 <div className="space-y-3">
                     <div className="grid grid-cols-[50px_1fr] gap-3 items-center">
-                        <div className="text-xs text-gray-500 dark:text-gray-400 font-medium">{t("Type")}</div>
+                        <div className="text-xs text-gray-500 dark:text-gray-400 font-medium">
+                            {t("Type")}
+                        </div>
                         <div className="flex items-center gap-2 text-xs text-gray-700 dark:text-gray-300">
                             {mediaInfo.icon}
                             <span>{mediaInfo.label}</span>
@@ -959,7 +961,9 @@ function VideoInformationBox({
                         </div>
                     </div>
                     <div className="grid grid-cols-[50px_1fr] gap-3 items-center">
-                        <div className="text-xs text-gray-500 dark:text-gray-400 font-medium">{t("URL")}</div>
+                        <div className="text-xs text-gray-500 dark:text-gray-400 font-medium">
+                            {t("URL")}
+                        </div>
                         <div className="w-full flex gap-2 overflow-hidden items-center py-2 px-3 rounded-md bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600">
                             <div className="text-xs text-gray-700 dark:text-gray-300 truncate grow">
                                 {currentUrl}

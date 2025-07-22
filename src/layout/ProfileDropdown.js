@@ -46,7 +46,9 @@ export default function ProfileDropdown({
                                     <div className="text-xs text-gray-400 dark:text-gray-500">
                                         {t("Signed in as")}
                                     </div>
-                                    <div className="font-medium text-gray-900 dark:text-gray-100">{name}</div>
+                                    <div className="font-medium text-gray-900 dark:text-gray-100">
+                                        {name}
+                                    </div>
                                 </div>
                             )}
                         </Menu.Item>
