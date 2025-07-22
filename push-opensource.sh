@@ -299,9 +299,9 @@ This PR merges the latest changes from the dev branch into the open source versi
 ## Review Notes
 Please review the changes and ensure all configurations are appropriate for the open source version."
     
-    # URL encode the parameters (minimal encoding for GitHub)
-    local encoded_title=$(printf '%s' "$pr_title" | sed 's/ /+/g')
-    local encoded_body=$(printf '%s' "$pr_body" | sed 's/ /+/g' | sed 's/\n/%0A/g')
+    # URL encode the parameters (selective encoding for GitHub)
+    local encoded_title=$(printf '%s' "$pr_title" | sed 's/ /%20/g')
+    local encoded_body=$(printf '%s' "$pr_body" | sed 's/ /%20/g' | sed 's/\n/%0A/g' | sed 's/&/%26/g')
     local encoded_labels="sync,dev-merge"
     
     local pr_url="https://github.com/aj-archipelago/concierge/compare/$TARGET_BRANCH...$TEMP_BRANCH?title=$encoded_title&body=$encoded_body&labels=$encoded_labels"
