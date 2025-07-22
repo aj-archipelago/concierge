@@ -189,11 +189,22 @@ main() {
             # Show current git status for debugging
             git status --porcelain
             
-            # Use git's built-in conflict resolution for all files
-            # This will resolve all conflicts by taking the "theirs" (dev branch) version
-            git checkout --theirs .
+            # First, try to resolve conflicts using git checkout --theirs for files that exist
+            git checkout --theirs . 2>/dev/null || true
             
-            # Stage all changes including deletions and additions
+            # Get list of unmerged files and resolve them
+            unmerged_files=$(git ls-files -u | cut -f2 | sort -u)
+            if [[ -n "$unmerged_files" ]]; then
+                while IFS= read -r file; do
+                    if [[ -n "$file" ]]; then
+                        log_info "Resolving unmerged file: $file"
+                        # Add the file from the dev branch (this stages the current version)
+                        git add "$file"
+                    fi
+                done <<< "$unmerged_files"
+            fi
+            
+            # Stage all other changes
             git add -A
             
             # Complete the merge
