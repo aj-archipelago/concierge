@@ -44,7 +44,7 @@
     }
 
     .lb-outline-secondary {
-        @apply border rounded-md border-zinc-300 dark:border-zinc-600 px-2.5 py-1.5 text-sm font-semibold text-zinc-600 dark:text-zinc-300 shadow-sm enabled:hover:bg-zinc-300 dark:enabled:hover:bg-zinc-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-600 dark:focus-visible:outline-zinc-400 disabled:opacity-50 enabled:active:bg-zinc-600 dark:enabled:active:bg-zinc-600 disabled:opacity-50 enabled:active:text-gray-200 dark:enabled:active:text-gray-100;
+        @apply border rounded-md border-zinc-300 dark:border-zinc-600 px-2.5 py-1.5 text-sm font-semibold text-zinc-600 dark:text-zinc-300 shadow-sm enabled:hover:bg-zinc-100 dark:enabled:hover:bg-zinc-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-600 dark:focus-visible:outline-zinc-400 disabled:opacity-50 enabled:active:bg-zinc-200 dark:enabled:active:bg-zinc-700 disabled:opacity-50 enabled:active:text-gray-800 dark:enabled:active:text-gray-100;
     }
 
     .lb-outline-danger {

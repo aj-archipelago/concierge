@@ -124,7 +124,7 @@ function Chat({ viewingChat = null }) {
                 {publicChatOwner && (
                     <div className="text-sm font-medium text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-800 px-3 py-1 rounded shadow-sm">
                         {t("Shared by")}{" "}
-                        <span className="font-bold text-blue-600">
+                        <span className="font-bold text-sky-600">
                             {publicChatOwner.name || publicChatOwner.username}
                         </span>
                     </div>
@@ -169,7 +169,7 @@ function Chat({ viewingChat = null }) {
                         <SelectContent>
                             {entities.map((entity) => (
                                 <SelectItem
-                                    className="text-sm focus:bg-gray-100 dark:focus:bg-gray-100 dark:focus:text-gray-800"
+                                    className="text-sm focus:bg-gray-100 dark:focus:bg-gray-700 dark:focus:text-gray-100"
                                     key={entity.id}
                                     value={entity.id}
                                 >

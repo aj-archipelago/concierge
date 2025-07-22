@@ -239,7 +239,7 @@ const NotificationItem = ({
                         </div>
                     )}
                     {notification.createdAt && (
-                        <span className="text-xs text-gray-500">
+                        <span className="text-xs text-gray-500 dark:text-gray-300">
                             {t("Created ")}{" "}
                             <TimeAgo date={notification.createdAt} />
                         </span>
@@ -255,7 +255,7 @@ const NotificationItem = ({
                             className="p-1 hover:bg-gray-100 dark:hover:bg-gray-600 rounded flex items-start"
                             title={t("Cancel")}
                         >
-                            <XIcon className="h-4 w-4 text-gray-500" />
+                            <XIcon className="h-4 w-4 text-gray-500 dark:text-gray-300" />
                         </button>
                     )}
                     {(notification.status === "completed" ||
@@ -267,7 +267,7 @@ const NotificationItem = ({
                             className="p-1 hover:bg-gray-100 dark:hover:bg-gray-600 rounded flex items-start"
                             title={t("Hide")}
                         >
-                            <EyeOff className="h-4 w-4 text-gray-500" />
+                            <EyeOff className="h-4 w-4 text-gray-500 dark:text-gray-300" />
                         </button>
                     )}
                     {job &&
@@ -280,7 +280,7 @@ const NotificationItem = ({
                                 className="p-1 hover:bg-gray-100 dark:hover:bg-gray-600 rounded flex items-start"
                                 title={t("Retry")}
                             >
-                                <RotateCcw className="h-4 w-4 text-gray-500" />
+                                <RotateCcw className="h-4 w-4 text-gray-500 dark:text-gray-300" />
                             </button>
                         )}
                 </div>

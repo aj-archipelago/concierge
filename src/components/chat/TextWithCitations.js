@@ -141,7 +141,7 @@ function TextWithCitations({ index, citation }) {
                                     href={url}
                                     target="_blank"
                                     rel="noreferrer"
-                                    className="text-sky-500 hover:text-sky-500 hover:underline"
+                                    className="text-sky-500 hover:text-sky-500 hover:underline citation-link"
                                     onClick={(e) => e.stopPropagation()}
                                 >
                                     {title}

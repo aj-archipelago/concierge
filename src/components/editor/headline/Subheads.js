@@ -44,7 +44,7 @@ export default function Subheads({ headline, text, onSelect }) {
         <div key={subhead} className="flex items-center gap-3 mb-2">
             <input
                 type="checkbox"
-                className="form-checkbox dark:bg-gray-700 dark:border-gray-600 dark:checked:bg-blue-600 dark:checked:border-blue-600"
+                                                className="form-checkbox dark:bg-gray-700 dark:border-gray-600 dark:checked:bg-sky-600 dark:checked:border-sky-600"
                 value={subhead}
                 checked={selectedSubhead === subhead}
                 onChange={(e) => {

@@ -106,7 +106,7 @@ function ChatTopMenu({ displayState = "full" }) {
                 onClick={toggleResearchMode}
                 className={`flex items-center gap-1 px-3 py-1.5 rounded-md transition-colors border ${
                     isResearchMode
-                        ? "bg-blue-500 text-white border-blue-600 hover:bg-blue-700 dark:hover:bg-blue-600 dark:hover:text-white"
+                        ? "bg-sky-600 text-white border-sky-700 hover:bg-sky-700 dark:hover:bg-sky-500 dark:hover:text-white"
                         : "bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 border-gray-200 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-600"
                 }`}
                 title={t("Toggle Research Mode")}

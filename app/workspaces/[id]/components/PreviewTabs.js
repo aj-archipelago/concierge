@@ -137,7 +137,7 @@ function LoadingStatePlaceholder() {
     return (
         <div className="flex flex-col items-center justify-center h-full text-center p-8">
             <div className="w-16 h-16 bg-gray-100 dark:bg-gray-700 rounded-full flex items-center justify-center mb-4">
-                <div className="w-8 h-8 border-2 border-gray-300 dark:border-gray-600 border-t-blue-600 rounded-full animate-spin" />
+                                        <div className="w-8 h-8 border-2 border-gray-300 dark:border-gray-600 border-t-sky-600 rounded-full animate-spin" />
             </div>
             <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">
                 {t("Loading applet...")}
@@ -267,9 +267,9 @@ export default function PreviewTabs({
                             ) : (
                                 <div className="h-full flex flex-col">
                                     {isCurrentVersionPublished && (
-                                        <div className="mb-3 p-2 bg-blue-50 border border-blue-200 rounded-md">
-                                            <div className="flex items-center gap-2 text-blue-800 text-sm">
-                                                <span className="text-blue-600">
+                                                                <div className="mb-3 p-2 bg-sky-50 border border-sky-200 rounded-md">
+                            <div className="flex items-center gap-2 text-sky-800 text-sm">
+                                <span className="text-sky-600">
                                                     🔒
                                                 </span>
                                                 <span>

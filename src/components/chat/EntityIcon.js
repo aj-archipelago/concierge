@@ -19,7 +19,7 @@ const EntityIcon = ({ entity, size = "sm" }) => {
     const letter = entity?.name ? entity.name[0].toUpperCase() : "?";
 
     // Default colors if not provided
-    const bgColorClass = entity?.bgColorClass || "bg-blue-500";
+    const bgColorClass = entity?.bgColorClass || "bg-sky-500";
     const textColorClass = entity?.textColorClass || "text-white";
 
     // Size classes mapping

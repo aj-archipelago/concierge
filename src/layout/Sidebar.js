@@ -371,7 +371,7 @@ export default React.forwardRef(function Sidebar(
                                         {item.name === "Chat" && (
                                             <Plus
                                                 className={cn(
-                                                    "h-6 w-6 ml-auto p-1 rounded-full bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-400 hover:bg-blue-200 dark:hover:bg-blue-800 hover:text-blue-800 dark:hover:text-blue-300 cursor-pointer",
+                                                    "h-6 w-6 ml-auto p-1 rounded-full bg-sky-100 dark:bg-sky-900 text-sky-600 dark:text-sky-400 hover:bg-sky-200 dark:hover:bg-sky-800 hover:text-sky-800 dark:hover:text-sky-300 cursor-pointer",
                                                     isCollapsed
                                                         ? "hidden group-hover:inline"
                                                         : "inline",

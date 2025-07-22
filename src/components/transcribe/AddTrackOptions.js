@@ -199,7 +199,7 @@ function SubtitleUpload({ onAdd }) {
         <div className="flex flex-col gap-4">
             <form
                 className={`relative flex flex-col items-center justify-center w-full min-h-[200px] border-2 border-dashed rounded-lg p-4 
-                    ${dragActive ? "border-blue-500 bg-blue-50" : "border-gray-300"}`}
+                    ${dragActive ? "border-sky-500 bg-sky-50" : "border-gray-300"}`}
                 onDragEnter={handleDrag}
                 onDragLeave={handleDrag}
                 onDragOver={handleDrag}

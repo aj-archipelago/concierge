@@ -198,6 +198,14 @@ body.dark {
             color: darken($text-color-dark, 10%);
         }
     }
+
+    // Override for citation links to maintain sky blue color
+    .citation-link {
+        color: #0ea5e9 !important; // sky-500
+        &:hover {
+            color: #0ea5e9 !important; // sky-500
+        }
+    }
     .btn-check:checked + .btn,
     :not(.btn-check) + .btn:active,
     .btn:first-child:active,

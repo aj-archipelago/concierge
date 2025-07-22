@@ -203,7 +203,7 @@ export default function PublishConfirmDialog({
                                                                     className={`p-2 rounded hover:bg-gray-100 transition-colors ${
                                                                         selectedIcon ===
                                                                         iconName
-                                                                            ? "bg-blue-100 border border-blue-300"
+                                                                            ? "bg-sky-100 border border-sky-300"
                                                                             : ""
                                                                     }`}
                                                                     title={

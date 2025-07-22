@@ -120,7 +120,7 @@ export default React.forwardRef(function SendFeedbackModal(
                             rows={8}
                             value={message}
                             onChange={(e) => setMessage(e.target.value)}
-                            className="lb-input min-h-64 h-full w-full resize-none rounded-lg border-gray-200 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                            className="lb-input min-h-64 h-full w-full resize-none rounded-lg border-gray-200 focus:border-sky-500 focus:ring-1 focus:ring-sky-500"
                             placeholder={t("Type your message here...")}
                         />
                     </div>

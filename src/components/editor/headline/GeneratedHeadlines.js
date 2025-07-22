@@ -80,7 +80,7 @@ function SelectableListItem({ loading, checked = false, onSelect, headline }) {
             <div className="flex items-center gap-3 headline-display">
                 <input
                     type="checkbox"
-                    className="form-checkbox mt-1 dark:bg-gray-700 dark:border-gray-600 dark:checked:bg-blue-600 dark:checked:border-blue-600"
+                                                    className="form-checkbox mt-1 dark:bg-gray-700 dark:border-gray-600 dark:checked:bg-sky-600 dark:checked:border-sky-600"
                     checked={checked}
                     onChange={(e) => onSelect(e.target.checked)}
                 />
