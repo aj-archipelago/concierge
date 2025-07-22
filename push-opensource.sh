@@ -186,19 +186,24 @@ main() {
         if ! git merge "$SOURCE_BRANCH" --strategy=recursive --strategy-option=theirs; then
             log_warning "Merge had conflicts. Resolving by taking dev branch version for all conflicts..."
             
-            # Handle both conflicted files (UU) and unmerged files (U)
-            git status --porcelain | while read -r status_line; do
-                local status_code="${status_line:0:2}"
-                local file_path="${status_line:3}"
-                
-                if [[ "$status_code" == "UU" ]] || [[ "$status_code" == "U " ]]; then
-                    if [[ -f "$file_path" ]]; then
-                        log_info "Resolving conflict in: $file_path"
-                        git checkout --theirs "$file_path"
+            # Get list of unmerged files
+            unmerged_files=$(git status --porcelain | grep -E "^(UU|U )" | cut -c4-)
+            
+            # Handle each unmerged file
+            while IFS= read -r file_path; do
+                if [[ -n "$file_path" ]]; then
+                    log_info "Resolving conflict in: $file_path"
+                    # Try to checkout the dev branch version
+                    if git checkout --theirs "$file_path" 2>/dev/null; then
+                        git add "$file_path"
+                    else
+                        # If checkout fails, try to remove the file
+                        log_info "Removing conflicted file: $file_path"
+                        git rm "$file_path" 2>/dev/null || rm -f "$file_path"
                         git add "$file_path"
                     fi
                 fi
-            done
+            done <<< "$unmerged_files"
             
             # Complete the merge
             git commit --no-edit
