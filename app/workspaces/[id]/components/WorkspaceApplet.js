@@ -781,9 +781,9 @@ export default function WorkspaceApplet() {
         <TooltipProvider>
             <div className="flex flex-col h-full overflow-auto">
                 {!isOwner && (
-                    <div className="bg-blue-50 border-b border-blue-200 px-4 py-2">
-                        <div className="flex items-center gap-2 text-blue-800 text-sm">
-                            <span className="text-blue-600">👁️</span>
+                    <div className="bg-sky-50 dark:bg-sky-900/20 border-b border-sky-200 dark:border-sky-700 px-4 py-2">
+                        <div className="flex items-center gap-2 text-sky-800 dark:text-sky-300 text-sm">
+                            <span className="text-sky-600">👁️</span>
                             <span>
                                 {t(
                                     "Read-only mode - Only the workspace owner can make changes",
@@ -792,7 +792,7 @@ export default function WorkspaceApplet() {
                         </div>
                     </div>
                 )}
-                <div className="flex justify-between gap-4 h-full overflow-auto bg-gray-100 p-4">
+                <div className="flex justify-between gap-4 h-full overflow-auto bg-gray-100 dark:bg-gray-700 rounded-md  p-4">
                     <div className="flex flex-col flex-1 min-w-0 overflow-auto">
                         {htmlVersions.length > 0 && (
                             <VersionNavigator

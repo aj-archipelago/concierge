@@ -18,7 +18,7 @@ function StoryAngles({ text, onSelect, currentAngle }) {
     const angles = data?.[query.toLowerCase()]?.result || [];
 
     return (
-        <div className="mb-3 story-angles text-sm">
+        <div className="mb-3 text-sm max-h-[110px] overflow-y-auto">
             <div className="flex gap-2 flex-wrap">
                 {loading && (
                     <LoadingButton

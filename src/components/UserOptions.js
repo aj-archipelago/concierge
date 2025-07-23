@@ -216,7 +216,9 @@ const UserOptions = ({ show, handleClose }) => {
             onHide={handleClose}
         >
             <div className="text-sm">
-                <h4 className="text-base font-semibold mb-2">{t("AI Name")}</h4>
+                <h4 className="text-base font-semibold mb-2 text-gray-900 dark:text-gray-100">
+                    {t("AI Name")}
+                </h4>
                 <input
                     type="text"
                     value={aiName}
@@ -225,7 +227,7 @@ const UserOptions = ({ show, handleClose }) => {
                     placeholder={t("Enter AI Name")}
                 />
 
-                <h4 className="text-base font-semibold mb-2">
+                <h4 className="text-base font-semibold mb-2 text-gray-900 dark:text-gray-100">
                     {t("AI Style")}
                 </h4>
                 <select
@@ -237,10 +239,10 @@ const UserOptions = ({ show, handleClose }) => {
                     <option value="Anthropic">{t("Anthropic")}</option>
                 </select>
 
-                <h4 className="text-base font-semibold mb-2">
+                <h4 className="text-base font-semibold mb-2 text-gray-900 dark:text-gray-100">
                     {t("AI Memory")}
                 </h4>
-                <p className="text-gray-600">
+                <p className="text-gray-600 dark:text-gray-400">
                     {t(
                         "You can customize your interactions with the AI assistant by giving it things to remember. You can enter plain text or something more structured like JSON or XML. If you allow it, the AI will periodically modify its own memory to improve its ability to assist you.",
                     )}
@@ -257,12 +259,15 @@ const UserOptions = ({ show, handleClose }) => {
                         }
                         style={{ margin: "0.5rem 0" }}
                     />
-                    <label htmlFor="aiMemorySelfModify">
+                    <label
+                        htmlFor="aiMemorySelfModify"
+                        className="text-gray-900 dark:text-gray-100"
+                    >
                         {t("Allow the AI to modify its own memory")}
                     </label>
                 </div>
                 <div>
-                    <h4 className="text-base font-semibold mb-2">
+                    <h4 className="text-base font-semibold mb-2 text-gray-900 dark:text-gray-100">
                         {t("Currently stored memory")}
                     </h4>
                     {memoryLoading ? (
@@ -301,7 +306,7 @@ const UserOptions = ({ show, handleClose }) => {
                                         className="hidden"
                                     />
                                 </div>
-                                <div className="text-sm text-gray-500 flex flex-wrap gap-2 items-center">
+                                <div className="text-sm text-gray-500 dark:text-gray-400 flex flex-wrap gap-2 items-center">
                                     <span>
                                         {t("Memory size: {{size}} characters", {
                                             size: JSON.stringify(parsedMemory)
@@ -309,21 +314,21 @@ const UserOptions = ({ show, handleClose }) => {
                                         })}
                                     </span>
                                     {parsedMemory.memoryVersion && (
-                                        <span className="text-xs text-gray-400">
+                                        <span className="text-xs text-gray-400 dark:text-gray-500">
                                             (v{parsedMemory.memoryVersion})
                                         </span>
                                     )}
                                 </div>
                             </div>
-                            <div className="border-b border-gray-200">
+                            <div className="border-b border-gray-200 dark:border-gray-700">
                                 <nav className="flex -mb-px">
                                     {memoryTabs.map((tab) => (
                                         <button
                                             key={tab.id}
                                             className={`mr-2 py-2 px-4 font-medium text-sm border-b-2 ${
                                                 activeMemoryTab === tab.id
-                                                    ? "border-sky-500 text-sky-600"
-                                                    : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+                                                    ? "border-sky-500 text-sky-600 dark:text-sky-400"
+                                                    : "border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300 dark:hover:border-gray-600"
                                             }`}
                                             onClick={() =>
                                                 setActiveMemoryTab(tab.id)
