@@ -792,7 +792,7 @@ export default function WorkspaceApplet() {
                         </div>
                     </div>
                 )}
-                <div className="flex justify-between gap-4 h-full overflow-auto bg-gray-100 dark:bg-gray-900 p-4">
+                <div className="flex justify-between gap-4 h-full overflow-auto bg-gray-100 dark:bg-gray-700 rounded-md  p-4">
                     <div className="flex flex-col flex-1 min-w-0 overflow-auto">
                         {htmlVersions.length > 0 && (
                             <VersionNavigator

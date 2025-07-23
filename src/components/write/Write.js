@@ -137,7 +137,7 @@ function Write() {
                         open ? "hidden md:block" : "",
                     )}
                 >
-                    <div className="mb-2">
+                    <div className="mb-4 bg-white dark:bg-gray-800 rounded-lg shadow-sm">
                         <HeadlineEditor
                             headline={headline}
                             subhead={subhead}
@@ -156,41 +156,45 @@ function Write() {
                             articleText={inputText}
                         />
                     </div>
-                    <Toolbar
-                        actions={actions}
-                        onAction={(a, args) => {
-                            amplitude.track("Modal Opened", {
-                                type: a,
-                            });
-                            setAction(a);
-                            setArgs(args);
-                            if (actions[a].postApply) {
-                                switch (actions[a].postApply) {
-                                    case "clear-headline":
-                                        setHeadline("");
-                                        setSubhead("");
-                                        debouncedUpdateUserState({
-                                            write: {
-                                                headline: "",
-                                                subhead: "",
-                                                text: inputText,
-                                            },
-                                        });
-                                        break;
-                                    default:
-                                        break;
+                    <div className="mb-4">
+                        <Toolbar
+                            actions={actions}
+                            onAction={(a, args) => {
+                                amplitude.track("Modal Opened", {
+                                    type: a,
+                                });
+                                setAction(a);
+                                setArgs(args);
+                                if (actions[a].postApply) {
+                                    switch (actions[a].postApply) {
+                                        case "clear-headline":
+                                            setHeadline("");
+                                            setSubhead("");
+                                            debouncedUpdateUserState({
+                                                write: {
+                                                    headline: "",
+                                                    subhead: "",
+                                                    text: inputText,
+                                                },
+                                            });
+                                            break;
+                                        default:
+                                            break;
+                                    }
                                 }
-                            }
-                        }}
-                        isTextPresent={!!inputText}
-                        isTextSelected={!!selection?.text}
-                        inputText={inputText}
-                    />
-                    <Editor
-                        value={inputText}
-                        onSelect={handleEditorSelect}
-                        onChange={handleEditorChange}
-                    ></Editor>
+                            }}
+                            isTextPresent={!!inputText}
+                            isTextSelected={!!selection?.text}
+                            inputText={inputText}
+                        />
+                    </div>
+                    <div className="flex-1 bg-white dark:bg-gray-800 rounded-lg shadow-sm">
+                        <Editor
+                            value={inputText}
+                            onSelect={handleEditorSelect}
+                            onChange={handleEditorChange}
+                        ></Editor>
+                    </div>
                 </div>
                 <div
                     className={classNames(
@@ -198,16 +202,18 @@ function Write() {
                         open ? "" : "hidden md:block",
                     )}
                 >
-                    <Sidebar
-                        actions={actions}
-                        onAction={(a, args) => {
-                            setAction(a);
-                            setArgs(args);
-                        }}
-                        isTextPresent={!!inputText}
-                        isTextSelected={!!selection?.text}
-                        inputText={inputText}
-                    />
+                    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm h-full">
+                        <Sidebar
+                            actions={actions}
+                            onAction={(a, args) => {
+                                setAction(a);
+                                setArgs(args);
+                            }}
+                            isTextPresent={!!inputText}
+                            isTextSelected={!!selection?.text}
+                            inputText={inputText}
+                        />
+                    </div>
                 </div>
                 <AIModal
                     show={!!action}
@@ -237,14 +243,15 @@ function Write() {
 
     return (
         <>
-            <div className="md:hidden flex justify-end">
-                <button className="" onClick={() => setOpen(!open)}>
-                    <span className="text-sm text-sky-500">
-                        {open ? t("Show editor") : t("Show AI commands")}
-                    </span>
+            <div className="md:hidden flex justify-end mb-4">
+                <button
+                    className="px-4 py-2 bg-sky-500 hover:bg-sky-600 text-white rounded-md transition-colors duration-200 text-sm font-medium"
+                    onClick={() => setOpen(!open)}
+                >
+                    {open ? t("Show editor") : t("Show AI commands")}
                 </button>
             </div>
-            <div className="flex gap-8 pt-2 h-full">{editorPane}</div>
+            <div className="flex gap-6 pt-2 h-full">{editorPane}</div>
         </>
     );
 }

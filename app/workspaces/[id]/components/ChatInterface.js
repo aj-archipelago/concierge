@@ -133,12 +133,12 @@ export default function ChatInterface({
                         <div
                             className={`max-w-[100%] rounded-lg p-4 shadow-sm ${
                                 message.role === "user"
-                                    ? "bg-sky-100 text-sky-900 border border-sky-200"
+                                    ? "bg-sky-100 text-sky-900 border border-sky-200 dark:border-sky-700 dark:bg-sky-900/20"
                                     : "bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-gray-100 border border-gray-200 dark:border-gray-600"
                             }`}
                         >
                             <div className="flex items-center justify-between mb-2">
-                                <div className="text-xs font-medium text-gray-600 capitalize">
+                                <div className="text-xs font-medium text-gray-600 capitalize dark:text-gray-400">
                                     {message.role === "user"
                                         ? t("You")
                                         : t("Assistant")}
@@ -174,17 +174,17 @@ export default function ChatInterface({
                                             </p>
                                         ),
                                         h1: ({ children }) => (
-                                            <h1 className="text-xl font-bold mb-3 mt-4 first:mt-0 text-gray-900">
+                                            <h1 className="text-xl font-bold mb-3 mt-4 first:mt-0">
                                                 {children}
                                             </h1>
                                         ),
                                         h2: ({ children }) => (
-                                            <h2 className="text-lg font-semibold mb-2 mt-3 first:mt-0 text-gray-900">
+                                            <h2 className="text-lg font-semibold mb-2 mt-3 first:mt-0">
                                                 {children}
                                             </h2>
                                         ),
                                         h3: ({ children }) => (
-                                            <h3 className="text-base font-semibold mb-2 mt-3 first:mt-0 text-gray-900">
+                                            <h3 className="text-base font-semibold mb-2 mt-3 first:mt-0">
                                                 {children}
                                             </h3>
                                         ),
@@ -204,7 +204,7 @@ export default function ChatInterface({
                                             </li>
                                         ),
                                         blockquote: ({ children }) => (
-                                            <blockquote className="border-l-4 border-gray-300 dark:border-gray-600 pl-4 py-2 my-3 bg-gray-50 dark:bg-gray-700 rounded-r">
+                                            <blockquote className="border-l-4 border-gray-300 dark:border-gray-600 pl-4 py-2 my-3 bg-gray-50 dark:bg-gray-700 rounded-r dark:text-gray-300">
                                                 {children}
                                             </blockquote>
                                         ),
@@ -235,11 +235,7 @@ export default function ChatInterface({
                                                 {children}
                                             </a>
                                         ),
-                                        strong: ({ children }) => (
-                                            <strong className="font-semibold text-gray-900">
-                                                {children}
-                                            </strong>
-                                        ),
+                                        strong: ({ children }) => children,
                                         em: ({ children }) => (
                                             <em className="italic text-gray-800">
                                                 {children}
@@ -301,7 +297,7 @@ export default function ChatInterface({
             </div>
 
             {/* Chat input section */}
-            <div className="rounded-md border dark:border-zinc-200 flex-shrink-0 transition-colors duration-200 focus-within:border-gray-400 dark:focus-within:border-gray-500">
+            <div className="rounded-md border dark:border-zinc-100 flex-shrink-0 transition-colors duration-200 focus-within:border-gray-400 dark:focus-within:border-gray-500">
                 <form
                     className={cn(
                         "flex items-center rounded-md dark:bg-gray-800 transition-colors duration-200",
@@ -313,7 +309,7 @@ export default function ChatInterface({
                         <div className="flex items-center">
                             <TextareaAutosize
                                 className={cn(
-                                    "w-full border-0 outline-none focus:shadow-none text-sm focus:ring-0 py-3 resize-none dark:bg-transparent px-3 rounded-s max-h-24 overflow-y-auto",
+                                    "w-full border-0 outline-none focus:shadow-none text-sm focus:ring-0 py-3 resize-none dark:bg-transparent px-3 rounded-s max-h-24 overflow-y-auto dark:text-gray-100",
                                     direction === "rtl"
                                         ? "direction-rtl"
                                         : "direction-ltr",
