@@ -264,6 +264,8 @@ function MediaPage() {
         () => mediaItemsData.mediaItems || [],
         [mediaItemsData.mediaItems],
     );
+
+
     const pagination = mediaItemsData.pagination || {};
 
     const [showModal, setShowModal] = useState(false);
@@ -300,7 +302,7 @@ function MediaPage() {
                 console.warn("Failed to parse localStorage settings:", error);
             }
         }
-    }, [debouncedUpdateUserState]);
+    }, [debouncedUpdateUserState]); // Include debouncedUpdateUserState dependency
 
     // No longer needed - images are managed by the API now
 
@@ -332,14 +334,14 @@ function MediaPage() {
                 },
             });
         }
-    }, [settings, userState?.media, debouncedUpdateUserState]);
+    }, [settings, userState?.media, debouncedUpdateUserState]); // Include debouncedUpdateUserState dependency
 
     // No longer need to load images from user state - they come from the API now
 
     // Migrate from localStorage on first load (run only once)
     useEffect(() => {
         migrateFromLocalStorage();
-    }, [migrateFromLocalStorage]);
+    }, [migrateFromLocalStorage]); // Include migrateFromLocalStorage dependency
 
     // No longer needed - images come from API
 
@@ -479,7 +481,13 @@ function MediaPage() {
                 setLoading(false);
             }
         },
-        [outputType, selectedModel, settings, runTask, createMediaItem],
+        [
+            outputType,
+            selectedModel,
+            settings,
+            runTask,
+            createMediaItem,
+        ],
     );
 
     useEffect(() => {
@@ -915,14 +923,14 @@ function MediaPage() {
     }, [
         images,
         generationPrompt,
+        generateMedia,
         quality,
         selectedImages,
         lastSelectedImage,
+        setLastSelectedImage,
+        setShowDeleteSelectedConfirm,
         selectedModel,
         deleteMediaItem,
-        generateMedia,
-        // Remove function dependencies that change on every render
-        // setLastSelectedImage, setShowDeleteSelectedConfirm
     ]);
 
     return (
@@ -1293,7 +1301,7 @@ function SettingsDialog({ show, settings, setSettings, onHide }) {
         if (show) {
             setLocalSettings(settings);
         }
-    }, [show, settings]); // Run when show or settings change
+    }, [show, settings]); // Include settings dependency
 
     const handleSave = () => {
         setSettings(localSettings);

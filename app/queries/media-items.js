@@ -13,8 +13,8 @@ export function useMediaItems(page = 1, limit = 50, filters = {}) {
             const { data } = await axios.get(`/api/media-items?${params}`);
             return data;
         },
-        staleTime: 30000, // 30 seconds - longer to reduce API calls
-        refetchInterval: false, // Disable continuous polling - rely on manual refetch and cache invalidation
+        staleTime: 5000, // 5 seconds - shorter for more responsive updates
+        refetchInterval: 10000, // Poll every 10 seconds to catch background task updates
     });
 
     return query;
@@ -29,11 +29,7 @@ export function useCreateMediaItem() {
             return response.data;
         },
         onSuccess: () => {
-            // Invalidate all media items queries with pagination
-            queryClient.invalidateQueries({
-                queryKey: ["mediaItems"],
-                exact: false,
-            });
+            queryClient.invalidateQueries({ queryKey: ["mediaItems"] });
         },
     });
 
@@ -52,11 +48,7 @@ export function useUpdateMediaItem() {
             return response.data;
         },
         onSuccess: () => {
-            // Invalidate all media items queries with pagination
-            queryClient.invalidateQueries({
-                queryKey: ["mediaItems"],
-                exact: false,
-            });
+            queryClient.invalidateQueries({ queryKey: ["mediaItems"] });
         },
     });
 
@@ -72,11 +64,7 @@ export function useDeleteMediaItem() {
             return response.data;
         },
         onSuccess: () => {
-            // Invalidate all media items queries with pagination
-            queryClient.invalidateQueries({
-                queryKey: ["mediaItems"],
-                exact: false,
-            });
+            queryClient.invalidateQueries({ queryKey: ["mediaItems"] });
         },
     });
 
