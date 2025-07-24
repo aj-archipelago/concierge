@@ -3,12 +3,11 @@ import { getCurrentUser } from "../../utils/auth";
 
 export async function GET(request) {
     try {
-        // Check for local auth cookies
+        // Check for local auth token
         const cookieStore = await import("next/headers").then((m) =>
             m.cookies(),
         );
         const localAuthToken = cookieStore.get("local_auth_token");
-        const localAuthUser = cookieStore.get("local_auth_user");
 
         // Check Azure headers
         const headerList = await import("next/headers").then((m) =>
@@ -31,8 +30,6 @@ export async function GET(request) {
                 : null,
             localAuth: {
                 hasToken: !!localAuthToken?.value,
-                hasUser: !!localAuthUser?.value,
-                user: localAuthUser?.value || null,
             },
             azureHeaders: {
                 id: azureId,
@@ -64,15 +61,9 @@ export async function POST(request) {
                 message: "Local authentication cleared",
             });
 
-            // Clear local auth cookies
+            // Clear local auth token
             response.cookies.set("local_auth_token", "", {
                 httpOnly: true,
-                secure: process.env.NODE_ENV === "production",
-                sameSite: "lax",
-                maxAge: 0,
-            });
-            response.cookies.set("local_auth_user", "", {
-                httpOnly: false,
                 secure: process.env.NODE_ENV === "production",
                 sameSite: "lax",
                 maxAge: 0,

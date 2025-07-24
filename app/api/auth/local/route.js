@@ -74,6 +74,7 @@ export async function POST(request) {
         const response = NextResponse.json({
             success: true,
             redirect_uri: redirect_uri || "/",
+            user: email, // Include user email in response for localStorage
         });
 
         response.cookies.set("local_auth_token", JSON.stringify(token), {
@@ -81,13 +82,6 @@ export async function POST(request) {
             secure: process.env.NODE_ENV === "production",
             sameSite: "lax",
             maxAge: 3600, // 1 hour - match Entra session duration
-        });
-
-        response.cookies.set("local_auth_user", email, {
-            httpOnly: false, // Allow client-side access
-            secure: process.env.NODE_ENV === "production",
-            sameSite: "lax",
-            maxAge: 3600 * 24 * 30, // 30 days for user preference
         });
 
         return response;

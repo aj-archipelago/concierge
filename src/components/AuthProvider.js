@@ -42,6 +42,12 @@ export const AuthProvider = ({ children }) => {
                     // Verify authentication was successful
                     const isAuthenticated = await checkAuthHeaders();
                     if (isAuthenticated) {
+                        // Clean up the URL parameters to prevent re-running this effect
+                        const newUrl = new URL(window.location.href);
+                        newUrl.searchParams.delete("auth_return");
+                        newUrl.searchParams.delete("redirect_uri");
+                        window.history.replaceState({}, "", newUrl.toString());
+
                         // Redirect to the original URL
                         window.location.href = redirectUrl;
                     } else {

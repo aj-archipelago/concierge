@@ -8,22 +8,6 @@ const axiosInstance = axios.create({
     withCredentials: true,
 });
 
-// Track authentication refresh state
-let isRefreshing = false;
-const failedQueue = [];
-
-const processQueue = (error, token = null) => {
-    failedQueue.forEach(({ resolve, reject }) => {
-        if (error) {
-            reject(error);
-        } else {
-            resolve(token);
-        }
-    });
-
-    failedQueue.length = 0;
-};
-
 // Add interceptors only for client-side
 if (typeof window !== "undefined") {
     // Request interceptor to check auth before making requests
@@ -39,13 +23,6 @@ if (typeof window !== "undefined") {
                 return config;
             }
 
-            // Check if we're already refreshing
-            if (isRefreshing) {
-                return new Promise((resolve) => {
-                    failedQueue.push({ resolve: () => resolve(config) });
-                });
-            }
-
             // Check if we're currently on the login page
             if (
                 typeof window !== "undefined" &&
@@ -57,7 +34,6 @@ if (typeof window !== "undefined") {
             // Check authentication status (both local and production)
             const isAuthenticated = await checkAuthHeaders();
             if (!isAuthenticated) {
-                isRefreshing = true;
                 triggerAuthRefresh();
                 return Promise.reject(new Error("Authentication required"));
             }
@@ -82,32 +58,11 @@ if (typeof window !== "undefined") {
             return response;
         },
         async function (error) {
-            const originalRequest = error.config;
-
             // Handle 401 Unauthorized errors
-            if (error.response?.status === 401 && !originalRequest._retry) {
-                if (isRefreshing) {
-                    return new Promise((resolve, reject) => {
-                        failedQueue.push({
-                            resolve: () =>
-                                resolve(axiosInstance(originalRequest)),
-                            reject: (err) => reject(err),
-                        });
-                    });
-                }
-
-                originalRequest._retry = true;
-                isRefreshing = true;
-
-                try {
-                    triggerAuthRefresh();
-                    return Promise.reject(error);
-                } catch (refreshError) {
-                    processQueue(refreshError, null);
-                    return Promise.reject(refreshError);
-                } finally {
-                    isRefreshing = false;
-                }
+            if (error.response?.status === 401) {
+                // Simply trigger the refresh and reject. The page will redirect.
+                triggerAuthRefresh();
+                return Promise.reject(new Error("Authentication required. Redirecting..."));
             }
 
             return Promise.reject(error);
