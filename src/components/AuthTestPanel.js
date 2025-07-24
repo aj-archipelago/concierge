@@ -3,11 +3,13 @@
 import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Clock, AlertCircle, User } from "lucide-react";
+import { Clock, AlertCircle, User, Zap } from "lucide-react";
+import axiosInstance from "../../app/utils/axios-client";
 
 export const AuthTestPanel = () => {
     const [isExpiring, setIsExpiring] = useState(false);
     const [isChecking, setIsChecking] = useState(false);
+    const [isTestingApi, setIsTestingApi] = useState(false);
     const [message, setMessage] = useState("");
     const [authStatus, setAuthStatus] = useState(null);
 
@@ -53,12 +55,10 @@ export const AuthTestPanel = () => {
 
             if (response.ok) {
                 setMessage(
-                    "Token expired successfully. You will be redirected to login.",
+                    "Token expired successfully. Now try making an API call to see how the app handles expired authentication.",
                 );
-                // Redirect to login page after a short delay
-                setTimeout(() => {
-                    window.location.href = "/auth/login";
-                }, 1500);
+                // Refresh auth status to show the change
+                await checkAuthStatus();
             } else {
                 setMessage("Failed to expire token. Please try again.");
             }
@@ -67,6 +67,38 @@ export const AuthTestPanel = () => {
             console.error("Error expiring token:", error);
         } finally {
             setIsExpiring(false);
+        }
+    };
+
+    const testApiCall = async () => {
+        setIsTestingApi(true);
+        setMessage("");
+
+        try {
+            // Use axios client which has authentication interceptors
+            // This will trigger the auth refresh flow if token is expired
+            const response = await axiosInstance.get("/api/users/me");
+
+            setMessage(
+                `API call successful! Status: ${response.status}. User: ${response.data.name || "Unknown"}`,
+            );
+        } catch (error) {
+            if (error.message === "Authentication required") {
+                setMessage(
+                    "Authentication required! The auth refresh flow should have been triggered. Check for loading overlays or redirects.",
+                );
+            } else if (error.response?.status === 401) {
+                setMessage(
+                    `API call returned 401 Unauthorized. The auth refresh flow should have been triggered. Check for loading overlays or redirects.`,
+                );
+            } else {
+                setMessage(
+                    `API call failed: ${error.message}. Check the browser console for details.`,
+                );
+            }
+            console.error("API call error:", error);
+        } finally {
+            setIsTestingApi(false);
         }
     };
 
@@ -106,17 +138,36 @@ export const AuthTestPanel = () => {
                     <Button
                         onClick={expireToken}
                         disabled={isExpiring}
+                        variant="outline"
                         className="w-full flex items-center gap-2"
                     >
                         {isExpiring ? (
                             <>
-                                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current"></div>
                                 Expiring Token...
                             </>
                         ) : (
                             <>
                                 <Clock className="h-4 w-4" />
                                 Expire Current Token
+                            </>
+                        )}
+                    </Button>
+
+                    <Button
+                        onClick={testApiCall}
+                        disabled={isTestingApi}
+                        className="w-full flex items-center gap-2"
+                    >
+                        {isTestingApi ? (
+                            <>
+                                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                                Testing API...
+                            </>
+                        ) : (
+                            <>
+                                <Zap className="h-4 w-4" />
+                                Test API Call (Triggers Auth)
                             </>
                         )}
                     </Button>
@@ -174,13 +225,17 @@ export const AuthTestPanel = () => {
 
                 <div className="text-xs text-gray-500 dark:text-gray-400">
                     <p>
-                        <strong>Purpose:</strong> This panel simulates
-                        authentication scenarios for testing.
+                        <strong>How to test:</strong>
                     </p>
-                    <p className="mt-1">
-                        <strong>Local vs Entra:</strong> Tests both local
-                        development and production authentication flows.
-                    </p>
+                    <ol className="list-decimal list-inside mt-1 space-y-1">
+                        <li>Check your current auth status</li>
+                        <li>Expire your token (stays on this page)</li>
+                        <li>Test an API call to see auth refresh in action</li>
+                        <li>
+                            Watch for redirects, loading states, or error
+                            dialogs
+                        </li>
+                    </ol>
                 </div>
             </CardContent>
         </Card>
