@@ -1084,18 +1084,17 @@ function MediaPage() {
                             <button
                                 className="lb-primary whitespace-nowrap flex items-center justify-center relative"
                                 type="submit"
-                                disabled={
-                                    !prompt.trim() ||
-                                    loading
-                                }
+                                disabled={!prompt.trim() || loading}
                             >
-                                <span className={loading ? "invisible" : "visible"}>
+                                <span
+                                    className={
+                                        loading ? "invisible" : "visible"
+                                    }
+                                >
                                     {t("Generate")}
                                 </span>
                                 {loading && (
-                                    <Loader2 
-                                        className="animate-spin h-4 w-4 absolute" 
-                                    />
+                                    <Loader2 className="animate-spin h-4 w-4 absolute" />
                                 )}
                             </button>
                         </div>
