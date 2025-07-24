@@ -1,5 +1,7 @@
 import { BaseTask } from "./base-task.mjs";
 import { IMAGE_FLUX, VIDEO_VEO, VIDEO_SEEDANCE } from "../graphql.mjs";
+import UserState from "../../app/api/models/user-state.mjs";
+import MediaItem from "../../app/api/models/media-item.mjs";
 
 // Function to format image input for Veo models
 const formatImageForVeo = (imageUrl) => {
@@ -61,11 +63,6 @@ class MediaGenerationHandler extends BaseTask {
     async startRequest(job) {
         const { taskId, metadata } = job.data;
 
-        console.debug(
-            `[MediaGenerationHandler] Initializing job ${taskId}`,
-            metadata,
-        );
-
         const {
             prompt,
             outputType,
@@ -92,15 +89,20 @@ class MediaGenerationHandler extends BaseTask {
                 aspectRatio: "1:1",
             };
 
+            // Validate aspect ratio - "match_input_image" requires an input image
+            let aspectRatio = modelSettings.aspectRatio;
+            if (aspectRatio === "match_input_image" && !inputImageUrl) {
+                // Fall back to a safe default if user selected "match_input_image" but no input image
+                aspectRatio = "1:1";
+            }
+
             variables = {
                 text: prompt,
                 async: true,
                 model: modelName,
                 input_image: inputImageUrl || "",
                 input_image_2: inputImageUrl2 || "",
-                aspectRatio: inputImageUrl
-                    ? "match_input_image"
-                    : modelSettings.aspectRatio,
+                aspectRatio: aspectRatio,
             };
             query = IMAGE_FLUX;
         } else {
@@ -151,15 +153,6 @@ class MediaGenerationHandler extends BaseTask {
             }
         }
 
-        console.debug(
-            `[MediaGenerationHandler] Sending ${outputType} generation request`,
-            {
-                prompt,
-                model: variables.model,
-                outputType,
-            },
-        );
-
         const { data, errors } = await job.client.query({
             query,
             variables,
@@ -191,9 +184,6 @@ class MediaGenerationHandler extends BaseTask {
             throw new Error("No result returned from media generation service");
         }
 
-        console.debug(`[MediaGenerationHandler] Job initialized successfully`, {
-            taskId,
-        });
         return result;
     }
 
@@ -218,6 +208,35 @@ class MediaGenerationHandler extends BaseTask {
         return dataObject;
     }
 
+    async handleError(taskId, error, metadata, client) {
+        // Get userId from the job data, not metadata
+        const userId = metadata.userId;
+
+        if (userId) {
+            try {
+                // Update the media item with error status
+                await MediaItem.findOneAndUpdate(
+                    { user: userId, taskId: metadata.taskId },
+                    {
+                        status: "failed",
+                        error: {
+                            code: error.code || "TASK_FAILED",
+                            message: error.message || "Media generation failed",
+                        },
+                    },
+                    { new: true, runValidators: true },
+                );
+            } catch (updateError) {
+                console.error(
+                    "Error updating media item with error status:",
+                    updateError,
+                );
+            }
+        }
+
+        return { error: error.message };
+    }
+
     async processMediaData(dataObject, metadata) {
         try {
             let mediaUrl = null;
@@ -228,10 +247,26 @@ class MediaGenerationHandler extends BaseTask {
                 metadata.model?.includes("veo")
             ) {
                 // Veo video response structure
-                console.log("Veo response data:", dataObject);
 
-                // Check for the direct Veo response structure
+                // Check for the direct Veo response structure (no result wrapper)
                 if (
+                    dataObject?.response?.videos &&
+                    Array.isArray(dataObject.response.videos) &&
+                    dataObject.response.videos.length > 0
+                ) {
+                    const video = dataObject.response.videos[0];
+
+                    if (video.bytesBase64Encoded) {
+                        mediaUrl = `data:video/mp4;base64,${video.bytesBase64Encoded}`;
+                    } else if (video.gcsUri) {
+                        mediaUrl = video.gcsUri.replace(
+                            "gs://",
+                            "https://storage.googleapis.com/",
+                        );
+                    }
+                }
+                // Check for result wrapper structure
+                else if (
                     dataObject?.result?.response?.videos &&
                     Array.isArray(dataObject.result.response.videos) &&
                     dataObject.result.response.videos.length > 0
@@ -239,13 +274,11 @@ class MediaGenerationHandler extends BaseTask {
                     const video = dataObject.result.response.videos[0];
                     if (video.bytesBase64Encoded) {
                         mediaUrl = `data:video/mp4;base64,${video.bytesBase64Encoded}`;
-                        console.log("Found Veo video with base64 data");
                     } else if (video.gcsUri) {
                         mediaUrl = video.gcsUri.replace(
                             "gs://",
                             "https://storage.googleapis.com/",
                         );
-                        console.log("Found Veo video with GCS URI:", mediaUrl);
                     }
                 }
                 // Fallback: check if data.result.output is a string that needs parsing
@@ -255,7 +288,6 @@ class MediaGenerationHandler extends BaseTask {
                 ) {
                     try {
                         const parsed = JSON.parse(dataObject.result.output);
-                        console.log("Parsed Veo response:", parsed);
 
                         // Try different possible response structures
                         let videoUrl = null;
@@ -310,15 +342,11 @@ class MediaGenerationHandler extends BaseTask {
 
                         if (videoUrl) {
                             mediaUrl = videoUrl;
-                            console.log("Found Veo video URL:", videoUrl);
-                        } else {
-                            console.log("No video URL found in Veo response");
                         }
                     } catch (e) {
                         console.error("Error parsing Veo video response:", e);
                     }
                 } else {
-                    console.log("No output string found in Veo response");
                 }
             } else {
                 // Standard image/video response structure
@@ -334,6 +362,29 @@ class MediaGenerationHandler extends BaseTask {
                 }
             }
 
+            // Final fallback: check if the entire dataObject is the response
+            if (
+                !mediaUrl &&
+                metadata.outputType === "video" &&
+                metadata.model?.includes("veo")
+            ) {
+                if (
+                    dataObject?.response?.videos &&
+                    Array.isArray(dataObject.response.videos) &&
+                    dataObject.response.videos.length > 0
+                ) {
+                    const video = dataObject.response.videos[0];
+                    if (video.bytesBase64Encoded) {
+                        mediaUrl = `data:video/mp4;base64,${video.bytesBase64Encoded}`;
+                    } else if (video.gcsUri) {
+                        mediaUrl = video.gcsUri.replace(
+                            "gs://",
+                            "https://storage.googleapis.com/",
+                        );
+                    }
+                }
+            }
+
             // Upload to cloud storage if we have a valid URL
             let cloudUrls = null;
             if (mediaUrl && typeof mediaUrl === "string") {
@@ -346,13 +397,17 @@ class MediaGenerationHandler extends BaseTask {
             }
 
             // Return processed data with cloud URLs
+            // For Google models (Veo), prioritize GCS URL
+            const isGoogleModel = metadata.model?.includes("veo");
+
             return {
                 ...dataObject,
-                url:
-                    cloudUrls?.azureUrl ||
-                    (mediaUrl && !mediaUrl.startsWith("data:")
-                        ? mediaUrl
-                        : undefined),
+                url: isGoogleModel
+                    ? cloudUrls?.gcsUrl || mediaUrl
+                    : cloudUrls?.azureUrl ||
+                      (mediaUrl && !mediaUrl.startsWith("data:")
+                          ? mediaUrl
+                          : undefined),
                 azureUrl: cloudUrls?.azureUrl,
                 gcsUrl: cloudUrls?.gcsUrl,
             };
@@ -452,79 +507,54 @@ class MediaGenerationHandler extends BaseTask {
 
     async handleMediaGenerationCompletion(userId, dataObject, metadata) {
         try {
-            const UserState = (
-                await import("../../app/api/models/user-state.mjs")
-            ).default;
-
-            const userState = await UserState.findOne({ user: userId });
-            if (!userState) {
-                throw new Error("User state not found");
-            }
-
-            let state = {};
-            try {
-                state = userState.serializedState
-                    ? JSON.parse(userState.serializedState)
-                    : {};
-            } catch (e) {
-                console.error("Error parsing serializedState:", e);
-                throw new Error("Error parsing serializedState:", e);
-            }
-
-            // Get media state
-            const mediaState = state.media || {};
-            const images = mediaState.images || [];
-
-            // Find the existing placeholder entry by taskId
-            const existingIndex = images.findIndex(
-                (img) => img.taskId === metadata.taskId,
-            );
-
-            if (existingIndex !== -1) {
-                // Update the existing entry with the result
-                images[existingIndex] = {
-                    ...images[existingIndex],
-                    cortexRequestId: metadata.cortexRequestId,
-                    result: dataObject,
+            // Find and update the media item
+            const mediaItem = await MediaItem.findOneAndUpdate(
+                { user: userId, taskId: metadata.taskId },
+                {
+                    status: "completed",
+                    completed: Math.floor(Date.now() / 1000),
                     url: dataObject.url,
                     azureUrl: dataObject.azureUrl,
                     gcsUrl: dataObject.gcsUrl,
-                    taskId: undefined, // Remove taskId since it's now completed
-                };
-            } else {
-                // Create new media entry if not found (fallback)
-                const newMedia = {
-                    cortexRequestId: metadata.cortexRequestId,
+                    // Video-specific fields
+                    duration: dataObject.duration,
+                    generateAudio: dataObject.generateAudio,
+                    resolution: dataObject.resolution,
+                    cameraFixed: dataObject.cameraFixed,
+                },
+                { new: true, runValidators: true },
+            );
+
+            if (!mediaItem) {
+                console.warn(
+                    `Media item not found for taskId: ${metadata.taskId}`,
+                );
+                // Create a new media item if it doesn't exist (fallback)
+                const newMediaItem = new MediaItem({
+                    user: userId,
+                    taskId: metadata.taskId,
+                    cortexRequestId: metadata.taskId,
                     prompt: metadata.prompt,
-                    created: Math.floor(Date.now() / 1000),
-                    inputImageUrl: metadata.inputImageUrl,
                     type: metadata.outputType,
                     model: metadata.model,
-                    result: dataObject,
+                    status: "completed",
+                    completed: Math.floor(Date.now() / 1000),
                     url: dataObject.url,
                     azureUrl: dataObject.azureUrl,
                     gcsUrl: dataObject.gcsUrl,
-                };
-                images.unshift(newMedia);
+                    inputImageUrl: metadata.inputImageUrl,
+                    inputImageUrl2: metadata.inputImageUrl2,
+                    settings: metadata.settings,
+                    // Video-specific fields
+                    duration: dataObject.duration,
+                    generateAudio: dataObject.generateAudio,
+                    resolution: dataObject.resolution,
+                    cameraFixed: dataObject.cameraFixed,
+                });
+                await newMediaItem.save();
             }
-
-            // Update the state
-            state.media = {
-                ...mediaState,
-                images: images,
-            };
-
-            // Save the updated state
-            await UserState.findOneAndUpdate(
-                { user: userId },
-                { serializedState: JSON.stringify(state) },
-            );
-
-            console.log(
-                "User state updated successfully with new media generation",
-            );
         } catch (error) {
-            console.error("Error updating user state:", error);
+            console.error("Error updating media item:", error);
             throw error;
         }
     }

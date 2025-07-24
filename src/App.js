@@ -62,6 +62,7 @@ const App = ({
     const { data: serverUserState, refetch: refetchServerUserState } =
         useUserState();
     const updateUserState = useUpdateUserState();
+
     const [userState, setUserState] = useState(null);
     const debouncedUserState = useDebounce(userState, STATE_DEBOUNCE_TIME);
     const refetchCalledRef = useRef(false);
@@ -76,6 +77,7 @@ const App = ({
         // state yet
         if (
             (!userState || refetchCalledRef.current) &&
+            serverUserState !== undefined &&
             JSON.stringify(serverUserState) !== JSON.stringify(userState)
         ) {
             setUserState(serverUserState);

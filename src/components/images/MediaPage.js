@@ -35,35 +35,12 @@ import {
     AlertDialogCancel,
 } from "../../../@/components/ui/alert-dialog";
 import { useRunTask } from "../../../app/queries/notifications";
-import { useNotificationsContext } from "../../contexts/NotificationContext";
+import {
+    useMediaItems,
+    useCreateMediaItem,
+    useDeleteMediaItem,
+} from "../../../app/queries/media-items";
 import "./Media.scss";
-
-// Function to clean media data for storage (removes large base64 data)
-const cleanMediaDataForStorage = (mediaData) => {
-    if (!mediaData) return mediaData;
-
-    // Create a clean copy without large base64 data
-    const cleanData = { ...mediaData };
-
-    // Remove base64 data URLs from the main url field if they exist
-    if (cleanData.url && cleanData.url.startsWith("data:")) {
-        delete cleanData.url;
-    }
-
-    // Remove any base64 data from result if it exists
-    if (cleanData.result?.response?.videos) {
-        cleanData.result.response.videos = cleanData.result.response.videos.map(
-            (video) => {
-                const cleanVideo = { ...video };
-                // Remove base64 data but keep other properties
-                delete cleanVideo.bytesBase64Encoded;
-                return cleanVideo;
-            },
-        );
-    }
-
-    return cleanData;
-};
 
 // Function to get settings for a specific model
 const getModelSettings = (settings, modelName) => {
@@ -208,7 +185,6 @@ function MediaPage() {
     const [selectedModel, setSelectedModel] = useState("replicate-flux-11-pro"); // Current selected model - Flux Pro as default
     const [showSettings, setShowSettings] = useState(false);
     const runTask = useRunTask();
-    const { openNotifications } = useNotificationsContext();
     const [settings, setSettings] = useState({
         models: {
             // Image models
@@ -273,7 +249,23 @@ function MediaPage() {
             defaultCameraFixed: false,
         },
     });
-    const [images, setImages] = useState([]);
+
+    // New media items API with pagination
+    const [currentPage, setCurrentPage] = useState(1);
+    const [pageSize] = useState(50);
+
+    const {
+        data: mediaItemsData = { mediaItems: [], pagination: {} },
+        isLoading: mediaItemsLoading,
+    } = useMediaItems(currentPage, pageSize);
+
+    // Use mediaItems from API instead of local state
+    const images = useMemo(
+        () => mediaItemsData.mediaItems || [],
+        [mediaItemsData.mediaItems],
+    );
+    const pagination = mediaItemsData.pagination || {};
+
     const [showModal, setShowModal] = useState(false);
     const [selectedImage, setSelectedImage] = useState(null);
     const { t } = useTranslation();
@@ -286,79 +278,31 @@ function MediaPage() {
     const [showDeleteSelectedConfirm, setShowDeleteSelectedConfirm] =
         useState(false);
     const promptRef = useRef(null);
-    const hasCleanedUpRef = useRef(false);
+    const createMediaItem = useCreateMediaItem();
+    const deleteMediaItem = useDeleteMediaItem();
 
-    // Migration function to move data from localStorage to user state
+    // Migration function to move data from localStorage to user state (run once)
     const migrateFromLocalStorage = useCallback(() => {
-        if (!userState?.media) {
-            const localSettings = localStorage.getItem(
-                "media-generation-settings",
-            );
-            const localImages = localStorage.getItem("generated-media");
+        const localSettings = localStorage.getItem("media-generation-settings");
 
-            const mediaState = {};
-
-            if (localSettings) {
-                try {
-                    const parsedSettings = JSON.parse(localSettings);
-                    mediaState.settings = migrateSettings(parsedSettings);
-                } catch (error) {
-                    console.warn(
-                        "Failed to parse localStorage settings:",
-                        error,
-                    );
-                }
-            }
-
-            if (localImages) {
-                try {
-                    mediaState.images = JSON.parse(localImages);
-                } catch (error) {
-                    console.warn("Failed to parse localStorage images:", error);
-                }
-            }
-
-            if (Object.keys(mediaState).length > 0) {
+        if (localSettings) {
+            try {
+                const parsedSettings = JSON.parse(localSettings);
+                const settings = migrateSettings(parsedSettings);
                 debouncedUpdateUserState({
-                    media: mediaState,
+                    media: { settings },
                 });
 
                 // Clear localStorage after successful migration
                 localStorage.removeItem("media-generation-settings");
                 localStorage.removeItem("generated-media");
+            } catch (error) {
+                console.warn("Failed to parse localStorage settings:", error);
             }
         }
-    }, [userState?.media, debouncedUpdateUserState]);
+    }, [debouncedUpdateUserState]);
 
-    // Save images to user state with data cleaning
-    const saveImagesToUserState = useCallback(
-        (newImages) => {
-            try {
-                const cleanImages = newImages.map(cleanMediaDataForStorage);
-                debouncedUpdateUserState({
-                    media: {
-                        ...userState?.media,
-                        images: cleanImages,
-                    },
-                });
-            } catch (error) {
-                console.warn("Failed to save images to user state:", error);
-                // Fallback to localStorage if user state fails
-                try {
-                    localStorage.setItem(
-                        "generated-media",
-                        JSON.stringify(newImages),
-                    );
-                } catch (localStorageError) {
-                    console.error(
-                        "Failed to save to localStorage as fallback:",
-                        localStorageError,
-                    );
-                }
-            }
-        },
-        [userState?.media, debouncedUpdateUserState],
-    );
+    // No longer needed - images are managed by the API now
 
     // Load settings from user state
     useEffect(() => {
@@ -379,70 +323,33 @@ function MediaPage() {
             return; // Skip if settings are the same
         }
 
-        debouncedUpdateUserState({
-            media: {
-                ...userState?.media,
-                settings: settings,
-            },
-        });
+        // Only update if we actually have settings to save
+        if (settings && Object.keys(settings).length > 0) {
+            debouncedUpdateUserState({
+                media: {
+                    ...userState?.media,
+                    settings: settings,
+                },
+            });
+        }
     }, [settings, userState?.media, debouncedUpdateUserState]);
 
-    // Load images from user state
-    useEffect(() => {
-        console.log("MediaPage: userState.media.images changed:", userState?.media?.images?.length || 0, "images");
-        
-        if (userState?.media?.images) {
-            // Only clean up once per session to avoid loops
-            if (!hasCleanedUpRef.current) {
-                console.log("MediaPage: Running cleanup logic");
-                // Clean up old images that don't have proper structure
-                const cleanedImages = userState.media.images.filter((image) => {
-                    // Keep images that have either a valid URL or a taskId (pending tasks)
-                    const hasValidUrl = image.url || image.azureUrl || image.gcsUrl;
-                    const hasTaskId = image.taskId;
-                    const hasCortexRequestId = image.cortexRequestId;
-                    const hasPrompt = image.prompt;
-                    const hasType = image.type;
+    // No longer need to load images from user state - they come from the API now
 
-                    // Remove images that have no URL, no taskId/cortexRequestId, AND no basic identifying info
-                    if (!hasValidUrl && !hasTaskId && !hasCortexRequestId && !hasPrompt && !hasType) {
-                        console.log("Removing invalid image:", image);
-                        return false;
-                    }
-
-                    return true;
-                });
-
-                // Only save if we actually cleaned up images
-                if (cleanedImages.length !== userState.media.images.length) {
-                    console.log(
-                        `Cleaned up ${userState.media.images.length - cleanedImages.length} invalid images`,
-                    );
-                    saveImagesToUserState(cleanedImages);
-                    hasCleanedUpRef.current = true;
-                    setImages(cleanedImages);
-                } else {
-                    setImages(userState.media.images);
-                }
-            } else {
-                // Already cleaned up, just set the images
-                console.log("MediaPage: Setting images from userState (cleanup already done)");
-                setImages(userState.media.images);
-            }
-        } else {
-            // No images in user state, clear local state
-            console.log("MediaPage: No images in userState, clearing local state");
-            setImages([]);
-        }
-    }, [userState?.media?.images, saveImagesToUserState]);
-
-    // Migrate from localStorage on first load
+    // Migrate from localStorage on first load (run only once)
     useEffect(() => {
         migrateFromLocalStorage();
     }, [migrateFromLocalStorage]);
 
+    // No longer needed - images come from API
+
     // Get available models based on current input conditions (for validation only)
     const getAvailableModels = useCallback(() => {
+        // If no images, return all models (no restrictions)
+        if (!images || images.length === 0) {
+            return Object.keys(settings.models || {});
+        }
+
         // Filter out videos from selected images - only count images as input
         const selectedImageObjects = images.filter(
             (img) =>
@@ -543,34 +450,27 @@ function MediaPage() {
                 const result = await runTask.mutateAsync(taskData);
 
                 if (result.taskId) {
-                    // Open notifications panel to show progress
-                    openNotifications();
-
-                    // Create a placeholder image entry
-                    const placeholderImage = {
+                    // Create placeholder in the database
+                    const mediaItemData = {
+                        taskId: result.taskId,
                         cortexRequestId: result.taskId,
                         prompt: prompt,
-                        created: Math.floor(Date.now() / 1000),
-                        inputImageUrl: inputImageUrl,
                         type: outputType,
                         model: modelName,
-                        taskId: result.taskId,
+                        status: "pending",
+                        settings: settings,
                     };
 
-                    setImages((prevImages) => {
-                        const filteredImages = prevImages.filter(
-                            (img) => img.cortexRequestId !== result.taskId,
-                        );
-                        const updatedImages = [
-                            placeholderImage,
-                            ...filteredImages,
-                        ];
-                        saveImagesToUserState(updatedImages);
-                        setTimeout(() => {
-                            promptRef.current && promptRef.current.focus();
-                        }, 0);
-                        return updatedImages;
-                    });
+                    // Only add inputImageUrl if it exists
+                    if (inputImageUrl) {
+                        mediaItemData.inputImageUrl = inputImageUrl;
+                    }
+
+                    await createMediaItem.mutateAsync(mediaItemData);
+
+                    setTimeout(() => {
+                        promptRef.current && promptRef.current.focus();
+                    }, 0);
                 }
             } catch (error) {
                 setLoading(false);
@@ -579,14 +479,7 @@ function MediaPage() {
                 setLoading(false);
             }
         },
-        [
-            outputType,
-            selectedModel,
-            settings,
-            saveImagesToUserState,
-            runTask,
-            openNotifications,
-        ],
+        [outputType, selectedModel, settings, runTask, createMediaItem],
     );
 
     useEffect(() => {
@@ -618,6 +511,12 @@ function MediaPage() {
                     ? `${image.prompt} - ${prompt}`
                     : prompt;
 
+                // For Veo models, use GCS URL; for others, use Azure URL
+                const isVeoModel = selectedModel.includes("veo");
+                const inputImageUrl = isVeoModel
+                    ? image.gcsUrl || image.azureUrl || image.url
+                    : image.azureUrl || image.gcsUrl || image.url;
+
                 const taskData = {
                     type: "media-generation",
                     prompt: combinedPrompt,
@@ -626,7 +525,7 @@ function MediaPage() {
                         outputType === "image"
                             ? "replicate-flux-kontext-max"
                             : selectedModel,
-                    inputImageUrl: image.azureUrl || image.gcsUrl || image.url,
+                    inputImageUrl: inputImageUrl,
                     inputImageUrl2: "",
                     settings,
                     source: "media_page",
@@ -635,25 +534,23 @@ function MediaPage() {
                 const result = await runTask.mutateAsync(taskData);
 
                 if (result.taskId) {
-                    // Open notifications panel to show progress
-                    openNotifications();
-
-                    // Create a placeholder image entry
-                    const newImage = {
+                    // Create placeholder in the database
+                    const mediaItemData = {
+                        taskId: result.taskId,
                         cortexRequestId: result.taskId,
                         prompt: combinedPrompt,
-                        created: Math.floor(Date.now() / 1000),
-                        inputImageUrl: image.url,
                         type: outputType,
                         model: selectedModel,
-                        taskId: result.taskId,
+                        status: "pending",
+                        settings: settings,
                     };
 
-                    setImages((prevImages) => {
-                        const updatedImages = [newImage, ...prevImages];
-                        saveImagesToUserState(updatedImages);
-                        return updatedImages;
-                    });
+                    // Only add inputImageUrl if it exists
+                    if (image.url) {
+                        mediaItemData.inputImageUrl = image.url;
+                    }
+
+                    await createMediaItem.mutateAsync(mediaItemData);
                 }
             } catch (error) {
                 setLoading(false);
@@ -674,9 +571,8 @@ function MediaPage() {
         outputType,
         selectedModel,
         settings,
-        saveImagesToUserState,
         runTask,
-        openNotifications,
+        createMediaItem,
     ]);
 
     const handleCombineSelected = useCallback(async () => {
@@ -700,6 +596,15 @@ function MediaPage() {
                     ? `${image1.prompt} + ${image2.prompt} - ${prompt}`
                     : `${image1.prompt} - ${prompt}`;
 
+            // For Veo models, use GCS URL; for others, use Azure URL
+            const isVeoModel = selectedModel.includes("veo");
+            const inputImageUrl1 = isVeoModel
+                ? image1.gcsUrl || image1.azureUrl || image1.url
+                : image1.azureUrl || image1.gcsUrl || image1.url;
+            const inputImageUrl2 = isVeoModel
+                ? image2.gcsUrl || image2.azureUrl || image2.url
+                : image2.azureUrl || image2.gcsUrl || image2.url;
+
             const taskData = {
                 type: "media-generation",
                 prompt: combinedPrompt,
@@ -708,9 +613,8 @@ function MediaPage() {
                     outputType === "image"
                         ? "replicate-multi-image-kontext-max"
                         : selectedModel,
-                inputImageUrl: image1.azureUrl || image1.url,
-                inputImageUrl2:
-                    outputType === "image" ? image2.azureUrl || image2.url : "",
+                inputImageUrl: inputImageUrl1,
+                inputImageUrl2: outputType === "image" ? inputImageUrl2 : "",
                 settings,
                 source: "media_page",
             };
@@ -718,28 +622,32 @@ function MediaPage() {
             const result = await runTask.mutateAsync(taskData);
 
             if (result.taskId) {
-                // Open notifications panel to show progress
-                openNotifications();
-
-                // Create a placeholder image entry
-                const newImage = {
+                // Create placeholder in the database
+                const mediaItemData = {
+                    taskId: result.taskId,
                     cortexRequestId: result.taskId,
                     prompt: combinedPrompt,
-                    created: Math.floor(Date.now() / 1000),
-                    inputImageUrl: image1.url,
                     type: outputType,
                     model: selectedModel,
-                    taskId: result.taskId,
+                    status: "pending",
+                    settings: settings,
                 };
 
-                setImages((prevImages) => {
-                    const updatedImages = [newImage, ...prevImages];
-                    saveImagesToUserState(updatedImages);
-                    setTimeout(() => {
-                        promptRef.current && promptRef.current.focus();
-                    }, 0);
-                    return updatedImages;
-                });
+                // Only add inputImageUrl if it exists
+                if (image1.url) {
+                    mediaItemData.inputImageUrl = image1.url;
+                }
+
+                // Only add inputImageUrl2 if it exists
+                if (image2.url) {
+                    mediaItemData.inputImageUrl2 = image2.url;
+                }
+
+                await createMediaItem.mutateAsync(mediaItemData);
+
+                setTimeout(() => {
+                    promptRef.current && promptRef.current.focus();
+                }, 0);
             }
         } catch (error) {
             setLoading(false);
@@ -757,9 +665,8 @@ function MediaPage() {
         outputType,
         selectedModel,
         settings,
-        saveImagesToUserState,
         runTask,
-        openNotifications,
+        createMediaItem,
     ]);
 
     const handleFileUpload = useCallback(
@@ -782,25 +689,31 @@ function MediaPage() {
                         checkResponse.status === 200 &&
                         checkResponse.data?.url
                     ) {
-                        // File exists, use the existing URL
-                        const newImage = {
+                        // Create media item in database
+                        const mediaItemData = {
+                            taskId: `upload-${Date.now()}`,
                             cortexRequestId: `upload-${Date.now()}`,
                             prompt: t("Uploaded image"),
-                            created: Math.floor(Date.now() / 1000),
-                            url: checkResponse.data.url,
-                            azureUrl: checkResponse.data.url,
-                            gcsUrl: checkResponse.data.gcs,
                             type: "image",
+                            model: "upload",
+                            status: "completed",
+                            settings: settings,
                         };
 
-                        setImages((prevImages) => {
-                            const updatedImages = [newImage, ...prevImages];
-                            saveImagesToUserState(updatedImages);
-                            setTimeout(() => {
-                                promptRef.current && promptRef.current.focus();
-                            }, 0);
-                            return updatedImages;
-                        });
+                        // Only add URLs if they exist
+                        if (checkResponse.data.url) {
+                            mediaItemData.url = checkResponse.data.url;
+                            mediaItemData.azureUrl = checkResponse.data.url;
+                        }
+                        if (checkResponse.data.gcs) {
+                            mediaItemData.gcsUrl = checkResponse.data.gcs;
+                        }
+
+                        await createMediaItem.mutateAsync(mediaItemData);
+
+                        setTimeout(() => {
+                            promptRef.current && promptRef.current.focus();
+                        }, 0);
                         setIsUploading(false);
                         return;
                     }
@@ -829,26 +742,33 @@ function MediaPage() {
                 );
 
                 if (response.data?.url) {
-                    // Create a new media entry with the uploaded file
-                    const newImage = {
+                    // Create media item in database
+                    const mediaItemData = {
+                        taskId: `upload-${Date.now()}`,
                         cortexRequestId: `upload-${Date.now()}`,
                         prompt: t("Uploaded image"),
-                        created: Math.floor(Date.now() / 1000),
-                        url: response.data.url,
-                        azureUrl: response.data.url,
-                        gcsUrl: response.data.gcs,
                         type: "image",
+                        model: "upload",
+                        status: "completed",
+                        settings: settings,
                     };
 
-                    setImages((prevImages) => {
-                        const updatedImages = [newImage, ...prevImages];
-                        saveImagesToUserState(updatedImages);
-                        setSelectedImages(new Set([newImage.cortexRequestId]));
-                        setTimeout(() => {
-                            promptRef.current && promptRef.current.focus();
-                        }, 0);
-                        return updatedImages;
-                    });
+                    // Only add URLs if they exist
+                    if (response.data.url) {
+                        mediaItemData.url = response.data.url;
+                        mediaItemData.azureUrl = response.data.url;
+                    }
+                    if (response.data.gcs) {
+                        mediaItemData.gcsUrl = response.data.gcs;
+                    }
+
+                    const mediaItem =
+                        await createMediaItem.mutateAsync(mediaItemData);
+
+                    setSelectedImages(new Set([mediaItem.cortexRequestId]));
+                    setTimeout(() => {
+                        promptRef.current && promptRef.current.focus();
+                    }, 0);
                 }
             } catch (error) {
                 console.error("Error uploading file:", error);
@@ -856,7 +776,7 @@ function MediaPage() {
                 setIsUploading(false);
             }
         },
-        [t, saveImagesToUserState],
+        [t, createMediaItem, settings],
     );
 
     const handleFileSelect = useCallback(
@@ -869,9 +789,12 @@ function MediaPage() {
         [handleFileUpload],
     );
 
-    images.sort((a, b) => {
-        return b.created - a.created;
-    });
+    // Sort images by creation date (newest first) - only if we have data
+    if (images && images.length > 0) {
+        images.sort((a, b) => {
+            return b.created - a.created;
+        });
+    }
 
     const handleBulkAction = useCallback(
         (action) => {
@@ -892,31 +815,32 @@ function MediaPage() {
         [images, selectedImages],
     );
 
-    const handleDeleteSelected = useCallback(() => {
-        const newImages = images.filter(
-            (img) => !selectedImages.has(img.cortexRequestId),
-        );
-        setImages(newImages);
-
-        // Save to user state
-        saveImagesToUserState(newImages);
+    const handleDeleteSelected = useCallback(async () => {
+        // Delete selected media items from database
+        for (const image of images) {
+            if (selectedImages.has(image.cortexRequestId)) {
+                await deleteMediaItem.mutateAsync(image.taskId);
+            }
+        }
 
         setSelectedImages(new Set());
         setShowDeleteSelectedConfirm(false);
-    }, [images, selectedImages, saveImagesToUserState]);
+    }, [images, selectedImages, deleteMediaItem]);
 
-    const handleDeleteAll = useCallback(() => {
-        console.log("Deleting all images. Current images:", images);
-        setImages([]);
-        // Save empty array to user state
-        saveImagesToUserState([]);
+    const handleDeleteAll = useCallback(async () => {
+        // Delete all media items for the current user
+        for (const image of images) {
+            await deleteMediaItem.mutateAsync(image.taskId);
+        }
+
         setSelectedImages(new Set());
         setShowDeleteAllConfirm(false);
-    }, [saveImagesToUserState, images]);
+    }, [images, deleteMediaItem]);
 
     const mediaTiles = useMemo(() => {
-        return images.map((image) => {
-            const key = image?.cortexRequestId;
+        return images.map((image, index) => {
+            // Since we now preserve cortexRequestId, we can use it directly
+            const key = image?.cortexRequestId || `temp-${index}`;
 
             return (
                 <ImageTile
@@ -936,19 +860,8 @@ function MediaPage() {
                         }
                     }}
                     onRegenerate={async () => {
-                        // Remove the old tile first (regenerate replaces it)
-                        setImages((prevImages) => {
-                            const newImages = prevImages.filter(
-                                (img) =>
-                                    img.cortexRequestId !==
-                                    image.cortexRequestId,
-                            );
-
-                            // Save to user state
-                            saveImagesToUserState(newImages);
-
-                            return newImages;
-                        });
+                        // Delete the old media item first (regenerate replaces it)
+                        await deleteMediaItem.mutateAsync(image.taskId);
 
                         // Use the original model and prompt for regeneration
                         const originalModel = image.model || selectedModel;
@@ -981,21 +894,13 @@ function MediaPage() {
                             data,
                         );
                     }}
-                    onDelete={(image) => {
-                        const newImages = images.filter((img) => {
-                            return (
-                                img.cortexRequestId !== image.cortexRequestId
-                            );
-                        });
+                    onDelete={async (image) => {
+                        // Delete the media item from database
+                        await deleteMediaItem.mutateAsync(image.taskId);
 
                         if (generationPrompt === image.prompt) {
                             setGenerationPrompt("");
                         }
-
-                        setImages(newImages);
-
-                        // Save to user state
-                        saveImagesToUserState(newImages);
 
                         // Clear selection if the deleted image was selected
                         if (selectedImages.has(image.cortexRequestId)) {
@@ -1010,14 +915,14 @@ function MediaPage() {
     }, [
         images,
         generationPrompt,
-        generateMedia,
         quality,
         selectedImages,
         lastSelectedImage,
-        setLastSelectedImage,
-        setShowDeleteSelectedConfirm,
         selectedModel,
-        saveImagesToUserState,
+        deleteMediaItem,
+        generateMedia,
+        // Remove function dependencies that change on every render
+        // setLastSelectedImage, setShowDeleteSelectedConfirm
     ]);
 
     return (
@@ -1179,7 +1084,6 @@ function MediaPage() {
                                 className="lb-primary"
                                 style={{ whiteSpace: "nowrap" }}
                                 loading={loading}
-                                text={t("Generating...")}
                                 type="submit"
                                 disabled={
                                     !prompt.trim() ||
@@ -1252,7 +1156,58 @@ function MediaPage() {
                 </div>
             )}
 
-            <div className="media-grid">{mediaTiles}</div>
+            {mediaItemsLoading ? (
+                <div className="flex justify-center items-center py-8">
+                    <Loader2 className="animate-spin h-8 w-8 text-gray-500" />
+                    <span className="ml-2 text-gray-500">
+                        {t("Loading media...")}
+                    </span>
+                </div>
+            ) : (
+                <>
+                    <div className="media-grid">{mediaTiles}</div>
+
+                    {/* Pagination Controls */}
+                    {pagination.total > pageSize && (
+                        <div className="flex justify-center items-center gap-4 mt-8 mb-4">
+                            <button
+                                onClick={() =>
+                                    setCurrentPage(Math.max(1, currentPage - 1))
+                                }
+                                disabled={!pagination.hasPrev}
+                                className="lb-secondary disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                {t("Previous")}
+                            </button>
+
+                            <span className="text-sm text-gray-600">
+                                {t("Page")} {pagination.page} {t("of")}{" "}
+                                {pagination.pages}
+                                {pagination.total > 0 && (
+                                    <span className="ml-2">
+                                        ({pagination.total} {t("total")})
+                                    </span>
+                                )}
+                            </span>
+
+                            <button
+                                onClick={() =>
+                                    setCurrentPage(
+                                        Math.min(
+                                            pagination.pages,
+                                            currentPage + 1,
+                                        ),
+                                    )
+                                }
+                                disabled={!pagination.hasNext}
+                                className="lb-secondary disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                {t("Next")}
+                            </button>
+                        </div>
+                    )}
+                </>
+            )}
             <ImageModal
                 show={showModal}
                 image={selectedImage}
@@ -1333,9 +1288,12 @@ function SettingsDialog({ show, settings, setSettings, onHide }) {
         "replicate-flux-1-schnell",
     );
 
+    // Initialize localSettings when dialog opens
     useEffect(() => {
-        setLocalSettings(settings);
-    }, [settings]);
+        if (show) {
+            setLocalSettings(settings);
+        }
+    }, [show, settings]); // Run when show or settings change
 
     const handleSave = () => {
         setSettings(localSettings);
@@ -1343,7 +1301,7 @@ function SettingsDialog({ show, settings, setSettings, onHide }) {
     };
 
     const handleCancel = () => {
-        setLocalSettings(settings);
+        // Don't update localSettings on cancel - just close the dialog
         onHide();
     };
 
@@ -1397,7 +1355,8 @@ function SettingsDialog({ show, settings, setSettings, onHide }) {
                 ];
             }
         } else {
-            return [
+            // Base aspect ratios for all image models
+            const baseRatios = [
                 { value: "1:1", label: "1:1" },
                 { value: "16:9", label: "16:9" },
                 { value: "21:9", label: "21:9" },
@@ -1409,8 +1368,17 @@ function SettingsDialog({ show, settings, setSettings, onHide }) {
                 { value: "4:3", label: "4:3" },
                 { value: "9:16", label: "9:16" },
                 { value: "9:21", label: "9:21" },
-                { value: "match_input_image", label: "Match Input Image" },
             ];
+
+            // Only Kontext models support "match_input_image"
+            if (modelName.includes("kontext")) {
+                baseRatios.push({
+                    value: "match_input_image",
+                    label: "Match Input Image",
+                });
+            }
+
+            return baseRatios;
         }
     };
 
@@ -1714,12 +1682,13 @@ function ImageTile({
 }) {
     const [loadError, setLoadError] = useState(false);
     const [retryCount, setRetryCount] = useState(0);
+    // Always use Azure URL for display - GCS URL is only for internal model use
     const url = image?.azureUrl || image?.url;
     const { t } = useTranslation();
-    const expired = image?.expires < Date.now() / 1000;
-    const { cortexRequestId, prompt, result, regenerating, uploading } =
+    const expired = image?.expires ? image.expires < Date.now() / 1000 : false;
+    const { cortexRequestId, prompt, result, regenerating, uploading, error } =
         image || {};
-    const { code, message } = result?.error || {};
+    const { code, message } = error || result?.error || {};
     const isSelected = selectedImages.has(cortexRequestId);
 
     const handleSelection = (e) => {
@@ -1794,7 +1763,13 @@ function ImageTile({
                     </button>
                 </div>
 
-                {regenerating || image?.taskId || (!url && !result?.error) ? (
+                {regenerating ||
+                (image?.status === "pending" && image?.taskId) ||
+                (!url &&
+                    !error &&
+                    !result?.error &&
+                    image?.status !== "completed" &&
+                    image?.status !== "failed") ? (
                     <div className="h-full bg-gray-50 p-4 text-sm flex items-center justify-center">
                         <ProgressComponent />
                     </div>
@@ -1850,6 +1825,7 @@ function ImageTile({
                             !url &&
                             !code &&
                             !image?.taskId &&
+                            image?.status !== "failed" &&
                             (result ? <NoImageError /> : <ProgressComponent />)}
                         {code === "ERR_BAD_REQUEST" && <BadRequestError />}
                         {code && code !== "ERR_BAD_REQUEST" && <OtherError />}

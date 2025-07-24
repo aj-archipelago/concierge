@@ -179,15 +179,9 @@ export async function POST(req) {
         const body = await req.json();
         const { type, synchronous = false, source, chatId, ...metadata } = body;
 
-        console.log(
-            `Starting ${type} request (${synchronous ? "sync" : "async"}):`,
-            metadata,
-        );
-
         try {
             // Get current user
             const user = await getCurrentUser();
-            console.log("User ID:", user._id);
 
             // Create initial progress record and add job to queue
             const result = await createBackgroundTask({
