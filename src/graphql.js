@@ -17,8 +17,6 @@ const CORTEX_GRAPHQL_API_URL =
 // Track authentication state for GraphQL
 let isGraphQLRefreshing = false;
 
-
-
 const getClient = (serverUrl, useBlueGraphQL) => {
     let graphqlEndpoint;
     if (serverUrl) {

@@ -157,9 +157,14 @@ export const AuthTestPanel = () => {
                             {authStatus.localAuth && (
                                 <div>
                                     <strong>Local Auth:</strong>{" "}
-                                    {authStatus.localAuth.hasToken ? "Token Present" : "No Token"}
+                                    {authStatus.localAuth.hasToken
+                                        ? "Token Present"
+                                        : "No Token"}
                                     {authStatus.localAuth.hasUser && (
-                                        <span> • User: {authStatus.localAuth.user}</span>
+                                        <span>
+                                            {" "}
+                                            • User: {authStatus.localAuth.user}
+                                        </span>
                                     )}
                                 </div>
                             )}

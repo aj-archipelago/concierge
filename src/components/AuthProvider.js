@@ -2,7 +2,11 @@
 
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { isAzureAppService, triggerAuthRefresh, checkAuthHeaders } from "../utils/auth";
+import {
+    isAzureAppService,
+    triggerAuthRefresh,
+    checkAuthHeaders,
+} from "../utils/auth";
 
 const AuthContext = createContext();
 

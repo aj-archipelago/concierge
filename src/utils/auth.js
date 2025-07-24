@@ -52,4 +52,4 @@ export const checkAuthHeaders = async () => {
         console.error("Auth check failed:", error);
         return false;
     }
-}; 
+};
