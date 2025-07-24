@@ -22,7 +22,7 @@ const DebugInfo = ({ prompt, temperature }) => {
         <div>
             <div>
                 <strong>Prompt:</strong>
-                <pre className="whitespace-pre-wrap break-words font-mono p-2 bg-gray-200">
+                <pre className="whitespace-pre-wrap break-words font-mono p-2 bg-gray-200 dark:bg-gray-700 dark:text-gray-200">
                     {prompt}
                 </pre>
             </div>

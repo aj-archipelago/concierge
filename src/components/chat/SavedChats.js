@@ -296,8 +296,8 @@ function SavedChats({ displayState }) {
                                                 className={classNames(
                                                     "text-xs text-gray-500 flex gap-1 items-center overflow-auto",
                                                     m?.sender === "user"
-                                                        ? "bg-white"
-                                                        : "bg-sky-50",
+                                                        ? "bg-white dark:bg-gray-800"
+                                                        : "bg-sky-50 dark:bg-gray-700",
                                                 )}
                                             >
                                                 <div className="basis-[1rem] flex items-center gap-1">
@@ -360,7 +360,7 @@ function SavedChats({ displayState }) {
                             {t("Chat history")}
                         </h1>
 
-                        <div className="text-sm text-gray-500">
+                        <div className="text-sm text-gray-500 dark:text-gray-400">
                             {data?.pages.flat().length || 0} {t("chats")}
                         </div>
                     </div>
@@ -379,7 +379,7 @@ function SavedChats({ displayState }) {
                     ([category, chats]) =>
                         chats.length > 0 && (
                             <div key={category}>
-                                <h2 className="text-md font-semibold mt-4 mb-2 border-b pb-1">
+                                <h2 className="text-md font-semibold mt-4 mb-2 border-b border-gray-200 dark:border-gray-700 pb-1">
                                     {t(
                                         getCategoryTitle(
                                             category,

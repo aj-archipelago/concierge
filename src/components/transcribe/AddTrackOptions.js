@@ -199,7 +199,7 @@ function SubtitleUpload({ onAdd }) {
         <div className="flex flex-col gap-4">
             <form
                 className={`relative flex flex-col items-center justify-center w-full min-h-[200px] border-2 border-dashed rounded-lg p-4 
-                    ${dragActive ? "border-blue-500 bg-blue-50" : "border-gray-300"}`}
+                    ${dragActive ? "border-sky-500 bg-sky-50" : "border-gray-300"}`}
                 onDragEnter={handleDrag}
                 onDragLeave={handleDrag}
                 onDragOver={handleDrag}
@@ -453,7 +453,7 @@ export default function TranscribeVideo({
                 </span>
             </div> */}
 
-            <div className="options-section flex flex-col justify-between gap-2 mb-5 p-2.5 border border-gray-300 rounded-md bg-neutral-100 w-full">
+            <div className="options-section flex flex-col justify-between gap-2 mb-5 p-2.5 border border-gray-300 rounded-md bg-neutral-100 dark:bg-gray-700 w-full">
                 <div className="flex flex-col">
                     <h5 className="font-semibold text-xs text-gray-400 mb-1">
                         {t("Output format")}

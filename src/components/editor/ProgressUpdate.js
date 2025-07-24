@@ -124,8 +124,8 @@ const ProgressUpdate = ({
                 <div className="mb-2">
                     <div className="flex items-center">
                         <div className="flex items-center gap-2">
-                            <Loader2 className="animate-spin text-blue-500" />
-                            <span className="text-sm text-gray-600">
+                            <Loader2 className="animate-spin text-sky-500" />
+                            <span className="text-sm text-gray-600 dark:text-gray-300">
                                 {initialText}
                             </span>
                         </div>
@@ -192,7 +192,7 @@ const ProgressUpdate = ({
                         }`}
                     >
                         <pre
-                            className="overflow-auto break-words break-all whitespace-pre-wrap"
+                            className="overflow-auto break-words break-all whitespace-pre-wrap text-gray-800 dark:text-gray-200"
                             style={{
                                 display: "-webkit-box",
                                 WebkitLineClamp: "5",

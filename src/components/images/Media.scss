@@ -260,6 +260,33 @@ $image-container-height: 200px;
     /* This will be set by JS if needed for perfect sync, but fallback works for most cases */
 }
 
+/* Dark mode styles */
+.dark {
+    .image-tile,
+    .media-tile {
+        border-color: #4b5563;
+    }
+
+    .selection-checkbox {
+        background: rgba(31, 41, 55, 0.9);
+        border-color: #6b7280;
+    }
+
+    .lb-icon-button {
+        border-color: #6b7280;
+        background-color: #374151;
+        color: #d1d5db;
+
+        &:hover:not(:disabled) {
+            background-color: #4b5563;
+        }
+
+        &:disabled:hover {
+            background-color: #374151;
+        }
+    }
+}
+
 /* RTL support for select elements */
 html[dir="rtl"] {
     select {

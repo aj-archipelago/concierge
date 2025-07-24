@@ -240,8 +240,8 @@ function IssueTypes({ value, onChange, projectKey, token, siteId }) {
                                 className={classNames(
                                     "flex",
                                     value.includes(type.name)
-                                        ? "bg-green-50"
-                                        : "bg-gray-50",
+                                        ? "bg-green-50 dark:bg-green-900/20"
+                                        : "bg-gray-50 dark:bg-gray-700",
                                     "gap-2 p-2 border rounded-md items-center",
                                     "cursor-pointer",
                                 )}

@@ -198,6 +198,14 @@ body.dark {
             color: darken($text-color-dark, 10%);
         }
     }
+
+    // Override for citation links to maintain sky blue color
+    .citation-link {
+        color: #0ea5e9 !important; // sky-500
+        &:hover {
+            color: #0ea5e9 !important; // sky-500
+        }
+    }
     .btn-check:checked + .btn,
     :not(.btn-check) + .btn:active,
     .btn:first-child:active,
@@ -239,7 +247,6 @@ body.dark {
 
     textarea:focus {
         border-color: $border-color-dark;
-        background-color: $bg-color-dark-dim;
     }
 
     .modal-content,
@@ -308,51 +315,6 @@ body.dark {
 
     .timeline-item-date {
         color: $text-color-dark-dim;
-    }
-
-    .transcribe-output {
-        background-color: $bg-color-dark;
-        color: $text-color-dark;
-        border-color: $border-color-dark;
-    }
-
-    .options-section {
-        background-color: $bg-color-dark-dim;
-        color: $text-color-dark;
-        border-color: $border-color-dark;
-    }
-
-    .selection-section {
-        .custom-file-input {
-            background-color: $bg-color-dark-dim;
-            color: $text-color-dark;
-            border-color: $border-color-dark;
-        }
-    }
-    .transcribe-output {
-        background-color: $bg-color-dark-dim;
-        color: $text-color-dark;
-        border-color: $border-color-dark;
-    }
-
-    .ai-diff .change-button {
-        background-color: $bg-color-dark;
-        color: $text-color-dark;
-        border-color: $border-color-dark;
-
-        &.active {
-            background-color: #3b2d00;
-        }
-    }
-
-    .add-highlight::before {
-        background-color: #8d6700;
-    }
-
-    .story-angles {
-        background-color: $bg-color-dark;
-        color: $text-color-dark;
-        border-color: $border-color-dark;
     }
 
     .react-select {

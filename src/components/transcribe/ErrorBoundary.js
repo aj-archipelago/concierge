@@ -23,7 +23,7 @@ function ErrorFallback({ error, resetErrorBoundary }) {
                     Oops! Something went wrong
                 </h2>
                 <p>Here's what we know about the error:</p>
-                <pre className="rounded bg-neutral-100 p-2 mb-4">
+                <pre className="rounded bg-neutral-100 dark:bg-gray-700 p-2 mb-4">
                     {error.message}
                 </pre>
 

@@ -607,7 +607,7 @@ const StyleGuideDiff = ({ styleGuideResult = "", setSelectedText }) => {
 
     return (
         <div
-            className="ai-diff overflow-auto h-full gap-2"
+            className="overflow-auto h-full gap-2"
             onKeyDown={(e) => {
                 if (
                     typeof document !== "undefined" &&
@@ -693,7 +693,7 @@ const StyleGuideDiff = ({ styleGuideResult = "", setSelectedText }) => {
                                     <div className="p-1">
                                         <div
                                             tabIndex={0}
-                                            className="border w-full p-0 bg-gray-50 rounded-md mb-2 focus:ring-2 focus:ring-sky-600 focus:outline-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-300 "
+                                            className="border w-full p-0 bg-gray-50 dark:bg-gray-700 rounded-md mb-2 focus:ring-2 focus:ring-sky-600 focus:outline-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-300 "
                                             id={`suggestion-${c.index}`}
                                             onClick={() => {
                                                 setSelectedSuggestion(i);

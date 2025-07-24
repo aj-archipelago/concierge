@@ -94,7 +94,7 @@ export default function SidebarItem({
     }
 
     return (
-        <AccordionItem value={key}>
+        <AccordionItem value={key} className="dark:border-gray-700">
             <AccordionTrigger className="">
                 <div className="flex justify-between items-center w-full me-3">
                     <div
