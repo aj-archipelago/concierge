@@ -17,7 +17,7 @@ export const refreshEntraTokens = async () => {
 
     try {
         console.log("Attempting to refresh Entra tokens using /.auth/refresh");
-        
+
         const response = await fetch("/.auth/refresh", {
             method: "POST",
             credentials: "include",
@@ -45,23 +45,27 @@ export const triggerAuthRefresh = async () => {
 
     // Check if we're in Azure App Service and using Entra auth provider
     if (isAzureAppService() && config.auth?.provider === "entra") {
-        console.log("Using Entra auth provider, attempting token refresh first");
-        
+        console.log(
+            "Using Entra auth provider, attempting token refresh first",
+        );
+
         // Try to refresh tokens first
         const refreshSuccessful = await refreshEntraTokens();
-        
+
         if (refreshSuccessful) {
             // Token refresh successful, no need to redirect
-            console.log("Token refresh successful, continuing with current session");
+            console.log(
+                "Token refresh successful, continuing with current session",
+            );
             return;
         }
-        
+
         console.log("Token refresh failed, falling back to full auth redirect");
     }
 
     // Fallback to current behavior (redirect) for:
     // 1. Local development
-    // 2. When not using Entra auth provider  
+    // 2. When not using Entra auth provider
     // 3. When token refresh fails
     if (isAzureAppService()) {
         // For Azure App Service, redirect to the auth endpoint

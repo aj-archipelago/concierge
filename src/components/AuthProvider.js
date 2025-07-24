@@ -112,7 +112,7 @@ export const AuthProvider = ({ children }) => {
         try {
             // Use the centralized triggerAuthRefresh function
             await triggerAuthRefresh();
-            
+
             // If we reach here without redirect, token refresh was successful
             setIsAuthenticating(false);
         } catch (error) {
