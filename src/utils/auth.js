@@ -1,4 +1,5 @@
 // Centralized authentication utilities
+import config from "../../config";
 
 // Function to check if we're running in Azure App Service
 export const isAzureAppService = () => {
@@ -10,11 +11,58 @@ export const isAzureAppService = () => {
     );
 };
 
+// Function to refresh Entra tokens using Azure App Service built-in refresh endpoint
+export const refreshEntraTokens = async () => {
+    if (typeof window === "undefined") return false;
+
+    try {
+        console.log("Attempting to refresh Entra tokens using /.auth/refresh");
+        
+        const response = await fetch("/.auth/refresh", {
+            method: "POST",
+            credentials: "include",
+            headers: {
+                "Content-Type": "application/json",
+            },
+        });
+
+        if (response.ok) {
+            console.log("Token refresh completed successfully.");
+            return true;
+        } else {
+            console.log("Token refresh failed. Status:", response.status);
+            return false;
+        }
+    } catch (error) {
+        console.log("Token refresh failed. Error:", error.message);
+        return false;
+    }
+};
+
 // Function to trigger proper authentication refresh
-export const triggerAuthRefresh = () => {
+export const triggerAuthRefresh = async () => {
     if (typeof window === "undefined") return;
 
-    // Check if we're in Azure App Service or local development
+    // Check if we're in Azure App Service and using Entra auth provider
+    if (isAzureAppService() && config.auth?.provider === "entra") {
+        console.log("Using Entra auth provider, attempting token refresh first");
+        
+        // Try to refresh tokens first
+        const refreshSuccessful = await refreshEntraTokens();
+        
+        if (refreshSuccessful) {
+            // Token refresh successful, no need to redirect
+            console.log("Token refresh successful, continuing with current session");
+            return;
+        }
+        
+        console.log("Token refresh failed, falling back to full auth redirect");
+    }
+
+    // Fallback to current behavior (redirect) for:
+    // 1. Local development
+    // 2. When not using Entra auth provider  
+    // 3. When token refresh fails
     if (isAzureAppService()) {
         // For Azure App Service, redirect to the auth endpoint
         const currentUrl = window.location.href;

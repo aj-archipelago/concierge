@@ -56,7 +56,7 @@ const getClient = (serverUrl, useBlueGraphQL) => {
                         // Check if we need to refresh auth
                         const isAuthenticated = await checkAuthHeaders();
                         if (!isAuthenticated) {
-                            triggerAuthRefresh();
+                            await triggerAuthRefresh();
                         }
                     } catch (error) {
                         console.error("GraphQL auth refresh error:", error);

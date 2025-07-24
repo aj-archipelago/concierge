@@ -34,7 +34,7 @@ if (typeof window !== "undefined") {
             // Check authentication status (both local and production)
             const isAuthenticated = await checkAuthHeaders();
             if (!isAuthenticated) {
-                triggerAuthRefresh();
+                await triggerAuthRefresh();
                 return Promise.reject(new Error("Authentication required"));
             }
 
@@ -47,10 +47,10 @@ if (typeof window !== "undefined") {
 
     // Response interceptor
     axiosInstance.interceptors.response.use(
-        function (response) {
+        async function (response) {
             // Check if response is HTML (usually means auth redirect)
             if (response.headers["content-type"]?.includes("text/html")) {
-                triggerAuthRefresh();
+                await triggerAuthRefresh();
                 return Promise.reject(
                     new Error("Authentication redirect detected"),
                 );
@@ -60,8 +60,8 @@ if (typeof window !== "undefined") {
         async function (error) {
             // Handle 401 Unauthorized errors
             if (error.response?.status === 401) {
-                // Simply trigger the refresh and reject. The page will redirect.
-                triggerAuthRefresh();
+                // Trigger the refresh and await it - for token refresh, this might succeed silently
+                await triggerAuthRefresh();
                 return Promise.reject(
                     new Error("Authentication required. Redirecting..."),
                 );

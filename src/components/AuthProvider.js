@@ -99,7 +99,7 @@ export const AuthProvider = ({ children }) => {
     }, []);
 
     // Function to trigger authentication refresh
-    const refreshAuth = () => {
+    const refreshAuth = async () => {
         setIsAuthenticating(true);
         setAuthError(null);
 
@@ -109,8 +109,17 @@ export const AuthProvider = ({ children }) => {
             return;
         }
 
-        // Use the centralized triggerAuthRefresh function
-        triggerAuthRefresh();
+        try {
+            // Use the centralized triggerAuthRefresh function
+            await triggerAuthRefresh();
+            
+            // If we reach here without redirect, token refresh was successful
+            setIsAuthenticating(false);
+        } catch (error) {
+            console.error("Auth refresh error:", error);
+            setAuthError("Authentication refresh failed");
+            setIsAuthenticating(false);
+        }
     };
 
     // Function to clear auth error
