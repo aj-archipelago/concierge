@@ -26,6 +26,11 @@ export const AuthProvider = ({ children }) => {
     // Handle auth return from Azure App Service or local auth
     useEffect(() => {
         const handleAuthReturn = async () => {
+            // Skip if searchParams is not available (test environment)
+            if (!searchParams) {
+                return;
+            }
+
             // Check if we're returning from authentication
             const authReturn = searchParams.get("auth_return");
             const redirectUrl = searchParams.get("redirect_uri");
