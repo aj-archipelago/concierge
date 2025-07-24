@@ -4,6 +4,7 @@ import classNames from "../../app/utils/class-names";
 import { LanguageContext } from "../contexts/LanguageProvider";
 import { useTranslation } from "react-i18next";
 import React from "react";
+import { SignOutButton } from "../components/SignOutButton";
 
 export default function ProfileDropdown({
     user,
@@ -108,17 +109,16 @@ export default function ProfileDropdown({
                     <div className="py-1">
                         <Menu.Item>
                             {({ active }) => (
-                                <a
+                                <div
                                     className={classNames(
                                         active
                                             ? "bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-100"
                                             : "text-gray-700 dark:text-gray-300",
                                         "block w-full px-4 py-2 text-start text-sm",
                                     )}
-                                    href="/.auth/logout"
                                 >
-                                    {t("Sign out")}
-                                </a>
+                                    <SignOutButton className="w-full text-start justify-start bg-transparent border-0 hover:bg-transparent hover:text-gray-900 p-0 h-auto" />
+                                </div>
                             )}
                         </Menu.Item>
                     </div>

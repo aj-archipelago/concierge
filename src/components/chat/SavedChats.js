@@ -294,7 +294,7 @@ function SavedChats({ displayState }) {
                                             <li
                                                 key={index}
                                                 className={classNames(
-                                                    "text-xs text-gray-500 flex gap-1 items-center overflow-auto",
+                                                    "text-xs text-gray-500 dark:text-gray-400 flex gap-1 items-center overflow-auto",
                                                     m?.sender === "user"
                                                         ? "bg-white dark:bg-gray-800"
                                                         : "bg-sky-50 dark:bg-gray-700",

@@ -9,24 +9,13 @@ import { split, HttpLink, from } from "@apollo/client";
 import { onError } from "@apollo/client/link/error";
 import { getMainDefinition } from "@apollo/client/utilities";
 import config from "../config";
+import { triggerAuthRefresh, checkAuthHeaders } from "./utils/auth";
 
 const CORTEX_GRAPHQL_API_URL =
     process.env.CORTEX_GRAPHQL_API_URL || "http://localhost:4000/graphql";
 
-// Add a function to trigger reauth, similar to axios-client.js
-function triggerReauth() {
-    if (typeof window !== "undefined") {
-        if (window.location.search.indexOf("reauth=true") !== -1) {
-            return;
-        }
-
-        window.location.href =
-            window.location.pathname +
-            window.location.search +
-            (window.location.search ? "&" : "?") +
-            "reauth=true";
-    }
-}
+// Track authentication state for GraphQL
+let isGraphQLRefreshing = false;
 
 const getClient = (serverUrl, useBlueGraphQL) => {
     let graphqlEndpoint;
@@ -47,31 +36,52 @@ const getClient = (serverUrl, useBlueGraphQL) => {
     );
 
     // Add error handling link for authentication errors
-    const errorLink = onError(({ networkError, graphQLErrors }) => {
-        // Handle 401 Unauthorized errors
-        if (networkError && networkError.statusCode === 401) {
-            triggerReauth();
-        }
+    const errorLink = onError(
+        async ({ networkError, graphQLErrors, operation, forward }) => {
+            // Skip auth error handling for auth-related endpoints
+            if (
+                operation.operationName?.includes("auth") ||
+                operation.operationName?.includes("Auth") ||
+                operation.operationName?.includes("login")
+            ) {
+                return;
+            }
 
-        // Handle GraphQL errors that might indicate auth issues
-        if (graphQLErrors) {
-            graphQLErrors.forEach(({ message, extensions }) => {
-                if (
-                    extensions?.code === "UNAUTHENTICATED" ||
-                    message?.toLowerCase().includes("unauthorized") ||
-                    message?.toLowerCase().includes("authentication")
-                ) {
-                    triggerReauth();
+            // Handle 401 Unauthorized errors
+            if (networkError && networkError.statusCode === 401) {
+                if (!isGraphQLRefreshing) {
+                    isGraphQLRefreshing = true;
+
+                    try {
+                        // Check if we need to refresh auth
+                        const isAuthenticated = await checkAuthHeaders();
+                        if (!isAuthenticated) {
+                            await triggerAuthRefresh();
+                        }
+                    } catch (error) {
+                        console.error("GraphQL auth refresh error:", error);
+                    } finally {
+                        isGraphQLRefreshing = false;
+                    }
                 }
-            });
-        }
-    });
+            }
 
-    // The split function takes three parameters:
-    //
-    // * A function that's called for each operation to execute
-    // * The Link to use for an operation if the function returns a "truthy" value
-    // * The Link to use for an operation if the function returns a "falsy" value
+            // Handle other network errors
+            if (networkError) {
+                console.error("GraphQL network error:", networkError);
+            }
+
+            // Handle GraphQL errors
+            if (graphQLErrors) {
+                graphQLErrors.forEach(({ message, locations, path }) => {
+                    console.error(
+                        `GraphQL error: Message: ${message}, Location: ${locations}, Path: ${path}`,
+                    );
+                });
+            }
+        },
+    );
+
     const splitLink = split(
         ({ query }) => {
             const definition = getMainDefinition(query);
@@ -84,15 +94,18 @@ const getClient = (serverUrl, useBlueGraphQL) => {
         httpLink,
     );
 
-    // Combine the error link with the split link
-    const link = from([errorLink, splitLink]);
-
-    const client = new ApolloClient({
-        link,
+    return new ApolloClient({
+        link: from([errorLink, splitLink]),
         cache: new InMemoryCache(),
+        defaultOptions: {
+            watchQuery: {
+                errorPolicy: "all",
+            },
+            query: {
+                errorPolicy: "all",
+            },
+        },
     });
-
-    return client;
 };
 
 const SUMMARY = gql`

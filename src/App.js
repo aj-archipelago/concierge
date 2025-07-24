@@ -21,6 +21,9 @@ import { ThemeProvider } from "./contexts/ThemeProvider";
 import { AutoTranscribeProvider } from "./contexts/AutoTranscribeContext";
 import Layout from "./layout/Layout";
 import "./tailwind.css";
+import { AuthProvider } from "./components/AuthProvider";
+import { AuthErrorDialog } from "./components/AuthErrorDialog";
+import { AuthLoadingOverlay } from "./components/AuthLoadingOverlay";
 
 const NEXT_PUBLIC_AMPLITUDE_API_KEY = process.env.NEXT_PUBLIC_AMPLITUDE_API_KEY;
 
@@ -126,20 +129,24 @@ const App = ({
                     <ThemeProvider savedTheme={theme}>
                         <LanguageProvider savedLanguage={language}>
                             <AutoTranscribeProvider>
-                                <React.StrictMode>
-                                    <AuthContext.Provider
-                                        value={{
-                                            user: currentUser,
-                                            userState,
-                                            refetchUserState,
-                                            debouncedUpdateUserState,
-                                        }}
-                                    >
-                                        <Layout>
-                                            <Body>{children}</Body>
-                                        </Layout>
-                                    </AuthContext.Provider>
-                                </React.StrictMode>
+                                <AuthProvider>
+                                    <React.StrictMode>
+                                        <AuthContext.Provider
+                                            value={{
+                                                user: currentUser,
+                                                userState,
+                                                refetchUserState,
+                                                debouncedUpdateUserState,
+                                            }}
+                                        >
+                                            <Layout>
+                                                <Body>{children}</Body>
+                                            </Layout>
+                                            <AuthErrorDialog />
+                                            <AuthLoadingOverlay />
+                                        </AuthContext.Provider>
+                                    </React.StrictMode>
+                                </AuthProvider>
                             </AutoTranscribeProvider>
                         </LanguageProvider>
                     </ThemeProvider>
