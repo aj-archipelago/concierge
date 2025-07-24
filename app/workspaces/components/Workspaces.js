@@ -43,7 +43,7 @@ export default function Workspaces() {
                 ))}
                 <LoadingButton
                     text={t("Creating") + "..."}
-                    className="border border-dashed rounded-md w-64 h-12 p-6 flex items-center hover:bg-gray-50 active:bg-gray-100"
+                    className="border border-dashed rounded-md w-64 h-12 p-6 flex items-center hover:bg-gray-50 dark:hover:bg-gray-700 active:bg-gray-100 dark:active:bg-gray-600"
                     loading={createWorkspace.isPending}
                     onClick={handleCreate}
                 >

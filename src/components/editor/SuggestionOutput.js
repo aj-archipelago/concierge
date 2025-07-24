@@ -19,7 +19,7 @@ const SuggestionOutput = ({ outputType, value, onChange }) => {
         return (
             <div
                 onChange={(e) => onChange(e.target.labels[0].innerText)}
-                className="bg-white mb-3"
+                className="bg-white dark:bg-gray-800 mb-3"
             >
                 {value.slice(0, Math.min(5, value.length)).map((label, i) => (
                     <div key={`output-list-${i}`} className="mb-3">

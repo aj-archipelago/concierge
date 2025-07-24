@@ -169,7 +169,7 @@ function Name({ workspace, user }) {
                         <input
                             autoFocus
                             type="text"
-                            className="border-0 ring-1 w-full bg-gray-50 p-0 font-medium text-xl "
+                            className="border-0 ring-1 w-full bg-gray-50 dark:bg-gray-800 p-0 font-medium text-xl "
                             value={name}
                             onChange={(e) => {
                                 setName(e.target.value);
@@ -185,13 +185,13 @@ function Name({ workspace, user }) {
                         />
                     </div>
                     <div className=" flex items-center" dir="ltr">
-                        <div className=" flex gap-2 text-xs sm:text-sm items-center text-gray-500">
+                        <div className=" flex gap-2 text-xs sm:text-sm items-center text-gray-500 dark:text-gray-400">
                             <Link />
                             {serverContext?.serverUrl}/workspaces/
                         </div>
                         <input
                             type="text"
-                            className="border-0 ring-1 text-xs sm:text-sm bg-gray-50 p-0"
+                            className="border-0 ring-1 text-xs sm:text-sm bg-gray-50 dark:bg-gray-800 p-0"
                             value={slug}
                             onChange={(e) => {
                                 setSlug(e.target.value);
@@ -268,7 +268,9 @@ function Name({ workspace, user }) {
                         {!showCopiedMessage && (
                             <span dir="ltr">
                                 {serverContext?.serverUrl}/workspaces/
-                                <span className="text-gray-900">{slug}</span>
+                                <span className="text-gray-900 dark:text-gray-100">
+                                    {slug}
+                                </span>
                             </span>
                         )}
                     </div>
@@ -338,7 +340,7 @@ function Actions({ user, workspace }) {
                 <div className="text-sm">
                     {workspace.published && (
                         <div
-                            className="text-sm text-gray-600 font-mono bg-gray-100 p-2 rounded-md overflow-x-auto cursor-pointer"
+                            className="text-sm text-gray-600 dark:text-gray-300 font-mono bg-gray-100 dark:bg-gray-800 p-2 rounded-md overflow-x-auto cursor-pointer"
                             onClick={() => setPublishModalOpen(true)}
                         >
                             <span className="">{t("Published")}</span>{" "}
@@ -489,16 +491,16 @@ function PublishedWorkspace({ workspace }) {
         <div>
             <div className="mb-4">
                 {t("Published as pathway")}{" "}
-                <span className="p-2 font-mono bg-sky-50">
+                <span className="p-2 font-mono bg-sky-50 dark:bg-sky-900/20">
                     {t(pathway?.name)}
                 </span>{" "}
                 {t("at")}{" "}
-                <span className="p-2 font-mono bg-sky-50">
+                <span className="p-2 font-mono bg-sky-50 dark:bg-sky-900/20">
                     {serverContext.graphQLPublicEndpoint}
                 </span>
             </div>
 
-            <div className="mb-4 bg-gray-100 p-2 rounded-md text-sm">
+            <div className="mb-4 bg-gray-100 dark:bg-gray-800 p-2 rounded-md text-sm">
                 <pre>
                     {`
 QUERY:
@@ -602,14 +604,14 @@ function UnpublishedWorkspace({ workspace }) {
             </p>
 
             <div className="space-y-2 mb-4">
-                <div className="bg-white border border-gray-200 rounded-md p-3 shadow-sm">
-                    <div className="text-sm text-gray-600 mb-1">
+                <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-md p-3 shadow-sm">
+                    <div className="text-sm text-gray-600 dark:text-gray-300 mb-1">
                         {t("Model")}
                     </div>
                     <div className="font-medium">{llm.name}</div>
                 </div>
-                <div className="bg-white border border-gray-200 rounded-md p-3 shadow-sm">
-                    <div className="text-sm text-gray-600 mb-1">
+                <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-md p-3 shadow-sm">
+                    <div className="text-sm text-gray-600 dark:text-gray-300 mb-1">
                         {t("Pathway name")}
                     </div>
                     <div className="font-medium">{pathwayName}</div>

@@ -139,7 +139,7 @@ export default function Layout({ children }) {
                                                     Close sidebar
                                                 </span>
                                                 <X
-                                                    className="h-6 w-6 text-white dark:text-gray-900"
+                                                    className="h-6 w-6 text-white dark:text-gray-100"
                                                     aria-hidden="true"
                                                 />
                                             </button>
@@ -173,10 +173,10 @@ export default function Layout({ children }) {
                         isCollapsed ? "lg:ps-16" : "lg:ps-56",
                     )}
                 >
-                    <div className="sticky top-0 z-40 flex h-12 shrink-0 items-center gap-x-4 border-b border-gray-200 bg-white px-2 shadow-sm sm:gap-x-6 sm:px-3 lg:px-4">
+                    <div className="sticky top-0 z-40 flex h-12 shrink-0 items-center gap-x-4 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-2 shadow-sm sm:gap-x-6 sm:px-3 lg:px-4">
                         <button
                             type="button"
-                            className="-m-2.5 p-2.5 text-gray-700 lg:hidden"
+                            className="-m-2.5 p-2.5 text-gray-700 dark:text-gray-300 lg:hidden"
                             onClick={() => setSidebarOpen(true)}
                         >
                             <span className="sr-only">Open sidebar</span>
@@ -185,7 +185,7 @@ export default function Layout({ children }) {
 
                         {/* Separator */}
                         <div
-                            className="h-6 w-px bg-gray-900/10 lg:hidden"
+                            className="h-6 w-px bg-gray-900/10 dark:bg-gray-100/10 lg:hidden"
                             aria-hidden="true"
                         />
 
@@ -225,7 +225,7 @@ export default function Layout({ children }) {
                                                         : "none"
                                                 }
                                                 stroke="#0284c7"
-                                                className="h-5 w-5 text-gray-500 hover:text-gray-700"
+                                                className="h-5 w-5 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"
                                             />
                                         </button>
                                     </div>
@@ -247,11 +247,11 @@ export default function Layout({ children }) {
                     <div className="relative flex-col">
                         <ProgressProvider>
                             <main
-                                className="p-2 bg-slate-50 flex gap-2"
+                                className="p-2 bg-slate-50 dark:bg-gray-900 flex gap-2"
                                 ref={contentRef}
                             >
                                 <div
-                                    className={`grow bg-white dark:border-gray-200 rounded-md border p-3 lg:p-4 lg:pb-3 overflow-auto`}
+                                    className={`grow bg-white dark:bg-gray-800 dark:border-gray-700 rounded-md border p-3 lg:p-4 lg:pb-3 overflow-auto`}
                                     style={{
                                         height: "calc((var(--vh, 1vh) * 100) - 105px)",
                                     }}

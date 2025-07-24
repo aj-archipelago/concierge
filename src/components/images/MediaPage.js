@@ -1775,11 +1775,11 @@ function ImageTile({
                     !result?.error &&
                     image?.status !== "completed" &&
                     image?.status !== "failed") ? (
-                    <div className="h-full bg-gray-50 p-4 text-sm flex items-center justify-center">
+                    <div className="h-full bg-gray-50 dark:bg-gray-700 p-4 text-sm flex items-center justify-center">
                         <ProgressComponent />
                     </div>
                 ) : uploading ? (
-                    <div className="h-full bg-gray-50 p-4 text-sm flex items-center justify-center">
+                    <div className="h-full bg-gray-50 dark:bg-gray-700 p-4 text-sm flex items-center justify-center">
                         <UploadComponent />
                     </div>
                 ) : !expired && url && !loadError ? (
@@ -1825,7 +1825,7 @@ function ImageTile({
                         />
                     )
                 ) : (
-                    <div className="h-full bg-gray-50 p-4 text-sm flex items-center justify-center">
+                    <div className="h-full bg-gray-50 dark:bg-gray-700 p-4 text-sm flex items-center justify-center">
                         {cortexRequestId &&
                             !url &&
                             !code &&
@@ -2029,7 +2029,7 @@ function ImageModal({ show, image, onHide }) {
                         </div>
                         <div className="h-full">
                             <textarea
-                                className="w-full p-2 rounded-md bg-gray-50 sm:text-sm overflow-y-auto"
+                                className="w-full p-2 rounded-md bg-gray-50 dark:bg-gray-700 sm:text-sm overflow-y-auto"
                                 value={image?.prompt}
                                 readOnly
                                 style={{

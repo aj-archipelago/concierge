@@ -250,7 +250,7 @@ function Translation({
                             )}
                             <textarea
                                 readOnly
-                                className="w-full h-full lb-input p-2 border border-gray-300 rounded-md resize-none bg-gray-100"
+                                className="w-full h-full lb-input p-2 border border-gray-300 dark:border-gray-600 rounded-md resize-none bg-gray-100 dark:bg-gray-800"
                                 dir="auto"
                                 placeholder={t(
                                     "Translation will appear here...",
@@ -262,7 +262,7 @@ function Translation({
 
                         {showEditLink && translatedText && (
                             <button
-                                className="flex gap-2 items-center absolute bottom-1 p-2 px-14 bg-gray-200 border border-gray-300 border-l-0 border-b-0 rounded-bl rounded-br hover:bg-gray-300 active:bg-gray-400"
+                                className="flex gap-2 items-center absolute bottom-1 p-2 px-14 bg-gray-200 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 border-l-0 border-b-0 rounded-bl rounded-br hover:bg-gray-300 dark:hover:bg-gray-600 active:bg-gray-400 dark:active:bg-gray-500"
                                 onClick={() => {
                                     debouncedUpdateUserState({
                                         write: {

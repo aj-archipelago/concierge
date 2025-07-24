@@ -249,7 +249,7 @@ function ProgressToast({
                         </div>
                     )}
                     {data?.requestProgress?.info && (
-                        <div className="text-xs bg-gray-50 p-2 rounded-md text-gray-500 mt-1">
+                        <div className="text-xs bg-gray-50 dark:bg-gray-700 p-2 rounded-md text-gray-500 dark:text-gray-400 mt-1">
                             {translateProgressMessage(
                                 data.requestProgress.info,
                             )}

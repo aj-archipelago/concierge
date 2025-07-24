@@ -122,7 +122,7 @@ export default function UserManagementClient({
             <div className="overflow-x-auto mb-6">
                 <table className="min-w-full bg-white border border-gray-300">
                     <thead>
-                        <tr className="bg-gray-100">
+                        <tr className="bg-gray-100 dark:bg-gray-800">
                             <th className="px-6 py-3 border-b text-left">
                                 Name
                             </th>
@@ -140,7 +140,10 @@ export default function UserManagementClient({
                     <tbody>
                         {users.length > 0 ? (
                             users.map((user) => (
-                                <tr key={user._id} className="hover:bg-gray-50">
+                                <tr
+                                    key={user._id}
+                                    className="hover:bg-gray-50 dark:hover:bg-gray-700"
+                                >
                                     <td className="px-6 py-4 border-b">
                                         {user.name}
                                     </td>

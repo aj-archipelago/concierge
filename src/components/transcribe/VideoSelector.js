@@ -48,7 +48,7 @@ const VideoSelector = ({ url, onSelect, onClose }) => {
         <div className="mb-4 min-h-[300px] p-4 border relative rounded-md">
             <button
                 onClick={onClose}
-                className="absolute top-2 right-2 p-2 hover:bg-gray-100 rounded-full"
+                className="absolute top-2 right-2 p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full"
                 aria-label="Close"
             >
                 <XIcon className="w-4 h-4" />
@@ -93,7 +93,7 @@ const VideoSelector = ({ url, onSelect, onClose }) => {
                     Error: {t(error.message) || JSON.stringify(error)}
                 </p>
             ) : data?.results?.length > 0 ? (
-                <div className="bg-gray-100 p-4 rounded-sm text-md mt-4 max-h-[350px] overflow-auto">
+                <div className="bg-gray-100 dark:bg-gray-800 p-4 rounded-sm text-md mt-4 max-h-[350px] overflow-auto">
                     <h6 className="font-bold mb-2">
                         {t("Found {{count}} potential matches:", {
                             count: data.results.length,

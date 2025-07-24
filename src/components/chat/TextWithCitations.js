@@ -141,7 +141,7 @@ function TextWithCitations({ index, citation }) {
                                     href={url}
                                     target="_blank"
                                     rel="noreferrer"
-                                    className="text-sky-500 hover:text-sky-500 hover:underline"
+                                    className="text-sky-500 hover:text-sky-500 hover:underline citation-link"
                                     onClick={(e) => e.stopPropagation()}
                                 >
                                     {title}
@@ -154,7 +154,7 @@ function TextWithCitations({ index, citation }) {
                         )}
                     </div>
                     {strippedContent && (
-                        <pre className="text-sm font-sans">
+                        <pre className="text-sm font-sans text-gray-800 dark:text-gray-200">
                             {strippedContent}
                         </pre>
                     )}
