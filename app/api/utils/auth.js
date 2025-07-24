@@ -44,6 +44,7 @@ export const getCurrentUser = async (convertToJsonObj = true) => {
                     console.log(
                         `Using local auth token for user: ${localAuthToken.user.email}`,
                     );
+                    // Use the Azure header format for consistency
                     id = localAuthToken.user.id;
                     username = localAuthToken.user.email;
                 }
@@ -59,6 +60,24 @@ export const getCurrentUser = async (convertToJsonObj = true) => {
     // Validate auth provider if specified
     if (auth.provider && auth.provider !== "entra") {
         throw new Error(`Unsupported auth provider: ${auth.provider}`);
+    }
+
+    // Apply domain validation for both Entra and local auth
+    if (username && process.env.ENTRA_AUTHORIZED_DOMAINS) {
+        const allowedEmailDomains = process.env.ENTRA_AUTHORIZED_DOMAINS.split(
+            ",",
+        ).map((emailDomain) => emailDomain.toLowerCase());
+
+        const emailDomain = username.split("@")[1]?.toLowerCase();
+        if (!emailDomain || !allowedEmailDomains.includes(emailDomain)) {
+            console.log(
+                `User domain ${emailDomain} not in authorized domains: ${allowedEmailDomains.join(", ")}`,
+            );
+            // For local development, allow all domains if no specific domains are configured
+            if (process.env.NODE_ENV === "production") {
+                throw new Error(`Unauthorized domain: ${emailDomain}`);
+            }
+        }
     }
 
     id = id || "anonymous";

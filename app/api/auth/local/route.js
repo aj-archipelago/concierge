@@ -1,19 +1,27 @@
 import { NextResponse } from "next/server";
 import { v4 as uuidv4 } from "uuid";
 
-// Simulate Entra ID token structure
+// Simulate Entra ID token structure more closely
 const createMockToken = (email) => {
     const now = Math.floor(Date.now() / 1000);
+    const userId = `mock_user_${email.replace("@", "_").replace(".", "_")}`;
+
     return {
         access_token: `mock_token_${uuidv4()}`,
         token_type: "Bearer",
         expires_in: 3600, // 1 hour
         expires_at: now + 3600,
         user: {
-            id: `mock_user_${email.replace("@", "_").replace(".", "_")}`,
+            id: userId,
             email: email,
             name: email.split("@")[0],
             username: email,
+        },
+        // Add Azure App Service specific fields
+        azure_headers: {
+            "X-MS-CLIENT-PRINCIPAL-ID": userId,
+            "X-MS-CLIENT-PRINCIPAL-NAME": email,
+            "X-MS-CLIENT-PRINCIPAL-IDP": "aad",
         },
     };
 };
@@ -74,7 +82,7 @@ export async function POST(request) {
             httpOnly: true,
             secure: false, // false for local development
             sameSite: "lax",
-            maxAge: 3600, // 1 hour
+            maxAge: 3600, // 1 hour - match Entra session duration
         });
 
         response.cookies.set("local_auth_user", email, {

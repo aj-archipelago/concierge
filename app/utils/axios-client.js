@@ -1,11 +1,15 @@
 import axios from "axios";
 
-// Create base axios instance
-const axiosInstance = axios.create();
+// Create axios instance
+const axiosInstance = axios.create({
+    baseURL: process.env.NEXT_PUBLIC_API_URL || "",
+    timeout: 30000,
+    withCredentials: true,
+});
 
-// Track authentication state
+// Track authentication refresh state
 let isRefreshing = false;
-let failedQueue = [];
+const failedQueue = [];
 
 const processQueue = (error, token = null) => {
     failedQueue.forEach(({ resolve, reject }) => {
@@ -16,7 +20,7 @@ const processQueue = (error, token = null) => {
         }
     });
 
-    failedQueue = [];
+    failedQueue.length = 0;
 };
 
 // Function to check if we're running in Azure App Service
@@ -56,22 +60,21 @@ const triggerAuthRefresh = () => {
 };
 
 // Function to check if authentication headers are present and valid
-const checkAuthHeaders = () => {
+const checkAuthHeaders = async () => {
     if (typeof window === "undefined") return true;
 
-    // Make a lightweight request to check auth status
-    return new Promise((resolve) => {
-        fetch("/api/auth/status", {
+    try {
+        // Make a lightweight request to check auth status
+        const response = await fetch("/api/auth/status", {
             method: "HEAD",
             credentials: "include",
-        })
-            .then((response) => {
-                resolve(response.ok);
-            })
-            .catch(() => {
-                resolve(false);
-            });
-    });
+        });
+
+        return response.ok;
+    } catch (error) {
+        console.error("Auth check failed:", error);
+        return false;
+    }
 };
 
 // Add interceptors only for client-side
@@ -83,7 +86,8 @@ if (typeof window !== "undefined") {
             if (
                 config.url?.includes("/.auth/") ||
                 config.url?.includes("/api/auth/") ||
-                config.url?.includes("/auth/login")
+                config.url?.includes("/auth/login") ||
+                config.url?.includes("/test-auth")
             ) {
                 return config;
             }
@@ -163,19 +167,5 @@ if (typeof window !== "undefined") {
         },
     );
 }
-
-// Function to handle auth redirect after successful authentication
-const handleAuthRedirect = () => {
-    if (typeof window === "undefined") return;
-
-    const redirectUrl = sessionStorage.getItem("auth_redirect_url");
-    if (redirectUrl) {
-        sessionStorage.removeItem("auth_redirect_url");
-        window.location.href = redirectUrl;
-    }
-};
-
-// Export the handleAuthRedirect function for use in components
-export { handleAuthRedirect };
 
 export default axiosInstance;

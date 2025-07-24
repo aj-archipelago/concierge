@@ -53,22 +53,21 @@ const triggerAuthRefresh = () => {
 };
 
 // Function to check if authentication headers are present and valid
-const checkAuthHeaders = () => {
-    if (typeof window === "undefined") return Promise.resolve(true);
+const checkAuthHeaders = async () => {
+    if (typeof window === "undefined") return true;
 
-    // Make a lightweight request to check auth status
-    return new Promise((resolve) => {
-        fetch("/api/auth/status", {
+    try {
+        // Make a lightweight request to check auth status
+        const response = await fetch("/api/auth/status", {
             method: "HEAD",
             credentials: "include",
-        })
-            .then((response) => {
-                resolve(response.ok);
-            })
-            .catch(() => {
-                resolve(false);
-            });
-    });
+        });
+
+        return response.ok;
+    } catch (error) {
+        console.error("Auth check failed:", error);
+        return false;
+    }
 };
 
 const getClient = (serverUrl, useBlueGraphQL) => {
@@ -106,55 +105,36 @@ const getClient = (serverUrl, useBlueGraphQL) => {
                 if (!isGraphQLRefreshing) {
                     isGraphQLRefreshing = true;
 
-                    // Check if we need to refresh auth
-                    const isAuthenticated = await checkAuthHeaders();
-                    if (!isAuthenticated) {
-                        triggerAuthRefresh();
-                    }
-
-                    isGraphQLRefreshing = false;
-                }
-            }
-
-            // Handle 401 Unauthorized errors
-            if (networkError && networkError.statusCode === 401) {
-                if (!isGraphQLRefreshing) {
-                    isGraphQLRefreshing = true;
-
-                    // Check if we need to refresh auth
-                    const isAuthenticated = await checkAuthHeaders();
-                    if (!isAuthenticated) {
-                        triggerAuthRefresh();
-                    }
-
-                    isGraphQLRefreshing = false;
-                }
-            }
-
-            // Handle GraphQL errors that might indicate auth issues
-            if (graphQLErrors) {
-                graphQLErrors.forEach(({ message, extensions }) => {
-                    if (
-                        extensions?.code === "UNAUTHENTICATED" ||
-                        message?.toLowerCase().includes("unauthorized") ||
-                        message?.toLowerCase().includes("authentication")
-                    ) {
-                        if (!isGraphQLRefreshing) {
-                            isGraphQLRefreshing = true;
+                    try {
+                        // Check if we need to refresh auth
+                        const isAuthenticated = await checkAuthHeaders();
+                        if (!isAuthenticated) {
                             triggerAuthRefresh();
-                            isGraphQLRefreshing = false;
                         }
+                    } catch (error) {
+                        console.error("GraphQL auth refresh error:", error);
+                    } finally {
+                        isGraphQLRefreshing = false;
                     }
+                }
+            }
+
+            // Handle other network errors
+            if (networkError) {
+                console.error("GraphQL network error:", networkError);
+            }
+
+            // Handle GraphQL errors
+            if (graphQLErrors) {
+                graphQLErrors.forEach(({ message, locations, path }) => {
+                    console.error(
+                        `GraphQL error: Message: ${message}, Location: ${locations}, Path: ${path}`,
+                    );
                 });
             }
         },
     );
 
-    // The split function takes three parameters:
-    //
-    // * A function that's called for each operation to execute
-    // * The Link to use for an operation if the function returns a "truthy" value
-    // * The Link to use for an operation if the function returns a "falsy" value
     const splitLink = split(
         ({ query }) => {
             const definition = getMainDefinition(query);
@@ -167,11 +147,8 @@ const getClient = (serverUrl, useBlueGraphQL) => {
         httpLink,
     );
 
-    // Combine the error link with the split link
-    const link = from([errorLink, splitLink]);
-
     return new ApolloClient({
-        link,
+        link: from([errorLink, splitLink]),
         cache: new InMemoryCache(),
         defaultOptions: {
             watchQuery: {

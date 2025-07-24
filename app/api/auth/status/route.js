@@ -34,6 +34,31 @@ export async function GET(request) {
         const isAuthenticated =
             user && user.userId && user.userId !== "anonymous";
 
+        // Check for Azure headers and local auth cookies for debugging
+        const headerList = headers();
+        const azureId = headerList.get("X-MS-CLIENT-PRINCIPAL-ID");
+        const azureName = headerList.get("X-MS-CLIENT-PRINCIPAL-NAME");
+
+        let localAuthInfo = null;
+        try {
+            const cookieStore = await import("next/headers").then((m) =>
+                m.cookies(),
+            );
+            const tokenCookie = cookieStore.get("local_auth_token");
+            if (tokenCookie?.value) {
+                const token = JSON.parse(tokenCookie.value);
+                localAuthInfo = {
+                    hasToken: true,
+                    expiresAt: token.expires_at,
+                    isExpired:
+                        token.expires_at &&
+                        token.expires_at < Math.floor(Date.now() / 1000),
+                };
+            }
+        } catch (error) {
+            localAuthInfo = { error: error.message };
+        }
+
         return NextResponse.json({
             success: true,
             authenticated: isAuthenticated,
@@ -44,6 +69,13 @@ export async function GET(request) {
                       username: user.username,
                   }
                 : null,
+            authInfo: {
+                azureHeaders: {
+                    id: azureId,
+                    name: azureName,
+                },
+                localAuth: localAuthInfo,
+            },
             timestamp: new Date().toISOString(),
         });
     } catch (error) {
