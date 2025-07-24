@@ -9,7 +9,7 @@ export default function TestAuthPage() {
                 </h1>
 
                 <div className="text-center mb-8">
-                    <p className="text-gray-600">
+                    <p className="text-gray-600 dark:text-gray-400">
                         Test authentication flows by expiring your current
                         token.
                     </p>

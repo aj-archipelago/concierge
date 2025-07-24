@@ -48,7 +48,7 @@ export const AuthTestPanel = () => {
                 </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-                <p className="text-sm text-gray-600">
+                <p className="text-sm text-gray-600 dark:text-gray-400">
                     Click the button below to expire your current authentication
                     token and test the re-authentication flow.
                 </p>
@@ -72,13 +72,15 @@ export const AuthTestPanel = () => {
                 </Button>
 
                 {message && (
-                    <div className="flex items-center gap-2 p-3 bg-blue-50 border border-blue-200 rounded">
-                        <AlertCircle className="h-4 w-4 text-blue-500" />
-                        <span className="text-sm text-blue-700">{message}</span>
+                    <div className="flex items-center gap-2 p-3 bg-blue-50 dark:bg-blue-950/50 border border-blue-200 dark:border-blue-800 rounded">
+                        <AlertCircle className="h-4 w-4 text-blue-500 dark:text-blue-400" />
+                        <span className="text-sm text-blue-700 dark:text-blue-300">
+                            {message}
+                        </span>
                     </div>
                 )}
 
-                <div className="text-xs text-gray-500">
+                <div className="text-xs text-gray-500 dark:text-gray-400">
                     <p>
                         <strong>Purpose:</strong> This page simulates token
                         expiration for testing authentication flows.

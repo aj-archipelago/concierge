@@ -340,14 +340,14 @@ export default React.forwardRef(function Sidebar(
                     // Signed out state
                     <div className="flex flex-1 flex-col items-center justify-center p-4 text-center">
                         <div className="mb-4">
-                            <Icons.UserX className="h-12 w-12 text-gray-400 mx-auto" />
+                            <Icons.UserX className="h-12 w-12 text-gray-400 dark:text-gray-500 mx-auto" />
                         </div>
-                        <h3 className="text-sm font-medium text-gray-900 mb-2">
+                        <h3 className="text-sm font-medium text-gray-900 dark:text-gray-100 mb-2">
                             {isOnLoginPage
                                 ? t("Sign in to continue")
                                 : t("Not signed in")}
                         </h3>
-                        <p className="text-xs text-gray-500 mb-4">
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">
                             {isOnLoginPage
                                 ? t("Complete the form to access your account")
                                 : t(
