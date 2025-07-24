@@ -138,14 +138,14 @@ No additional environment variables are required. The solution uses existing Azu
 
 1. Open the app in your browser
 2. Open browser developer tools and go to Application/Storage tab
-3. Clear the `mock-auth` cookie to simulate token expiration
+3. Clear the `local_auth_token` and `local_auth_user` cookies to simulate token expiration
 4. Try to perform an action that requires authentication (like making an API call)
 5. Watch the authentication refresh flow in action
 
 #### Option 3: Simulating Token Expiration
 
 1. In browser developer tools, go to Application/Storage
-2. Find the `mock-auth` cookie and delete it
+2. Find the `local_auth_token` and `local_auth_user` cookies and delete them
 3. Refresh the page or make an API call
 4. Observe the authentication refresh process
 
@@ -169,7 +169,7 @@ No additional environment variables are required. The solution uses existing Azu
 #### Scenario 2: Token Expiration
 
 1. Start with valid authentication
-2. Clear the `mock-auth` cookie
+2. Clear the `local_auth_token` and `local_auth_user` cookies
 3. Make an API call
 4. Should trigger authentication refresh automatically
 5. Should complete the call after successful authentication

@@ -16,7 +16,7 @@ export const AuthTestPanel = () => {
         setMessage("");
 
         try {
-            const response = await fetch("/api/auth/status", {
+            const response = await fetch("/api/auth/test", {
                 method: "GET",
                 credentials: "include",
             });
@@ -41,10 +41,14 @@ export const AuthTestPanel = () => {
         setMessage("");
 
         try {
-            // Clear the local auth token by setting it to expire immediately
-            const response = await fetch("/api/auth/local?action=logout", {
-                method: "GET",
+            // Clear the local auth token using the test endpoint
+            const response = await fetch("/api/auth/test", {
+                method: "POST",
                 credentials: "include",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({ action: "clear-local-auth" }),
             });
 
             if (response.ok) {
@@ -144,18 +148,19 @@ export const AuthTestPanel = () => {
                                     {authStatus.user.username})
                                 </div>
                             )}
-                            {authStatus.authInfo?.azureHeaders?.id && (
+                            {authStatus.azureHeaders?.id && (
                                 <div>
                                     <strong>Azure ID:</strong>{" "}
-                                    {authStatus.authInfo.azureHeaders.id}
+                                    {authStatus.azureHeaders.id}
                                 </div>
                             )}
-                            {authStatus.authInfo?.localAuth?.hasToken && (
+                            {authStatus.localAuth && (
                                 <div>
-                                    <strong>Local Token:</strong>{" "}
-                                    {authStatus.authInfo.localAuth.isExpired
-                                        ? "Expired"
-                                        : "Valid"}
+                                    <strong>Local Auth:</strong>{" "}
+                                    {authStatus.localAuth.hasToken ? "Token Present" : "No Token"}
+                                    {authStatus.localAuth.hasUser && (
+                                        <span> • User: {authStatus.localAuth.user}</span>
+                                    )}
                                 </div>
                             )}
                         </div>

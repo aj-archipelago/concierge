@@ -33,14 +33,12 @@ export async function GET(request) {
         searchParams.get("post_login_redirect_url") || "/";
 
     if (action === "logout") {
-        console.log("Logging out user - clearing auth cookies");
         // Clear all auth cookies and redirect to login page
         const response = NextResponse.redirect(
             new URL("/auth/login", request.url),
         );
         response.cookies.set("local_auth_token", "", { maxAge: 0 });
         response.cookies.set("local_auth_user", "", { maxAge: 0 });
-        console.log("Auth cookies cleared, redirecting to login page");
         return response;
     }
 
@@ -80,21 +78,20 @@ export async function POST(request) {
 
         response.cookies.set("local_auth_token", JSON.stringify(token), {
             httpOnly: true,
-            secure: false, // false for local development
+            secure: process.env.NODE_ENV === "production",
             sameSite: "lax",
             maxAge: 3600, // 1 hour - match Entra session duration
         });
 
         response.cookies.set("local_auth_user", email, {
             httpOnly: false, // Allow client-side access
-            secure: false,
+            secure: process.env.NODE_ENV === "production",
             sameSite: "lax",
             maxAge: 3600 * 24 * 30, // 30 days for user preference
         });
 
         return response;
     } catch (error) {
-        console.error("Local auth error:", error);
         return NextResponse.json(
             { error: "Authentication failed" },
             { status: 500 },

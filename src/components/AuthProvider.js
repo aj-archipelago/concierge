@@ -2,6 +2,7 @@
 
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import { isAzureAppService, triggerAuthRefresh, checkAuthHeaders } from "../utils/auth";
 
 const AuthContext = createContext();
 
@@ -18,36 +19,28 @@ export const AuthProvider = ({ children }) => {
     const [authError, setAuthError] = useState(null);
     const searchParams = useSearchParams();
 
-    // Handle auth redirect after successful authentication
+    // Handle auth return from Azure App Service or local auth
     useEffect(() => {
-        const handleAuthReturn = () => {
-            // Check if we're returning from an auth flow
-            // Add null check for searchParams to handle test environment
-            if (!searchParams) return;
+        const handleAuthReturn = async () => {
+            // Check if we're returning from authentication
+            const authReturn = searchParams.get("auth_return");
+            const redirectUrl = searchParams.get("redirect_uri");
 
-            const isAuthReturn = searchParams.get("auth_return");
-            const hasAuthHeaders = searchParams.get("auth_headers");
-
-            if (isAuthReturn || hasAuthHeaders) {
+            if (authReturn === "success" && redirectUrl) {
                 setIsAuthenticating(true);
 
-                // Only run browser-specific code if window is available
-                if (typeof window !== "undefined") {
-                    // Clear the auth parameters from URL
-                    const newUrl = new URL(window.location.href);
-                    newUrl.searchParams.delete("auth_return");
-                    newUrl.searchParams.delete("auth_headers");
-
-                    // Handle the redirect if we have a stored URL
-                    const redirectUrl =
-                        sessionStorage.getItem("auth_redirect_url");
-                    if (redirectUrl) {
-                        sessionStorage.removeItem("auth_redirect_url");
+                try {
+                    // Verify authentication was successful
+                    const isAuthenticated = await checkAuthHeaders();
+                    if (isAuthenticated) {
+                        // Redirect to the original URL
                         window.location.href = redirectUrl;
+                    } else {
+                        setAuthError("Authentication failed");
                     }
-
-                    // Update the URL without the auth parameters
-                    window.history.replaceState({}, "", newUrl.toString());
+                } catch (error) {
+                    console.error("Auth return verification failed:", error);
+                    setAuthError("Authentication verification failed");
                 }
 
                 setIsAuthenticating(false);
@@ -90,14 +83,6 @@ export const AuthProvider = ({ children }) => {
         checkAuthStatus();
     }, []);
 
-    // Function to check if we're in Azure App Service environment
-    const isAzureAppService = () => {
-        return (
-            typeof window !== "undefined" &&
-            window.location.hostname.includes(".azurewebsites.net")
-        );
-    };
-
     // Function to trigger authentication refresh
     const refreshAuth = () => {
         setIsAuthenticating(true);
@@ -109,26 +94,8 @@ export const AuthProvider = ({ children }) => {
             return;
         }
 
-        // Check if we're in Azure App Service or local development
-        if (isAzureAppService()) {
-            // Redirect to Azure App Service auth endpoint
-            const currentUrl = window.location.href;
-            const authUrl = `${window.location.origin}/.auth/login/aad?post_login_redirect_url=${encodeURIComponent(currentUrl)}`;
-
-            // Store the current URL to return to after auth
-            sessionStorage.setItem("auth_redirect_url", currentUrl);
-
-            window.location.href = authUrl;
-        } else {
-            // For local development, use mock authentication
-            console.warn("Using mock authentication for local development");
-
-            // Redirect to mock auth endpoint
-            const currentUrl = window.location.href;
-            const mockAuthUrl = `${window.location.origin}/api/auth/mock?redirect_uri=${encodeURIComponent(currentUrl)}`;
-
-            window.location.href = mockAuthUrl;
-        }
+        // Use the centralized triggerAuthRefresh function
+        triggerAuthRefresh();
     };
 
     // Function to clear auth error

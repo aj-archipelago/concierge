@@ -3,11 +3,12 @@ import { getCurrentUser } from "../../utils/auth";
 
 export async function GET(request) {
     try {
-        // Check for mock auth cookie directly
+        // Check for local auth cookies
         const cookieStore = await import("next/headers").then((m) =>
             m.cookies(),
         );
-        const mockAuth = cookieStore.get("mock-auth");
+        const localAuthToken = cookieStore.get("local_auth_token");
+        const localAuthUser = cookieStore.get("local_auth_user");
 
         // Check Azure headers
         const headerList = await import("next/headers").then((m) =>
@@ -17,12 +18,6 @@ export async function GET(request) {
         const azureName = headerList.get("X-MS-CLIENT-PRINCIPAL-NAME");
 
         const user = await getCurrentUser();
-
-        console.log(`Auth test - user:`, user);
-        console.log(`Auth test - user.userId: ${user?.userId}`);
-        console.log(
-            `Auth test - authenticated check: ${user && user.userId && user.userId !== "anonymous"}`,
-        );
 
         return NextResponse.json({
             success: true,
@@ -34,7 +29,11 @@ export async function GET(request) {
                       username: user.username,
                   }
                 : null,
-            mockAuthCookie: mockAuth?.value || null,
+            localAuth: {
+                hasToken: !!localAuthToken?.value,
+                hasUser: !!localAuthUser?.value,
+                user: localAuthUser?.value || null,
+            },
             azureHeaders: {
                 id: azureId,
                 name: azureName,
@@ -42,7 +41,6 @@ export async function GET(request) {
             timestamp: new Date().toISOString(),
         });
     } catch (error) {
-        console.error("Auth test failed:", error);
         return NextResponse.json(
             {
                 success: false,
@@ -60,38 +58,34 @@ export async function POST(request) {
         const body = await request.json();
         const { action } = body;
 
-        if (action === "set-mock-auth") {
-            const { email } = body;
-            const mockAuthValue = email ? `user:${email}` : "true";
-
+        if (action === "clear-local-auth") {
             const response = NextResponse.json({
                 success: true,
-                message: `Mock authentication set${email ? ` for ${email}` : ""}`,
+                message: "Local authentication cleared",
             });
 
-            // Set mock auth cookie with optional user email
-            response.cookies.set("mock-auth", mockAuthValue, {
+            // Clear local auth cookies
+            response.cookies.set("local_auth_token", "", {
                 httpOnly: true,
-                secure: false,
+                secure: process.env.NODE_ENV === "production",
                 sameSite: "lax",
-                maxAge: 60 * 60 * 24, // 24 hours
+                maxAge: 0,
+            });
+            response.cookies.set("local_auth_user", "", {
+                httpOnly: false,
+                secure: process.env.NODE_ENV === "production",
+                sameSite: "lax",
+                maxAge: 0,
             });
 
             return response;
         }
 
-        if (action === "clear-mock-auth") {
+        if (action === "trigger-auth-refresh") {
             const response = NextResponse.json({
                 success: true,
-                message: "Mock authentication cleared",
-            });
-
-            // Clear mock auth cookie
-            response.cookies.set("mock-auth", "", {
-                httpOnly: true,
-                secure: false,
-                sameSite: "lax",
-                maxAge: 0,
+                message: "Authentication refresh triggered",
+                redirectUrl: "/api/auth/local",
             });
 
             return response;
@@ -100,12 +94,11 @@ export async function POST(request) {
         return NextResponse.json(
             {
                 success: false,
-                error: "Invalid action",
+                error: "Invalid action. Use 'clear-local-auth' or 'trigger-auth-refresh'",
             },
             { status: 400 },
         );
     } catch (error) {
-        console.error("Auth test action failed:", error);
         return NextResponse.json(
             {
                 success: false,

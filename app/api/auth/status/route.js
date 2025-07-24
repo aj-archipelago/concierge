@@ -59,7 +59,7 @@ export async function GET(request) {
             localAuthInfo = { error: error.message };
         }
 
-        return NextResponse.json({
+        const response = {
             success: true,
             authenticated: isAuthenticated,
             user: user
@@ -69,17 +69,22 @@ export async function GET(request) {
                       username: user.username,
                   }
                 : null,
-            authInfo: {
+            timestamp: new Date().toISOString(),
+        };
+
+        // Only include detailed auth info in development
+        if (process.env.NODE_ENV !== "production") {
+            response.authInfo = {
                 azureHeaders: {
                     id: azureId,
                     name: azureName,
                 },
                 localAuth: localAuthInfo,
-            },
-            timestamp: new Date().toISOString(),
-        });
+            };
+        }
+
+        return NextResponse.json(response);
     } catch (error) {
-        console.error("Auth status check failed:", error);
         return NextResponse.json(
             {
                 success: false,
