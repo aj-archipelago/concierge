@@ -62,7 +62,9 @@ if (typeof window !== "undefined") {
             if (error.response?.status === 401) {
                 // Simply trigger the refresh and reject. The page will redirect.
                 triggerAuthRefresh();
-                return Promise.reject(new Error("Authentication required. Redirecting..."));
+                return Promise.reject(
+                    new Error("Authentication required. Redirecting..."),
+                );
             }
 
             return Promise.reject(error);
