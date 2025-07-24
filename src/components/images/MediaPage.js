@@ -265,7 +265,6 @@ function MediaPage() {
         [mediaItemsData.mediaItems],
     );
 
-
     const pagination = mediaItemsData.pagination || {};
 
     const [showModal, setShowModal] = useState(false);
@@ -481,13 +480,7 @@ function MediaPage() {
                 setLoading(false);
             }
         },
-        [
-            outputType,
-            selectedModel,
-            settings,
-            runTask,
-            createMediaItem,
-        ],
+        [outputType, selectedModel, settings, runTask, createMediaItem],
     );
 
     useEffect(() => {

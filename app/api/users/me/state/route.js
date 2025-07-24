@@ -17,26 +17,10 @@ export async function GET() {
         },
     );
 
-    console.log(
-        "serializedState length:",
-        userState?.serializedState?.length || 0,
-    );
-    console.log(
-        "serializedState preview:",
-        userState?.serializedState?.substring(0, 200) || "null",
-    );
-
     let userStateObject;
 
     try {
         userStateObject = JSON.parse(userState.serializedState);
-        console.log("Parsed state keys:", Object.keys(userStateObject || {}));
-        if (userStateObject?.media?.images) {
-            console.log(
-                "Media images count:",
-                userStateObject.media.images.length,
-            );
-        }
     } catch (e) {
         console.error("Error deserializing serializedState during GET", e);
         console.error("Problematic JSON:", userState.serializedState);
@@ -49,11 +33,6 @@ export async function GET() {
 export async function PUT(req) {
     const body = await req.json();
     const user = await getCurrentUser();
-
-    console.log("PUT body keys:", Object.keys(body));
-    if (body.media?.images) {
-        console.log("PUT media images count:", body.media.images.length);
-    }
 
     let retries = 0;
     const maxRetries = 3;
@@ -68,16 +47,6 @@ export async function PUT(req) {
                     currentStateObject = JSON.parse(
                         currentState.serializedState,
                     );
-                    console.log(
-                        "Current state keys:",
-                        Object.keys(currentStateObject || {}),
-                    );
-                    if (currentStateObject?.media?.images) {
-                        console.log(
-                            "Current media images count:",
-                            currentStateObject.media.images.length,
-                        );
-                    }
                 } catch (e) {
                     console.error(
                         "Error deserializing serializedState during PUT",
@@ -93,14 +62,6 @@ export async function PUT(req) {
                 ...currentStateObject,
                 ...body,
             };
-
-            console.log("New state keys:", Object.keys(newStateObject || {}));
-            if (newStateObject?.media?.images) {
-                console.log(
-                    "New media images count:",
-                    newStateObject.media.images.length,
-                );
-            }
 
             const newSerializedState = JSON.stringify(newStateObject);
 
@@ -123,9 +84,6 @@ export async function PUT(req) {
         } catch (error) {
             if (error.name === "VersionError" && retries < maxRetries - 1) {
                 retries++;
-                console.log(
-                    `Version conflict on PUT, retry ${retries}/${maxRetries}`,
-                );
                 const currentRetry = retries;
                 await new Promise((resolve) =>
                     setTimeout(resolve, 100 * currentRetry),
