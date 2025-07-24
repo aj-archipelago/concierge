@@ -13,7 +13,7 @@ import { Download, Trash2, Check, Plus, Settings, Loader2 } from "lucide-react";
 import { LanguageContext } from "../../contexts/LanguageProvider";
 import { AuthContext } from "../../App";
 import { Modal } from "../../../@/components/ui/modal";
-import LoadingButton from "../editor/LoadingButton";
+
 import ProgressUpdate from "../editor/ProgressUpdate";
 import {
     Tooltip,
@@ -1081,18 +1081,23 @@ function MediaPage() {
                                 })}
                             </select>
 
-                            <LoadingButton
-                                className="lb-primary"
-                                style={{ whiteSpace: "nowrap" }}
-                                loading={loading}
+                            <button
+                                className="lb-primary whitespace-nowrap flex items-center justify-center relative"
                                 type="submit"
                                 disabled={
                                     !prompt.trim() ||
-                                    (isModifyMode && selectedImages.size === 0)
+                                    loading
                                 }
                             >
-                                {t("Generate")}
-                            </LoadingButton>
+                                <span className={loading ? "invisible" : "visible"}>
+                                    {t("Generate")}
+                                </span>
+                                {loading && (
+                                    <Loader2 
+                                        className="animate-spin h-4 w-4 absolute" 
+                                    />
+                                )}
+                            </button>
                         </div>
                     </form>
                 </div>
