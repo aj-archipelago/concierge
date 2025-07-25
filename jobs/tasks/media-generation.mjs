@@ -346,7 +346,6 @@ class MediaGenerationHandler extends BaseTask {
                     } catch (e) {
                         console.error("Error parsing Veo video response:", e);
                     }
-                } else {
                 }
             } else {
                 // Standard image/video response structure

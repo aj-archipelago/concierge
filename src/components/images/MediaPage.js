@@ -265,6 +265,14 @@ function MediaPage() {
         [mediaItemsData.mediaItems],
     );
 
+    // Memoize sorted images by creation date (newest first) - only if we have data
+    const sortedImages = useMemo(() => {
+        if (images && images.length > 0) {
+            return [...images].sort((a, b) => b.created - a.created);
+        }
+        return [];
+    }, [images]);
+
     const pagination = mediaItemsData.pagination || {};
 
     const [showModal, setShowModal] = useState(false);
@@ -301,7 +309,7 @@ function MediaPage() {
                 console.warn("Failed to parse localStorage settings:", error);
             }
         }
-    }, [debouncedUpdateUserState]); // Include debouncedUpdateUserState dependency
+    }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
     // No longer needed - images are managed by the API now
 
@@ -333,26 +341,30 @@ function MediaPage() {
                 },
             });
         }
-    }, [settings, userState?.media, debouncedUpdateUserState]); // Include debouncedUpdateUserState dependency
+    }, [settings, userState?.media]); // eslint-disable-line react-hooks/exhaustive-deps
 
     // No longer need to load images from user state - they come from the API now
 
     // Migrate from localStorage on first load (run only once)
+    const hasMigrated = useRef(false); // Flag to track migration
     useEffect(() => {
-        migrateFromLocalStorage();
-    }, [migrateFromLocalStorage]); // Include migrateFromLocalStorage dependency
+        if (!hasMigrated.current) {
+            migrateFromLocalStorage();
+            hasMigrated.current = true; // Set flag to prevent re-running
+        }
+    }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
     // No longer needed - images come from API
 
     // Get available models based on current input conditions (for validation only)
     const getAvailableModels = useCallback(() => {
         // If no images, return all models (no restrictions)
-        if (!images || images.length === 0) {
+        if (!sortedImages || sortedImages.length === 0) {
             return Object.keys(settings.models || {});
         }
 
         // Filter out videos from selected images - only count images as input
-        const selectedImageObjects = images.filter(
+        const selectedImageObjects = sortedImages.filter(
             (img) =>
                 selectedImages.has(img.cortexRequestId) && img.type === "image",
         );
@@ -397,7 +409,7 @@ function MediaPage() {
         });
 
         return availableModels;
-    }, [selectedImages, images, settings]);
+    }, [selectedImages, sortedImages, settings]);
 
     // Apply intelligent model selection based on input conditions
     useEffect(() => {
@@ -422,7 +434,13 @@ function MediaPage() {
                 }
             }
         }
-    }, [selectedImages, images, settings, selectedModel, getAvailableModels]);
+    }, [
+        selectedImages,
+        sortedImages,
+        settings,
+        selectedModel,
+        getAvailableModels,
+    ]);
 
     const generateMedia = useCallback(
         async (prompt, inputImageUrl = null, modelOverride = null) => {
@@ -485,7 +503,7 @@ function MediaPage() {
 
     useEffect(() => {
         // Only consider images for modify mode, not videos
-        const selectedImageObjects = images.filter(
+        const selectedImageObjects = sortedImages.filter(
             (img) =>
                 selectedImages.has(img.cortexRequestId) && img.type === "image",
         );
@@ -493,12 +511,12 @@ function MediaPage() {
             selectedImageObjects.length === 1 ||
                 selectedImageObjects.length === 2,
         );
-    }, [selectedImages, images]);
+    }, [selectedImages, sortedImages]);
 
     const handleModifySelected = useCallback(async () => {
         if (!prompt.trim() || selectedImages.size === 0) return;
 
-        const selectedImageObjects = images.filter(
+        const selectedImageObjects = sortedImages.filter(
             (img) =>
                 selectedImages.has(img.cortexRequestId) &&
                 img.url &&
@@ -568,7 +586,7 @@ function MediaPage() {
     }, [
         prompt,
         selectedImages,
-        images,
+        sortedImages,
         outputType,
         selectedModel,
         settings,
@@ -579,7 +597,7 @@ function MediaPage() {
     const handleCombineSelected = useCallback(async () => {
         if (!prompt.trim() || selectedImages.size !== 2) return;
 
-        const selectedImageObjects = images.filter(
+        const selectedImageObjects = sortedImages.filter(
             (img) =>
                 selectedImages.has(img.cortexRequestId) &&
                 img.url &&
@@ -662,7 +680,7 @@ function MediaPage() {
     }, [
         prompt,
         selectedImages,
-        images,
+        sortedImages,
         outputType,
         selectedModel,
         settings,
@@ -790,19 +808,12 @@ function MediaPage() {
         [handleFileUpload],
     );
 
-    // Sort images by creation date (newest first) - only if we have data
-    if (images && images.length > 0) {
-        images.sort((a, b) => {
-            return b.created - a.created;
-        });
-    }
-
     const handleBulkAction = useCallback(
         (action) => {
             if (action === "delete") {
                 setShowDeleteSelectedConfirm(true);
             } else if (action === "download") {
-                images.forEach((img) => {
+                sortedImages.forEach((img) => {
                     if (
                         selectedImages.has(img.cortexRequestId) &&
                         (img.azureUrl || img.url)
@@ -813,12 +824,12 @@ function MediaPage() {
                 setSelectedImages(new Set());
             }
         },
-        [images, selectedImages],
+        [sortedImages, selectedImages],
     );
 
     const handleDeleteSelected = useCallback(async () => {
         // Delete selected media items from database
-        for (const image of images) {
+        for (const image of sortedImages) {
             if (selectedImages.has(image.cortexRequestId)) {
                 await deleteMediaItem.mutateAsync(image.taskId);
             }
@@ -826,20 +837,20 @@ function MediaPage() {
 
         setSelectedImages(new Set());
         setShowDeleteSelectedConfirm(false);
-    }, [images, selectedImages, deleteMediaItem]);
+    }, [sortedImages, selectedImages, deleteMediaItem]);
 
     const handleDeleteAll = useCallback(async () => {
         // Delete all media items for the current user
-        for (const image of images) {
+        for (const image of sortedImages) {
             await deleteMediaItem.mutateAsync(image.taskId);
         }
 
         setSelectedImages(new Set());
         setShowDeleteAllConfirm(false);
-    }, [images, deleteMediaItem]);
+    }, [sortedImages, deleteMediaItem]);
 
     const mediaTiles = useMemo(() => {
-        return images.map((image, index) => {
+        return sortedImages.map((image, index) => {
             // Since we now preserve cortexRequestId, we can use it directly
             const key = image?.cortexRequestId || `temp-${index}`;
 
@@ -852,7 +863,7 @@ function MediaPage() {
                     setSelectedImages={setSelectedImages}
                     lastSelectedImage={lastSelectedImage}
                     setLastSelectedImage={setLastSelectedImage}
-                    images={images}
+                    images={sortedImages}
                     setShowDeleteSelectedConfirm={setShowDeleteSelectedConfirm}
                     onClick={() => {
                         if (image?.url) {
@@ -914,7 +925,7 @@ function MediaPage() {
             );
         });
     }, [
-        images,
+        sortedImages,
         generationPrompt,
         generateMedia,
         quality,
@@ -1102,7 +1113,7 @@ function MediaPage() {
                 </div>
             </div>
 
-            {images.length > 0 && (
+            {sortedImages.length > 0 && (
                 <div className="flex justify-end items-center gap-2 mb-4">
                     <div className="text-sm text-gray-500 mr-2">
                         {selectedImages.size > 0 && (
@@ -1298,7 +1309,7 @@ function SettingsDialog({ show, settings, setSettings, onHide }) {
         if (show) {
             setLocalSettings(settings);
         }
-    }, [show, settings]); // Include settings dependency
+    }, [show, settings]); // Include settings dependency - necessary to avoid infinite re-renders
 
     const handleSave = () => {
         setSettings(localSettings);
