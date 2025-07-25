@@ -1,6 +1,5 @@
 "use client";
 
-import { useApolloClient } from "@apollo/client";
 import {
     useCallback,
     useContext,
@@ -12,9 +11,9 @@ import {
 import { useTranslation } from "react-i18next";
 import { Download, Trash2, Check, Plus, Settings, Loader2 } from "lucide-react";
 import { LanguageContext } from "../../contexts/LanguageProvider";
+import { AuthContext } from "../../App";
 import { Modal } from "../../../@/components/ui/modal";
-import { QUERIES } from "../../graphql";
-import LoadingButton from "../editor/LoadingButton";
+
 import ProgressUpdate from "../editor/ProgressUpdate";
 import {
     Tooltip,
@@ -35,169 +34,13 @@ import {
     AlertDialogAction,
     AlertDialogCancel,
 } from "../../../@/components/ui/alert-dialog";
+import { useRunTask } from "../../../app/queries/notifications";
+import {
+    useMediaItems,
+    useCreateMediaItem,
+    useDeleteMediaItem,
+} from "../../../app/queries/media-items";
 import "./Media.scss";
-
-// Function to format image input for Veo models
-const formatImageForVeo = (imageUrl) => {
-    if (!imageUrl) return "";
-
-    // Check if it's already in gs:// format
-    if (imageUrl.startsWith("gs://")) {
-        // Determine mime type from file extension
-        const extension = imageUrl.split(".").pop().toLowerCase();
-        const mimeType =
-            {
-                jpg: "image/jpeg",
-                jpeg: "image/jpeg",
-                png: "image/png",
-                webp: "image/webp",
-                gif: "image/gif",
-            }[extension] || "image/jpeg";
-
-        return JSON.stringify({ gcsUri: imageUrl, mimeType });
-    }
-
-    try {
-        // Extract the GCS URI from the URL
-        // Assuming the URL is in format: https://storage.googleapis.com/bucket-name/path/to/image.jpg
-        const url = new URL(imageUrl);
-        if (url.hostname === "storage.googleapis.com") {
-            // Convert to gs:// format
-            const gcsUri = `gs://${url.pathname.substring(1)}`;
-            // Determine mime type from file extension
-            const extension = url.pathname.split(".").pop().toLowerCase();
-            const mimeType =
-                {
-                    jpg: "image/jpeg",
-                    jpeg: "image/jpeg",
-                    png: "image/png",
-                    webp: "image/webp",
-                    gif: "image/gif",
-                }[extension] || "image/jpeg";
-
-            return JSON.stringify({ gcsUri, mimeType });
-        }
-    } catch (error) {
-        console.warn("Error parsing image URL for Veo format:", error);
-    }
-
-    // If it's not a GCS URL or parsing fails, return the original URL as a fallback
-    return imageUrl;
-};
-
-// Function to clean media data for localStorage storage
-const cleanMediaDataForStorage = (mediaData) => {
-    if (!mediaData) return mediaData;
-
-    // Create a clean copy without large base64 data
-    const cleanData = { ...mediaData };
-
-    // Remove base64 data URLs from the main url field if they exist
-    if (cleanData.url && cleanData.url.startsWith("data:")) {
-        delete cleanData.url;
-    }
-
-    // Remove any base64 data from result if it exists
-    if (cleanData.result?.response?.videos) {
-        cleanData.result.response.videos = cleanData.result.response.videos.map(
-            (video) => {
-                const cleanVideo = { ...video };
-                // Remove base64 data but keep other properties
-                delete cleanVideo.bytesBase64Encoded;
-                return cleanVideo;
-            },
-        );
-    }
-
-    return cleanData;
-};
-
-// Function to upload media URL to cloud storage
-const uploadMediaToCloud = async (mediaUrl) => {
-    try {
-        const serverUrl = "/media-helper?useGoogle=true";
-
-        // Handle base64 data URLs differently
-        if (mediaUrl.startsWith("data:")) {
-            // For base64 data URLs, we need to convert to blob and upload
-            const response = await fetch(mediaUrl);
-            const blob = await response.blob();
-
-            // Create FormData with the blob
-            const formData = new FormData();
-            formData.append("file", blob, "video.mp4");
-
-            const uploadResponse = await fetch(serverUrl, {
-                method: "POST",
-                body: formData,
-            });
-
-            if (!uploadResponse.ok) {
-                const errorBody = await uploadResponse.text();
-                throw new Error(
-                    `Upload failed: ${uploadResponse.statusText}. Response body: ${errorBody}`,
-                );
-            }
-
-            const data = await uploadResponse.json();
-
-            // Validate that we have both Azure and GCS URLs
-            const hasAzureUrl =
-                data.url && data.url.includes("blob.core.windows.net");
-            const hasGcsUrl = data.gcs;
-
-            if (!hasAzureUrl || !hasGcsUrl) {
-                throw new Error(
-                    "Media file upload failed: Missing required storage URLs",
-                );
-            }
-
-            return {
-                azureUrl: data.url,
-                gcsUrl: data.gcs,
-            };
-        } else {
-            // Handle regular URLs
-            const response = await fetch(
-                `${serverUrl}&fetch=${encodeURIComponent(mediaUrl)}`,
-                {
-                    method: "GET",
-                    headers: {
-                        "Content-Type": "application/json",
-                    },
-                },
-            );
-
-            if (!response.ok) {
-                const errorBody = await response.text();
-                throw new Error(
-                    `Upload failed: ${response.statusText}. Response body: ${errorBody}`,
-                );
-            }
-
-            const data = await response.json();
-
-            // Validate that we have both Azure and GCS URLs
-            const hasAzureUrl =
-                data.url && data.url.includes("blob.core.windows.net");
-            const hasGcsUrl = data.gcs;
-
-            if (!hasAzureUrl || !hasGcsUrl) {
-                throw new Error(
-                    "Media file upload failed: Missing required storage URLs",
-                );
-            }
-
-            return {
-                azureUrl: data.url,
-                gcsUrl: data.gcs,
-            };
-        }
-    } catch (error) {
-        console.error("Error uploading media to cloud:", error);
-        throw error;
-    }
-};
 
 // Function to get settings for a specific model
 const getModelSettings = (settings, modelName) => {
@@ -334,12 +177,14 @@ const migrateSettings = (oldSettings) => {
 
 function MediaPage() {
     const { direction } = useContext(LanguageContext);
+    const { userState, debouncedUpdateUserState } = useContext(AuthContext);
     const [prompt, setPrompt] = useState("");
     const [generationPrompt, setGenerationPrompt] = useState("");
     const [quality, setQuality] = useState("draft");
     const [outputType, setOutputType] = useState("image"); // "image" or "video"
     const [selectedModel, setSelectedModel] = useState("replicate-flux-11-pro"); // Current selected model - Flux Pro as default
     const [showSettings, setShowSettings] = useState(false);
+    const runTask = useRunTask();
     const [settings, setSettings] = useState({
         models: {
             // Image models
@@ -404,7 +249,32 @@ function MediaPage() {
             defaultCameraFixed: false,
         },
     });
-    const [images, setImages] = useState([]);
+
+    // New media items API with pagination
+    const [currentPage, setCurrentPage] = useState(1);
+    const [pageSize] = useState(50);
+
+    const {
+        data: mediaItemsData = { mediaItems: [], pagination: {} },
+        isLoading: mediaItemsLoading,
+    } = useMediaItems(currentPage, pageSize);
+
+    // Use mediaItems from API instead of local state
+    const images = useMemo(
+        () => mediaItemsData.mediaItems || [],
+        [mediaItemsData.mediaItems],
+    );
+
+    // Memoize sorted images by creation date (newest first) - only if we have data
+    const sortedImages = useMemo(() => {
+        if (images && images.length > 0) {
+            return [...images].sort((a, b) => b.created - a.created);
+        }
+        return [];
+    }, [images]);
+
+    const pagination = mediaItemsData.pagination || {};
+
     const [showModal, setShowModal] = useState(false);
     const [selectedImage, setSelectedImage] = useState(null);
     const { t } = useTranslation();
@@ -417,29 +287,84 @@ function MediaPage() {
     const [showDeleteSelectedConfirm, setShowDeleteSelectedConfirm] =
         useState(false);
     const promptRef = useRef(null);
+    const createMediaItem = useCreateMediaItem();
+    const deleteMediaItem = useDeleteMediaItem();
 
-    // Load settings from localStorage
+    // Migration function to move data from localStorage to user state (run once)
+    const migrateFromLocalStorage = useCallback(() => {
+        const localSettings = localStorage.getItem("media-generation-settings");
+
+        if (localSettings) {
+            try {
+                const parsedSettings = JSON.parse(localSettings);
+                const settings = migrateSettings(parsedSettings);
+                debouncedUpdateUserState({
+                    media: { settings },
+                });
+
+                // Clear localStorage after successful migration
+                localStorage.removeItem("media-generation-settings");
+                localStorage.removeItem("generated-media");
+            } catch (error) {
+                console.warn("Failed to parse localStorage settings:", error);
+            }
+        }
+    }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+    // No longer needed - images are managed by the API now
+
+    // Load settings from user state
     useEffect(() => {
-        const savedSettings = localStorage.getItem("media-generation-settings");
-        if (savedSettings) {
-            const parsedSettings = JSON.parse(savedSettings);
-            const migratedSettings = migrateSettings(parsedSettings);
+        if (userState?.media?.settings) {
+            const migratedSettings = migrateSettings(userState.media.settings);
             setSettings(migratedSettings);
         }
-    }, []);
+    }, [userState?.media?.settings]);
 
-    // Save settings to localStorage whenever they change
+    // Save settings to user state
     useEffect(() => {
-        localStorage.setItem(
-            "media-generation-settings",
-            JSON.stringify(settings),
-        );
-    }, [settings]);
+        // Only save if settings have actually changed and are different from user state
+        if (
+            userState?.media?.settings &&
+            JSON.stringify(userState.media.settings) ===
+                JSON.stringify(settings)
+        ) {
+            return; // Skip if settings are the same
+        }
+
+        // Only update if we actually have settings to save
+        if (settings && Object.keys(settings).length > 0) {
+            debouncedUpdateUserState({
+                media: {
+                    ...userState?.media,
+                    settings: settings,
+                },
+            });
+        }
+    }, [settings, userState?.media]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    // No longer need to load images from user state - they come from the API now
+
+    // Migrate from localStorage on first load (run only once)
+    const hasMigrated = useRef(false); // Flag to track migration
+    useEffect(() => {
+        if (!hasMigrated.current) {
+            migrateFromLocalStorage();
+            hasMigrated.current = true; // Set flag to prevent re-running
+        }
+    }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+    // No longer needed - images come from API
 
     // Get available models based on current input conditions (for validation only)
     const getAvailableModels = useCallback(() => {
+        // If no images, return all models (no restrictions)
+        if (!sortedImages || sortedImages.length === 0) {
+            return Object.keys(settings.models || {});
+        }
+
         // Filter out videos from selected images - only count images as input
-        const selectedImageObjects = images.filter(
+        const selectedImageObjects = sortedImages.filter(
             (img) =>
                 selectedImages.has(img.cortexRequestId) && img.type === "image",
         );
@@ -484,7 +409,7 @@ function MediaPage() {
         });
 
         return availableModels;
-    }, [selectedImages, images, settings]);
+    }, [selectedImages, sortedImages, settings]);
 
     // Apply intelligent model selection based on input conditions
     useEffect(() => {
@@ -509,140 +434,76 @@ function MediaPage() {
                 }
             }
         }
-    }, [selectedImages, images, settings, selectedModel, getAvailableModels]);
-
-    useEffect(() => {
-        const mediaInStorage = localStorage.getItem("generated-media");
-        if (mediaInStorage) {
-            setImages(JSON.parse(mediaInStorage));
-        }
-    }, []);
-
-    const apolloClient = useApolloClient();
+    }, [
+        selectedImages,
+        sortedImages,
+        settings,
+        selectedModel,
+        getAvailableModels,
+    ]);
 
     const generateMedia = useCallback(
         async (prompt, inputImageUrl = null, modelOverride = null) => {
-            let variables = {};
-            let query = null;
-
             // Determine which model to use
             const modelToUse = modelOverride || selectedModel;
 
-            if (outputType === "image") {
-                // Use the model override if provided, otherwise use the selected model, or kontext-max for modifications
-                const modelName =
-                    modelOverride ||
-                    (inputImageUrl
-                        ? "replicate-flux-kontext-max"
-                        : selectedModel);
-                const modelSettings = getModelSettings(settings, modelName);
-
-                variables = {
-                    text: prompt,
-                    async: true,
-                    model: modelName,
-                    input_image: inputImageUrl || "",
-                    aspectRatio: inputImageUrl
-                        ? "match_input_image"
-                        : modelSettings.aspectRatio,
-                };
-                query = QUERIES.IMAGE_FLUX;
-            } else {
-                // Video generation
-                const modelSettings = getModelSettings(settings, modelToUse);
-
-                if (modelToUse === "replicate-seedance-1-pro") {
-                    variables = {
-                        text: prompt,
-                        async: true,
-                        model: modelToUse,
-                        resolution: modelSettings.resolution,
-                        aspectRatio: modelSettings.aspectRatio,
-                        duration: modelSettings.duration,
-                        camera_fixed: modelSettings.cameraFixed,
-                        image: inputImageUrl || "",
-                        seed: -1,
-                    };
-                    query = QUERIES.VIDEO_SEEDANCE;
-                } else {
-                    // Veo models
-                    variables = {
-                        text: prompt,
-                        async: true,
-                        image: formatImageForVeo(inputImageUrl),
-                        video: "",
-                        lastFrame: "",
-                        model: modelToUse,
-                        aspectRatio: modelSettings.aspectRatio,
-                        durationSeconds: modelSettings.duration,
-                        enhancePrompt: true,
-                        generateAudio: modelSettings.generateAudio,
-                        negativePrompt: "",
-                        personGeneration: "allow_all",
-                        sampleCount: 1,
-                        storageUri: "",
-                        location: "us-central1",
-                        seed: -1,
-                    };
-                    query = QUERIES.VIDEO_VEO;
-                }
+            // Determine the model name based on input conditions
+            let modelName = modelToUse;
+            if (outputType === "image" && inputImageUrl) {
+                modelName = modelOverride || "replicate-flux-kontext-max";
             }
 
             setLoading(true);
             try {
-                const { data } = await apolloClient.query({
-                    query: query,
-                    variables,
-                    fetchPolicy: "network-only",
-                });
-                setLoading(false);
+                const taskData = {
+                    type: "media-generation",
+                    prompt,
+                    outputType,
+                    model: modelName,
+                    inputImageUrl: inputImageUrl || "",
+                    inputImageUrl2: "", // For multi-image generation
+                    settings,
+                    source: "media_page",
+                };
 
-                const resultKey =
-                    outputType === "image"
-                        ? "image_flux"
-                        : modelToUse === "replicate-seedance-1-pro"
-                          ? "video_seedance"
-                          : "video_veo";
+                const result = await runTask.mutateAsync(taskData);
 
-                if (data?.[resultKey]?.result) {
-                    const requestId = data[resultKey].result;
+                if (result.taskId) {
+                    // Create placeholder in the database
+                    const mediaItemData = {
+                        taskId: result.taskId,
+                        cortexRequestId: result.taskId,
+                        prompt: prompt,
+                        type: outputType,
+                        model: modelName,
+                        status: "pending",
+                        settings: settings,
+                    };
 
-                    setImages((prevImages) => {
-                        const filteredImages = prevImages.filter(
-                            (img) => img.cortexRequestId !== requestId,
-                        );
-                        const newImage = {
-                            cortexRequestId: requestId,
-                            prompt: prompt,
-                            created: Math.floor(Date.now() / 1000),
-                            inputImageUrl: inputImageUrl,
-                            type: outputType,
-                            model: modelToUse,
-                        };
-                        const updatedImages = [newImage, ...filteredImages];
-                        localStorage.setItem(
-                            "generated-media",
-                            JSON.stringify(updatedImages),
-                        );
-                        setTimeout(() => {
-                            promptRef.current && promptRef.current.focus();
-                        }, 0);
-                        return updatedImages;
-                    });
+                    // Only add inputImageUrl if it exists
+                    if (inputImageUrl) {
+                        mediaItemData.inputImageUrl = inputImageUrl;
+                    }
 
-                    return data;
+                    await createMediaItem.mutateAsync(mediaItemData);
+
+                    setTimeout(() => {
+                        promptRef.current && promptRef.current.focus();
+                    }, 0);
                 }
             } catch (error) {
                 setLoading(false);
                 console.error(`Error generating ${outputType}:`, error);
+            } finally {
+                setLoading(false);
             }
         },
-        [apolloClient, outputType, selectedModel, settings],
+        [outputType, selectedModel, settings, runTask, createMediaItem],
     );
 
     useEffect(() => {
         // Only consider images for modify mode, not videos
-        const selectedImageObjects = images.filter(
+        const selectedImageObjects = sortedImages.filter(
             (img) =>
                 selectedImages.has(img.cortexRequestId) && img.type === "image",
         );
@@ -650,14 +511,12 @@ function MediaPage() {
             selectedImageObjects.length === 1 ||
                 selectedImageObjects.length === 2,
         );
-    }, [selectedImages, images]);
+    }, [selectedImages, sortedImages]);
 
     const handleModifySelected = useCallback(async () => {
         if (!prompt.trim() || selectedImages.size === 0) return;
 
-        const newSelectedIds = [];
-
-        const selectedImageObjects = images.filter(
+        const selectedImageObjects = sortedImages.filter(
             (img) =>
                 selectedImages.has(img.cortexRequestId) &&
                 img.url &&
@@ -665,106 +524,58 @@ function MediaPage() {
         );
 
         for (const image of selectedImageObjects) {
-            let variables = {};
-            let query = null;
-
-            if (outputType === "image") {
-                const modelName = "replicate-flux-kontext-max";
-                variables = {
-                    text: prompt,
-                    async: true,
-                    model: modelName,
-                    input_image: image.azureUrl || image.gcsUrl || image.url,
-                    aspectRatio: "match_input_image",
-                };
-                query = QUERIES.IMAGE_FLUX;
-            } else {
-                // Video generation from image
-                const modelSettings = getModelSettings(settings, selectedModel);
-
-                if (selectedModel === "replicate-seedance-1-pro") {
-                    variables = {
-                        text: prompt,
-                        async: true,
-                        model: selectedModel,
-                        resolution: modelSettings.resolution,
-                        aspectRatio: modelSettings.aspectRatio,
-                        duration: modelSettings.duration,
-                        camera_fixed: modelSettings.cameraFixed,
-                        image: image.azureUrl || image.url,
-                        seed: -1,
-                    };
-                    query = QUERIES.VIDEO_SEEDANCE;
-                } else {
-                    // Veo models
-                    variables = {
-                        text: prompt,
-                        async: true,
-                        image: formatImageForVeo(
-                            image.gcsUrl || image.azureUrl || image.url,
-                        ),
-                        video: "",
-                        lastFrame: "",
-                        model: selectedModel,
-                        aspectRatio: modelSettings.aspectRatio,
-                        durationSeconds: modelSettings.duration,
-                        enhancePrompt: true,
-                        generateAudio: modelSettings.generateAudio,
-                        negativePrompt: "",
-                        personGeneration: "allow_all",
-                        sampleCount: 1,
-                        storageUri: "",
-                        location: "us-central1",
-                        seed: -1,
-                    };
-                    query = QUERIES.VIDEO_VEO;
-                }
-            }
-
             setLoading(true);
             try {
-                const { data } = await apolloClient.query({
-                    query: query,
-                    variables,
-                    fetchPolicy: "network-only",
-                });
-                setLoading(false);
+                const combinedPrompt = image.prompt
+                    ? `${image.prompt} - ${prompt}`
+                    : prompt;
 
-                const resultKey =
-                    outputType === "image"
-                        ? "image_flux"
-                        : selectedModel === "replicate-seedance-1-pro"
-                          ? "video_seedance"
-                          : "video_veo";
+                // For Veo models, use GCS URL; for others, use Azure URL
+                const isVeoModel = selectedModel.includes("veo");
+                const inputImageUrl = isVeoModel
+                    ? image.gcsUrl || image.azureUrl || image.url
+                    : image.azureUrl || image.gcsUrl || image.url;
 
-                if (data?.[resultKey]?.result) {
-                    const requestId = data[resultKey].result;
-                    newSelectedIds.push(requestId);
+                const taskData = {
+                    type: "media-generation",
+                    prompt: combinedPrompt,
+                    outputType,
+                    model:
+                        outputType === "image"
+                            ? "replicate-flux-kontext-max"
+                            : selectedModel,
+                    inputImageUrl: inputImageUrl,
+                    inputImageUrl2: "",
+                    settings,
+                    source: "media_page",
+                };
 
-                    setImages((prevImages) => {
-                        // Do NOT replace the old image; instead, add a new tile on top
-                        const combinedPrompt = image.prompt
-                            ? `${image.prompt} - ${prompt}`
-                            : prompt;
-                        const newImage = {
-                            cortexRequestId: requestId,
-                            prompt: combinedPrompt,
-                            created: Math.floor(Date.now() / 1000),
-                            inputImageUrl: image.url,
-                            type: outputType,
-                            model: selectedModel,
-                        };
-                        const updatedImages = [newImage, ...prevImages];
-                        localStorage.setItem(
-                            "generated-media",
-                            JSON.stringify(updatedImages),
-                        );
-                        return updatedImages;
-                    });
+                const result = await runTask.mutateAsync(taskData);
+
+                if (result.taskId) {
+                    // Create placeholder in the database
+                    const mediaItemData = {
+                        taskId: result.taskId,
+                        cortexRequestId: result.taskId,
+                        prompt: combinedPrompt,
+                        type: outputType,
+                        model: selectedModel,
+                        status: "pending",
+                        settings: settings,
+                    };
+
+                    // Only add inputImageUrl if it exists
+                    if (image.url) {
+                        mediaItemData.inputImageUrl = image.url;
+                    }
+
+                    await createMediaItem.mutateAsync(mediaItemData);
                 }
             } catch (error) {
                 setLoading(false);
                 console.error(`Error modifying ${outputType}:`, error);
+            } finally {
+                setLoading(false);
             }
         }
 
@@ -775,17 +586,18 @@ function MediaPage() {
     }, [
         prompt,
         selectedImages,
-        images,
-        apolloClient,
+        sortedImages,
         outputType,
         selectedModel,
         settings,
+        runTask,
+        createMediaItem,
     ]);
 
     const handleCombineSelected = useCallback(async () => {
         if (!prompt.trim() || selectedImages.size !== 2) return;
 
-        const selectedImageObjects = images.filter(
+        const selectedImageObjects = sortedImages.filter(
             (img) =>
                 selectedImages.has(img.cortexRequestId) &&
                 img.url &&
@@ -795,108 +607,66 @@ function MediaPage() {
         if (selectedImageObjects.length !== 2) return;
 
         const [image1, image2] = selectedImageObjects;
-        let variables = {};
-        let query = null;
-
-        if (outputType === "image") {
-            const modelName = "replicate-multi-image-kontext-max";
-            const modelSettings = getModelSettings(settings, modelName);
-
-            variables = {
-                text: prompt,
-                async: true,
-                model: modelName,
-                input_image: image1.azureUrl || image1.url,
-                input_image_2: image2.azureUrl || image2.url,
-                aspectRatio: modelSettings.aspectRatio,
-            };
-            query = QUERIES.IMAGE_FLUX;
-        } else {
-            // For video generation, we'll use the first image as input
-            // Video models don't support combining two images directly
-            const modelSettings = getModelSettings(settings, selectedModel);
-
-            if (selectedModel === "replicate-seedance-1-pro") {
-                variables = {
-                    text: prompt,
-                    async: true,
-                    model: selectedModel,
-                    resolution: modelSettings.resolution,
-                    aspectRatio: modelSettings.aspectRatio,
-                    duration: modelSettings.duration,
-                    camera_fixed: modelSettings.cameraFixed,
-                    image: image1.azureUrl || image1.url,
-                    seed: -1,
-                };
-                query = QUERIES.VIDEO_SEEDANCE;
-            } else {
-                // Veo models
-                variables = {
-                    text: prompt,
-                    async: true,
-                    image: formatImageForVeo(
-                        image1.gcsUrl || image1.azureUrl || image1.url,
-                    ),
-                    video: "",
-                    lastFrame: "",
-                    model: selectedModel,
-                    aspectRatio: modelSettings.aspectRatio,
-                    durationSeconds: modelSettings.duration,
-                    enhancePrompt: true,
-                    generateAudio: modelSettings.generateAudio,
-                    negativePrompt: "",
-                    personGeneration: "allow_all",
-                    sampleCount: 1,
-                    storageUri: "",
-                    location: "us-central1",
-                    seed: -1,
-                };
-                query = QUERIES.VIDEO_VEO;
-            }
-        }
 
         setLoading(true);
         try {
-            const { data } = await apolloClient.query({
-                query: query,
-                variables,
-                fetchPolicy: "network-only",
-            });
-            setLoading(false);
-
-            const resultKey =
+            const combinedPrompt =
                 outputType === "image"
-                    ? "image_flux"
-                    : selectedModel === "replicate-seedance-1-pro"
-                      ? "video_seedance"
-                      : "video_veo";
+                    ? `${image1.prompt} + ${image2.prompt} - ${prompt}`
+                    : `${image1.prompt} - ${prompt}`;
 
-            if (data?.[resultKey]?.result) {
-                const requestId = data[resultKey].result;
+            // For Veo models, use GCS URL; for others, use Azure URL
+            const isVeoModel = selectedModel.includes("veo");
+            const inputImageUrl1 = isVeoModel
+                ? image1.gcsUrl || image1.azureUrl || image1.url
+                : image1.azureUrl || image1.gcsUrl || image1.url;
+            const inputImageUrl2 = isVeoModel
+                ? image2.gcsUrl || image2.azureUrl || image2.url
+                : image2.azureUrl || image2.gcsUrl || image2.url;
 
-                setImages((prevImages) => {
-                    const combinedPrompt =
-                        outputType === "image"
-                            ? `${image1.prompt} + ${image2.prompt} - ${prompt}`
-                            : `${image1.prompt} - ${prompt}`;
-                    const newImage = {
-                        cortexRequestId: requestId,
-                        prompt: combinedPrompt,
-                        created: Math.floor(Date.now() / 1000),
-                        inputImageUrl: image1.url,
-                        type: outputType,
-                        model: selectedModel,
-                    };
-                    const updatedImages = [newImage, ...prevImages];
-                    localStorage.setItem(
-                        "generated-media",
-                        JSON.stringify(updatedImages),
-                    );
-                    setTimeout(() => {
-                        promptRef.current && promptRef.current.focus();
-                    }, 0);
-                    return updatedImages;
-                });
+            const taskData = {
+                type: "media-generation",
+                prompt: combinedPrompt,
+                outputType,
+                model:
+                    outputType === "image"
+                        ? "replicate-multi-image-kontext-max"
+                        : selectedModel,
+                inputImageUrl: inputImageUrl1,
+                inputImageUrl2: outputType === "image" ? inputImageUrl2 : "",
+                settings,
+                source: "media_page",
+            };
+
+            const result = await runTask.mutateAsync(taskData);
+
+            if (result.taskId) {
+                // Create placeholder in the database
+                const mediaItemData = {
+                    taskId: result.taskId,
+                    cortexRequestId: result.taskId,
+                    prompt: combinedPrompt,
+                    type: outputType,
+                    model: selectedModel,
+                    status: "pending",
+                    settings: settings,
+                };
+
+                // Only add inputImageUrl if it exists
+                if (image1.url) {
+                    mediaItemData.inputImageUrl = image1.url;
+                }
+
+                // Only add inputImageUrl2 if it exists
+                if (image2.url) {
+                    mediaItemData.inputImageUrl2 = image2.url;
+                }
+
+                await createMediaItem.mutateAsync(mediaItemData);
+
+                setTimeout(() => {
+                    promptRef.current && promptRef.current.focus();
+                }, 0);
             }
         } catch (error) {
             setLoading(false);
@@ -904,15 +674,18 @@ function MediaPage() {
                 `Error combining ${outputType === "image" ? "images" : "videos"}:`,
                 error,
             );
+        } finally {
+            setLoading(false);
         }
     }, [
         prompt,
         selectedImages,
-        images,
-        apolloClient,
+        sortedImages,
         outputType,
         selectedModel,
         settings,
+        runTask,
+        createMediaItem,
     ]);
 
     const handleFileUpload = useCallback(
@@ -935,28 +708,31 @@ function MediaPage() {
                         checkResponse.status === 200 &&
                         checkResponse.data?.url
                     ) {
-                        // File exists, use the existing URL
-                        const newImage = {
+                        // Create media item in database
+                        const mediaItemData = {
+                            taskId: `upload-${Date.now()}`,
                             cortexRequestId: `upload-${Date.now()}`,
                             prompt: t("Uploaded image"),
-                            created: Math.floor(Date.now() / 1000),
-                            url: checkResponse.data.url,
-                            azureUrl: checkResponse.data.url,
-                            gcsUrl: checkResponse.data.gcs,
                             type: "image",
+                            model: "upload",
+                            status: "completed",
+                            settings: settings,
                         };
 
-                        setImages((prevImages) => {
-                            const updatedImages = [newImage, ...prevImages];
-                            localStorage.setItem(
-                                "generated-media",
-                                JSON.stringify(updatedImages),
-                            );
-                            setTimeout(() => {
-                                promptRef.current && promptRef.current.focus();
-                            }, 0);
-                            return updatedImages;
-                        });
+                        // Only add URLs if they exist
+                        if (checkResponse.data.url) {
+                            mediaItemData.url = checkResponse.data.url;
+                            mediaItemData.azureUrl = checkResponse.data.url;
+                        }
+                        if (checkResponse.data.gcs) {
+                            mediaItemData.gcsUrl = checkResponse.data.gcs;
+                        }
+
+                        await createMediaItem.mutateAsync(mediaItemData);
+
+                        setTimeout(() => {
+                            promptRef.current && promptRef.current.focus();
+                        }, 0);
                         setIsUploading(false);
                         return;
                     }
@@ -985,29 +761,33 @@ function MediaPage() {
                 );
 
                 if (response.data?.url) {
-                    // Create a new media entry with the uploaded file
-                    const newImage = {
+                    // Create media item in database
+                    const mediaItemData = {
+                        taskId: `upload-${Date.now()}`,
                         cortexRequestId: `upload-${Date.now()}`,
                         prompt: t("Uploaded image"),
-                        created: Math.floor(Date.now() / 1000),
-                        url: response.data.url,
-                        azureUrl: response.data.url,
-                        gcsUrl: response.data.gcs,
                         type: "image",
+                        model: "upload",
+                        status: "completed",
+                        settings: settings,
                     };
 
-                    setImages((prevImages) => {
-                        const updatedImages = [newImage, ...prevImages];
-                        localStorage.setItem(
-                            "generated-media",
-                            JSON.stringify(updatedImages),
-                        );
-                        setSelectedImages(new Set([newImage.cortexRequestId]));
-                        setTimeout(() => {
-                            promptRef.current && promptRef.current.focus();
-                        }, 0);
-                        return updatedImages;
-                    });
+                    // Only add URLs if they exist
+                    if (response.data.url) {
+                        mediaItemData.url = response.data.url;
+                        mediaItemData.azureUrl = response.data.url;
+                    }
+                    if (response.data.gcs) {
+                        mediaItemData.gcsUrl = response.data.gcs;
+                    }
+
+                    const mediaItem =
+                        await createMediaItem.mutateAsync(mediaItemData);
+
+                    setSelectedImages(new Set([mediaItem.cortexRequestId]));
+                    setTimeout(() => {
+                        promptRef.current && promptRef.current.focus();
+                    }, 0);
                 }
             } catch (error) {
                 console.error("Error uploading file:", error);
@@ -1015,7 +795,7 @@ function MediaPage() {
                 setIsUploading(false);
             }
         },
-        [t],
+        [t, createMediaItem, settings],
     );
 
     const handleFileSelect = useCallback(
@@ -1028,16 +808,12 @@ function MediaPage() {
         [handleFileUpload],
     );
 
-    images.sort((a, b) => {
-        return b.created - a.created;
-    });
-
     const handleBulkAction = useCallback(
         (action) => {
             if (action === "delete") {
                 setShowDeleteSelectedConfirm(true);
             } else if (action === "download") {
-                images.forEach((img) => {
+                sortedImages.forEach((img) => {
                     if (
                         selectedImages.has(img.cortexRequestId) &&
                         (img.azureUrl || img.url)
@@ -1048,45 +824,35 @@ function MediaPage() {
                 setSelectedImages(new Set());
             }
         },
-        [images, selectedImages],
+        [sortedImages, selectedImages],
     );
 
-    const handleDeleteSelected = useCallback(() => {
-        const newImages = images.filter(
-            (img) => !selectedImages.has(img.cortexRequestId),
-        );
-        setImages(newImages);
-
-        // Clean data before storing in localStorage
-        try {
-            const cleanImages = newImages.map(cleanMediaDataForStorage);
-            localStorage.setItem(
-                "generated-media",
-                JSON.stringify(cleanImages),
-            );
-        } catch (error) {
-            console.warn("Failed to save to localStorage:", error);
+    const handleDeleteSelected = useCallback(async () => {
+        // Delete selected media items from database
+        for (const image of sortedImages) {
+            if (selectedImages.has(image.cortexRequestId)) {
+                await deleteMediaItem.mutateAsync(image.taskId);
+            }
         }
 
         setSelectedImages(new Set());
         setShowDeleteSelectedConfirm(false);
-    }, [images, selectedImages]);
+    }, [sortedImages, selectedImages, deleteMediaItem]);
 
-    const handleDeleteAll = useCallback(() => {
-        setImages([]);
-        // Clean data before storing in localStorage (empty array)
-        try {
-            localStorage.setItem("generated-media", JSON.stringify([]));
-        } catch (error) {
-            console.warn("Failed to save to localStorage:", error);
+    const handleDeleteAll = useCallback(async () => {
+        // Delete all media items for the current user
+        for (const image of sortedImages) {
+            await deleteMediaItem.mutateAsync(image.taskId);
         }
+
         setSelectedImages(new Set());
         setShowDeleteAllConfirm(false);
-    }, []);
+    }, [sortedImages, deleteMediaItem]);
 
     const mediaTiles = useMemo(() => {
-        return images.map((image) => {
-            const key = image?.cortexRequestId;
+        return sortedImages.map((image, index) => {
+            // Since we now preserve cortexRequestId, we can use it directly
+            const key = image?.cortexRequestId || `temp-${index}`;
 
             return (
                 <ImageTile
@@ -1097,7 +863,7 @@ function MediaPage() {
                     setSelectedImages={setSelectedImages}
                     lastSelectedImage={lastSelectedImage}
                     setLastSelectedImage={setLastSelectedImage}
-                    images={images}
+                    images={sortedImages}
                     setShowDeleteSelectedConfirm={setShowDeleteSelectedConfirm}
                     onClick={() => {
                         if (image?.url) {
@@ -1106,32 +872,8 @@ function MediaPage() {
                         }
                     }}
                     onRegenerate={async () => {
-                        // Remove the old tile first (regenerate replaces it)
-                        setImages((prevImages) => {
-                            const newImages = prevImages.filter(
-                                (img) =>
-                                    img.cortexRequestId !==
-                                    image.cortexRequestId,
-                            );
-
-                            // Clean data before storing in localStorage
-                            try {
-                                const cleanImages = newImages.map(
-                                    cleanMediaDataForStorage,
-                                );
-                                localStorage.setItem(
-                                    "generated-media",
-                                    JSON.stringify(cleanImages),
-                                );
-                            } catch (error) {
-                                console.warn(
-                                    "Failed to save to localStorage:",
-                                    error,
-                                );
-                            }
-
-                            return newImages;
-                        });
+                        // Delete the old media item first (regenerate replaces it)
+                        await deleteMediaItem.mutateAsync(image.taskId);
 
                         // Use the original model and prompt for regeneration
                         const originalModel = image.model || selectedModel;
@@ -1156,264 +898,20 @@ function MediaPage() {
                         }
                     }}
                     onGenerationComplete={async (requestId, data) => {
-                        const newImages = [...images];
-
-                        const imageIndex = newImages.findIndex(
-                            (img) => img.cortexRequestId === requestId,
+                        // This function is no longer needed since background tasks handle completion
+                        // The user state will be updated automatically by the background task
+                        console.log(
+                            "Media generation completed:",
+                            requestId,
+                            data,
                         );
-
-                        if (imageIndex !== -1) {
-                            let mediaUrl = null;
-
-                            // Handle different response structures based on media type
-                            if (
-                                newImages[imageIndex]?.type === "video" &&
-                                newImages[imageIndex]?.model?.includes("veo")
-                            ) {
-                                // Veo video response structure
-                                console.log("Veo response data:", data);
-
-                                // Check for the direct Veo response structure
-                                if (
-                                    data?.result?.response?.videos &&
-                                    Array.isArray(
-                                        data.result.response.videos,
-                                    ) &&
-                                    data.result.response.videos.length > 0
-                                ) {
-                                    const video =
-                                        data.result.response.videos[0];
-                                    if (video.bytesBase64Encoded) {
-                                        mediaUrl = `data:video/mp4;base64,${video.bytesBase64Encoded}`;
-                                        console.log(
-                                            "Found Veo video with base64 data",
-                                        );
-                                    } else if (video.gcsUri) {
-                                        mediaUrl = video.gcsUri.replace(
-                                            "gs://",
-                                            "https://storage.googleapis.com/",
-                                        );
-                                        console.log(
-                                            "Found Veo video with GCS URI:",
-                                            mediaUrl,
-                                        );
-                                    }
-                                }
-                                // Fallback: check if data.result.output is a string that needs parsing
-                                else if (
-                                    data?.result?.output &&
-                                    typeof data.result.output === "string"
-                                ) {
-                                    try {
-                                        const parsed = JSON.parse(
-                                            data.result.output,
-                                        );
-                                        console.log(
-                                            "Parsed Veo response:",
-                                            parsed,
-                                        );
-
-                                        // Try different possible response structures
-                                        let videoUrl = null;
-
-                                        // Structure 1: parsed.response.videos[0].gcsUri
-                                        if (
-                                            parsed.response?.videos &&
-                                            Array.isArray(
-                                                parsed.response.videos,
-                                            ) &&
-                                            parsed.response.videos.length > 0
-                                        ) {
-                                            const video =
-                                                parsed.response.videos[0];
-                                            if (video.gcsUri) {
-                                                videoUrl = video.gcsUri.replace(
-                                                    "gs://",
-                                                    "https://storage.googleapis.com/",
-                                                );
-                                            } else if (
-                                                video.bytesBase64Encoded
-                                            ) {
-                                                videoUrl = `data:video/mp4;base64,${video.bytesBase64Encoded}`;
-                                            }
-                                        }
-
-                                        // Structure 2: parsed.videos[0].gcsUri (no response wrapper)
-                                        if (
-                                            !videoUrl &&
-                                            parsed.videos &&
-                                            Array.isArray(parsed.videos) &&
-                                            parsed.videos.length > 0
-                                        ) {
-                                            const video = parsed.videos[0];
-                                            if (video.gcsUri) {
-                                                videoUrl = video.gcsUri.replace(
-                                                    "gs://",
-                                                    "https://storage.googleapis.com/",
-                                                );
-                                            } else if (
-                                                video.bytesBase64Encoded
-                                            ) {
-                                                videoUrl = `data:video/mp4;base64,${video.bytesBase64Encoded}`;
-                                            }
-                                        }
-
-                                        // Structure 3: direct gcsUri in parsed
-                                        if (!videoUrl && parsed.gcsUri) {
-                                            videoUrl = parsed.gcsUri.replace(
-                                                "gs://",
-                                                "https://storage.googleapis.com/",
-                                            );
-                                        }
-
-                                        // Structure 4: direct URL in parsed
-                                        if (!videoUrl && parsed.url) {
-                                            videoUrl = parsed.url;
-                                        }
-
-                                        if (videoUrl) {
-                                            mediaUrl = videoUrl;
-                                            console.log(
-                                                "Found Veo video URL:",
-                                                videoUrl,
-                                            );
-                                        } else {
-                                            console.log(
-                                                "No video URL found in Veo response",
-                                            );
-                                        }
-                                    } catch (e) {
-                                        console.error(
-                                            "Error parsing Veo video response:",
-                                            e,
-                                        );
-                                    }
-                                } else {
-                                    console.log(
-                                        "No output string found in Veo response",
-                                    );
-                                }
-                            } else {
-                                // Standard image/video response structure
-                                mediaUrl = Array.isArray(data?.result?.output)
-                                    ? data?.result?.output?.[0]
-                                    : data?.result?.output;
-                            }
-
-                            // Set uploading state before starting upload
-                            newImages[imageIndex] = {
-                                ...newImages[imageIndex],
-                                ...data,
-                                regenerating: false,
-                                uploading: true, // Start upload
-                            };
-                            setImages([...newImages]); // Update immediately to show upload state
-
-                            // Upload to cloud storage if we have a valid URL
-                            let cloudUrls = null;
-                            if (mediaUrl && typeof mediaUrl === "string") {
-                                try {
-                                    cloudUrls =
-                                        await uploadMediaToCloud(mediaUrl);
-                                } catch (error) {
-                                    console.error(
-                                        "Failed to upload media to cloud:",
-                                        error,
-                                    );
-                                    // Continue without cloud URLs if upload fails
-                                }
-                            }
-
-                            newImages[imageIndex] = {
-                                ...newImages[imageIndex],
-                                ...data,
-                                url:
-                                    cloudUrls?.azureUrl ||
-                                    (mediaUrl && !mediaUrl.startsWith("data:")
-                                        ? mediaUrl
-                                        : undefined),
-                                azureUrl: cloudUrls?.azureUrl,
-                                gcsUrl: cloudUrls?.gcsUrl,
-                                regenerating: false,
-                                uploading: false, // Upload is complete
-                            };
-                        }
-                        setImages(newImages);
-
-                        // Clean data before storing in localStorage to avoid quota issues
-                        try {
-                            const cleanImages = newImages.map(
-                                cleanMediaDataForStorage,
-                            );
-                            localStorage.setItem(
-                                "generated-media",
-                                JSON.stringify(cleanImages),
-                            );
-                        } catch (error) {
-                            console.warn(
-                                "Failed to save to localStorage, data may be too large:",
-                                error,
-                            );
-                            // Try to save a minimal version with just essential data
-                            try {
-                                const minimalImages = newImages.map((img) => ({
-                                    cortexRequestId: img.cortexRequestId,
-                                    prompt: img.prompt,
-                                    created: img.created,
-                                    inputImageUrl: img.inputImageUrl,
-                                    type: img.type,
-                                    model: img.model,
-                                    azureUrl: img.azureUrl,
-                                    gcsUrl: img.gcsUrl,
-                                    url:
-                                        img.azureUrl ||
-                                        (img.url && !img.url.startsWith("data:")
-                                            ? img.url
-                                            : undefined),
-                                    regenerating: img.regenerating,
-                                    result: img.result?.error
-                                        ? img.result
-                                        : undefined,
-                                }));
-                                localStorage.setItem(
-                                    "generated-media",
-                                    JSON.stringify(minimalImages),
-                                );
-                            } catch (minimalError) {
-                                console.error(
-                                    "Failed to save even minimal data to localStorage:",
-                                    minimalError,
-                                );
-                            }
-                        }
                     }}
-                    onDelete={(image) => {
-                        const newImages = images.filter((img) => {
-                            return (
-                                img.cortexRequestId !== image.cortexRequestId
-                            );
-                        });
+                    onDelete={async (image) => {
+                        // Delete the media item from database
+                        await deleteMediaItem.mutateAsync(image.taskId);
 
                         if (generationPrompt === image.prompt) {
                             setGenerationPrompt("");
-                        }
-
-                        setImages(newImages);
-
-                        // Clean data before storing in localStorage
-                        try {
-                            const cleanImages = newImages.map(
-                                cleanMediaDataForStorage,
-                            );
-                            localStorage.setItem(
-                                "generated-media",
-                                JSON.stringify(cleanImages),
-                            );
-                        } catch (error) {
-                            console.warn(
-                                "Failed to save to localStorage:",
-                                error,
-                            );
                         }
 
                         // Clear selection if the deleted image was selected
@@ -1427,7 +925,7 @@ function MediaPage() {
             );
         });
     }, [
-        images,
+        sortedImages,
         generationPrompt,
         generateMedia,
         quality,
@@ -1436,6 +934,7 @@ function MediaPage() {
         setLastSelectedImage,
         setShowDeleteSelectedConfirm,
         selectedModel,
+        deleteMediaItem,
     ]);
 
     return (
@@ -1593,25 +1092,28 @@ function MediaPage() {
                                 })}
                             </select>
 
-                            <LoadingButton
-                                className="lb-primary"
-                                style={{ whiteSpace: "nowrap" }}
-                                loading={loading}
-                                text={t("Generating...")}
+                            <button
+                                className="lb-primary whitespace-nowrap flex items-center justify-center relative"
                                 type="submit"
-                                disabled={
-                                    !prompt.trim() ||
-                                    (isModifyMode && selectedImages.size === 0)
-                                }
+                                disabled={!prompt.trim() || loading}
                             >
-                                {t("Generate")}
-                            </LoadingButton>
+                                <span
+                                    className={
+                                        loading ? "invisible" : "visible"
+                                    }
+                                >
+                                    {t("Generate")}
+                                </span>
+                                {loading && (
+                                    <Loader2 className="animate-spin h-4 w-4 absolute" />
+                                )}
+                            </button>
                         </div>
                     </form>
                 </div>
             </div>
 
-            {images.length > 0 && (
+            {sortedImages.length > 0 && (
                 <div className="flex justify-end items-center gap-2 mb-4">
                     <div className="text-sm text-gray-500 mr-2">
                         {selectedImages.size > 0 && (
@@ -1670,7 +1172,58 @@ function MediaPage() {
                 </div>
             )}
 
-            <div className="media-grid">{mediaTiles}</div>
+            {mediaItemsLoading ? (
+                <div className="flex justify-center items-center py-8">
+                    <Loader2 className="animate-spin h-8 w-8 text-gray-500" />
+                    <span className="ml-2 text-gray-500">
+                        {t("Loading media...")}
+                    </span>
+                </div>
+            ) : (
+                <>
+                    <div className="media-grid">{mediaTiles}</div>
+
+                    {/* Pagination Controls */}
+                    {pagination.total > pageSize && (
+                        <div className="flex justify-center items-center gap-4 mt-8 mb-4">
+                            <button
+                                onClick={() =>
+                                    setCurrentPage(Math.max(1, currentPage - 1))
+                                }
+                                disabled={!pagination.hasPrev}
+                                className="lb-secondary disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                {t("Previous")}
+                            </button>
+
+                            <span className="text-sm text-gray-600">
+                                {t("Page")} {pagination.page} {t("of")}{" "}
+                                {pagination.pages}
+                                {pagination.total > 0 && (
+                                    <span className="ml-2">
+                                        ({pagination.total} {t("total")})
+                                    </span>
+                                )}
+                            </span>
+
+                            <button
+                                onClick={() =>
+                                    setCurrentPage(
+                                        Math.min(
+                                            pagination.pages,
+                                            currentPage + 1,
+                                        ),
+                                    )
+                                }
+                                disabled={!pagination.hasNext}
+                                className="lb-secondary disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                {t("Next")}
+                            </button>
+                        </div>
+                    )}
+                </>
+            )}
             <ImageModal
                 show={showModal}
                 image={selectedImage}
@@ -1751,9 +1304,12 @@ function SettingsDialog({ show, settings, setSettings, onHide }) {
         "replicate-flux-1-schnell",
     );
 
+    // Initialize localSettings when dialog opens
     useEffect(() => {
-        setLocalSettings(settings);
-    }, [settings]);
+        if (show) {
+            setLocalSettings(settings);
+        }
+    }, [show, settings]); // Include settings dependency - necessary to avoid infinite re-renders
 
     const handleSave = () => {
         setSettings(localSettings);
@@ -1761,7 +1317,7 @@ function SettingsDialog({ show, settings, setSettings, onHide }) {
     };
 
     const handleCancel = () => {
-        setLocalSettings(settings);
+        // Don't update localSettings on cancel - just close the dialog
         onHide();
     };
 
@@ -1815,7 +1371,8 @@ function SettingsDialog({ show, settings, setSettings, onHide }) {
                 ];
             }
         } else {
-            return [
+            // Base aspect ratios for all image models
+            const baseRatios = [
                 { value: "1:1", label: "1:1" },
                 { value: "16:9", label: "16:9" },
                 { value: "21:9", label: "21:9" },
@@ -1827,8 +1384,17 @@ function SettingsDialog({ show, settings, setSettings, onHide }) {
                 { value: "4:3", label: "4:3" },
                 { value: "9:16", label: "9:16" },
                 { value: "9:21", label: "9:21" },
-                { value: "match_input_image", label: "Match Input Image" },
             ];
+
+            // Only Kontext models support "match_input_image"
+            if (modelName.includes("kontext")) {
+                baseRatios.push({
+                    value: "match_input_image",
+                    label: "Match Input Image",
+                });
+            }
+
+            return baseRatios;
         }
     };
 
@@ -2054,6 +1620,7 @@ function SettingsDialog({ show, settings, setSettings, onHide }) {
 
 function Progress({
     requestId,
+    taskId,
     prompt,
     quality,
     onDataReceived,
@@ -2061,28 +1628,34 @@ function Progress({
     outputType,
     mode,
 }) {
-    const [data] = useState(null);
+    const [data, setData] = useState(null);
     const { t } = useTranslation();
 
-    if (!requestId) {
+    // Use taskId if available, otherwise fall back to requestId
+    const id = taskId || requestId;
+
+    if (!id) {
         return null;
     }
 
-    if (requestId && !data) {
+    if (id && !data) {
         return (
             <ProgressUpdate
                 initialText={t("Generating...")}
-                requestId={requestId}
+                requestId={id}
                 mode={mode || (outputType === "video" ? "spinner" : "progress")}
-                setFinalData={(data) => {
+                setFinalData={(finalData) => {
+                    // Update local state to stop showing spinner
+                    setData(finalData);
+
                     // If data is already an object with error, pass it through
-                    if (data?.result?.error) {
-                        onDataReceived({ result: data.result, prompt });
+                    if (finalData?.result?.error) {
+                        onDataReceived({ result: finalData.result, prompt });
                         return;
                     }
 
                     try {
-                        const parsedData = JSON.parse(data);
+                        const parsedData = JSON.parse(finalData);
                         onDataReceived({ result: { ...parsedData }, prompt });
                     } catch (e) {
                         console.error("Error parsing data", e);
@@ -2125,12 +1698,13 @@ function ImageTile({
 }) {
     const [loadError, setLoadError] = useState(false);
     const [retryCount, setRetryCount] = useState(0);
+    // Always use Azure URL for display - GCS URL is only for internal model use
     const url = image?.azureUrl || image?.url;
     const { t } = useTranslation();
-    const expired = image?.expires < Date.now() / 1000;
-    const { cortexRequestId, prompt, result, regenerating, uploading } =
+    const expired = image?.expires ? image.expires < Date.now() / 1000 : false;
+    const { cortexRequestId, prompt, result, regenerating, uploading, error } =
         image || {};
-    const { code, message } = result?.error || {};
+    const { code, message } = error || result?.error || {};
     const isSelected = selectedImages.has(cortexRequestId);
 
     const handleSelection = (e) => {
@@ -2205,7 +1779,13 @@ function ImageTile({
                     </button>
                 </div>
 
-                {regenerating ? (
+                {regenerating ||
+                (image?.status === "pending" && image?.taskId) ||
+                (!url &&
+                    !error &&
+                    !result?.error &&
+                    image?.status !== "completed" &&
+                    image?.status !== "failed") ? (
                     <div className="h-full bg-gray-50 dark:bg-gray-700 p-4 text-sm flex items-center justify-center">
                         <ProgressComponent />
                     </div>
@@ -2260,6 +1840,8 @@ function ImageTile({
                         {cortexRequestId &&
                             !url &&
                             !code &&
+                            !image?.taskId &&
+                            image?.status !== "failed" &&
                             (result ? <NoImageError /> : <ProgressComponent />)}
                         {code === "ERR_BAD_REQUEST" && <BadRequestError />}
                         {code && code !== "ERR_BAD_REQUEST" && <OtherError />}
@@ -2280,6 +1862,7 @@ function ImageTile({
             <div>
                 <Progress
                     requestId={cortexRequestId}
+                    taskId={image?.taskId}
                     prompt={prompt}
                     quality={quality}
                     onDataReceived={(data) =>

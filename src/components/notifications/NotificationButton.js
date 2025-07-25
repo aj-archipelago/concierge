@@ -142,6 +142,11 @@ const NotificationItem = ({
                                 "video_page"
                             ) {
                                 router.push("/video");
+                            } else if (
+                                notification.invokedFrom?.source ===
+                                "media_page"
+                            ) {
+                                router.push("/media");
                             }
                         }}
                     >

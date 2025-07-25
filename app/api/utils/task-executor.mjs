@@ -233,6 +233,27 @@ class CortexRequestTracker {
 
     async handleProgressError(error, taskId, dataObject) {
         console.error("Error in request progress worker", error);
+
+        // Call task handler's error method if it exists
+        try {
+            const { type, userId, metadata } = this.job.data;
+            const handler = await loadTaskDefinition(type);
+
+            if (handler.handleError) {
+                await handler.handleError(
+                    this.job.data.taskId,
+                    error,
+                    { ...metadata, userId },
+                    this.client,
+                );
+            }
+        } catch (handlerError) {
+            console.error(
+                "Error calling task handler error method:",
+                handlerError,
+            );
+        }
+
         await this.updateRequestStatus("failed", error);
         this.cleanup();
         return { shouldResolve: true, dataObject };
