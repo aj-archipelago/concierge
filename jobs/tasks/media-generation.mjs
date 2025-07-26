@@ -424,7 +424,8 @@ class MediaGenerationHandler extends BaseTask {
                     "CORTEX_MEDIA_API_URL environment variable is not set",
                 );
             }
-            const serverUrl = `${process.env.CORTEX_MEDIA_API_URL}?useGoogle=true`;
+            // The CORTEX_MEDIA_API_URL already includes the full URL with query parameters
+            const serverUrl = process.env.CORTEX_MEDIA_API_URL;
 
             // Handle base64 data URLs differently
             if (mediaUrl.startsWith("data:")) {

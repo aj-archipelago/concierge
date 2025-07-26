@@ -118,7 +118,7 @@ function MyFilePond({
 }) {
     const pondRef = useRef(null);
     const processedFilesRef = useRef(new Set());
-    const serverUrl = "/media-helper?useGoogle=true";
+    const serverUrl = "/media-helper";
     const [inputUrl, setInputUrl] = useState("");
     const [showInputUI, setShowInputUI] = useState(false);
     const { t } = useTranslation();
@@ -161,11 +161,13 @@ function MyFilePond({
                 gcs: inputUrl,
                 type: "video/youtube", // custom type used internally
                 filename: getFilename(inputUrl),
+                originalFilename: getFilename(inputUrl),
                 payload: JSON.stringify([
                     JSON.stringify({
                         type: "image_url",
                         url: inputUrl,
                         gcs: inputUrl,
+                        originalFilename: getFilename(inputUrl),
                     }),
                 ]),
             };
@@ -413,7 +415,16 @@ function MyFilePond({
                                         if (typeof progress === "function") {
                                             progress(true, 100, 100);
                                         }
-                                        addUrl(response.data);
+                                        // For fetched URLs, try to extract a meaningful filename from the URL
+                                        const urlFilename = fileUrl
+                                            .split("/")
+                                            .pop()
+                                            .split("?")[0];
+                                        const responseWithFilename = {
+                                            ...response.data,
+                                            originalFilename: urlFilename,
+                                        };
+                                        addUrl(responseWithFilename);
                                         setIsUploadingMedia(false);
                                         return;
                                     }
@@ -443,6 +454,9 @@ function MyFilePond({
                                         gcs: file.name || file,
                                         type: "video/youtube",
                                         filename: getFilename(
+                                            file.name || file,
+                                        ),
+                                        originalFilename: getFilename(
                                             file.name || file,
                                         ),
                                     };
@@ -508,7 +522,7 @@ function MyFilePond({
                                 // Check if file exists
                                 try {
                                     const response = await axios.get(
-                                        `${serverUrl}&hash=${fileHash}&checkHash=true`,
+                                        `${serverUrl}?hash=${fileHash}&checkHash=true`,
                                     );
                                     if (
                                         response.status === 200 &&
@@ -530,9 +544,14 @@ function MyFilePond({
                                                 return;
                                             }
                                         }
+                                        // Include original filename in the response data
+                                        const responseWithFilename = {
+                                            ...response.data,
+                                            originalFilename: file.name,
+                                        };
                                         progress(true, file.size, file.size);
-                                        load(response.data);
-                                        addUrl(response.data);
+                                        load(responseWithFilename);
+                                        addUrl(responseWithFilename);
                                         return;
                                     }
                                 } catch (err) {
@@ -666,8 +685,13 @@ function MyFilePond({
                                                 return;
                                             }
                                         }
-                                        load(responseData);
-                                        addUrl(responseData);
+                                        // Include original filename in the response data
+                                        const responseWithFilename = {
+                                            ...responseData,
+                                            originalFilename: file.name,
+                                        };
+                                        load(responseWithFilename);
+                                        addUrl(responseWithFilename);
                                         setIsUploadingMedia(false);
                                     } else {
                                         // Handle both string and object responses
@@ -697,7 +721,7 @@ function MyFilePond({
 
                                 request.open(
                                     "POST",
-                                    `${serverUrl}&hash=${fileHash}`,
+                                    `${serverUrl}?hash=${fileHash}`,
                                 );
                                 request.send(formData);
 

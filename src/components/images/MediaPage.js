@@ -693,7 +693,7 @@ function MediaPage() {
             if (!file) return;
 
             setIsUploading(true);
-            const serverUrl = "/media-helper?useGoogle=true";
+            const serverUrl = "/media-helper";
 
             try {
                 // Start showing upload progress
@@ -702,7 +702,7 @@ function MediaPage() {
                 // Check if file exists first
                 try {
                     const checkResponse = await axios.get(
-                        `${serverUrl}&hash=${fileHash}&checkHash=true`,
+                        `${serverUrl}?hash=${fileHash}&checkHash=true`,
                     );
                     if (
                         checkResponse.status === 200 &&
@@ -748,7 +748,7 @@ function MediaPage() {
                 formData.append("file", file, file.name);
 
                 const response = await axios.post(
-                    `${serverUrl}&hash=${fileHash}`,
+                    `${serverUrl}?hash=${fileHash}`,
                     formData,
                     {
                         headers: {

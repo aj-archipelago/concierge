@@ -86,17 +86,24 @@ function MessageInput({
     const prepareMessage = (inputText) => {
         return [
             JSON.stringify({ type: "text", text: inputText }),
-            ...(urlsData || [])?.map(({ url, gcs, converted }) => {
-                const obj = {
-                    type: "image_url",
-                };
+            ...(urlsData || [])?.map(
+                ({ url, gcs, converted, originalFilename }) => {
+                    const obj = {
+                        type: "image_url",
+                    };
 
-                obj.gcs = converted?.gcs || gcs;
-                obj.url = converted?.url || url;
-                obj.image_url = { url: converted?.url || url };
+                    obj.gcs = converted?.gcs || gcs;
+                    obj.url = converted?.url || url;
+                    obj.image_url = { url: converted?.url || url };
 
-                return JSON.stringify(obj);
-            }),
+                    // Include original filename if available
+                    if (originalFilename) {
+                        obj.originalFilename = originalFilename;
+                    }
+
+                    return JSON.stringify(obj);
+                },
+            ),
         ];
     };
 
