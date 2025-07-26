@@ -141,6 +141,7 @@ const MessageListContent = React.memo(function MessageListContent({
                         return obj.text;
                     } else if (obj.type === "image_url") {
                         const src = obj?.url || obj?.image_url?.url || obj?.gcs;
+                        const originalFilename = obj?.originalFilename;
                         if (isVideoUrl(src)) {
                             const youtubeEmbedUrl = getYoutubeEmbedUrl(src);
                             if (youtubeEmbedUrl) {
@@ -184,7 +185,10 @@ const MessageListContent = React.memo(function MessageListContent({
                             );
                         }
 
-                        const filename = decodeURIComponent(getFilename(src));
+                        // Use original filename if available, otherwise extract from URL
+                        const filename =
+                            originalFilename ||
+                            decodeURIComponent(getFilename(src));
                         const ext = getExtension(src);
 
                         if (DOC_EXTENSIONS.includes(ext)) {
