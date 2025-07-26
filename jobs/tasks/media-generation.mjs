@@ -418,9 +418,11 @@ class MediaGenerationHandler extends BaseTask {
 
     async uploadMediaToCloud(mediaUrl) {
         try {
-            // Use the full server URL for worker environment
-            const baseUrl = process.env.SERVER_URL || "http://localhost:3000";
-            const serverUrl = `${baseUrl}/media-helper?useGoogle=true`;
+            // Use CORTEX_MEDIA_API_URL environment variable
+            if (!process.env.CORTEX_MEDIA_API_URL) {
+                throw new Error("CORTEX_MEDIA_API_URL environment variable is not set");
+            }
+            const serverUrl = `${process.env.CORTEX_MEDIA_API_URL}?useGoogle=true`;
 
             // Handle base64 data URLs differently
             if (mediaUrl.startsWith("data:")) {
