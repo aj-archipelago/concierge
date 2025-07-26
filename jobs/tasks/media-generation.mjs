@@ -420,7 +420,9 @@ class MediaGenerationHandler extends BaseTask {
         try {
             // Use CORTEX_MEDIA_API_URL environment variable
             if (!process.env.CORTEX_MEDIA_API_URL) {
-                throw new Error("CORTEX_MEDIA_API_URL environment variable is not set");
+                throw new Error(
+                    "CORTEX_MEDIA_API_URL environment variable is not set",
+                );
             }
             const serverUrl = `${process.env.CORTEX_MEDIA_API_URL}?useGoogle=true`;
 
