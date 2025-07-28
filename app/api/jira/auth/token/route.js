@@ -4,13 +4,21 @@ import axios from "axios";
 export async function POST(request) {
     try {
         const body = await request.json();
-        const { grant_type, client_id, client_secret, code, refresh_token, redirect_uri, scope } = body;
+        const {
+            grant_type,
+            client_id,
+            client_secret,
+            code,
+            refresh_token,
+            redirect_uri,
+            scope,
+        } = body;
 
         // Validate required parameters
         if (!grant_type || !client_id || !client_secret) {
             return NextResponse.json(
                 { error: "Missing required parameters" },
-                { status: 400 }
+                { status: 400 },
             );
         }
 
@@ -19,14 +27,16 @@ export async function POST(request) {
             grant_type,
             client_id,
             client_secret,
-            scope: scope || "offline_access"
+            scope: scope || "offline_access",
         };
 
         if (grant_type === "authorization_code") {
             if (!code || !redirect_uri) {
                 return NextResponse.json(
-                    { error: "Code and redirect_uri are required for authorization_code grant" },
-                    { status: 400 }
+                    {
+                        error: "Code and redirect_uri are required for authorization_code grant",
+                    },
+                    { status: 400 },
                 );
             }
             payload.code = code;
@@ -34,8 +44,10 @@ export async function POST(request) {
         } else if (grant_type === "refresh_token") {
             if (!refresh_token || !redirect_uri) {
                 return NextResponse.json(
-                    { error: "Refresh token and redirect_uri are required for refresh_token grant" },
-                    { status: 400 }
+                    {
+                        error: "Refresh token and redirect_uri are required for refresh_token grant",
+                    },
+                    { status: 400 },
                 );
             }
             payload.refresh_token = refresh_token;
@@ -43,22 +55,29 @@ export async function POST(request) {
         }
 
         // Make the request to Atlassian's OAuth endpoint
-        const response = await axios.post("https://auth.atlassian.com/oauth/token", payload, {
-            headers: {
-                "Content-Type": "application/json",
+        const response = await axios.post(
+            "https://auth.atlassian.com/oauth/token",
+            payload,
+            {
+                headers: {
+                    "Content-Type": "application/json",
+                },
             },
-        });
+        );
 
         return NextResponse.json(response.data);
     } catch (error) {
-        console.error("Jira OAuth token exchange error:", error.response?.data || error.message);
-        
+        console.error(
+            "Jira OAuth token exchange error:",
+            error.response?.data || error.message,
+        );
+
         return NextResponse.json(
-            { 
+            {
                 error: "Token exchange failed",
-                details: error.response?.data || error.message 
+                details: error.response?.data || error.message,
             },
-            { status: error.response?.status || 500 }
+            { status: error.response?.status || 500 },
         );
     }
-} 
+}

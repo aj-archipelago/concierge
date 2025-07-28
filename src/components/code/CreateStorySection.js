@@ -69,8 +69,12 @@ export default function CreateStorySection({ token, ticket }) {
                 .then((response) => {
                     setSites(response.data);
                     // Set the first site as selected, or the one from preferences if it exists
-                    const preferredSite = response.data?.find((s) => s.name === preferences?.site?.name);
-                    setSelectedSite(preferredSite || response.data?.[0] || null);
+                    const preferredSite = response.data?.find(
+                        (s) => s.name === preferences?.site?.name,
+                    );
+                    setSelectedSite(
+                        preferredSite || response.data?.[0] || null,
+                    );
                 });
         }
     }, [token, preferences?.site?.name]);
@@ -96,7 +100,9 @@ export default function CreateStorySection({ token, ticket }) {
                             className="lb-input"
                             value={selectedSite?.name || ""}
                             onChange={(e) => {
-                                const selectedSite = sites.find(s => s.name === e.target.value);
+                                const selectedSite = sites.find(
+                                    (s) => s.name === e.target.value,
+                                );
                                 setSelectedSite(selectedSite || null);
                             }}
                         >
@@ -262,7 +268,14 @@ function IssueFields({
     useEffect(() => {
         // Only proceed if issueTypeId is a valid number (not a string name)
         const numericId = Number(issueTypeId);
-        if (!issueTypeId || !projectKey || !siteId || !token || isNaN(numericId) || numericId <= 0) {
+        if (
+            !issueTypeId ||
+            !projectKey ||
+            !siteId ||
+            !token ||
+            isNaN(numericId) ||
+            numericId <= 0
+        ) {
             return;
         }
 

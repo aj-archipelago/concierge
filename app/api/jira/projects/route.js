@@ -13,7 +13,7 @@ export async function GET(request) {
         if (!token || !site || site === "undefined") {
             return Response.json(
                 { error: "Missing required parameters: token or siteId" },
-                { status: 400 }
+                { status: 400 },
             );
         }
 
@@ -26,15 +26,15 @@ export async function GET(request) {
         });
 
         // Filter out archived projects
-        const activeProjects = response.data.filter(project => {
+        const activeProjects = response.data.filter((project) => {
             // Check if project is archived based on common indicators
-            const isArchived = 
+            const isArchived =
                 project.archived === true ||
-                project.status === 'archived' ||
-                project.projectCategory?.name === 'Archived' ||
-                project.name?.toLowerCase().includes('(archived)') ||
-                project.name?.toLowerCase().includes('[archived]');
-            
+                project.status === "archived" ||
+                project.projectCategory?.name === "Archived" ||
+                project.name?.toLowerCase().includes("(archived)") ||
+                project.name?.toLowerCase().includes("[archived]");
+
             return !isArchived;
         });
 

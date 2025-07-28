@@ -10,10 +10,18 @@ export async function GET(request, { params }) {
         const { projectKey } = params;
 
         // Validate required parameters
-        if (!token || !site || site === "undefined" || !issueTypeId || !projectKey) {
+        if (
+            !token ||
+            !site ||
+            site === "undefined" ||
+            !issueTypeId ||
+            !projectKey
+        ) {
             return Response.json(
-                { error: "Missing required parameters: token, siteId, issueTypeId, or projectKey" },
-                { status: 400 }
+                {
+                    error: "Missing required parameters: token, siteId, issueTypeId, or projectKey",
+                },
+                { status: 400 },
             );
         }
 

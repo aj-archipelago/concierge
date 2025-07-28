@@ -9,28 +9,34 @@ export async function GET(request) {
         if (!token) {
             return NextResponse.json(
                 { error: "Token is required" },
-                { status: 400 }
+                { status: 400 },
             );
         }
 
         // Make the request to Atlassian's API
-        const response = await axios.get("https://api.atlassian.com/oauth/token/accessible-resources", {
-            headers: {
-                Authorization: `Bearer ${token}`,
-                Accept: "application/json",
+        const response = await axios.get(
+            "https://api.atlassian.com/oauth/token/accessible-resources",
+            {
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                    Accept: "application/json",
+                },
             },
-        });
+        );
 
         return NextResponse.json(response.data);
     } catch (error) {
-        console.error("Jira accessible resources error:", error.response?.data || error.message);
-        
+        console.error(
+            "Jira accessible resources error:",
+            error.response?.data || error.message,
+        );
+
         return NextResponse.json(
-            { 
+            {
                 error: "Failed to get accessible resources",
-                details: error.response?.data || error.message 
+                details: error.response?.data || error.message,
             },
-            { status: error.response?.status || 500 }
+            { status: error.response?.status || 500 },
         );
     }
-} 
+}

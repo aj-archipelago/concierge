@@ -89,9 +89,11 @@ export default function JiraProjectSelect({ token, value, onChange }) {
                             onChange={(e) =>
                                 onChange({
                                     ...value,
-                                    site: sites.find(
-                                        (site) => site.name === e.target.value,
-                                    ) || null,
+                                    site:
+                                        sites.find(
+                                            (site) =>
+                                                site.name === e.target.value,
+                                        ) || null,
                                     project: null,
                                     issueTypes: [],
                                 })
