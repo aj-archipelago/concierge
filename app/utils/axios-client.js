@@ -17,6 +17,7 @@ if (typeof window !== "undefined") {
             if (
                 config.url?.includes("/.auth/") ||
                 config.url?.includes("/api/auth/") ||
+                config.url?.includes("/api/jira/") ||
                 config.url?.includes("/auth/login") ||
                 config.url?.includes("/test-auth")
             ) {

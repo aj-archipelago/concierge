@@ -23,13 +23,11 @@ export default function CreateStorySection({ token, ticket }) {
     const preferences = JSON.parse(
         localStorage.getItem("jira_preferences") || "{}",
     );
-    const [selectedSite, setSelectedSite] = useState(
-        sites.find((s) => s.name === preferences?.site?.name) || {},
-    );
+    const [selectedSite, setSelectedSite] = useState(null);
     const [project, setProject] = useState(preferences?.project);
 
     useEffect(() => {
-        if (!token || !selectedSite) {
+        if (!token || !selectedSite?.id) {
             return;
         }
 
@@ -66,19 +64,16 @@ export default function CreateStorySection({ token, ticket }) {
         if (token) {
             axios
                 .get(
-                    "https://api.atlassian.com/oauth/token/accessible-resources",
-                    {
-                        headers: {
-                            Authorization: `Bearer ${token}`,
-                        },
-                    },
+                    `/api/jira/auth/accessible-resources?token=${encodeURIComponent(token)}`,
                 )
                 .then((response) => {
                     setSites(response.data);
-                    setSelectedSite(response.data?.[0]);
+                    // Set the first site as selected, or the one from preferences if it exists
+                    const preferredSite = response.data?.find((s) => s.name === preferences?.site?.name);
+                    setSelectedSite(preferredSite || response.data?.[0] || null);
                 });
         }
-    }, [token]);
+    }, [token, preferences?.site?.name]);
 
     if (!token) {
         return (
@@ -99,8 +94,11 @@ export default function CreateStorySection({ token, ticket }) {
                         </h5>
                         <select
                             className="lb-input"
-                            value={selectedSite}
-                            onChange={(e) => setSelectedSite(e.target.value)}
+                            value={selectedSite?.name || ""}
+                            onChange={(e) => {
+                                const selectedSite = sites.find(s => s.name === e.target.value);
+                                setSelectedSite(selectedSite || null);
+                            }}
                         >
                             {sites.map((site) => (
                                 <option key={site.name} value={site.name}>
@@ -146,18 +144,19 @@ export default function CreateStorySection({ token, ticket }) {
                             onChange={setIssueType}
                             projectKey={project}
                             token={token}
-                            siteId={selectedSite.id}
+                            siteId={selectedSite?.id}
                         />
                     </div>
                 </div>
 
                 <div className="mt-4">
                     <IssueFields
+                        key={`${issueType}-${project}-${selectedSite?.id}`}
                         value={fieldValues}
                         onChange={setFieldValues}
                         issueTypeId={issueType}
                         projectKey={project}
-                        siteId={selectedSite.id}
+                        siteId={selectedSite?.id}
                         token={token}
                     />
                 </div>
@@ -179,7 +178,7 @@ export default function CreateStorySection({ token, ticket }) {
                                         description,
                                         projectKey: project,
                                         issueType: issueType,
-                                        siteId: selectedSite.id,
+                                        siteId: selectedSite?.id,
                                         token,
                                         fields: fieldValues,
                                     },
@@ -188,7 +187,7 @@ export default function CreateStorySection({ token, ticket }) {
 
                                 if (response.data.key) {
                                     setCreatedUrl(
-                                        `https://${selectedSite.name}.atlassian.net/browse/${response.data.key}`,
+                                        `https://${selectedSite?.name}.atlassian.net/browse/${response.data.key}`,
                                     );
                                 } else {
                                     setError(
@@ -261,7 +260,9 @@ function IssueFields({
     const { t } = useTranslation();
 
     useEffect(() => {
-        if (!issueTypeId) {
+        // Only proceed if issueTypeId is a valid number (not a string name)
+        const numericId = Number(issueTypeId);
+        if (!issueTypeId || !projectKey || !siteId || !token || isNaN(numericId) || numericId <= 0) {
             return;
         }
 
@@ -433,11 +434,18 @@ function IssueTypes({
                 const project = response.data;
                 setIssueTypes(project.issueTypes);
                 if (defaultIssueType) {
-                    onChange(
-                        project.issueTypes.find(
-                            (t) => t.name === defaultIssueType,
-                        )?.id,
+                    const foundIssueType = project.issueTypes.find(
+                        (t) => t.name === defaultIssueType,
                     );
+                    if (foundIssueType?.id) {
+                        onChange(foundIssueType.id);
+                    } else {
+                        // If the default issue type is not found, set the first available issue type as fallback
+                        const firstIssueType = project.issueTypes[0];
+                        if (firstIssueType?.id) {
+                            onChange(firstIssueType.id);
+                        }
+                    }
                 }
                 setLoading(false);
             })
