@@ -489,12 +489,23 @@ export default function AppsPage() {
                                                         onClick={() => {
                                                             if (
                                                                 app.type ===
-                                                                    "applet" &&
-                                                                app.workspaceId
+                                                                "applet"
                                                             ) {
-                                                                router.push(
-                                                                    `/published/workspaces/${app.workspaceId}/applet`,
-                                                                );
+                                                                if (app.slug) {
+                                                                    // Use new slug-based route
+                                                                    router.push(
+                                                                        `/apps/${app.slug}`,
+                                                                    );
+                                                                } else if (
+                                                                    app.workspaceId
+                                                                ) {
+                                                                    // Fallback to old route for backwards compatibility
+                                                                    router.push(
+                                                                        app.slug
+                                                                            ? `/apps/${app.slug}`
+                                                                            : `/published/workspaces/${app.workspaceId}/applet`,
+                                                                    );
+                                                                }
                                                             } else if (
                                                                 app.slug
                                                             ) {

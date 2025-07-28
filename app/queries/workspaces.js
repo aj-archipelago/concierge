@@ -255,6 +255,9 @@ export function useUpdateWorkspaceApplet() {
             queryClient.invalidateQueries({
                 queryKey: ["workspaceApplet", id],
             });
+            queryClient.invalidateQueries({
+                queryKey: ["workspaceApp", id],
+            });
         },
     });
 
@@ -269,6 +272,19 @@ export function useWorkspaceApp(id) {
             return data;
         },
         enabled: !!id,
+    });
+
+    return query;
+}
+
+export function useAppBySlug(slug) {
+    const query = useQuery({
+        queryKey: ["appBySlug", slug],
+        queryFn: async () => {
+            const { data } = await axios.get(`/api/apps/${slug}`);
+            return data;
+        },
+        enabled: !!slug,
     });
 
     return query;
