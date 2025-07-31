@@ -140,7 +140,9 @@ const App = ({
                                     }}
                                 >
                                     <ThemeProvider savedTheme={theme}>
-                                        <LanguageProvider savedLanguage={language}>
+                                        <LanguageProvider
+                                            savedLanguage={language}
+                                        >
                                             <Layout>
                                                 <Body>{children}</Body>
                                             </Layout>

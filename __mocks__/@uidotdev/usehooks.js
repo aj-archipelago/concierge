@@ -1,1 +1,1 @@
-export const useDebounce = jest.fn((val) => val); 
+export const useDebounce = jest.fn((val) => val);

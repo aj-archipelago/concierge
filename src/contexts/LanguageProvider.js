@@ -28,7 +28,13 @@ export function LanguageProvider({ savedLanguage, children }) {
 
     // Migrate existing cookie preferences to userState (run once)
     useEffect(() => {
-        if (!hasMigrated && userState && debouncedUpdateUserState && !userState.preferences?.language && savedLanguage) {
+        if (
+            !hasMigrated &&
+            userState &&
+            debouncedUpdateUserState &&
+            !userState.preferences?.language &&
+            savedLanguage
+        ) {
             // Migrate cookie preference to userState
             debouncedUpdateUserState((prev) => ({
                 ...prev,

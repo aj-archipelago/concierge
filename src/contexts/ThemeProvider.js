@@ -15,7 +15,13 @@ export function ThemeProvider({ children, savedTheme = "light" }) {
 
     // Migrate existing cookie preferences to userState (run once)
     useEffect(() => {
-        if (!hasMigrated && userState && debouncedUpdateUserState && !userState.preferences?.theme && savedTheme) {
+        if (
+            !hasMigrated &&
+            userState &&
+            debouncedUpdateUserState &&
+            !userState.preferences?.theme &&
+            savedTheme
+        ) {
             // Migrate cookie preference to userState
             debouncedUpdateUserState((prev) => ({
                 ...prev,
@@ -65,7 +71,7 @@ export function ThemeProvider({ children, savedTheme = "light" }) {
         theme,
         changeTheme: (newTheme) => {
             setTheme(newTheme);
-            
+
             // Update userState for persistence across re-auth
             if (debouncedUpdateUserState) {
                 debouncedUpdateUserState((prev) => ({
@@ -76,7 +82,7 @@ export function ThemeProvider({ children, savedTheme = "light" }) {
                     },
                 }));
             }
-            
+
             // Keep cookie for backward compatibility and SSR
             document.cookie = `theme=${newTheme}; path=/`;
         },
