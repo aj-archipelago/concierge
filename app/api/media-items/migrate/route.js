@@ -3,6 +3,15 @@ import MediaItem from "../../models/media-item.mjs";
 
 export async function POST(req) {
     const user = await getCurrentUser();
+
+    // Validate authentication
+    if (!user) {
+        return Response.json(
+            { error: "Authentication required" },
+            { status: 401 },
+        );
+    }
+
     const body = await req.json();
     const { mediaItems } = body;
 
