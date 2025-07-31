@@ -215,7 +215,9 @@ export default function ChatInterface({
                                                     {children}
                                                 </code>
                                             ) : (
-                                                <code className={`${className} mobile-text-wrap`}>
+                                                <code
+                                                    className={`${className} mobile-text-wrap`}
+                                                >
                                                     {children}
                                                 </code>
                                             );

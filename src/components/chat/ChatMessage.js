@@ -201,11 +201,11 @@ function convertMessageToMarkdown(message, finalRender = true) {
                 div: ({ node, ...props }) => (
                     <div
                         className="mobile-text-wrap"
-                        style={{ 
-                            maxWidth: "100%", 
+                        style={{
+                            maxWidth: "100%",
                             overflowWrap: "break-word",
                             wordWrap: "break-word",
-                            wordBreak: "break-word"
+                            wordBreak: "break-word",
                         }}
                         {...props}
                     />

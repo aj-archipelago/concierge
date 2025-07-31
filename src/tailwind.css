@@ -93,20 +93,20 @@
     .mobile-overflow-safe {
         @apply max-w-full overflow-x-auto;
     }
-    
+
     .mobile-text-wrap {
         @apply break-words;
         overflow-wrap: anywhere;
     }
-    
+
     .mobile-table-container {
         @apply overflow-x-auto max-w-full;
     }
-    
+
     .mobile-table {
         @apply min-w-full border-collapse;
     }
-    
+
     .mobile-table-cell {
         @apply break-words max-w-[200px] sm:max-w-none;
     }
@@ -117,20 +117,20 @@
     .chat-message {
         @apply mobile-overflow-safe;
     }
-    
+
     .chat-message * {
         @apply mobile-text-wrap;
     }
-    
+
     .chat-message pre,
     .chat-message code {
         @apply mobile-overflow-safe;
     }
-    
+
     .chat-message table {
         @apply mobile-table;
     }
-    
+
     .chat-message th,
     .chat-message td {
         @apply mobile-table-cell;

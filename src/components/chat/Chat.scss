@@ -664,9 +664,10 @@ html[dir="ltr"] {
             overflow-x: auto !important;
             white-space: nowrap !important;
             border-collapse: collapse !important;
-            
+
             // Ensure table cells don't force width
-            th, td {
+            th,
+            td {
                 white-space: normal !important;
                 word-wrap: break-word !important;
                 overflow-wrap: break-word !important;
@@ -682,7 +683,7 @@ html[dir="ltr"] {
             white-space: pre-wrap !important;
             word-wrap: break-word !important;
             overflow-wrap: break-word !important;
-            
+
             code {
                 width: 100% !important;
                 max-width: 100% !important;
@@ -708,7 +709,8 @@ html[dir="ltr"] {
         }
 
         // Handle lists
-        ul, ol {
+        ul,
+        ol {
             padding-left: 1.5rem !important;
             max-width: 100% !important;
         }
@@ -726,7 +728,12 @@ html[dir="ltr"] {
         }
 
         // Handle headings
-        h1, h2, h3, h4, h5, h6 {
+        h1,
+        h2,
+        h3,
+        h4,
+        h5,
+        h6 {
             word-wrap: break-word !important;
             overflow-wrap: break-word !important;
             max-width: 100% !important;
@@ -740,7 +747,8 @@ html[dir="ltr"] {
         }
 
         // Handle any other elements that might overflow
-        div, span {
+        div,
+        span {
             max-width: 100% !important;
             word-wrap: break-word !important;
             overflow-wrap: break-word !important;
@@ -752,14 +760,14 @@ html[dir="ltr"] {
         width: 100% !important;
         max-width: 100% !important;
         overflow-x: auto !important;
-        
+
         pre {
             width: 100% !important;
             max-width: 100% !important;
             overflow-x: auto !important;
             white-space: pre-wrap !important;
         }
-        
+
         code {
             width: 100% !important;
             max-width: 100% !important;
