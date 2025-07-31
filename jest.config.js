@@ -85,6 +85,8 @@ const projects = process.env.CI
                   "^./config/(.*)$": "<rootDir>/__mocks__/config/$1",
                   "^@amplitude/analytics-browser$":
                       "<rootDir>/__mocks__/@amplitude/analytics-browser.js",
+                  "^@uidotdev/usehooks$":
+                      "<rootDir>/__mocks__/@uidotdev/usehooks.js",
               },
               transformIgnorePatterns: [
                   "/node_modules/(?!(react-markdown|vfile|unist-.*|unified|bail|is-plain-obj|trough|remark-.*|mdast-util-.*|micromark.*|decode-named-character-reference|character-entities|property-information|hast-util-whitespace|space-separated-tokens|comma-separated-tokens|rehype-.*|hastscript|web-namespaces|zwitch|html-void-elements)/)",

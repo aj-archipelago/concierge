@@ -113,10 +113,10 @@ const App = ({
                 };
             });
         } else {
-            setUserState({
-                ...userState,
+            setUserState((prev) => ({
+                ...prev,
                 ...value,
-            });
+            }));
         }
     };
 
@@ -128,30 +128,32 @@ const App = ({
                 value={{ graphQLPublicEndpoint, serverUrl, neuralspaceEnabled }}
             >
                 <StoreProvider>
-                    <ThemeProvider savedTheme={theme}>
-                        <LanguageProvider savedLanguage={language}>
-                            <AutoTranscribeProvider>
-                                <AuthProvider>
-                                    <React.StrictMode>
-                                        <AuthContext.Provider
-                                            value={{
-                                                user: currentUser,
-                                                userState,
-                                                refetchUserState,
-                                                debouncedUpdateUserState,
-                                            }}
+                    <AutoTranscribeProvider>
+                        <AuthProvider>
+                            <React.StrictMode>
+                                <AuthContext.Provider
+                                    value={{
+                                        user: currentUser,
+                                        userState,
+                                        refetchUserState,
+                                        debouncedUpdateUserState,
+                                    }}
+                                >
+                                    <ThemeProvider savedTheme={theme}>
+                                        <LanguageProvider
+                                            savedLanguage={language}
                                         >
                                             <Layout>
                                                 <Body>{children}</Body>
                                             </Layout>
                                             <AuthErrorDialog />
                                             <AuthLoadingOverlay />
-                                        </AuthContext.Provider>
-                                    </React.StrictMode>
-                                </AuthProvider>
-                            </AutoTranscribeProvider>
-                        </LanguageProvider>
-                    </ThemeProvider>
+                                        </LanguageProvider>
+                                    </ThemeProvider>
+                                </AuthContext.Provider>
+                            </React.StrictMode>
+                        </AuthProvider>
+                    </AutoTranscribeProvider>
                 </StoreProvider>
             </ServerContext.Provider>
         </ApolloNextAppProvider>
