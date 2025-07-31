@@ -326,8 +326,19 @@ function MediaPage() {
             return;
         }
 
+        // Add a flag to prevent multiple migrations in development mode
+        const migrationInProgress = localStorage.getItem(
+            "media-migration-in-progress",
+        );
+        if (migrationInProgress === "true") {
+            console.log("🔄 Migration already in progress, skipping...");
+            return;
+        }
+
         // Run migration inline to avoid dependency issues
         const runMigration = async () => {
+            console.log("🔄 Starting migration process...");
+            localStorage.setItem("media-migration-in-progress", "true");
             setIsMigrationInProgress(true);
             try {
                 // Migrate settings first
@@ -350,13 +361,24 @@ function MediaPage() {
                 if (localMediaItems) {
                     try {
                         const parsedMediaItems = JSON.parse(localMediaItems);
+                        console.log(
+                            `📦 Found ${parsedMediaItems.length} media items to migrate:`,
+                            parsedMediaItems.map((item) => ({
+                                cortexRequestId: item.cortexRequestId,
+                                type: item.type,
+                                prompt: item.prompt,
+                            })),
+                        );
+
                         if (
                             Array.isArray(parsedMediaItems) &&
                             parsedMediaItems.length > 0
                         ) {
-                            await migrateMediaItems.mutateAsync(
-                                parsedMediaItems,
-                            );
+                            const result =
+                                await migrateMediaItems.mutateAsync(
+                                    parsedMediaItems,
+                                );
+                            console.log("✅ Migration result:", result);
                         }
                     } catch (error) {
                         console.warn(
@@ -377,6 +399,7 @@ function MediaPage() {
                 // Don't mark as completed if there was an error
             } finally {
                 setIsMigrationInProgress(false);
+                localStorage.removeItem("media-migration-in-progress");
             }
         };
 
