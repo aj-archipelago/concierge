@@ -15,14 +15,14 @@ const CodeBlock = ({ code, language }) => {
     }
 
     return (
-        <div className="code-block py-3">
+        <div className="code-block py-3 mobile-overflow-safe">
             {language}
             <div style={{ position: "relative" }}>
                 <CopyButton item={code} />
             </div>
-            <pre>
+            <pre className="mobile-overflow-safe">
                 <code
-                    className="hljs"
+                    className="hljs mobile-text-wrap"
                     dangerouslySetInnerHTML={{ __html: highlightedCode }}
                 />
             </pre>
