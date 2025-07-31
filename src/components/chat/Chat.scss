@@ -641,6 +641,133 @@ html[dir="ltr"] {
     }
 }
 
+// Enhanced mobile overflow handling
+@media (max-width: 768px) {
+    .chat-message {
+        // Force all content to respect container width
+        * {
+            max-width: 100% !important;
+            box-sizing: border-box !important;
+        }
+
+        // Ensure the container itself doesn't overflow
+        &.mobile-overflow-safe {
+            max-width: 100% !important;
+            overflow-x: auto !important;
+        }
+
+        // Enhanced table handling for mobile
+        table {
+            display: block !important;
+            width: 100% !important;
+            max-width: 100% !important;
+            overflow-x: auto !important;
+            white-space: nowrap !important;
+            border-collapse: collapse !important;
+            
+            // Ensure table cells don't force width
+            th, td {
+                white-space: normal !important;
+                word-wrap: break-word !important;
+                overflow-wrap: break-word !important;
+                max-width: 200px !important; // Limit cell width on mobile
+            }
+        }
+
+        // Enhanced code block handling
+        pre {
+            width: 100% !important;
+            max-width: 100% !important;
+            overflow-x: auto !important;
+            white-space: pre-wrap !important;
+            word-wrap: break-word !important;
+            overflow-wrap: break-word !important;
+            
+            code {
+                width: 100% !important;
+                max-width: 100% !important;
+                white-space: pre-wrap !important;
+                word-wrap: break-word !important;
+                overflow-wrap: break-word !important;
+            }
+        }
+
+        // Enhanced inline code handling
+        code:not(pre code) {
+            white-space: normal !important;
+            word-wrap: break-word !important;
+            overflow-wrap: break-word !important;
+            max-width: 100% !important;
+        }
+
+        // Handle long URLs and text
+        a {
+            word-wrap: break-word !important;
+            overflow-wrap: break-word !important;
+            word-break: break-all !important;
+        }
+
+        // Handle lists
+        ul, ol {
+            padding-left: 1.5rem !important;
+            max-width: 100% !important;
+        }
+
+        li {
+            word-wrap: break-word !important;
+            overflow-wrap: break-word !important;
+        }
+
+        // Handle blockquotes
+        blockquote {
+            max-width: 100% !important;
+            word-wrap: break-word !important;
+            overflow-wrap: break-word !important;
+        }
+
+        // Handle headings
+        h1, h2, h3, h4, h5, h6 {
+            word-wrap: break-word !important;
+            overflow-wrap: break-word !important;
+            max-width: 100% !important;
+        }
+
+        // Handle paragraphs
+        p {
+            word-wrap: break-word !important;
+            overflow-wrap: break-word !important;
+            max-width: 100% !important;
+        }
+
+        // Handle any other elements that might overflow
+        div, span {
+            max-width: 100% !important;
+            word-wrap: break-word !important;
+            overflow-wrap: break-word !important;
+        }
+    }
+
+    // Enhanced code block container
+    .code-block {
+        width: 100% !important;
+        max-width: 100% !important;
+        overflow-x: auto !important;
+        
+        pre {
+            width: 100% !important;
+            max-width: 100% !important;
+            overflow-x: auto !important;
+            white-space: pre-wrap !important;
+        }
+        
+        code {
+            width: 100% !important;
+            max-width: 100% !important;
+            white-space: pre-wrap !important;
+        }
+    }
+}
+
 .code-block {
     width: 100% !important;
     max-width: 100% !important;

@@ -161,7 +161,7 @@ export default function ChatInterface({
                                     className="prose dark:prose-invert text-sm break-words leading-relaxed"
                                     components={{
                                         p: ({ children }) => (
-                                            <p className="m-0 mb-3 last:mb-0">
+                                            <p className="m-0 mb-3 last:mb-0 mobile-text-wrap">
                                                 {React.Children.toArray(
                                                     children,
                                                 ).map((child, idx) =>
@@ -174,61 +174,61 @@ export default function ChatInterface({
                                             </p>
                                         ),
                                         h1: ({ children }) => (
-                                            <h1 className="text-xl font-bold mb-3 mt-4 first:mt-0">
+                                            <h1 className="text-xl font-bold mb-3 mt-4 first:mt-0 mobile-text-wrap">
                                                 {children}
                                             </h1>
                                         ),
                                         h2: ({ children }) => (
-                                            <h2 className="text-lg font-semibold mb-2 mt-3 first:mt-0">
+                                            <h2 className="text-lg font-semibold mb-2 mt-3 first:mt-0 mobile-text-wrap">
                                                 {children}
                                             </h2>
                                         ),
                                         h3: ({ children }) => (
-                                            <h3 className="text-base font-semibold mb-2 mt-3 first:mt-0">
+                                            <h3 className="text-base font-semibold mb-2 mt-3 first:mt-0 mobile-text-wrap">
                                                 {children}
                                             </h3>
                                         ),
                                         ul: ({ children }) => (
-                                            <ul className="list-disc list-inside mb-3 space-y-1">
+                                            <ul className="list-disc list-inside mb-3 space-y-1 mobile-text-wrap">
                                                 {children}
                                             </ul>
                                         ),
                                         ol: ({ children }) => (
-                                            <ol className="list-decimal list-inside mb-3 space-y-1">
+                                            <ol className="list-decimal list-inside mb-3 space-y-1 mobile-text-wrap">
                                                 {children}
                                             </ol>
                                         ),
                                         li: ({ children }) => (
-                                            <li className="text-sm leading-relaxed">
+                                            <li className="text-sm leading-relaxed mobile-text-wrap">
                                                 {children}
                                             </li>
                                         ),
                                         blockquote: ({ children }) => (
-                                            <blockquote className="border-l-4 border-gray-300 dark:border-gray-600 pl-4 py-2 my-3 bg-gray-50 dark:bg-gray-700 rounded-r dark:text-gray-300">
+                                            <blockquote className="border-l-4 border-gray-300 dark:border-gray-600 pl-4 py-2 my-3 bg-gray-50 dark:bg-gray-700 rounded-r dark:text-gray-300 mobile-text-wrap">
                                                 {children}
                                             </blockquote>
                                         ),
                                         code: ({ children, className }) => {
                                             const isInline = !className;
                                             return isInline ? (
-                                                <code className="bg-gray-200 dark:bg-gray-700 px-1 py-0.5 rounded text-sm font-mono text-gray-800 dark:text-gray-200">
+                                                <code className="bg-gray-200 dark:bg-gray-700 px-1 py-0.5 rounded text-sm font-mono text-gray-800 dark:text-gray-200 mobile-text-wrap">
                                                     {children}
                                                 </code>
                                             ) : (
-                                                <code className={className}>
+                                                <code className={`${className} mobile-text-wrap`}>
                                                     {children}
                                                 </code>
                                             );
                                         },
                                         pre: ({ children }) => (
-                                            <pre className="bg-gray-100 dark:bg-gray-800 p-3 rounded-md overflow-x-auto text-sm font-mono mb-3 text-gray-800 dark:text-gray-200">
+                                            <pre className="bg-gray-100 dark:bg-gray-800 p-3 rounded-md mobile-overflow-safe text-sm font-mono mb-3 text-gray-800 dark:text-gray-200 mobile-text-wrap">
                                                 {children}
                                             </pre>
                                         ),
                                         a: ({ children, href }) => (
                                             <a
                                                 href={href}
-                                                className="text-sky-600 hover:text-sky-700 underline"
+                                                className="text-sky-600 hover:text-sky-700 underline mobile-text-wrap break-all"
                                                 target="_blank"
                                                 rel="noopener noreferrer"
                                             >
@@ -240,6 +240,23 @@ export default function ChatInterface({
                                             <em className="italic text-gray-800">
                                                 {children}
                                             </em>
+                                        ),
+                                        table: ({ children }) => (
+                                            <div className="mobile-table-container mb-3">
+                                                <table className="mobile-table border border-gray-300 dark:border-gray-600">
+                                                    {children}
+                                                </table>
+                                            </div>
+                                        ),
+                                        th: ({ children }) => (
+                                            <th className="border border-gray-300 dark:border-gray-600 px-3 py-2 text-left bg-gray-50 dark:bg-gray-700 font-medium text-sm mobile-table-cell">
+                                                {children}
+                                            </th>
+                                        ),
+                                        td: ({ children }) => (
+                                            <td className="border border-gray-300 dark:border-gray-600 px-3 py-2 text-sm mobile-table-cell">
+                                                {children}
+                                            </td>
                                         ),
                                     }}
                                 >

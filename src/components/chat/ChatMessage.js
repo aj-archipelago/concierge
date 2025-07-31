@@ -195,12 +195,18 @@ function convertMessageToMarkdown(message, finalRender = true) {
 
     return (
         <Markdown
-            className="chat-message min-h-[1.5rem] overflow-x-auto"
+            className="chat-message min-h-[1.5rem] mobile-overflow-safe"
             components={{
                 ...components,
                 div: ({ node, ...props }) => (
                     <div
-                        style={{ maxWidth: "100%", overflowWrap: "break-word" }}
+                        className="mobile-text-wrap"
+                        style={{ 
+                            maxWidth: "100%", 
+                            overflowWrap: "break-word",
+                            wordWrap: "break-word",
+                            wordBreak: "break-word"
+                        }}
                         {...props}
                     />
                 ),
