@@ -39,6 +39,7 @@ import {
     useMediaItems,
     useCreateMediaItem,
     useDeleteMediaItem,
+    useMigrateMediaItems,
 } from "../../../app/queries/media-items";
 import "./Media.scss";
 
@@ -286,72 +287,100 @@ function MediaPage() {
     const [showDeleteAllConfirm, setShowDeleteAllConfirm] = useState(false);
     const [showDeleteSelectedConfirm, setShowDeleteSelectedConfirm] =
         useState(false);
+    const [isMigrationInProgress, setIsMigrationInProgress] = useState(false);
     const promptRef = useRef(null);
     const createMediaItem = useCreateMediaItem();
     const deleteMediaItem = useDeleteMediaItem();
-
-    // Migration function to move data from localStorage to user state (run once)
-    const migrateFromLocalStorage = useCallback(() => {
-        const localSettings = localStorage.getItem("media-generation-settings");
-
-        if (localSettings) {
-            try {
-                const parsedSettings = JSON.parse(localSettings);
-                const settings = migrateSettings(parsedSettings);
-                debouncedUpdateUserState({
-                    media: { settings },
-                });
-
-                // Clear localStorage after successful migration
-                localStorage.removeItem("media-generation-settings");
-                localStorage.removeItem("generated-media");
-            } catch (error) {
-                console.warn("Failed to parse localStorage settings:", error);
-            }
-        }
-    }, []); // eslint-disable-line react-hooks/exhaustive-deps
+    const migrateMediaItems = useMigrateMediaItems();
 
     // No longer needed - images are managed by the API now
 
-    // Load settings from user state
+    // Load settings from user state (only when user state changes)
     useEffect(() => {
-        if (userState?.media?.settings) {
+        if (userState?.media?.settings && !isMigrationInProgress) {
             const migratedSettings = migrateSettings(userState.media.settings);
             setSettings(migratedSettings);
         }
-    }, [userState?.media?.settings]);
-
-    // Save settings to user state
-    useEffect(() => {
-        // Only save if settings have actually changed and are different from user state
-        if (
-            userState?.media?.settings &&
-            JSON.stringify(userState.media.settings) ===
-                JSON.stringify(settings)
-        ) {
-            return; // Skip if settings are the same
-        }
-
-        // Only update if we actually have settings to save
-        if (settings && Object.keys(settings).length > 0) {
-            debouncedUpdateUserState({
-                media: {
-                    ...userState?.media,
-                    settings: settings,
-                },
-            });
-        }
-    }, [settings, userState?.media]); // eslint-disable-line react-hooks/exhaustive-deps
+    }, [userState?.media?.settings, isMigrationInProgress]);
 
     // No longer need to load images from user state - they come from the API now
 
     // Migrate from localStorage on first load (run only once)
-    const hasMigrated = useRef(false); // Flag to track migration
     useEffect(() => {
-        if (!hasMigrated.current) {
-            migrateFromLocalStorage();
-            hasMigrated.current = true; // Set flag to prevent re-running
+        // Check if migration has already been completed
+        const migrationCompleted = localStorage.getItem(
+            "media-migration-completed",
+        );
+        if (migrationCompleted === "true") {
+            return;
         }
+
+        const localSettings = localStorage.getItem("media-generation-settings");
+        const localMediaItems = localStorage.getItem("generated-media");
+
+        // Check if there's data to migrate
+        const hasDataToMigrate = localSettings || localMediaItems;
+        if (!hasDataToMigrate) {
+            // Mark migration as completed even if no data to migrate
+            localStorage.setItem("media-migration-completed", "true");
+            return;
+        }
+
+        // Run migration inline to avoid dependency issues
+        const runMigration = async () => {
+            setIsMigrationInProgress(true);
+            try {
+                // Migrate settings first
+                if (localSettings) {
+                    try {
+                        const parsedSettings = JSON.parse(localSettings);
+                        const settings = migrateSettings(parsedSettings);
+                        debouncedUpdateUserState({
+                            media: { settings },
+                        });
+                    } catch (error) {
+                        console.warn(
+                            "Failed to parse localStorage settings:",
+                            error,
+                        );
+                    }
+                }
+
+                // Migrate media items
+                if (localMediaItems) {
+                    try {
+                        const parsedMediaItems = JSON.parse(localMediaItems);
+                        if (
+                            Array.isArray(parsedMediaItems) &&
+                            parsedMediaItems.length > 0
+                        ) {
+                            await migrateMediaItems.mutateAsync(
+                                parsedMediaItems,
+                            );
+                        }
+                    } catch (error) {
+                        console.warn(
+                            "Failed to migrate media items from localStorage:",
+                            error,
+                        );
+                    }
+                }
+
+                // Clear localStorage after successful migration
+                localStorage.removeItem("media-generation-settings");
+                localStorage.removeItem("generated-media");
+
+                // Mark migration as completed
+                localStorage.setItem("media-migration-completed", "true");
+            } catch (error) {
+                console.error("Migration failed:", error);
+                // Don't mark as completed if there was an error
+            } finally {
+                setIsMigrationInProgress(false);
+            }
+        };
+
+        runMigration();
     }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
     // No longer needed - images come from API
@@ -1172,11 +1201,13 @@ function MediaPage() {
                 </div>
             )}
 
-            {mediaItemsLoading ? (
+            {mediaItemsLoading || isMigrationInProgress ? (
                 <div className="flex justify-center items-center py-8">
                     <Loader2 className="animate-spin h-8 w-8 text-gray-500" />
                     <span className="ml-2 text-gray-500">
-                        {t("Loading media...")}
+                        {isMigrationInProgress
+                            ? t("Migrating media from localStorage...")
+                            : t("Loading media...")}
                     </span>
                 </div>
             ) : (
@@ -1291,12 +1322,21 @@ function MediaPage() {
                 settings={settings}
                 setSettings={setSettings}
                 onHide={() => setShowSettings(false)}
+                debouncedUpdateUserState={debouncedUpdateUserState}
+                userState={userState}
             />
         </div>
     );
 }
 
-function SettingsDialog({ show, settings, setSettings, onHide }) {
+function SettingsDialog({
+    show,
+    settings,
+    setSettings,
+    onHide,
+    debouncedUpdateUserState,
+    userState,
+}) {
     const { t } = useTranslation();
     const { direction } = useContext(LanguageContext);
     const [localSettings, setLocalSettings] = useState(settings);
@@ -1313,6 +1353,13 @@ function SettingsDialog({ show, settings, setSettings, onHide }) {
 
     const handleSave = () => {
         setSettings(localSettings);
+        // Save settings to user state
+        debouncedUpdateUserState({
+            media: {
+                ...userState?.media,
+                settings: localSettings,
+            },
+        });
         onHide();
     };
 

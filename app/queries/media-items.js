@@ -70,3 +70,29 @@ export function useDeleteMediaItem() {
 
     return mutation;
 }
+
+export function useMigrateMediaItems() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: async (mediaItems) => {
+            const response = await fetch("/api/media-items/migrate", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({ mediaItems }),
+            });
+
+            if (!response.ok) {
+                throw new Error("Failed to migrate media items");
+            }
+
+            return response.json();
+        },
+        onSuccess: () => {
+            // Invalidate and refetch media items after migration
+            queryClient.invalidateQueries({ queryKey: ["mediaItems"] });
+        },
+    });
+}
