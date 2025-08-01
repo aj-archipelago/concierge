@@ -200,10 +200,7 @@ class MediaGenerationHandler extends BaseTask {
         let processedData = null;
         if (userId) {
             // Handle cloud upload if needed
-            processedData = await this.processMediaData(
-                dataObject,
-                metadata,
-            );
+            processedData = await this.processMediaData(dataObject, metadata);
 
             await this.handleMediaGenerationCompletion(
                 userId,
