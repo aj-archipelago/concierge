@@ -120,7 +120,7 @@ export default function ChatInterface({
 
     return (
         <div className="flex flex-col grow overflow-auto h-full">
-            <div className="flex-1 grow overflow-auto border rounded-md p-4 bg-white scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent hover:scrollbar-thumb-gray-400 mb-3">
+            <div className="flex-1 grow overflow-auto border rounded-md p-4 bg-white dark:bg-gray-800 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent hover:scrollbar-thumb-gray-400 mb-3">
                 {messages.map((message, index) => (
                     <div
                         key={index}
@@ -133,12 +133,12 @@ export default function ChatInterface({
                         <div
                             className={`max-w-[100%] rounded-lg p-4 shadow-sm ${
                                 message.role === "user"
-                                    ? "bg-sky-100 text-sky-900 border border-sky-200"
-                                    : "bg-gray-50 text-gray-900 border border-gray-200"
+                                    ? "bg-sky-100 text-sky-900 border border-sky-200 dark:border-sky-700 dark:bg-sky-900/20"
+                                    : "bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-gray-100 border border-gray-200 dark:border-gray-600"
                             }`}
                         >
                             <div className="flex items-center justify-between mb-2">
-                                <div className="text-xs font-medium text-gray-600 capitalize">
+                                <div className="text-xs font-medium text-gray-600 capitalize dark:text-gray-400">
                                     {message.role === "user"
                                         ? t("You")
                                         : t("Assistant")}
@@ -149,7 +149,7 @@ export default function ChatInterface({
                                             e.stopPropagation();
                                             onReplayMessage(index);
                                         }}
-                                        className="text-xs text-sky-600 hover:text-sky-700 transition-colors p-1 hover:bg-sky-50 rounded-full"
+                                        className="text-xs text-sky-600 hover:text-sky-700 transition-colors p-1 hover:bg-sky-50 dark:hover:bg-sky-900/20 rounded-full"
                                         title={t("Replay from this message")}
                                     >
                                         <RotateCcw className="w-3 h-3" />
@@ -161,7 +161,7 @@ export default function ChatInterface({
                                     className="prose dark:prose-invert text-sm break-words leading-relaxed"
                                     components={{
                                         p: ({ children }) => (
-                                            <p className="m-0 mb-3 last:mb-0">
+                                            <p className="m-0 mb-3 last:mb-0 mobile-text-wrap">
                                                 {React.Children.toArray(
                                                     children,
                                                 ).map((child, idx) =>
@@ -174,76 +174,91 @@ export default function ChatInterface({
                                             </p>
                                         ),
                                         h1: ({ children }) => (
-                                            <h1 className="text-xl font-bold mb-3 mt-4 first:mt-0 text-gray-900">
+                                            <h1 className="text-xl font-bold mb-3 mt-4 first:mt-0 mobile-text-wrap">
                                                 {children}
                                             </h1>
                                         ),
                                         h2: ({ children }) => (
-                                            <h2 className="text-lg font-semibold mb-2 mt-3 first:mt-0 text-gray-900">
+                                            <h2 className="text-lg font-semibold mb-2 mt-3 first:mt-0 mobile-text-wrap">
                                                 {children}
                                             </h2>
                                         ),
                                         h3: ({ children }) => (
-                                            <h3 className="text-base font-semibold mb-2 mt-3 first:mt-0 text-gray-900">
+                                            <h3 className="text-base font-semibold mb-2 mt-3 first:mt-0 mobile-text-wrap">
                                                 {children}
                                             </h3>
                                         ),
                                         ul: ({ children }) => (
-                                            <ul className="list-disc list-inside mb-3 space-y-1">
+                                            <ul className="list-disc list-inside mb-3 space-y-1 mobile-text-wrap">
                                                 {children}
                                             </ul>
                                         ),
                                         ol: ({ children }) => (
-                                            <ol className="list-decimal list-inside mb-3 space-y-1">
+                                            <ol className="list-decimal list-inside mb-3 space-y-1 mobile-text-wrap">
                                                 {children}
                                             </ol>
                                         ),
                                         li: ({ children }) => (
-                                            <li className="text-sm leading-relaxed">
+                                            <li className="text-sm leading-relaxed mobile-text-wrap">
                                                 {children}
                                             </li>
                                         ),
                                         blockquote: ({ children }) => (
-                                            <blockquote className="border-l-4 border-gray-300 pl-4 py-2 my-3 bg-gray-50 rounded-r">
+                                            <blockquote className="border-l-4 border-gray-300 dark:border-gray-600 pl-4 py-2 my-3 bg-gray-50 dark:bg-gray-700 rounded-r dark:text-gray-300 mobile-text-wrap">
                                                 {children}
                                             </blockquote>
                                         ),
                                         code: ({ children, className }) => {
                                             const isInline = !className;
                                             return isInline ? (
-                                                <code className="bg-gray-200 px-1 py-0.5 rounded text-sm font-mono">
+                                                <code className="bg-gray-200 dark:bg-gray-700 px-1 py-0.5 rounded text-sm font-mono text-gray-800 dark:text-gray-200 mobile-text-wrap">
                                                     {children}
                                                 </code>
                                             ) : (
-                                                <code className={className}>
+                                                <code
+                                                    className={`${className} mobile-text-wrap`}
+                                                >
                                                     {children}
                                                 </code>
                                             );
                                         },
                                         pre: ({ children }) => (
-                                            <pre className="bg-gray-100 p-3 rounded-md overflow-x-auto text-sm font-mono mb-3">
+                                            <pre className="bg-gray-100 dark:bg-gray-800 p-3 rounded-md mobile-overflow-safe text-sm font-mono mb-3 text-gray-800 dark:text-gray-200 mobile-text-wrap">
                                                 {children}
                                             </pre>
                                         ),
                                         a: ({ children, href }) => (
                                             <a
                                                 href={href}
-                                                className="text-sky-600 hover:text-sky-700 underline"
+                                                className="text-sky-600 hover:text-sky-700 underline mobile-text-wrap break-all"
                                                 target="_blank"
                                                 rel="noopener noreferrer"
                                             >
                                                 {children}
                                             </a>
                                         ),
-                                        strong: ({ children }) => (
-                                            <strong className="font-semibold text-gray-900">
-                                                {children}
-                                            </strong>
-                                        ),
+                                        strong: ({ children }) => children,
                                         em: ({ children }) => (
                                             <em className="italic text-gray-800">
                                                 {children}
                                             </em>
+                                        ),
+                                        table: ({ children }) => (
+                                            <div className="mobile-table-container mb-3">
+                                                <table className="mobile-table border border-gray-300 dark:border-gray-600">
+                                                    {children}
+                                                </table>
+                                            </div>
+                                        ),
+                                        th: ({ children }) => (
+                                            <th className="border border-gray-300 dark:border-gray-600 px-3 py-2 text-left bg-gray-50 dark:bg-gray-700 font-medium text-sm mobile-table-cell">
+                                                {children}
+                                            </th>
+                                        ),
+                                        td: ({ children }) => (
+                                            <td className="border border-gray-300 dark:border-gray-600 px-3 py-2 text-sm mobile-table-cell">
+                                                {children}
+                                            </td>
                                         ),
                                     }}
                                 >
@@ -277,7 +292,7 @@ export default function ChatInterface({
                     !isStreaming &&
                     !messages.some((m) => m.isStreaming) && (
                         <div className="flex justify-start mb-6">
-                            <div className="max-w-[85%] rounded-lg p-4 bg-gray-50 text-gray-900 border border-gray-200 shadow-sm">
+                            <div className="max-w-[85%] rounded-lg p-4 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-gray-100 border border-gray-200 dark:border-gray-600 shadow-sm">
                                 <div className="flex items-center justify-between mb-2">
                                     <div className="text-xs font-medium text-gray-600 capitalize">
                                         {t("Assistant")}
@@ -301,10 +316,10 @@ export default function ChatInterface({
             </div>
 
             {/* Chat input section */}
-            <div className="rounded-md border dark:border-zinc-200 flex-shrink-0">
+            <div className="rounded-md border dark:border-zinc-100 flex-shrink-0 transition-colors duration-200 focus-within:border-gray-400 dark:focus-within:border-gray-500">
                 <form
                     className={cn(
-                        "flex items-center rounded-md dark:bg-zinc-100",
+                        "flex items-center rounded-md dark:bg-gray-800 transition-colors duration-200",
                         direction === "rtl" ? "flex-row-reverse" : "flex-row",
                     )}
                     onSubmit={handleSubmit}
@@ -313,7 +328,7 @@ export default function ChatInterface({
                         <div className="flex items-center">
                             <TextareaAutosize
                                 className={cn(
-                                    "w-full border-0 outline-none focus:shadow-none text-sm focus:ring-0 py-3 resize-none dark:bg-zinc-100 px-3 rounded-s max-h-24 overflow-y-auto",
+                                    "w-full border-0 outline-none focus:shadow-none text-sm focus:ring-0 py-3 resize-none dark:bg-transparent px-3 rounded-s max-h-24 overflow-y-auto dark:text-gray-100",
                                     direction === "rtl"
                                         ? "direction-rtl"
                                         : "direction-ltr",
@@ -348,7 +363,7 @@ export default function ChatInterface({
                             />
                         </div>
                     </div>
-                    <div className="px-3 bg-white self-stretch flex items-center rounded-e gap-1">
+                    <div className="px-3 bg-white dark:bg-gray-800 self-stretch flex items-center rounded-e gap-1 transition-colors duration-200">
                         <button
                             type={
                                 isStreaming || isLoading ? "button" : "submit"

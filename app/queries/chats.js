@@ -58,7 +58,8 @@ export function useGetActiveChats() {
         },
         staleTime: 1000 * 60 * 5,
         refetchInterval: (data) => {
-            return !data?.state?.data || !data.state.data.length ? 1000 : false;
+            // Only poll if there are active chats
+            return data && data.length > 0 ? 5000 : false;
         },
     });
 }

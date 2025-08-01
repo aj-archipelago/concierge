@@ -96,17 +96,17 @@ export default function AIModal({
                                 leaveFrom="opacity-100 scale-100"
                                 leaveTo="opacity-0 scale-95"
                             >
-                                <Dialog.Panel className="w-full max-w-6xl max-h-[calc(100vh-100px)] overflow-auto transform rounded-md bg-white p-6 text-start align-middle shadow-xl dark:bg-gray-100 border dark:border-300 transition-all flex flex-col gap-3">
+                                <Dialog.Panel className="w-full max-w-6xl max-h-[calc(100vh-100px)] overflow-auto transform rounded-md bg-white p-6 text-start align-middle shadow-xl dark:bg-gray-800 border dark:border-gray-600 transition-all flex flex-col gap-3">
                                     <Dialog.Title
                                         as="h3"
-                                        className="text-lg font-medium leading-6 text-gray-900"
+                                        className="text-lg font-medium leading-6 text-gray-900 dark:text-gray-100"
                                     >
                                         <div className="justify-between flex">
                                             <div>{t(title)}</div>
                                             <div>
                                                 <button
                                                     onClick={close}
-                                                    className="p-1 rounded-full hover:bg-gray-100"
+                                                    className="p-1 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 dark:text-gray-300"
                                                 >
                                                     <X size={16} />
                                                 </button>

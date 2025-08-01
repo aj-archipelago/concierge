@@ -222,7 +222,7 @@ export default function VersionNavigator({
                 )}
             >
                 <button
-                    className={cn("lb-outline-secondary", "bg-white")}
+                    className="border rounded-md border-gray-300 dark:border-gray-600 px-2 py-1.5 text-sm font-medium text-gray-700 dark:text-gray-200 shadow-sm enabled:hover:bg-gray-100 dark:enabled:hover:bg-gray-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-600 dark:focus-visible:outline-gray-400 disabled:opacity-50 enabled:active:bg-gray-200 dark:enabled:active:bg-gray-600 bg-white dark:bg-gray-800"
                     onClick={() =>
                         setActiveVersionIndex((prev) => Math.max(0, prev - 1))
                     }
@@ -235,7 +235,7 @@ export default function VersionNavigator({
                     )}
                 </button>
                 <button
-                    className={cn("lb-outline-secondary ", "bg-white")}
+                    className="border rounded-md border-gray-300 dark:border-gray-600 px-2 py-1.5 text-sm font-medium text-gray-700 dark:text-gray-200 shadow-sm enabled:hover:bg-gray-100 dark:enabled:hover:bg-gray-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-600 dark:focus-visible:outline-gray-400 disabled:opacity-50 enabled:active:bg-gray-200 dark:enabled:active:bg-gray-600 bg-white dark:bg-gray-800"
                     onClick={() =>
                         setActiveVersionIndex((prev) =>
                             Math.min(htmlVersions.length - 1, prev + 1),
@@ -249,7 +249,7 @@ export default function VersionNavigator({
                         <ArrowRightIcon className="w-4 h-4" />
                     )}
                 </button>
-                <span className="text-sm text-gray-600 whitespace-nowrap">
+                <span className="text-sm text-gray-700 dark:text-gray-200 whitespace-nowrap">
                     {t("Version")}{" "}
                     {Math.max(
                         1,
@@ -273,7 +273,7 @@ export default function VersionNavigator({
                                 {isOwner && (
                                     <>
                                         <button
-                                            className=" px-3 py-1 rounded-full text-xs font-bold border border-red-300 text-red-600 bg-white hover:bg-red-50 hover:border-red-400 transition focus:ring-2 focus:ring-red-200 focus:outline-none shadow-sm"
+                                            className=" px-3 py-1 rounded-full text-xs font-bold border border-red-300 text-red-600 bg-white dark:bg-gray-800 hover:bg-red-50 dark:hover:bg-red-900/20 hover:border-red-400 transition focus:ring-2 focus:ring-red-200 focus:outline-none shadow-sm"
                                             onClick={onUnpublish}
                                             disabled={updateApplet.isPending}
                                             type="button"
@@ -281,7 +281,7 @@ export default function VersionNavigator({
                                             {t("Unpublish")}
                                         </button>
                                         <button
-                                            className="px-3 py-1 rounded-full text-xs font-bold border lb-outline-secondary bg-white"
+                                            className="px-3 py-1 rounded-full text-xs font-bold border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition shadow-sm"
                                             onClick={handleDuplicateVersion}
                                             title={t("Duplicate this version")}
                                         >
@@ -292,7 +292,7 @@ export default function VersionNavigator({
                             </>
                         ) : (
                             <button
-                                className="px-3 py-1 rounded-full text-xs font-bold border border-gray-300 bg-gray-100 text-gray-600 hover:bg-gray-200 transition shadow-sm whitespace-nowrap"
+                                className="px-3 py-1 rounded-full text-xs font-bold border border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 transition shadow-sm whitespace-nowrap"
                                 onClick={() =>
                                     setActiveVersionIndex(publishedVersionIndex)
                                 }
@@ -321,14 +321,14 @@ export default function VersionNavigator({
                                         : t("Publish this version")}
                                 </button>
                                 <button
-                                    className="px-3 py-1 rounded-full text-xs font-bold border lb-outline-secondary bg-white"
+                                    className="px-3 py-1 rounded-full text-xs font-bold border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition shadow-sm"
                                     onClick={handleDuplicateVersion}
                                     title={t("Duplicate this version")}
                                 >
                                     <CopyIcon className="w-4 h-4" />
                                 </button>
                                 <button
-                                    className="px-3 py-1 rounded-full text-xs font-bold border lb-outline-secondary bg-white"
+                                    className="px-3 py-1 rounded-full text-xs font-bold border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition shadow-sm"
                                     onClick={handleDeleteVersion}
                                 >
                                     <TrashIcon className="w-4 h-4" />

@@ -111,7 +111,7 @@ export default React.forwardRef(function SendFeedbackModal(
     return (
         <Modal show={show && !isCapturing} onHide={onHide}>
             <div className="p-6">
-                <div className="text-xl font-semibold mb-6 text-gray-900">
+                <div className="text-xl font-semibold mb-6 text-gray-900 dark:text-gray-100">
                     {t("Send us a message")}
                 </div>
                 <div className="flex gap-6 mb-6">
@@ -120,7 +120,7 @@ export default React.forwardRef(function SendFeedbackModal(
                             rows={8}
                             value={message}
                             onChange={(e) => setMessage(e.target.value)}
-                            className="lb-input min-h-64 h-full w-full resize-none rounded-lg border-gray-200 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                            className="lb-input min-h-64 h-full w-full resize-none rounded-lg border-gray-200 focus:border-sky-500 focus:ring-1 focus:ring-sky-500"
                             placeholder={t("Type your message here...")}
                         />
                     </div>
@@ -188,7 +188,7 @@ export default React.forwardRef(function SendFeedbackModal(
                     </div>
                 </div>
                 {error && (
-                    <div className="bg-red-50 p-4 rounded-lg text-red-500 mb-6 flex items-center justify-between border border-red-100">
+                    <div className="bg-red-50 dark:bg-red-900/20 p-4 rounded-lg text-red-500 dark:text-red-400 mb-6 flex items-center justify-between border border-red-100 dark:border-red-800">
                         <span className="text-sm">{error}</span>
                         <button
                             className="text-red-500 hover:text-red-700 p-1 rounded-full hover:bg-red-100 transition-colors"

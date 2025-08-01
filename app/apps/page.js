@@ -63,7 +63,7 @@ function SortableAppItem({ app, onRemove, isCollapsed }) {
             ref={setNodeRef}
             style={style}
             className={cn(
-                "flex items-center justify-between p-3 bg-white border border-gray-200 rounded-lg mb-2",
+                "flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg mb-2",
                 isDragging && "opacity-50 shadow-lg",
             )}
         >
@@ -71,15 +71,15 @@ function SortableAppItem({ app, onRemove, isCollapsed }) {
                 <button
                     {...attributes}
                     {...listeners}
-                    className="cursor-grab active:cursor-grabbing p-1 hover:bg-gray-100 rounded"
+                    className="cursor-grab active:cursor-grabbing p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
                 >
                     <GripVertical className="h-4 w-4 text-gray-400" />
                 </button>
                 <div className="flex items-center gap-2">
-                    <div className="flex items-center justify-center w-8 h-8 bg-gray-100 rounded-lg">
-                        <IconComponent className="w-4 h-4 text-gray-600" />
+                    <div className="flex items-center justify-center w-10 h-10 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg flex-shrink-0">
+                        <IconComponent className="w-5 h-5 text-gray-600 dark:text-gray-300" />
                     </div>
-                    <span className="font-medium text-gray-900">
+                    <span className="font-medium text-gray-900 dark:text-gray-100">
                         {t(appName)}
                     </span>
                 </div>
@@ -255,7 +255,7 @@ export default function AppsPage() {
 
     if (isLoading) {
         return (
-            <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+            <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
                 <div className="text-center">
                     <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-sky-600 mx-auto"></div>
                     <p className="mt-2 text-gray-600">{t("Loading...")}</p>
@@ -265,11 +265,11 @@ export default function AppsPage() {
     }
 
     return (
-        <div className="min-h-screen bg-gray-50">
+        <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
             <div className="py-8 px-4">
-                <div className="bg-white rounded-lg shadow-sm border border-gray-200">
-                    <div className="px-6 py-4 border-b border-gray-200">
-                        <h1 className="text-2xl font-bold text-gray-900">
+                <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-600">
+                    <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-600">
+                        <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
                             {t("Manage Apps")}
                         </h1>
                     </div>
@@ -287,7 +287,7 @@ export default function AppsPage() {
 
                             <TabsContent value="your-apps" className="mt-6">
                                 <div className="mb-4">
-                                    <p className="text-gray-600 mb-4">
+                                    <p className="text-gray-600 dark:text-gray-400 mb-4">
                                         {t(
                                             "Drag and drop to reorder your apps",
                                         )}
@@ -295,7 +295,7 @@ export default function AppsPage() {
                                 </div>
 
                                 {userApps.length === 0 ? (
-                                    <div className="text-center py-8 text-gray-500">
+                                    <div className="text-center py-8 text-gray-500 dark:text-gray-400">
                                         <p>{t("No apps added yet")}</p>
                                     </div>
                                 ) : (
@@ -334,16 +334,16 @@ export default function AppsPage() {
                                         </SortableContext>
                                         <DragOverlay>
                                             {activeId ? (
-                                                <div className="flex items-center justify-between p-3 bg-white border border-gray-200 rounded-lg mb-2 shadow-xl opacity-90 transform rotate-2">
+                                                <div className="flex items-center justify-between p-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg mb-2 shadow-xl opacity-90 transform rotate-2">
                                                     <div className="flex items-center gap-3">
                                                         <div className="p-1">
                                                             <GripVertical className="h-4 w-4 text-gray-400" />
                                                         </div>
                                                         <div className="flex items-center gap-2">
-                                                            <div className="flex items-center justify-center w-8 h-8 bg-gray-100 rounded-lg">
-                                                                <AppWindow className="w-4 h-4 text-gray-600" />
+                                                            <div className="flex items-center justify-center w-8 h-8 bg-gray-100 dark:bg-gray-700 rounded-lg">
+                                                                <AppWindow className="w-4 h-4 text-gray-600 dark:text-gray-300" />
                                                             </div>
-                                                            <span className="font-medium text-gray-900">
+                                                            <span className="font-medium text-gray-900 dark:text-gray-100">
                                                                 {userApps.find(
                                                                     (app) => {
                                                                         const itemId =
@@ -388,14 +388,14 @@ export default function AppsPage() {
                                             onChange={(e) =>
                                                 setSearchQuery(e.target.value)
                                             }
-                                            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-transparent rtl:pl-4 rtl:pr-10 rtl:text-right bg-white dark:bg-gray-100 dark:border-gray-300 dark:text-gray-800 dark:placeholder-gray-400"
+                                            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-transparent rtl:pl-4 rtl:pr-10 rtl:text-right bg-white dark:bg-gray-800 dark:border-gray-600 dark:text-gray-100 dark:placeholder-gray-400"
                                         />
                                     </div>
                                 </div>
 
                                 {/* Built-in Apps Section */}
                                 <div className="mb-6">
-                                    <h3 className="text-md font-medium text-gray-800 mb-3 rtl:text-right">
+                                    <h3 className="text-md font-medium text-gray-800 dark:text-gray-200 mb-3 rtl:text-right">
                                         {t("Built-in Apps")}
                                     </h3>
                                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -409,7 +409,7 @@ export default function AppsPage() {
                                             return (
                                                 <div
                                                     key={app._id}
-                                                    className="relative p-3 border border-gray-200 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors cursor-pointer"
+                                                    className="relative p-3 border border-gray-200 rounded-lg bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors cursor-pointer"
                                                     onClick={() => {
                                                         if (
                                                             app.type ===
@@ -439,8 +439,8 @@ export default function AppsPage() {
                                                         }}
                                                         className={`absolute top-2 right-2 w-6 h-6 flex items-center justify-center rounded-full border transition-colors rtl:left-2 rtl:right-auto ${
                                                             isInstalled
-                                                                ? "border-red-300 text-red-600 hover:bg-red-50"
-                                                                : "border-sky-300 text-sky-600 hover:bg-sky-50"
+                                                                ? "border-red-300 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"
+                                                                : "border-sky-300 text-sky-600 hover:bg-sky-50 dark:hover:bg-sky-900/20"
                                                         }`}
                                                     >
                                                         {isInstalled ? (
@@ -450,11 +450,11 @@ export default function AppsPage() {
                                                         )}
                                                     </button>
                                                     <div className="flex items-center gap-2 pe-4 rtl:flex-row-reverse rtl:pe-0 rtl:ps-4">
-                                                        <div className="flex items-center justify-center w-10 h-10 bg-white border border-gray-200 rounded-lg flex-shrink-0">
-                                                            <IconComponent className="w-5 h-5 text-gray-600" />
+                                                        <div className="flex items-center justify-center w-10 h-10 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg flex-shrink-0">
+                                                            <IconComponent className="w-5 h-5 text-gray-600 dark:text-gray-300" />
                                                         </div>
                                                         <div className="min-w-0 flex-1 rtl:text-right">
-                                                            <h3 className="font-medium text-gray-900 truncate">
+                                                            <h3 className="font-medium text-gray-900 dark:text-gray-100 truncate">
                                                                 {t(app.name)}
                                                             </h3>
                                                         </div>
@@ -468,7 +468,7 @@ export default function AppsPage() {
                                 {/* User-Created Apps Section */}
                                 {appletApps.length > 0 && (
                                     <div className="mb-6">
-                                        <h3 className="text-md font-medium text-gray-800 mb-3 rtl:text-right">
+                                        <h3 className="text-md font-medium text-gray-800 dark:text-gray-200 mb-3 rtl:text-right">
                                             {t("User-Created Apps")}
                                         </h3>
                                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -485,7 +485,7 @@ export default function AppsPage() {
                                                 return (
                                                     <div
                                                         key={app._id}
-                                                        className="relative p-3 border border-gray-200 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors cursor-pointer"
+                                                        className="relative p-3 border border-gray-200 rounded-lg bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors cursor-pointer"
                                                         onClick={() => {
                                                             if (
                                                                 app.type ===
@@ -515,7 +515,7 @@ export default function AppsPage() {
                                                                             `/workspaces/${app.workspaceId}`,
                                                                         );
                                                                     }}
-                                                                    className="w-6 h-6 flex items-center justify-center rounded-full border border-gray-300 text-gray-600 hover:bg-gray-50 transition-colors"
+                                                                    className="w-6 h-6 flex items-center justify-center rounded-full border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
                                                                     title={t(
                                                                         "Edit",
                                                                     )}
@@ -538,8 +538,8 @@ export default function AppsPage() {
                                                                 }}
                                                                 className={`w-6 h-6 flex items-center justify-center rounded-full border transition-colors ${
                                                                     isInstalled
-                                                                        ? "border-red-300 text-red-600 hover:bg-red-50"
-                                                                        : "border-sky-300 text-sky-600 hover:bg-sky-50"
+                                                                        ? "border-red-300 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"
+                                                                        : "border-sky-300 text-sky-600 hover:bg-sky-50 dark:hover:bg-sky-900/20"
                                                                 }`}
                                                             >
                                                                 {isInstalled ? (
@@ -549,38 +549,42 @@ export default function AppsPage() {
                                                                 )}
                                                             </button>
                                                         </div>
-                                                        <div className="flex items-center gap-2 pe-16 mb-2 rtl:flex-row-reverse rtl:pe-0 rtl:ps-16">
-                                                            <div className="flex items-center justify-center w-10 h-10 bg-white border border-gray-200 rounded-lg flex-shrink-0">
-                                                                <IconComponent className="w-5 h-5 text-gray-600" />
+                                                        <div className="flex items-center gap-2 pe-16 rtl:flex-row-reverse rtl:pe-0 rtl:ps-16">
+                                                            <div className="flex items-center justify-center w-10 h-10 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg flex-shrink-0">
+                                                                <IconComponent className="w-5 h-5 text-gray-600 dark:text-gray-300" />
                                                             </div>
                                                             <div className="min-w-0 flex-1 rtl:text-right">
-                                                                <h3 className="font-medium text-gray-900 truncate">
+                                                                <h3 className="font-medium text-gray-900 dark:text-gray-100 truncate">
                                                                     {t(
                                                                         app.name,
                                                                     )}
                                                                 </h3>
                                                             </div>
                                                         </div>
-                                                        {app.author && (
-                                                            <div className="text-xs text-gray-500 rtl:text-right">
-                                                                {t(
-                                                                    "by {{author}}",
-                                                                    {
-                                                                        author: app
-                                                                            .author
-                                                                            .username,
-                                                                    },
-                                                                )}
-                                                            </div>
-                                                        )}
-                                                        {app.updatedAt && (
-                                                            <div className="text-xs text-gray-400 rtl:text-right mt-1 truncate">
-                                                                {t("Updated")}{" "}
-                                                                {new Date(
-                                                                    app.updatedAt,
-                                                                ).toLocaleString()}
-                                                            </div>
-                                                        )}
+                                                        <div className="mt-2 space-y-1">
+                                                            {app.author && (
+                                                                <div className="text-xs text-gray-500 dark:text-gray-400 rtl:text-right">
+                                                                    {t(
+                                                                        "by {{author}}",
+                                                                        {
+                                                                            author: app
+                                                                                .author
+                                                                                .username,
+                                                                        },
+                                                                    )}
+                                                                </div>
+                                                            )}
+                                                            {app.updatedAt && (
+                                                                <div className="text-xs text-gray-400 dark:text-gray-500 rtl:text-right truncate">
+                                                                    {t(
+                                                                        "Updated",
+                                                                    )}{" "}
+                                                                    {new Date(
+                                                                        app.updatedAt,
+                                                                    ).toLocaleString()}
+                                                                </div>
+                                                            )}
+                                                        </div>
                                                     </div>
                                                 );
                                             })}

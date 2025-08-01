@@ -67,7 +67,7 @@ const ChangeToken = ({ active, changeId, token }) => {
 const Change = ({ token, onTokenChange }) => {
     const ClickableToken = ({
         children,
-        className = "change-inline",
+        className = "p-0 border-0 cursor-pointer",
         changeId,
     }) => {
         return (
@@ -156,7 +156,7 @@ const Change = ({ token, onTokenChange }) => {
     }
 
     return (
-        <ClickableToken className="change-button">
+        <ClickableToken className="text-left bg-gray-100 dark:bg-gray-700 rounded border border-gray-300 dark:border-gray-600 overflow-hidden text-xs text-gray-800 dark:text-gray-200">
             <input type="checkbox" defaultChecked={accepted} tabIndex="-1" />
             <div>{changeMarkup}</div>
         </ClickableToken>
@@ -370,7 +370,7 @@ const Diff = ({ string1 = "", string2 = "", setSelectedText }) => {
 
     const { t } = useTranslation();
     return (
-        <div className="ai-diff flex flex-col md:flex-row gap-4 h-full overflow-hidden">
+        <div className="flex flex-col md:flex-row gap-4 h-full overflow-hidden">
             <div className="change-container flex-1 h-[300px] md:h-[600px] overflow-y-auto">
                 <h6 className="mb-4">{t("Changes")}</h6>
                 <ul className="list-none p-0">

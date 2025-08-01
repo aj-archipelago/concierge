@@ -15,7 +15,7 @@ export default function JiraProjectSelect({ token, value, onChange }) {
     const selectedSite = value?.site;
 
     useEffect(() => {
-        if (!token || !selectedSite) {
+        if (!token || !selectedSite?.id) {
             return;
         }
 
@@ -52,12 +52,7 @@ export default function JiraProjectSelect({ token, value, onChange }) {
         if (token) {
             axios
                 .get(
-                    "https://api.atlassian.com/oauth/token/accessible-resources",
-                    {
-                        headers: {
-                            Authorization: `Bearer ${token}`,
-                        },
-                    },
+                    `/api/jira/auth/accessible-resources?token=${encodeURIComponent(token)}`,
                 )
                 .then((response) => {
                     setSites(response.data);
@@ -90,13 +85,15 @@ export default function JiraProjectSelect({ token, value, onChange }) {
                         </h5>
                         <select
                             className="lb-input"
-                            value={selectedSite}
+                            value={selectedSite?.name || ""}
                             onChange={(e) =>
                                 onChange({
                                     ...value,
-                                    site: sites.find(
-                                        (site) => site.name === e.target.value,
-                                    ),
+                                    site:
+                                        sites.find(
+                                            (site) =>
+                                                site.name === e.target.value,
+                                        ) || null,
                                     project: null,
                                     issueTypes: [],
                                 })
@@ -240,8 +237,8 @@ function IssueTypes({ value, onChange, projectKey, token, siteId }) {
                                 className={classNames(
                                     "flex",
                                     value.includes(type.name)
-                                        ? "bg-green-50"
-                                        : "bg-gray-50",
+                                        ? "bg-green-50 dark:bg-green-900/20"
+                                        : "bg-gray-50 dark:bg-gray-700",
                                     "gap-2 p-2 border rounded-md items-center",
                                     "cursor-pointer",
                                 )}

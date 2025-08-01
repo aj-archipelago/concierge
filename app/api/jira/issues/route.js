@@ -14,6 +14,22 @@ export async function POST(request) {
             issueType,
         } = await request.json();
 
+        // Validate required parameters
+        if (
+            !token ||
+            !siteId ||
+            siteId === "undefined" ||
+            !projectKey ||
+            !issueType
+        ) {
+            return Response.json(
+                {
+                    error: "Missing required parameters: token, siteId, projectKey, or issueType",
+                },
+                { status: 400 },
+            );
+        }
+
         const response = await axios.post(
             getJiraRestUrl(siteId),
             {

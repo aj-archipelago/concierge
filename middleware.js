@@ -16,20 +16,36 @@ const isAuthorized = (request) => {
             .get("X-MS-CLIENT-PRINCIPAL-NAME")
             ?.toLowerCase();
 
-        const allowedEmailDomains = process.env.ENTRA_AUTHORIZED_DOMAINS
-            ? process.env.ENTRA_AUTHORIZED_DOMAINS.split(",").map(
-                  (emailDomain) => emailDomain.toLowerCase(),
-              )
-            : [];
+        // If we have Azure headers, validate domain
+        if (emailName) {
+            const allowedEmailDomains = process.env.ENTRA_AUTHORIZED_DOMAINS
+                ? process.env.ENTRA_AUTHORIZED_DOMAINS.split(",").map(
+                      (emailDomain) => emailDomain.toLowerCase(),
+                  )
+                : [];
 
-        if (!emailName || !allowedEmailDomains.length) {
-            return false;
+            if (!allowedEmailDomains.length) {
+                return false;
+            }
+
+            const emailDomain = emailName.split("@")[1];
+            if (!allowedEmailDomains.includes(emailDomain)) {
+                return false;
+            }
+
+            return true;
         }
 
-        const emailDomain = emailName.split("@")[1];
-        if (!allowedEmailDomains.includes(emailDomain)) {
-            return false;
+        // For local development, check for local auth cookie
+        if (process.env.NODE_ENV !== "production") {
+            const cookieHeader = request.headers.get("cookie");
+            if (cookieHeader && cookieHeader.includes("local_auth_token")) {
+                // Allow local auth in development
+                return true;
+            }
         }
+
+        return false;
     }
 
     return true;

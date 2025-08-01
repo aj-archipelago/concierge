@@ -122,9 +122,9 @@ function Chat({ viewingChat = null }) {
             <div className="flex justify-between items-center">
                 <ChatTopMenuDynamic />
                 {publicChatOwner && (
-                    <div className="text-sm font-medium text-gray-600 bg-gray-100 px-3 py-1 rounded shadow-sm">
+                    <div className="text-sm font-medium text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-800 px-3 py-1 rounded shadow-sm">
                         {t("Shared by")}{" "}
-                        <span className="font-bold text-blue-600">
+                        <span className="font-bold text-sky-600">
                             {publicChatOwner.name || publicChatOwner.username}
                         </span>
                     </div>
@@ -169,7 +169,7 @@ function Chat({ viewingChat = null }) {
                         <SelectContent>
                             {entities.map((entity) => (
                                 <SelectItem
-                                    className="text-sm focus:bg-gray-100 dark:focus:bg-gray-100 dark:focus:text-gray-800"
+                                    className="text-sm focus:bg-gray-100 dark:focus:bg-gray-700 dark:focus:text-gray-100"
                                     key={entity.id}
                                     value={entity.id}
                                 >
@@ -183,7 +183,7 @@ function Chat({ viewingChat = null }) {
                     </Select>
                     <button
                         disabled={readOnly}
-                        className="flex items-center gap-1 px-3 py-1.5 rounded-md transition-colors border bg-white text-gray-700 border-gray-200 hover:bg-gray-100 text-xs"
+                        className="flex items-center gap-1 px-3 py-1.5 rounded-md transition-colors border bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 border-gray-200 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-600 text-xs"
                         onClick={handleShareOrCopy}
                         title={
                             chat?.isPublic ? t("Copy Share URL") : t("Share")
@@ -200,7 +200,7 @@ function Chat({ viewingChat = null }) {
                     </button>
                     <button
                         disabled={readOnly}
-                        className="flex items-center gap-1 px-3 py-1.5 rounded-md transition-colors border bg-white text-gray-700 border-gray-200 hover:bg-gray-100 text-xs"
+                        className="flex items-center gap-1 px-3 py-1.5 rounded-md transition-colors border bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 border-gray-200 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-600 text-xs"
                         onClick={() => {
                             setShowDeleteConfirm(true);
                         }}

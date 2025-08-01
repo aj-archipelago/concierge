@@ -149,7 +149,7 @@ function ChatBox() {
 
     if (statePosition === "full") {
         return (
-            <div className="chat-full-container bg-white">
+            <div className="chat-full-container bg-white dark:bg-gray-800">
                 <div
                     className="chatbox-floating-title bg-sky-700 rounded-t"
                     onClick={titleBarClick}
@@ -172,13 +172,13 @@ function ChatBox() {
         );
     } else {
         return (
-            <div className="bg-white rounded-md border dark:border-gray-300 overflow-hidden h-full">
+            <div className="bg-white dark:bg-gray-800 rounded-md border dark:border-gray-600 overflow-hidden h-full">
                 <div
                     style={{ width: dockedWidth }}
                     className={`flex flex-col h-full chatbox chatbox-floating chatbox-floating-${statePosition} ${statePosition}`}
                 >
                     <div
-                        className="bg-zinc-100 flex justify-between items-center p-3"
+                        className="bg-zinc-100 dark:bg-gray-700 flex justify-between items-center p-3"
                         onClick={titleBarClick}
                     >
                         <div className="">

@@ -143,7 +143,7 @@ export default function PublishConfirmDialog({
                                         {t("App Icon")}
                                     </Label>
                                     <div className="flex items-center gap-2">
-                                        <div className="flex items-center justify-center w-10 h-10 border rounded-lg bg-gray-50">
+                                        <div className="flex items-center justify-center w-10 h-10 border rounded-lg bg-gray-50 dark:bg-gray-700">
                                             <SelectedIconComponent className="w-5 h-5" />
                                         </div>
                                         <Button
@@ -203,7 +203,7 @@ export default function PublishConfirmDialog({
                                                                     className={`p-2 rounded hover:bg-gray-100 transition-colors ${
                                                                         selectedIcon ===
                                                                         iconName
-                                                                            ? "bg-blue-100 border border-blue-300"
+                                                                            ? "bg-sky-100 border border-sky-300"
                                                                             : ""
                                                                     }`}
                                                                     title={
@@ -216,7 +216,7 @@ export default function PublishConfirmDialog({
                                                         },
                                                     )
                                                 ) : (
-                                                    <div className="col-span-8 flex items-center justify-center py-8 text-gray-500 text-sm">
+                                                    <div className="col-span-8 flex items-center justify-center py-8 text-gray-500 dark:text-gray-400 text-sm">
                                                         {t(
                                                             'No icons found matching "{{searchTerm}}"',
                                                             {

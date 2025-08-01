@@ -21,6 +21,9 @@ import { ThemeProvider } from "./contexts/ThemeProvider";
 import { AutoTranscribeProvider } from "./contexts/AutoTranscribeContext";
 import Layout from "./layout/Layout";
 import "./tailwind.css";
+import { AuthProvider } from "./components/AuthProvider";
+import { AuthErrorDialog } from "./components/AuthErrorDialog";
+import { AuthLoadingOverlay } from "./components/AuthLoadingOverlay";
 
 const NEXT_PUBLIC_AMPLITUDE_API_KEY = process.env.NEXT_PUBLIC_AMPLITUDE_API_KEY;
 
@@ -62,6 +65,7 @@ const App = ({
     const { data: serverUserState, refetch: refetchServerUserState } =
         useUserState();
     const updateUserState = useUpdateUserState();
+
     const [userState, setUserState] = useState(null);
     const debouncedUserState = useDebounce(userState, STATE_DEBOUNCE_TIME);
     const refetchCalledRef = useRef(false);
@@ -76,6 +80,7 @@ const App = ({
         // state yet
         if (
             (!userState || refetchCalledRef.current) &&
+            serverUserState !== undefined &&
             JSON.stringify(serverUserState) !== JSON.stringify(userState)
         ) {
             setUserState(serverUserState);
@@ -108,10 +113,10 @@ const App = ({
                 };
             });
         } else {
-            setUserState({
-                ...userState,
+            setUserState((prev) => ({
+                ...prev,
                 ...value,
-            });
+            }));
         }
     };
 
@@ -123,26 +128,32 @@ const App = ({
                 value={{ graphQLPublicEndpoint, serverUrl, neuralspaceEnabled }}
             >
                 <StoreProvider>
-                    <ThemeProvider savedTheme={theme}>
-                        <LanguageProvider savedLanguage={language}>
-                            <AutoTranscribeProvider>
-                                <React.StrictMode>
-                                    <AuthContext.Provider
-                                        value={{
-                                            user: currentUser,
-                                            userState,
-                                            refetchUserState,
-                                            debouncedUpdateUserState,
-                                        }}
-                                    >
-                                        <Layout>
-                                            <Body>{children}</Body>
-                                        </Layout>
-                                    </AuthContext.Provider>
-                                </React.StrictMode>
-                            </AutoTranscribeProvider>
-                        </LanguageProvider>
-                    </ThemeProvider>
+                    <AutoTranscribeProvider>
+                        <AuthProvider>
+                            <React.StrictMode>
+                                <AuthContext.Provider
+                                    value={{
+                                        user: currentUser,
+                                        userState,
+                                        refetchUserState,
+                                        debouncedUpdateUserState,
+                                    }}
+                                >
+                                    <ThemeProvider savedTheme={theme}>
+                                        <LanguageProvider
+                                            savedLanguage={language}
+                                        >
+                                            <Layout>
+                                                <Body>{children}</Body>
+                                            </Layout>
+                                            <AuthErrorDialog />
+                                            <AuthLoadingOverlay />
+                                        </LanguageProvider>
+                                    </ThemeProvider>
+                                </AuthContext.Provider>
+                            </React.StrictMode>
+                        </AuthProvider>
+                    </AutoTranscribeProvider>
                 </StoreProvider>
             </ServerContext.Provider>
         </ApolloNextAppProvider>

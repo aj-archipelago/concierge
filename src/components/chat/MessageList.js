@@ -141,6 +141,7 @@ const MessageListContent = React.memo(function MessageListContent({
                         return obj.text;
                     } else if (obj.type === "image_url") {
                         const src = obj?.url || obj?.image_url?.url || obj?.gcs;
+                        const originalFilename = obj?.originalFilename;
                         if (isVideoUrl(src)) {
                             const youtubeEmbedUrl = getYoutubeEmbedUrl(src);
                             if (youtubeEmbedUrl) {
@@ -184,7 +185,10 @@ const MessageListContent = React.memo(function MessageListContent({
                             );
                         }
 
-                        const filename = decodeURIComponent(getFilename(src));
+                        // Use original filename if available, otherwise extract from URL
+                        const filename =
+                            originalFilename ||
+                            decodeURIComponent(getFilename(src));
                         const ext = getExtension(src);
 
                         if (DOC_EXTENSIONS.includes(ext)) {
@@ -192,7 +196,7 @@ const MessageListContent = React.memo(function MessageListContent({
                             return (
                                 <a
                                     key={`file-${index}-${index2}`}
-                                    className="bg-neutral-100 py-2 ps-2 pe-4 m-2 shadow-md rounded-lg border flex gap-2 items-center"
+                                    className="bg-neutral-100 dark:bg-gray-700 py-2 ps-2 pe-4 m-2 shadow-md rounded-lg border dark:border-gray-600 flex gap-2 items-center"
                                     onLoad={() =>
                                         handleMessageLoad(newMessage.id)
                                     }
@@ -515,7 +519,7 @@ const MessageList = React.memo(
             <ScrollToBottom ref={scrollBottomRef} loadComplete={loadComplete}>
                 <div className="flex flex-col">
                     {messages.length === 0 && !isStreaming && (
-                        <div className="no-message-message text-gray-400">
+                        <div className="no-message-message text-gray-400 dark:text-gray-500">
                             {t("Send a message to start a conversation")}
                         </div>
                     )}

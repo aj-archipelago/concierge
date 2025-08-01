@@ -34,10 +34,18 @@ export function useUserState() {
     const query = useQuery({
         queryKey: ["userState"],
         queryFn: async () => {
-            const { data } = await axios.get(`/api/users/me/state`);
-            return data;
+            try {
+                const { data } = await axios.get(`/api/users/me/state`);
+
+                return data;
+            } catch (error) {
+                console.error("useUserState: API call failed:", error);
+                throw error;
+            }
         },
         staleTime: Infinity,
+        retry: 3,
+        retryDelay: 1000,
     });
 
     return query;

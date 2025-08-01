@@ -86,17 +86,24 @@ function MessageInput({
     const prepareMessage = (inputText) => {
         return [
             JSON.stringify({ type: "text", text: inputText }),
-            ...(urlsData || [])?.map(({ url, gcs, converted }) => {
-                const obj = {
-                    type: "image_url",
-                };
+            ...(urlsData || [])?.map(
+                ({ url, gcs, converted, originalFilename }) => {
+                    const obj = {
+                        type: "image_url",
+                    };
 
-                obj.gcs = converted?.gcs || gcs;
-                obj.url = converted?.url || url;
-                obj.image_url = { url: converted?.url || url };
+                    obj.gcs = converted?.gcs || gcs;
+                    obj.url = converted?.url || url;
+                    obj.image_url = { url: converted?.url || url };
 
-                return JSON.stringify(obj);
-            }),
+                    // Include original filename if available
+                    if (originalFilename) {
+                        obj.originalFilename = originalFilename;
+                    }
+
+                    return JSON.stringify(obj);
+                },
+            ),
         ];
     };
 
@@ -228,10 +235,10 @@ function MessageInput({
                     setUrlsData={setUrlsData}
                 />
             )}
-            <div className="rounded-md border dark:border-zinc-200 mt-3">
+            <div className="rounded-md border border-gray-200 dark:border-gray-600 mt-3">
                 <form
                     onSubmit={handleFormSubmit}
-                    className="flex items-end rounded-md dark:bg-zinc-100"
+                    className="flex items-end rounded-md bg-white dark:bg-gray-800"
                 >
                     {enableRag && (
                         <div className="flex items-end px-3 pb-2.5">
@@ -241,7 +248,7 @@ function MessageInput({
                                     onClick={() => {
                                         setShowFileUpload(true);
                                     }}
-                                    className="hover:bg-gray-100 rounded-full flex items-center justify-center"
+                                    className="hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full flex items-center justify-center"
                                 >
                                     <FilePlus className="w-5 h-5 text-gray-500" />
                                 </button>
@@ -251,7 +258,7 @@ function MessageInput({
                                     onClick={() => {
                                         setShowFileUpload(false);
                                     }}
-                                    className="hover:bg-gray-100 rounded-full flex items-center justify-center"
+                                    className="hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full flex items-center justify-center"
                                 >
                                     <XCircle className="w-5 h-5 text-gray-500" />
                                 </button>
@@ -262,7 +269,7 @@ function MessageInput({
                         <TextareaAutosize
                             typeahead="none"
                             className={classNames(
-                                `w-full border-0 outline-none focus:shadow-none [.docked_&]:text-sm focus:ring-0 pt-2 resize-none dark:bg-zinc-100`,
+                                `w-full border-0 outline-none focus:shadow-none [.docked_&]:text-sm focus:ring-0 pt-2 resize-none bg-transparent dark:bg-transparent`,
                                 enableRag ? "px-1" : "px-3 rounded-s",
                             )}
                             rows={1}
@@ -552,7 +559,7 @@ function MessageInput({
                                     viewingReadOnlyChat)
                             }
                             className={classNames(
-                                "ml-2 px-3 pb-2.5 text-base text-emerald-600 hover:text-emerald-600 disabled:text-gray-300 active:text-gray-800 dark:bg-zinc-100 flex items-end",
+                                "ml-2 px-3 pb-2.5 text-base text-emerald-600 hover:text-emerald-600 disabled:text-gray-300 dark:disabled:text-gray-600 active:text-gray-800 flex items-end",
                             )}
                         >
                             {isStreaming || loading ? (

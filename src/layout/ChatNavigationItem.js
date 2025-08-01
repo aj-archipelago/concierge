@@ -41,8 +41,10 @@ const ChatNavigationItem = ({
         <>
             <li
                 className={classNames(
-                    "group flex items-center justify-between rounded-md cursor-pointer hover:bg-gray-100 my-0.5",
-                    pathname === subItem?.href ? "bg-gray-100" : "",
+                    "group flex items-center justify-between rounded-md cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 my-0.5",
+                    pathname === subItem?.href
+                        ? "bg-gray-100 dark:bg-gray-700"
+                        : "",
                 )}
                 onClick={() => {
                     if (subItem.href && editingId !== subItem.key) {
@@ -97,7 +99,7 @@ const ChatNavigationItem = ({
                                     }}
                                     autoFocus
                                     type="text"
-                                    className="py-1 border-0 w-full text-xs bg-gray-50 p-0 font-medium underline ring-0 focus:ring-0 focus:outline-none"
+                                    className="py-1 border-0 w-full text-xs bg-gray-50 dark:bg-gray-600 p-0 font-medium underline ring-0 focus:ring-0 focus:outline-none text-gray-900 dark:text-gray-100"
                                     value={editedName}
                                     onChange={(e) =>
                                         setEditedName(e.target.value)
