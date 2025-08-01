@@ -131,6 +131,12 @@ class MediaGenerationHandler extends BaseTask {
                 query = VIDEO_SEEDANCE;
             } else {
                 // Veo models
+                // For VEO3 with input image, override generateAudio to false
+                let generateAudio = modelSettings.generateAudio;
+                if (modelName === "veo-3.0-generate" && inputImageUrl) {
+                    generateAudio = false;
+                }
+
                 variables = {
                     text: prompt,
                     async: true,
@@ -141,7 +147,7 @@ class MediaGenerationHandler extends BaseTask {
                     aspectRatio: modelSettings.aspectRatio,
                     durationSeconds: modelSettings.duration,
                     enhancePrompt: true,
-                    generateAudio: modelSettings.generateAudio,
+                    generateAudio: generateAudio,
                     negativePrompt: "",
                     personGeneration: "allow_all",
                     sampleCount: 1,
@@ -468,15 +474,15 @@ class MediaGenerationHandler extends BaseTask {
                 };
             } else {
                 // Handle regular URLs
-                const response = await fetch(
-                    `${serverUrl}&fetch=${encodeURIComponent(mediaUrl)}`,
-                    {
-                        method: "GET",
-                        headers: {
-                            "Content-Type": "application/json",
-                        },
+                const url = new URL(serverUrl);
+                url.searchParams.set("fetch", mediaUrl);
+
+                const response = await fetch(url.toString(), {
+                    method: "GET",
+                    headers: {
+                        "Content-Type": "application/json",
                     },
-                );
+                });
 
                 if (!response.ok) {
                     const errorBody = await response.text();

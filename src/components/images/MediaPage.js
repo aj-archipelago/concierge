@@ -448,9 +448,10 @@ function MediaPage() {
                 if (hasTwoInputImages) {
                     return false; // No video models support 2 input images
                 } else if (hasInputImage) {
-                    // Only Veo 2.0 and Seedance support input images
+                    // Only Veo 2.0, Veo 3.0 and Seedance support input images
                     return [
                         "veo-2.0-generate",
+                        "veo-3.0-generate",
                         "replicate-seedance-1-pro",
                     ].includes(modelName);
                 } else {
@@ -753,9 +754,11 @@ function MediaPage() {
 
                 // Check if file exists first
                 try {
-                    const checkResponse = await axios.get(
-                        `${serverUrl}?hash=${fileHash}&checkHash=true`,
-                    );
+                    const url = new URL(serverUrl);
+                    url.searchParams.set("hash", fileHash);
+                    url.searchParams.set("checkHash", "true");
+
+                    const checkResponse = await axios.get(url.toString());
                     if (
                         checkResponse.status === 200 &&
                         checkResponse.data?.url
@@ -799,8 +802,11 @@ function MediaPage() {
                 formData.append("hash", fileHash);
                 formData.append("file", file, file.name);
 
+                const uploadUrl = new URL(serverUrl);
+                uploadUrl.searchParams.set("hash", fileHash);
+
                 const response = await axios.post(
-                    `${serverUrl}?hash=${fileHash}`,
+                    uploadUrl.toString(),
                     formData,
                     {
                         headers: {
