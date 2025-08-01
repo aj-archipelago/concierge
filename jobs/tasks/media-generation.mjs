@@ -197,12 +197,10 @@ class MediaGenerationHandler extends BaseTask {
         // Get userId from the job data, not metadata
         const userId = metadata.userId;
 
+        let processedData = null;
         if (userId) {
             // Handle cloud upload if needed
-            const processedData = await this.processMediaData(
-                dataObject,
-                metadata,
-            );
+            processedData = await this.processMediaData(dataObject, metadata);
 
             await this.handleMediaGenerationCompletion(
                 userId,
@@ -211,7 +209,17 @@ class MediaGenerationHandler extends BaseTask {
             );
         }
 
-        return dataObject;
+        // Return only essential metadata instead of the full dataObject to avoid Cosmos DB size limits
+        return {
+            message: "Media generation completed successfully",
+            type: metadata.outputType,
+            model: metadata.model,
+            prompt: metadata.prompt,
+            // Include URLs if available, but not the full video data
+            url: processedData?.url,
+            azureUrl: processedData?.azureUrl,
+            gcsUrl: processedData?.gcsUrl,
+        };
     }
 
     async handleError(taskId, error, metadata, client) {
@@ -401,12 +409,12 @@ class MediaGenerationHandler extends BaseTask {
                 }
             }
 
-            // Return processed data with cloud URLs
+            // Return processed data with cloud URLs (without the full dataObject to avoid size issues)
             // For Google models (Veo), prioritize GCS URL
             const isGoogleModel = metadata.model?.includes("veo");
 
             return {
-                ...dataObject,
+                // Only include essential fields, not the full dataObject
                 url: isGoogleModel
                     ? cloudUrls?.gcsUrl || mediaUrl
                     : cloudUrls?.azureUrl ||
@@ -415,6 +423,10 @@ class MediaGenerationHandler extends BaseTask {
                           : undefined),
                 azureUrl: cloudUrls?.azureUrl,
                 gcsUrl: cloudUrls?.gcsUrl,
+                // Include any other essential metadata from dataObject if needed
+                ...(dataObject?.id && { id: dataObject.id }),
+                ...(dataObject?.model && { model: dataObject.model }),
+                ...(dataObject?.version && { version: dataObject.version }),
             };
         } catch (error) {
             console.error("Error processing media data:", error);
