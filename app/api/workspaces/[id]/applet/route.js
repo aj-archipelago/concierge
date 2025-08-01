@@ -3,7 +3,7 @@ import Workspace from "@/app/api/models/workspace";
 import Applet from "@/app/api/models/applet";
 import { getWorkspace } from "../db.js";
 import App, { APP_TYPES, APP_STATUS } from "@/app/api/models/app";
-import stringcase from "stringcase";
+// Removed unused import
 
 // GET: fetch or create applet (already implemented)
 export async function GET(request, { params }) {
