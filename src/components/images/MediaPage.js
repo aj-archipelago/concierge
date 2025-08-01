@@ -754,7 +754,7 @@ function MediaPage() {
 
                 // Check if file exists first
                 try {
-                    const url = new URL(serverUrl);
+                    const url = new URL(serverUrl, window.location.origin);
                     url.searchParams.set("hash", fileHash);
                     url.searchParams.set("checkHash", "true");
 
@@ -802,7 +802,7 @@ function MediaPage() {
                 formData.append("hash", fileHash);
                 formData.append("file", file, file.name);
 
-                const uploadUrl = new URL(serverUrl);
+                const uploadUrl = new URL(serverUrl, window.location.origin);
                 uploadUrl.searchParams.set("hash", fileHash);
 
                 const response = await axios.post(
