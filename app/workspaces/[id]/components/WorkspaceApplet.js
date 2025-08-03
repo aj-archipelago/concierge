@@ -574,11 +574,12 @@ export default function WorkspaceApplet() {
         }
     };
 
-    const handlePublishVersion = (
+    const handlePublishVersion = async (
         versionIdx,
         publishToAppStore,
         appName,
         appIcon,
+        appSlug,
     ) => {
         if (!isOwner) return;
 
@@ -597,23 +598,24 @@ export default function WorkspaceApplet() {
             `Publishing version ${versionIdx + 1} (index ${versionIdx}) of ${htmlVersions.length} total versions`,
         );
 
-        updateApplet.mutate(
-            {
+        try {
+            await updateApplet.mutateAsync({
                 id,
                 data: {
                     publishedVersionIndex: versionIdx,
                     publishToAppStore,
                     appName,
                     appIcon,
+                    appSlug,
                 },
-            },
-            {
-                onSuccess: () => setPublishedVersionIndex(versionIdx),
-                onError: (error) => {
-                    toast.error(error?.response?.data?.error || error.message);
-                },
-            },
-        );
+            });
+
+            // Only update UI state on success
+            setPublishedVersionIndex(versionIdx);
+        } catch (error) {
+            // Don't show toast here - let the dialog handle the error display
+            throw error;
+        }
     };
 
     const handleUnpublish = () => {

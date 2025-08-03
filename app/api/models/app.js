@@ -23,6 +23,7 @@ export const appSchema = new mongoose.Schema(
             type: String,
             required: false,
             lowercase: true,
+            unique: true,
             trim: true,
         },
         author: {
