@@ -405,8 +405,18 @@ const TRANSCRIBE_GEMINI = gql`
 `;
 
 const TRANSLATE_SUBTITLE = gql`
-    query TranslateSubtitle($text: String, $to: String, $async: Boolean) {
-        translate_subtitle(text: $text, to: $to, async: $async) {
+    query TranslateSubtitle(
+        $text: String
+        $to: String
+        $async: Boolean
+        $format: String
+    ) {
+        translate_subtitle(
+            text: $text
+            to: $to
+            async: $async
+            format: $format
+        ) {
             result
         }
     }
