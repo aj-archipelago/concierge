@@ -6,6 +6,7 @@ const projects = process.env.CI
               testMatch: [
                   "<rootDir>/instrumentation.test.js",
                   "<rootDir>/app/api/**/*.test.js",
+                  "<rootDir>/jobs/**/*.test.js",
               ],
               setupFiles: ["<rootDir>/jest.setup.js"],
               transform: {
@@ -98,6 +99,7 @@ const projects = process.env.CI
               testMatch: [
                   "<rootDir>/instrumentation.test.js",
                   "<rootDir>/app/api/**/*.test.js",
+                  "<rootDir>/jobs/**/*.test.js",
               ],
               setupFiles: ["<rootDir>/jest.setup.js"],
               transform: {
