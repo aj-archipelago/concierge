@@ -70,7 +70,10 @@ const getClient = (serverUrl, useBlueGraphQL) => {
             if (networkError) {
                 console.error("GraphQL network error:", networkError);
                 // Don't retry connection refused errors - they indicate the service is down
-                if (networkError.statusCode === 0 || networkError.message?.includes('ECONNREFUSED')) {
+                if (
+                    networkError.statusCode === 0 ||
+                    networkError.message?.includes("ECONNREFUSED")
+                ) {
                     return;
                 }
             }
