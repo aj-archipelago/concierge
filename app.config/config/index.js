@@ -108,6 +108,30 @@ const config = {
                 cortexModelName: "oai-gpt41-nano",
             },
             {
+                identifier: LLM_IDENTIFIERS.gpt5,
+                name: "GPT 5",
+                cortexPathwayName: "run_gpt5",
+                cortexModelName: "oai-gpt5",
+            },
+            {
+                identifier: LLM_IDENTIFIERS.gpt5mini,
+                name: "GPT 5 Mini",
+                cortexPathwayName: "run_gpt5_mini",
+                cortexModelName: "oai-gpt5-mini",
+            },
+            {
+                identifier: LLM_IDENTIFIERS.gpt5nano,
+                name: "GPT 5 Nano",
+                cortexPathwayName: "run_gpt5_nano",
+                cortexModelName: "oai-gpt5-nano",
+            },
+            {
+                identifier: LLM_IDENTIFIERS.gpt5chat,
+                name: "GPT 5 Chat",
+                cortexPathwayName: "run_gpt5_chat",
+                cortexModelName: "oai-gpt5-chat",
+            },
+            {
                 identifier: LLM_IDENTIFIERS.claude35sonnet,
                 name: "Claude 3.5 Sonnet",
                 cortexPathwayName: "run_claude35_sonnet",

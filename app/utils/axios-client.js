@@ -4,7 +4,7 @@ import { triggerAuthRefresh, checkAuthHeaders } from "../../src/utils/auth";
 // Create axios instance
 const axiosInstance = axios.create({
     baseURL: process.env.NEXT_PUBLIC_API_URL || "",
-    timeout: 30000,
+    timeout: 300000,
     withCredentials: true,
 });
 
