@@ -204,11 +204,11 @@ function VideoInput({
         }
 
         // Add file type validation using the imported MIME types
-        const supportedVideoTypes = MEDIA_MIME_TYPES.filter((type) =>
-            type && type.startsWith("video/"),
+        const supportedVideoTypes = MEDIA_MIME_TYPES.filter(
+            (type) => type && type.startsWith("video/"),
         );
-        const supportedAudioTypes = MEDIA_MIME_TYPES.filter((type) =>
-            type && type.startsWith("audio/"),
+        const supportedAudioTypes = MEDIA_MIME_TYPES.filter(
+            (type) => type && type.startsWith("audio/"),
         );
 
         // Prefer MIME type check when available
