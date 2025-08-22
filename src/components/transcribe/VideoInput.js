@@ -205,16 +205,38 @@ function VideoInput({
 
         // Add file type validation using the imported MIME types
         const supportedVideoTypes = MEDIA_MIME_TYPES.filter((type) =>
-            type.startsWith("video/"),
+            type && type.startsWith("video/"),
         );
         const supportedAudioTypes = MEDIA_MIME_TYPES.filter((type) =>
-            type.startsWith("audio/"),
+            type && type.startsWith("audio/"),
         );
 
-        const isSupported = [
+        // Prefer MIME type check when available
+        let isSupported = [
             ...supportedVideoTypes,
             ...supportedAudioTypes,
         ].includes(file?.type);
+
+        // If MIME type is missing or unhelpful fall back to checking the file extension against known audio/video extensions.
+        if (!isSupported) {
+            try {
+                const fileName = file?.name || "";
+                const extension = fileName.includes(".")
+                    ? fileName.slice(fileName.lastIndexOf(".")).toLowerCase()
+                    : "";
+
+                const allExtensions = [
+                    ...VIDEO_EXTENSIONS,
+                    ...AUDIO_EXTENSIONS,
+                ];
+
+                if (extension && allExtensions.includes(extension)) {
+                    isSupported = true;
+                }
+            } catch (err) {
+                // ignore and treat as unsupported below
+            }
+        }
 
         if (!isSupported) {
             setFileUploading(false);
