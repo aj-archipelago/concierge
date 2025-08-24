@@ -234,7 +234,7 @@ function VideoInput({
                     isSupported = true;
                 }
             } catch (err) {
-                // ignore and treat as unsupported below
+                // Ignore and treat as unsupported below.
             }
         }
 
