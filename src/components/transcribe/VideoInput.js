@@ -217,7 +217,7 @@ function VideoInput({
             ...supportedAudioTypes,
         ].includes(file?.type);
 
-        // If MIME type is missing or unhelpful fall back to checking the file extension against known audio/video extensions.
+        // If MIME type is missing or unhelpful, fall back to checking the file extension against known audio/video extensions.
         if (!isSupported) {
             try {
                 const fileName = file?.name || "";
