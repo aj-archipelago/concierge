@@ -285,7 +285,9 @@ describe("Streaming Upload Integration Tests", () => {
             // Some environments may surface this as 400 from earlier validation layers; accept 4xx/5xx
             expect(response.status).toBeGreaterThanOrEqual(400);
             expect(response.status).toBeLessThan(600);
-            expect(response.error).toBe("Failed to upload to media service");
+            expect(response.error).toContain(
+                "Failed to upload to media service",
+            );
         });
     });
 

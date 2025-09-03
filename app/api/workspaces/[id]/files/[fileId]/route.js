@@ -93,14 +93,18 @@ export async function DELETE(request, { params }) {
         try {
             const containerName = process.env.CORTEX_MEDIA_PERMANENT_STORE_NAME;
             if (containerName && fileToDelete.hash) {
-                const host =
-                    request.headers.get("x-forwarded-host") ||
-                    request.headers.get("host") ||
-                    "localhost:3000";
-                const protocol =
-                    request.headers.get("x-forwarded-proto") || "http";
-                const serverUrl = `${protocol}://${host}`;
-                const mediaHelperUrl = config.endpoints.mediaHelper(serverUrl);
+                const mediaHelperUrl = config.endpoints.mediaHelperDirect();
+                if (!mediaHelperUrl) {
+                    console.error(
+                        "CORTEX_MEDIA_API_URL is not set or mediaHelperUrl is undefined.",
+                    );
+                    return NextResponse.json(
+                        {
+                            error: "Media helper URL is not configured. Please set CORTEX_MEDIA_API_URL.",
+                        },
+                        { status: 500 },
+                    );
+                }
 
                 const deleteResponse = await fetch(mediaHelperUrl, {
                     method: "DELETE",

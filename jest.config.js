@@ -7,6 +7,7 @@ const projects = process.env.CI
                   "<rootDir>/instrumentation.test.js",
                   "<rootDir>/app/api/**/*.test.js",
                   "<rootDir>/jobs/**/*.test.js",
+                  "<rootDir>/config/**/*.test.js",
               ],
               setupFiles: ["<rootDir>/jest.setup.js"],
               transform: {
@@ -35,6 +36,7 @@ const projects = process.env.CI
                       "<rootDir>/__mocks__/styleMock.js",
                   "^config/(.*)$": "<rootDir>/__mocks__/config/$1",
                   "^./config/(.*)$": "<rootDir>/__mocks__/config/$1",
+                  "^../../../config/(.*)$": "<rootDir>/__mocks__/config/$1",
                   "^../../../../../config/(.*)$":
                       "<rootDir>/__mocks__/config/$1",
                   "^@amplitude/analytics-browser$":
@@ -87,6 +89,7 @@ const projects = process.env.CI
                       "<rootDir>/__mocks__/styleMock.js",
                   "^config/(.*)$": "<rootDir>/__mocks__/config/$1",
                   "^./config/(.*)$": "<rootDir>/__mocks__/config/$1",
+                  "^../../../config/(.*)$": "<rootDir>/__mocks__/config/$1",
                   "^../../../../../config/(.*)$":
                       "<rootDir>/__mocks__/config/$1",
                   "^@amplitude/analytics-browser$":
@@ -105,6 +108,7 @@ const projects = process.env.CI
                   "<rootDir>/instrumentation.test.js",
                   "<rootDir>/app/api/**/*.test.js",
                   "<rootDir>/jobs/**/*.test.js",
+                  "<rootDir>/config/**/*.test.js",
               ],
               setupFiles: ["<rootDir>/jest.setup.js"],
               transform: {
@@ -133,6 +137,7 @@ const projects = process.env.CI
                       "<rootDir>/__mocks__/styleMock.js",
                   "^config/(.*)$": "<rootDir>/__mocks__/config/$1",
                   "^./config/(.*)$": "<rootDir>/__mocks__/config/$1",
+                  "^../../../config/(.*)$": "<rootDir>/__mocks__/config/$1",
                   "^../../../../../config/(.*)$":
                       "<rootDir>/__mocks__/config/$1",
                   "^@amplitude/analytics-browser$":

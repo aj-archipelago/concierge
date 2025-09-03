@@ -2,7 +2,6 @@
 import { useParams, useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { useWorkspaceApp } from "../../../../queries/workspaces";
-import PublishedAppletView from "@/src/components/PublishedAppletView";
 
 export default function PublishedAppletPage() {
     const { id } = useParams();

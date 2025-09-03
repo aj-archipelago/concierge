@@ -66,6 +66,8 @@ export default {
     endpoints: {
         mediaHelper: (serverUrl) => `${serverUrl}/media-helper`,
         graphql: (serverUrl) => `${serverUrl}/graphql`,
+        mediaHelperDirect: () =>
+            process.env.CORTEX_MEDIA_API_URL || "http://localhost:3001",
     },
     auth: {
         provider: "entra",

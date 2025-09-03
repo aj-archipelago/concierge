@@ -170,6 +170,7 @@ export default {
             }
             return `${serverUrl}${basePath}/graphql`;
         },
+        mediaHelperDirect: () => process.env.CORTEX_MEDIA_API_URL,
     },
     auth: {
         provider: null, // only one value is supported: "entra"

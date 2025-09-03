@@ -1,5 +1,4 @@
 import config from "../../../config/index.js";
-import { headers } from "next/headers";
 
 /**
  * Generate short-lived URL from file hash using the media helper service
@@ -15,13 +14,10 @@ export async function generateShortLivedUrl(file, minutes = 5) {
     }
 
     try {
-        // Construct server URL and media helper URL
-        const headerList = headers();
-        const host =
-            headerList.get("x-forwarded-host") || headerList.get("host");
-        const protocol = headerList.get("x-forwarded-proto") || "http";
-        const serverUrl = `${protocol}://${host}`;
-        const mediaHelperUrl = `${config.endpoints.mediaHelper(serverUrl)}`;
+        const mediaHelperUrl = config.endpoints.mediaHelperDirect();
+        if (!mediaHelperUrl) {
+            throw new Error("mediaHelperDirect endpoint is not defined");
+        }
 
         // Generate short-lived URL using checkHash (always returns short-lived URLs)
         const shortLivedResponse = await fetch(

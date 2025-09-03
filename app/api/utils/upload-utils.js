@@ -1,14 +1,13 @@
 import { NextResponse } from "next/server";
-import { headers } from "next/headers";
+import xxhash from "xxhash-wasm";
+import config from "../../../config/index.js";
 import File from "../models/file.js";
 import { getCurrentUser } from "./auth.js";
-import config from "../../../config/index.js";
 import {
-    scanForMalware,
     analyzeFileContent,
     FILE_VALIDATION_CONFIG,
+    scanForMalware,
 } from "./fileValidation.js";
-import xxhash from "xxhash-wasm";
 
 import Busboy from "busboy";
 import { Readable } from "stream";
@@ -383,13 +382,10 @@ async function parseStreamingMultipart(request, user) {
  */
 async function uploadBufferToMediaService(fileBuffer, metadata, containerName) {
     try {
-        // Construct server URL and media helper URL
-        const headerList = headers();
-        const host =
-            headerList.get("x-forwarded-host") || headerList.get("host");
-        const protocol = headerList.get("x-forwarded-proto") || "http";
-        const serverUrl = `${protocol}://${host}`;
-        const mediaHelperUrl = `${config.endpoints.mediaHelper(serverUrl)}`;
+        const mediaHelperUrl = config.endpoints.mediaHelperDirect();
+        if (!mediaHelperUrl) {
+            throw new Error("Media helper URL is not defined");
+        }
 
         // Create a Blob from the buffer to send as FormData
         const blob = new Blob([fileBuffer], { type: metadata.mimeType });
@@ -430,7 +426,10 @@ async function uploadBufferToMediaService(fileBuffer, metadata, containerName) {
         console.error("Error uploading to media service:", error);
         return {
             error: NextResponse.json(
-                { error: "Failed to upload to media service" },
+                {
+                    error:
+                        "Failed to upload to media service: " + error.message,
+                },
                 { status: 500 },
             ),
         };

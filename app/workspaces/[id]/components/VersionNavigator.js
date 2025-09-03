@@ -4,16 +4,14 @@ import { LanguageContext } from "@/src/contexts/LanguageProvider";
 import {
     ArrowLeftIcon,
     ArrowRightIcon,
-    TrashIcon,
-    CheckIcon,
     CopyIcon,
+    TrashIcon,
 } from "lucide-react";
 import { useContext } from "react";
 // Tooltip and Link2Icon no longer needed - functionality moved to PublishedAppletManageDialog
 // ServerContext no longer needed in VersionNavigator - moved to PublishedAppletManageDialog
 import { useState } from "react";
 // useParams no longer needed in VersionNavigator - moved to PublishedAppletManageDialog
-import { useTranslation } from "react-i18next";
 import {
     AlertDialog,
     AlertDialogAction,
@@ -24,6 +22,7 @@ import {
     AlertDialogHeader,
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { useTranslation } from "react-i18next";
 import PublishConfirmDialog from "./PublishConfirmDialog";
 import PublishedAppletManageDialog from "./PublishedAppletManageDialog";
 // useWorkspaceApp no longer needed in VersionNavigator - moved to PublishedAppletManageDialog
