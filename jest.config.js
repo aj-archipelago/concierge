@@ -35,6 +35,8 @@ const projects = process.env.CI
                       "<rootDir>/__mocks__/styleMock.js",
                   "^config/(.*)$": "<rootDir>/__mocks__/config/$1",
                   "^./config/(.*)$": "<rootDir>/__mocks__/config/$1",
+                  "^../../../../../config/(.*)$":
+                      "<rootDir>/__mocks__/config/$1",
                   "^@amplitude/analytics-browser$":
                       "<rootDir>/__mocks__/@amplitude/analytics-browser.js",
               },
@@ -51,6 +53,7 @@ const projects = process.env.CI
                   "<rootDir>/src/**/*.test.js",
                   "<rootDir>/app/**/*.test.js",
                   "!<rootDir>/app/api/**/*.test.js",
+                  "!<rootDir>/instrumentation.test.js",
               ],
               setupFiles: [
                   "<rootDir>/jest.setup.js",
@@ -84,6 +87,8 @@ const projects = process.env.CI
                       "<rootDir>/__mocks__/styleMock.js",
                   "^config/(.*)$": "<rootDir>/__mocks__/config/$1",
                   "^./config/(.*)$": "<rootDir>/__mocks__/config/$1",
+                  "^../../../../../config/(.*)$":
+                      "<rootDir>/__mocks__/config/$1",
                   "^@amplitude/analytics-browser$":
                       "<rootDir>/__mocks__/@amplitude/analytics-browser.js",
                   "^@uidotdev/usehooks$":
@@ -128,6 +133,8 @@ const projects = process.env.CI
                       "<rootDir>/__mocks__/styleMock.js",
                   "^config/(.*)$": "<rootDir>/__mocks__/config/$1",
                   "^./config/(.*)$": "<rootDir>/__mocks__/config/$1",
+                  "^../../../../../config/(.*)$":
+                      "<rootDir>/__mocks__/config/$1",
                   "^@amplitude/analytics-browser$":
                       "<rootDir>/__mocks__/@amplitude/analytics-browser.js",
               },

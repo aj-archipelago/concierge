@@ -143,11 +143,29 @@ const OutputSandbox = forwardRef(
 
                         const textContent = preElement.textContent.trim();
 
-                        const jsonData = JSON.parse(textContent);
+                        let jsonData;
+                        try {
+                            jsonData = JSON.parse(textContent);
+                        } catch (error) {
+                            console.error(
+                                "Failed to parse JSON content:",
+                                error,
+                            );
+                            return;
+                        }
+
+                        // Add explicit null/undefined checks
+                        if (!jsonData || typeof jsonData !== "object") {
+                            console.error("Invalid JSON data structure");
+                            return;
+                        }
+
+                        const output = jsonData.markdown || jsonData.output;
 
                         // Check if it has the expected structure with markdown and citations
                         if (
-                            jsonData.markdown &&
+                            output &&
+                            jsonData.citations &&
                             Array.isArray(jsonData.citations)
                         ) {
                             // Create a container for the React component
@@ -175,7 +193,7 @@ const OutputSandbox = forwardRef(
 
                             // Create a message object for convertMessageToMarkdown
                             const message = {
-                                payload: jsonData.markdown,
+                                payload: output,
                                 tool: JSON.stringify({
                                     citations: jsonData.citations,
                                 }),

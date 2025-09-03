@@ -1,7 +1,7 @@
 import { DragDropContext, Draggable, Droppable } from "@hello-pangea/dnd";
 import { useContext, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Edit, Play } from "lucide-react";
+import { Edit, Play, Paperclip } from "lucide-react";
 import LoadingButton from "../../../src/components/editor/LoadingButton";
 import { LanguageContext } from "../../../src/contexts/LanguageProvider";
 import Loader from "../../components/loader";
@@ -182,6 +182,17 @@ function PromptListItem({ prompt, onEdit, onRun, isRunning, inputValid }) {
                             )}
                         </div>
                         <div className="flex items-center gap-2">
+                            {prompt.files && prompt.files.length > 0 && (
+                                <div
+                                    className="flex items-center gap-1 text-gray-500 dark:text-gray-400"
+                                    title={`${prompt.files.length} ${t("files attached")}`}
+                                >
+                                    <Paperclip className="w-3 h-3" />
+                                    <span className="text-xs">
+                                        {prompt.files.length}
+                                    </span>
+                                </div>
+                            )}
                             {llm && (
                                 <span className="hidden sm:inline-flex items-center rounded-md bg-yellow-50 px-2 py-1 text-xs font-medium text-yellow-800 ring-1 ring-inset ring-yellow-600/20">
                                     {llm?.name}

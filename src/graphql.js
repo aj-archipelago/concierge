@@ -784,16 +784,20 @@ const CODE_HUMAN_INPUT = gql`
 const getWorkspacePromptQuery = (pathwayName) => {
     return gql`
         query ${pathwayName}(
-            $text: String!
+            $text: String
             $systemPrompt: String
-            $prompt: String!
+            $prompt: String
+            $chatHistory: [MultiMessage]
             $async: Boolean
+            $model: String
         ) {
             ${pathwayName}(
                 text: $text
                 systemPrompt: $systemPrompt
                 prompt: $prompt
+                chatHistory: $chatHistory
                 async: $async
+                model: $model
             ) {
                 result
                 tool
@@ -836,12 +840,16 @@ const WORKSPACE_APPLET_EDIT = gql`
         $async: Boolean
         $stream: Boolean
         $promptEndpoint: String
+        $fileEndpoint: String
+        $dataEndpoint: String
         $currentHtml: String
         $promptDetails: String
     ) {
         workspace_applet_edit(
             text: $text
             promptEndpoint: $promptEndpoint
+            dataEndpoint: $dataEndpoint
+            fileEndpoint: $fileEndpoint
             currentHtml: $currentHtml
             async: $async
             stream: $stream

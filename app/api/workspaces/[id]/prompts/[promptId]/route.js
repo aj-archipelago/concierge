@@ -63,7 +63,7 @@ export async function PUT(req, { params }) {
 
         const updatedPrompt = await Prompt.findByIdAndUpdate(promptId, attrs, {
             new: true,
-        });
+        }).populate("files");
 
         if (workspace.published) {
             await republishWorkspace(workspace);

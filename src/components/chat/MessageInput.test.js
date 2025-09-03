@@ -685,6 +685,7 @@ describe("MessageInput", () => {
             const submitButton = screen.getByTestId("send-button");
 
             fireEvent.change(input, { target: { value: "Test message" } });
+
             fireEvent.click(submitButton);
 
             await waitFor(() => {
@@ -717,6 +718,7 @@ describe("MessageInput", () => {
             const input = screen.getByPlaceholderText("Send a message");
 
             fireEvent.change(input, { target: { value: "Test message" } });
+
             fireEvent.keyDown(input, { key: "Enter", shiftKey: false });
 
             await waitFor(() => {
@@ -782,6 +784,7 @@ describe("MessageInput", () => {
             renderMessageInput();
             const input = screen.getByPlaceholderText("Send a message");
             fireEvent.change(input, { target: { value: "Test message" } });
+
             fireEvent.keyDown(input, { key: "Enter", shiftKey: false });
 
             await waitFor(() => {
@@ -904,7 +907,9 @@ describe("MessageInput", () => {
                 const input = screen.getByPlaceholderText("Send a message");
                 fireEvent.change(input, { target: { value: youtubeUrl } });
                 const submitButton = screen.getByTestId("send-button");
+
                 fireEvent.click(submitButton); // This should call onSend
+
                 expect(input.value).toBe(""); // Input cleared
             }
 

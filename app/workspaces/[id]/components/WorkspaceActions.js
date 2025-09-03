@@ -543,7 +543,7 @@ function UnpublishedWorkspace({ workspace }) {
     const publishWorkspace = usePublishWorkspace();
     const { t } = useTranslation();
     const { data: prompts, isLoading: promptsLoading } = usePromptsByIds(
-        workspace.prompts,
+        workspace.prompts?.map((prompt) => prompt._id || prompt) || [],
     );
 
     const pathwayName = stringcase.snakecase(workspace.name);

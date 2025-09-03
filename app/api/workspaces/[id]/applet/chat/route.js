@@ -5,8 +5,14 @@ import { getWorkspace } from "../../db.js";
 
 export async function POST(request, { params }) {
     try {
-        const { messages, currentHtml, promptEndpoint, stream } =
-            await request.json();
+        const {
+            messages,
+            currentHtml,
+            promptEndpoint,
+            dataEndpoint,
+            fileEndpoint,
+            stream,
+        } = await request.json();
 
         // Get the workspace and its prompts using getWorkspace
         const workspace = await getWorkspace(params.id);
@@ -50,8 +56,10 @@ export async function POST(request, { params }) {
             variables: {
                 text: `${conversationHistory}\n${latestMessage.content}`,
                 promptEndpoint,
+                dataEndpoint,
                 currentHtml,
                 promptDetails,
+                fileEndpoint,
                 stream,
             },
         });

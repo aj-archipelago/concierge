@@ -300,6 +300,8 @@ export function useWorkspaceChat(id) {
                     model,
                     currentHtml,
                     promptEndpoint: `/api/workspaces/${id}/applet/execute_prompt`,
+                    dataEndpoint: `/api/workspaces/${id}/applet/data`,
+                    fileEndpoint: `/api/workspaces/${id}/applet/files`,
                     stream: true,
                 },
             );
@@ -308,4 +310,99 @@ export function useWorkspaceChat(id) {
     });
 
     return mutation;
+}
+
+export function useWorkspaceFiles(id) {
+    const query = useQuery({
+        queryKey: ["workspaceFiles", id],
+        queryFn: async () => {
+            const { data } = await axios.get(`/api/workspaces/${id}/files`);
+            return data;
+        },
+        enabled: !!id,
+        staleTime: 5 * 60 * 1000, // Cache for 5 minutes
+    });
+
+    return query;
+}
+
+export function useUploadWorkspaceFile() {
+    const queryClient = useQueryClient();
+
+    const mutation = useMutation({
+        mutationFn: async ({ workspaceId, formData }) => {
+            const { data } = await axios.post(
+                `/api/workspaces/${workspaceId}/files`,
+                formData,
+                {
+                    headers: {
+                        "Content-Type": "multipart/form-data",
+                    },
+                },
+            );
+            return data;
+        },
+        onSuccess: (data, { workspaceId }) => {
+            queryClient.invalidateQueries({
+                queryKey: ["workspaceFiles", workspaceId],
+            });
+            queryClient.invalidateQueries({
+                queryKey: ["workspace", workspaceId],
+            });
+        },
+    });
+
+    return mutation;
+}
+
+export function useCheckFileAttachments() {
+    const mutation = useMutation({
+        mutationFn: async ({ workspaceId, fileId }) => {
+            const { data } = await axios.get(
+                `/api/workspaces/${workspaceId}/files/${fileId}/check-attachments`,
+            );
+            return data;
+        },
+    });
+
+    return mutation;
+}
+
+export function useDeleteWorkspaceFile() {
+    const queryClient = useQueryClient();
+
+    const mutation = useMutation({
+        mutationFn: async ({ workspaceId, fileId, force = false }) => {
+            const url = force
+                ? `/api/workspaces/${workspaceId}/files/${fileId}?force=true`
+                : `/api/workspaces/${workspaceId}/files/${fileId}`;
+            const { data } = await axios.delete(url);
+            return data;
+        },
+        onSuccess: (data, { workspaceId }) => {
+            queryClient.invalidateQueries({
+                queryKey: ["workspaceFiles", workspaceId],
+            });
+            queryClient.invalidateQueries({
+                queryKey: ["workspace", workspaceId],
+            });
+        },
+    });
+
+    return mutation;
+}
+
+export function useRefreshWorkspaceFiles() {
+    const queryClient = useQueryClient();
+
+    const refreshFiles = (workspaceId) => {
+        queryClient.invalidateQueries({
+            queryKey: ["workspaceFiles", workspaceId],
+        });
+        queryClient.invalidateQueries({
+            queryKey: ["workspace", workspaceId],
+        });
+    };
+
+    return refreshFiles;
 }

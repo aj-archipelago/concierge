@@ -49,7 +49,7 @@ describe("LLM Initialization", () => {
         const llmWithoutIdentifier = await LLM.create({
             name: "Test LLM",
             cortexModelName: "oai-gpt4o",
-            cortexPathwayName: "run_gpt4_o",
+            cortexPathwayName: "run_workspace_prompt",
             isDefault: false,
             identifier: null,
         });
@@ -77,7 +77,7 @@ describe("LLM Initialization", () => {
         const obsoleteLLM = await LLM.create({
             name: "Obsolete LLM",
             cortexModelName: "obsolete-model",
-            cortexPathwayName: "run_obsolete",
+            cortexPathwayName: "run_workspace_prompt",
             identifier: "obsolete",
             isDefault: false,
         });
@@ -106,7 +106,7 @@ describe("LLM Initialization", () => {
         const obsoleteLLM = await LLM.create({
             name: "Obsolete LLM",
             cortexModelName: "obsolete-model",
-            cortexPathwayName: "run_obsolete",
+            cortexPathwayName: "run_workspace_prompt",
             identifier: "obsolete",
             isDefault: false,
         });
