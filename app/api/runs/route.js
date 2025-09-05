@@ -100,7 +100,8 @@ export async function POST(req, res) {
             variables,
         });
 
-        responseText = response.data[pathwayName].result;
+        responseText =
+            response.data[pathwayName].result || "The response was empty";
 
         // Extract citations from the tool field if available
         let citations = [];

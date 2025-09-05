@@ -397,6 +397,78 @@ describe("Streaming Upload Handler", () => {
             expect(result.success).toBe(true);
             // ZIP files might trigger security warnings but still be allowed
         });
+
+        test("should handle media service response with converted object", async () => {
+            // Mock media service response with converted object
+            global.fetch.mockResolvedValue({
+                ok: true,
+                json: () =>
+                    Promise.resolve({
+                        url: "https://example.com/original.pdf",
+                        gcs: "gs://bucket/original.pdf",
+                        filename: "test-file.pdf",
+                        converted: {
+                            url: "https://example.com/converted.jpg",
+                            gcs: "gs://bucket/converted.jpg",
+                        },
+                    }),
+            });
+
+            const mockRequest = createMockMultipartRequest(
+                "document.pdf",
+                "application/pdf",
+                1024,
+            );
+
+            const result = await handleStreamingFileUpload(
+                mockRequest,
+                mockOptions,
+            );
+
+            expect(result.success).toBe(true);
+            expect(result.data.file).toBeDefined();
+
+            // Should use converted URLs instead of original
+            expect(result.data.file.url).toBe(
+                "https://example.com/converted.jpg",
+            );
+            expect(result.data.file.gcsUrl).toBe("gs://bucket/converted.jpg");
+            expect(result.data.file.filename).toBe("test-file.pdf");
+        });
+
+        test("should use original URLs when no converted object is present", async () => {
+            // Mock media service response without converted object
+            global.fetch.mockResolvedValue({
+                ok: true,
+                json: () =>
+                    Promise.resolve({
+                        url: "https://example.com/original.jpg",
+                        gcs: "gs://bucket/original.jpg",
+                        filename: "test-file.jpg",
+                    }),
+            });
+
+            const mockRequest = createMockMultipartRequest(
+                "image.jpg",
+                "image/jpeg",
+                1024,
+            );
+
+            const result = await handleStreamingFileUpload(
+                mockRequest,
+                mockOptions,
+            );
+
+            expect(result.success).toBe(true);
+            expect(result.data.file).toBeDefined();
+
+            // Should use original URLs when no converted object
+            expect(result.data.file.url).toBe(
+                "https://example.com/original.jpg",
+            );
+            expect(result.data.file.gcsUrl).toBe("gs://bucket/original.jpg");
+            expect(result.data.file.filename).toBe("test-file.jpg");
+        });
     });
 });
 

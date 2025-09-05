@@ -97,14 +97,24 @@ export async function handleStreamingFileUpload(request, options) {
             return { error: uploadResult.error };
         }
 
+        const { data } = uploadResult;
+        const { converted } = data;
+
+        let { url, gcs: gcsUrl } = data;
+
+        if (converted) {
+            url = converted.url;
+            gcsUrl = converted.gcs;
+        }
+
         // Create a new File document
         const newFile = new File({
             filename: uploadResult.data.filename || metadata.filename,
             originalName: metadata.filename,
             mimeType: metadata.mimeType,
             size: metadata.size,
-            url: uploadResult.data.url,
-            gcsUrl: uploadResult.data.gcs,
+            url: url,
+            gcsUrl: gcsUrl,
             hash: uploadResult.data.hash || metadata.hash, // Use hash from upload response or computed hash from file
             owner: user._id,
         });
