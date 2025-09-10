@@ -296,10 +296,13 @@ export default function FileUploadDialog({
                                             {t("or drag and drop here")}
                                         </p>
                                         <p className="text-xs text-gray-400">
-                                            {t("Supported formats")}: Documents,
-                                            Images, Videos, Audio
+                                            {t("Supported formats")}:{" "}
+                                            {t(
+                                                "Documents, Images, Videos, Audio",
+                                            )}
                                             <br />
-                                            {t("Maximum file size")}: 50MB
+                                            {t("Maximum file size")}:{" "}
+                                            {t("50MB")}
                                         </p>
                                     </div>
                                 </div>
