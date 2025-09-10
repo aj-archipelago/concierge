@@ -83,8 +83,16 @@ jest.mock("../utils/fileValidation", () => ({
 }));
 
 // Mock fetch for media service
-global.fetch = jest.fn(() =>
-    Promise.resolve({
+global.fetch = jest.fn((url) => {
+    // If it's a hash check request, return not found so upload proceeds normally
+    if (String(url).includes("checkHash=true")) {
+        return Promise.resolve({
+            ok: false,
+            status: 404,
+        });
+    }
+    // Otherwise return the normal upload response
+    return Promise.resolve({
         ok: true,
         json: () =>
             Promise.resolve({
@@ -92,8 +100,8 @@ global.fetch = jest.fn(() =>
                 gcs: "gs://bucket/uploaded-file.jpg",
                 filename: "uploaded-file.jpg",
             }),
-    }),
-);
+    });
+});
 
 describe("Streaming Upload Integration Tests", () => {
     let mockUser;
@@ -146,6 +154,27 @@ describe("Streaming Upload Integration Tests", () => {
             safe: true,
             risks: [],
             recommendations: [],
+        });
+
+        // Reset fetch mock to default behavior for successful uploads
+        global.fetch.mockImplementation((url) => {
+            // If it's a hash check request, return not found so upload proceeds normally
+            if (String(url).includes("checkHash=true")) {
+                return Promise.resolve({
+                    ok: false,
+                    status: 404,
+                });
+            }
+            // Otherwise return the normal upload response
+            return Promise.resolve({
+                ok: true,
+                json: () =>
+                    Promise.resolve({
+                        url: "https://example.com/uploaded-file.jpg",
+                        gcs: "gs://bucket/uploaded-file.jpg",
+                        filename: "uploaded-file.jpg",
+                    }),
+            });
         });
     });
 
@@ -266,10 +295,20 @@ describe("Streaming Upload Integration Tests", () => {
                 clean: true,
             });
 
-            global.fetch.mockResolvedValueOnce({
-                ok: false,
-                statusText: "Service Unavailable",
-                text: () => Promise.resolve("Media service down"),
+            global.fetch.mockImplementation((url) => {
+                // Hash check should fail/not found
+                if (String(url).includes("checkHash=true")) {
+                    return Promise.resolve({
+                        ok: false,
+                        status: 404,
+                    });
+                }
+                // Upload should fail
+                return Promise.resolve({
+                    ok: false,
+                    statusText: "Service Unavailable",
+                    text: () => Promise.resolve("Media service down"),
+                });
             });
 
             const mockRequest = createMockRequest(

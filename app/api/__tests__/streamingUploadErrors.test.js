@@ -75,14 +75,25 @@ describe("Streaming Upload Error Scenarios", () => {
         const { getCurrentUser } = require("../utils/auth");
         getCurrentUser.mockResolvedValue(mockUser);
 
-        global.fetch.mockResolvedValue({
-            ok: true,
-            json: () =>
-                Promise.resolve({
-                    url: "https://example.com/file.jpg",
-                    gcs: "gs://bucket/file.jpg",
-                    filename: "test-file.jpg",
-                }),
+        // Mock fetch to handle both hash check and upload scenarios
+        global.fetch.mockImplementation((url) => {
+            // If it's a hash check request, return not found
+            if (String(url).includes("checkHash=true")) {
+                return Promise.resolve({
+                    ok: false,
+                    status: 404,
+                });
+            }
+            // Otherwise return the normal upload response
+            return Promise.resolve({
+                ok: true,
+                json: () =>
+                    Promise.resolve({
+                        url: "https://example.com/file.jpg",
+                        gcs: "gs://bucket/file.jpg",
+                        filename: "test-file.jpg",
+                    }),
+            });
         });
     });
 
@@ -338,16 +349,20 @@ describe("Streaming Upload Error Scenarios", () => {
 
     describe("Network and service errors", () => {
         test("should handle media service timeout", async () => {
-            // Override fetch for this test only
-            global.fetch.mockImplementationOnce(
-                () =>
-                    new Promise((_, reject) =>
-                        setTimeout(
-                            () => reject(new Error("Request timeout")),
-                            100,
-                        ),
-                    ),
-            );
+            // Override fetch for this test only - handle both hash check and upload
+            global.fetch.mockImplementation((url) => {
+                // Hash check should fail/not found
+                if (String(url).includes("checkHash=true")) {
+                    return Promise.resolve({
+                        ok: false,
+                        status: 404,
+                    });
+                }
+                // Upload should timeout
+                return new Promise((_, reject) =>
+                    setTimeout(() => reject(new Error("Request timeout")), 100),
+                );
+            });
 
             const multipart = createMultipartData(
                 "test.jpg",
@@ -373,13 +388,23 @@ describe("Streaming Upload Error Scenarios", () => {
         });
 
         test("should handle media service returning invalid response", async () => {
-            global.fetch.mockResolvedValueOnce({
-                ok: true,
-                json: () =>
-                    Promise.resolve({
-                        // Missing required 'url' field
-                        filename: "test.jpg",
-                    }),
+            global.fetch.mockImplementation((url) => {
+                // Hash check should fail/not found
+                if (String(url).includes("checkHash=true")) {
+                    return Promise.resolve({
+                        ok: false,
+                        status: 404,
+                    });
+                }
+                // Upload should return invalid response
+                return Promise.resolve({
+                    ok: true,
+                    json: () =>
+                        Promise.resolve({
+                            // Missing required 'url' field
+                            filename: "test.jpg",
+                        }),
+                });
             });
 
             const multipart = createMultipartData(
@@ -406,9 +431,19 @@ describe("Streaming Upload Error Scenarios", () => {
         });
 
         test("should handle media service JSON parsing errors", async () => {
-            global.fetch.mockResolvedValueOnce({
-                ok: true,
-                json: () => Promise.reject(new Error("Invalid JSON")),
+            global.fetch.mockImplementation((url) => {
+                // Hash check should fail/not found
+                if (String(url).includes("checkHash=true")) {
+                    return Promise.resolve({
+                        ok: false,
+                        status: 404,
+                    });
+                }
+                // Upload should return JSON parsing error
+                return Promise.resolve({
+                    ok: true,
+                    json: () => Promise.reject(new Error("Invalid JSON")),
+                });
             });
 
             const multipart = createMultipartData(
@@ -546,7 +581,17 @@ describe("Streaming Upload Error Scenarios", () => {
     describe("Resource cleanup", () => {
         test("should cleanup resources on error", async () => {
             // Mock an error during processing
-            global.fetch.mockRejectedValueOnce(new Error("Network failure"));
+            global.fetch.mockImplementation((url) => {
+                // Hash check should fail/not found
+                if (String(url).includes("checkHash=true")) {
+                    return Promise.resolve({
+                        ok: false,
+                        status: 404,
+                    });
+                }
+                // Upload should fail with network error
+                return Promise.reject(new Error("Network failure"));
+            });
 
             const multipart = createMultipartData(
                 "test.jpg",

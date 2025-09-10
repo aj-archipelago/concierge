@@ -88,15 +88,25 @@ describe("Streaming Upload Handler", () => {
             recommendations: [],
         });
 
-        // Mock successful media service upload
-        global.fetch.mockResolvedValue({
-            ok: true,
-            json: () =>
-                Promise.resolve({
-                    url: "https://example.com/file.jpg",
-                    gcs: "gs://bucket/file.jpg",
-                    filename: "test-file.jpg",
-                }),
+        // Mock fetch to handle both hash check and upload scenarios
+        global.fetch.mockImplementation((url) => {
+            // If it's a hash check request, return not found so upload proceeds normally
+            if (String(url).includes("checkHash=true")) {
+                return Promise.resolve({
+                    ok: false,
+                    status: 404,
+                });
+            }
+            // Otherwise return the normal upload response
+            return Promise.resolve({
+                ok: true,
+                json: () =>
+                    Promise.resolve({
+                        url: "https://example.com/file.jpg",
+                        gcs: "gs://bucket/file.jpg",
+                        filename: "test-file.jpg",
+                    }),
+            });
         });
     });
 

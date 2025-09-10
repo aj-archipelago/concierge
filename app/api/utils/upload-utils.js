@@ -82,6 +82,64 @@ export async function handleStreamingFileUpload(request, options) {
 
         const { fileBuffer, metadata } = result.data;
 
+        // Check if file already exists using hash
+        if (metadata.hash) {
+            try {
+                const mediaHelperUrl = config.endpoints.mediaHelperDirect();
+                const checkUrl = new URL(mediaHelperUrl);
+                checkUrl.searchParams.set("hash", metadata.hash);
+                checkUrl.searchParams.set("checkHash", "true");
+
+                const checkResponse = await fetch(checkUrl);
+
+                if (checkResponse.ok) {
+                    const checkData = await checkResponse
+                        .json()
+                        .catch(() => null);
+                    if (checkData && checkData.url) {
+                        // Create a new File document with existing file data
+                        const newFile = new File({
+                            filename: checkData.filename || metadata.filename,
+                            originalName: metadata.filename,
+                            mimeType: metadata.mimeType,
+                            size: metadata.size,
+                            url: checkData.converted
+                                ? checkData.converted.url
+                                : checkData.url,
+                            gcsUrl: checkData.converted
+                                ? checkData.converted.gcs
+                                : checkData.gcs,
+                            hash: metadata.hash,
+                            owner: user._id,
+                        });
+
+                        await newFile.save();
+
+                        // Associate file with workspace/applet
+                        const associationResult = await associateFile(
+                            newFile,
+                            workspace,
+                            user,
+                        );
+                        if (associationResult.error) {
+                            return { error: associationResult.error };
+                        }
+
+                        const responseData = {
+                            success: true,
+                            file: newFile,
+                            files: associationResult.files,
+                        };
+
+                        return { success: true, data: responseData };
+                    }
+                }
+            } catch (error) {
+                console.error("Error checking file hash:", error);
+                // Continue with upload even if hash check fails
+            }
+        }
+
         // Determine container name based on permanent flag
         const containerName = permanent
             ? process.env.CORTEX_MEDIA_PERMANENT_STORE_NAME
@@ -392,9 +450,16 @@ async function parseStreamingMultipart(request, user) {
  */
 async function uploadBufferToMediaService(fileBuffer, metadata, containerName) {
     try {
-        const mediaHelperUrl = config.endpoints.mediaHelperDirect();
+        let mediaHelperUrl = config.endpoints.mediaHelperDirect();
         if (!mediaHelperUrl) {
             throw new Error("Media helper URL is not defined");
+        }
+
+        // Add container name to query string if provided
+        if (containerName) {
+            const url = new URL(mediaHelperUrl);
+            url.searchParams.append("container", containerName);
+            mediaHelperUrl = url.toString();
         }
 
         // Create a Blob from the buffer to send as FormData
@@ -405,11 +470,6 @@ async function uploadBufferToMediaService(fileBuffer, metadata, containerName) {
         // Add hash to FormData if provided
         if (metadata.hash) {
             uploadFormData.append("hash", metadata.hash);
-        }
-
-        // Add container name to FormData if provided
-        if (containerName) {
-            uploadFormData.append("container", containerName);
         }
 
         const uploadResponse = await fetch(mediaHelperUrl, {
