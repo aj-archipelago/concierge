@@ -53,7 +53,7 @@ export async function getRecentChatsOfCurrentUser() {
 export async function getTotalChatCount() {
     const user = await getCurrentUser(false);
     const userId = user._id;
-    
+
     return await Chat.countDocuments({ userId });
 }
 
@@ -62,22 +62,25 @@ export async function searchChatTitles(searchTerm) {
     const userId = user._id;
 
     // Escape special regex characters to prevent regex errors
-    const escapedSearchTerm = searchTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const escapedSearchTerm = searchTerm.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
     // Search ALL chats, not just loaded ones
-    const chats = await Chat.find({
-        userId,
-        title: { $regex: escapedSearchTerm, $options: 'i' }
-    }, {
-        _id: 1,
-        title: 1,
-        createdAt: 1,
-        updatedAt: 1,
-        isEmpty: 1,
-        messages: { $slice: 3 } // Include last 3 messages for preview
-    })
-    .sort({ updatedAt: -1 })
-    .limit(100); // Increased limit since we're searching all chats
+    const chats = await Chat.find(
+        {
+            userId,
+            title: { $regex: escapedSearchTerm, $options: "i" },
+        },
+        {
+            _id: 1,
+            title: 1,
+            createdAt: 1,
+            updatedAt: 1,
+            isEmpty: 1,
+            messages: { $slice: 3 }, // Include last 3 messages for preview
+        },
+    )
+        .sort({ updatedAt: -1 })
+        .limit(100); // Increased limit since we're searching all chats
 
     return chats;
 }

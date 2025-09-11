@@ -81,41 +81,51 @@ function SavedChats({ displayState }) {
     const [searchQuery, setSearchQuery] = useState("");
     const [contentMatches, setContentMatches] = useState([]);
     const [isSearchingContent, setIsSearchingContent] = useState(false);
-    
+
     // Search hook for title-only search
-    const { data: searchResults = [], isLoading: isSearching } = useSearchChats(searchQuery);
-    
+    const { data: searchResults = [], isLoading: isSearching } =
+        useSearchChats(searchQuery);
+
     // Get total chat count from database
     const { data: totalChatCount = 0 } = useTotalChatCount();
 
     // Progressive content search using loaded chats
     const lastSearchRef = useRef("");
     const searchTimeoutRef = useRef(null);
-    
+
     useEffect(() => {
         // Clear any existing timeout
         if (searchTimeoutRef.current) {
             clearTimeout(searchTimeoutRef.current);
         }
-        
-        if (searchQuery.length >= 1 && !isSearching && data?.pages && lastSearchRef.current !== searchQuery) {
+
+        if (
+            searchQuery.length >= 1 &&
+            !isSearching &&
+            data?.pages &&
+            lastSearchRef.current !== searchQuery
+        ) {
             setIsSearchingContent(true);
             lastSearchRef.current = searchQuery;
-            
+
             // Debounce the content search
             searchTimeoutRef.current = setTimeout(() => {
                 // Search through all loaded chats for content matches
                 const allLoadedChats = data.pages.flat();
-                const titleIds = searchResults.map(chat => chat._id);
-                
-                const matches = allLoadedChats.filter(chat => 
-                    !titleIds.includes(chat._id) && // Exclude title matches
-                    chat.messages?.some(message => 
-                        typeof message.payload === 'string' && 
-                        message.payload.toLowerCase().includes(searchQuery.toLowerCase())
-                    )
+                const titleIds = searchResults.map((chat) => chat._id);
+
+                const matches = allLoadedChats.filter(
+                    (chat) =>
+                        !titleIds.includes(chat._id) && // Exclude title matches
+                        chat.messages?.some(
+                            (message) =>
+                                typeof message.payload === "string" &&
+                                message.payload
+                                    .toLowerCase()
+                                    .includes(searchQuery.toLowerCase()),
+                        ),
                 );
-                
+
                 setContentMatches(matches);
                 setIsSearchingContent(false);
             }, 300);
@@ -124,7 +134,7 @@ function SavedChats({ displayState }) {
             setIsSearchingContent(false);
             lastSearchRef.current = "";
         }
-        
+
         return () => {
             if (searchTimeoutRef.current) {
                 clearTimeout(searchTimeoutRef.current);
@@ -395,7 +405,8 @@ function SavedChats({ displayState }) {
         </div>
     );
 
-    const getCategoryTitle = (key, count) => `${getCategoryTranslation(key, t)} (${count})`;
+    const getCategoryTitle = (key, count) =>
+        `${getCategoryTranslation(key, t)} (${count})`;
 
     const { ref, inView } = useInView({
         threshold: 0,
@@ -424,10 +435,14 @@ function SavedChats({ displayState }) {
                             {searchQuery ? (
                                 <div>
                                     {searchResults.length} {t("title matches")}
-                                    {contentMatches.length > 0 && `, ${contentMatches.length} ${t("content matches")}`}
+                                    {contentMatches.length > 0 &&
+                                        `, ${contentMatches.length} ${t("content matches")}`}
                                     {` ${t("of")} ${totalChatCount} ${t("total")}`}
                                     {isSearchingContent && (
-                                        <span className="text-blue-500"> • {t("searching content...")}</span>
+                                        <span className="text-blue-500">
+                                            {" "}
+                                            • {t("searching content...")}
+                                        </span>
                                     )}
                                 </div>
                             ) : (
@@ -444,7 +459,7 @@ function SavedChats({ displayState }) {
                         {t("New Chat")}
                     </button>
                 </div>
-                
+
                 {/* Search input */}
                 <div className="relative">
                     <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
@@ -471,31 +486,41 @@ function SavedChats({ displayState }) {
                                 {searchResults.length > 0 && (
                                     <div>
                                         <h2 className="text-md font-semibold mt-4 mb-2 border-b border-gray-200 dark:border-gray-700 pb-1">
-                                            📝 {t("Title Matches")} ({searchResults.length})
+                                            📝 {t("Title Matches")} (
+                                            {searchResults.length})
                                         </h2>
                                         {renderChatElements(searchResults)}
                                     </div>
                                 )}
-                                
+
                                 {/* Content matches section */}
                                 {contentMatches.length > 0 && (
                                     <div>
                                         <h2 className="text-md font-semibold mt-4 mb-2 border-b border-gray-200 dark:border-gray-700 pb-1">
-                                            💬 {t("Content Matches")} ({contentMatches.length})
+                                            💬 {t("Content Matches")} (
+                                            {contentMatches.length})
                                         </h2>
                                         {renderChatElements(contentMatches)}
                                     </div>
                                 )}
-                                
+
                                 {/* No results state */}
-                                {searchQuery.length >= 1 && searchResults.length === 0 && contentMatches.length === 0 && !isSearchingContent && (
-                                    <div className="text-center py-8 text-gray-500">
-                                        {t("No chats found matching your search")}
-                                        <div className="text-xs mt-2">
-                                            {t("Searched")} {data?.pages.flat().length || 0} {t("of")} {totalChatCount} {t("loaded chats")}
+                                {searchQuery.length >= 1 &&
+                                    searchResults.length === 0 &&
+                                    contentMatches.length === 0 &&
+                                    !isSearchingContent && (
+                                        <div className="text-center py-8 text-gray-500">
+                                            {t(
+                                                "No chats found matching your search",
+                                            )}
+                                            <div className="text-xs mt-2">
+                                                {t("Searched")}{" "}
+                                                {data?.pages.flat().length || 0}{" "}
+                                                {t("of")} {totalChatCount}{" "}
+                                                {t("loaded chats")}
+                                            </div>
                                         </div>
-                                    </div>
-                                )}
+                                    )}
                             </div>
                         )}
                     </div>

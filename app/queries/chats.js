@@ -13,7 +13,7 @@ export function useTotalChatCount() {
     return useQuery({
         queryKey: ["totalChatCount"],
         queryFn: async () => {
-            const response = await axios.get('/api/chats/count');
+            const response = await axios.get("/api/chats/count");
             return response.data.total;
         },
         staleTime: 1000 * 60 * 5, // 5 minutes
@@ -25,7 +25,9 @@ export function useSearchChats(searchTerm) {
         queryKey: ["searchChats", searchTerm],
         queryFn: async () => {
             if (!searchTerm || searchTerm.length < 1) return [];
-            const response = await axios.get(`/api/chats?search=${encodeURIComponent(searchTerm)}`);
+            const response = await axios.get(
+                `/api/chats?search=${encodeURIComponent(searchTerm)}`,
+            );
             return response.data;
         },
         enabled: !!searchTerm && searchTerm.length >= 1,
@@ -35,37 +37,39 @@ export function useSearchChats(searchTerm) {
 
 export function useProgressiveContentSearch(searchTerm, titleResults = []) {
     const queryClient = useQueryClient();
-    
+
     return useMutation({
         mutationKey: ["progressiveContentSearch", searchTerm],
         mutationFn: async ({ searchTerm, excludeIds = [] }) => {
             if (!searchTerm || searchTerm.length < 2) return [];
-            
+
             // Get user's chats that weren't in title results
             const allChatsQuery = queryClient.getQueryData(["chats"]);
             if (!allChatsQuery?.pages) return [];
-            
+
             const allChats = allChatsQuery.pages.flat();
             const chatsToSearch = allChats
-                .filter(chat => !excludeIds.includes(chat._id))
+                .filter((chat) => !excludeIds.includes(chat._id))
                 .slice(0, 20); // Limit to prevent overwhelming
-            
+
             const contentMatches = [];
-            
+
             // Search through each chat's messages
             for (const chat of chatsToSearch) {
                 if (chat.messages?.length > 0) {
-                    const hasMatch = chat.messages.some(message => 
-                        message.payload?.toLowerCase().includes(searchTerm.toLowerCase())
+                    const hasMatch = chat.messages.some((message) =>
+                        message.payload
+                            ?.toLowerCase()
+                            .includes(searchTerm.toLowerCase()),
                     );
                     if (hasMatch) {
                         contentMatches.push(chat);
                     }
                 }
             }
-            
+
             return contentMatches;
-        }
+        },
     });
 }
 
