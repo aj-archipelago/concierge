@@ -81,17 +81,31 @@ function SavedChats({ displayState }) {
     const [searchQuery, setSearchQuery] = useState("");
     const [contentMatches, setContentMatches] = useState([]);
     const [isSearchingContent, setIsSearchingContent] = useState(false);
+    const [searchError, setSearchError] = useState(null);
 
     // Search hook for title-only search
-    const { data: searchResults = [], isLoading: isSearching } =
+    const { data: searchResults = [], isLoading: isSearching, error: titleSearchError } =
         useSearchChats(searchQuery);
 
     // Get total chat count from database
     const { data: totalChatCount = 0 } = useTotalChatCount();
 
-    // Progressive content search using loaded chats
+    // Progressive content search using loaded chats with performance optimizations
     const lastSearchRef = useRef("");
     const searchTimeoutRef = useRef(null);
+
+
+    // Store current data and search results in refs to avoid dependency issues
+    const dataRef = useRef(data);
+    const searchResultsRef = useRef(searchResults);
+    
+    useEffect(() => {
+        dataRef.current = data;
+    }, [data]);
+    
+    useEffect(() => {
+        searchResultsRef.current = searchResults;
+    }, [searchResults]);
 
     useEffect(() => {
         // Clear any existing timeout
@@ -102,7 +116,7 @@ function SavedChats({ displayState }) {
         if (
             searchQuery.length >= 1 &&
             !isSearching &&
-            data?.pages &&
+            dataRef.current?.pages &&
             lastSearchRef.current !== searchQuery
         ) {
             setIsSearchingContent(true);
@@ -110,28 +124,42 @@ function SavedChats({ displayState }) {
 
             // Debounce the content search
             searchTimeoutRef.current = setTimeout(() => {
-                // Search through all loaded chats for content matches
-                const allLoadedChats = data.pages.flat();
-                const titleIds = searchResults.map((chat) => chat._id);
+                try {
+                    // Search through loaded chats with performance optimizations
+                    const allLoadedChats = dataRef.current.pages.flat();
+                    const titleIds = (searchResultsRef.current || []).map((chat) => chat._id);
+                    const lowerSearchQuery = searchQuery.toLowerCase();
 
-                const matches = allLoadedChats.filter(
-                    (chat) =>
-                        !titleIds.includes(chat._id) && // Exclude title matches
-                        chat.messages?.some(
-                            (message) =>
+                    // Search through expanded dataset (auto-loaded up to 200 chats)
+                    const chatsToSearch = allLoadedChats
+                        .filter(chat => !titleIds.includes(chat._id)); // Exclude title matches
+
+                    const matches = chatsToSearch
+                        .filter((chat) => {
+                            if (!chat.messages?.length) return false;
+                            
+                            // Search ALL messages in the chat for comprehensive results
+                            return chat.messages.some((message) =>
                                 typeof message.payload === "string" &&
-                                message.payload
-                                    .toLowerCase()
-                                    .includes(searchQuery.toLowerCase()),
-                        ),
-                );
+                                message.payload.toLowerCase().includes(lowerSearchQuery)
+                            );
+                        })
+                        .slice(0, 20); // Limit results to 20 for better UX
 
-                setContentMatches(matches);
-                setIsSearchingContent(false);
+                    setContentMatches(matches);
+                    setSearchError(null);
+                } catch (error) {
+                    console.error('Content search error:', error);
+                    setSearchError(error.message);
+                    setContentMatches([]);
+                } finally {
+                    setIsSearchingContent(false);
+                }
             }, 300);
         } else if (searchQuery.length < 1) {
             setContentMatches([]);
             setIsSearchingContent(false);
+            setSearchError(null);
             lastSearchRef.current = "";
         }
 
@@ -140,7 +168,7 @@ function SavedChats({ displayState }) {
                 clearTimeout(searchTimeoutRef.current);
             }
         };
-    }, [searchQuery, isSearching]);
+    }, [searchQuery, isSearching]); // Only depend on truly stable values
 
     const categorizedChats = useMemo(() => {
         const categories = {
@@ -438,10 +466,10 @@ function SavedChats({ displayState }) {
                                     {contentMatches.length > 0 &&
                                         `, ${contentMatches.length} ${t("content matches")}`}
                                     {` ${t("of")} ${totalChatCount} ${t("total")}`}
-                                    {isSearchingContent && (
+                                    {(isSearchingContent || (searchQuery && isFetchingNextPage)) && (
                                         <span className="text-blue-500">
                                             {" "}
-                                            • {t("searching content...")}
+                                            • {isFetchingNextPage ? t("Loading...") : t("searching content...")}
                                         </span>
                                     )}
                                 </div>
@@ -467,8 +495,15 @@ function SavedChats({ displayState }) {
                         type="text"
                         placeholder={t("Search chats...")}
                         value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
+                        onChange={(e) => {
+                            const value = e.target.value;
+                            // Limit search query length to prevent performance issues
+                            if (value.length <= 100) {
+                                setSearchQuery(value);
+                            }
+                        }}
                         className="pl-10"
+                        maxLength={100}
                     />
                 </div>
             </div>
@@ -504,8 +539,18 @@ function SavedChats({ displayState }) {
                                     </div>
                                 )}
 
+                                {/* Error state */}
+                                {(titleSearchError || searchError) && (
+                                    <div className="text-center py-8 text-red-500">
+                                        <div className="text-sm">
+                                            {t("An error occurred")} {titleSearchError?.message || searchError}
+                                        </div>
+                                    </div>
+                                )}
+
                                 {/* No results state */}
-                                {searchQuery.length >= 1 &&
+                                {!titleSearchError && !searchError &&
+                                    searchQuery.length >= 1 &&
                                     searchResults.length === 0 &&
                                     contentMatches.length === 0 &&
                                     !isSearchingContent && (

@@ -218,6 +218,7 @@ export function useAddChat() {
             queryClient.invalidateQueries({ queryKey: ["chats"] });
             queryClient.invalidateQueries({ queryKey: ["activeChats"] });
             queryClient.invalidateQueries({ queryKey: ["userChatInfo"] });
+            queryClient.invalidateQueries({ queryKey: ["totalChatCount"] });
         },
     });
 }
@@ -340,6 +341,7 @@ export function useDeleteChat() {
             queryClient.invalidateQueries({ queryKey: ["userChatInfo"] });
             queryClient.invalidateQueries({ queryKey: ["activeChats"] });
             queryClient.invalidateQueries({ queryKey: ["chats"] });
+            queryClient.invalidateQueries({ queryKey: ["totalChatCount"] });
         },
     });
 }
