@@ -62,7 +62,10 @@ export async function searchChatTitles(searchTerm) {
     const userId = user._id;
 
     // Escape special regex characters to prevent regex errors
-    const escapedSearchTerm = searchTerm.replace(/[.*+?^${}()|[\]\\@#%&!~]/g, "\\$&");
+    const escapedSearchTerm = searchTerm.replace(
+        /[.*+?^${}()|[\]\\@#%&!~]/g,
+        "\\$&",
+    );
 
     // Search ALL chats, not just loaded ones
     const chats = await Chat.find(

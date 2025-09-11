@@ -84,8 +84,11 @@ function SavedChats({ displayState }) {
     const [searchError, setSearchError] = useState(null);
 
     // Search hook for title-only search
-    const { data: searchResults = [], isLoading: isSearching, error: titleSearchError } =
-        useSearchChats(searchQuery);
+    const {
+        data: searchResults = [],
+        isLoading: isSearching,
+        error: titleSearchError,
+    } = useSearchChats(searchQuery);
 
     // Get total chat count from database
     const { data: totalChatCount = 0 } = useTotalChatCount();
@@ -94,15 +97,14 @@ function SavedChats({ displayState }) {
     const lastSearchRef = useRef("");
     const searchTimeoutRef = useRef(null);
 
-
     // Store current data and search results in refs to avoid dependency issues
     const dataRef = useRef(data);
     const searchResultsRef = useRef(searchResults);
-    
+
     useEffect(() => {
         dataRef.current = data;
     }, [data]);
-    
+
     useEffect(() => {
         searchResultsRef.current = searchResults;
     }, [searchResults]);
@@ -127,21 +129,27 @@ function SavedChats({ displayState }) {
                 try {
                     // Search through loaded chats with performance optimizations
                     const allLoadedChats = dataRef.current.pages.flat();
-                    const titleIds = (searchResultsRef.current || []).map((chat) => chat._id);
+                    const titleIds = (searchResultsRef.current || []).map(
+                        (chat) => chat._id,
+                    );
                     const lowerSearchQuery = searchQuery.toLowerCase();
 
                     // Search through expanded dataset (auto-loaded up to 200 chats)
-                    const chatsToSearch = allLoadedChats
-                        .filter(chat => !titleIds.includes(chat._id)); // Exclude title matches
+                    const chatsToSearch = allLoadedChats.filter(
+                        (chat) => !titleIds.includes(chat._id),
+                    ); // Exclude title matches
 
                     const matches = chatsToSearch
                         .filter((chat) => {
                             if (!chat.messages?.length) return false;
-                            
+
                             // Search ALL messages in the chat for comprehensive results
-                            return chat.messages.some((message) =>
-                                typeof message.payload === "string" &&
-                                message.payload.toLowerCase().includes(lowerSearchQuery)
+                            return chat.messages.some(
+                                (message) =>
+                                    typeof message.payload === "string" &&
+                                    message.payload
+                                        .toLowerCase()
+                                        .includes(lowerSearchQuery),
                             );
                         })
                         .slice(0, 20); // Limit results to 20 for better UX
@@ -149,7 +157,7 @@ function SavedChats({ displayState }) {
                     setContentMatches(matches);
                     setSearchError(null);
                 } catch (error) {
-                    console.error('Content search error:', error);
+                    console.error("Content search error:", error);
                     setSearchError(error.message);
                     setContentMatches([]);
                 } finally {
@@ -466,10 +474,15 @@ function SavedChats({ displayState }) {
                                     {contentMatches.length > 0 &&
                                         `, ${contentMatches.length} ${t("content matches")}`}
                                     {` ${t("of")} ${totalChatCount} ${t("total")}`}
-                                    {(isSearchingContent || (searchQuery && isFetchingNextPage)) && (
+                                    {(isSearchingContent ||
+                                        (searchQuery &&
+                                            isFetchingNextPage)) && (
                                         <span className="text-blue-500">
                                             {" "}
-                                            • {isFetchingNextPage ? t("Loading...") : t("searching content...")}
+                                            •{" "}
+                                            {isFetchingNextPage
+                                                ? t("Loading...")
+                                                : t("searching content...")}
                                         </span>
                                     )}
                                 </div>
@@ -543,13 +556,16 @@ function SavedChats({ displayState }) {
                                 {(titleSearchError || searchError) && (
                                     <div className="text-center py-8 text-red-500">
                                         <div className="text-sm">
-                                            {t("An error occurred")} {titleSearchError?.message || searchError}
+                                            {t("An error occurred")}{" "}
+                                            {titleSearchError?.message ||
+                                                searchError}
                                         </div>
                                     </div>
                                 )}
 
                                 {/* No results state */}
-                                {!titleSearchError && !searchError &&
+                                {!titleSearchError &&
+                                    !searchError &&
                                     searchQuery.length >= 1 &&
                                     searchResults.length === 0 &&
                                     contentMatches.length === 0 &&
