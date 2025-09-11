@@ -4,6 +4,7 @@ import {
     DropdownMenuItem,
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Input } from "@/components/ui/input";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
 import i18next from "i18next";
@@ -14,9 +15,10 @@ import {
     UserCircle,
     Trash2,
     Plus,
+    Search,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { useInView } from "react-intersection-observer";
 import Loader from "../../../app/components/loader";
@@ -26,6 +28,8 @@ import {
     useGetChats,
     useSetActiveChatId,
     useUpdateChat,
+    useSearchChats,
+    useTotalChatCount,
 } from "../../../app/queries/chats";
 import classNames from "../../../app/utils/class-names";
 import config from "../../../config";
@@ -43,12 +47,15 @@ import {
 
 dayjs.extend(relativeTime);
 
-const CATEGORIES = {
-    today: "Today",
-    yesterday: "Yesterday",
-    thisWeek: "This Week",
-    thisMonth: "This Month",
-    older: "Older",
+const getCategoryTranslation = (category, t) => {
+    const titles = {
+        today: t("Today"),
+        yesterday: t("Yesterday"),
+        thisWeek: t("This Week"),
+        thisMonth: t("This Month"),
+        older: t("Older"),
+    };
+    return titles[category] || category;
 };
 
 function SavedChats({ displayState }) {
@@ -71,6 +78,59 @@ function SavedChats({ displayState }) {
     const [editedName, setEditedName] = useState("");
     const { language } = i18next;
     const [deleteChatId, setDeleteChatId] = useState(null);
+    const [searchQuery, setSearchQuery] = useState("");
+    const [contentMatches, setContentMatches] = useState([]);
+    const [isSearchingContent, setIsSearchingContent] = useState(false);
+    
+    // Search hook for title-only search
+    const { data: searchResults = [], isLoading: isSearching } = useSearchChats(searchQuery);
+    
+    // Get total chat count from database
+    const { data: totalChatCount = 0 } = useTotalChatCount();
+
+    // Progressive content search using loaded chats
+    const lastSearchRef = useRef("");
+    const searchTimeoutRef = useRef(null);
+    
+    useEffect(() => {
+        // Clear any existing timeout
+        if (searchTimeoutRef.current) {
+            clearTimeout(searchTimeoutRef.current);
+        }
+        
+        if (searchQuery.length >= 1 && !isSearching && data?.pages && lastSearchRef.current !== searchQuery) {
+            setIsSearchingContent(true);
+            lastSearchRef.current = searchQuery;
+            
+            // Debounce the content search
+            searchTimeoutRef.current = setTimeout(() => {
+                // Search through all loaded chats for content matches
+                const allLoadedChats = data.pages.flat();
+                const titleIds = searchResults.map(chat => chat._id);
+                
+                const matches = allLoadedChats.filter(chat => 
+                    !titleIds.includes(chat._id) && // Exclude title matches
+                    chat.messages?.some(message => 
+                        typeof message.payload === 'string' && 
+                        message.payload.toLowerCase().includes(searchQuery.toLowerCase())
+                    )
+                );
+                
+                setContentMatches(matches);
+                setIsSearchingContent(false);
+            }, 300);
+        } else if (searchQuery.length < 1) {
+            setContentMatches([]);
+            setIsSearchingContent(false);
+            lastSearchRef.current = "";
+        }
+        
+        return () => {
+            if (searchTimeoutRef.current) {
+                clearTimeout(searchTimeoutRef.current);
+            }
+        };
+    }, [searchQuery, isSearching]);
 
     const categorizedChats = useMemo(() => {
         const categories = {
@@ -335,7 +395,7 @@ function SavedChats({ displayState }) {
         </div>
     );
 
-    const getCategoryTitle = (key, count) => `${CATEGORIES[key]} (${count})`;
+    const getCategoryTitle = (key, count) => `${getCategoryTranslation(key, t)} (${count})`;
 
     const { ref, inView } = useInView({
         threshold: 0,
@@ -354,14 +414,25 @@ function SavedChats({ displayState }) {
     return (
         <div className={`${isDocked ? "text-xs" : ""} pb-4`}>
             <div className="mb-4">
-                <div className="flex justify-between items-center">
+                <div className="flex justify-between items-center mb-4">
                     <div>
                         <h1 className="text-lg font-semibold">
                             {t("Chat history")}
                         </h1>
 
                         <div className="text-sm text-gray-500 dark:text-gray-400">
-                            {data?.pages.flat().length || 0} {t("chats")}
+                            {searchQuery ? (
+                                <div>
+                                    {searchResults.length} {t("title matches")}
+                                    {contentMatches.length > 0 && `, ${contentMatches.length} ${t("content matches")}`}
+                                    {` ${t("of")} ${totalChatCount} ${t("total")}`}
+                                    {isSearchingContent && (
+                                        <span className="text-blue-500"> • {t("searching content...")}</span>
+                                    )}
+                                </div>
+                            ) : (
+                                `${data?.pages.flat().length || 0} ${t("chats")} (${totalChatCount} ${t("total")})`
+                            )}
                         </div>
                     </div>
 
@@ -373,26 +444,82 @@ function SavedChats({ displayState }) {
                         {t("New Chat")}
                     </button>
                 </div>
+                
+                {/* Search input */}
+                <div className="relative">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                    <Input
+                        type="text"
+                        placeholder={t("Search chats...")}
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="pl-10"
+                    />
+                </div>
             </div>
             <div className="chats">
-                {Object.entries(categorizedChats).map(
-                    ([category, chats]) =>
-                        chats.length > 0 && (
-                            <div key={category}>
-                                <h2 className="text-md font-semibold mt-4 mb-2 border-b border-gray-200 dark:border-gray-700 pb-1">
-                                    {t(
-                                        getCategoryTitle(
-                                            category,
-                                            chats.length,
-                                        ),
-                                    )}
-                                </h2>
-                                {renderChatElements(chats)}
+                {searchQuery ? (
+                    // Search results view
+                    <div>
+                        {isSearching ? (
+                            <div className="flex justify-center py-8">
+                                <Loader />
                             </div>
-                        ),
+                        ) : (
+                            <div>
+                                {/* Title matches section */}
+                                {searchResults.length > 0 && (
+                                    <div>
+                                        <h2 className="text-md font-semibold mt-4 mb-2 border-b border-gray-200 dark:border-gray-700 pb-1">
+                                            📝 {t("Title Matches")} ({searchResults.length})
+                                        </h2>
+                                        {renderChatElements(searchResults)}
+                                    </div>
+                                )}
+                                
+                                {/* Content matches section */}
+                                {contentMatches.length > 0 && (
+                                    <div>
+                                        <h2 className="text-md font-semibold mt-4 mb-2 border-b border-gray-200 dark:border-gray-700 pb-1">
+                                            💬 {t("Content Matches")} ({contentMatches.length})
+                                        </h2>
+                                        {renderChatElements(contentMatches)}
+                                    </div>
+                                )}
+                                
+                                {/* No results state */}
+                                {searchQuery.length >= 1 && searchResults.length === 0 && contentMatches.length === 0 && !isSearchingContent && (
+                                    <div className="text-center py-8 text-gray-500">
+                                        {t("No chats found matching your search")}
+                                        <div className="text-xs mt-2">
+                                            {t("Searched")} {data?.pages.flat().length || 0} {t("of")} {totalChatCount} {t("loaded chats")}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+                    </div>
+                ) : (
+                    // Normal categorized view
+                    Object.entries(categorizedChats).map(
+                        ([category, chats]) =>
+                            chats.length > 0 && (
+                                <div key={category}>
+                                    <h2 className="text-md font-semibold mt-4 mb-2 border-b border-gray-200 dark:border-gray-700 pb-1">
+                                        {t(
+                                            getCategoryTitle(
+                                                category,
+                                                chats.length,
+                                            ),
+                                        )}
+                                    </h2>
+                                    {renderChatElements(chats)}
+                                </div>
+                            ),
+                    )
                 )}
             </div>
-            {hasNextPage && (
+            {!searchQuery && hasNextPage && (
                 <div
                     ref={ref}
                     className="h-10 flex items-center justify-center"

@@ -634,5 +634,19 @@
     "Click to run": "انقر للتشغيل",
     "by": "بواسطة",
     "by {{author}}": "بواسطة {{author}}",
-    "Updated": "تم التحديث"
+    "Updated": "تم التحديث",
+    "Search chats...": "البحث في الدردشات...",
+    "search results": "نتائج البحث",
+    "chats": "دردشات",
+    "Title Matches": "تطابقات العناوين",
+    "Content Matches": "تطابقات المحتوى",
+    "title matches": "تطابقات العناوين",
+    "content matches": "تطابقات المحتوى",
+    "searching content...": "جاري البحث في المحتوى...",
+    "No chats found matching your search": "لم يتم العثور على دردشات تطابق بحثك",
+    "Searched": "تم البحث في",
+    "loaded chats": "الدردشات المحملة",
+    "This Week": "هذا الأسبوع",
+    "This Month": "هذا الشهر",
+    "Older": "أقدم"
 }
