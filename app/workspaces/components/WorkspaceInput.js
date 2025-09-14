@@ -2,18 +2,17 @@ import { useApolloClient } from "@apollo/client";
 import {
     Edit,
     File,
+    FolderOpen,
     Loader2Icon,
     Paperclip,
+    Trash2,
     UploadIcon,
     X,
-    Trash2,
-    FolderOpen,
 } from "lucide-react";
 import { useCallback, useContext, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { v4 as uuidv4 } from "uuid";
-import { Modal } from "../../../@/components/ui/modal";
 import {
     AlertDialog,
     AlertDialogAction,
@@ -24,6 +23,7 @@ import {
     AlertDialogHeader,
     AlertDialogTitle,
 } from "../../../@/components/ui/alert-dialog";
+import { Modal } from "../../../@/components/ui/modal";
 import LoadingButton from "../../../src/components/editor/LoadingButton";
 import { COGNITIVE_INSERT } from "../../../src/graphql";
 import { useLLMs } from "../../queries/llms";
@@ -34,13 +34,13 @@ import {
 } from "../../queries/prompts";
 import { useAddDocument } from "../../queries/uploadedDocs";
 import {
+    useCheckFileAttachments,
+    useDeleteWorkspaceFile,
     useUpdateWorkspace,
     useUpdateWorkspaceState,
-    useWorkspaceState,
-    useWorkspaceFiles,
     useUploadWorkspaceFile,
-    useDeleteWorkspaceFile,
-    useCheckFileAttachments,
+    useWorkspaceFiles,
+    useWorkspaceState,
 } from "../../queries/workspaces";
 import PromptList from "./PromptList";
 import PromptSelectorModal from "./PromptSelectorModal";
@@ -840,6 +840,8 @@ function FilePickerModal({
     onFilesSelected,
 }) {
     const [showUploadDialog, setShowUploadDialog] = useState(false);
+    const [deleteConfirmation, setDeleteConfirmation] = useState(null);
+    const [deletingFiles, setDeletingFiles] = useState(new Set());
     const { t } = useTranslation();
     const {
         data: filesData,
@@ -847,19 +849,24 @@ function FilePickerModal({
         error,
     } = useWorkspaceFiles(workspaceId);
     const uploadFileMutation = useUploadWorkspaceFile();
+    const deleteFileMutation = useDeleteWorkspaceFile();
+    const checkFileAttachmentsMutation = useCheckFileAttachments();
 
     const files = filesData?.files || [];
 
     // Handle file upload success in the modal
     const handleFileUpload = async (fileData) => {
         try {
-            // Automatically select the uploaded file
-            if (fileData && fileData._id) {
+            // The fileData comes from the workspace upload mutation
+            // and has the structure: { success: true, file: {...}, files: [...] }
+            const uploadedFile = fileData?.file;
+
+            if (uploadedFile && uploadedFile._id) {
                 const isAlreadySelected = selectedFiles.some(
-                    (f) => f._id === fileData._id,
+                    (f) => f._id === uploadedFile._id,
                 );
                 if (!isAlreadySelected) {
-                    onFilesSelected([...selectedFiles, fileData]);
+                    onFilesSelected([...selectedFiles, uploadedFile]);
                 }
             }
             setShowUploadDialog(false);
@@ -883,6 +890,66 @@ function FilePickerModal({
 
     const handleDeselectAll = () => {
         onFilesSelected([]);
+    };
+
+    const handleDeleteClick = async (file, event) => {
+        event.stopPropagation(); // Prevent file selection toggle
+
+        try {
+            // Check if file is attached to any prompts
+            const attachmentData =
+                await checkFileAttachmentsMutation.mutateAsync({
+                    workspaceId,
+                    fileId: file._id,
+                });
+
+            const isAttached = attachmentData.attachedPrompts.length > 0;
+
+            setDeleteConfirmation({
+                file,
+                isAttached,
+                attachedPrompts: attachmentData.attachedPrompts || [],
+            });
+        } catch (err) {
+            console.error("Error checking file attachments:", err);
+            // If check fails, proceed with basic confirmation
+            setDeleteConfirmation({
+                file,
+                isAttached: false,
+                attachedPrompts: [],
+            });
+        }
+    };
+
+    const confirmDelete = async () => {
+        if (!deleteConfirmation) return;
+
+        const { file, isAttached } = deleteConfirmation;
+
+        try {
+            setDeletingFiles((prev) => new Set(prev).add(file._id));
+            await deleteFileMutation.mutateAsync({
+                workspaceId,
+                fileId: file._id,
+                force: isAttached, // Use force if attached to prompts
+            });
+
+            // Remove file from selected files if it was selected
+            onFilesSelected(selectedFiles.filter((f) => f._id !== file._id));
+        } catch (err) {
+            console.error("Error deleting file:", err);
+        } finally {
+            setDeletingFiles((prev) => {
+                const newSet = new Set(prev);
+                newSet.delete(file._id);
+                return newSet;
+            });
+            setDeleteConfirmation(null);
+        }
+    };
+
+    const cancelDelete = () => {
+        setDeleteConfirmation(null);
     };
 
     if (!isOpen) return null;
@@ -983,6 +1050,21 @@ function FilePickerModal({
                                             KB
                                         </p>
                                     </div>
+                                    <button
+                                        type="button"
+                                        onClick={(e) =>
+                                            handleDeleteClick(file, e)
+                                        }
+                                        disabled={deletingFiles.has(file._id)}
+                                        className="ml-2 p-1 text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                        title={t("Delete file")}
+                                    >
+                                        {deletingFiles.has(file._id) ? (
+                                            <Loader2Icon className="w-4 h-4 animate-spin" />
+                                        ) : (
+                                            <Trash2 className="w-4 h-4" />
+                                        )}
+                                    </button>
                                 </div>
                             );
                         })}
@@ -1019,6 +1101,64 @@ function FilePickerModal({
                 title="Upload Files to Workspace"
                 description="Upload files to add them to this workspace. They will be available for attachment to prompts."
             />
+
+            {/* Delete Confirmation Dialog */}
+            <AlertDialog
+                open={!!deleteConfirmation}
+                onOpenChange={cancelDelete}
+            >
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>{t("Delete File")}</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            {deleteConfirmation?.isAttached ? (
+                                <>
+                                    {t("This file is attached to")}{" "}
+                                    {deleteConfirmation.attachedPrompts.length}{" "}
+                                    {t("prompt(s)")}:{" "}
+                                    <strong>
+                                        {deleteConfirmation.attachedPrompts
+                                            .map((p) => p.title)
+                                            .join(", ")}
+                                    </strong>
+                                    <br />
+                                    <br />
+                                    {t(
+                                        "Deleting this file will remove it from all attached prompts. This action cannot be undone.",
+                                    )}
+                                </>
+                            ) : (
+                                t(
+                                    "Are you sure you want to delete '{{fileName}}'? This action cannot be undone.",
+                                    {
+                                        fileName:
+                                            deleteConfirmation?.file
+                                                ?.originalName,
+                                    },
+                                )
+                            )}
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel onClick={cancelDelete}>
+                            {t("Cancel")}
+                        </AlertDialogCancel>
+                        <AlertDialogAction
+                            onClick={confirmDelete}
+                            className="bg-red-600 hover:bg-red-700 focus:ring-red-500"
+                        >
+                            {deleteFileMutation.isPending ? (
+                                <>
+                                    <Loader2Icon className="w-4 h-4 animate-spin mr-2" />
+                                    {t("Deleting...")}
+                                </>
+                            ) : (
+                                t("Delete")
+                            )}
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </Modal>
     );
 }
