@@ -41,23 +41,52 @@ export async function DELETE(request, { params }) {
 
         // Find the file to delete by ID
         const fileToDelete = await File.findById(fileId);
-        if (!fileToDelete) {
-            return NextResponse.json(
-                { error: "File not found" },
-                { status: 404 },
-            );
-        }
 
         // Verify the file belongs to this workspace
         const fileInWorkspace = workspace.files.some(
             (file) => file._id.toString() === fileId,
         );
 
+        if (!fileToDelete) {
+            // File not found in database - still need to clean up workspace references
+            if (fileInWorkspace) {
+                // Remove the file reference from the workspace
+                const updatedWorkspace = await Workspace.findByIdAndUpdate(
+                    workspaceId,
+                    {
+                        $pull: {
+                            files: fileId,
+                        },
+                    },
+                    {
+                        new: true,
+                        runValidators: true,
+                    },
+                ).populate("files");
+
+                return NextResponse.json({
+                    success: true,
+                    message:
+                        "File already deleted, removed reference from workspace",
+                    files: updatedWorkspace.files || [],
+                });
+            } else {
+                // File not in database and not in workspace
+                return NextResponse.json({
+                    success: true,
+                    message: "File already deleted or does not exist",
+                    files: workspace.files || [],
+                });
+            }
+        }
+
         if (!fileInWorkspace) {
-            return NextResponse.json(
-                { error: "File not found in this workspace" },
-                { status: 404 },
-            );
+            // File exists in database but not in this workspace
+            return NextResponse.json({
+                success: true,
+                message: "File not found in this workspace",
+                files: workspace.files || [],
+            });
         }
 
         // Check if the file is attached to any prompts in the workspace

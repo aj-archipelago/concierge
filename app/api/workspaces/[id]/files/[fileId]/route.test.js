@@ -99,23 +99,54 @@ const createTestableDeleteHandler = () => {
 
             // Find the file to delete by ID
             const fileToDelete = await File.findById(fileId);
-            if (!fileToDelete) {
-                return NextResponse.json(
-                    { error: "File not found" },
-                    { status: 404 },
-                );
-            }
 
             // Verify the file belongs to this workspace
             const fileInWorkspace = workspace.files.some(
                 (file) => file._id.toString() === fileId,
             );
 
+            if (!fileToDelete) {
+                // File not found in database - still need to clean up workspace references
+                if (fileInWorkspace) {
+                    // Remove the file reference from the workspace
+                    const updateQuery = Workspace.findByIdAndUpdate(
+                        workspaceId,
+                        {
+                            $pull: {
+                                files: fileId,
+                            },
+                        },
+                        {
+                            new: true,
+                            runValidators: true,
+                        },
+                    );
+                    const updatedWorkspace =
+                        await updateQuery.populate("files");
+
+                    return NextResponse.json({
+                        success: true,
+                        message:
+                            "File already deleted, removed reference from workspace",
+                        files: updatedWorkspace.files || [],
+                    });
+                } else {
+                    // File not in database and not in workspace
+                    return NextResponse.json({
+                        success: true,
+                        message: "File already deleted or does not exist",
+                        files: workspace.files || [],
+                    });
+                }
+            }
+
             if (!fileInWorkspace) {
-                return NextResponse.json(
-                    { error: "File not found in this workspace" },
-                    { status: 404 },
-                );
+                // File exists in database but not in this workspace
+                return NextResponse.json({
+                    success: true,
+                    message: "File not found in this workspace",
+                    files: workspace.files || [],
+                });
             }
 
             // Check if the file is attached to any prompts in the workspace
@@ -484,17 +515,10 @@ describe("DELETE /api/workspaces/[id]/files/[fileId]", () => {
     });
 
     describe("File Not Found Scenarios", () => {
-        test("should return 404 when file is not found", async () => {
+        test("should return success when file is not found and not in workspace (idempotent delete)", async () => {
             const File = require("../../../../models/file").default;
             File.findById.mockResolvedValue(null);
 
-            const result = await DELETE(mockRequest, { params: mockParams });
-
-            expect(result.status).toBe(404);
-            expect(result.data.error).toBe("File not found");
-        });
-
-        test("should return 404 when file is not in workspace", async () => {
             const Workspace = require("../../../../models/workspace").default;
             const workspaceWithoutFile = {
                 ...mockWorkspace,
@@ -506,8 +530,78 @@ describe("DELETE /api/workspaces/[id]/files/[fileId]", () => {
 
             const result = await DELETE(mockRequest, { params: mockParams });
 
-            expect(result.status).toBe(404);
-            expect(result.data.error).toBe("File not found in this workspace");
+            expect(result.status).toBe(200);
+            expect(result.data.success).toBe(true);
+            expect(result.data.message).toBe(
+                "File already deleted or does not exist",
+            );
+            expect(result.data.files).toEqual([]);
+
+            // Verify that no database deletion operations were attempted
+            expect(File.findByIdAndDelete).not.toHaveBeenCalled();
+            expect(Workspace.findByIdAndUpdate).not.toHaveBeenCalled();
+        });
+
+        test("should remove file reference from workspace when file is not found but referenced in workspace", async () => {
+            const File = require("../../../../models/file").default;
+            File.findById.mockResolvedValue(null);
+
+            const Workspace = require("../../../../models/workspace").default;
+            // Mock workspace that still has file reference
+            Workspace.findById.mockReturnValue(createMockQuery(mockWorkspace));
+
+            // Mock updated workspace after cleaning up the reference
+            const updatedWorkspace = {
+                ...mockWorkspace,
+                files: [],
+            };
+            Workspace.findByIdAndUpdate.mockReturnValue(
+                createMockQuery(updatedWorkspace),
+            );
+
+            const result = await DELETE(mockRequest, { params: mockParams });
+
+            expect(result.status).toBe(200);
+            expect(result.data.success).toBe(true);
+            expect(result.data.message).toBe(
+                "File already deleted, removed reference from workspace",
+            );
+            expect(result.data.files).toEqual([]);
+
+            // Verify that file deletion was not attempted (file doesn't exist)
+            expect(File.findByIdAndDelete).not.toHaveBeenCalled();
+
+            // Verify that workspace was updated to remove the stale reference
+            expect(Workspace.findByIdAndUpdate).toHaveBeenCalledWith(
+                "workspace123",
+                { $pull: { files: "file123" } },
+                { new: true, runValidators: true },
+            );
+        });
+
+        test("should return success when file is not in workspace (idempotent delete)", async () => {
+            const Workspace = require("../../../../models/workspace").default;
+            const workspaceWithoutFile = {
+                ...mockWorkspace,
+                files: [],
+            };
+            Workspace.findById.mockReturnValue(
+                createMockQuery(workspaceWithoutFile),
+            );
+
+            const result = await DELETE(mockRequest, { params: mockParams });
+
+            expect(result.status).toBe(200);
+            expect(result.data.success).toBe(true);
+            expect(result.data.message).toBe(
+                "File not found in this workspace",
+            );
+            expect(result.data.files).toEqual([]);
+
+            // Verify that no database deletion operations were attempted
+            const File = require("../../../../models/file").default;
+            expect(File.findByIdAndDelete).not.toHaveBeenCalled();
+            expect(Workspace.findByIdAndUpdate).not.toHaveBeenCalled();
         });
     });
 
