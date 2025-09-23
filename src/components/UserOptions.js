@@ -235,8 +235,10 @@ const UserOptions = ({ show, handleClose }) => {
                     onChange={(e) => setAiStyle(e.target.value)}
                     className="lb-input w-full mb-4"
                 >
-                    <option value="OpenAI">{t("OpenAI")}</option>
-                    <option value="Anthropic">{t("Anthropic")}</option>
+                    <option value="OpenAI">{t("OpenAI (GPT)")}</option>
+                    <option value="XAI">{t("XAI (Grok)")}</option>
+                    <option value="Anthropic">{t("Anthropic (Claude)")}</option>
+                    <option value="Google">{t("Google (Gemini)")}</option>
                 </select>
 
                 <h4 className="text-base font-semibold mb-2 text-gray-900 dark:text-gray-100">
