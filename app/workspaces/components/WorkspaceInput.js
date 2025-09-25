@@ -448,6 +448,7 @@ export default function WorkspaceInput({ onRun, onRunMany }) {
                 workspaceId={workspace?._id}
                 selectedFiles={selectedFiles}
                 onFilesSelected={setSelectedFiles}
+                isPublished={workspace?.published}
             />
 
             {/* Files Management Dialog */}
@@ -689,7 +690,6 @@ function PromptEditor({ selectedPrompt, onBack }) {
                         type="button"
                         onClick={() => setShowFilePicker(true)}
                         className="text-sm text-blue-600 hover:text-blue-800 flex items-center gap-1"
-                        disabled={isPublished}
                     >
                         <Paperclip className="w-4 h-4" />
                         {t("Attach Files")}
@@ -826,6 +826,7 @@ function PromptEditor({ selectedPrompt, onBack }) {
                 workspaceId={workspace?._id}
                 selectedFiles={selectedFiles}
                 onFilesSelected={setSelectedFiles}
+                isPublished={isPublished}
             />
         </div>
     );
@@ -838,6 +839,7 @@ function FilePickerModal({
     workspaceId,
     selectedFiles,
     onFilesSelected,
+    isPublished = false,
 }) {
     const [showUploadDialog, setShowUploadDialog] = useState(false);
     const [deleteConfirmation, setDeleteConfirmation] = useState(null);
@@ -961,6 +963,17 @@ function FilePickerModal({
             title={t("Select Files to Attach")}
         >
             <div className="p-4">
+                {/* Read-only notice for published workspaces */}
+                {isPublished && (
+                    <div className="mb-4 p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded">
+                        <div className="text-sm text-yellow-800 dark:text-yellow-200">
+                            {t(
+                                "This workspace is published to Cortex. You can view and select files, but cannot upload or delete files.",
+                            )}
+                        </div>
+                    </div>
+                )}
+
                 {/* Action buttons */}
                 <div className="flex justify-between items-center mb-4">
                     <div className="text-sm text-gray-600 dark:text-gray-400">
@@ -970,7 +983,15 @@ function FilePickerModal({
                         <button
                             type="button"
                             onClick={() => setShowUploadDialog(true)}
-                            className="flex items-center gap-1 text-sm text-green-600 hover:text-green-800 px-2 py-1 border border-green-300 rounded hover:bg-green-50"
+                            className="flex items-center gap-1 text-sm text-green-600 hover:text-green-800 px-2 py-1 border border-green-300 rounded hover:bg-green-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                            disabled={isPublished}
+                            title={
+                                isPublished
+                                    ? t(
+                                          "Cannot upload files because this workspace is published to Cortex",
+                                      )
+                                    : ""
+                            }
                         >
                             <UploadIcon className="w-3 h-3" />
                             {t("Upload")}
@@ -1055,9 +1076,18 @@ function FilePickerModal({
                                         onClick={(e) =>
                                             handleDeleteClick(file, e)
                                         }
-                                        disabled={deletingFiles.has(file._id)}
+                                        disabled={
+                                            deletingFiles.has(file._id) ||
+                                            isPublished
+                                        }
                                         className="ml-2 p-1 text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                                        title={t("Delete file")}
+                                        title={
+                                            isPublished
+                                                ? t(
+                                                      "Cannot delete files because this workspace is published to Cortex",
+                                                  )
+                                                : t("Delete file")
+                                        }
                                     >
                                         {deletingFiles.has(file._id) ? (
                                             <Loader2Icon className="w-4 h-4 animate-spin" />

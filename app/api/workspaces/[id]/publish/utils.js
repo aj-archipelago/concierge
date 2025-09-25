@@ -1,6 +1,6 @@
 import Pathway from "../../../models/pathway";
 import Prompt from "../../../models/prompt";
-import User from "../../../models/user";
+import User from "../../../models/user.mjs";
 import { deletePathway, putPathway } from "../../../pathways/[id]/db";
 
 // publish workspace to cortex
@@ -12,7 +12,7 @@ export async function publishWorkspace(workspace, user, pathwayName, model) {
     const pathwayData = {
         name: pathwayName,
         systemPrompt: workspace.systemPrompt,
-        prompts: prompts.map((p) => p.text),
+        prompts: prompts.map((p) => ({ name: p.title, prompt: p.text })),
         inputParameters: {},
         model: model,
         owner: user._id,
@@ -57,7 +57,7 @@ export async function republishWorkspace(workspace) {
     const prompts = await Prompt.find({ _id: { $in: workspace.prompts } });
     const pathwayData = {
         name: pathway.name,
-        prompts: prompts.map((p) => p.text),
+        prompts: prompts.map((p) => ({ name: p.title, prompt: p.text })),
         systemPrompt: workspace.systemPrompt,
         inputParameters: {},
         model: pathway.model,
