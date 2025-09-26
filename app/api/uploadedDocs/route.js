@@ -17,6 +17,17 @@ export async function POST(req) {
     try {
         const { filename, docId, chatId } = await req.json();
 
+        // Validate required fields
+        if (!filename) {
+            throw new Error("filename is required");
+        }
+        if (!docId) {
+            throw new Error("docId is required");
+        }
+        if (!chatId) {
+            throw new Error("chatId is required");
+        }
+
         // Decode the filename to show the original filename
         const decodedFilename = decodeURIComponent(
             decodeURIComponent(filename),
