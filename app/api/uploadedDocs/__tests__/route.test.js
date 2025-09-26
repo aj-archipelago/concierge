@@ -17,7 +17,9 @@ jest.mock("mongoose", () => ({
 // Mock the auth utility
 jest.mock("../../utils/auth", () => ({
     getCurrentUser: jest.fn(),
-    handleError: jest.fn((error) => Response.json({ error: error.message }, { status: 400 })),
+    handleError: jest.fn((error) =>
+        Response.json({ error: error.message }, { status: 400 }),
+    ),
 }));
 
 // Mock User model
@@ -30,7 +32,7 @@ import User from "../../models/user";
 describe("POST /api/uploadedDocs", () => {
     beforeEach(() => {
         jest.clearAllMocks();
-        
+
         // Mock getCurrentUser to return a valid user
         getCurrentUser.mockResolvedValue({
             _id: "user123",
@@ -41,8 +43,8 @@ describe("POST /api/uploadedDocs", () => {
         User.findByIdAndUpdate.mockResolvedValue({
             _id: "user123",
             uploadedDocs: [
-                { docId: "doc123", filename: "test.pdf", chatId: "chat123" }
-            ]
+                { docId: "doc123", filename: "test.pdf", chatId: "chat123" },
+            ],
         });
     });
 
@@ -50,11 +52,11 @@ describe("POST /api/uploadedDocs", () => {
         const validRequestData = {
             filename: "test%20file.pdf",
             docId: "doc123",
-            chatId: "chat123"
+            chatId: "chat123",
         };
 
         const mockRequest = {
-            json: jest.fn().mockResolvedValue(validRequestData)
+            json: jest.fn().mockResolvedValue(validRequestData),
         };
 
         const response = await POST(mockRequest);
@@ -68,12 +70,18 @@ describe("POST /api/uploadedDocs", () => {
             {
                 $push: {
                     uploadedDocs: {
-                        $each: [{ filename: "test file.pdf", docId: "doc123", chatId: "chat123" }],
+                        $each: [
+                            {
+                                filename: "test file.pdf",
+                                docId: "doc123",
+                                chatId: "chat123",
+                            },
+                        ],
                         $position: 0,
                     },
                 },
             },
-            { new: true, useFindAndModify: false, upsert: true }
+            { new: true, useFindAndModify: false, upsert: true },
         );
     });
 
@@ -81,11 +89,11 @@ describe("POST /api/uploadedDocs", () => {
         const invalidRequestData = {
             // filename is missing
             docId: "doc123",
-            chatId: "chat123"
+            chatId: "chat123",
         };
 
         const mockRequest = {
-            json: jest.fn().mockResolvedValue(invalidRequestData)
+            json: jest.fn().mockResolvedValue(invalidRequestData),
         };
 
         const response = await POST(mockRequest);
@@ -100,11 +108,11 @@ describe("POST /api/uploadedDocs", () => {
         const invalidRequestData = {
             filename: "test.pdf",
             // docId is missing
-            chatId: "chat123"
+            chatId: "chat123",
         };
 
         const mockRequest = {
-            json: jest.fn().mockResolvedValue(invalidRequestData)
+            json: jest.fn().mockResolvedValue(invalidRequestData),
         };
 
         const response = await POST(mockRequest);
@@ -118,12 +126,12 @@ describe("POST /api/uploadedDocs", () => {
     it("should reject request when chatId is missing", async () => {
         const invalidRequestData = {
             filename: "test.pdf",
-            docId: "doc123"
+            docId: "doc123",
             // chatId is missing
         };
 
         const mockRequest = {
-            json: jest.fn().mockResolvedValue(invalidRequestData)
+            json: jest.fn().mockResolvedValue(invalidRequestData),
         };
 
         const response = await POST(mockRequest);
@@ -138,11 +146,11 @@ describe("POST /api/uploadedDocs", () => {
         const invalidRequestData = {
             filename: "test.pdf",
             docId: "doc123",
-            chatId: null
+            chatId: null,
         };
 
         const mockRequest = {
-            json: jest.fn().mockResolvedValue(invalidRequestData)
+            json: jest.fn().mockResolvedValue(invalidRequestData),
         };
 
         const response = await POST(mockRequest);
@@ -157,11 +165,11 @@ describe("POST /api/uploadedDocs", () => {
         const invalidRequestData = {
             filename: "test.pdf",
             docId: "doc123",
-            chatId: undefined
+            chatId: undefined,
         };
 
         const mockRequest = {
-            json: jest.fn().mockResolvedValue(invalidRequestData)
+            json: jest.fn().mockResolvedValue(invalidRequestData),
         };
 
         const response = await POST(mockRequest);
@@ -176,11 +184,11 @@ describe("POST /api/uploadedDocs", () => {
         const invalidRequestData = {
             filename: "test.pdf",
             docId: "doc123",
-            chatId: ""
+            chatId: "",
         };
 
         const mockRequest = {
-            json: jest.fn().mockResolvedValue(invalidRequestData)
+            json: jest.fn().mockResolvedValue(invalidRequestData),
         };
 
         const response = await POST(mockRequest);
@@ -195,11 +203,11 @@ describe("POST /api/uploadedDocs", () => {
         const validRequestData = {
             filename: "test%2520file%2520with%2520spaces.pdf", // Double encoded
             docId: "doc123",
-            chatId: "chat123"
+            chatId: "chat123",
         };
 
         const mockRequest = {
-            json: jest.fn().mockResolvedValue(validRequestData)
+            json: jest.fn().mockResolvedValue(validRequestData),
         };
 
         const response = await POST(mockRequest);
@@ -211,12 +219,18 @@ describe("POST /api/uploadedDocs", () => {
             {
                 $push: {
                     uploadedDocs: {
-                        $each: [{ filename: "test file with spaces.pdf", docId: "doc123", chatId: "chat123" }],
+                        $each: [
+                            {
+                                filename: "test file with spaces.pdf",
+                                docId: "doc123",
+                                chatId: "chat123",
+                            },
+                        ],
                         $position: 0,
                     },
                 },
             },
-            { new: true, useFindAndModify: false, upsert: true }
+            { new: true, useFindAndModify: false, upsert: true },
         );
     });
 });
