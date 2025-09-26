@@ -2,9 +2,10 @@
  * @jest-environment node
  */
 
-import { NextRequest } from "next/server";
-import { POST } from "../route";
+/* eslint-disable import/first */
+
 import { getCurrentUser } from "../../utils/auth";
+import { POST } from "../route";
 
 // Mock mongoose
 jest.mock("mongoose", () => ({
@@ -211,7 +212,7 @@ describe("POST /api/uploadedDocs", () => {
         };
 
         const response = await POST(mockRequest);
-        const responseData = await response.json();
+        await response.json();
 
         expect(response.status).toBe(200);
         expect(User.findByIdAndUpdate).toHaveBeenCalledWith(
