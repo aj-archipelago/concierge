@@ -35,6 +35,7 @@ const JOB_DATA_WHITELIST = {
             model: true,
             inputImageUrl: true,
             inputImageUrl2: true,
+            inputImageUrl3: true,
             settings: true,
         },
     },

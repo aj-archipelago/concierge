@@ -158,6 +158,10 @@ class CortexRequestTracker {
             data?.requestProgress?.data,
         );
 
+        let infoObject = await this.parseProgressData(
+            data?.requestProgress?.info,
+        );
+
         if (data?.requestProgress?.error) {
             this.logger.log(
                 `[DEBUG] Progress update contains error:`,
@@ -179,7 +183,7 @@ class CortexRequestTracker {
 
         if (progress === 1) {
             this.logger.log(`[DEBUG] Progress complete, handling completion`);
-            return await this.handleCompletion(data, taskId, dataObject);
+            return await this.handleCompletion(data, taskId, dataObject, infoObject);
         }
 
         return { shouldResolve: false, dataObject };
@@ -259,7 +263,7 @@ class CortexRequestTracker {
         return { shouldResolve: true, dataObject };
     }
 
-    async handleCompletion(data, taskId, dataObject) {
+    async handleCompletion(data, taskId, dataObject, infoObject) {
         if (data?.requestProgress?.error) {
             await this.updateRequestStatus(
                 "failed",
@@ -269,7 +273,7 @@ class CortexRequestTracker {
         }
 
         if (dataObject) {
-            dataObject = await this.processCompletedData(dataObject);
+            dataObject = await this.processCompletedData(dataObject, infoObject);
             const task = await this.updateRequestStatus(
                 "completed",
                 null,
@@ -284,7 +288,7 @@ class CortexRequestTracker {
         return { shouldResolve: true, dataObject };
     }
 
-    async processCompletedData(dataObject) {
+    async processCompletedData(dataObject, infoObject) {
         const { type, userId, metadata } = this.job.data;
         const handler = await loadTaskDefinition(type);
 
@@ -292,6 +296,7 @@ class CortexRequestTracker {
             return await handler.handleCompletion(
                 this.job.data.taskId,
                 dataObject,
+                infoObject,
                 { ...metadata, userId },
                 this.client,
             );

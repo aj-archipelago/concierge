@@ -72,6 +72,43 @@ const getDefaultModelSettings = (modelName) => {
             quality: "high",
             aspectRatio: "1:1",
         },
+        "gemini-25-flash-image-preview": {
+            type: "image",
+            quality: "high",
+            aspectRatio: "1:1",
+        },
+        "replicate-qwen-image": {
+            type: "image",
+            quality: "high",
+            aspectRatio: "1:1",
+            negativePrompt: "",
+            width: 1024,
+            height: 1024,
+            numberResults: 1,
+            output_format: "webp",
+            output_quality: 80,
+            go_fast: true,
+            guidance: 4,
+            strength: 0.9,
+            image_size: "optimize_for_quality",
+            lora_scale: 1,
+            enhance_prompt: false,
+            num_inference_steps: 50,
+            disable_safety_checker: false,
+        },
+        "replicate-qwen-image-edit-plus": {
+            type: "image",
+            quality: "high",
+            aspectRatio: "match_input_image",
+            negativePrompt: "",
+            width: 1024,
+            height: 1024,
+            numberResults: 1,
+            output_format: "webp",
+            output_quality: 95,
+            go_fast: true,
+            disable_safety_checker: false,
+        },
         // Video models
         "veo-2.0-generate": {
             type: "video",
@@ -99,6 +136,38 @@ const getDefaultModelSettings = (modelName) => {
         },
     };
     return defaults[modelName] || defaults["replicate-flux-11-pro"];
+};
+
+// Function to merge new models into existing settings
+const mergeNewModels = (existingSettings) => {
+    const newModels = {
+        "gemini-25-flash-image-preview": {
+            type: "image",
+            quality: "high",
+            aspectRatio: "1:1",
+        },
+        "replicate-qwen-image": {
+            type: "image",
+            quality: "high",
+            aspectRatio: "1:1",
+        },
+        "replicate-qwen-image-edit-plus": {
+            type: "image",
+            quality: "high",
+            aspectRatio: "match_input_image",
+        },
+    };
+
+    // Merge new models into existing settings
+    const mergedSettings = {
+        ...existingSettings,
+        models: {
+            ...existingSettings.models,
+            ...newModels,
+        },
+    };
+
+    return mergedSettings;
 };
 
 // Function to migrate old settings to new structure
@@ -129,6 +198,43 @@ const migrateSettings = (oldSettings) => {
                 type: "image",
                 quality: "high",
                 aspectRatio: "1:1",
+            },
+            "gemini-25-flash-image-preview": {
+                type: "image",
+                quality: "high",
+                aspectRatio: "1:1",
+            },
+            "replicate-qwen-image": {
+                type: "image",
+                quality: "high",
+                aspectRatio: "1:1",
+                negativePrompt: "",
+                width: 1024,
+                height: 1024,
+                numberResults: 1,
+                output_format: "webp",
+                output_quality: 80,
+                go_fast: true,
+                guidance: 4,
+                strength: 0.9,
+                image_size: "optimize_for_quality",
+                lora_scale: 1,
+                enhance_prompt: false,
+                num_inference_steps: 50,
+                disable_safety_checker: false,
+            },
+            "replicate-qwen-image-edit-plus": {
+                type: "image",
+                quality: "high",
+                aspectRatio: "match_input_image",
+                negativePrompt: "",
+                width: 1024,
+                height: 1024,
+                numberResults: 1,
+                output_format: "webp",
+                output_quality: 95,
+                go_fast: true,
+                disable_safety_checker: false,
             },
             // Video models
             "veo-2.0-generate": {
@@ -208,6 +314,43 @@ function MediaPage() {
                 type: "image",
                 quality: "high",
                 aspectRatio: "1:1",
+            },
+            "gemini-25-flash-image-preview": {
+                type: "image",
+                quality: "high",
+                aspectRatio: "1:1",
+            },
+            "replicate-qwen-image": {
+                type: "image",
+                quality: "high",
+                aspectRatio: "1:1",
+                negativePrompt: "",
+                width: 1024,
+                height: 1024,
+                numberResults: 1,
+                output_format: "webp",
+                output_quality: 80,
+                go_fast: true,
+                guidance: 4,
+                strength: 0.9,
+                image_size: "optimize_for_quality",
+                lora_scale: 1,
+                enhance_prompt: false,
+                num_inference_steps: 50,
+                disable_safety_checker: false,
+            },
+            "replicate-qwen-image-edit-plus": {
+                type: "image",
+                quality: "high",
+                aspectRatio: "match_input_image",
+                negativePrompt: "",
+                width: 1024,
+                height: 1024,
+                numberResults: 1,
+                output_format: "webp",
+                output_quality: 95,
+                go_fast: true,
+                disable_safety_checker: false,
             },
             // Video models
             "veo-2.0-generate": {
@@ -299,7 +442,8 @@ function MediaPage() {
     useEffect(() => {
         if (userState?.media?.settings && !isMigrationInProgress) {
             const migratedSettings = migrateSettings(userState.media.settings);
-            setSettings(migratedSettings);
+            const settingsWithNewModels = mergeNewModels(migratedSettings);
+            setSettings(settingsWithNewModels);
         }
     }, [userState?.media?.settings, isMigrationInProgress]);
 
@@ -346,8 +490,9 @@ function MediaPage() {
                     try {
                         const parsedSettings = JSON.parse(localSettings);
                         const settings = migrateSettings(parsedSettings);
+                        const settingsWithNewModels = mergeNewModels(settings);
                         debouncedUpdateUserState({
-                            media: { settings },
+                            media: { settings: settingsWithNewModels },
                         });
                     } catch (error) {
                         console.warn(
@@ -403,7 +548,25 @@ function MediaPage() {
             }
         };
 
-        runMigration();
+        // If no migration needed, ensure new models are available
+        if (!hasDataToMigrate) {
+            console.log("🔄 No migration needed, ensuring new models are available...");
+            // Get current settings and merge new models
+            const currentSettings = userState?.media?.settings || {};
+            const settingsWithNewModels = mergeNewModels(currentSettings);
+            
+            // Only update if we actually added new models
+            const hasNewModels = Object.keys(settingsWithNewModels.models || {}).length > 
+                                Object.keys(currentSettings.models || {}).length;
+            
+            if (hasNewModels) {
+                debouncedUpdateUserState({
+                    media: { settings: settingsWithNewModels },
+                });
+            }
+        } else {
+            runMigration();
+        }
     }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
     // No longer needed - images come from API
@@ -422,6 +585,7 @@ function MediaPage() {
         );
         const hasInputImage = selectedImageObjects.length === 1;
         const hasTwoInputImages = selectedImageObjects.length === 2;
+        const hasThreeInputImages = selectedImageObjects.length === 3;
 
         const allModels = Object.keys(settings.models || {});
         const availableModels = allModels.filter((modelName) => {
@@ -430,23 +594,39 @@ function MediaPage() {
 
             // Apply input condition restrictions
             if (modelType === "image") {
-                if (hasTwoInputImages) {
-                    // Only multi-image models for 2 input images
-                    return modelName === "replicate-multi-image-kontext-max";
+                if (hasThreeInputImages) {
+                    // Models that support 3 input images
+                    return [
+                        "gemini-25-flash-image-preview",
+                        "replicate-qwen-image-edit-plus"
+                    ].includes(modelName);
+                } else if (hasTwoInputImages) {
+                    // Multi-image models for 2 input images
+                    return [
+                        "replicate-multi-image-kontext-max",
+                        "gemini-25-flash-image-preview",
+                        "replicate-qwen-image-edit-plus"
+                    ].includes(modelName);
                 } else if (hasInputImage) {
-                    // Only kontext-max for 1 input image
-                    return modelName === "replicate-flux-kontext-max";
+                    // Image editing models for 1 input image
+                    return [
+                        "replicate-flux-kontext-max",
+                        "gemini-25-flash-image-preview",
+                        "replicate-qwen-image-edit-plus"
+                    ].includes(modelName);
                 } else {
-                    // Only regular image models for text-only
+                    // Image generation models for text-only
                     return [
                         "replicate-flux-1-schnell",
                         "replicate-flux-11-pro",
+                        "gemini-25-flash-image-preview",
+                        "replicate-qwen-image"
                     ].includes(modelName);
                 }
             } else {
                 // Video models - only available for 0 or 1 input images
-                if (hasTwoInputImages) {
-                    return false; // No video models support 2 input images
+                if (hasTwoInputImages || hasThreeInputImages) {
+                    return false; // No video models support 2+ input images
                 } else if (hasInputImage) {
                     // Only Veo 2.0, Veo 3.0 and Seedance support input images
                     return [
@@ -502,9 +682,8 @@ function MediaPage() {
 
             // Determine the model name based on input conditions
             let modelName = modelToUse;
-            if (outputType === "image" && inputImageUrl) {
-                modelName = modelOverride || "replicate-flux-kontext-max";
-            }
+            // No need to override model selection - let the user's choice be respected
+            // The getAvailableModels function already filters models based on input conditions
 
             setLoading(true);
             try {
@@ -514,7 +693,8 @@ function MediaPage() {
                     outputType,
                     model: modelName,
                     inputImageUrl: inputImageUrl || "",
-                    inputImageUrl2: "", // For multi-image generation
+                    inputImageUrl2: "",
+                    inputImageUrl3: "",
                     settings,
                     source: "media_page",
                 };
@@ -593,12 +773,10 @@ function MediaPage() {
                     type: "media-generation",
                     prompt: combinedPrompt,
                     outputType,
-                    model:
-                        outputType === "image"
-                            ? "replicate-flux-kontext-max"
-                            : selectedModel,
+                    model: selectedModel,
                     inputImageUrl: inputImageUrl,
                     inputImageUrl2: "",
+                    inputImageUrl3: "",
                     settings,
                     source: "media_page",
                 };
@@ -648,7 +826,7 @@ function MediaPage() {
     ]);
 
     const handleCombineSelected = useCallback(async () => {
-        if (!prompt.trim() || selectedImages.size !== 2) return;
+        if (!prompt.trim() || selectedImages.size < 2 || selectedImages.size > 3) return;
 
         const selectedImageObjects = sortedImages.filter(
             (img) =>
@@ -657,15 +835,15 @@ function MediaPage() {
                 img.type === "image",
         );
 
-        if (selectedImageObjects.length !== 2) return;
+        if (selectedImageObjects.length < 2 || selectedImageObjects.length > 3) return;
 
-        const [image1, image2] = selectedImageObjects;
+        const [image1, image2, image3] = selectedImageObjects;
 
         setLoading(true);
         try {
             const combinedPrompt =
                 outputType === "image"
-                    ? `${image1.prompt} + ${image2.prompt} - ${prompt}`
+                    ? `${image1.prompt} + ${image2.prompt}${image3 ? ` + ${image3.prompt}` : ''} - ${prompt}`
                     : `${image1.prompt} - ${prompt}`;
 
             // For Veo models, use GCS URL; for others, use Azure URL
@@ -676,17 +854,18 @@ function MediaPage() {
             const inputImageUrl2 = isVeoModel
                 ? image2.gcsUrl || image2.azureUrl || image2.url
                 : image2.azureUrl || image2.gcsUrl || image2.url;
+            const inputImageUrl3 = image3 ? (isVeoModel
+                ? image3.gcsUrl || image3.azureUrl || image3.url
+                : image3.azureUrl || image3.gcsUrl || image3.url) : "";
 
             const taskData = {
                 type: "media-generation",
                 prompt: combinedPrompt,
                 outputType,
-                model:
-                    outputType === "image"
-                        ? "replicate-multi-image-kontext-max"
-                        : selectedModel,
+                model: selectedModel,
                 inputImageUrl: inputImageUrl1,
                 inputImageUrl2: outputType === "image" ? inputImageUrl2 : "",
+                inputImageUrl3: outputType === "image" ? inputImageUrl3 : "",
                 settings,
                 source: "media_page",
             };
@@ -1006,7 +1185,7 @@ function MediaPage() {
                             if (!prompt.trim()) return;
                             setGenerationPrompt(prompt);
                             if (isModifyMode) {
-                                if (selectedImages.size === 2) {
+                                if (selectedImages.size >= 2 && selectedImages.size <= 3) {
                                     handleCombineSelected();
                                 } else if (selectedImages.size === 1) {
                                     handleModifySelected();
@@ -1035,7 +1214,7 @@ function MediaPage() {
                                     if (!prompt.trim()) return;
                                     setGenerationPrompt(prompt);
                                     if (isModifyMode) {
-                                        if (selectedImages.size === 2) {
+                                        if (selectedImages.size >= 2 && selectedImages.size <= 3) {
                                             handleCombineSelected();
                                         } else if (selectedImages.size === 1) {
                                             handleModifySelected();
@@ -1130,6 +1309,9 @@ function MediaPage() {
                                                 "Flux Kontext Max",
                                             "replicate-multi-image-kontext-max":
                                                 "Multi-Image Kontext Max",
+                                            "gemini-25-flash-image-preview": "Gemini Flash Image",
+                                            "replicate-qwen-image": "Qwen Image",
+                                            "replicate-qwen-image-edit-plus": "Qwen Image Edit Plus",
                                             "veo-2.0-generate": "Veo 2.0",
                                             "veo-3.0-generate": "Veo 3.0",
                                             "replicate-seedance-1-pro":
@@ -1416,6 +1598,9 @@ function SettingsDialog({
             "replicate-flux-11-pro": "Flux Pro",
             "replicate-flux-kontext-max": "Flux Kontext Max",
             "replicate-multi-image-kontext-max": "Multi-Image Kontext Max",
+            "gemini-25-flash-image-preview": "Gemini Flash Image",
+            "replicate-qwen-image": "Qwen Image",
+            "replicate-qwen-image-edit-plus": "Qwen Image Edit Plus",
             "veo-2.0-generate": "Veo 2.0",
             "veo-3.0-generate": "Veo 3.0",
             "replicate-seedance-1-pro": "Seedance 1.0",
@@ -2148,6 +2333,9 @@ function ImageInfo({ data, type }) {
             "replicate-flux-11-pro": "Flux Pro",
             "replicate-flux-kontext-max": "Flux Kontext Max",
             "replicate-multi-image-kontext-max": "Multi-Image Kontext Max",
+            "gemini-25-flash-image-preview": "Gemini Flash Image",
+            "replicate-qwen-image": "Qwen Image",
+            "replicate-qwen-image-edit-plus": "Qwen Image Edit Plus",
             "veo-2.0-generate": "Veo 2.0",
             "veo-3.0-generate": "Veo 3.0",
             "replicate-seedance-1-pro": "Seedance 1.0",

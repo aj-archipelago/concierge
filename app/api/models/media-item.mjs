@@ -48,6 +48,7 @@ const mediaItemSchema = new mongoose.Schema(
         // Input images for video generation
         inputImageUrl: String,
         inputImageUrl2: String,
+        inputImageUrl3: String,
         // Metadata
         created: {
             type: Number,
