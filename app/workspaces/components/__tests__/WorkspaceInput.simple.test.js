@@ -14,16 +14,6 @@ jest.mock("react-i18next", () => ({
     }),
 }));
 
-jest.mock("@apollo/client", () => ({
-    useApolloClient: () => ({
-        query: jest.fn(),
-    }),
-}));
-
-jest.mock("../../../../src/graphql", () => ({
-    COGNITIVE_INSERT: "mocked_query",
-}));
-
 // Mock all query hooks to avoid dependency issues
 jest.mock("../../../queries/workspaces", () => ({
     useWorkspaceState: () => ({ data: null, isStateLoading: false }),
@@ -32,7 +22,6 @@ jest.mock("../../../queries/workspaces", () => ({
         isLoading: false,
         error: null,
     }),
-    useAddDocument: () => ({ mutate: jest.fn(), isPending: false }),
     useUploadWorkspaceFile: () => ({ mutateAsync: jest.fn() }),
     useDeleteWorkspaceFile: () => ({ mutateAsync: jest.fn() }),
     useCheckFileAttachments: () => ({ mutateAsync: jest.fn() }),
@@ -56,10 +45,6 @@ jest.mock("../../../queries/llms", () => ({
         data: [{ _id: "llm1", name: "Test LLM", isDefault: true }],
         isLoading: false,
     }),
-}));
-
-jest.mock("../../../queries/uploadedDocs", () => ({
-    useAddDocument: () => ({ mutate: jest.fn(), isPending: false }),
 }));
 
 // Mock the WorkspaceContext to avoid complex imports
