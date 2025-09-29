@@ -159,6 +159,13 @@ function MessageInput({
 
     const addUrl = (urlData) => {
         const { url } = urlData;
+
+        // Check if activeChatId is available
+        if (!activeChatId) {
+            console.warn("Cannot upload file: No active chat ID available");
+            return;
+        }
+
         const fetchData = async (url) => {
             if (!url) return;
 
@@ -245,12 +252,27 @@ function MessageInput({
                             {!showFileUpload ? (
                                 <button
                                     type="button"
+                                    data-testid="file-plus-button"
+                                    disabled={!activeChatId}
                                     onClick={() => {
-                                        setShowFileUpload(true);
+                                        if (activeChatId) {
+                                            setShowFileUpload(true);
+                                        }
                                     }}
-                                    className="hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full flex items-center justify-center"
+                                    className={`rounded-full flex items-center justify-center ${
+                                        activeChatId
+                                            ? "hover:bg-gray-100 dark:hover:bg-gray-700"
+                                            : "cursor-not-allowed opacity-50"
+                                    }`}
+                                    title={
+                                        !activeChatId
+                                            ? "File upload requires an active chat"
+                                            : "Upload files"
+                                    }
                                 >
-                                    <FilePlus className="w-5 h-5 text-gray-500" />
+                                    <FilePlus
+                                        className={`w-5 h-5 ${activeChatId ? "text-gray-500" : "text-gray-300"}`}
+                                    />
                                 </button>
                             ) : (
                                 <button
@@ -409,7 +431,7 @@ function MessageInput({
                                 // --- Pass 2: Decide what to do and process ---
 
                                 // Priority 1: Direct File
-                                if (fileToProcess) {
+                                if (fileToProcess && activeChatId) {
                                     if (!showFileUpload) {
                                         setShowFileUpload(true);
                                     }
@@ -427,7 +449,10 @@ function MessageInput({
                                     hasActualFileProcessed = true;
                                 }
                                 // Priority 2: Image from HTML (if no direct file was processed)
-                                else if (potentialHtmlImageSrc) {
+                                else if (
+                                    potentialHtmlImageSrc &&
+                                    activeChatId
+                                ) {
                                     if (
                                         potentialHtmlImageSrc.startsWith(
                                             "data:",
