@@ -1,4 +1,3 @@
-import { useApolloClient } from "@apollo/client";
 import {
     Edit,
     File,
@@ -12,7 +11,6 @@ import {
 import { useCallback, useContext, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { v4 as uuidv4 } from "uuid";
 import {
     AlertDialog,
     AlertDialogAction,
@@ -25,14 +23,12 @@ import {
 } from "../../../@/components/ui/alert-dialog";
 import { Modal } from "../../../@/components/ui/modal";
 import LoadingButton from "../../../src/components/editor/LoadingButton";
-import { COGNITIVE_INSERT } from "../../../src/graphql";
 import { useLLMs } from "../../queries/llms";
 import {
     useCreatePrompt,
     useDeletePrompt,
     useUpdatePrompt,
 } from "../../queries/prompts";
-import { useAddDocument } from "../../queries/uploadedDocs";
 import {
     useCheckFileAttachments,
     useDeleteWorkspaceFile,
@@ -46,11 +42,7 @@ import PromptList from "./PromptList";
 import PromptSelectorModal from "./PromptSelectorModal";
 import { WorkspaceContext } from "./WorkspaceContent";
 
-import {
-    getFilename,
-    isRagFileUrl,
-    isSupportedFileUrl,
-} from "../../../src/utils/mediaUtils";
+import { isSupportedFileUrl } from "../../../src/utils/mediaUtils";
 import FileUploadDialog from "./FileUploadDialog";
 
 export default function WorkspaceInput({ onRun, onRunMany }) {
@@ -66,15 +58,11 @@ export default function WorkspaceInput({ onRun, onRunMany }) {
     const [urlsData, setUrlsData] = useState([]);
     const [selectedFiles, setSelectedFiles] = useState([]);
     const [showFilePicker, setShowFilePicker] = useState(false);
-    const [, setFileUploadLoading] = useState(false);
-    const [, setFileUploadError] = useState(null);
 
     // Files management states
     const [showFilesDialog, setShowFilesDialog] = useState(false);
 
     const { t } = useTranslation();
-    const client = useApolloClient();
-    const addDocument = useAddDocument();
 
     const { data: workspaceState, isStateLoading } = useWorkspaceState(
         workspace?._id,
@@ -127,55 +115,13 @@ export default function WorkspaceInput({ onRun, onRunMany }) {
 
     // File upload handler
     const handleFileUpload = (fileData) => {
-        const { url, originalFilename } = fileData;
-        const fetchData = async (url) => {
-            if (!url) return;
+        const { url } = fileData;
 
-            try {
-                const docId = uuidv4();
-                const filename = originalFilename || getFilename(url);
-
-                setFileUploadLoading(true);
-                setFileUploadError(null);
-
-                client
-                    .query({
-                        query: COGNITIVE_INSERT,
-                        variables: {
-                            file: url,
-                            privateData: true,
-                            contextId: workspace?._id, // Use workspace ID as context
-                            docId,
-                            workspaceId: workspace?._id,
-                        },
-                        fetchPolicy: "network-only",
-                    })
-                    .then(() => {
-                        // completed successfully
-                        addDocument.mutateAsync({
-                            docId,
-                            filename,
-                            workspaceId: workspace?._id,
-                        });
-                        setFileUploadLoading(false);
-                    })
-                    .catch((err) => {
-                        setFileUploadLoading(false);
-                        setFileUploadError(err.toString());
-                    });
-            } catch (err) {
-                setFileUploadLoading(false);
-                setFileUploadError(err.toString());
-            }
-        };
-
-        //check if url is rag type and process accordingly
-        if (isRagFileUrl(url)) {
-            fetchData(url);
-        } else if (isSupportedFileUrl(url)) {
+        // Only add supported files to urlsData
+        if (isSupportedFileUrl(url)) {
             setUrlsData((prevUrlsData) => [...prevUrlsData, fileData]);
         } else {
-            // File not processed - not RAG or supported type
+            // File not processed - not supported type
         }
     };
 
