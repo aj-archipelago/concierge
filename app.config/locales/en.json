@@ -98,5 +98,16 @@
     "Click to run": "Click to run",
     "by": "by",
     "by {{author}}": "by {{author}}",
-    "Updated": "Updated"
+    "Updated": "Updated",
+    "Expires": "Expires",
+    "day": "day",
+    "days": "days",
+    "remaining": "remaining",
+    "Media generation failed": "Media generation failed",
+    "Please try a different prompt or contact support if the issue persists.": "Please try a different prompt or contact support if the issue persists.",
+    "Content blocked by safety system": "Content blocked by safety system",
+    "Please try a different prompt": "Please try a different prompt",
+    "Generation completed but no media was produced.": "Generation completed but no media was produced.",
+    "Regenerate": "Regenerate",
+    "Loading media...": "Loading media..."
 }

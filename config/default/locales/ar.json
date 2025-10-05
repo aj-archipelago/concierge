@@ -580,7 +580,6 @@
     "Copied!": "تم النسخ!",
     "Are you sure you want to delete this version?": "هل أنت متأكد أنك تريد حذف هذا الإصدار؟",
     "Version": "الإصدار",
-    "of": "من",
     "Unpublish": "إلغاء النشر",
     "Go to published version (v{{version}})": "الذهاب إلى الإصدار المنشور (v{{version}})",
     "Published: v{{version}}": "منشور: v{{version}}",
@@ -668,5 +667,14 @@
     "Upload files to include in your workspace. Supported formats include images, documents, and media files.": "تحميل الملفات لإضافتها إلى مساحة العمل. يدعم التنسيقات المدعومة الصور والمستندات وملفات الوسائط.",
     "Upload Files": "تحميل الملفات",
     "Select Files to Attach": "اختيار الملفات للرفقة",
-    "files selected": "ملفات محددة"
+    "files selected": "ملفات محددة",
+    "day": "يوم",
+    "days": "أيام",
+    "remaining": "متبقي",
+    "Media generation failed": "فشل في إنشاء الوسائط",
+    "Please try a different prompt or contact support if the issue persists.": "يرجى تجربة تلميح مختلف أو الاتصال بالدعم إذا استمرت المشكلة.",
+    "Content blocked by safety system": "تم حظر المحتوى بواسطة النظام الأمني",
+    "Please try a different prompt": "يرجى تجربة تلميح مختلف",
+    "Generation completed but no media was produced.": "اكتمل الإنشاء ولكن لم يتم إنتاج وسائط.",
+    "Loading media...": "جاري تحميل الوسائط..."
 }

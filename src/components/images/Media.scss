@@ -96,6 +96,22 @@ $image-container-height: 200px;
     border: 1px solid #e5e7eb;
     border-radius: 0.5rem;
     overflow: hidden;
+    
+    // Prevent text selection and image dragging
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+    
+    // Prevent image dragging
+    img, video {
+        -webkit-user-drag: none;
+        -khtml-user-drag: none;
+        -moz-user-drag: none;
+        -o-user-drag: none;
+        user-drag: none;
+        pointer-events: none;
+    }
 
     // Selection styling
     .selection-checkbox {
@@ -112,6 +128,10 @@ $image-container-height: 200px;
         align-items: center;
         justify-content: center;
         transition: all 0.2s;
+        cursor: pointer;
+        
+        // Ensure checkbox is clickable despite pointer-events: none on images
+        pointer-events: auto;
 
         &.selected {
             background: #3b82f6;
@@ -139,6 +159,14 @@ $image-container-height: 200px;
             object-fit: cover;
             object-position: center;
         }
+        
+        // Prevent text selection on video play button overlay
+        .absolute {
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+            user-select: none;
+        }
     }
 
     .image-prompt,
@@ -154,6 +182,12 @@ $image-container-height: 200px;
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
+        
+        // Prevent text selection on prompt text
+        -webkit-user-select: none;
+        -moz-user-select: none;
+        -ms-user-select: none;
+        user-select: none;
     }
 }
 
@@ -185,6 +219,10 @@ $image-container-height: 200px;
     background-color: white;
     color: #374151;
     transition: all 0.2s;
+    cursor: pointer;
+    
+    // Ensure buttons are clickable despite pointer-events: none on images
+    pointer-events: auto;
 
     &:hover:not(:disabled) {
         background-color: #f9fafb;

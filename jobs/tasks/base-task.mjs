@@ -15,6 +15,11 @@ export class BaseTask {
         return dataObject; // Default implementation just returns the data
     }
 
+    async handleError(taskId, error, metadata, client) {
+        // Default implementation does nothing
+        return { error: error.message || "Task failed" };
+    }
+
     async cancelRequest(taskId, client) {
         return;
     }

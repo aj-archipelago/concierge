@@ -52,11 +52,6 @@ const getModelSettings = (settings, modelName) => {
 const getDefaultModelSettings = (modelName) => {
     const defaults = {
         // Image models
-        "replicate-flux-1-schnell": {
-            type: "image",
-            quality: "draft",
-            aspectRatio: "1:1",
-        },
         "replicate-flux-11-pro": {
             type: "image",
             quality: "high",
@@ -76,11 +71,12 @@ const getDefaultModelSettings = (modelName) => {
             type: "image",
             quality: "high",
             aspectRatio: "1:1",
+            optimizePrompt: true,
         },
         "replicate-qwen-image": {
             type: "image",
             quality: "high",
-            aspectRatio: "1:1",
+            aspectRatio: "16:9",
             negativePrompt: "",
             width: 1024,
             height: 1024,
@@ -108,6 +104,18 @@ const getDefaultModelSettings = (modelName) => {
             output_quality: 95,
             go_fast: true,
             disable_safety_checker: false,
+        },
+        "replicate-seedream-4": {
+            type: "image",
+            quality: "high",
+            aspectRatio: "4:3",
+            size: "2K",
+            width: 2048,
+            height: 2048,
+            maxImages: 1,
+            numberResults: 1,
+            sequentialImageGeneration: "disabled",
+            seed: 0,
         },
         // Video models
         "veo-2.0-generate": {
@@ -138,13 +146,14 @@ const getDefaultModelSettings = (modelName) => {
     return defaults[modelName] || defaults["replicate-flux-11-pro"];
 };
 
-// Function to merge new models into existing settings
+// Function to merge new models into existing settings and remove deprecated ones
 const mergeNewModels = (existingSettings) => {
     const newModels = {
         "gemini-25-flash-image-preview": {
             type: "image",
             quality: "high",
             aspectRatio: "1:1",
+            optimizePrompt: true,
         },
         "replicate-qwen-image": {
             type: "image",
@@ -156,14 +165,56 @@ const mergeNewModels = (existingSettings) => {
             quality: "high",
             aspectRatio: "match_input_image",
         },
+        "replicate-seedream-4": {
+            type: "image",
+            quality: "high",
+            aspectRatio: "4:3",
+            size: "2K",
+            width: 2048,
+            height: 2048,
+            maxImages: 1,
+            numberResults: 1,
+            sequentialImageGeneration: "disabled",
+            seed: 0,
+        },
     };
 
-    // Merge new models into existing settings
+    // List of currently supported models
+    const supportedModels = [
+        "replicate-flux-11-pro",
+        "replicate-flux-kontext-max", 
+        "replicate-multi-image-kontext-max",
+        "gemini-25-flash-image-preview",
+        "replicate-qwen-image",
+        "replicate-qwen-image-edit-plus",
+        "replicate-seedream-4",
+        "veo-2.0-generate",
+        "veo-3.0-generate",
+        "replicate-seedance-1-pro",
+    ];
+
+    // Filter out deprecated models and merge new ones
+    const cleanedModels = {};
+    if (existingSettings.models) {
+        Object.keys(existingSettings.models).forEach(modelName => {
+            if (supportedModels.includes(modelName)) {
+                cleanedModels[modelName] = existingSettings.models[modelName];
+            }
+        });
+    }
+
+    // Merge new models into cleaned settings
     const mergedSettings = {
         ...existingSettings,
         models: {
-            ...existingSettings.models,
-            ...newModels,
+            ...cleanedModels,
+            // Only add new models that don't already exist
+            ...Object.keys(newModels).reduce((acc, modelName) => {
+                if (!cleanedModels[modelName]) {
+                    acc[modelName] = newModels[modelName];
+                }
+                return acc;
+            }, {}),
         },
     };
 
@@ -179,11 +230,6 @@ const migrateSettings = (oldSettings) => {
     const newSettings = {
         models: {
             // Image models
-            "replicate-flux-1-schnell": {
-                type: "image",
-                quality: oldSettings.image?.defaultQuality || "draft",
-                aspectRatio: oldSettings.image?.defaultAspectRatio || "1:1",
-            },
             "replicate-flux-11-pro": {
                 type: "image",
                 quality: "high",
@@ -203,6 +249,7 @@ const migrateSettings = (oldSettings) => {
                 type: "image",
                 quality: "high",
                 aspectRatio: "1:1",
+                optimizePrompt: true,
             },
             "replicate-qwen-image": {
                 type: "image",
@@ -235,6 +282,18 @@ const migrateSettings = (oldSettings) => {
                 output_quality: 95,
                 go_fast: true,
                 disable_safety_checker: false,
+            },
+            "replicate-seedream-4": {
+                type: "image",
+                quality: "high",
+                aspectRatio: "4:3",
+                size: "2K",
+                width: 2048,
+                height: 2048,
+                maxImages: 1,
+                numberResults: 1,
+                sequentialImageGeneration: "disabled",
+                seed: 0,
             },
             // Video models
             "veo-2.0-generate": {
@@ -291,15 +350,24 @@ function MediaPage() {
     const [outputType, setOutputType] = useState("image"); // "image" or "video"
     const [selectedModel, setSelectedModel] = useState("replicate-flux-11-pro"); // Current selected model - Flux Pro as default
     const [showSettings, setShowSettings] = useState(false);
+    const [disableTooltip, setDisableTooltip] = useState(false);
     const runTask = useRunTask();
+
+    // Disable tooltip when settings dialog is open or just closed
+    useEffect(() => {
+        if (showSettings) {
+            setDisableTooltip(true);
+        } else {
+            // Keep disabled briefly after closing to prevent reappearance
+            const timer = setTimeout(() => {
+                setDisableTooltip(false);
+            }, 300);
+            return () => clearTimeout(timer);
+        }
+    }, [showSettings]);
     const [settings, setSettings] = useState({
         models: {
             // Image models
-            "replicate-flux-1-schnell": {
-                type: "image",
-                quality: "draft",
-                aspectRatio: "1:1",
-            },
             "replicate-flux-11-pro": {
                 type: "image",
                 quality: "high",
@@ -319,6 +387,7 @@ function MediaPage() {
                 type: "image",
                 quality: "high",
                 aspectRatio: "1:1",
+                optimizePrompt: true,
             },
             "replicate-qwen-image": {
                 type: "image",
@@ -351,6 +420,18 @@ function MediaPage() {
                 output_quality: 95,
                 go_fast: true,
                 disable_safety_checker: false,
+            },
+            "replicate-seedream-4": {
+                type: "image",
+                quality: "high",
+                aspectRatio: "4:3",
+                size: "2K",
+                width: 2048,
+                height: 2048,
+                maxImages: 1,
+                numberResults: 1,
+                sequentialImageGeneration: "disabled",
+                seed: 0,
             },
             // Video models
             "veo-2.0-generate": {
@@ -442,8 +523,32 @@ function MediaPage() {
     useEffect(() => {
         if (userState?.media?.settings && !isMigrationInProgress) {
             const migratedSettings = migrateSettings(userState.media.settings);
-            const settingsWithNewModels = mergeNewModels(migratedSettings);
-            setSettings(settingsWithNewModels);
+            
+            // Check if we need to add any new models
+            const currentModels = Object.keys(migratedSettings.models || {});
+            const allSupportedModels = [
+                "replicate-flux-11-pro",
+                "replicate-flux-kontext-max", 
+                "replicate-multi-image-kontext-max",
+                "gemini-25-flash-image-preview",
+                "replicate-qwen-image",
+                "replicate-qwen-image-edit-plus",
+                "replicate-seedream-4",
+                "veo-2.0-generate",
+                "veo-3.0-generate",
+                "replicate-seedance-1-pro",
+            ];
+            
+            const missingModels = allSupportedModels.filter(model => !currentModels.includes(model));
+            
+            if (missingModels.length > 0) {
+                // Only merge if there are missing models
+                const settingsWithNewModels = mergeNewModels(migratedSettings);
+                setSettings(settingsWithNewModels);
+            } else {
+                // No missing models, just use the existing settings
+                setSettings(migratedSettings);
+            }
         }
     }, [userState?.media?.settings, isMigrationInProgress]);
 
@@ -571,11 +676,39 @@ function MediaPage() {
 
     // No longer needed - images come from API
 
+    // Helper function to group and sort models
+    const groupAndSortModels = useCallback((models) => {
+        const imageModels = [];
+        const videoModels = [];
+
+        models.forEach(modelName => {
+            const modelSettings = settings.models[modelName];
+            const modelType = modelSettings?.type || "image";
+            
+            if (modelType === "image") {
+                imageModels.push(modelName);
+            } else {
+                videoModels.push(modelName);
+            }
+        });
+
+        // Sort each group alphabetically
+        imageModels.sort();
+        videoModels.sort();
+
+        // Return grouped structure
+        return {
+            image: imageModels,
+            video: videoModels
+        };
+    }, [settings]);
+
     // Get available models based on current input conditions (for validation only)
     const getAvailableModels = useCallback(() => {
         // If no images, return all models (no restrictions)
         if (!sortedImages || sortedImages.length === 0) {
-            return Object.keys(settings.models || {});
+            const allModels = Object.keys(settings.models || {});
+            return groupAndSortModels(allModels);
         }
 
         // Filter out videos from selected images - only count images as input
@@ -598,29 +731,32 @@ function MediaPage() {
                     // Models that support 3 input images
                     return [
                         "gemini-25-flash-image-preview",
-                        "replicate-qwen-image-edit-plus"
+                        "replicate-qwen-image-edit-plus",
+                        "replicate-seedream-4"
                     ].includes(modelName);
                 } else if (hasTwoInputImages) {
                     // Multi-image models for 2 input images
                     return [
                         "replicate-multi-image-kontext-max",
                         "gemini-25-flash-image-preview",
-                        "replicate-qwen-image-edit-plus"
+                        "replicate-qwen-image-edit-plus",
+                        "replicate-seedream-4"
                     ].includes(modelName);
                 } else if (hasInputImage) {
                     // Image editing models for 1 input image
                     return [
                         "replicate-flux-kontext-max",
                         "gemini-25-flash-image-preview",
-                        "replicate-qwen-image-edit-plus"
+                        "replicate-qwen-image-edit-plus",
+                        "replicate-seedream-4"
                     ].includes(modelName);
                 } else {
                     // Image generation models for text-only
                     return [
-                        "replicate-flux-1-schnell",
                         "replicate-flux-11-pro",
                         "gemini-25-flash-image-preview",
-                        "replicate-qwen-image"
+                        "replicate-qwen-image",
+                        "replicate-seedream-4"
                     ].includes(modelName);
                 }
             } else {
@@ -641,19 +777,20 @@ function MediaPage() {
             }
         });
 
-        return availableModels;
-    }, [selectedImages, sortedImages, settings]);
+        return groupAndSortModels(availableModels);
+    }, [selectedImages, sortedImages, settings, groupAndSortModels]);
 
     // Apply intelligent model selection based on input conditions
     useEffect(() => {
         const availableModels = getAvailableModels();
+        const allAvailableModels = [...availableModels.image, ...availableModels.video];
 
         // Check if current model is still available for current input conditions
-        const isCurrentModelAvailable = availableModels.includes(selectedModel);
+        const isCurrentModelAvailable = allAvailableModels.includes(selectedModel);
 
         if (!isCurrentModelAvailable) {
             // Current model is no longer available, switch to appropriate model
-            const newModel = availableModels[0];
+            const newModel = allAvailableModels[0];
 
             if (newModel) {
                 setSelectedModel(newModel);
@@ -759,13 +896,12 @@ function MediaPage() {
         for (const image of selectedImageObjects) {
             setLoading(true);
             try {
-                const combinedPrompt = image.prompt
-                    ? `${image.prompt} - ${prompt}`
-                    : prompt;
+                const combinedPrompt = prompt;
 
-                // For Veo models, use GCS URL; for others, use Azure URL
+                // For Veo and Gemini models, use GCS URL; for others, use Azure URL
                 const isVeoModel = selectedModel.includes("veo");
-                const inputImageUrl = isVeoModel
+                const isGeminiModel = selectedModel.includes("gemini");
+                const inputImageUrl = (isVeoModel || isGeminiModel)
                     ? image.gcsUrl || image.azureUrl || image.url
                     : image.azureUrl || image.gcsUrl || image.url;
 
@@ -841,10 +977,7 @@ function MediaPage() {
 
         setLoading(true);
         try {
-            const combinedPrompt =
-                outputType === "image"
-                    ? `${image1.prompt} + ${image2.prompt}${image3 ? ` + ${image3.prompt}` : ''} - ${prompt}`
-                    : `${image1.prompt} - ${prompt}`;
+            const combinedPrompt = prompt;
 
             // For Veo models, use GCS URL; for others, use Azure URL
             const isVeoModel = selectedModel.includes("veo");
@@ -1090,6 +1223,10 @@ function MediaPage() {
         return sortedImages.map((image, index) => {
             // Since we now preserve cortexRequestId, we can use it directly
             const key = image?.cortexRequestId || `temp-${index}`;
+            // Check if URL is valid (not null, undefined, or "null" string)
+            const hasValidUrl = (image?.azureUrl || image?.url) && 
+                (image?.azureUrl || image?.url) !== "null" && 
+                (image?.azureUrl || image?.url) !== "undefined";
 
             return (
                 <ImageTile
@@ -1103,7 +1240,7 @@ function MediaPage() {
                     images={sortedImages}
                     setShowDeleteSelectedConfirm={setShowDeleteSelectedConfirm}
                     onClick={() => {
-                        if (image?.url) {
+                        if (hasValidUrl) {
                             setSelectedImage(image);
                             setShowModal(true);
                         }
@@ -1256,7 +1393,7 @@ function MediaPage() {
                             </TooltipProvider>
 
                             <TooltipProvider>
-                                <Tooltip>
+                                <Tooltip open={disableTooltip ? false : undefined}>
                                     <TooltipTrigger asChild>
                                         <button
                                             type="button"
@@ -1297,39 +1434,49 @@ function MediaPage() {
                                     }
                                 }}
                             >
-                                {getAvailableModels().map((modelName) => {
-                                    const modelSettings =
-                                        settings.models[modelName];
-                                    const displayName =
-                                        {
-                                            "replicate-flux-1-schnell":
-                                                "Flux Draft",
-                                            "replicate-flux-11-pro": "Flux Pro",
-                                            "replicate-flux-kontext-max":
-                                                "Flux Kontext Max",
-                                            "replicate-multi-image-kontext-max":
-                                                "Multi-Image Kontext Max",
-                                            "gemini-25-flash-image-preview": "Gemini Flash Image",
-                                            "replicate-qwen-image": "Qwen Image",
-                                            "replicate-qwen-image-edit-plus": "Qwen Image Edit Plus",
-                                            "veo-2.0-generate": "Veo 2.0",
-                                            "veo-3.0-generate": "Veo 3.0",
-                                            "replicate-seedance-1-pro":
-                                                "Seedance 1.0",
-                                        }[modelName] || modelName;
+                                {(() => {
+                                    const availableModels = getAvailableModels();
+                                    const displayNames = {
+                                        "replicate-flux-11-pro": "Flux Pro",
+                                        "replicate-flux-kontext-max": "Flux Kontext Max",
+                                        "replicate-multi-image-kontext-max": "Multi-Image Kontext Max",
+                                        "gemini-25-flash-image-preview": "Gemini Flash Image",
+                                        "replicate-qwen-image": "Qwen Image",
+                                        "replicate-qwen-image-edit-plus": "Qwen Image Edit Plus",
+                                        "replicate-seedream-4": "Seedream 4.0",
+                                        "veo-2.0-generate": "Veo 2.0",
+                                        "veo-3.0-generate": "Veo 3.0",
+                                        "replicate-seedance-1-pro": "Seedance 1.0",
+                                    };
 
-                                    return (
-                                        <option
-                                            key={modelName}
-                                            value={modelName}
-                                        >
-                                            {modelSettings?.type === "image"
-                                                ? "Image"
-                                                : "Video"}{" "}
-                                            ({displayName})
-                                        </option>
-                                    );
-                                })}
+                                    const options = [];
+
+                                    // Add image models group
+                                    if (availableModels.image.length > 0) {
+                                        availableModels.image.forEach((modelName) => {
+                                            const displayName = displayNames[modelName] || modelName;
+                                            options.push(
+                                                <option key={modelName} value={modelName}>
+                                                    🖼️ {displayName}
+                                                </option>
+                                            );
+                                        });
+                                    }
+
+                                    // Add video models group
+                                    if (availableModels.video.length > 0) {
+                                        availableModels.video.forEach((modelName) => {
+                                            const displayName = displayNames[modelName] || modelName;
+                                            options.push(
+                                                <option key={modelName} value={modelName}>
+                                                    🎬 {displayName}
+                                                </option>
+                                            );
+                                        });
+                                    }
+
+                                    return options;
+                                })()}
                             </select>
 
                             <button
@@ -1552,15 +1699,19 @@ function SettingsDialog({
     const { direction } = useContext(LanguageContext);
     const [localSettings, setLocalSettings] = useState(settings);
     const [selectedModel, setSelectedModel] = useState(
-        "replicate-flux-1-schnell",
+        "replicate-flux-11-pro",
     );
+    const initializedRef = useRef(false);
 
     // Initialize localSettings when dialog opens
     useEffect(() => {
-        if (show) {
+        if (show && !initializedRef.current) {
             setLocalSettings(settings);
+            initializedRef.current = true;
+        } else if (!show) {
+            initializedRef.current = false;
         }
-    }, [show, settings]); // Include settings dependency - necessary to avoid infinite re-renders
+    }, [show, settings]);
 
     const handleSave = () => {
         setSettings(localSettings);
@@ -1594,13 +1745,13 @@ function SettingsDialog({
 
     const getModelDisplayName = (modelName) => {
         const names = {
-            "replicate-flux-1-schnell": "Flux Draft",
             "replicate-flux-11-pro": "Flux Pro",
             "replicate-flux-kontext-max": "Flux Kontext Max",
             "replicate-multi-image-kontext-max": "Multi-Image Kontext Max",
             "gemini-25-flash-image-preview": "Gemini Flash Image",
             "replicate-qwen-image": "Qwen Image",
             "replicate-qwen-image-edit-plus": "Qwen Image Edit Plus",
+            "replicate-seedream-4": "Seedream 4.0",
             "veo-2.0-generate": "Veo 2.0",
             "veo-3.0-generate": "Veo 3.0",
             "replicate-seedance-1-pro": "Seedance 1.0",
@@ -1632,7 +1783,34 @@ function SettingsDialog({
                 ];
             }
         } else {
-            // Base aspect ratios for all image models
+            // Gemini doesn't support aspect ratio control
+            if (modelName === "gemini-25-flash-image-preview") {
+                return [];
+            }
+
+            // Qwen models have specific aspect ratio support
+            if (modelName === "replicate-qwen-image") {
+                return [
+                    { value: "1:1", label: "1:1" },
+                    { value: "16:9", label: "16:9" },
+                    { value: "9:16", label: "9:16" },
+                    { value: "4:3", label: "4:3" },
+                    { value: "3:4", label: "3:4" },
+                ];
+            }
+
+            if (modelName === "replicate-qwen-image-edit-plus") {
+                return [
+                    { value: "1:1", label: "1:1" },
+                    { value: "16:9", label: "16:9" },
+                    { value: "9:16", label: "9:16" },
+                    { value: "4:3", label: "4:3" },
+                    { value: "3:4", label: "3:4" },
+                    { value: "match_input_image", label: "Match Input Image" },
+                ];
+            }
+
+            // Base aspect ratios for all other image models
             const baseRatios = [
                 { value: "1:1", label: "1:1" },
                 { value: "16:9", label: "16:9" },
@@ -1678,7 +1856,11 @@ function SettingsDialog({
         return [];
     };
 
-    const modelNames = Object.keys(localSettings.models || {});
+    // Group and sort models for SettingsDialog
+    const allModelNames = Object.keys(localSettings.models || {});
+    const imageModels = allModelNames.filter(name => (localSettings.models[name]?.type || "image") === "image").sort();
+    const videoModels = allModelNames.filter(name => (localSettings.models[name]?.type || "image") === "video").sort();
+    const modelNames = [...imageModels, ...videoModels];
     const currentModelSettings = localSettings.models?.[selectedModel] || {};
 
     return (
@@ -1699,11 +1881,15 @@ function SettingsDialog({
                         dir={direction}
                         onChange={(e) => setSelectedModel(e.target.value)}
                     >
-                        {modelNames.map((modelName) => (
-                            <option key={modelName} value={modelName}>
-                                {getModelDisplayName(modelName)}
-                            </option>
-                        ))}
+                        {modelNames.map((modelName) => {
+                            const modelType = getModelType(modelName);
+                            const icon = modelType === "video" ? "🎬" : "🖼️";
+                            return (
+                                <option key={modelName} value={modelName}>
+                                    {icon} {getModelDisplayName(modelName)}
+                                </option>
+                            );
+                        })}
                     </select>
                 </div>
 
@@ -1714,37 +1900,39 @@ function SettingsDialog({
                     </h3>
 
                     <div className="space-y-3">
-                        {/* Aspect Ratio */}
-                        <div>
-                            <label className="block text-sm font-medium mb-1">
-                                {t("Aspect Ratio")}
-                            </label>
-                            <select
-                                className="lb-input w-full"
-                                value={
-                                    currentModelSettings.aspectRatio || "1:1"
-                                }
-                                dir={direction}
-                                onChange={(e) =>
-                                    updateModelSetting(
-                                        selectedModel,
-                                        "aspectRatio",
-                                        e.target.value,
-                                    )
-                                }
-                            >
-                                {getAvailableAspectRatios(selectedModel).map(
-                                    (ratio) => (
-                                        <option
-                                            key={ratio.value}
-                                            value={ratio.value}
-                                        >
-                                            {ratio.label}
-                                        </option>
-                                    ),
-                                )}
-                            </select>
-                        </div>
+                        {/* Aspect Ratio - only show if model supports it */}
+                        {getAvailableAspectRatios(selectedModel).length > 0 && (
+                            <div>
+                                <label className="block text-sm font-medium mb-1">
+                                    {t("Aspect Ratio")}
+                                </label>
+                                <select
+                                    className="lb-input w-full"
+                                    value={
+                                        currentModelSettings.aspectRatio || "1:1"
+                                    }
+                                    dir={direction}
+                                    onChange={(e) =>
+                                        updateModelSetting(
+                                            selectedModel,
+                                            "aspectRatio",
+                                            e.target.value,
+                                        )
+                                    }
+                                >
+                                    {getAvailableAspectRatios(selectedModel).map(
+                                        (ratio) => (
+                                            <option
+                                                key={ratio.value}
+                                                value={ratio.value}
+                                            >
+                                                {ratio.label}
+                                            </option>
+                                        ),
+                                    )}
+                                </select>
+                            </div>
+                        )}
 
                         {/* Duration (for video models) */}
                         {getModelType(selectedModel) === "video" &&
@@ -1863,6 +2051,34 @@ function SettingsDialog({
                                 </label>
                             </div>
                         )}
+
+                        {/* Optimize Prompt (for Gemini) */}
+                        {selectedModel === "gemini-25-flash-image-preview" && (
+                            <div>
+                                <label className="flex items-center space-x-2">
+                                    <input
+                                        type="checkbox"
+                                        className="lb-checkbox"
+                                        checked={
+                                            currentModelSettings.optimizePrompt !== false // Default to true
+                                        }
+                                        onChange={(e) =>
+                                            updateModelSetting(
+                                                selectedModel,
+                                                "optimizePrompt",
+                                                e.target.checked,
+                                            )
+                                        }
+                                    />
+                                    <span className="text-sm font-medium">
+                                        {t("Optimize Prompt")}
+                                    </span>
+                                </label>
+                                <p className="text-xs text-gray-500 mt-1">
+                                    {t("Use AI to rewrite your prompt for better results")}
+                                </p>
+                            </div>
+                        )}
                     </div>
                 </div>
             </div>
@@ -1961,6 +2177,8 @@ function ImageTile({
     const [retryCount, setRetryCount] = useState(0);
     // Always use Azure URL for display - GCS URL is only for internal model use
     const url = image?.azureUrl || image?.url;
+    // Check if URL is valid (not null, undefined, or "null" string)
+    const hasValidUrl = url && url !== "null" && url !== "undefined";
     const { t } = useTranslation();
     const expired = image?.expires ? image.expires < Date.now() / 1000 : false;
     const { cortexRequestId, prompt, result, regenerating, uploading, error } =
@@ -2054,7 +2272,7 @@ function ImageTile({
                     <div className="h-full bg-gray-50 dark:bg-gray-700 p-4 text-sm flex items-center justify-center">
                         <UploadComponent />
                     </div>
-                ) : !expired && url && !loadError ? (
+                ) : !expired && hasValidUrl && !loadError ? (
                     image.type === "video" ? (
                         <div className="relative w-full h-full">
                             <video
@@ -2098,15 +2316,18 @@ function ImageTile({
                     )
                 ) : (
                     <div className="h-full bg-gray-50 dark:bg-gray-700 p-4 text-sm flex items-center justify-center">
-                        {cortexRequestId &&
-                            !url &&
-                            !code &&
-                            !image?.taskId &&
-                            image?.status !== "failed" &&
-                            (result ? <NoImageError /> : <ProgressComponent />)}
+                        {/* Show regenerate error state for media without valid URLs */}
+                        {cortexRequestId && !hasValidUrl && !code && image?.status !== "failed" && (
+                            <NoImageError />
+                        )}
+                        {/* Show progress for pending tasks */}
+                        {cortexRequestId && !hasValidUrl && !code && !image?.taskId && image?.status !== "failed" && !result && (
+                            <ProgressComponent />
+                        )}
+                        {/* Show specific error states */}
                         {code === "ERR_BAD_REQUEST" && <BadRequestError />}
                         {code && code !== "ERR_BAD_REQUEST" && <OtherError />}
-                        {expired && url && <ExpiredImageComponent />}
+                        {expired && hasValidUrl && <ExpiredImageComponent />}
                         {loadError && <ExpiredImageComponent />}
                     </div>
                 )}
@@ -2150,35 +2371,52 @@ function ImageTile({
 
     function BadRequestError() {
         return (
-            <div className="text-center">
-                <div>
-                    {t(
-                        `${image.type === "video" ? "Video" : "Image"} blocked by safety system.`,
-                    )}
+            <div className="flex flex-col items-center justify-center h-full p-4">
+                <div className="text-center">
+                    <div className="flex items-center justify-center gap-2 mb-3">
+                        <div className="w-6 h-6 rounded-full bg-red-100 dark:bg-red-900 flex items-center justify-center">
+                            <svg className="w-4 h-4 text-red-600 dark:text-red-400" fill="currentColor" viewBox="0 0 20 20">
+                                <path fillRule="evenodd" d="M13.477 14.89A6 6 0 015.11 6.524l8.367 8.368zm1.414-1.414L6.524 5.11a6 6 0 018.367 8.367zM18 10a8 8 0 11-16 0 8 8 0 0116 0z" clipRule="evenodd" />
+                            </svg>
+                        </div>
+                        <div className="text-sm text-gray-600 dark:text-gray-400">
+                            {t("Content blocked by safety system")}
+                        </div>
+                    </div>
+                    <div className="text-xs text-gray-500 dark:text-gray-500">
+                        {t("Please try a different prompt")}
+                    </div>
                 </div>
             </div>
         );
     }
 
     function OtherError() {
+        // Get the actual error message from multiple possible sources
+        const actualErrorMessage = message || error?.message || result?.error?.message || "Unknown error occurred";
+        
         return (
-            <div className="text-center flex flex-col items-center justify-center h-full">
-                <div>{`${t(`${image.type === "video" ? "Video" : "Image"} Error: `)} ${message}`}</div>
+            <div className="flex flex-col items-center justify-center h-full p-4">
+                <div className="text-center w-full">
+                    <div className="flex items-center justify-center gap-2 mb-3">
+                        <div className="w-6 h-6 rounded-full bg-red-100 dark:bg-red-900 flex items-center justify-center flex-shrink-0">
+                            <svg className="w-4 h-4 text-red-600 dark:text-red-400" fill="currentColor" viewBox="0 0 20 20">
+                                <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                            </svg>
+                        </div>
+                        <div className="text-sm text-gray-600 dark:text-gray-400 whitespace-nowrap">
+                            {t("Media generation failed")}
+                        </div>
+                    </div>
+                    <div className="text-xs text-gray-500 dark:text-gray-500 px-2 line-clamp-4" title={actualErrorMessage}>
+                        {actualErrorMessage}
+                    </div>
+                </div>
+                
                 <div className="mt-4">
-                    {image.type === "video" ? (
+                    {image.type === "video" ? null : !image.model ? null : (
                         <button
-                            className="lb-primary"
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                // For videos, just reload the page to retry
-                                window.location.reload();
-                            }}
-                        >
-                            {t("Reload")}
-                        </button>
-                    ) : !image.model ? null : (
-                        <button
-                            className="lb-primary"
+                            className="lb-primary text-sm px-3 py-1"
                             onClick={(e) => {
                                 e.stopPropagation();
                                 onRegenerate();
@@ -2229,28 +2467,35 @@ function ImageTile({
     }
 
     function NoImageError() {
+        // Get the actual error message from multiple possible sources
+        const actualErrorMessage = message || error?.message || result?.error?.message || "No media was generated";
+        
         return (
-            <div className="flex flex-col items-center justify-center h-full">
-                <div className="text-center">
-                    {t(
-                        `Generation completed but no ${image.type === "video" ? "video" : "image"} was produced.`,
-                    )}
+            <div className="flex flex-col items-center justify-center h-full p-4">
+                <div className="text-center w-full">
+                    <div className="flex items-center justify-center gap-2 mb-3">
+                        <div className="w-6 h-6 rounded-full bg-red-100 dark:bg-red-900 flex items-center justify-center flex-shrink-0">
+                            <svg className="w-4 h-4 text-red-600 dark:text-red-400" fill="currentColor" viewBox="0 0 20 20">
+                                <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                            </svg>
+                        </div>
+                        <div className="text-sm text-gray-600 dark:text-gray-400 whitespace-nowrap">
+                            {t("Media generation failed")}
+                        </div>
+                    </div>
+                    <div className="text-xs text-gray-500 dark:text-gray-500 px-2 line-clamp-4" title={actualErrorMessage}>
+                        {actualErrorMessage}
+                    </div>
                 </div>
+                
                 <div className="mt-4">
                     {image.type === "video" ? (
-                        <button
-                            className="lb-primary"
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                // For videos, just reload the page to retry
-                                window.location.reload();
-                            }}
-                        >
-                            {t("Reload")}
-                        </button>
+                        <div className="text-xs text-gray-500 dark:text-gray-500 text-center">
+                            {t("Please try a different prompt or contact support if the issue persists.")}
+                        </div>
                     ) : !image.model ? null : (
                         <button
-                            className="lb-primary"
+                            className="lb-primary text-sm px-3 py-1"
                             onClick={(e) => {
                                 e.stopPropagation();
                                 onRegenerate();
@@ -2329,13 +2574,13 @@ function ImageInfo({ data, type }) {
 
     const getModelDisplayName = (modelName) => {
         const names = {
-            "replicate-flux-1-schnell": "Flux Draft",
             "replicate-flux-11-pro": "Flux Pro",
             "replicate-flux-kontext-max": "Flux Kontext Max",
             "replicate-multi-image-kontext-max": "Multi-Image Kontext Max",
             "gemini-25-flash-image-preview": "Gemini Flash Image",
             "replicate-qwen-image": "Qwen Image",
             "replicate-qwen-image-edit-plus": "Qwen Image Edit Plus",
+            "replicate-seedream-4": "Seedream 4.0",
             "veo-2.0-generate": "Veo 2.0",
             "veo-3.0-generate": "Veo 3.0",
             "replicate-seedance-1-pro": "Seedance 1.0",
@@ -2357,6 +2602,35 @@ function ImageInfo({ data, type }) {
                         : t("(not found)")}
                 </div>
             </div>
+            {data?.created && (
+                <div className="mb-2">
+                    <div>
+                        <div className="font-semibold text-gray-500">
+                            {t("Expires")}
+                        </div>
+                    </div>
+                    <div>
+                        {(() => {
+                            const createdDate = new Date(data.created * 1000);
+                            const expiresDate = new Date(createdDate.getTime() + (30 * 24 * 60 * 60 * 1000)); // Add 30 days
+                            const now = new Date();
+                            const daysUntilExpiry = Math.ceil((expiresDate.getTime() - now.getTime()) / (24 * 60 * 60 * 1000));
+                            const isExpiringSoon = daysUntilExpiry <= 7;
+                            
+                            return (
+                                <span className={isExpiringSoon ? "text-red-500 font-semibold" : ""}>
+                                    {expiresDate.toLocaleString()}
+                                    {isExpiringSoon && (
+                                        <span className="ml-2 text-xs">
+                                            ({daysUntilExpiry} {daysUntilExpiry === 1 ? t("day") : t("days")} {t("remaining")})
+                                        </span>
+                                    )}
+                                </span>
+                            );
+                        })()}
+                    </div>
+                </div>
+            )}
             {data?.model && (
                 <div className="mb-2">
                     <div>

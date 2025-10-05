@@ -31,3 +31,4 @@ src/locales/
 dump.rdb
 *.code-workspace
 .cursorrules
+load-env.sh

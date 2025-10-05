@@ -9,16 +9,12 @@ import { copyTaskToChatMessage } from "./task-utils.mjs";
 export async function executeTask(jobData, job) {
     const { taskId, type } = jobData;
     const logger = new Logger(job);
-    logger.log(
-        `[DEBUG] Starting executeTask - Type: ${type}, RequestProgressId: ${taskId}`,
-    );
 
     const client = await getClient();
 
     // Check if cancelled
     const request = await Task.findOne({ _id: taskId });
     if (request?.status === "cancelled") {
-        logger.log(`[DEBUG] Task ${taskId} was cancelled before execution`);
         return;
     }
 
@@ -49,7 +45,17 @@ export async function executeTask(jobData, job) {
             return;
         }
     } catch (error) {
-        console.error(`[DEBUG] Error in executeTask: ${error.stack}`);
+        console.error(`Error in executeTask: ${error.stack}`);
+        
+        // Call the handler's handleError method if it exists
+        if (handler.handleError && typeof handler.handleError === 'function') {
+            try {
+                await handler.handleError(taskId, error, jobData.metadata, client);
+            } catch (handleErrorException) {
+                console.error(`Error in handler.handleError: ${handleErrorException.stack}`);
+            }
+        }
+        
         await progressTracker.updateRequestStatus(
             "failed",
             `Failed to execute ${type} task: ${error.message} ${error.stack}`,
@@ -61,9 +67,6 @@ export async function executeTask(jobData, job) {
 class CortexRequestTracker {
     constructor(job, client, logger) {
         this.logger = logger;
-        this.logger.log(
-            `[DEBUG] Initializing CortexRequestTracker for job ${job.id}`,
-        );
         this.job = job;
         this.client = client;
         this.timeoutId = null;
@@ -86,9 +89,6 @@ class CortexRequestTracker {
     }
 
     async run(cortexRequestId) {
-        this.logger.log(
-            `[DEBUG] Starting run with cortexRequestId: ${cortexRequestId}`,
-        );
         try {
             this.setupCancellationCheck();
             if (cortexRequestId) {
@@ -97,7 +97,7 @@ class CortexRequestTracker {
             this.resetIdleTimeout();
             return this.promise;
         } catch (error) {
-            console.error(`[DEBUG] Error in run method: ${error.stack}`);
+            console.error(`Error in run method: ${error.stack}`);
             this.cleanup();
             throw error;
         }
@@ -128,7 +128,6 @@ class CortexRequestTracker {
                 );
 
                 if (updatedRequest?.status === "cancelled") {
-                    this.logger.log(`Job ${this.job.id} received cancellation`);
                     this.cleanup();
                     return true; // Indicates cancellation
                 }
@@ -142,7 +141,6 @@ class CortexRequestTracker {
     }
 
     async resubscribe(cortexRequestId) {
-        this.logger.log(`Resubscribing to updates for ${cortexRequestId}`);
         // Handle both subscription protocols safely
         if (this.subscription) {
             this.subscription.unsubscribe();
@@ -151,7 +149,6 @@ class CortexRequestTracker {
     }
 
     async handleProgressUpdate(data, taskId) {
-        this.logger.log(`[DEBUG] Handling progress update for ${taskId}.`);
         let progress = data?.requestProgress?.progress || 0;
 
         let dataObject = await this.parseProgressData(
@@ -163,10 +160,6 @@ class CortexRequestTracker {
         );
 
         if (data?.requestProgress?.error) {
-            this.logger.log(
-                `[DEBUG] Progress update contains error:`,
-                data.requestProgress.error,
-            );
             await this.handleProgressError(
                 data.requestProgress.error,
                 taskId,
@@ -182,7 +175,6 @@ class CortexRequestTracker {
         );
 
         if (progress === 1) {
-            this.logger.log(`[DEBUG] Progress complete, handling completion`);
             return await this.handleCompletion(data, taskId, dataObject, infoObject);
         }
 
@@ -282,7 +274,19 @@ class CortexRequestTracker {
 
             await copyTaskToChatMessage(task);
         } else {
-            await this.updateRequestStatus("completed");
+            // For Gemini, we might need to process even when dataObject is null
+            // if infoObject contains the artifacts
+            if (infoObject && infoObject.artifacts) {
+                dataObject = await this.processCompletedData(null, infoObject);
+                const task = await this.updateRequestStatus(
+                    "completed",
+                    null,
+                    dataObject,
+                );
+                await copyTaskToChatMessage(task);
+            } else {
+                await this.updateRequestStatus("completed");
+            }
         }
 
         return { shouldResolve: true, dataObject };
@@ -310,9 +314,6 @@ class CortexRequestTracker {
         data = null,
         progress = null,
     ) {
-        this.logger.log(
-            `[DEBUG] Updating request status - Status: ${status}, Progress: ${progress}`,
-        );
 
         if (typeof data === "string") {
             data = { data: data };
@@ -395,20 +396,11 @@ class CortexRequestTracker {
                     } catch (cleanupError) {
                         console.error("Error during cleanup:", cleanupError);
                     } finally {
-                        this.logger.log(
-                            `[DEBUG] Rejecting promise with error: ${error}`,
-                        );
                         this.reject(error);
                     }
                 },
                 complete: () => {
-                    this.logger.log(
-                        `Subscription completed for ${cortexRequestId}`,
-                    );
                     this.cleanup();
-                    this.logger.log(
-                        `[DEBUG] Resolving promise on subscription completion`,
-                    );
                     this.resolve();
                 },
             });
@@ -440,10 +432,6 @@ class CortexRequestTracker {
                 const result = await operation();
                 return result;
             } catch (error) {
-                console.error(
-                    `[DEBUG] DB operation failed attempt ${attempt}:`,
-                    error.stack,
-                );
                 lastError = error;
                 console.warn(
                     `DB operation attempt ${attempt}/${maxRetries} failed: ${error.message}`,
@@ -461,7 +449,7 @@ class CortexRequestTracker {
                             error.message.includes("not connected") ||
                             error.message.includes("must be connected")))
                 ) {
-                    this.logger.log(
+                    console.log(
                         "Detected MongoDB connection issue, attempting to reconnect...",
                     );
                     // Use the global mongoose instance to check connection state
@@ -485,7 +473,7 @@ class CortexRequestTracker {
                                 "../../../src/db.mjs"
                             );
                             await connectToDatabase();
-                            this.logger.log(
+                            console.log(
                                 "Successfully reconnected to MongoDB",
                             );
                         } catch (reconnectError) {
@@ -499,9 +487,6 @@ class CortexRequestTracker {
 
                 if (attempt < maxRetries) {
                     const waitTime = Math.min(retryDelay, 30000); // Cap at 30 seconds max
-                    this.logger.log(
-                        `Waiting ${waitTime / 1000}s before retry ${attempt + 1}/${maxRetries}...`,
-                    );
                     await new Promise((resolve) =>
                         setTimeout(resolve, waitTime),
                     );

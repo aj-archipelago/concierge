@@ -685,6 +685,46 @@ const IMAGE_QWEN = gql`
     }
 `;
 
+const IMAGE_SEEDREAM4 = gql`
+    query ImageSeedream4(
+        $text: String!
+        $model: String!
+        $async: Boolean
+        $size: String
+        $width: Int
+        $height: Int
+        $aspectRatio: String
+        $maxImages: Int
+        $numberResults: Int
+        $input_image: String
+        $input_image_1: String
+        $input_image_2: String
+        $input_image_3: String
+        $sequentialImageGeneration: String
+        $seed: Int
+    ) {
+        image_seedream4(
+            text: $text
+            model: $model
+            async: $async
+            size: $size
+            width: $width
+            height: $height
+            aspectRatio: $aspectRatio
+            maxImages: $maxImages
+            numberResults: $numberResults
+            input_image: $input_image
+            input_image_1: $input_image_1
+            input_image_2: $input_image_2
+            input_image_3: $input_image_3
+            sequentialImageGeneration: $sequentialImageGeneration
+            seed: $seed
+        ) {
+            result
+        }
+    }
+`;
+
 const VIDEO_VEO = gql`
     query VideoVeo(
         $text: String!
@@ -822,6 +862,7 @@ const QUERIES = {
     IMAGE_FLUX,
     IMAGE_GEMINI_25,
     IMAGE_QWEN,
+    IMAGE_SEEDREAM4,
     VIDEO_VEO,
     VIDEO_SEEDANCE,
     SYS_SAVE_MEMORY,
@@ -888,6 +929,7 @@ export {
     IMAGE_FLUX,
     IMAGE_GEMINI_25,
     IMAGE_QWEN,
+    IMAGE_SEEDREAM4,
     VIDEO_VEO,
     VIDEO_SEEDANCE,
     GRAMMAR,
