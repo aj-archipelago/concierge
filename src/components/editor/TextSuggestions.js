@@ -15,7 +15,7 @@ import LoadingButton from "./LoadingButton";
 import { useTranslation } from "react-i18next";
 import { LanguageContext } from "../../contexts/LanguageProvider";
 
-const asyncQueries = ["GRAMMAR", "STYLE_GUIDE", "TRANSLATE"];
+const asyncQueries = ["GRAMMAR", "GRAMMAR_AR", "STYLE_GUIDE", "TRANSLATE"];
 
 export function getTextSuggestionsComponent({
     query,
@@ -71,13 +71,15 @@ export function getTextSuggestionsComponent({
 
         useEffect(() => {
             if (data) {
-                const dataObject =
-                    data[
-                        query === "STYLE_GUIDE"
-                            ? "styleguide"
-                            : stringcase.snakecase(query) ||
-                              stringcase.camelcase(query)
-                    ];
+                const specialQueryKeys = {
+                    STYLE_GUIDE: "styleguide",
+                    GRAMMAR_AR: "grammar_ar",
+                };
+                const key =
+                    specialQueryKeys[query] ??
+                    stringcase.snakecase(query) ??
+                    stringcase.camelcase(query);
+                const dataObject = data[key];
                 const actualData = dataObject?.result;
 
                 if (dataObject?.debug && typeof dataObject.debug === "string") {
