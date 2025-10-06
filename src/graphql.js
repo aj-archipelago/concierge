@@ -316,6 +316,14 @@ const GRAMMAR = gql`
         }
     }
 `;
+
+const GRAMMAR_AR = gql`
+    query GrammarAr($text: String!, $async: Boolean) {
+        grammar_ar(text: $text, async: $async) {
+            result
+        }
+    }
+`;
 const GREETING = gql`
     query Greeting(
         $text: String!
@@ -883,6 +891,7 @@ const QUERIES = {
     HEADLINE,
     GREETING,
     GRAMMAR,
+    GRAMMAR_AR,
     SPELLING,
     PARAPHRASE,
     TOPICS,
