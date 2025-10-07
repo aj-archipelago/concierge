@@ -13,7 +13,9 @@ jest.mock("../models/pathway", () => ({
 
 jest.mock("../models/prompt", () => ({
     default: {
-        find: jest.fn(),
+        find: jest.fn().mockReturnValue({
+            populate: jest.fn(),
+        }),
     },
     __esModule: true,
 }));
@@ -30,6 +32,18 @@ jest.mock("../pathways/[id]/db", () => ({
     deletePathway: jest.fn(),
 }));
 
+jest.mock("../models/llm", () => ({
+    default: {
+        findById: jest.fn(),
+        findOne: jest.fn(),
+    },
+    __esModule: true,
+}));
+
+jest.mock("../utils/llm-file-utils", () => ({
+    getLLMWithFallback: jest.fn(),
+}));
+
 // Import mocked modules to access their mock functions
 import {
     publishWorkspace,
@@ -39,12 +53,16 @@ import {
 import Pathway from "../models/pathway";
 import Prompt from "../models/prompt";
 import User from "../models/user.mjs";
+import LLM from "../models/llm";
 import { putPathway, deletePathway } from "../pathways/[id]/db";
+import { getLLMWithFallback } from "../utils/llm-file-utils";
 
 // Get mock function references
 const mockPathwayFindById = Pathway.findById;
 const mockPromptFind = Prompt.find;
+const mockPromptPopulate = Prompt.find().populate;
 const mockUserFindById = User.findById;
+const mockGetLLMWithFallback = getLLMWithFallback;
 
 describe("Workspace Publishing Utils", () => {
     let mockWorkspace;
@@ -79,8 +97,19 @@ describe("Workspace Publishing Utils", () => {
             save: jest.fn(),
         };
 
-        // Mock Prompt.find
-        mockPromptFind.mockResolvedValue(mockPrompts);
+        // Mock Prompt.find with populate to return prompts (ensuring backward compatibility)
+        mockPromptPopulate.mockResolvedValue(
+            mockPrompts.map((p) => ({ ...p, files: [] })),
+        );
+
+        // Mock getLLMWithFallback to return a default LLM
+        mockGetLLMWithFallback.mockResolvedValue({
+            _id: "defaultLLM",
+            identifier: "gpt4o",
+            name: "GPT 4o",
+            cortexPathwayName: "run_workspace_prompt",
+            cortexModelName: "oai-gpt4o",
+        });
 
         // Mock putPathway
         putPathway.mockResolvedValue({
@@ -101,10 +130,11 @@ describe("Workspace Publishing Utils", () => {
                 model,
             );
 
-            // Verify Prompt.find was called with correct prompt IDs
+            // Verify Prompt.find was called with correct prompt IDs and populate was called
             expect(mockPromptFind).toHaveBeenCalledWith({
                 _id: { $in: ["prompt1", "prompt2"] },
             });
+            expect(mockPromptPopulate).toHaveBeenCalledWith("files");
 
             // Verify putPathway was called with correct data structure
             expect(putPathway).toHaveBeenCalledWith(
@@ -116,10 +146,14 @@ describe("Workspace Publishing Utils", () => {
                         {
                             name: "First Prompt",
                             prompt: "This is the first prompt text",
+                            files: [],
+                            cortexPathwayName: "run_workspace_prompt",
                         },
                         {
                             name: "Second Prompt",
                             prompt: "This is the second prompt text",
+                            files: [],
+                            cortexPathwayName: "run_workspace_prompt",
                         },
                     ],
                     inputParameters: {},
@@ -136,7 +170,7 @@ describe("Workspace Publishing Utils", () => {
 
         test("should handle empty prompts array", async () => {
             mockWorkspace.prompts = [];
-            mockPromptFind.mockResolvedValue([]);
+            mockPromptPopulate.mockResolvedValue([]);
 
             await publishWorkspace(
                 mockWorkspace,
@@ -174,10 +208,11 @@ describe("Workspace Publishing Utils", () => {
         test("should republish workspace with updated prompt format", async () => {
             await republishWorkspace(mockWorkspace);
 
-            // Verify prompts were fetched
+            // Verify prompts were fetched with populate
             expect(mockPromptFind).toHaveBeenCalledWith({
                 _id: { $in: ["prompt1", "prompt2"] },
             });
+            expect(mockPromptPopulate).toHaveBeenCalledWith("files");
 
             // Verify putPathway was called with correct format
             expect(putPathway).toHaveBeenCalledWith(
@@ -187,10 +222,14 @@ describe("Workspace Publishing Utils", () => {
                         {
                             name: "First Prompt",
                             prompt: "This is the first prompt text",
+                            files: [],
+                            cortexPathwayName: "run_workspace_prompt",
                         },
                         {
                             name: "Second Prompt",
                             prompt: "This is the second prompt text",
+                            files: [],
+                            cortexPathwayName: "run_workspace_prompt",
                         },
                     ],
                 }),
