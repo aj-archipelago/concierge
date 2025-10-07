@@ -1,18 +1,35 @@
 import Pathway from "../../../models/pathway";
 import Prompt from "../../../models/prompt";
 import User from "../../../models/user.mjs";
+import LLM from "../../../models/llm";
 import { deletePathway, putPathway } from "../../../pathways/[id]/db";
+import { getLLMWithFallback } from "../../../utils/llm-file-utils";
 
 // publish workspace to cortex
 export async function publishWorkspace(workspace, user, pathwayName, model) {
     const promptIds = workspace.prompts;
-    const prompts = await Prompt.find({ _id: { $in: promptIds } });
+    const prompts = await Prompt.find({ _id: { $in: promptIds } }).populate(
+        "files",
+    );
+
+    // Create prompts with cortexPathwayName from their associated LLMs
+    const promptsWithPathway = await Promise.all(
+        prompts.map(async (p) => {
+            const llm = await getLLMWithFallback(LLM, p.llm);
+            return {
+                name: p.title,
+                prompt: p.text,
+                files: p.files ? p.files.map((f) => f.hash) : [],
+                cortexPathwayName: llm.cortexPathwayName,
+            };
+        }),
+    );
 
     // Create a pathway object from the workspace
     const pathwayData = {
         name: pathwayName,
         systemPrompt: workspace.systemPrompt,
-        prompts: prompts.map((p) => ({ name: p.title, prompt: p.text })),
+        prompts: promptsWithPathway,
         inputParameters: {},
         model: model,
         owner: user._id,
@@ -54,10 +71,26 @@ export async function republishWorkspace(workspace) {
         throw new Error("Pathway not found");
     }
 
-    const prompts = await Prompt.find({ _id: { $in: workspace.prompts } });
+    const prompts = await Prompt.find({
+        _id: { $in: workspace.prompts },
+    }).populate("files");
+
+    // Create prompts with cortexPathwayName from their associated LLMs
+    const promptsWithPathway = await Promise.all(
+        prompts.map(async (p) => {
+            const llm = await getLLMWithFallback(LLM, p.llm);
+            return {
+                name: p.title,
+                prompt: p.text,
+                files: p.files ? p.files.map((f) => f.hash) : [],
+                cortexPathwayName: llm.cortexPathwayName,
+            };
+        }),
+    );
+
     const pathwayData = {
         name: pathway.name,
-        prompts: prompts.map((p) => ({ name: p.title, prompt: p.text })),
+        prompts: promptsWithPathway,
         systemPrompt: workspace.systemPrompt,
         inputParameters: {},
         model: pathway.model,
