@@ -169,24 +169,16 @@ class TranscribeHandler extends BaseTask {
         }
 
         // Save transcript to user state
-        try {
-            const { userId } = metadata;
-            await this.handleTranscriptionCompletion(
-                userId,
-                finalTranscript,
-                metadata.responseFormat,
-                metadata,
-            );
-            console.debug(
-                `[TranscribeHandler] Transcript saved to user state for ${userId}`,
-            );
-        } catch (error) {
-            console.error(
-                `[TranscribeHandler] Error saving transcript to state:`,
-                error,
-            );
-            // Don't throw the error as we still want to return the transcript
-        }
+        const { userId } = metadata;
+        await this.handleTranscriptionCompletion(
+            userId,
+            finalTranscript,
+            metadata.responseFormat,
+            metadata,
+        );
+        console.debug(
+            `[TranscribeHandler] Transcript saved to user state for ${userId}`,
+        );
 
         return finalTranscript;
     }
