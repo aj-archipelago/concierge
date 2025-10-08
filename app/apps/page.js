@@ -457,6 +457,13 @@ export default function AppsPage() {
                                                             <h3 className="font-medium text-gray-900 dark:text-gray-100 truncate">
                                                                 {t(app.name)}
                                                             </h3>
+                                                            {app.description && (
+                                                                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 line-clamp-2">
+                                                                    {
+                                                                        app.description
+                                                                    }
+                                                                </p>
+                                                            )}
                                                         </div>
                                                     </div>
                                                 </div>
@@ -570,6 +577,13 @@ export default function AppsPage() {
                                                                         app.name,
                                                                     )}
                                                                 </h3>
+                                                                {app.description && (
+                                                                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 line-clamp-2">
+                                                                        {
+                                                                            app.description
+                                                                        }
+                                                                    </p>
+                                                                )}
                                                             </div>
                                                         </div>
                                                         <div className="mt-2 space-y-1">
