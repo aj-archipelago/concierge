@@ -580,6 +580,7 @@ export default function WorkspaceApplet() {
         appName,
         appIcon,
         appSlug,
+        appDescription,
     ) => {
         if (!isOwner) return;
 
@@ -607,6 +608,7 @@ export default function WorkspaceApplet() {
                     appName,
                     appIcon,
                     appSlug,
+                    appDescription,
                 },
             });
 

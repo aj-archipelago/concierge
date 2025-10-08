@@ -11,6 +11,7 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { AlertTriangle, Search } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
@@ -30,6 +31,7 @@ export default function PublishConfirmDialog({
     const [publishToAppStore, setPublishToAppStore] = useState(false);
     const [appName, setAppName] = useState("");
     const [appSlug, setAppSlug] = useState("");
+    const [appDescription, setAppDescription] = useState("");
     const [selectedIcon, setSelectedIcon] = useState("AppWindow");
     const [iconSearch, setIconSearch] = useState("");
     const [showIconSelector, setShowIconSelector] = useState(false);
@@ -40,7 +42,7 @@ export default function PublishConfirmDialog({
     const { data: existingApp } = useWorkspaceApp(workspaceId);
     const { data: workspace } = useWorkspace(workspaceId);
 
-    // Prefill app name, slug, and publish to app store setting when dialog opens
+    // Prefill app name, slug, description, and publish to app store setting when dialog opens
     useEffect(() => {
         if (isOpen) {
             // Check if app is currently published to app store
@@ -63,6 +65,9 @@ export default function PublishConfirmDialog({
                 // Default to workspace slug if no existing app slug
                 setAppSlug(workspace.slug);
             }
+            if (existingApp?.description) {
+                setAppDescription(existingApp.description);
+            }
         }
     }, [isOpen, existingApp, workspace]);
 
@@ -71,6 +76,7 @@ export default function PublishConfirmDialog({
         if (!isOpen) {
             setAppName("");
             setAppSlug("");
+            setAppDescription("");
             setSelectedIcon("AppWindow");
             setPublishToAppStore(false);
             setIconSearch("");
@@ -87,8 +93,11 @@ export default function PublishConfirmDialog({
     }, [showIconSelector]);
 
     const handleConfirm = async () => {
-        if (publishToAppStore && (!appName.trim() || !appSlug.trim())) {
-            return; // Don't proceed if app store is selected but no name or slug provided
+        if (
+            publishToAppStore &&
+            (!appName.trim() || !appSlug.trim() || !appDescription.trim())
+        ) {
+            return; // Don't proceed if app store is selected but no name, slug, or description provided
         }
 
         setError(""); // Clear any previous errors
@@ -99,6 +108,7 @@ export default function PublishConfirmDialog({
                 appName.trim(),
                 selectedIcon,
                 appSlug.trim(),
+                appDescription.trim(),
             );
         } catch (error) {
             // Handle errors from the mutation - check multiple possible error locations
@@ -114,7 +124,9 @@ export default function PublishConfirmDialog({
 
     const isFormValid =
         !publishToAppStore ||
-        (appName.trim().length > 0 && appSlug.trim().length > 0);
+        (appName.trim().length > 0 &&
+            appSlug.trim().length > 0 &&
+            appDescription.trim().length > 0);
 
     // Get unique icons without aliases
     const uniqueIcons = getUniqueLucideIcons(Icons);
@@ -204,6 +216,27 @@ export default function PublishConfirmDialog({
                                             { slug: appSlug || "your-slug" },
                                         )}
                                     </p>
+                                </div>
+
+                                <div className="space-y-2">
+                                    <Label
+                                        htmlFor="app-description"
+                                        className="text-sm font-medium"
+                                    >
+                                        {t("App Description *")}
+                                    </Label>
+                                    <Textarea
+                                        id="app-description"
+                                        value={appDescription}
+                                        onChange={(e) =>
+                                            setAppDescription(e.target.value)
+                                        }
+                                        placeholder={t(
+                                            "Enter a description for your app",
+                                        )}
+                                        className="w-full min-h-[80px]"
+                                        rows={3}
+                                    />
                                 </div>
 
                                 <div className="space-y-2">

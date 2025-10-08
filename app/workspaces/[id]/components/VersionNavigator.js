@@ -137,6 +137,7 @@ export default function VersionNavigator({
         appName,
         selectedIcon,
         appSlug,
+        appDescription,
     ) => {
         // Validate that we're publishing a valid version
         if (
@@ -160,6 +161,7 @@ export default function VersionNavigator({
                 appName,
                 selectedIcon,
                 appSlug,
+                appDescription,
             );
             // Only close dialog on success
             setShowPublishDialog(false);

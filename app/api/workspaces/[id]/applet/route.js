@@ -196,6 +196,7 @@ export async function PUT(request, { params }) {
                         status: APP_STATUS.ACTIVE,
                         workspaceId: workspace._id,
                         icon: body.appIcon || null,
+                        description: body.appDescription || null,
                     },
                     {
                         new: true,

@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { ExternalLink, Copy, Check, Trash2 } from "lucide-react";
 import { useState, useEffect, useContext } from "react";
 import { useTranslation } from "react-i18next";
@@ -31,6 +32,7 @@ export default function PublishedAppletManageDialog({
     const serverContext = useContext(ServerContext);
     const [appName, setAppName] = useState("");
     const [appSlug, setAppSlug] = useState("");
+    const [appDescription, setAppDescription] = useState("");
     const [copied, setCopied] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
     const [error, setError] = useState("");
@@ -50,6 +52,7 @@ export default function PublishedAppletManageDialog({
         if (isOpen && app) {
             setAppName(app.name || "");
             setAppSlug(app.slug || "");
+            setAppDescription(app.description || "");
         }
     }, [isOpen, app]);
 
@@ -58,6 +61,7 @@ export default function PublishedAppletManageDialog({
         if (!isOpen) {
             setAppName("");
             setAppSlug("");
+            setAppDescription("");
             setCopied(false);
             setIsSaving(false);
             setError("");
@@ -79,7 +83,13 @@ export default function PublishedAppletManageDialog({
     };
 
     const handleSave = async () => {
-        if (!app || !appName.trim() || !appSlug.trim()) return;
+        if (
+            !app ||
+            !appName.trim() ||
+            !appSlug.trim() ||
+            !appDescription.trim()
+        )
+            return;
 
         setIsSaving(true);
         setError(""); // Clear previous errors
@@ -93,6 +103,7 @@ export default function PublishedAppletManageDialog({
                     publishedVersionIndex: applet?.publishedVersionIndex,
                     appName: appName.trim(),
                     appSlug: appSlug.trim(),
+                    appDescription: appDescription.trim(),
                 },
             });
 
@@ -110,8 +121,15 @@ export default function PublishedAppletManageDialog({
         }
     };
 
-    const isFormValid = appName.trim().length > 0 && appSlug.trim().length > 0;
-    const hasChanges = app && (appName !== app.name || appSlug !== app.slug);
+    const isFormValid =
+        appName.trim().length > 0 &&
+        appSlug.trim().length > 0 &&
+        appDescription.trim().length > 0;
+    const hasChanges =
+        app &&
+        (appName !== app.name ||
+            appSlug !== app.slug ||
+            appDescription !== (app.description || ""));
 
     return (
         <Dialog open={isOpen} onOpenChange={onClose}>
@@ -164,6 +182,24 @@ export default function PublishedAppletManageDialog({
                                 { slug: appSlug || "your-slug" },
                             )}
                         </p>
+                    </div>
+
+                    {/* App Description */}
+                    <div className="space-y-2">
+                        <Label
+                            htmlFor="app-description"
+                            className="text-sm font-medium"
+                        >
+                            {t("App Description")}
+                        </Label>
+                        <Textarea
+                            id="app-description"
+                            value={appDescription}
+                            onChange={(e) => setAppDescription(e.target.value)}
+                            placeholder={t("Enter app description")}
+                            className="min-h-[80px]"
+                            rows={3}
+                        />
                     </div>
 
                     {/* Published Link */}

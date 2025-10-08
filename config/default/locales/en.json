@@ -93,5 +93,9 @@
     "Click to run": "Click to run",
     "by": "by",
     "by {{author}}": "by {{author}}",
-    "Updated": "Updated"
+    "Updated": "Updated",
+    "App Description *": "App Description *",
+    "Enter a description for your app": "Enter a description for your app",
+    "App Description": "App Description",
+    "Enter app description": "Enter app description"
 }
