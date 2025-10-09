@@ -62,6 +62,12 @@ const mediaItemSchema = new mongoose.Schema(
         },
         // Settings used for generation
         settings: mongoose.Schema.Types.Mixed,
+        // Tags for organization and filtering
+        tags: {
+            type: [String],
+            default: [],
+            index: true,
+        },
     },
     {
         timestamps: true,
@@ -73,6 +79,7 @@ mediaItemSchema.index({ user: 1, created: -1 });
 mediaItemSchema.index({ user: 1, status: 1 });
 mediaItemSchema.index({ user: 1, type: 1, created: -1 }); // For filtering by type
 mediaItemSchema.index({ user: 1, status: 1, created: -1 }); // For filtering by status with sorting
+mediaItemSchema.index({ user: 1, tags: 1, created: -1 }); // For filtering by tags
 
 // Ensure unique taskId per user
 mediaItemSchema.index({ user: 1, taskId: 1 }, { unique: true });

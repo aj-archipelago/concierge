@@ -46,16 +46,23 @@ export async function executeTask(jobData, job) {
         }
     } catch (error) {
         console.error(`Error in executeTask: ${error.stack}`);
-        
+
         // Call the handler's handleError method if it exists
-        if (handler.handleError && typeof handler.handleError === 'function') {
+        if (handler.handleError && typeof handler.handleError === "function") {
             try {
-                await handler.handleError(taskId, error, jobData.metadata, client);
+                await handler.handleError(
+                    taskId,
+                    error,
+                    jobData.metadata,
+                    client,
+                );
             } catch (handleErrorException) {
-                console.error(`Error in handler.handleError: ${handleErrorException.stack}`);
+                console.error(
+                    `Error in handler.handleError: ${handleErrorException.stack}`,
+                );
             }
         }
-        
+
         await progressTracker.updateRequestStatus(
             "failed",
             `Failed to execute ${type} task: ${error.message} ${error.stack}`,
@@ -175,7 +182,12 @@ class CortexRequestTracker {
         );
 
         if (progress === 1) {
-            return await this.handleCompletion(data, taskId, dataObject, infoObject);
+            return await this.handleCompletion(
+                data,
+                taskId,
+                dataObject,
+                infoObject,
+            );
         }
 
         return { shouldResolve: false, dataObject };
@@ -204,24 +216,41 @@ class CortexRequestTracker {
         );
 
         if (currentDoc && progress < currentDoc.progress) {
-            if (info) {
-                await this.retryDbOperation(() =>
-                    Task.findOneAndUpdate(
-                        { _id: taskId },
-                        { statusText: info },
-                    ),
-                );
+            // Only write simple strings to statusText, not parseable objects
+            if (info && typeof info === "string") {
+                try {
+                    // Try to parse - if it parses to an object, don't write to statusText
+                    JSON.parse(info);
+                    // If we get here, it parsed successfully (is an object), so don't write to statusText
+                } catch (parseError) {
+                    // If parsing fails, it's a simple string, safe to write to statusText
+                    await this.retryDbOperation(() =>
+                        Task.findOneAndUpdate(
+                            { _id: taskId },
+                            { statusText: info },
+                        ),
+                    );
+                }
             }
 
             return currentDoc.progress;
         }
 
+        // Only write simple strings to statusText, not parseable objects
+        const updateData = { progress };
+        if (info && typeof info === "string") {
+            try {
+                // Try to parse - if it parses to an object, don't write to statusText
+                JSON.parse(info);
+                // If we get here, it parsed successfully (is an object), so don't write to statusText
+            } catch (parseError) {
+                // If parsing fails, it's a simple string, safe to write to statusText
+                updateData.statusText = info;
+            }
+        }
+
         await this.retryDbOperation(() =>
-            Task.findOneAndUpdate(
-                { _id: taskId },
-                { progress, ...(info && { statusText: info }) },
-                { new: true },
-            ),
+            Task.findOneAndUpdate({ _id: taskId }, updateData, { new: true }),
         );
 
         return progress;
@@ -265,7 +294,10 @@ class CortexRequestTracker {
         }
 
         if (dataObject) {
-            dataObject = await this.processCompletedData(dataObject, infoObject);
+            dataObject = await this.processCompletedData(
+                dataObject,
+                infoObject,
+            );
             const task = await this.updateRequestStatus(
                 "completed",
                 null,
@@ -314,7 +346,6 @@ class CortexRequestTracker {
         data = null,
         progress = null,
     ) {
-
         if (typeof data === "string") {
             data = { data: data };
         }
@@ -473,9 +504,7 @@ class CortexRequestTracker {
                                 "../../../src/db.mjs"
                             );
                             await connectToDatabase();
-                            console.log(
-                                "Successfully reconnected to MongoDB",
-                            );
+                            console.log("Successfully reconnected to MongoDB");
                         } catch (reconnectError) {
                             console.error(
                                 "Failed to reconnect to MongoDB:",

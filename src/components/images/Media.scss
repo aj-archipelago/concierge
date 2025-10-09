@@ -96,15 +96,16 @@ $image-container-height: 200px;
     border: 1px solid #e5e7eb;
     border-radius: 0.5rem;
     overflow: hidden;
-    
+
     // Prevent text selection and image dragging
     -webkit-user-select: none;
     -moz-user-select: none;
     -ms-user-select: none;
     user-select: none;
-    
+
     // Prevent image dragging
-    img, video {
+    img,
+    video {
         -webkit-user-drag: none;
         -khtml-user-drag: none;
         -moz-user-drag: none;
@@ -129,7 +130,7 @@ $image-container-height: 200px;
         justify-content: center;
         transition: all 0.2s;
         cursor: pointer;
-        
+
         // Ensure checkbox is clickable despite pointer-events: none on images
         pointer-events: auto;
 
@@ -159,7 +160,7 @@ $image-container-height: 200px;
             object-fit: cover;
             object-position: center;
         }
-        
+
         // Prevent text selection on video play button overlay
         .absolute {
             -webkit-user-select: none;
@@ -182,7 +183,7 @@ $image-container-height: 200px;
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
-        
+
         // Prevent text selection on prompt text
         -webkit-user-select: none;
         -moz-user-select: none;
@@ -220,7 +221,7 @@ $image-container-height: 200px;
     color: #374151;
     transition: all 0.2s;
     cursor: pointer;
-    
+
     // Ensure buttons are clickable despite pointer-events: none on images
     pointer-events: auto;
 

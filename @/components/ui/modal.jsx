@@ -9,10 +9,16 @@ export function Modal({
     title,
     children,
     widthClassName = "max-w-6xl",
+    initialFocus,
 }) {
     return (
         <Transition appear show={show} as={Fragment}>
-            <Dialog as="div" className="relative z-50" onClose={() => {}}>
+            <Dialog
+                as="div"
+                className="relative z-50"
+                onClose={() => {}}
+                initialFocus={initialFocus}
+            >
                 <Transition.Child
                     as={Fragment}
                     enter="ease-out duration-300"

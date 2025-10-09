@@ -30,12 +30,8 @@ const JOB_DATA_WHITELIST = {
     },
     "media-generation": {
         metadata: {
-            prompt: true,
             outputType: true,
             model: true,
-            inputImageUrl: true,
-            inputImageUrl2: true,
-            inputImageUrl3: true,
             settings: true,
         },
     },

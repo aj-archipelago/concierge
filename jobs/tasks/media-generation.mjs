@@ -1,5 +1,12 @@
 import { BaseTask } from "./base-task.mjs";
-import { IMAGE_FLUX, IMAGE_GEMINI_25, IMAGE_QWEN, IMAGE_SEEDREAM4, VIDEO_VEO, VIDEO_SEEDANCE } from "../graphql.mjs";
+import {
+    IMAGE_FLUX,
+    IMAGE_GEMINI_25,
+    IMAGE_QWEN,
+    IMAGE_SEEDREAM4,
+    VIDEO_VEO,
+    VIDEO_SEEDANCE,
+} from "../graphql.mjs";
 import MediaItem from "../../app/api/models/media-item.mjs";
 
 // Model configuration mapping
@@ -10,13 +17,14 @@ const MODEL_CONFIG = {
         resultKey: "image_gemini_25",
         type: "image",
         buildVariables: (prompt, settings, inputImages) => {
-            const modelSettings = settings?.models?.["gemini-25-flash-image-preview"] || {};
+            const modelSettings =
+                settings?.models?.["gemini-25-flash-image-preview"] || {};
             const variables = {
                 text: prompt,
                 async: true,
                 optimizePrompt: modelSettings.optimizePrompt !== false, // Default to true if not specified
             };
-            
+
             // Only add input_image parameters if they exist
             // Note: The UI should already be passing GCS URLs for Gemini models
             if (inputImages[0]) {
@@ -26,9 +34,9 @@ const MODEL_CONFIG = {
                 variables.input_image_2 = inputImages[1];
             }
             // Gemini supports up to 3 input images, but we're not using the third one
-            
+
             return variables;
-        }
+        },
     },
     "replicate-qwen-image": {
         query: IMAGE_QWEN,
@@ -38,7 +46,7 @@ const MODEL_CONFIG = {
             text: prompt,
             model: "replicate-qwen-image",
             async: true,
-        })
+        }),
     },
     "replicate-qwen-image-edit-plus": {
         query: IMAGE_QWEN,
@@ -51,14 +59,15 @@ const MODEL_CONFIG = {
             input_image: inputImages[0] || "",
             input_image_2: inputImages[1] || "",
             input_image_3: inputImages[2] || "",
-        })
+        }),
     },
     "replicate-seedream-4": {
         query: IMAGE_SEEDREAM4,
         resultKey: "image_seedream4",
         type: "image",
         buildVariables: (prompt, settings, inputImages) => {
-            const modelSettings = settings?.models?.["replicate-seedream-4"] || {};
+            const modelSettings =
+                settings?.models?.["replicate-seedream-4"] || {};
             return {
                 text: prompt,
                 model: "replicate-seedream-4",
@@ -67,23 +76,28 @@ const MODEL_CONFIG = {
                 width: modelSettings.width || 2048,
                 height: modelSettings.height || 2048,
                 aspectRatio: modelSettings.aspectRatio || "4:3",
-                maxImages: modelSettings.maxImages || modelSettings.numberResults || 1,
-                numberResults: modelSettings.numberResults || modelSettings.maxImages || 1,
+                maxImages:
+                    modelSettings.maxImages || modelSettings.numberResults || 1,
+                numberResults:
+                    modelSettings.numberResults || modelSettings.maxImages || 1,
                 input_image: inputImages[0] || "",
                 input_image_1: inputImages[0] || "",
                 input_image_2: inputImages[1] || "",
                 input_image_3: inputImages[2] || "",
-                sequentialImageGeneration: modelSettings.sequentialImageGeneration || "disabled",
+                sequentialImageGeneration:
+                    modelSettings.sequentialImageGeneration || "disabled",
                 seed: modelSettings.seed || 0,
             };
-        }
+        },
     },
     "replicate-flux-kontext-max": {
         query: IMAGE_FLUX,
         resultKey: "image_flux",
         type: "image",
         buildVariables: (prompt, settings, inputImages) => {
-            const modelSettings = settings?.models?.["replicate-flux-kontext-max"] || { aspectRatio: "match_input_image" };
+            const modelSettings = settings?.models?.[
+                "replicate-flux-kontext-max"
+            ] || { aspectRatio: "match_input_image" };
             let aspectRatio = modelSettings.aspectRatio;
             if (aspectRatio === "match_input_image" && !inputImages[0]) {
                 aspectRatio = "1:1";
@@ -97,14 +111,16 @@ const MODEL_CONFIG = {
                 input_image_3: inputImages[2] || "",
                 aspectRatio: aspectRatio,
             };
-        }
+        },
     },
     "replicate-multi-image-kontext-max": {
         query: IMAGE_FLUX,
         resultKey: "image_flux",
         type: "image",
         buildVariables: (prompt, settings, inputImages) => {
-            const modelSettings = settings?.models?.["replicate-multi-image-kontext-max"] || { aspectRatio: "1:1" };
+            const modelSettings = settings?.models?.[
+                "replicate-multi-image-kontext-max"
+            ] || { aspectRatio: "1:1" };
             let aspectRatio = modelSettings.aspectRatio;
             if (aspectRatio === "match_input_image" && !inputImages[0]) {
                 aspectRatio = "1:1";
@@ -118,14 +134,16 @@ const MODEL_CONFIG = {
                 input_image_3: inputImages[2] || "",
                 aspectRatio: aspectRatio,
             };
-        }
+        },
     },
     "replicate-flux-11-pro": {
         query: IMAGE_FLUX,
         resultKey: "image_flux",
         type: "image",
         buildVariables: (prompt, settings, inputImages) => {
-            const modelSettings = settings?.models?.["replicate-flux-11-pro"] || { aspectRatio: "1:1" };
+            const modelSettings = settings?.models?.[
+                "replicate-flux-11-pro"
+            ] || { aspectRatio: "1:1" };
             let aspectRatio = modelSettings.aspectRatio;
             if (aspectRatio === "match_input_image" && !inputImages[0]) {
                 aspectRatio = "1:1";
@@ -139,7 +157,7 @@ const MODEL_CONFIG = {
                 input_image_3: inputImages[2] || "",
                 aspectRatio: aspectRatio,
             };
-        }
+        },
     },
     // Video models
     "replicate-seedance-1-pro": {
@@ -147,7 +165,9 @@ const MODEL_CONFIG = {
         resultKey: "video_seedance",
         type: "video",
         buildVariables: (prompt, settings, inputImages) => {
-            const modelSettings = settings?.models?.["replicate-seedance-1-pro"] || {
+            const modelSettings = settings?.models?.[
+                "replicate-seedance-1-pro"
+            ] || {
                 aspectRatio: "16:9",
                 duration: 5,
                 generateAudio: false,
@@ -165,7 +185,7 @@ const MODEL_CONFIG = {
                 image: inputImages[0] || "",
                 seed: -1,
             };
-        }
+        },
     },
     // Veo models (default for video)
     "veo-2.0-generate": {
@@ -198,7 +218,7 @@ const MODEL_CONFIG = {
                 location: "us-central1",
                 seed: -1,
             };
-        }
+        },
     },
     "veo-3.0-generate": {
         query: VIDEO_VEO,
@@ -230,8 +250,8 @@ const MODEL_CONFIG = {
                 location: "us-central1",
                 seed: -1,
             };
-        }
-    }
+        },
+    },
 };
 
 // Utility functions
@@ -241,7 +261,8 @@ const formatImageForVeo = (imageUrl) => {
     // Check if it's already in gs:// format
     if (imageUrl.startsWith("gs://")) {
         const extension = imageUrl.split(".").pop().toLowerCase();
-        const mimeType = {
+        const mimeType =
+            {
                 jpg: "image/jpeg",
                 jpeg: "image/jpeg",
                 png: "image/png",
@@ -257,7 +278,8 @@ const formatImageForVeo = (imageUrl) => {
         if (url.hostname === "storage.googleapis.com") {
             const gcsUri = `gs://${url.pathname.substring(1)}`;
             const extension = url.pathname.split(".").pop().toLowerCase();
-            const mimeType = {
+            const mimeType =
+                {
                     jpg: "image/jpeg",
                     jpeg: "image/jpeg",
                     png: "image/png",
@@ -301,7 +323,7 @@ class MediaGenerationHandler extends BaseTask {
         if (MODEL_CONFIG[model]) {
             return MODEL_CONFIG[model];
         }
-        
+
         // Default fallbacks
         if (outputType === "image") {
             return MODEL_CONFIG["replicate-flux-11-pro"];
@@ -333,11 +355,19 @@ class MediaGenerationHandler extends BaseTask {
             throw new Error("Prompt is required for media generation");
         }
 
-        const modelName = model || (outputType === "image" ? "replicate-flux-11-pro" : "replicate-seedance-1-pro");
+        const modelName =
+            model ||
+            (outputType === "image"
+                ? "replicate-flux-11-pro"
+                : "replicate-seedance-1-pro");
         const config = this.getModelConfig(modelName, outputType);
-        
-        const inputImages = [inputImageUrl, inputImageUrl2, inputImageUrl3].filter(Boolean);
-        
+
+        const inputImages = [
+            inputImageUrl,
+            inputImageUrl2,
+            inputImageUrl3,
+        ].filter(Boolean);
+
         const variables = config.buildVariables(prompt, settings, inputImages);
 
         let data;
@@ -350,11 +380,19 @@ class MediaGenerationHandler extends BaseTask {
             data = result.data;
 
             if (result.errors) {
-                console.debug(`[MediaGenerationHandler] GraphQL errors encountered`, result.errors);
-                throw new Error(`GraphQL errors: ${JSON.stringify(result.errors)}`);
+                console.debug(
+                    `[MediaGenerationHandler] GraphQL errors encountered`,
+                    result.errors,
+                );
+                throw new Error(
+                    `GraphQL errors: ${JSON.stringify(result.errors)}`,
+                );
             }
         } catch (error) {
-            console.error(`[MediaGenerationHandler] GraphQL error:`, error.message);
+            console.error(
+                `[MediaGenerationHandler] GraphQL error:`,
+                error.message,
+            );
             throw error;
         }
 
@@ -362,7 +400,9 @@ class MediaGenerationHandler extends BaseTask {
         const result = data?.[resultKey]?.result;
 
         if (!result) {
-            console.debug(`[MediaGenerationHandler] No result returned from service`);
+            console.debug(
+                `[MediaGenerationHandler] No result returned from service`,
+            );
             throw new Error("No result returned from media generation service");
         }
 
@@ -381,11 +421,18 @@ class MediaGenerationHandler extends BaseTask {
             settings,
         } = metadata;
 
-
-        const modelName = model || (outputType === "image" ? "replicate-flux-11-pro" : "replicate-seedance-1-pro");
+        const modelName =
+            model ||
+            (outputType === "image"
+                ? "replicate-flux-11-pro"
+                : "replicate-seedance-1-pro");
         const config = this.getModelConfig(modelName, outputType);
-        
-        const inputImages = [inputImageUrl, inputImageUrl2, inputImageUrl3].filter(Boolean);
+
+        const inputImages = [
+            inputImageUrl,
+            inputImageUrl2,
+            inputImageUrl3,
+        ].filter(Boolean);
         const variables = config.buildVariables(prompt, settings, inputImages);
 
         try {
@@ -396,13 +443,21 @@ class MediaGenerationHandler extends BaseTask {
             });
 
             if (result.errors) {
-                console.debug(`[MediaGenerationHandler] GraphQL errors in retry ${retryCount + 1}:`, result.errors);
-                throw new Error(`GraphQL errors: ${JSON.stringify(result.errors)}`);
+                console.debug(
+                    `[MediaGenerationHandler] GraphQL errors in retry ${retryCount + 1}:`,
+                    result.errors,
+                );
+                throw new Error(
+                    `GraphQL errors: ${JSON.stringify(result.errors)}`,
+                );
             }
 
             return result.data;
         } catch (error) {
-            console.error(`[MediaGenerationHandler] Gemini retry ${retryCount + 1} failed:`, error.message);
+            console.error(
+                `[MediaGenerationHandler] Gemini retry ${retryCount + 1} failed:`,
+                error.message,
+            );
             throw error;
         }
     }
@@ -411,44 +466,65 @@ class MediaGenerationHandler extends BaseTask {
         const userId = metadata.userId;
 
         // Check if this is a Gemini model that needs retry due to missing artifacts
-        if (metadata.model === "gemini-25-flash-image-preview" && !infoObject?.artifacts) {
+        if (
+            metadata.model === "gemini-25-flash-image-preview" &&
+            !infoObject?.artifacts
+        ) {
             const retryCount = metadata.geminiRetryCount || 0;
             const maxRetries = 3;
-            
+
             if (retryCount < maxRetries) {
                 // Update retry count in metadata
                 metadata.geminiRetryCount = retryCount + 1;
-                
+
                 // Create a new job for retry
                 const retryJob = {
                     data: {
                         taskId,
                         metadata: {
                             ...metadata,
-                            geminiRetryCount: retryCount + 1
-                        }
+                            geminiRetryCount: retryCount + 1,
+                        },
                     },
-                    client
+                    client,
                 };
-                
+
                 try {
                     // Wait a bit before retrying (exponential backoff)
                     const delay = Math.pow(2, retryCount) * 1000; // 1s, 2s, 4s
-                    await new Promise(resolve => setTimeout(resolve, delay));
-                    
-                    const retryData = await this.retryGeminiRequest(retryJob, retryCount);
-                    
+                    await new Promise((resolve) => setTimeout(resolve, delay));
+
+                    const retryData = await this.retryGeminiRequest(
+                        retryJob,
+                        retryCount,
+                    );
+
                     // Process the retry response
                     if (userId) {
-                        const processedData = await this.processMediaData(retryData, infoObject, metadata);
-                        
+                        const processedData = await this.processMediaData(
+                            retryData,
+                            infoObject,
+                            metadata,
+                        );
+
                         // Check if the retry also failed to produce artifacts
-                        if (!processedData || (!processedData.url && !processedData.azureUrl && !processedData.gcsUrl)) {
-                            throw new Error("Retry failed to produce artifacts");
+                        if (
+                            !processedData ||
+                            (!processedData.url &&
+                                !processedData.azureUrl &&
+                                !processedData.gcsUrl)
+                        ) {
+                            throw new Error(
+                                "Retry failed to produce artifacts",
+                            );
                         }
-                        
-                        await this.handleMediaGenerationCompletion(userId, processedData, metadata);
-                        
+
+                        await this.handleMediaGenerationCompletion(
+                            userId,
+                            processedData,
+                            metadata,
+                        );
+
                         const result = {
                             message: "Media generation completed successfully",
                             type: metadata.outputType,
@@ -458,12 +534,15 @@ class MediaGenerationHandler extends BaseTask {
                             azureUrl: processedData?.azureUrl,
                             gcsUrl: processedData?.gcsUrl,
                         };
-                        
+
                         return result;
                     }
                 } catch (retryError) {
-                    console.error(`[MediaGenerationHandler] Gemini retry ${retryCount + 1} failed:`, retryError.message);
-                    
+                    console.error(
+                        `[MediaGenerationHandler] Gemini retry ${retryCount + 1} failed:`,
+                        retryError.message,
+                    );
+
                     // If this was the last retry, fall through to error handling
                     if (retryCount + 1 >= maxRetries) {
                         if (userId) {
@@ -474,16 +553,20 @@ class MediaGenerationHandler extends BaseTask {
                                         status: "failed",
                                         error: {
                                             code: "GEMINI_RETRY_FAILED",
-                                            message: "Gemini failed to generate image after 3 retries",
+                                            message:
+                                                "Gemini failed to generate image after 3 retries",
                                         },
                                     },
                                     { new: true, runValidators: true },
                                 );
                             } catch (updateError) {
-                                console.error("Error updating media item with retry failure:", updateError);
+                                console.error(
+                                    "Error updating media item with retry failure:",
+                                    updateError,
+                                );
                             }
                         }
-                        
+
                         return {
                             error: "Gemini failed to generate image after 3 retries",
                             type: metadata.outputType,
@@ -501,16 +584,20 @@ class MediaGenerationHandler extends BaseTask {
                                 status: "failed",
                                 error: {
                                     code: "GEMINI_RETRY_FAILED",
-                                    message: "Gemini failed to generate image after 3 retries",
+                                    message:
+                                        "Gemini failed to generate image after 3 retries",
                                 },
                             },
                             { new: true, runValidators: true },
                         );
                     } catch (updateError) {
-                        console.error("Error updating media item with retry failure:", updateError);
+                        console.error(
+                            "Error updating media item with retry failure:",
+                            updateError,
+                        );
                     }
                 }
-                
+
                 return {
                     error: "Gemini failed to generate image after 3 retries",
                     type: metadata.outputType,
@@ -522,8 +609,16 @@ class MediaGenerationHandler extends BaseTask {
 
         let processedData = null;
         if (userId) {
-            processedData = await this.processMediaData(dataObject, infoObject, metadata);
-            await this.handleMediaGenerationCompletion(userId, processedData, metadata);
+            processedData = await this.processMediaData(
+                dataObject,
+                infoObject,
+                metadata,
+            );
+            await this.handleMediaGenerationCompletion(
+                userId,
+                processedData,
+                metadata,
+            );
         }
 
         const result = {
@@ -535,7 +630,7 @@ class MediaGenerationHandler extends BaseTask {
             azureUrl: processedData?.azureUrl,
             gcsUrl: processedData?.gcsUrl,
         };
-        
+
         return result;
     }
 
@@ -547,14 +642,17 @@ class MediaGenerationHandler extends BaseTask {
         let errorCode = error.code || "TASK_FAILED";
 
         // Handle Veo error format: "Veo operation completed but no videos returned: {...}"
-        if (typeof error === 'string' && error.includes('Veo operation completed but no videos returned:')) {
+        if (
+            typeof error === "string" &&
+            error.includes("Veo operation completed but no videos returned:")
+        ) {
             try {
                 // Extract the JSON part after the colon
-                const jsonStart = error.indexOf('{');
+                const jsonStart = error.indexOf("{");
                 if (jsonStart !== -1) {
                     const jsonString = error.substring(jsonStart);
                     const veoError = JSON.parse(jsonString);
-                    
+
                     // Extract the nested error message
                     if (veoError.error && veoError.error.message) {
                         actualErrorMessage = veoError.error.message;
@@ -581,7 +679,10 @@ class MediaGenerationHandler extends BaseTask {
                     { new: true, runValidators: true },
                 );
             } catch (updateError) {
-                console.error("Error updating media item with error status:", updateError);
+                console.error(
+                    "Error updating media item with error status:",
+                    updateError,
+                );
             }
         }
 
@@ -593,12 +694,21 @@ class MediaGenerationHandler extends BaseTask {
             let mediaUrl = null;
 
             // Handle Gemini special case first
-            if (metadata.model === "gemini-25-flash-image-preview" && infoObject?.artifacts) {
-                mediaUrl = await this.processGeminiArtifacts(infoObject.artifacts);
+            if (
+                metadata.model === "gemini-25-flash-image-preview" &&
+                infoObject?.artifacts
+            ) {
+                mediaUrl = await this.processGeminiArtifacts(
+                    infoObject.artifacts,
+                );
             }
 
             // Handle Veo video responses
-            if (!mediaUrl && metadata.outputType === "video" && metadata.model?.includes("veo")) {
+            if (
+                !mediaUrl &&
+                metadata.outputType === "video" &&
+                metadata.model?.includes("veo")
+            ) {
                 mediaUrl = this.processVeoVideoResponse(dataObject);
             }
 
@@ -621,7 +731,10 @@ class MediaGenerationHandler extends BaseTask {
             const isGoogleModel = metadata.model?.includes("veo");
             const finalUrl = isGoogleModel
                 ? cloudUrls?.gcsUrl || mediaUrl
-                : cloudUrls?.azureUrl || (mediaUrl && !mediaUrl.startsWith("data:") ? mediaUrl : undefined);
+                : cloudUrls?.azureUrl ||
+                  (mediaUrl && !mediaUrl.startsWith("data:")
+                      ? mediaUrl
+                      : undefined);
 
             return {
                 url: finalUrl,
@@ -640,22 +753,29 @@ class MediaGenerationHandler extends BaseTask {
     async processGeminiArtifacts(artifacts) {
         try {
             if (Array.isArray(artifacts)) {
-                const imageArtifact = artifacts.find(artifact => artifact.type === 'image');
-                
+                const imageArtifact = artifacts.find(
+                    (artifact) => artifact.type === "image",
+                );
+
                 if (imageArtifact) {
                     if (imageArtifact.data) {
                         try {
-                            const dataUrl = `data:${imageArtifact.mimeType || 'image/png'};base64,${imageArtifact.data}`;
-                            
-                            const cloudUrls = await this.uploadMediaToCloud(dataUrl);
-                            
+                            const dataUrl = `data:${imageArtifact.mimeType || "image/png"};base64,${imageArtifact.data}`;
+
+                            const cloudUrls =
+                                await this.uploadMediaToCloud(dataUrl);
+
                             if (cloudUrls) {
-                                const finalUrl = cloudUrls.azureUrl || cloudUrls.gcsUrl;
+                                const finalUrl =
+                                    cloudUrls.azureUrl || cloudUrls.gcsUrl;
                                 return finalUrl;
                             }
                         } catch (uploadError) {
-                            console.error("Failed to upload Gemini image to cloud:", uploadError);
-                            
+                            console.error(
+                                "Failed to upload Gemini image to cloud:",
+                                uploadError,
+                            );
+
                             const fallbackUrl = `data:${imageArtifact.mimeType};base64,${imageArtifact.data}`;
                             return fallbackUrl;
                         }
@@ -676,17 +796,28 @@ class MediaGenerationHandler extends BaseTask {
 
     processVeoVideoResponse(dataObject) {
         // Check for direct Veo response structure
-        if (dataObject?.response?.videos && Array.isArray(dataObject.response.videos) && dataObject.response.videos.length > 0) {
+        if (
+            dataObject?.response?.videos &&
+            Array.isArray(dataObject.response.videos) &&
+            dataObject.response.videos.length > 0
+        ) {
             return extractVideoUrl(dataObject.response.videos[0]);
         }
 
         // Check for result wrapper structure
-        if (dataObject?.result?.response?.videos && Array.isArray(dataObject.result.response.videos) && dataObject.result.response.videos.length > 0) {
+        if (
+            dataObject?.result?.response?.videos &&
+            Array.isArray(dataObject.result.response.videos) &&
+            dataObject.result.response.videos.length > 0
+        ) {
             return extractVideoUrl(dataObject.result.response.videos[0]);
         }
 
         // Fallback: check if data.result.output is a string that needs parsing
-        if (dataObject?.result?.output && typeof dataObject.result.output === "string") {
+        if (
+            dataObject?.result?.output &&
+            typeof dataObject.result.output === "string"
+        ) {
             try {
                 const parsed = JSON.parse(dataObject.result.output);
 
@@ -713,10 +844,14 @@ class MediaGenerationHandler extends BaseTask {
     processStandardResponse(dataObject) {
         // Try different possible structures
         if (dataObject?.output) {
-            return Array.isArray(dataObject.output) ? dataObject.output[0] : dataObject.output;
+            return Array.isArray(dataObject.output)
+                ? dataObject.output[0]
+                : dataObject.output;
         }
         if (dataObject?.result?.output) {
-            return Array.isArray(dataObject.result.output) ? dataObject.result.output[0] : dataObject.result.output;
+            return Array.isArray(dataObject.result.output)
+                ? dataObject.result.output[0]
+                : dataObject.result.output;
         }
         return null;
     }
@@ -724,7 +859,9 @@ class MediaGenerationHandler extends BaseTask {
     async uploadMediaToCloud(mediaUrl) {
         try {
             if (!process.env.CORTEX_MEDIA_API_URL) {
-                throw new Error("CORTEX_MEDIA_API_URL environment variable is not set");
+                throw new Error(
+                    "CORTEX_MEDIA_API_URL environment variable is not set",
+                );
             }
 
             const serverUrl = process.env.CORTEX_MEDIA_API_URL;
@@ -745,8 +882,8 @@ class MediaGenerationHandler extends BaseTask {
         const blob = await response.blob();
 
         const formData = new FormData();
-        const mimeType = mediaUrl.split(';')[0].split(':')[1];
-        const extension = mimeType.split('/')[1] || 'bin';
+        const mimeType = mediaUrl.split(";")[0].split(":")[1];
+        const extension = mimeType.split("/")[1] || "bin";
         const filename = `media.${extension}`;
         formData.append("file", blob, filename);
 
@@ -757,52 +894,84 @@ class MediaGenerationHandler extends BaseTask {
 
         if (!uploadResponse.ok) {
             const errorBody = await uploadResponse.text();
-            console.error(`Upload failed with status ${uploadResponse.status}: ${errorBody}`);
-            throw new Error(`Upload failed: ${uploadResponse.statusText}. Response body: ${errorBody}`);
+            console.error(
+                `Upload failed with status ${uploadResponse.status}: ${errorBody}`,
+            );
+            throw new Error(
+                `Upload failed: ${uploadResponse.statusText}. Response body: ${errorBody}`,
+            );
         }
 
         const data = await uploadResponse.json();
-        
+
         const validatedUrls = this.validateCloudUrls(data);
         return validatedUrls;
     }
 
     async uploadRegularUrl(mediaUrl, serverUrl) {
-                const url = new URL(serverUrl);
-                url.searchParams.set("fetch", mediaUrl);
+        const url = new URL(serverUrl);
+        url.searchParams.set("fetch", mediaUrl);
 
-                const response = await fetch(url.toString(), {
-                    method: "GET",
-                    headers: {
-                        "Content-Type": "application/json",
-                    },
-                });
+        const response = await fetch(url.toString(), {
+            method: "GET",
+            headers: {
+                "Content-Type": "application/json",
+            },
+        });
 
-                if (!response.ok) {
-                    const errorBody = await response.text();
-            throw new Error(`Upload failed: ${response.statusText}. Response body: ${errorBody}`);
-                }
+        if (!response.ok) {
+            const errorBody = await response.text();
+            throw new Error(
+                `Upload failed: ${response.statusText}. Response body: ${errorBody}`,
+            );
+        }
 
-                const data = await response.json();
+        const data = await response.json();
         return this.validateCloudUrls(data);
     }
 
     validateCloudUrls(data) {
-        const hasAzureUrl = data.url && data.url.includes("blob.core.windows.net");
-                const hasGcsUrl = data.gcs;
+        const hasAzureUrl =
+            data.url && data.url.includes("blob.core.windows.net");
+        const hasGcsUrl = data.gcs;
 
-                if (!hasAzureUrl || !hasGcsUrl) {
-            throw new Error("Media file upload failed: Missing required storage URLs");
-                }
+        if (!hasAzureUrl || !hasGcsUrl) {
+            throw new Error(
+                "Media file upload failed: Missing required storage URLs",
+            );
+        }
 
-                return {
-                    azureUrl: data.url,
-                    gcsUrl: data.gcs,
-                };
+        return {
+            azureUrl: data.url,
+            gcsUrl: data.gcs,
+        };
+    }
+
+    async getInheritedTags(userId, inputImageUrls, inputTags = []) {
+        // Use tags passed from the frontend instead of querying encrypted URL fields
+        if (inputTags && inputTags.length > 0) {
+            return inputTags;
+        }
+
+        // Fallback: return empty array if no tags provided
+        return [];
     }
 
     async handleMediaGenerationCompletion(userId, dataObject, metadata) {
         try {
+            // Get inherited tags from input images
+            const inputImageUrls = [
+                metadata.inputImageUrl,
+                metadata.inputImageUrl2,
+                metadata.inputImageUrl3,
+            ].filter(Boolean);
+
+            const inheritedTags = await this.getInheritedTags(
+                userId,
+                inputImageUrls,
+                metadata.inputTags,
+            );
+
             const updateData = {
                 status: "completed",
                 completed: Math.floor(Date.now() / 1000),
@@ -814,6 +983,8 @@ class MediaGenerationHandler extends BaseTask {
                 generateAudio: dataObject.generateAudio,
                 resolution: dataObject.resolution,
                 cameraFixed: dataObject.cameraFixed,
+                // Inherit tags from input images
+                tags: inheritedTags,
             };
 
             const mediaItem = await MediaItem.findOneAndUpdate(
@@ -834,6 +1005,7 @@ class MediaGenerationHandler extends BaseTask {
                     ...updateData,
                     inputImageUrl: metadata.inputImageUrl,
                     inputImageUrl2: metadata.inputImageUrl2,
+                    inputImageUrl3: metadata.inputImageUrl3,
                     settings: metadata.settings,
                 });
                 await newMediaItem.save();
