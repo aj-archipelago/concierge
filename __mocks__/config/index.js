@@ -19,7 +19,7 @@ const LLM_IDENTIFIERS = {
     o3mini: "o3mini",
 };
 
-export default {
+const config = {
     global: {
         siteTitle: "Labeeb",
         getLogo: (language) =>
@@ -73,3 +73,5 @@ export default {
         provider: "entra",
     },
 };
+
+export default config;

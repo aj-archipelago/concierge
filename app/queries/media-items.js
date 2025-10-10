@@ -1,15 +1,20 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import axios from "../utils/axios-client";
 
-export function useMediaItems(page = 1, limit = 50, filters = {}) {
+export function useMediaItems(page = 1, limit = 50, search = "") {
     const query = useQuery({
-        queryKey: ["mediaItems", page, limit, filters],
+        queryKey: ["mediaItems", page, limit, search],
         queryFn: async () => {
             const params = new URLSearchParams({
                 page: page.toString(),
                 limit: limit.toString(),
-                ...filters,
             });
+
+            // Add search parameter if provided
+            if (search && search.trim()) {
+                params.append("search", search.trim());
+            }
+
             const { data } = await axios.get(`/api/media-items?${params}`);
             return data;
         },
@@ -61,6 +66,25 @@ export function useDeleteMediaItem() {
     const mutation = useMutation({
         mutationFn: async (taskId) => {
             const response = await axios.delete(`/api/media-items/${taskId}`);
+            return response.data;
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ["mediaItems"] });
+        },
+    });
+
+    return mutation;
+}
+
+export function useUpdateMediaItemTags() {
+    const queryClient = useQueryClient();
+
+    const mutation = useMutation({
+        mutationFn: async ({ taskId, tags }) => {
+            const response = await axios.put(
+                `/api/media-items/${taskId}/tags`,
+                { tags },
+            );
             return response.data;
         },
         onSuccess: () => {

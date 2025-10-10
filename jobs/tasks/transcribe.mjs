@@ -137,7 +137,7 @@ class TranscribeHandler extends BaseTask {
         return result;
     }
 
-    async handleCompletion(taskId, dataObject, metadata, client) {
+    async handleCompletion(taskId, dataObject, infoObject, metadata, client) {
         console.debug(`[TranscribeHandler] Handling completion for ${taskId}`, {
             format: metadata.responseFormat,
             hasData: !!dataObject,

@@ -96,7 +96,7 @@ class SubtitleTranslateHandler extends BaseTask {
         return result;
     }
 
-    async handleCompletion(taskId, dataObject, metadata, client) {
+    async handleCompletion(taskId, dataObject, infoObject, metadata, client) {
         console.debug(
             `[SubtitleTranslateHandler] Handling completion for ${taskId}`,
             {

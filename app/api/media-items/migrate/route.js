@@ -87,6 +87,9 @@ export async function POST(req) {
                 if (item.inputImageUrl2) {
                     mediaItemData.inputImageUrl2 = item.inputImageUrl2;
                 }
+                if (item.inputImageUrl3) {
+                    mediaItemData.inputImageUrl3 = item.inputImageUrl3;
+                }
 
                 const mediaItem = new MediaItem(mediaItemData);
 

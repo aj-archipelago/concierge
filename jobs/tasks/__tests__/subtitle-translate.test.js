@@ -83,7 +83,13 @@ jest.mock("../base-task.mjs", () => ({
         async startRequest(job) {
             throw new Error("startRequest must be implemented by handler");
         }
-        async handleCompletion(taskId, dataObject, metadata, client) {
+        async handleCompletion(
+            taskId,
+            dataObject,
+            infoObject,
+            metadata,
+            client,
+        ) {
             return dataObject;
         }
         async cancelRequest(taskId, client) {
@@ -98,7 +104,7 @@ const SubtitleTranslateHandler = jest.fn().mockImplementation(() => ({
     isRetryable: true,
 
     async startRequest(job) {
-        const { taskId, metadata } = job.data;
+        const { metadata } = job.data;
         const { text, to, format } = metadata;
 
         const { data, errors } = await job.client.query({
@@ -125,7 +131,7 @@ const SubtitleTranslateHandler = jest.fn().mockImplementation(() => ({
         return result;
     },
 
-    async handleCompletion(taskId, dataObject, metadata, client) {
+    async handleCompletion(taskId, dataObject, infoObject, metadata, client) {
         try {
             const { userId } = metadata;
             await this.handleTranslationCompletion(
@@ -353,6 +359,7 @@ describe("SubtitleTranslateHandler", () => {
             const result = await subtitleTranslateHandler.handleCompletion(
                 taskId,
                 dataObject,
+                null, // infoObject
                 metadata,
                 client,
             );
@@ -376,6 +383,7 @@ describe("SubtitleTranslateHandler", () => {
             const result = await subtitleTranslateHandler.handleCompletion(
                 taskId,
                 dataObject,
+                null, // infoObject
                 metadata,
                 client,
             );
