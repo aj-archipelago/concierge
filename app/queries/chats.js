@@ -192,15 +192,23 @@ export function useAddChat() {
             queryClient.setQueryData(["chats"], (old) => {
                 if (!old || !old.pages) return old;
 
-                const updateChatsPages = (pages, confirmedChat, optimisticId) => {
+                const updateChatsPages = (
+                    pages,
+                    confirmedChat,
+                    optimisticId,
+                ) => {
                     return pages.map((page, idx) => {
                         if (idx === 0) {
                             const filtered = page.filter(
-                                (c) => c._id !== optimisticId && c._id !== confirmedChat._id,
+                                (c) =>
+                                    c._id !== optimisticId &&
+                                    c._id !== confirmedChat._id,
                             );
                             return [confirmedChat, ...filtered];
                         }
-                        return page.map((c) => (c._id === optimisticId ? confirmedChat : c));
+                        return page.map((c) =>
+                            c._id === optimisticId ? confirmedChat : c,
+                        );
                     });
                 };
 
