@@ -113,18 +113,29 @@ function SavedChats({ displayState }) {
         setSelectedIds(new Set());
         setSelectMode(false);
 
-        // Fire deletions in parallel in the background; log any failures
+        // Fire deletions in parallel in the background; report failures with titles
         Promise.allSettled(
             ids.map((id) => deleteChat.mutateAsync({ chatId: id })),
-        ).then((results) => {
-            const failed = results.filter((r) => r.status === "rejected");
-            if (failed.length > 0) {
+        ).then((settled) => {
+            const failedEntries = settled
+                .map((r, index) => ({ r, index }))
+                .filter((e) => e.r.status === "rejected");
+            if (failedEntries.length > 0) {
+                const failedIds = failedEntries.map((e) => ids[e.index]);
+                const byId = new Map(
+                    allChats.map((c) => [String(c._id), c]),
+                );
+                const failedLabels = failedIds.map((id) => {
+                    const chat = byId.get(String(id));
+                    const title = chat?.title && String(chat.title).trim();
+                    return title ? `"${title}"` : String(id);
+                });
                 console.error(
                     "Failed to bulk delete chats:",
-                    failed.map((f) => f.reason || f),
+                    failedLabels,
                 );
                 window.alert(
-                    `${ids.length - failed.length} of ${ids.length} chats deleted. ${failed.length} failed.`,
+                    `${ids.length - failedEntries.length} of ${ids.length} chats deleted. Failed: ${failedLabels.join(", ")}. You can try again.`,
                 );
             }
         });
@@ -178,7 +189,7 @@ function SavedChats({ displayState }) {
                 parsed = JSON.parse(text);
             } catch (parseErr) {
                 window.alert(
-                    "The selected file is not valid JSON. The file should contain either a chat object, an array of chats, or an object with a 'chats' array. Please check the file format and try again.",
+                    `The selected file is not valid JSON. Error: ${parseErr.message}\n\nThe file should contain either a chat object, an array of chats, or an object with a 'chats' array. Please check the file format and try again.`,
                 );
                 if (importInputRef.current) importInputRef.current.value = "";
                 return;
@@ -195,7 +206,7 @@ function SavedChats({ displayState }) {
             }
             if (!Array.isArray(parsed)) {
                 window.alert(
-                    'The file format is not supported. Please upload a file exported from this app, or a file containing your chats in JSON format. For example:\n\n[\n  { "title": "Chat Title", "messages": [ ... ] }\n]',
+                    'The file format is not supported. Please upload a file exported from this app, or a file containing your chats in JSON format. For example:\n\n[\n  { "title": "Chat Title", "messages": [ { "role": "user", "content": "Hello" } ] }\n] ',
                 );
                 if (importInputRef.current) importInputRef.current.value = "";
                 return;
