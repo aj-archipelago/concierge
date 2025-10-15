@@ -102,21 +102,25 @@ function SavedChats({ displayState }) {
     };
 
     const handleBulkDelete = async () => {
-        try {
-            const ids = Array.from(selectedIds);
-            for (const id of ids) {
-                // sequential to avoid race conditions and repeated invalidations overlapping
-                // existing useDeleteChat handles optimistic updates and cache invalidations
-                // eslint-disable-next-line no-await-in-loop
-                await deleteChat.mutateAsync({ chatId: id });
+        const ids = Array.from(selectedIds);
+
+        // Close dialog and reset selection immediately for snappy UX
+        setIsBulkDialogOpen(false);
+        setSelectedIds(new Set());
+        setSelectMode(false);
+
+        // Fire deletions in parallel in the background; log any failures
+        Promise.allSettled(
+            ids.map((id) => deleteChat.mutateAsync({ chatId: id })),
+        ).then((results) => {
+            const failed = results.filter((r) => r.status === "rejected");
+            if (failed.length > 0) {
+                console.error(
+                    "Failed to bulk delete chats:",
+                    failed.map((f) => f.reason || f),
+                );
             }
-        } catch (error) {
-            console.error("Failed to bulk delete chats", error);
-        } finally {
-            setIsBulkDialogOpen(false);
-            setSelectedIds(new Set());
-            setSelectMode(false);
-        }
+        });
     };
 
     const handleExportSelected = () => {
@@ -155,7 +159,16 @@ function SavedChats({ displayState }) {
             const file = event.target.files?.[0];
             if (!file) return;
             const text = await file.text();
-            let parsed = JSON.parse(text);
+            let parsed;
+            try {
+                parsed = JSON.parse(text);
+            } catch (parseErr) {
+                window.alert(
+                    "The selected file is not valid JSON. Please check the file format and try again.",
+                );
+                if (importInputRef.current) importInputRef.current.value = "";
+                return;
+            }
 
             // Normalize to an array of chats
             if (
@@ -166,7 +179,13 @@ function SavedChats({ displayState }) {
                 if (Array.isArray(parsed.chats)) parsed = parsed.chats;
                 else parsed = [parsed];
             }
-            if (!Array.isArray(parsed)) return;
+            if (!Array.isArray(parsed)) {
+                window.alert(
+                    "Unsupported JSON format. Provide a chat object, an array of chats, or an object with a 'chats' array.",
+                );
+                if (importInputRef.current) importInputRef.current.value = "";
+                return;
+            }
 
             for (const chat of parsed) {
                 try {
