@@ -97,6 +97,7 @@ export function useAddChat() {
                 queryClient.getQueryData(["activeChats"]) || [];
             const previousUserChatInfo =
                 queryClient.getQueryData(["userChatInfo"]) || {};
+            const previousChats = queryClient.getQueryData(["chats"]);
 
             // Create an optimistic chat entry
             const optimisticChat = temporaryNewChat(newChatData);
@@ -123,10 +124,22 @@ export function useAddChat() {
                     : [optimisticChat._id],
             });
 
+            // Optimistically add to chats infinite list (prepend to first page)
+            queryClient.setQueryData(["chats"], (old) => {
+                if (!old || !old.pages) return old;
+                return {
+                    ...old,
+                    pages: old.pages.map((page, idx) =>
+                        idx === 0 ? [optimisticChat, ...page] : page,
+                    ),
+                };
+            });
+
             // Return context for potential rollback
             return {
                 previousActiveChats,
                 previousUserChatInfo,
+                previousChats,
                 optimisticChatId: optimisticChat._id,
             };
         },
@@ -141,6 +154,9 @@ export function useAddChat() {
                     ["userChatInfo"],
                     context.previousUserChatInfo,
                 );
+                if (context.previousChats) {
+                    queryClient.setQueryData(["chats"], context.previousChats);
+                }
                 queryClient.removeQueries({
                     queryKey: ["chat", context.optimisticChatId],
                 });
@@ -272,6 +288,7 @@ export function useDeleteChat() {
                 queryClient.getQueryData(["activeChats"]) || [];
             const previousUserChatInfo =
                 queryClient.getQueryData(["userChatInfo"]) || {};
+            const previousChats = queryClient.getQueryData(["chats"]);
 
             const updatedActiveChats = previousActiveChats.filter(
                 (chat) => chat._id !== chatId,
@@ -294,7 +311,18 @@ export function useDeleteChat() {
             queryClient.setQueryData(["activeChats"], updatedActiveChats);
             queryClient.setQueryData(["userChatInfo"], updatedUserChatInfo);
 
-            return { previousActiveChats, previousUserChatInfo };
+            // Optimistically remove from chats infinite list
+            queryClient.setQueryData(["chats"], (old) => {
+                if (!old || !old.pages) return old;
+                return {
+                    ...old,
+                    pages: old.pages.map((page) =>
+                        page.filter((chat) => chat._id !== chatId),
+                    ),
+                };
+            });
+
+            return { previousActiveChats, previousUserChatInfo, previousChats };
         },
         onError: (err, variables, context) => {
             if (context?.previousActiveChats) {
@@ -308,6 +336,9 @@ export function useDeleteChat() {
                     ["userChatInfo"],
                     context.previousUserChatInfo,
                 );
+            }
+            if (context?.previousChats) {
+                queryClient.setQueryData(["chats"], context.previousChats);
             }
         },
         onSuccess: () => {

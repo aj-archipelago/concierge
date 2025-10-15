@@ -14,9 +14,12 @@ import {
     UserCircle,
     Trash2,
     Plus,
+    Download,
+    Upload,
+    CheckSquare,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useInView } from "react-intersection-observer";
 import Loader from "../../../app/components/loader";
@@ -71,6 +74,119 @@ function SavedChats({ displayState }) {
     const [editedName, setEditedName] = useState("");
     const { language } = i18next;
     const [deleteChatId, setDeleteChatId] = useState(null);
+    const [selectMode, setSelectMode] = useState(false);
+    const [selectedIds, setSelectedIds] = useState(new Set());
+    const [isBulkDialogOpen, setIsBulkDialogOpen] = useState(false);
+    const importInputRef = useRef(null);
+
+    const allChats = useMemo(() => {
+        try {
+            const pages = data?.pages || [];
+            return pages.flat().filter(Boolean);
+        } catch (e) {
+            return [];
+        }
+    }, [data]);
+
+    const toggleSelect = (chatId) => {
+        if (!chatId) return;
+        setSelectedIds((prev) => {
+            const next = new Set(prev);
+            if (next.has(chatId)) {
+                next.delete(chatId);
+            } else {
+                next.add(chatId);
+            }
+            return next;
+        });
+    };
+
+    const handleBulkDelete = async () => {
+        try {
+            const ids = Array.from(selectedIds);
+            for (const id of ids) {
+                // sequential to avoid race conditions and repeated invalidations overlapping
+                // existing useDeleteChat handles optimistic updates and cache invalidations
+                // eslint-disable-next-line no-await-in-loop
+                await deleteChat.mutateAsync({ chatId: id });
+            }
+        } catch (error) {
+            console.error("Failed to bulk delete chats", error);
+        } finally {
+            setIsBulkDialogOpen(false);
+            setSelectedIds(new Set());
+            setSelectMode(false);
+        }
+    };
+
+    const handleExportSelected = () => {
+        try {
+            const byId = new Map(allChats.map((c) => [String(c._id), c]));
+            const selected = Array.from(selectedIds)
+                .map((id) => byId.get(String(id)))
+                .filter(Boolean);
+            if (selected.length === 0) return;
+
+            const now = new Date();
+            const stamp = now.toISOString().replace(/[:T]/g, "-").split(".")[0];
+            const blob = new Blob([JSON.stringify(selected, null, 2)], {
+                type: "application/json",
+            });
+            const a = document.createElement("a");
+            a.href = URL.createObjectURL(blob);
+            a.download = `chats-export-${stamp}.json`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(a.href);
+        } catch (err) {
+            console.error("Failed to export chats:", err);
+        }
+    };
+
+    const handleImportClick = () => {
+        if (importInputRef.current) {
+            importInputRef.current.click();
+        }
+    };
+
+    const handleImportFile = async (event) => {
+        try {
+            const file = event.target.files?.[0];
+            if (!file) return;
+            const text = await file.text();
+            let parsed = JSON.parse(text);
+
+            // Normalize to an array of chats
+            if (
+                parsed &&
+                typeof parsed === "object" &&
+                !Array.isArray(parsed)
+            ) {
+                if (Array.isArray(parsed.chats)) parsed = parsed.chats;
+                else parsed = [parsed];
+            }
+            if (!Array.isArray(parsed)) return;
+
+            for (const chat of parsed) {
+                try {
+                    await addChat.mutateAsync({
+                        messages: Array.isArray(chat?.messages)
+                            ? chat.messages
+                            : [],
+                        title:
+                            typeof chat?.title === "string" ? chat.title : "",
+                    });
+                } catch (e) {
+                    console.error("Failed to import one chat:", e);
+                }
+            }
+
+            if (importInputRef.current) importInputRef.current.value = "";
+        } catch (err) {
+            console.error("Failed to import chats:", err);
+        }
+    };
 
     const categorizedChats = useMemo(() => {
         const categories = {
@@ -149,104 +265,122 @@ function SavedChats({ displayState }) {
                             className="flex flex-col group text-start p-4 border rounded-lg relative min-h-[135px] overflow-auto"
                         >
                             <div className="flex justify-between mb-2 w-full">
-                                {chat._id && editingId === chat._id ? (
-                                    <input
-                                        autoFocus
-                                        type="text"
-                                        className="font-semibold underline focus:ring-0 text-md relative w-full p-0 bg-transparent border-0 ring-0 grow"
-                                        value={editedName}
-                                        onChange={(e) =>
-                                            setEditedName(e.target.value)
-                                        }
-                                        onBlur={() => {
-                                            handleSaveEdit(chat);
-                                        }}
-                                        onKeyDown={(e) => {
-                                            if (e.key === "Enter") {
+                                <div className="flex items-start gap-2 w-full">
+                                    {selectMode && (
+                                        <input
+                                            type="checkbox"
+                                            checked={selectedIds.has(chat._id)}
+                                            onChange={() =>
+                                                toggleSelect(chat._id)
+                                            }
+                                            onClick={(e) => e.stopPropagation()}
+                                            className="mt-1"
+                                        />
+                                    )}
+                                    {chat._id && editingId === chat._id ? (
+                                        <input
+                                            autoFocus
+                                            type="text"
+                                            className="font-semibold underline focus:ring-0 text-md relative w-full p-0 bg-transparent border-0 ring-0 grow"
+                                            value={editedName}
+                                            onChange={(e) =>
+                                                setEditedName(e.target.value)
+                                            }
+                                            onBlur={() => {
                                                 handleSaveEdit(chat);
-                                            }
-                                            if (e.key === "Escape") {
-                                                setEditingId(null);
-                                            }
-                                        }}
-                                    />
-                                ) : (
-                                    <h3
-                                        onClick={async () => {
-                                            if (editingId !== chat._id) {
-                                                try {
-                                                    const chatId = chat._id;
-                                                    if (
-                                                        !chatId ||
-                                                        !isValidObjectId(chatId)
-                                                    )
-                                                        return;
-                                                    await setActiveChatId.mutateAsync(
-                                                        chatId,
-                                                    );
-                                                    router.push(
-                                                        `/chat/${chatId}`,
-                                                    );
-                                                } catch (error) {
-                                                    console.error(
-                                                        "Failed to set active chat ID:",
-                                                        error,
-                                                        chat,
-                                                    );
+                                            }}
+                                            onKeyDown={(e) => {
+                                                if (e.key === "Enter") {
+                                                    handleSaveEdit(chat);
                                                 }
-                                            }
-                                        }}
-                                        className="font-semibold text-md relative grow text-start hover:text-sky-500 cursor-pointer"
-                                    >
-                                        {t(chat.title) || t("New Chat")}
-                                    </h3>
-                                )}
-                                <div
-                                    className={classNames(
-                                        editingId === chat._id
-                                            ? "flex"
-                                            : "hidden sm:group-hover:flex",
-                                        "items-center gap-1 -mt-5 -me-2",
-                                    )}
-                                >
-                                    {editingId === chat._id ? (
-                                        <button
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                setEditingId(null);
+                                                if (e.key === "Escape") {
+                                                    setEditingId(null);
+                                                }
                                             }}
-                                            className="text-gray-400 hover:text-gray-700"
-                                        >
-                                            <XIcon className="h-3 w-3" />
-                                        </button>
+                                        />
                                     ) : (
-                                        <button
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                setEditingId(chat._id);
-                                                setEditedName(chat.title);
+                                        <h3
+                                            onClick={async () => {
+                                                if (selectMode) return; // disable navigation during multiselect
+                                                if (editingId !== chat._id) {
+                                                    try {
+                                                        const chatId = chat._id;
+                                                        if (
+                                                            !chatId ||
+                                                            !isValidObjectId(
+                                                                chatId,
+                                                            )
+                                                        )
+                                                            return;
+                                                        await setActiveChatId.mutateAsync(
+                                                            chatId,
+                                                        );
+                                                        router.push(
+                                                            `/chat/${chatId}`,
+                                                        );
+                                                    } catch (error) {
+                                                        console.error(
+                                                            "Failed to set active chat ID:",
+                                                            error,
+                                                            chat,
+                                                        );
+                                                    }
+                                                }
                                             }}
-                                            className="text-gray-400 hover:text-gray-700"
+                                            className="font-semibold text-md relative grow text-start hover:text-sky-500 cursor-pointer"
                                         >
-                                            <EditIcon className="h-3 w-3" />
-                                        </button>
+                                            {t(chat.title) || t("New Chat")}
+                                        </h3>
                                     )}
-                                    <button
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            setDeleteChatId(chat._id);
-                                        }}
+                                </div>
+                                {!selectMode && (
+                                    <div
                                         className={classNames(
-                                            "text-gray-400 hover:text-red-500",
                                             editingId === chat._id
-                                                ? "hidden"
-                                                : "block",
+                                                ? "flex"
+                                                : "hidden sm:group-hover:flex",
+                                            "items-center gap-1 -mt-5 -me-2",
                                         )}
                                     >
-                                        <Trash2 className="h-3 w-3 flex-shrink-0" />
-                                    </button>
-                                </div>
-                                {editingId !== chat._id && (
+                                        {editingId === chat._id ? (
+                                            <button
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    setEditingId(null);
+                                                }}
+                                                className="text-gray-400 hover:text-gray-700"
+                                            >
+                                                <XIcon className="h-3 w-3" />
+                                            </button>
+                                        ) : (
+                                            <button
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    setEditingId(chat._id);
+                                                    setEditedName(chat.title);
+                                                }}
+                                                className="text-gray-400 hover:text-gray-700"
+                                            >
+                                                <EditIcon className="h-3 w-3" />
+                                            </button>
+                                        )}
+                                        <button
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                setDeleteChatId(chat._id);
+                                            }}
+                                            className={classNames(
+                                                "text-gray-400 hover:text-red-500",
+                                                editingId === chat._id
+                                                    ? "hidden"
+                                                    : "block",
+                                            )}
+                                        >
+                                            <Trash2 className="h-3 w-3 flex-shrink-0" />
+                                        </button>
+                                    </div>
+                                )}
+                                {!selectMode && editingId !== chat._id && (
                                     <div className="block sm:hidden -me-2 -mt-2">
                                         <DropdownMenu>
                                             <DropdownMenuTrigger className="">
@@ -255,7 +389,7 @@ function SavedChats({ displayState }) {
                                             <DropdownMenuContent>
                                                 {/* add Edit and taxonomy options here */}
                                                 <DropdownMenuItem
-                                                    className="text-sm"
+                                                    className="text-sm flex items-center gap-2"
                                                     onClick={() => {
                                                         setEditingId(chat._id);
                                                         setEditedName(
@@ -263,10 +397,11 @@ function SavedChats({ displayState }) {
                                                         );
                                                     }}
                                                 >
+                                                    <EditIcon className="h-3 w-3" />
                                                     {t("Edit title")}
                                                 </DropdownMenuItem>
                                                 <DropdownMenuItem
-                                                    className="text-sm"
+                                                    className="text-sm flex items-center gap-2"
                                                     onClick={(e) => {
                                                         e.stopPropagation();
                                                         setDeleteChatId(
@@ -274,6 +409,7 @@ function SavedChats({ displayState }) {
                                                         );
                                                     }}
                                                 >
+                                                    <Trash2 className="h-3 w-3" />
                                                     {t("Delete chat")}
                                                 </DropdownMenuItem>
                                             </DropdownMenuContent>
@@ -352,7 +488,9 @@ function SavedChats({ displayState }) {
     }
 
     return (
-        <div className={`${isDocked ? "text-xs" : ""} pb-4`}>
+        <div
+            className={`${isDocked ? "text-xs" : ""} pb-4 ${selectMode ? "pb-24" : ""}`}
+        >
             <div className="mb-4">
                 <div className="flex justify-between items-center">
                     <div>
@@ -365,13 +503,69 @@ function SavedChats({ displayState }) {
                         </div>
                     </div>
 
-                    <button
-                        onClick={handleCreateNewChat}
-                        className="lb-primary flex items-center gap-2 "
-                    >
-                        <Plus className="h-4 w-4" />
-                        {t("New Chat")}
-                    </button>
+                    <div className="flex items-center gap-2">
+                        {!selectMode ? (
+                            <>
+                                <button
+                                    onClick={() => setSelectMode(true)}
+                                    className="lb-outline flex items-center gap-2"
+                                >
+                                    <CheckSquare className="h-4 w-4" />
+                                    {t("Select")}
+                                </button>
+                                <input
+                                    ref={importInputRef}
+                                    type="file"
+                                    accept="application/json"
+                                    className="hidden"
+                                    onChange={handleImportFile}
+                                />
+                                <button
+                                    onClick={handleImportClick}
+                                    className="lb-outline-secondary font-medium flex items-center gap-2"
+                                >
+                                    <Upload className="h-4 w-4" />
+                                    {t("Import JSON")}
+                                </button>
+                                <button
+                                    onClick={handleCreateNewChat}
+                                    className="lb-primary flex items-center gap-2 "
+                                >
+                                    <Plus className="h-4 w-4" />
+                                    {t("New Chat")}
+                                </button>
+                            </>
+                        ) : (
+                            <>
+                                <button
+                                    onClick={handleExportSelected}
+                                    disabled={selectedIds.size === 0}
+                                    className="lb-secondary font-medium flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                    <Download className="h-4 w-4" />
+                                    {t("Export JSON")} ({selectedIds.size})
+                                </button>
+                                <button
+                                    onClick={() => setIsBulkDialogOpen(true)}
+                                    disabled={selectedIds.size === 0}
+                                    className="lb-outline-danger flex items-center gap-2 disabled:cursor-not-allowed"
+                                >
+                                    <Trash2 className="h-4 w-4" />
+                                    {t("Delete")} ({selectedIds.size})
+                                </button>
+                                <button
+                                    onClick={() => {
+                                        setSelectMode(false);
+                                        setSelectedIds(new Set());
+                                    }}
+                                    className="lb-outline flex items-center gap-2"
+                                >
+                                    <XIcon className="h-4 w-4" />
+                                    {t("Cancel")}
+                                </button>
+                            </>
+                        )}
+                    </div>
                 </div>
             </div>
             <div className="chats">
@@ -418,9 +612,74 @@ function SavedChats({ displayState }) {
                         <AlertDialogCancel>{t("Cancel")}</AlertDialogCancel>
                         <AlertDialogAction
                             autoFocus
+                            className="lb-danger dark:bg-rose-600 dark:hover:bg-rose-700 dark:text-white"
                             onClick={() => handleDelete(deleteChatId)}
                         >
                             {t("Delete")}
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+
+            {selectMode && (
+                <div className="fixed bottom-4 left-0 right-0 z-40 flex justify-center pointer-events-none">
+                    <div className="pointer-events-auto bg-white dark:bg-gray-900 border rounded-md shadow-md px-3 py-2 flex items-center gap-2">
+                        <span className="text-sm">
+                            {t("Selected")} {selectedIds.size}
+                        </span>
+                        <button
+                            onClick={handleExportSelected}
+                            disabled={selectedIds.size === 0}
+                            className="lb-secondary flex items-center gap-2 disabled:cursor-not-allowed"
+                        >
+                            <Download className="h-4 w-4" />
+                            {t("Export JSON")}
+                        </button>
+                        <button
+                            onClick={() => setIsBulkDialogOpen(true)}
+                            disabled={selectedIds.size === 0}
+                            className="lb-danger flex items-center gap-2 disabled:cursor-not-allowed"
+                        >
+                            <Trash2 className="h-4 w-4" />
+                            {t("Delete")}
+                        </button>
+                        <button
+                            onClick={() => {
+                                setSelectMode(false);
+                                setSelectedIds(new Set());
+                            }}
+                            className="lb-outline flex items-center gap-2"
+                        >
+                            <XIcon className="h-4 w-4" />
+                            {t("Cancel")}
+                        </button>
+                    </div>
+                </div>
+            )}
+
+            <AlertDialog
+                open={isBulkDialogOpen}
+                onOpenChange={setIsBulkDialogOpen}
+            >
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>
+                            {t("Delete selected chats?")}
+                        </AlertDialogTitle>
+                        <AlertDialogDescription>
+                            {t(
+                                "Are you sure you want to delete the selected chats? This action cannot be undone.",
+                            )}
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>{t("Cancel")}</AlertDialogCancel>
+                        <AlertDialogAction
+                            autoFocus
+                            className="lb-danger dark:bg-rose-600 dark:hover:bg-rose-700 dark:text-white"
+                            onClick={handleBulkDelete}
+                        >
+                            {t("Delete")} ({selectedIds.size})
                         </AlertDialogAction>
                     </AlertDialogFooter>
                 </AlertDialogContent>
