@@ -77,6 +77,7 @@ function SavedChats({ displayState }) {
     const [selectMode, setSelectMode] = useState(false);
     const [selectedIds, setSelectedIds] = useState(new Set());
     const [isBulkDialogOpen, setIsBulkDialogOpen] = useState(false);
+    const stickyExportButtonRef = useRef(null);
     const importInputRef = useRef(null);
 
     const allChats = useMemo(() => {
@@ -119,9 +120,19 @@ function SavedChats({ displayState }) {
                     "Failed to bulk delete chats:",
                     failed.map((f) => f.reason || f),
                 );
+                window.alert(
+                    `${ids.length - failed.length} of ${ids.length} chats deleted. ${failed.length} failed.`,
+                );
             }
         });
     };
+
+    // Improve keyboard experience: focus the sticky Export button when entering select mode
+    useEffect(() => {
+        if (selectMode && stickyExportButtonRef.current) {
+            stickyExportButtonRef.current.focus();
+        }
+    }, [selectMode]);
 
     const handleExportSelected = () => {
         try {
@@ -164,7 +175,7 @@ function SavedChats({ displayState }) {
                 parsed = JSON.parse(text);
             } catch (parseErr) {
                 window.alert(
-                    "The selected file is not valid JSON. Please check the file format and try again.",
+                    "The selected file is not valid JSON. The file should contain either a chat object, an array of chats, or an object with a 'chats' array. Please check the file format and try again.",
                 );
                 if (importInputRef.current) importInputRef.current.value = "";
                 return;
@@ -181,7 +192,7 @@ function SavedChats({ displayState }) {
             }
             if (!Array.isArray(parsed)) {
                 window.alert(
-                    "Unsupported JSON format. Provide a chat object, an array of chats, or an object with a 'chats' array.",
+                    'The file format is not supported. Please upload a file exported from this app, or a file containing your chats in JSON format. For example:\n\n[\n  { "title": "Chat Title", "messages": [ ... ] }\n]',
                 );
                 if (importInputRef.current) importInputRef.current.value = "";
                 return;
@@ -641,12 +652,17 @@ function SavedChats({ displayState }) {
             </AlertDialog>
 
             {selectMode && (
-                <div className="fixed bottom-4 left-0 right-0 z-40 flex justify-center pointer-events-none">
+                <div
+                    className="fixed bottom-4 left-0 right-0 z-40 flex justify-center pointer-events-none"
+                    role="region"
+                    aria-label="Bulk actions"
+                >
                     <div className="pointer-events-auto bg-white dark:bg-gray-900 border rounded-md shadow-md px-3 py-2 flex items-center gap-2">
                         <span className="text-sm">
                             {t("Selected")} {selectedIds.size}
                         </span>
                         <button
+                            ref={stickyExportButtonRef}
                             onClick={handleExportSelected}
                             disabled={selectedIds.size === 0}
                             className="lb-secondary flex items-center gap-2 disabled:cursor-not-allowed"

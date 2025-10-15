@@ -70,6 +70,9 @@ function temporaryNewChat({ messages, title }) {
         _id: tempId,
         messages: messages || [],
         title: title || "",
+        // Ensure optimistic items categorize correctly and display timestamps
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
         isTemporary: true,
     };
 }
@@ -183,6 +186,30 @@ export function useAddChat() {
                             chat._id !== serverChat._id,
                     ),
                 ];
+            });
+
+            // Update chats infinite list immediately to replace optimistic
+            queryClient.setQueryData(["chats"], (old) => {
+                if (!old || !old.pages) return old;
+                return {
+                    ...old,
+                    pages: old.pages.map((page, idx) =>
+                        idx === 0
+                            ? [
+                                  serverChat,
+                                  ...page.filter(
+                                      (c) =>
+                                          c._id !== context?.optimisticChatId &&
+                                          c._id !== serverChat._id,
+                                  ),
+                              ]
+                            : page.map((c) =>
+                                  c._id === context?.optimisticChatId
+                                      ? serverChat
+                                      : c,
+                              ),
+                    ),
+                };
             });
 
             // Update the userChatInfo with the actual chat ID
