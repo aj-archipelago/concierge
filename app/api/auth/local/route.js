@@ -1,6 +1,13 @@
 import { NextResponse } from "next/server";
 import { v4 as uuidv4 } from "uuid";
 
+const IS_PRODUCTION = process.env.NODE_ENV === "production";
+const ONE_HOUR_SECONDS = 60 * 60;
+const ONE_DAY_SECONDS = 24 * 60 * 60;
+const LOCAL_AUTH_TTL_SECONDS = IS_PRODUCTION
+    ? ONE_HOUR_SECONDS
+    : ONE_DAY_SECONDS;
+
 // Simulate Entra ID token structure more closely
 const createMockToken = (email) => {
     const now = Math.floor(Date.now() / 1000);
@@ -9,8 +16,8 @@ const createMockToken = (email) => {
     return {
         access_token: `mock_token_${uuidv4()}`,
         token_type: "Bearer",
-        expires_in: 3600, // 1 hour
-        expires_at: now + 3600,
+        expires_in: LOCAL_AUTH_TTL_SECONDS,
+        expires_at: now + LOCAL_AUTH_TTL_SECONDS,
         user: {
             id: userId,
             email: email,
@@ -79,9 +86,9 @@ export async function POST(request) {
 
         response.cookies.set("local_auth_token", JSON.stringify(token), {
             httpOnly: true,
-            secure: process.env.NODE_ENV === "production",
+            secure: IS_PRODUCTION,
             sameSite: "lax",
-            maxAge: 3600, // 1 hour - match Entra session duration
+            maxAge: LOCAL_AUTH_TTL_SECONDS,
         });
 
         return response;
