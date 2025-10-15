@@ -122,18 +122,13 @@ function SavedChats({ displayState }) {
                 .filter((e) => e.r.status === "rejected");
             if (failedEntries.length > 0) {
                 const failedIds = failedEntries.map((e) => ids[e.index]);
-                const byId = new Map(
-                    allChats.map((c) => [String(c._id), c]),
-                );
+                const byId = new Map(allChats.map((c) => [String(c._id), c]));
                 const failedLabels = failedIds.map((id) => {
                     const chat = byId.get(String(id));
                     const title = chat?.title && String(chat.title).trim();
                     return title ? `"${title}"` : String(id);
                 });
-                console.error(
-                    "Failed to bulk delete chats:",
-                    failedLabels,
-                );
+                console.error("Failed to bulk delete chats:", failedLabels);
                 window.alert(
                     `${ids.length - failedEntries.length} of ${ids.length} chats deleted. Failed: ${failedLabels.join(", ")}. You can try again.`,
                 );
