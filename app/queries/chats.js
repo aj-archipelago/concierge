@@ -191,23 +191,25 @@ export function useAddChat() {
             // Update chats infinite list immediately to replace optimistic
             queryClient.setQueryData(["chats"], (old) => {
                 if (!old || !old.pages) return old;
+
+                const updateChatsPages = (pages, confirmedChat, optimisticId) => {
+                    return pages.map((page, idx) => {
+                        if (idx === 0) {
+                            const filtered = page.filter(
+                                (c) => c._id !== optimisticId && c._id !== confirmedChat._id,
+                            );
+                            return [confirmedChat, ...filtered];
+                        }
+                        return page.map((c) => (c._id === optimisticId ? confirmedChat : c));
+                    });
+                };
+
                 return {
                     ...old,
-                    pages: old.pages.map((page, idx) =>
-                        idx === 0
-                            ? [
-                                  serverChat,
-                                  ...page.filter(
-                                      (c) =>
-                                          c._id !== context?.optimisticChatId &&
-                                          c._id !== serverChat._id,
-                                  ),
-                              ]
-                            : page.map((c) =>
-                                  c._id === context?.optimisticChatId
-                                      ? serverChat
-                                      : c,
-                              ),
+                    pages: updateChatsPages(
+                        old.pages,
+                        serverChat,
+                        context?.optimisticChatId,
                     ),
                 };
             });

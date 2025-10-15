@@ -46,6 +46,9 @@ import {
 
 dayjs.extend(relativeTime);
 
+// Extra bottom padding used when sticky bulk actions are visible
+const STICKY_ACTIONS_PADDING_CLASS = "pb-24";
+
 const CATEGORIES = {
     today: "Today",
     yesterday: "Yesterday",
@@ -519,7 +522,7 @@ function SavedChats({ displayState }) {
 
     return (
         <div
-            className={`${isDocked ? "text-xs" : ""} pb-4 ${selectMode ? "pb-24" : ""}`}
+            className={`${isDocked ? "text-xs" : ""} pb-4 ${selectMode ? STICKY_ACTIONS_PADDING_CLASS : ""}`}
         >
             <div className="mb-4">
                 <div className="flex justify-between items-center">
