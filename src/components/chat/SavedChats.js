@@ -297,11 +297,8 @@ function SavedChats({ displayState }) {
 
     useEffect(() => {
         dataRef.current = data;
-    }, [data]);
-
-    useEffect(() => {
         searchResultsRef.current = searchResults;
-    }, [searchResults]);
+    }, [data, searchResults]);
 
     useEffect(() => {
         // Clear any existing timeout
@@ -372,7 +369,7 @@ function SavedChats({ displayState }) {
                 clearTimeout(searchTimeoutRef.current);
             }
         };
-    }, [searchQuery, isSearching]); // Effect depends on searchQuery and isSearching; both may change frequently
+    }, [searchQuery]); // Effect depends on searchQuery; avoid frequent re-runs on isSearching changes
 
     const categorizedChats = useMemo(() => {
         const categories = {
@@ -790,7 +787,7 @@ function SavedChats({ displayState }) {
                             }
                         }}
                         className="pl-10"
-                        maxLength={100}
+                        maxLength={MAX_SEARCH_QUERY_LENGTH}
                     />
                 </div>
             </div>
