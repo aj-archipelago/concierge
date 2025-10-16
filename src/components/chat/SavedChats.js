@@ -95,6 +95,8 @@ function SavedChats({ displayState }) {
         description: "",
     });
 
+    const getChatIdString = (id) => (typeof id === "string" ? id : String(id));
+
     const showNotice = (title, description) =>
         setNoticeDialog({ open: true, title, description });
 
@@ -137,11 +139,13 @@ function SavedChats({ displayState }) {
                 .filter((e) => e.r.status === "rejected");
             if (failedEntries.length > 0) {
                 const failedIds = failedEntries.map((e) => ids[e.index]);
-                const byId = new Map(allChats.map((c) => [String(c._id), c]));
+                const byId = new Map(
+                    allChats.map((c) => [getChatIdString(c._id), c]),
+                );
                 const failedLabels = failedIds.map((id) => {
-                    const chat = byId.get(String(id));
+                    const chat = byId.get(getChatIdString(id));
                     const title = chat?.title && String(chat.title).trim();
-                    return title ? `"${title}"` : String(id);
+                    return title ? `"${title}"` : getChatIdString(id);
                 });
                 console.error("Failed to bulk delete chats:", failedLabels);
                 showNotice(
@@ -168,9 +172,11 @@ function SavedChats({ displayState }) {
 
     const handleExportSelected = () => {
         try {
-            const byId = new Map(allChats.map((c) => [String(c._id), c]));
+            const byId = new Map(
+                allChats.map((c) => [getChatIdString(c._id), c]),
+            );
             const selected = Array.from(selectedIds)
-                .map((id) => byId.get(String(id)))
+                .map((id) => byId.get(getChatIdString(id)))
                 .filter(Boolean);
             if (selected.length === 0) return;
 
@@ -307,14 +313,16 @@ function SavedChats({ displayState }) {
                 try {
                     // Search through loaded chats with performance optimizations
                     const allLoadedChats = dataRef.current.pages.flat();
-                    const titleIds = (searchResultsRef.current || []).map(
-                        (chat) => chat._id,
+                    const titleIdSet = new Set(
+                        (searchResultsRef.current || []).map(
+                            (chat) => chat._id,
+                        ),
                     );
                     const lowerSearchQuery = searchQuery.toLowerCase();
 
                     // Search through expanded dataset (auto-loaded up to 200 chats)
                     const chatsToSearch = allLoadedChats.filter(
-                        (chat) => !titleIds.includes(chat._id),
+                        (chat) => !titleIdSet.has(chat._id),
                     ); // Exclude title matches
 
                     const matches = chatsToSearch
@@ -341,7 +349,7 @@ function SavedChats({ displayState }) {
                 } finally {
                     setIsSearchingContent(false);
                 }
-            }, 300);
+            }, 200);
         } else if (searchQuery.length < 1) {
             setContentMatches([]);
             setIsSearchingContent(false);
