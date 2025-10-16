@@ -332,20 +332,23 @@ function SavedChats({ displayState }) {
                         (chat) => !titleIdSet.has(chat._id),
                     ); // Exclude title matches
 
-                    const matches = chatsToSearch
-                        .filter((chat) => {
-                            if (!chat.messages?.length) return false;
-
-                            // Search ALL messages in the chat for comprehensive results
-                            return chat.messages.some(
-                                (message) =>
-                                    typeof message.payload === "string" &&
-                                    message.payload
-                                        .toLowerCase()
-                                        .includes(lowerSearchQuery),
-                            );
-                        })
-                        .slice(0, MAX_CONTENT_SEARCH_RESULTS); // Limit results for better UX
+                    // Early termination: stop once enough matches are collected
+                    const matches = [];
+                    for (const chat of chatsToSearch) {
+                        if (!chat.messages?.length) continue;
+                        const hasMatch = chat.messages.some(
+                            (message) =>
+                                typeof message.payload === "string" &&
+                                message.payload
+                                    .toLowerCase()
+                                    .includes(lowerSearchQuery),
+                        );
+                        if (hasMatch) {
+                            matches.push(chat);
+                            if (matches.length >= MAX_CONTENT_SEARCH_RESULTS)
+                                break;
+                        }
+                    }
 
                     setContentMatches(matches);
                     setSearchError(null);
