@@ -1041,7 +1041,7 @@ function SavedChats({ displayState }) {
                                     onClick={handleExportSelected}
                                     disabled={selectedIds.size === 0}
                                     className="lb-secondary font-medium flex items-center gap-2 whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
-                                    aria-label={t("Export JSON")}
+                                    aria-label={`${t("Export JSON")} (${selectedIds.size})`}
                                 >
                                     <Download className="h-4 w-4" />
                                     <span className="hidden sm:inline">
@@ -1052,7 +1052,7 @@ function SavedChats({ displayState }) {
                                     onClick={() => setIsBulkDialogOpen(true)}
                                     disabled={selectedIds.size === 0}
                                     className="lb-outline-danger flex items-center gap-2 whitespace-nowrap disabled:cursor-not-allowed"
-                                    aria-label={t("Delete")}
+                                    aria-label={`${t("Delete")} (${selectedIds.size})`}
                                 >
                                     <Trash2 className="h-4 w-4" />
                                     <span className="hidden sm:inline">
@@ -1296,22 +1296,22 @@ function SavedChats({ displayState }) {
                             onClick={handleExportSelected}
                             disabled={selectedIds.size === 0}
                             className="lb-secondary flex items-center gap-2 whitespace-nowrap disabled:cursor-not-allowed"
-                            aria-label={t("Export JSON")}
+                            aria-label={`${t("Export JSON")} (${selectedIds.size})`}
                         >
                             <Download className="h-4 w-4" />
                             <span className="hidden sm:inline">
-                                {t("Export JSON")}
+                                {t("Export JSON")} ({selectedIds.size})
                             </span>
                         </button>
                         <button
                             onClick={() => setIsBulkDialogOpen(true)}
                             disabled={selectedIds.size === 0}
                             className="lb-danger flex items-center gap-2 whitespace-nowrap disabled:cursor-not-allowed"
-                            aria-label={t("Delete")}
+                            aria-label={`${t("Delete")} (${selectedIds.size})`}
                         >
                             <Trash2 className="h-4 w-4" />
                             <span className="hidden sm:inline">
-                                {t("Delete")}
+                                {t("Delete")} ({selectedIds.size})
                             </span>
                         </button>
                         <button
