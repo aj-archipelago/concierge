@@ -100,6 +100,7 @@ function SavedChats({ displayState }) {
         title: "",
         description: "",
     });
+    const [isBulkProcessing, setIsBulkProcessing] = useState(false);
 
     const getChatIdString = (id) => (typeof id === "string" ? id : String(id));
 
@@ -114,6 +115,11 @@ function SavedChats({ displayState }) {
             return [];
         }
     }, [data]);
+
+    const isAnyDialogOpen = useMemo(
+        () => isBulkDialogOpen || deleteChatId !== null || noticeDialog.open,
+        [isBulkDialogOpen, deleteChatId, noticeDialog.open],
+    );
 
     const toggleSelect = (chatId) => {
         if (!chatId) return;
@@ -131,27 +137,38 @@ function SavedChats({ displayState }) {
     const handleBulkDelete = async () => {
         const ids = Array.from(selectedIds);
 
-        // Close dialog and reset selection immediately for snappy UX
-        setIsBulkDialogOpen(false);
-        setSelectedIds(new Set());
-        setSelectMode(false);
+        // Capture chat titles BEFORE we start deleting to avoid dependency on reactive data
+        const chatTitlesById = new Map(
+            allChats.map((c) => [getChatIdString(c._id), c.title]),
+        );
 
-        // Fire deletions in parallel in the background; report failures with titles
-        Promise.allSettled(
-            ids.map((id) => deleteChat.mutateAsync({ chatId: id })),
-        ).then((settled) => {
-            const failedEntries = settled
-                .map((r, index) => ({ r, index }))
-                .filter((e) => e.r.status === "rejected");
-            if (failedEntries.length > 0) {
-                const failedIds = failedEntries.map((e) => ids[e.index]);
-                const byId = new Map(
-                    allChats.map((c) => [getChatIdString(c._id), c]),
-                );
+        // Close dialog first to avoid focus/presence loops during state updates
+        setIsBulkDialogOpen(false);
+
+        // Defer deletions until after dialog begins closing to reduce re-entrancy
+        setTimeout(async () => {
+            setIsBulkProcessing(true);
+            const failedIds = [];
+            for (const id of ids) {
+                try {
+                    // Run deletes sequentially to minimize re-renders/focus churn
+                    // eslint-disable-next-line no-await-in-loop
+                    await deleteChat.mutateAsync({ chatId: id });
+                } catch (e) {
+                    failedIds.push(id);
+                }
+            }
+
+            // Now reset selection state
+            setSelectedIds(new Set());
+            setSelectMode(false);
+
+            if (failedIds.length > 0) {
                 const failedLabels = failedIds.map((id) => {
-                    const chat = byId.get(getChatIdString(id));
-                    const title = chat?.title && String(chat.title).trim();
-                    return title ? `"${title}"` : getChatIdString(id);
+                    const title = chatTitlesById.get(getChatIdString(id));
+                    return title && String(title).trim()
+                        ? `"${title}"`
+                        : getChatIdString(id);
                 });
                 console.error("Failed to bulk delete chats:", failedLabels);
                 showNotice(
@@ -159,14 +176,15 @@ function SavedChats({ displayState }) {
                     t(
                         "Deleted {{success}} of {{total}} chats. Failed: {{failedList}}. You can try again.",
                         {
-                            success: ids.length - failedEntries.length,
+                            success: ids.length - failedIds.length,
                             total: ids.length,
                             failedList: failedLabels.join(", "),
                         },
                     ),
                 );
             }
-        });
+            setIsBulkProcessing(false);
+        }, 0);
     };
 
     // Improve keyboard experience: focus the sticky Export button when entering select mode
@@ -308,6 +326,10 @@ function SavedChats({ displayState }) {
     const [showContentSearching, setShowContentSearching] = useState(false);
     const contentSearchUiTimeoutRef = useRef(null);
     useEffect(() => {
+        if (isBulkProcessing) {
+            setShowContentSearching(false);
+            return;
+        }
         if (searchQuery && (isSearchingContentServer || isFetchingNextPage)) {
             setShowContentSearching(true);
             if (contentSearchUiTimeoutRef.current) {
@@ -335,7 +357,12 @@ function SavedChats({ displayState }) {
                 contentSearchUiTimeoutRef.current = null;
             }
         };
-    }, [searchQuery, isSearchingContentServer, isFetchingNextPage]);
+    }, [
+        searchQuery,
+        isSearchingContentServer,
+        isFetchingNextPage,
+        isBulkProcessing,
+    ]);
 
     // Get total chat count from database
     const { data: totalChatCount = 0 } = useTotalChatCount();
@@ -364,100 +391,134 @@ function SavedChats({ displayState }) {
     }, [data, searchResults]);
 
     useEffect(() => {
-        // Clear any existing timeout
         if (searchTimeoutRef.current) {
             clearTimeout(searchTimeoutRef.current);
+            searchTimeoutRef.current = null;
+        }
+
+        if (isBulkProcessing) {
+            setIsSearchingContent((prev) => (prev ? false : prev));
+            return;
         }
 
         if (
-            searchQuery.length >= MIN_SEARCH_QUERY_LENGTH &&
-            !isSearching &&
-            dataRef.current?.pages
+            searchQuery.length < MIN_SEARCH_QUERY_LENGTH ||
+            !dataRef.current?.pages
         ) {
-            setIsSearchingContent(true);
-
-            // Debounce the content search
-            searchTimeoutRef.current = setTimeout(() => {
-                // Clear the timeout reference to prevent overlaps before executing
-                if (searchTimeoutRef.current) {
-                    clearTimeout(searchTimeoutRef.current);
-                    searchTimeoutRef.current = null;
-                }
-                try {
-                    // Search through loaded chats with performance optimizations
-                    const allLoadedChats = Array.isArray(dataRef.current?.pages)
-                        ? dataRef.current.pages.flat()
-                        : [];
-                    const titleIdSet = new Set(
-                        (searchResultsRef.current || []).map((chat) =>
-                            getChatIdString(chat?._id),
-                        ),
-                    );
-                    const lowerSearchQuery = searchQuery.toLowerCase();
-
-                    // If we haven't loaded enough chats yet, try to auto-load more for deeper content search
-                    const totalLoaded = allLoadedChats.length;
-                    if (
-                        searchQuery.length >= MIN_SEARCH_QUERY_LENGTH &&
-                        hasNextPage &&
-                        totalLoaded < MAX_AUTOLOAD_CHATS_FOR_CONTENT_SEARCH &&
-                        !isFetchingNextPage
-                    ) {
-                        if (!autoLoadFetchInProgressRef.current) {
-                            autoLoadFetchInProgressRef.current = true;
-                            fetchNextPage().finally(() => {
-                                autoLoadFetchInProgressRef.current = false;
-                            });
-                        }
-                        return; // wait for additional data; effect will re-run
-                    }
-
-                    // Search through expanded dataset (auto-loaded up to 200 chats)
-                    const chatsToSearch = allLoadedChats.filter((chat) => {
-                        const id = getChatIdString(chat?._id);
-                        return id && !titleIdSet.has(id);
-                    }); // Exclude title matches
-
-                    // Early termination: stop once enough matches are collected
-                    const matches = [];
-                    for (const chat of chatsToSearch) {
-                        if (!chat.messages?.length) continue;
-                        const hasMatch = chat.messages.some(
-                            (message) =>
-                                typeof message.payload === "string" &&
-                                message.payload
-                                    .toLowerCase()
-                                    .includes(lowerSearchQuery),
-                        );
-                        if (hasMatch) {
-                            matches.push(chat);
-                            if (matches.length >= MAX_CONTENT_SEARCH_RESULTS)
-                                break;
-                        }
-                    }
-
-                    setContentMatches(matches);
-                    setSearchError(null);
-                } catch (error) {
-                    console.error("Content search error:", error);
-                    setSearchError(error.message);
-                    setContentMatches([]);
-                } finally {
-                    setIsSearchingContent(false);
-                }
-            }, CONTENT_SEARCH_DEBOUNCE_MS);
-        } else if (searchQuery.length < MIN_SEARCH_QUERY_LENGTH) {
-            setContentMatches([]);
-            setIsSearchingContent(false);
-            setSearchError(null);
+            setContentMatches((prev) => (prev.length ? [] : prev));
+            setSearchError((prev) => (prev ? null : prev));
+            setIsSearchingContent((prev) => (prev ? false : prev));
+            return;
         }
+
+        if (isSearching) {
+            return;
+        }
+
+        setIsSearchingContent((prev) => (prev ? prev : true));
+
+        const runSearch = () => {
+            if (searchTimeoutRef.current) {
+                clearTimeout(searchTimeoutRef.current);
+                searchTimeoutRef.current = null;
+            }
+            try {
+                const allLoadedChats = Array.isArray(dataRef.current?.pages)
+                    ? dataRef.current.pages.flat()
+                    : [];
+                const titleIdSet = new Set(
+                    (searchResultsRef.current || []).map((chat) =>
+                        getChatIdString(chat?._id),
+                    ),
+                );
+                const lowerSearchQuery = searchQuery.toLowerCase();
+
+                const totalLoaded = allLoadedChats.length;
+                if (
+                    hasNextPage &&
+                    totalLoaded < MAX_AUTOLOAD_CHATS_FOR_CONTENT_SEARCH &&
+                    !isFetchingNextPage
+                ) {
+                    if (!autoLoadFetchInProgressRef.current) {
+                        autoLoadFetchInProgressRef.current = true;
+                        fetchNextPage().finally(() => {
+                            autoLoadFetchInProgressRef.current = false;
+                        });
+                    }
+                    return;
+                }
+
+                const chatsToSearch = allLoadedChats.filter((chat) => {
+                    const id = getChatIdString(chat?._id);
+                    return id && !titleIdSet.has(id);
+                });
+
+                const matches = [];
+                for (const chat of chatsToSearch) {
+                    if (!chat.messages?.length) continue;
+                    const hasMatch = chat.messages.some(
+                        (message) =>
+                            typeof message.payload === "string" &&
+                            message.payload
+                                .toLowerCase()
+                                .includes(lowerSearchQuery),
+                    );
+                    if (hasMatch) {
+                        matches.push(chat);
+                        if (matches.length >= MAX_CONTENT_SEARCH_RESULTS) break;
+                    }
+                }
+
+                setContentMatches((prev) => {
+                    if (prev.length === matches.length) {
+                        let identical = true;
+                        for (let i = 0; i < prev.length; i += 1) {
+                            const prevId = getChatIdString(prev[i]?._id);
+                            const nextId = getChatIdString(matches[i]?._id);
+                            if (prevId !== nextId) {
+                                identical = false;
+                                break;
+                            }
+                        }
+                        if (identical) {
+                            return prev;
+                        }
+                    }
+                    return matches;
+                });
+                setSearchError((prev) => (prev ? null : prev));
+            } catch (error) {
+                console.error("Content search error:", error);
+                setSearchError((prev) =>
+                    prev === error.message ? prev : error.message,
+                );
+                setContentMatches((prev) => (prev.length ? [] : prev));
+            } finally {
+                setIsSearchingContent((prev) => (prev ? false : prev));
+            }
+        };
+
+        searchTimeoutRef.current = setTimeout(
+            runSearch,
+            CONTENT_SEARCH_DEBOUNCE_MS,
+        );
 
         return () => {
             if (searchTimeoutRef.current) {
                 clearTimeout(searchTimeoutRef.current);
+                searchTimeoutRef.current = null;
             }
         };
-    }, [searchQuery, data, searchResults]); // Re-run when dataset or search query changes
+    }, [
+        searchQuery,
+        data,
+        searchResults,
+        isBulkProcessing,
+        isSearching,
+        hasNextPage,
+        isFetchingNextPage,
+        fetchNextPage,
+    ]);
 
     const categorizedChats = useMemo(() => {
         const categories = {
@@ -502,6 +563,7 @@ function SavedChats({ displayState }) {
 
     const handleDelete = async (chatId) => {
         try {
+            if (isBulkProcessing) return;
             if (!chatId) return;
             await deleteChat.mutateAsync({ chatId });
             setDeleteChatId(null);
@@ -604,7 +666,7 @@ function SavedChats({ displayState }) {
                                         </h3>
                                     )}
                                 </div>
-                                {!selectMode && (
+                                {!selectMode && !isAnyDialogOpen && (
                                     <div
                                         className={classNames(
                                             editingId === chat._id
@@ -651,42 +713,46 @@ function SavedChats({ displayState }) {
                                         </button>
                                     </div>
                                 )}
-                                {!selectMode && editingId !== chat._id && (
-                                    <div className="block sm:hidden -me-2 -mt-2">
-                                        <DropdownMenu>
-                                            <DropdownMenuTrigger className="">
-                                                <MoreVertical className="h-3 w-3 text-gray-400" />
-                                            </DropdownMenuTrigger>
-                                            <DropdownMenuContent>
-                                                {/* add Edit and taxonomy options here */}
-                                                <DropdownMenuItem
-                                                    className="text-sm flex items-center gap-2"
-                                                    onClick={() => {
-                                                        setEditingId(chat._id);
-                                                        setEditedName(
-                                                            chat.title,
-                                                        );
-                                                    }}
-                                                >
-                                                    <EditIcon className="h-3 w-3" />
-                                                    {t("Edit title")}
-                                                </DropdownMenuItem>
-                                                <DropdownMenuItem
-                                                    className="text-sm flex items-center gap-2"
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        setDeleteChatId(
-                                                            chat._id,
-                                                        );
-                                                    }}
-                                                >
-                                                    <Trash2 className="h-3 w-3" />
-                                                    {t("Delete chat")}
-                                                </DropdownMenuItem>
-                                            </DropdownMenuContent>
-                                        </DropdownMenu>
-                                    </div>
-                                )}
+                                {!selectMode &&
+                                    !isAnyDialogOpen &&
+                                    editingId !== chat._id && (
+                                        <div className="block sm:hidden -me-2 -mt-2">
+                                            <DropdownMenu>
+                                                <DropdownMenuTrigger className="">
+                                                    <MoreVertical className="h-3 w-3 text-gray-400" />
+                                                </DropdownMenuTrigger>
+                                                <DropdownMenuContent>
+                                                    {/* add Edit and taxonomy options here */}
+                                                    <DropdownMenuItem
+                                                        className="text-sm flex items-center gap-2"
+                                                        onClick={() => {
+                                                            setEditingId(
+                                                                chat._id,
+                                                            );
+                                                            setEditedName(
+                                                                chat.title,
+                                                            );
+                                                        }}
+                                                    >
+                                                        <EditIcon className="h-3 w-3" />
+                                                        {t("Edit title")}
+                                                    </DropdownMenuItem>
+                                                    <DropdownMenuItem
+                                                        className="text-sm flex items-center gap-2"
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            setDeleteChatId(
+                                                                chat._id,
+                                                            );
+                                                        }}
+                                                    >
+                                                        <Trash2 className="h-3 w-3" />
+                                                        {t("Delete chat")}
+                                                    </DropdownMenuItem>
+                                                </DropdownMenuContent>
+                                            </DropdownMenu>
+                                        </div>
+                                    )}
                             </div>
                             <div className="flex justify-between items-center pb-2 overflow-hidden text-start w-full">
                                 <ul className="w-full">
@@ -750,10 +816,49 @@ function SavedChats({ displayState }) {
     });
 
     useEffect(() => {
-        if (inView && hasNextPage && !isFetchingNextPage) {
+        if (!isBulkProcessing && inView && hasNextPage && !isFetchingNextPage) {
             fetchNextPage();
         }
-    }, [inView, hasNextPage, isFetchingNextPage, fetchNextPage]);
+    }, [inView, hasNextPage, isFetchingNextPage, isBulkProcessing]);
+
+    // Decide which content matches to show (server preferred), then memoize visible sets BEFORE any conditional returns
+    const contentMatchesDisplay =
+        contentServerResults && contentServerResults.length > 0
+            ? contentServerResults
+            : contentMatches;
+
+    // Visible chats/ids under current view (search or normal), memoized for performance
+    const visibleChats = useMemo(() => {
+        if (searchQuery) {
+            const title = Array.isArray(searchResults)
+                ? searchResults.filter(Boolean)
+                : [];
+            const content = Array.isArray(contentMatchesDisplay)
+                ? contentMatchesDisplay.filter(Boolean)
+                : [];
+            return [...title, ...content];
+        }
+        return Array.isArray(allChats) ? allChats : [];
+    }, [searchQuery, searchResults, contentMatchesDisplay, allChats]);
+
+    const visibleIdSet = useMemo(() => {
+        const set = new Set();
+        for (const c of visibleChats) {
+            if (c && c._id && isValidObjectId(c._id)) {
+                set.add(getChatIdString(c._id));
+            }
+        }
+        return set;
+    }, [visibleChats]);
+
+    const visibleIds = useMemo(() => Array.from(visibleIdSet), [visibleIdSet]);
+
+    const allVisibleSelected = useMemo(
+        () =>
+            visibleIds.length > 0 &&
+            visibleIds.every((id) => selectedIds.has(id)),
+        [visibleIds, selectedIds],
+    );
 
     if (areChatsLoading) {
         return <Loader />;
@@ -762,11 +867,6 @@ function SavedChats({ displayState }) {
     // Prefer showing title loading first; once titles are ready, indicate content search if active
     const statusLabel =
         isSearching || showContentSearching ? t("searching...") : null;
-
-    const contentMatchesDisplay =
-        contentServerResults && contentServerResults.length > 0
-            ? contentServerResults
-            : contentMatches;
 
     return (
         <div
@@ -860,74 +960,32 @@ function SavedChats({ displayState }) {
                             </>
                         ) : (
                             <>
-                                {(() => {
-                                    // Determine currently visible chats
-                                    const visibleChats = searchQuery
-                                        ? [
-                                              ...((searchResults || []).filter(
-                                                  Boolean,
-                                              ) || []),
-                                              ...((
-                                                  contentMatchesDisplay || []
-                                              ).filter(Boolean) || []),
-                                          ]
-                                        : allChats || [];
-
-                                    // Build list of visible IDs (valid only) and dedupe
-                                    const visibleIdSet = new Set(
-                                        visibleChats
-                                            .filter(
-                                                (c) =>
-                                                    c &&
-                                                    c._id &&
-                                                    isValidObjectId(c._id),
-                                            )
-                                            .map((c) => getChatIdString(c._id)),
-                                    );
-                                    const visibleIds = Array.from(visibleIdSet);
-
-                                    // Check if all visible are currently selected
-                                    const allVisibleSelected =
-                                        visibleIds.length > 0 &&
-                                        visibleIds.every((id) =>
-                                            selectedIds.has(id),
-                                        );
-
-                                    return (
-                                        <button
-                                            onClick={() => {
-                                                if (allVisibleSelected) {
-                                                    // Deselect only visible items, keep others as-is
-                                                    const next = new Set(
-                                                        Array.from(
-                                                            selectedIds,
-                                                        ).filter(
-                                                            (id) =>
-                                                                !visibleIdSet.has(
-                                                                    id,
-                                                                ),
-                                                        ),
-                                                    );
-                                                    setSelectedIds(next);
-                                                } else {
-                                                    // Select all visible items (merge with any existing selections)
-                                                    const next = new Set(
-                                                        selectedIds,
-                                                    );
-                                                    for (const id of visibleIds) {
-                                                        next.add(id);
-                                                    }
-                                                    setSelectedIds(next);
-                                                }
-                                            }}
-                                            className="lb-outline flex items-center gap-2"
-                                        >
-                                            {allVisibleSelected
-                                                ? t("Deselect All")
-                                                : t("Select All")}
-                                        </button>
-                                    );
-                                })()}
+                                <button
+                                    onClick={() => {
+                                        if (allVisibleSelected) {
+                                            // Deselect only visible items, keep others as-is
+                                            const next = new Set(
+                                                Array.from(selectedIds).filter(
+                                                    (id) =>
+                                                        !visibleIdSet.has(id),
+                                                ),
+                                            );
+                                            setSelectedIds(next);
+                                        } else {
+                                            // Select all visible items (merge with any existing selections)
+                                            const next = new Set(selectedIds);
+                                            for (const id of visibleIds) {
+                                                next.add(id);
+                                            }
+                                            setSelectedIds(next);
+                                        }
+                                    }}
+                                    className="lb-outline flex items-center gap-2"
+                                >
+                                    {allVisibleSelected
+                                        ? t("Deselect All")
+                                        : t("Select All")}
+                                </button>
                                 <button
                                     onClick={handleExportSelected}
                                     disabled={selectedIds.size === 0}
@@ -1077,7 +1135,10 @@ function SavedChats({ displayState }) {
 
             <AlertDialog
                 open={deleteChatId !== null}
-                onOpenChange={() => setDeleteChatId(null)}
+                onOpenChange={(open) => {
+                    if (!open) setDeleteChatId(null);
+                }}
+                modal={false}
             >
                 <AlertDialogContent>
                     <AlertDialogHeader>
@@ -1107,6 +1168,7 @@ function SavedChats({ displayState }) {
                 onOpenChange={(open) =>
                     setNoticeDialog((prev) => ({ ...prev, open }))
                 }
+                modal={false}
             >
                 <AlertDialogContent>
                     <AlertDialogHeader>
@@ -1177,6 +1239,7 @@ function SavedChats({ displayState }) {
             <AlertDialog
                 open={isBulkDialogOpen}
                 onOpenChange={setIsBulkDialogOpen}
+                modal={false}
             >
                 <AlertDialogContent>
                     <AlertDialogHeader>
