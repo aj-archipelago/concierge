@@ -450,6 +450,8 @@ export async function searchChatTitles(
 // For speed, only inspects the last `slice` messages per chat
 const MIN_MESSAGE_SLICE = 1;
 
+const getMessageSliceWindow = (slice) => -Math.max(MIN_MESSAGE_SLICE, slice);
+
 export async function searchChatContent(
     searchTerm,
     { limit = 20, scanLimit = 500, slice = 50 } = {},
@@ -466,9 +468,8 @@ export async function searchChatContent(
             title: 1,
             createdAt: 1,
             updatedAt: 1,
-            // Use a negative slice to get only the last `slice` messages per chat for speed.
-            // Math.max enforces a minimum of 1 message to avoid empty arrays when slice <= 0.
-            messages: { $slice: -Math.max(MIN_MESSAGE_SLICE, slice) },
+            // Use a helper to ensure at least one message is returned when slice <= 0.
+            messages: { $slice: getMessageSliceWindow(slice) },
         },
     )
         .sort({ updatedAt: -1 })

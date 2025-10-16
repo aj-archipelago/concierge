@@ -492,7 +492,6 @@ function SavedChats({ displayState }) {
                     prev === error.message ? prev : error.message,
                 );
                 setContentMatches((prev) => (prev.length ? [] : prev));
-            } finally {
             }
         };
 
