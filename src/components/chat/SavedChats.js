@@ -82,6 +82,14 @@ function SavedChats({ displayState }) {
     const [isBulkDialogOpen, setIsBulkDialogOpen] = useState(false);
     const stickyExportButtonRef = useRef(null);
     const importInputRef = useRef(null);
+    const [noticeDialog, setNoticeDialog] = useState({
+        open: false,
+        title: "",
+        description: "",
+    });
+
+    const showNotice = (title, description) =>
+        setNoticeDialog({ open: true, title, description });
 
     const allChats = useMemo(() => {
         try {
@@ -129,8 +137,16 @@ function SavedChats({ displayState }) {
                     return title ? `"${title}"` : String(id);
                 });
                 console.error("Failed to bulk delete chats:", failedLabels);
-                window.alert(
-                    `${ids.length - failedEntries.length} of ${ids.length} chats deleted. Failed: ${failedLabels.join(", ")}. You can try again.`,
+                showNotice(
+                    t("Some deletions failed"),
+                    t(
+                        "Deleted {{success}} of {{total}} chats. Failed: {{failedList}}. You can try again.",
+                        {
+                            success: ids.length - failedEntries.length,
+                            total: ids.length,
+                            failedList: failedLabels.join(", "),
+                        },
+                    ),
                 );
             }
         });
@@ -183,8 +199,12 @@ function SavedChats({ displayState }) {
             try {
                 parsed = JSON.parse(text);
             } catch (parseErr) {
-                window.alert(
-                    `The selected file is not valid JSON. Error: ${parseErr.message}\n\nThe file should contain either a chat object, an array of chats, or an object with a 'chats' array. Please check the file format and try again.`,
+                showNotice(
+                    t("Invalid JSON file"),
+                    t(
+                        "The selected file is not valid JSON. Error: {{message}}\n\nThe file should contain either a chat object, an array of chats, or an object with a 'chats' array. Please check the file format and try again.",
+                        { message: parseErr.message },
+                    ),
                 );
                 if (importInputRef.current) importInputRef.current.value = "";
                 return;
@@ -200,8 +220,11 @@ function SavedChats({ displayState }) {
                 else parsed = [parsed];
             }
             if (!Array.isArray(parsed)) {
-                window.alert(
-                    'The file format is not supported. Please upload a file exported from this app, or a file containing your chats in JSON format. For example:\n\n[\n  { "title": "Chat Title", "messages": [ { "role": "user", "content": "Hello" } ] }\n] ',
+                showNotice(
+                    t("Unsupported JSON format"),
+                    t(
+                        'The file format is not supported. Please upload a file exported from this app, or a file containing your chats in JSON format. For example:\n\n[\n  { "title": "Chat Title", "messages": [ { "role": "user", "content": "Hello" } ] }\n] ',
+                    ),
                 );
                 if (importInputRef.current) importInputRef.current.value = "";
                 return;
@@ -655,6 +678,36 @@ function SavedChats({ displayState }) {
                             onClick={() => handleDelete(deleteChatId)}
                         >
                             {t("Delete")}
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+
+            {/* Notice dialog for user-facing messages */}
+            <AlertDialog
+                open={noticeDialog.open}
+                onOpenChange={(open) =>
+                    setNoticeDialog((prev) => ({ ...prev, open }))
+                }
+            >
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>{noticeDialog.title}</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            {noticeDialog.description}
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogAction
+                            className="lb-primary"
+                            onClick={() =>
+                                setNoticeDialog((prev) => ({
+                                    ...prev,
+                                    open: false,
+                                }))
+                            }
+                        >
+                            {t("OK")}
                         </AlertDialogAction>
                     </AlertDialogFooter>
                 </AlertDialogContent>

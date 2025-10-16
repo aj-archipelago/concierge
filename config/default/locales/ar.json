@@ -712,5 +712,14 @@
     "Veo 2.0": "Veo 2.0",
     "Veo 3.0": "Veo 3.0",
     "Seedance 1.0": "Seedance 1.0",
-    "Match Input Image": "مطابقة الصورة المدخلة"
+    "Match Input Image": "مطابقة الصورة المدخلة",
+    "Import JSON": "استيراد JSON",
+    "Export JSON": "تصدير JSON",
+    "Selected": "محدد",
+    "Some deletions failed": "فشلت بعض عمليات الحذف",
+    "Deleted {{success}} of {{total}} chats. Failed: {{failedList}}. You can try again.": "تم حذف {{success}} من أصل {{total}} دردشة. فشل: {{failedList}}. يمكنك المحاولة مرة أخرى.",
+    "Invalid JSON file": "ملف JSON غير صالح",
+    "Unsupported JSON format": "تنسيق JSON غير مدعوم",
+    "Delete selected chats?": "حذف الدردشات المحددة؟",
+    "Are you sure you want to delete the selected chats? This action cannot be undone.": "هل أنت متأكد أنك تريد حذف الدردشات المحددة؟ لا يمكن التراجع عن هذا الإجراء."
 }

@@ -147,5 +147,14 @@
     "App Description *": "App Description *",
     "Enter a description for your app": "Enter a description for your app",
     "App Description": "App Description",
-    "Enter app description": "Enter app description"
+    "Enter app description": "Enter app description",
+    "Import JSON": "Import JSON",
+    "Export JSON": "Export JSON",
+    "Selected": "Selected",
+    "Some deletions failed": "Some deletions failed",
+    "Deleted {{success}} of {{total}} chats. Failed: {{failedList}}. You can try again.": "Deleted {{success}} of {{total}} chats. Failed: {{failedList}}. You can try again.",
+    "Invalid JSON file": "Invalid JSON file",
+    "Unsupported JSON format": "Unsupported JSON format",
+    "Delete selected chats?": "Delete selected chats?",
+    "Are you sure you want to delete the selected chats? This action cannot be undone.": "Are you sure you want to delete the selected chats? This action cannot be undone."
 }
