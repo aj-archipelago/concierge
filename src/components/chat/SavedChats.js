@@ -52,6 +52,7 @@ dayjs.extend(relativeTime);
 
 // Extra bottom padding used when sticky bulk actions are visible
 const STICKY_ACTIONS_PADDING_CLASS = "pb-24";
+const CONTENT_SEARCH_DEBOUNCE_MS = 250;
 
 const getCategoryTranslation = (category, t) => {
     const titles = {
@@ -214,10 +215,9 @@ function SavedChats({ displayState }) {
             } catch (parseErr) {
                 showNotice(
                     t("Invalid JSON file"),
-                    t(
-                        "The selected file is not valid JSON. Error: {{message}}\n\nThe file should contain either a chat object, an array of chats, or an object with a 'chats' array. Please check the file format and try again.",
-                        { message: parseErr.message },
-                    ),
+                    t("import.invalidJsonFileDescription", {
+                        message: parseErr.message,
+                    }),
                 );
                 if (importInputRef.current) importInputRef.current.value = "";
                 return;
@@ -235,9 +235,7 @@ function SavedChats({ displayState }) {
             if (!Array.isArray(parsed)) {
                 showNotice(
                     t("Unsupported JSON format"),
-                    t(
-                        'The file format is not supported. Please upload a file exported from this app, or a file containing your chats in JSON format. For example:\n\n[\n  { "title": "Chat Title", "messages": [ { "role": "user", "content": "Hello" } ] }\n] ',
-                    ),
+                    t("import.unsupportedJsonFormatExample"),
                 );
                 if (importInputRef.current) importInputRef.current.value = "";
                 return;
@@ -349,7 +347,7 @@ function SavedChats({ displayState }) {
                 } finally {
                     setIsSearchingContent(false);
                 }
-            }, 200);
+            }, CONTENT_SEARCH_DEBOUNCE_MS);
         } else if (searchQuery.length < 1) {
             setContentMatches([]);
             setIsSearchingContent(false);
