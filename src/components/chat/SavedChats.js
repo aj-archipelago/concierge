@@ -281,6 +281,16 @@ function SavedChats({ displayState }) {
     const lastSearchRef = useRef("");
     const searchTimeoutRef = useRef(null);
 
+    // Cleanup search timeout on unmount to prevent memory leaks
+    useEffect(() => {
+        return () => {
+            if (searchTimeoutRef.current) {
+                clearTimeout(searchTimeoutRef.current);
+                searchTimeoutRef.current = null;
+            }
+        };
+    }, []);
+
     // Store current data and search results in refs to avoid dependency issues
     const dataRef = useRef(data);
     const searchResultsRef = useRef(searchResults);

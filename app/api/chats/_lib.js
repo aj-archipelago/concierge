@@ -414,7 +414,10 @@ function escapeRegex(str = "") {
 // Scans recent chats up to scanLimit and returns up to limit matches
 export async function searchChatTitles(
     searchTerm,
-    { limit = DEFAULT_TITLE_SEARCH_LIMIT, scanLimit = DEFAULT_TITLE_SEARCH_SCAN_LIMIT } = {},
+    {
+        limit = DEFAULT_TITLE_SEARCH_LIMIT,
+        scanLimit = DEFAULT_TITLE_SEARCH_SCAN_LIMIT,
+    } = {},
 ) {
     const currentUser = await getCurrentUser(false);
     const term = String(searchTerm || "").trim();
