@@ -734,6 +734,8 @@
     "Deleted {{success}} of {{total}} chats. Failed: {{failedList}}. You can try again.": "تم حذف {{success}} من أصل {{total}} دردشة. فشل: {{failedList}}. يمكنك المحاولة مرة أخرى.",
     "Invalid JSON file": "ملف JSON غير صالح",
     "Unsupported JSON format": "تنسيق JSON غير مدعوم",
+    "import.invalidJsonFileDescription": "الملف المحدد ليس JSON صالحًا. الخطأ: {{message}}\n\nيجب أن يحتوي الملف على كائن دردشة واحد، أو مصفوفة من الدردشات، أو كائن يحتوي على مصفوفة باسم 'chats'. يرجى التحقق من تنسيق الملف والمحاولة مرة أخرى.",
+    "import.unsupportedJsonFormatExample": "تنسيق الملف غير مدعوم. يرجى رفع ملف تم تصديره من هذا التطبيق، أو ملفًا يحتوي على دردشاتك بتنسيق JSON. على سبيل المثال:\n\n[\n  { \"title\": \"Chat Title\", \"messages\": [ { \"role\": \"user\", \"content\": \"Hello\" } ] }\n] ",
     "Delete selected chats?": "حذف الدردشات المحددة؟",
     "Are you sure you want to delete the selected chats? This action cannot be undone.": "هل أنت متأكد أنك تريد حذف الدردشات المحددة؟ لا يمكن التراجع عن هذا الإجراء."
 }

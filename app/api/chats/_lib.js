@@ -438,11 +438,11 @@ export async function searchChatTitles(
         .limit(scanLimit)
         .lean();
 
-    const regex = new RegExp(escapeRegex(term), "i");
+    const lowerTerm = term.toLowerCase();
     const results = [];
     for (const chat of chats) {
-        const title = chat?.title || "";
-        if (regex.test(title)) {
+        const title = (chat?.title || "").toLowerCase();
+        if (title.includes(lowerTerm)) {
             results.push(chat);
             if (results.length >= limit) break;
         }

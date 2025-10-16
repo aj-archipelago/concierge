@@ -144,6 +144,8 @@
     "Deleted {{success}} of {{total}} chats. Failed: {{failedList}}. You can try again.": "Deleted {{success}} of {{total}} chats. Failed: {{failedList}}. You can try again.",
     "Invalid JSON file": "Invalid JSON file",
     "Unsupported JSON format": "Unsupported JSON format",
+    "import.invalidJsonFileDescription": "The selected file is not valid JSON. Error: {{message}}\n\nThe file should contain either a chat object, an array of chats, or an object with a 'chats' array. Please check the file format and try again.",
+    "import.unsupportedJsonFormatExample": "The file format is not supported. Please upload a file exported from this app, or a file containing your chats in JSON format. For example:\n\n[\n  { \"title\": \"Chat Title\", \"messages\": [ { \"role\": \"user\", \"content\": \"Hello\" } ] }\n] ",
     "Delete selected chats?": "Delete selected chats?",
     "Are you sure you want to delete the selected chats? This action cannot be undone.": "Are you sure you want to delete the selected chats? This action cannot be undone.",
     "Search chats...": "Search chats...",
