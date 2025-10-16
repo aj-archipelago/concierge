@@ -65,13 +65,13 @@ export function useGetActiveChats() {
 }
 
 // Search chats by title (server side)
-export function useSearchChats(searchQuery) {
+export function useSearchChats(searchQuery, { limit = 20 } = {}) {
     return useQuery({
-        queryKey: ["searchChats", searchQuery],
+        queryKey: ["searchChats", searchQuery, limit],
         queryFn: async () => {
             if (!searchQuery) return [];
             const response = await axios.get(
-                `/api/chats?search=${encodeURIComponent(searchQuery)}`,
+                `/api/chats?search=${encodeURIComponent(searchQuery)}&limit=${encodeURIComponent(limit)}`,
             );
             return response.data || [];
         },
@@ -87,7 +87,7 @@ export function useSearchContent(searchQuery, { limit = 20 } = {}) {
         queryFn: async () => {
             if (!searchQuery) return [];
             const response = await axios.get(
-                `/api/chats?content=${encodeURIComponent(searchQuery)}`,
+                `/api/chats?content=${encodeURIComponent(searchQuery)}&limit=${encodeURIComponent(limit)}`,
             );
             const data = Array.isArray(response.data) ? response.data : [];
             return data.slice(0, limit);

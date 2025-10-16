@@ -17,13 +17,20 @@ export async function GET(req) {
         const limit = DEFAULT_PAGE_SIZE; // Number of chats per page
         const search = searchParams.get("search");
         const content = searchParams.get("content");
+        const searchLimit = parseInt(searchParams.get("limit")) || undefined;
 
         if (search) {
-            const chats = await searchChatTitles(search);
+            const chats = await searchChatTitles(
+                search,
+                searchLimit ? { limit: searchLimit } : undefined,
+            );
             return NextResponse.json(chats);
         }
         if (content) {
-            const chats = await searchChatContent(content);
+            const chats = await searchChatContent(
+                content,
+                searchLimit ? { limit: searchLimit } : undefined,
+            );
             return NextResponse.json(chats);
         }
 

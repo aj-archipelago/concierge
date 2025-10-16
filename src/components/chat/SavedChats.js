@@ -269,13 +269,14 @@ function SavedChats({ displayState }) {
     const [contentMatches, setContentMatches] = useState([]);
     const [isSearchingContent, setIsSearchingContent] = useState(false);
     const [searchError, setSearchError] = useState(null);
+    const [serverContentLimit, setServerContentLimit] = useState(20);
 
     // Search hook for title-only search
     const {
         data: searchResults = [],
         isLoading: isSearching,
         error: titleSearchError,
-    } = useSearchChats(searchQuery);
+    } = useSearchChats(searchQuery, { limit: 50 });
 
     // Debounce server-side content search to prevent flicker while typing
     const [debouncedSearchQuery, setDebouncedSearchQuery] = useState("");
@@ -301,7 +302,7 @@ function SavedChats({ displayState }) {
     const {
         data: contentServerResults = [],
         isLoading: isSearchingContentServer,
-    } = useSearchContent(debouncedSearchQuery);
+    } = useSearchContent(debouncedSearchQuery, { limit: serverContentLimit });
 
     // Sticky UI indicator for content searching to avoid flicker during rapid page fetches
     const [showContentSearching, setShowContentSearching] = useState(false);
@@ -782,8 +783,31 @@ function SavedChats({ displayState }) {
                             {searchQuery ? (
                                 <div>
                                     {searchResults.length} {t("title matches")}
-                                    {contentMatchesDisplay.length > 0 &&
-                                        `, ${contentMatchesDisplay.length} ${t("content matches")}`}
+                                    {contentMatchesDisplay.length > 0 && (
+                                        <>
+                                            {`, `}
+                                            <span>
+                                                {contentMatchesDisplay.length >=
+                                                serverContentLimit
+                                                    ? `${contentMatchesDisplay.length}+`
+                                                    : contentMatchesDisplay.length}{" "}
+                                                {t("content matches")}
+                                            </span>
+                                            {contentMatchesDisplay.length >=
+                                                serverContentLimit && (
+                                                <button
+                                                    onClick={() =>
+                                                        setServerContentLimit(
+                                                            500,
+                                                        )
+                                                    }
+                                                    className="ml-2 text-xs text-blue-600 dark:text-blue-400 hover:underline"
+                                                >
+                                                    {t("Show all")}
+                                                </button>
+                                            )}
+                                        </>
+                                    )}
                                     {` ${t("of")} ${totalChatCount} ${t("total")}`}
                                     {statusLabel && (
                                         <>
@@ -837,46 +861,68 @@ function SavedChats({ displayState }) {
                         ) : (
                             <>
                                 {(() => {
-                                    const totalSelectableCount = allChats
-                                        ? allChats.filter(
-                                              (c) =>
-                                                  c &&
-                                                  c._id &&
-                                                  isValidObjectId(c._id),
-                                          ).length
-                                        : 0;
-                                    const allSelected =
-                                        totalSelectableCount > 0 &&
-                                        selectedIds.size >=
-                                            totalSelectableCount;
+                                    // Determine currently visible chats
+                                    const visibleChats = searchQuery
+                                        ? [
+                                              ...((searchResults || []).filter(
+                                                  Boolean,
+                                              ) || []),
+                                              ...((
+                                                  contentMatchesDisplay || []
+                                              ).filter(Boolean) || []),
+                                          ]
+                                        : allChats || [];
+
+                                    // Build list of visible IDs (valid only) and dedupe
+                                    const visibleIdSet = new Set(
+                                        visibleChats
+                                            .filter(
+                                                (c) =>
+                                                    c &&
+                                                    c._id &&
+                                                    isValidObjectId(c._id),
+                                            )
+                                            .map((c) => getChatIdString(c._id)),
+                                    );
+                                    const visibleIds = Array.from(visibleIdSet);
+
+                                    // Check if all visible are currently selected
+                                    const allVisibleSelected =
+                                        visibleIds.length > 0 &&
+                                        visibleIds.every((id) =>
+                                            selectedIds.has(id),
+                                        );
+
                                     return (
                                         <button
                                             onClick={() => {
-                                                if (allSelected) {
-                                                    setSelectedIds(new Set());
-                                                } else {
-                                                    const ids = (allChats || [])
-                                                        .filter(
-                                                            (c) =>
-                                                                c &&
-                                                                c._id &&
-                                                                isValidObjectId(
-                                                                    c._id,
+                                                if (allVisibleSelected) {
+                                                    // Deselect only visible items, keep others as-is
+                                                    const next = new Set(
+                                                        Array.from(
+                                                            selectedIds,
+                                                        ).filter(
+                                                            (id) =>
+                                                                !visibleIdSet.has(
+                                                                    id,
                                                                 ),
-                                                        )
-                                                        .map((c) =>
-                                                            getChatIdString(
-                                                                c._id,
-                                                            ),
-                                                        );
-                                                    setSelectedIds(
-                                                        new Set(ids),
+                                                        ),
                                                     );
+                                                    setSelectedIds(next);
+                                                } else {
+                                                    // Select all visible items (merge with any existing selections)
+                                                    const next = new Set(
+                                                        selectedIds,
+                                                    );
+                                                    for (const id of visibleIds) {
+                                                        next.add(id);
+                                                    }
+                                                    setSelectedIds(next);
                                                 }
                                             }}
                                             className="lb-outline flex items-center gap-2"
                                         >
-                                            {allSelected
+                                            {allVisibleSelected
                                                 ? t("Deselect All")
                                                 : t("Select All")}
                                         </button>
