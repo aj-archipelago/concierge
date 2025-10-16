@@ -4,6 +4,10 @@ import { getCurrentUser } from "../utils/auth";
 import mongoose from "mongoose";
 import { Types } from "mongoose";
 
+// Search limits for title search
+const DEFAULT_TITLE_SEARCH_LIMIT = 20;
+const DEFAULT_TITLE_SEARCH_SCAN_LIMIT = 500;
+
 const getSimpleTitle = (message) => {
     return (message?.payload || "").substring(0, 14);
 };
@@ -410,7 +414,7 @@ function escapeRegex(str = "") {
 // Scans recent chats up to scanLimit and returns up to limit matches
 export async function searchChatTitles(
     searchTerm,
-    { limit = 20, scanLimit = 500 } = {},
+    { limit = DEFAULT_TITLE_SEARCH_LIMIT, scanLimit = DEFAULT_TITLE_SEARCH_SCAN_LIMIT } = {},
 ) {
     const currentUser = await getCurrentUser(false);
     const term = String(searchTerm || "").trim();

@@ -53,6 +53,8 @@ dayjs.extend(relativeTime);
 // Extra bottom padding used when sticky bulk actions are visible
 const STICKY_ACTIONS_PADDING_CLASS = "pb-24";
 const CONTENT_SEARCH_DEBOUNCE_MS = 250;
+const MAX_SEARCH_QUERY_LENGTH = 100;
+const MAX_CONTENT_SEARCH_RESULTS = 20;
 
 const getCategoryTranslation = (category, t) => {
     const titles = {
@@ -336,7 +338,7 @@ function SavedChats({ displayState }) {
                                         .includes(lowerSearchQuery),
                             );
                         })
-                        .slice(0, 20); // Limit results to 20 for better UX
+                        .slice(0, MAX_CONTENT_SEARCH_RESULTS); // Limit results for better UX
 
                     setContentMatches(matches);
                     setSearchError(null);
@@ -360,7 +362,7 @@ function SavedChats({ displayState }) {
                 clearTimeout(searchTimeoutRef.current);
             }
         };
-    }, [searchQuery, isSearching]); // Only depend on truly stable values
+    }, [searchQuery, isSearching]); // Effect depends on searchQuery and isSearching; both may change frequently
 
     const categorizedChats = useMemo(() => {
         const categories = {
@@ -773,7 +775,7 @@ function SavedChats({ displayState }) {
                         onChange={(e) => {
                             const value = e.target.value;
                             // Limit search query length to prevent performance issues
-                            if (value.length <= 100) {
+                            if (value.length <= MAX_SEARCH_QUERY_LENGTH) {
                                 setSearchQuery(value);
                             }
                         }}
