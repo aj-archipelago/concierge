@@ -277,6 +277,8 @@ export function useAddChat() {
             queryClient.invalidateQueries({ queryKey: ["activeChats"] });
             queryClient.invalidateQueries({ queryKey: ["userChatInfo"] });
             queryClient.invalidateQueries({ queryKey: ["totalChatCount"] });
+            // Ensure title search results include newly added chats immediately
+            queryClient.invalidateQueries({ queryKey: ["searchChats"] });
         },
     });
 }
