@@ -319,7 +319,9 @@ function SavedChats({ displayState }) {
             searchTimeoutRef.current = setTimeout(() => {
                 try {
                     // Search through loaded chats with performance optimizations
-                    const allLoadedChats = dataRef.current.pages.flat();
+                    const allLoadedChats = Array.isArray(dataRef.current?.pages)
+                        ? dataRef.current.pages.flat()
+                        : [];
                     const titleIdSet = new Set(
                         (searchResultsRef.current || []).map(
                             (chat) => chat._id,
@@ -329,7 +331,7 @@ function SavedChats({ displayState }) {
 
                     // Search through expanded dataset (auto-loaded up to 200 chats)
                     const chatsToSearch = allLoadedChats.filter(
-                        (chat) => !titleIdSet.has(chat._id),
+                        (chat) => chat?._id && !titleIdSet.has(chat._id),
                     ); // Exclude title matches
 
                     // Early termination: stop once enough matches are collected

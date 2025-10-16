@@ -225,16 +225,19 @@ export function useAddChat() {
                     confirmedChat,
                     optimisticId,
                 ) => {
+                    if (!Array.isArray(pages)) return [];
                     return pages.map((page, idx) => {
                         if (idx === 0) {
-                            const filtered = page.filter(
+                            const safePage = Array.isArray(page) ? page : [];
+                            const filtered = safePage.filter(
                                 (c) =>
                                     c._id !== optimisticId &&
                                     c._id !== confirmedChat._id,
                             );
                             return [confirmedChat, ...filtered];
                         }
-                        return page.map((c) =>
+                        const safeRest = Array.isArray(page) ? page : [];
+                        return safeRest.map((c) =>
                             c._id === optimisticId ? confirmedChat : c,
                         );
                     });
@@ -383,7 +386,9 @@ export function useDeleteChat() {
                 return {
                     ...old,
                     pages: old.pages.map((page) =>
-                        page.filter((chat) => chat._id !== chatId),
+                        Array.isArray(page)
+                            ? page.filter((chat) => chat._id !== chatId)
+                            : page,
                     ),
                 };
             });
