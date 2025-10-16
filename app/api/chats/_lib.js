@@ -405,11 +405,6 @@ export async function getTotalChatCount() {
     return await Chat.countDocuments({ userId: currentUser._id });
 }
 
-// Helper to safely escape regex characters
-function escapeRegex(str = "") {
-    return String(str).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
 // Title search that avoids regex on encrypted fields by filtering in memory
 // Scans recent chats up to scanLimit and returns up to limit matches
 export async function searchChatTitles(
