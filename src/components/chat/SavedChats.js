@@ -830,6 +830,52 @@ function SavedChats({ displayState }) {
                             </>
                         ) : (
                             <>
+                                {(() => {
+                                    const totalSelectableCount = allChats
+                                        ? allChats.filter(
+                                              (c) =>
+                                                  c &&
+                                                  c._id &&
+                                                  isValidObjectId(c._id),
+                                          ).length
+                                        : 0;
+                                    const allSelected =
+                                        totalSelectableCount > 0 &&
+                                        selectedIds.size >=
+                                            totalSelectableCount;
+                                    return (
+                                        <button
+                                            onClick={() => {
+                                                if (allSelected) {
+                                                    setSelectedIds(new Set());
+                                                } else {
+                                                    const ids = (allChats || [])
+                                                        .filter(
+                                                            (c) =>
+                                                                c &&
+                                                                c._id &&
+                                                                isValidObjectId(
+                                                                    c._id,
+                                                                ),
+                                                        )
+                                                        .map((c) =>
+                                                            getChatIdString(
+                                                                c._id,
+                                                            ),
+                                                        );
+                                                    setSelectedIds(
+                                                        new Set(ids),
+                                                    );
+                                                }
+                                            }}
+                                            className="lb-outline flex items-center gap-2"
+                                        >
+                                            {allSelected
+                                                ? t("Deselect All")
+                                                : t("Select All")}
+                                        </button>
+                                    );
+                                })()}
                                 <button
                                     onClick={handleExportSelected}
                                     disabled={selectedIds.size === 0}
