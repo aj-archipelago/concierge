@@ -145,5 +145,19 @@
     "Invalid JSON file": "Invalid JSON file",
     "Unsupported JSON format": "Unsupported JSON format",
     "Delete selected chats?": "Delete selected chats?",
-    "Are you sure you want to delete the selected chats? This action cannot be undone.": "Are you sure you want to delete the selected chats? This action cannot be undone."
+    "Are you sure you want to delete the selected chats? This action cannot be undone.": "Are you sure you want to delete the selected chats? This action cannot be undone.",
+    "Search chats...": "Search chats...",
+    "search results": "search results",
+    "chats": "chats",
+    "Title Matches": "Title Matches",
+    "Content Matches": "Content Matches",
+    "title matches": "title matches",
+    "content matches": "content matches",
+    "searching content...": "searching content...",
+    "No chats found matching your search": "No chats found matching your search",
+    "Searched": "Searched",
+    "loaded chats": "loaded chats",
+    "This Week": "This Week",
+    "This Month": "This Month",
+    "Older": "Older"
 }

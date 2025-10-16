@@ -394,3 +394,51 @@ export async function deleteChatIdFromRecentList(chatId) {
 
     return { recentChatIds, activeChatId: activeChatId.toString() };
 }
+
+// Returns total number of chats for current user
+export async function getTotalChatCount() {
+    const currentUser = await getCurrentUser(false);
+    return await Chat.countDocuments({ userId: currentUser._id });
+}
+
+// Helper to safely escape regex characters
+function escapeRegex(str = "") {
+    return String(str).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+// Title search that avoids regex on encrypted fields by filtering in memory
+// Scans recent chats up to scanLimit and returns up to limit matches
+export async function searchChatTitles(
+    searchTerm,
+    { limit = 20, scanLimit = 500 } = {},
+) {
+    const currentUser = await getCurrentUser(false);
+    const term = String(searchTerm || "").trim();
+    if (!term) return [];
+
+    // Fetch a window of recent chats; fields will be auto-decrypted by CSFLE
+    const chats = await Chat.find(
+        { userId: currentUser._id },
+        {
+            _id: 1,
+            title: 1,
+            createdAt: 1,
+            updatedAt: 1,
+            messages: { $slice: 1 },
+        },
+    )
+        .sort({ updatedAt: -1 })
+        .limit(scanLimit)
+        .lean();
+
+    const regex = new RegExp(escapeRegex(term), "i");
+    const results = [];
+    for (const chat of chats) {
+        const title = chat?.title || "";
+        if (regex.test(title)) {
+            results.push(chat);
+            if (results.length >= limit) break;
+        }
+    }
+    return results;
+}

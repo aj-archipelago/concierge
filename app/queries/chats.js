@@ -64,6 +64,34 @@ export function useGetActiveChats() {
     });
 }
 
+// Search chats by title (server side)
+export function useSearchChats(searchQuery) {
+    return useQuery({
+        queryKey: ["searchChats", searchQuery],
+        queryFn: async () => {
+            if (!searchQuery) return [];
+            const response = await axios.get(
+                `/api/chats?search=${encodeURIComponent(searchQuery)}`,
+            );
+            return response.data || [];
+        },
+        enabled: typeof searchQuery === "string",
+        staleTime: 1000 * 30,
+    });
+}
+
+// Total chat count for current user
+export function useTotalChatCount() {
+    return useQuery({
+        queryKey: ["totalChatCount"],
+        queryFn: async () => {
+            const response = await axios.get(`/api/chats/count`);
+            return Number(response.data || 0);
+        },
+        staleTime: 1000 * 60,
+    });
+}
+
 function temporaryNewChat({ messages, title }) {
     const tempId = `temp_${Date.now()}_${crypto.randomUUID()}`;
     return {
@@ -245,6 +273,7 @@ export function useAddChat() {
             queryClient.invalidateQueries({ queryKey: ["chats"] });
             queryClient.invalidateQueries({ queryKey: ["activeChats"] });
             queryClient.invalidateQueries({ queryKey: ["userChatInfo"] });
+            queryClient.invalidateQueries({ queryKey: ["totalChatCount"] });
         },
     });
 }
@@ -382,6 +411,7 @@ export function useDeleteChat() {
             queryClient.invalidateQueries({ queryKey: ["userChatInfo"] });
             queryClient.invalidateQueries({ queryKey: ["activeChats"] });
             queryClient.invalidateQueries({ queryKey: ["chats"] });
+            queryClient.invalidateQueries({ queryKey: ["totalChatCount"] });
         },
     });
 }
