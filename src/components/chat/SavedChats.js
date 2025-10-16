@@ -21,7 +21,7 @@ import {
     Search,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useInView } from "react-intersection-observer";
 import Loader from "../../../app/components/loader";
@@ -37,7 +37,7 @@ import {
 } from "../../../app/queries/chats";
 import classNames from "../../../app/utils/class-names";
 import config from "../../../config";
-import { isValidObjectId } from "../../utils/helper";
+import { getChatIdString, isValidObjectId } from "../../utils/helper";
 import {
     AlertDialog,
     AlertDialogContent,
@@ -95,14 +95,13 @@ function SavedChats({ displayState }) {
     const [isBulkDialogOpen, setIsBulkDialogOpen] = useState(false);
     const stickyExportButtonRef = useRef(null);
     const importInputRef = useRef(null);
+    const chatsContainerRef = useRef(null);
     const [noticeDialog, setNoticeDialog] = useState({
         open: false,
         title: "",
         description: "",
     });
     const [isBulkProcessing, setIsBulkProcessing] = useState(false);
-
-    const getChatIdString = (id) => (typeof id === "string" ? id : String(id));
 
     const showNotice = (title, description) =>
         setNoticeDialog({ open: true, title, description });
@@ -285,9 +284,9 @@ function SavedChats({ displayState }) {
     };
     const [searchQuery, setSearchQuery] = useState("");
     const [contentMatches, setContentMatches] = useState([]);
-    const [isSearchingContent, setIsSearchingContent] = useState(false);
     const [searchError, setSearchError] = useState(null);
     const [serverContentLimit, setServerContentLimit] = useState(20);
+    const [bottomActionsLeft, setBottomActionsLeft] = useState(null);
 
     // Search hook for title-only search
     const {
@@ -330,7 +329,10 @@ function SavedChats({ displayState }) {
             setShowContentSearching(false);
             return;
         }
-        if (searchQuery && (isSearchingContentServer || isFetchingNextPage)) {
+        if (
+            searchQuery &&
+            (isSearchingContentServer || isFetchingNextPage || isSearching)
+        ) {
             setShowContentSearching(true);
             if (contentSearchUiTimeoutRef.current) {
                 clearTimeout(contentSearchUiTimeoutRef.current);
@@ -361,6 +363,7 @@ function SavedChats({ displayState }) {
         searchQuery,
         isSearchingContentServer,
         isFetchingNextPage,
+        isSearching,
         isBulkProcessing,
     ]);
 
@@ -397,7 +400,6 @@ function SavedChats({ displayState }) {
         }
 
         if (isBulkProcessing) {
-            setIsSearchingContent((prev) => (prev ? false : prev));
             return;
         }
 
@@ -407,15 +409,12 @@ function SavedChats({ displayState }) {
         ) {
             setContentMatches((prev) => (prev.length ? [] : prev));
             setSearchError((prev) => (prev ? null : prev));
-            setIsSearchingContent((prev) => (prev ? false : prev));
             return;
         }
 
         if (isSearching) {
             return;
         }
-
-        setIsSearchingContent((prev) => (prev ? prev : true));
 
         const runSearch = () => {
             if (searchTimeoutRef.current) {
@@ -494,7 +493,6 @@ function SavedChats({ displayState }) {
                 );
                 setContentMatches((prev) => (prev.length ? [] : prev));
             } finally {
-                setIsSearchingContent((prev) => (prev ? false : prev));
             }
         };
 
@@ -819,13 +817,53 @@ function SavedChats({ displayState }) {
         if (!isBulkProcessing && inView && hasNextPage && !isFetchingNextPage) {
             fetchNextPage();
         }
-    }, [inView, hasNextPage, isFetchingNextPage, isBulkProcessing]);
+    }, [
+        fetchNextPage,
+        inView,
+        hasNextPage,
+        isFetchingNextPage,
+        isBulkProcessing,
+    ]);
 
     // Decide which content matches to show (server preferred), then memoize visible sets BEFORE any conditional returns
     const contentMatchesDisplay =
         contentServerResults && contentServerResults.length > 0
             ? contentServerResults
             : contentMatches;
+
+    const updateBottomActionsPosition = useCallback(() => {
+        if (typeof window === "undefined") {
+            return;
+        }
+        const container = chatsContainerRef.current;
+        if (container) {
+            const rect = container.getBoundingClientRect();
+            if (rect?.width) {
+                setBottomActionsLeft(rect.left + rect.width / 2);
+                return;
+            }
+        }
+        setBottomActionsLeft(window.innerWidth / 2);
+    }, []);
+
+    useEffect(() => {
+        if (typeof window === "undefined") return;
+        updateBottomActionsPosition();
+        window.addEventListener("resize", updateBottomActionsPosition);
+        return () =>
+            window.removeEventListener("resize", updateBottomActionsPosition);
+    }, [updateBottomActionsPosition]);
+
+    useEffect(() => {
+        updateBottomActionsPosition();
+    }, [
+        updateBottomActionsPosition,
+        selectMode,
+        searchQuery,
+        contentMatchesDisplay.length,
+        searchResults.length,
+        allChats.length,
+    ]);
 
     // Visible chats/ids under current view (search or normal), memoized for performance
     const visibleChats = useMemo(() => {
@@ -859,6 +897,21 @@ function SavedChats({ displayState }) {
             visibleIds.every((id) => selectedIds.has(id)),
         [visibleIds, selectedIds],
     );
+
+    const handleToggleVisibleSelection = () => {
+        if (allVisibleSelected) {
+            const next = new Set(
+                Array.from(selectedIds).filter((id) => !visibleIdSet.has(id)),
+            );
+            setSelectedIds(next);
+        } else {
+            const next = new Set(selectedIds);
+            for (const id of visibleIds) {
+                next.add(id);
+            }
+            setSelectedIds(next);
+        }
+    };
 
     if (areChatsLoading) {
         return <Loader />;
@@ -961,26 +1014,8 @@ function SavedChats({ displayState }) {
                         ) : (
                             <>
                                 <button
-                                    onClick={() => {
-                                        if (allVisibleSelected) {
-                                            // Deselect only visible items, keep others as-is
-                                            const next = new Set(
-                                                Array.from(selectedIds).filter(
-                                                    (id) =>
-                                                        !visibleIdSet.has(id),
-                                                ),
-                                            );
-                                            setSelectedIds(next);
-                                        } else {
-                                            // Select all visible items (merge with any existing selections)
-                                            const next = new Set(selectedIds);
-                                            for (const id of visibleIds) {
-                                                next.add(id);
-                                            }
-                                            setSelectedIds(next);
-                                        }
-                                    }}
-                                    className="lb-outline flex items-center gap-2"
+                                    onClick={handleToggleVisibleSelection}
+                                    className="lb-outline flex items-center gap-2 whitespace-nowrap"
                                 >
                                     {allVisibleSelected
                                         ? t("Deselect All")
@@ -989,7 +1024,7 @@ function SavedChats({ displayState }) {
                                 <button
                                     onClick={handleExportSelected}
                                     disabled={selectedIds.size === 0}
-                                    className="lb-secondary font-medium flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                                    className="lb-secondary font-medium flex items-center gap-2 whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
                                 >
                                     <Download className="h-4 w-4" />
                                     {t("Export JSON")} ({selectedIds.size})
@@ -997,7 +1032,7 @@ function SavedChats({ displayState }) {
                                 <button
                                     onClick={() => setIsBulkDialogOpen(true)}
                                     disabled={selectedIds.size === 0}
-                                    className="lb-outline-danger flex items-center gap-2 disabled:cursor-not-allowed"
+                                    className="lb-outline-danger flex items-center gap-2 whitespace-nowrap disabled:cursor-not-allowed"
                                 >
                                     <Trash2 className="h-4 w-4" />
                                     {t("Delete")} ({selectedIds.size})
@@ -1007,7 +1042,7 @@ function SavedChats({ displayState }) {
                                         setSelectMode(false);
                                         setSelectedIds(new Set());
                                     }}
-                                    className="lb-outline flex items-center gap-2"
+                                    className="lb-outline flex items-center gap-2 whitespace-nowrap"
                                 >
                                     <XIcon className="h-4 w-4" />
                                     {t("Cancel")}
@@ -1036,7 +1071,7 @@ function SavedChats({ displayState }) {
                     />
                 </div>
             </div>
-            <div className="chats">
+            <div ref={chatsContainerRef} className="chats">
                 {searchQuery ? (
                     // Search results view
                     <div>
@@ -1197,19 +1232,37 @@ function SavedChats({ displayState }) {
 
             {selectMode && (
                 <div
-                    className="fixed bottom-4 left-0 right-0 z-40 flex justify-center pointer-events-none"
+                    className="pointer-events-none"
                     role="region"
                     aria-label="Bulk actions"
+                    style={{
+                        position: "fixed",
+                        bottom: "3rem",
+                        left:
+                            bottomActionsLeft !== null
+                                ? `${bottomActionsLeft}px`
+                                : "50%",
+                        transform: "translateX(-50%)",
+                        zIndex: 40,
+                    }}
                 >
                     <div className="pointer-events-auto bg-white dark:bg-gray-900 border rounded-md shadow-md px-3 py-2 flex items-center gap-2">
-                        <span className="text-sm">
+                        <span className="text-sm whitespace-nowrap">
                             {t("Selected")} {selectedIds.size}
                         </span>
+                        <button
+                            onClick={handleToggleVisibleSelection}
+                            className="lb-outline flex items-center gap-2 whitespace-nowrap"
+                        >
+                            {allVisibleSelected
+                                ? t("Deselect All")
+                                : t("Select All")}
+                        </button>
                         <button
                             ref={stickyExportButtonRef}
                             onClick={handleExportSelected}
                             disabled={selectedIds.size === 0}
-                            className="lb-secondary flex items-center gap-2 disabled:cursor-not-allowed"
+                            className="lb-secondary flex items-center gap-2 whitespace-nowrap disabled:cursor-not-allowed"
                         >
                             <Download className="h-4 w-4" />
                             {t("Export JSON")}
@@ -1217,7 +1270,7 @@ function SavedChats({ displayState }) {
                         <button
                             onClick={() => setIsBulkDialogOpen(true)}
                             disabled={selectedIds.size === 0}
-                            className="lb-danger flex items-center gap-2 disabled:cursor-not-allowed"
+                            className="lb-danger flex items-center gap-2 whitespace-nowrap disabled:cursor-not-allowed"
                         >
                             <Trash2 className="h-4 w-4" />
                             {t("Delete")}
@@ -1227,7 +1280,7 @@ function SavedChats({ displayState }) {
                                 setSelectMode(false);
                                 setSelectedIds(new Set());
                             }}
-                            className="lb-outline flex items-center gap-2"
+                            className="lb-outline flex items-center gap-2 whitespace-nowrap"
                         >
                             <XIcon className="h-4 w-4" />
                             {t("Cancel")}

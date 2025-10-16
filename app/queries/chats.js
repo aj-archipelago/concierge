@@ -71,7 +71,7 @@ export function useSearchChats(searchQuery, { limit = 20 } = {}) {
         queryFn: async () => {
             if (!searchQuery) return [];
             const response = await axios.get(
-                `/api/chats?search=${encodeURIComponent(searchQuery)}&limit=${encodeURIComponent(limit)}`,
+                `/api/chats?search=${encodeURIComponent(searchQuery)}&limit=${limit}`,
             );
             return response.data || [];
         },
@@ -87,7 +87,7 @@ export function useSearchContent(searchQuery, { limit = 20 } = {}) {
         queryFn: async () => {
             if (!searchQuery) return [];
             const response = await axios.get(
-                `/api/chats?content=${encodeURIComponent(searchQuery)}&limit=${encodeURIComponent(limit)}`,
+                `/api/chats?content=${encodeURIComponent(searchQuery)}&limit=${limit}`,
             );
             const data = Array.isArray(response.data) ? response.data : [];
             return data.slice(0, limit);

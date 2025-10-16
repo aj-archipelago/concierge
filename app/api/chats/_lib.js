@@ -448,6 +448,8 @@ export async function searchChatTitles(
 // Content search that avoids regex on encrypted fields by filtering in memory
 // Scans recent chats (by updatedAt desc) up to scanLimit
 // For speed, only inspects the last `slice` messages per chat
+const MIN_MESSAGE_SLICE = 1;
+
 export async function searchChatContent(
     searchTerm,
     { limit = 20, scanLimit = 500, slice = 50 } = {},
@@ -465,8 +467,8 @@ export async function searchChatContent(
             createdAt: 1,
             updatedAt: 1,
             // Use a negative slice to get only the last `slice` messages per chat for speed.
-            // Math.max(1, slice) enforces a minimum of 1 message to avoid empty arrays when slice <= 0.
-            messages: { $slice: -Math.max(1, slice) },
+            // Math.max enforces a minimum of 1 message to avoid empty arrays when slice <= 0.
+            messages: { $slice: -Math.max(MIN_MESSAGE_SLICE, slice) },
         },
     )
         .sort({ updatedAt: -1 })
