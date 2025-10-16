@@ -75,7 +75,8 @@ export function useSearchChats(searchQuery) {
             );
             return response.data || [];
         },
-        enabled: typeof searchQuery === "string",
+        enabled:
+            typeof searchQuery === "string" && searchQuery.trim().length > 0,
         staleTime: 1000 * 30,
     });
 }
@@ -91,7 +92,8 @@ export function useSearchContent(searchQuery, { limit = 20 } = {}) {
             const data = Array.isArray(response.data) ? response.data : [];
             return data.slice(0, limit);
         },
-        enabled: typeof searchQuery === "string",
+        enabled:
+            typeof searchQuery === "string" && searchQuery.trim().length > 0,
         staleTime: 1000 * 30,
     });
 }

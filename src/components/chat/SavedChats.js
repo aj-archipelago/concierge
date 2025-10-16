@@ -341,6 +341,7 @@ function SavedChats({ displayState }) {
 
     // Progressive content search using loaded chats with performance optimizations
     const searchTimeoutRef = useRef(null);
+    const autoLoadFetchInProgressRef = useRef(false);
 
     // Cleanup search timeout on unmount to prevent memory leaks
     useEffect(() => {
@@ -401,7 +402,12 @@ function SavedChats({ displayState }) {
                         totalLoaded < MAX_AUTOLOAD_CHATS_FOR_CONTENT_SEARCH &&
                         !isFetchingNextPage
                     ) {
-                        fetchNextPage();
+                        if (!autoLoadFetchInProgressRef.current) {
+                            autoLoadFetchInProgressRef.current = true;
+                            fetchNextPage().finally(() => {
+                                autoLoadFetchInProgressRef.current = false;
+                            });
+                        }
                         return; // wait for additional data; effect will re-run
                     }
 
