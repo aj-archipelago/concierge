@@ -464,6 +464,8 @@ export async function searchChatContent(
             title: 1,
             createdAt: 1,
             updatedAt: 1,
+            // Use a negative slice to get only the last `slice` messages per chat for speed.
+            // Math.max(1, slice) enforces a minimum of 1 message to avoid empty arrays when slice <= 0.
             messages: { $slice: -Math.max(1, slice) },
         },
     )

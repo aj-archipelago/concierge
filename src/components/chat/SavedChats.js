@@ -54,6 +54,8 @@ dayjs.extend(relativeTime);
 // Extra bottom padding used when sticky bulk actions are visible
 const STICKY_ACTIONS_PADDING_CLASS = "pb-24";
 const CONTENT_SEARCH_DEBOUNCE_MS = 250;
+const MAX_AUTOLOAD_CHATS_FOR_CONTENT_SEARCH = 200;
+const MIN_SEARCH_QUERY_LENGTH = 1;
 const MAX_SEARCH_QUERY_LENGTH = 100;
 const MAX_CONTENT_SEARCH_RESULTS = 20;
 
@@ -280,7 +282,7 @@ function SavedChats({ displayState }) {
     useEffect(() => {
         const timer = setTimeout(
             () => setDebouncedSearchQuery(searchQuery),
-            200,
+            CONTENT_SEARCH_DEBOUNCE_MS,
         );
         return () => clearTimeout(timer);
     }, [searchQuery]);
@@ -355,7 +357,11 @@ function SavedChats({ displayState }) {
             clearTimeout(searchTimeoutRef.current);
         }
 
-        if (searchQuery.length >= 1 && !isSearching && dataRef.current?.pages) {
+        if (
+            searchQuery.length >= MIN_SEARCH_QUERY_LENGTH &&
+            !isSearching &&
+            dataRef.current?.pages
+        ) {
             setIsSearchingContent(true);
 
             // Debounce the content search
@@ -375,9 +381,9 @@ function SavedChats({ displayState }) {
                     // If we haven't loaded enough chats yet, try to auto-load more for deeper content search
                     const totalLoaded = allLoadedChats.length;
                     if (
-                        searchQuery.length >= 1 &&
+                        searchQuery.length >= MIN_SEARCH_QUERY_LENGTH &&
                         hasNextPage &&
-                        totalLoaded < 200 &&
+                        totalLoaded < MAX_AUTOLOAD_CHATS_FOR_CONTENT_SEARCH &&
                         !isFetchingNextPage
                     ) {
                         fetchNextPage();
@@ -418,7 +424,7 @@ function SavedChats({ displayState }) {
                     setIsSearchingContent(false);
                 }
             }, CONTENT_SEARCH_DEBOUNCE_MS);
-        } else if (searchQuery.length < 1) {
+        } else if (searchQuery.length < MIN_SEARCH_QUERY_LENGTH) {
             setContentMatches([]);
             setIsSearchingContent(false);
             setSearchError(null);
