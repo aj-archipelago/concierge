@@ -692,7 +692,9 @@ function SavedChats({ displayState }) {
             >
                 <AlertDialogContent>
                     <AlertDialogHeader>
-                        <AlertDialogTitle>{noticeDialog.title}</AlertDialogTitle>
+                        <AlertDialogTitle>
+                            {noticeDialog.title}
+                        </AlertDialogTitle>
                         <AlertDialogDescription>
                             {noticeDialog.description}
                         </AlertDialogDescription>
