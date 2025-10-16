@@ -70,6 +70,8 @@
     "Remove": "Remove",
     "Add": "Add",
     "Loading...": "Loading...",
+    "Searching...": "Searching...",
+    "searching...": "searching...",
     "Unknown App": "Unknown App",
     "No applet created yet": "No applet created yet",
     "Use the chat interface to describe your desired UI, or paste HTML code directly in the Code tab to create your first version.": "Use the chat interface to describe your desired UI, or paste HTML code directly in the Code tab to create your first version.",

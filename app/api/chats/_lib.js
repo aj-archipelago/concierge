@@ -444,3 +444,47 @@ export async function searchChatTitles(
     }
     return results;
 }
+
+// Content search that avoids regex on encrypted fields by filtering in memory
+// Scans recent chats (by updatedAt desc) up to scanLimit
+// For speed, only inspects the last `slice` messages per chat
+export async function searchChatContent(
+    searchTerm,
+    { limit = 20, scanLimit = 500, slice = 50 } = {},
+) {
+    const currentUser = await getCurrentUser(false);
+    const term = String(searchTerm || "").trim();
+    if (!term) return [];
+
+    // Fetch a window of recent chats; fields will be auto-decrypted by CSFLE
+    const chats = await Chat.find(
+        { userId: currentUser._id },
+        {
+            _id: 1,
+            title: 1,
+            createdAt: 1,
+            updatedAt: 1,
+            messages: { $slice: -Math.max(1, slice) },
+        },
+    )
+        .sort({ updatedAt: -1 })
+        .limit(scanLimit)
+        .lean();
+
+    const lowerTerm = term.toLowerCase();
+    const results = [];
+    for (const chat of chats) {
+        const msgs = Array.isArray(chat?.messages) ? chat.messages : [];
+        const hasMatch = msgs.some(
+            (m) =>
+                m &&
+                typeof m.payload === "string" &&
+                m.payload.toLowerCase().includes(lowerTerm),
+        );
+        if (hasMatch) {
+            results.push(chat);
+            if (results.length >= limit) break;
+        }
+    }
+    return results;
+}

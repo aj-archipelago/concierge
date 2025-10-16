@@ -32,6 +32,7 @@ import {
     useSetActiveChatId,
     useUpdateChat,
     useSearchChats,
+    useSearchContent,
     useTotalChatCount,
 } from "../../../app/queries/chats";
 import classNames from "../../../app/utils/class-names";
@@ -274,11 +275,59 @@ function SavedChats({ displayState }) {
         error: titleSearchError,
     } = useSearchChats(searchQuery);
 
+    // Debounce server-side content search to prevent flicker while typing
+    const [debouncedSearchQuery, setDebouncedSearchQuery] = useState("");
+    useEffect(() => {
+        const timer = setTimeout(
+            () => setDebouncedSearchQuery(searchQuery),
+            200,
+        );
+        return () => clearTimeout(timer);
+    }, [searchQuery]);
+
+    // Server-side content search (fast, CSFLE-safe)
+    const {
+        data: contentServerResults = [],
+        isLoading: isSearchingContentServer,
+    } = useSearchContent(debouncedSearchQuery);
+
+    // Sticky UI indicator for content searching to avoid flicker during rapid page fetches
+    const [showContentSearching, setShowContentSearching] = useState(false);
+    const contentSearchUiTimeoutRef = useRef(null);
+    useEffect(() => {
+        if (searchQuery && (isSearchingContentServer || isFetchingNextPage)) {
+            setShowContentSearching(true);
+            if (contentSearchUiTimeoutRef.current) {
+                clearTimeout(contentSearchUiTimeoutRef.current);
+                contentSearchUiTimeoutRef.current = null;
+            }
+        } else if (searchQuery) {
+            if (contentSearchUiTimeoutRef.current) {
+                clearTimeout(contentSearchUiTimeoutRef.current);
+            }
+            contentSearchUiTimeoutRef.current = setTimeout(() => {
+                setShowContentSearching(false);
+                contentSearchUiTimeoutRef.current = null;
+            }, 400);
+        } else {
+            setShowContentSearching(false);
+            if (contentSearchUiTimeoutRef.current) {
+                clearTimeout(contentSearchUiTimeoutRef.current);
+                contentSearchUiTimeoutRef.current = null;
+            }
+        }
+        return () => {
+            if (contentSearchUiTimeoutRef.current) {
+                clearTimeout(contentSearchUiTimeoutRef.current);
+                contentSearchUiTimeoutRef.current = null;
+            }
+        };
+    }, [searchQuery, isSearchingContentServer, isFetchingNextPage]);
+
     // Get total chat count from database
     const { data: totalChatCount = 0 } = useTotalChatCount();
 
     // Progressive content search using loaded chats with performance optimizations
-    const lastSearchRef = useRef("");
     const searchTimeoutRef = useRef(null);
 
     // Cleanup search timeout on unmount to prevent memory leaks
@@ -306,14 +355,8 @@ function SavedChats({ displayState }) {
             clearTimeout(searchTimeoutRef.current);
         }
 
-        if (
-            searchQuery.length >= 1 &&
-            !isSearching &&
-            dataRef.current?.pages &&
-            lastSearchRef.current !== searchQuery
-        ) {
+        if (searchQuery.length >= 1 && !isSearching && dataRef.current?.pages) {
             setIsSearchingContent(true);
-            lastSearchRef.current = searchQuery;
 
             // Debounce the content search
             searchTimeoutRef.current = setTimeout(() => {
@@ -323,16 +366,29 @@ function SavedChats({ displayState }) {
                         ? dataRef.current.pages.flat()
                         : [];
                     const titleIdSet = new Set(
-                        (searchResultsRef.current || []).map(
-                            (chat) => chat._id,
+                        (searchResultsRef.current || []).map((chat) =>
+                            getChatIdString(chat?._id),
                         ),
                     );
                     const lowerSearchQuery = searchQuery.toLowerCase();
 
+                    // If we haven't loaded enough chats yet, try to auto-load more for deeper content search
+                    const totalLoaded = allLoadedChats.length;
+                    if (
+                        searchQuery.length >= 1 &&
+                        hasNextPage &&
+                        totalLoaded < 200 &&
+                        !isFetchingNextPage
+                    ) {
+                        fetchNextPage();
+                        return; // wait for additional data; effect will re-run
+                    }
+
                     // Search through expanded dataset (auto-loaded up to 200 chats)
-                    const chatsToSearch = allLoadedChats.filter(
-                        (chat) => chat?._id && !titleIdSet.has(chat._id),
-                    ); // Exclude title matches
+                    const chatsToSearch = allLoadedChats.filter((chat) => {
+                        const id = getChatIdString(chat?._id);
+                        return id && !titleIdSet.has(id);
+                    }); // Exclude title matches
 
                     // Early termination: stop once enough matches are collected
                     const matches = [];
@@ -366,7 +422,6 @@ function SavedChats({ displayState }) {
             setContentMatches([]);
             setIsSearchingContent(false);
             setSearchError(null);
-            lastSearchRef.current = "";
         }
 
         return () => {
@@ -374,7 +429,7 @@ function SavedChats({ displayState }) {
                 clearTimeout(searchTimeoutRef.current);
             }
         };
-    }, [searchQuery]); // Effect depends on searchQuery; avoid frequent re-runs on isSearching changes
+    }, [searchQuery, data, searchResults]); // Re-run when dataset or search query changes
 
     const categorizedChats = useMemo(() => {
         const categories = {
@@ -676,6 +731,15 @@ function SavedChats({ displayState }) {
         return <Loader />;
     }
 
+    // Prefer showing title loading first; once titles are ready, indicate content search if active
+    const statusLabel =
+        isSearching || showContentSearching ? t("searching...") : null;
+
+    const contentMatchesDisplay =
+        contentServerResults && contentServerResults.length > 0
+            ? contentServerResults
+            : contentMatches;
+
     return (
         <div
             className={`${isDocked ? "text-xs" : ""} pb-4 ${selectMode ? STICKY_ACTIONS_PADDING_CLASS : ""}`}
@@ -691,19 +755,18 @@ function SavedChats({ displayState }) {
                             {searchQuery ? (
                                 <div>
                                     {searchResults.length} {t("title matches")}
-                                    {contentMatches.length > 0 &&
-                                        `, ${contentMatches.length} ${t("content matches")}`}
+                                    {contentMatchesDisplay.length > 0 &&
+                                        `, ${contentMatchesDisplay.length} ${t("content matches")}`}
                                     {` ${t("of")} ${totalChatCount} ${t("total")}`}
-                                    {(isSearchingContent ||
-                                        (searchQuery &&
-                                            isFetchingNextPage)) && (
-                                        <span className="text-blue-500">
-                                            {" "}
-                                            •{" "}
-                                            {isFetchingNextPage
-                                                ? t("Loading...")
-                                                : t("searching content...")}
-                                        </span>
+                                    {statusLabel && (
+                                        <>
+                                            <span className="mx-1 text-gray-400 dark:text-gray-500">
+                                                •
+                                            </span>
+                                            <span className="text-blue-500 dark:text-blue-400">
+                                                {statusLabel}
+                                            </span>
+                                        </>
                                     )}
                                 </div>
                             ) : (
@@ -818,13 +881,15 @@ function SavedChats({ displayState }) {
                                 )}
 
                                 {/* Content matches section */}
-                                {contentMatches.length > 0 && (
+                                {contentMatchesDisplay.length > 0 && (
                                     <div>
                                         <h2 className="text-md font-semibold mt-4 mb-2 border-b border-gray-200 dark:border-gray-700 pb-1">
                                             💬 {t("Content Matches")} (
-                                            {contentMatches.length})
+                                            {contentMatchesDisplay.length})
                                         </h2>
-                                        {renderChatElements(contentMatches)}
+                                        {renderChatElements(
+                                            contentMatchesDisplay,
+                                        )}
                                     </div>
                                 )}
 
@@ -844,8 +909,9 @@ function SavedChats({ displayState }) {
                                     !searchError &&
                                     searchQuery.length >= 1 &&
                                     searchResults.length === 0 &&
-                                    contentMatches.length === 0 &&
-                                    !isSearchingContent && (
+                                    contentMatchesDisplay.length === 0 &&
+                                    !isSearching &&
+                                    !showContentSearching && (
                                         <div className="text-center py-8 text-gray-500">
                                             {t(
                                                 "No chats found matching your search",

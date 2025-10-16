@@ -5,6 +5,7 @@ import {
     createNewChat,
     updateChat,
     searchChatTitles,
+    searchChatContent,
 } from "./_lib";
 import { DEFAULT_PAGE_SIZE } from "../../queries/chats";
 
@@ -15,9 +16,14 @@ export async function GET(req) {
         const page = parseInt(searchParams.get("page")) || 1;
         const limit = DEFAULT_PAGE_SIZE; // Number of chats per page
         const search = searchParams.get("search");
+        const content = searchParams.get("content");
 
         if (search) {
             const chats = await searchChatTitles(search);
+            return NextResponse.json(chats);
+        }
+        if (content) {
+            const chats = await searchChatContent(content);
             return NextResponse.json(chats);
         }
 

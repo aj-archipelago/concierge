@@ -79,6 +79,22 @@ export function useSearchChats(searchQuery) {
         staleTime: 1000 * 30,
     });
 }
+// Server-side content search (CSFLE-safe) scanning recent chats
+export function useSearchContent(searchQuery, { limit = 20 } = {}) {
+    return useQuery({
+        queryKey: ["searchContent", searchQuery, limit],
+        queryFn: async () => {
+            if (!searchQuery) return [];
+            const response = await axios.get(
+                `/api/chats?content=${encodeURIComponent(searchQuery)}`,
+            );
+            const data = Array.isArray(response.data) ? response.data : [];
+            return data.slice(0, limit);
+        },
+        enabled: typeof searchQuery === "string",
+        staleTime: 1000 * 30,
+    });
+}
 
 // Total chat count for current user
 export function useTotalChatCount() {
@@ -279,6 +295,8 @@ export function useAddChat() {
             queryClient.invalidateQueries({ queryKey: ["totalChatCount"] });
             // Ensure title search results include newly added chats immediately
             queryClient.invalidateQueries({ queryKey: ["searchChats"] });
+            // Ensure server-side content search includes newly added chats immediately
+            queryClient.invalidateQueries({ queryKey: ["searchContent"] });
         },
     });
 }
@@ -419,6 +437,8 @@ export function useDeleteChat() {
             queryClient.invalidateQueries({ queryKey: ["activeChats"] });
             queryClient.invalidateQueries({ queryKey: ["chats"] });
             queryClient.invalidateQueries({ queryKey: ["totalChatCount"] });
+            queryClient.invalidateQueries({ queryKey: ["searchChats"] });
+            queryClient.invalidateQueries({ queryKey: ["searchContent"] });
         },
     });
 }
