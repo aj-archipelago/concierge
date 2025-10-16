@@ -279,12 +279,22 @@ function SavedChats({ displayState }) {
 
     // Debounce server-side content search to prevent flicker while typing
     const [debouncedSearchQuery, setDebouncedSearchQuery] = useState("");
+    const debounceTimerRef = useRef(null);
     useEffect(() => {
-        const timer = setTimeout(
+        if (debounceTimerRef.current) {
+            clearTimeout(debounceTimerRef.current);
+            debounceTimerRef.current = null;
+        }
+        debounceTimerRef.current = setTimeout(
             () => setDebouncedSearchQuery(searchQuery),
             CONTENT_SEARCH_DEBOUNCE_MS,
         );
-        return () => clearTimeout(timer);
+        return () => {
+            if (debounceTimerRef.current) {
+                clearTimeout(debounceTimerRef.current);
+                debounceTimerRef.current = null;
+            }
+        };
     }, [searchQuery]);
 
     // Server-side content search (fast, CSFLE-safe)
@@ -366,6 +376,11 @@ function SavedChats({ displayState }) {
 
             // Debounce the content search
             searchTimeoutRef.current = setTimeout(() => {
+                // Clear the timeout reference to prevent overlaps before executing
+                if (searchTimeoutRef.current) {
+                    clearTimeout(searchTimeoutRef.current);
+                    searchTimeoutRef.current = null;
+                }
                 try {
                     // Search through loaded chats with performance optimizations
                     const allLoadedChats = Array.isArray(dataRef.current?.pages)

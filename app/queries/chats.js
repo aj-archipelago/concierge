@@ -110,13 +110,14 @@ export function useTotalChatCount() {
 
 function temporaryNewChat({ messages, title }) {
     const tempId = `temp_${Date.now()}_${crypto.randomUUID()}`;
+    const now = new Date().toISOString();
     return {
         _id: tempId,
         messages: messages || [],
         title: title || "",
         // Ensure optimistic items categorize correctly and display timestamps
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
+        createdAt: now,
+        updatedAt: now,
         isTemporary: true,
     };
 }
