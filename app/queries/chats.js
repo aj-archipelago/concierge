@@ -446,6 +446,72 @@ export function useDeleteChat() {
     });
 }
 
+export function useBulkImportChats() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: async ({ chats }) => {
+            if (!Array.isArray(chats)) {
+                throw new Error("chats must be an array");
+            }
+            const response = await axios.post(`/api/chats/bulk`, { chats });
+            const data = response.data || {};
+            return {
+                createdIds: Array.isArray(data.createdIds)
+                    ? data.createdIds.map((id) => String(id))
+                    : [],
+                createdChats: Array.isArray(data.createdChats)
+                    ? data.createdChats
+                    : [],
+                errors: Array.isArray(data.errors) ? data.errors : [],
+                createdCount: Number.isFinite(data.createdCount)
+                    ? data.createdCount
+                    : 0,
+            };
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ["chats"] });
+            queryClient.invalidateQueries({ queryKey: ["activeChats"] });
+            queryClient.invalidateQueries({ queryKey: ["userChatInfo"] });
+            queryClient.invalidateQueries({ queryKey: ["totalChatCount"] });
+            queryClient.invalidateQueries({ queryKey: ["searchChats"] });
+            queryClient.invalidateQueries({ queryKey: ["searchContent"] });
+        },
+    });
+}
+
+export function useBulkDeleteChats() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: async ({ chatIds }) => {
+            if (!Array.isArray(chatIds)) {
+                throw new Error("chatIds must be an array");
+            }
+            const response = await axios.delete(`/api/chats/bulk`, {
+                data: { chatIds },
+            });
+            const data = response.data || {};
+            return {
+                deletedIds: Array.isArray(data.deletedIds)
+                    ? data.deletedIds.map((id) => String(id))
+                    : [],
+                missingIds: Array.isArray(data.missingIds)
+                    ? data.missingIds.map((id) => String(id))
+                    : [],
+            };
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ["userChatInfo"] });
+            queryClient.invalidateQueries({ queryKey: ["activeChats"] });
+            queryClient.invalidateQueries({ queryKey: ["chats"] });
+            queryClient.invalidateQueries({ queryKey: ["totalChatCount"] });
+            queryClient.invalidateQueries({ queryKey: ["searchChats"] });
+            queryClient.invalidateQueries({ queryKey: ["searchContent"] });
+        },
+    });
+}
+
 export function useGetUserChatInfo() {
     return useQuery({
         queryKey: ["userChatInfo"],
