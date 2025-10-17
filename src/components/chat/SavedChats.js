@@ -984,9 +984,12 @@ function SavedChats({ displayState }) {
                                 <button
                                     onClick={() => setSelectMode(true)}
                                     className="lb-outline flex items-center gap-2"
+                                    aria-label={t("Select")}
                                 >
                                     <CheckSquare className="h-4 w-4" />
-                                    {t("Select")}
+                                    <span className="hidden sm:inline">
+                                        {t("Select")}
+                                    </span>
                                 </button>
                                 <input
                                     ref={importInputRef}
@@ -998,16 +1001,22 @@ function SavedChats({ displayState }) {
                                 <button
                                     onClick={handleImportClick}
                                     className="lb-outline-secondary font-medium flex items-center gap-2"
+                                    aria-label={t("Import JSON")}
                                 >
                                     <Upload className="h-4 w-4" />
-                                    {t("Import JSON")}
+                                    <span className="hidden sm:inline">
+                                        {t("Import JSON")}
+                                    </span>
                                 </button>
                                 <button
                                     onClick={handleCreateNewChat}
                                     className="lb-primary flex items-center gap-2 "
+                                    aria-label={t("New Chat")}
                                 >
                                     <Plus className="h-4 w-4" />
-                                    {t("New Chat")}
+                                    <span className="hidden sm:inline">
+                                        {t("New Chat")}
+                                    </span>
                                 </button>
                             </>
                         ) : (
@@ -1015,26 +1024,40 @@ function SavedChats({ displayState }) {
                                 <button
                                     onClick={handleToggleVisibleSelection}
                                     className="lb-outline flex items-center gap-2 whitespace-nowrap"
+                                    aria-label={
+                                        allVisibleSelected
+                                            ? t("Deselect All")
+                                            : t("Select All")
+                                    }
                                 >
-                                    {allVisibleSelected
-                                        ? t("Deselect All")
-                                        : t("Select All")}
+                                    <CheckSquare className="h-4 w-4" />
+                                    <span className="hidden sm:inline">
+                                        {allVisibleSelected
+                                            ? t("Deselect All")
+                                            : t("Select All")}
+                                    </span>
                                 </button>
                                 <button
                                     onClick={handleExportSelected}
                                     disabled={selectedIds.size === 0}
                                     className="lb-secondary font-medium flex items-center gap-2 whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
+                                    aria-label={`${t("Export JSON")} (${selectedIds.size})`}
                                 >
                                     <Download className="h-4 w-4" />
-                                    {t("Export JSON")} ({selectedIds.size})
+                                    <span className="hidden sm:inline">
+                                        {t("Export JSON")} ({selectedIds.size})
+                                    </span>
                                 </button>
                                 <button
                                     onClick={() => setIsBulkDialogOpen(true)}
                                     disabled={selectedIds.size === 0}
                                     className="lb-outline-danger flex items-center gap-2 whitespace-nowrap disabled:cursor-not-allowed"
+                                    aria-label={`${t("Delete")} (${selectedIds.size})`}
                                 >
                                     <Trash2 className="h-4 w-4" />
-                                    {t("Delete")} ({selectedIds.size})
+                                    <span className="hidden sm:inline">
+                                        {t("Delete")} ({selectedIds.size})
+                                    </span>
                                 </button>
                                 <button
                                     onClick={() => {
@@ -1042,9 +1065,12 @@ function SavedChats({ displayState }) {
                                         setSelectedIds(new Set());
                                     }}
                                     className="lb-outline flex items-center gap-2 whitespace-nowrap"
+                                    aria-label={t("Cancel")}
                                 >
                                     <XIcon className="h-4 w-4" />
-                                    {t("Cancel")}
+                                    <span className="hidden sm:inline">
+                                        {t("Cancel")}
+                                    </span>
                                 </button>
                             </>
                         )}
@@ -1252,27 +1278,41 @@ function SavedChats({ displayState }) {
                         <button
                             onClick={handleToggleVisibleSelection}
                             className="lb-outline flex items-center gap-2 whitespace-nowrap"
+                            aria-label={
+                                allVisibleSelected
+                                    ? t("Deselect All")
+                                    : t("Select All")
+                            }
                         >
-                            {allVisibleSelected
-                                ? t("Deselect All")
-                                : t("Select All")}
+                            <CheckSquare className="h-4 w-4" />
+                            <span className="hidden sm:inline">
+                                {allVisibleSelected
+                                    ? t("Deselect All")
+                                    : t("Select All")}
+                            </span>
                         </button>
                         <button
                             ref={stickyExportButtonRef}
                             onClick={handleExportSelected}
                             disabled={selectedIds.size === 0}
                             className="lb-secondary flex items-center gap-2 whitespace-nowrap disabled:cursor-not-allowed"
+                            aria-label={`${t("Export JSON")} (${selectedIds.size})`}
                         >
                             <Download className="h-4 w-4" />
-                            {t("Export JSON")}
+                            <span className="hidden sm:inline">
+                                {t("Export JSON")} ({selectedIds.size})
+                            </span>
                         </button>
                         <button
                             onClick={() => setIsBulkDialogOpen(true)}
                             disabled={selectedIds.size === 0}
                             className="lb-danger flex items-center gap-2 whitespace-nowrap disabled:cursor-not-allowed"
+                            aria-label={`${t("Delete")} (${selectedIds.size})`}
                         >
                             <Trash2 className="h-4 w-4" />
-                            {t("Delete")}
+                            <span className="hidden sm:inline">
+                                {t("Delete")} ({selectedIds.size})
+                            </span>
                         </button>
                         <button
                             onClick={() => {
@@ -1280,9 +1320,12 @@ function SavedChats({ displayState }) {
                                 setSelectedIds(new Set());
                             }}
                             className="lb-outline flex items-center gap-2 whitespace-nowrap"
+                            aria-label={t("Cancel")}
                         >
                             <XIcon className="h-4 w-4" />
-                            {t("Cancel")}
+                            <span className="hidden sm:inline">
+                                {t("Cancel")}
+                            </span>
                         </button>
                     </div>
                 </div>
