@@ -6,6 +6,7 @@ import User from "../../models/user";
 import { Types } from "mongoose";
 
 const MAX_RECENT_CHATS = 1_000;
+const AUTO_TITLE_MAX_LENGTH = 14;
 
 const normalizeChatsPayload = (payload) => {
     if (Array.isArray(payload?.chats)) return payload.chats;
@@ -77,10 +78,10 @@ const deriveTitle = (chat, messages) => {
     }
     const firstPayload = messages[0]?.payload;
     if (typeof firstPayload === "string" && firstPayload.trim()) {
-        return firstPayload.substring(0, 14);
+        return firstPayload.substring(0, AUTO_TITLE_MAX_LENGTH);
     }
     if (Array.isArray(firstPayload) && firstPayload.length) {
-        return firstPayload.join(" ").substring(0, 14);
+        return firstPayload.join(" ").substring(0, AUTO_TITLE_MAX_LENGTH);
     }
     return "";
 };

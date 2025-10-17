@@ -184,7 +184,7 @@ function SavedChats({ displayState }) {
                     (deletedIds || []).map((id) => getChatIdString(id)),
                 );
                 const notDeleted = new Set(
-                    [...(missingIds || []), ...ids]
+                    (missingIds || [])
                         .map((id) => getChatIdString(id))
                         .filter((id) => !deletedSet.has(id)),
                 );
@@ -338,9 +338,9 @@ function SavedChats({ displayState }) {
             }
 
             if (errors.length > 0) {
-                const errorLabels = errors
-                    .map((err) => `${t("Chat")} ${err.index + 1}: ${err.error}`)
-                    .filter(Boolean);
+                const errorLabels = errors.map(
+                    (err) => `${t("Chat")} ${err.index + 1}: ${err.error}`,
+                );
                 const summary = createdCount
                     ? t("importPartialSummary", {
                           success: createdCount,
@@ -1019,6 +1019,11 @@ function SavedChats({ displayState }) {
         }
     };
 
+    const handleShowAllResults = useCallback(() => {
+        setTitleSearchLimit(MAX_TITLE_SEARCH_LIMIT);
+        setServerContentLimit(500);
+    }, []);
+
     if (areChatsLoading) {
         return <Loader />;
     }
@@ -1041,11 +1046,6 @@ function SavedChats({ displayState }) {
         contentMatchesDisplay.length >= serverContentLimit;
 
     const shouldShowAllResults = isTitleLimitReached || isContentLimitReached;
-
-    const handleShowAllResults = useCallback(() => {
-        setTitleSearchLimit(MAX_TITLE_SEARCH_LIMIT);
-        setServerContentLimit(500);
-    }, []);
 
     return (
         <div
