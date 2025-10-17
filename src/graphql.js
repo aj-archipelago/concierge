@@ -37,7 +37,7 @@ const getClient = (serverUrl, useBlueGraphQL) => {
 
     // Add error handling link for authentication errors
     const errorLink = onError(
-        async ({ networkError, graphQLErrors, operation, forward }) => {
+        ({ networkError, graphQLErrors, operation, forward }) => {
             // Skip auth error handling for auth-related endpoints
             if (
                 operation.operationName?.includes("auth") ||
@@ -52,17 +52,19 @@ const getClient = (serverUrl, useBlueGraphQL) => {
                 if (!isGraphQLRefreshing) {
                     isGraphQLRefreshing = true;
 
-                    try {
-                        // Check if we need to refresh auth
-                        const isAuthenticated = await checkAuthHeaders();
-                        if (!isAuthenticated) {
-                            await triggerAuthRefresh();
+                    (async () => {
+                        try {
+                            // Check if we need to refresh auth
+                            const isAuthenticated = await checkAuthHeaders();
+                            if (!isAuthenticated) {
+                                await triggerAuthRefresh();
+                            }
+                        } catch (error) {
+                            console.error("GraphQL auth refresh error:", error);
+                        } finally {
+                            isGraphQLRefreshing = false;
                         }
-                    } catch (error) {
-                        console.error("GraphQL auth refresh error:", error);
-                    } finally {
-                        isGraphQLRefreshing = false;
-                    }
+                    })();
                 }
             }
 
