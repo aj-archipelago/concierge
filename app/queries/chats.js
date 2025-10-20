@@ -7,7 +7,7 @@ import {
 import axios from "../utils/axios-client";
 import { isValidObjectId } from "../../src/utils/helper.js";
 
-export const DEFAULT_PAGE_SIZE = 10;
+export const DEFAULT_PAGE_SIZE = 30;
 
 export function useGetChats() {
     return useInfiniteQuery({
