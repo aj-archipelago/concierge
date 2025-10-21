@@ -14,6 +14,7 @@ import "katex/dist/katex.min.css";
 import { visit } from "unist-util-visit";
 import ChatImage from "../images/ChatImage";
 import MermaidDiagram from "../code/MermaidDiagram";
+import MermaidPlaceholder from "../code/MermaidPlaceholder";
 
 function transformToCitation(content) {
     return content
@@ -63,6 +64,14 @@ function convertMessageToMarkdown(message, finalRender = true) {
 
     if (typeof payload !== "string") {
         return payload;
+    }
+
+    // Check if we're in a Mermaid block during streaming
+    const isInMermaidBlock = !finalRender && payload.includes('```mermaid');
+    
+    if (isInMermaidBlock) {
+        // During streaming with Mermaid, show placeholder instead of processing markdown
+        return <MermaidPlaceholder key="mermaid-streaming-placeholder" />;
     }
 
     const components = {
@@ -148,13 +157,22 @@ function convertMessageToMarkdown(message, finalRender = true) {
             const language = match ? match[1] : null;
 
             // Handle Mermaid diagrams
-            if (language === "mermaid" && finalRender) {
-                return (
-                    <MermaidDiagram
-                        key={`mermaid-${++componentIndex}`}
-                        code={children}
-                    />
-                );
+            if (language === "mermaid") {
+                if (finalRender) {
+                    return (
+                        <MermaidDiagram
+                            key={`mermaid-${++componentIndex}`}
+                            code={children}
+                        />
+                    );
+                } else {
+                    // During streaming, show placeholder instead of raw code
+                    return (
+                        <MermaidPlaceholder
+                            key={`mermaid-placeholder-${++componentIndex}`}
+                        />
+                    );
+                }
             }
             return match ? (
                 <CodeBlock
