@@ -103,8 +103,16 @@ const VISION = gql`
 `;
 
 const SYS_SAVE_MEMORY = gql`
-    query SysSaveMemory($aiMemory: String!, $contextId: String!) {
-        sys_save_memory(aiMemory: $aiMemory, contextId: $contextId) {
+    query SysSaveMemory(
+        $aiMemory: String!
+        $contextId: String!
+        $contextKey: String
+    ) {
+        sys_save_memory(
+            aiMemory: $aiMemory
+            contextId: $contextId
+            contextKey: $contextKey
+        ) {
             result
         }
     }
@@ -122,6 +130,7 @@ const SYS_ENTITY_AGENT = gql`
     query RagStart(
         $chatHistory: [MultiMessage]!
         $contextId: String
+        $contextKey: String
         $text: String
         $aiName: String
         $aiMemorySelfModify: Boolean
@@ -135,6 +144,7 @@ const SYS_ENTITY_AGENT = gql`
         sys_entity_agent(
             chatHistory: $chatHistory
             contextId: $contextId
+            contextKey: $contextKey
             text: $text
             aiName: $aiName
             aiMemorySelfModify: $aiMemorySelfModify

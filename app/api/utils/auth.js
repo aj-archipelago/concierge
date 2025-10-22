@@ -4,6 +4,7 @@ import User from "../models/user";
 import mongoose from "mongoose";
 import { v4 as uuidv4 } from "uuid";
 import dayjs from "dayjs";
+import crypto from "crypto";
 
 export const getCurrentUser = async (convertToJsonObj = true) => {
     const auth = config.auth;
@@ -104,6 +105,7 @@ export const getCurrentUser = async (convertToJsonObj = true) => {
         console.log("User not found in DB: ", id);
         const name = username;
         const contextId = uuidv4();
+        const contextKey = crypto.randomBytes(32).toString("hex");
         const aiMemorySelfModify = true;
         const aiName = "Labeeb";
         const aiStyle = "OpenAI";
@@ -113,6 +115,7 @@ export const getCurrentUser = async (convertToJsonObj = true) => {
             username,
             name,
             contextId,
+            contextKey,
             aiMemorySelfModify,
             aiName,
             aiStyle,
@@ -126,6 +129,17 @@ export const getCurrentUser = async (convertToJsonObj = true) => {
             user = await user.save();
         } catch (err) {
             console.log("Error saving user: ", err);
+        }
+    }
+
+    // Migration: Generate contextKey for existing users without one
+    if (!user.contextKey) {
+        console.log(`User ${user.userId} has no contextKey, generating one`);
+        user.contextKey = crypto.randomBytes(32).toString("hex");
+        try {
+            user = await user.save();
+        } catch (err) {
+            console.log("Error saving user contextKey: ", err);
         }
     }
 
