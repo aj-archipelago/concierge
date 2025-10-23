@@ -252,6 +252,72 @@ const MODEL_CONFIG = {
             };
         },
     },
+    "veo-3.1-generate": {
+        query: VIDEO_VEO,
+        resultKey: "video_veo",
+        type: "video",
+        buildVariables: (prompt, settings, inputImages) => {
+            const modelSettings = settings?.models?.["veo-3.1-generate"] || {
+                aspectRatio: "16:9",
+                duration: 8,
+                generateAudio: true,
+                resolution: "1080p",
+                cameraFixed: false,
+            };
+            return {
+                text: prompt,
+                async: true,
+                image: formatImageForVeo(inputImages[0]),
+                video: "",
+                lastFrame: "",
+                model: "veo-3.1-generate",
+                aspectRatio: modelSettings.aspectRatio,
+                durationSeconds: modelSettings.duration,
+                enhancePrompt: true,
+                generateAudio: modelSettings.generateAudio,
+                negativePrompt: "",
+                personGeneration: "allow_all",
+                sampleCount: 1,
+                storageUri: "",
+                location: "us-central1",
+                seed: -1,
+            };
+        },
+    },
+    "veo-3.1-fast-generate": {
+        query: VIDEO_VEO,
+        resultKey: "video_veo",
+        type: "video",
+        buildVariables: (prompt, settings, inputImages) => {
+            const modelSettings = settings?.models?.[
+                "veo-3.1-fast-generate"
+            ] || {
+                aspectRatio: "16:9",
+                duration: 8,
+                generateAudio: true,
+                resolution: "1080p",
+                cameraFixed: false,
+            };
+            return {
+                text: prompt,
+                async: true,
+                image: formatImageForVeo(inputImages[0]),
+                video: "",
+                lastFrame: "",
+                model: "veo-3.1-fast-generate",
+                aspectRatio: modelSettings.aspectRatio,
+                durationSeconds: modelSettings.duration,
+                enhancePrompt: true,
+                generateAudio: modelSettings.generateAudio,
+                negativePrompt: "",
+                personGeneration: "allow_all",
+                sampleCount: 1,
+                storageUri: "",
+                location: "us-central1",
+                seed: -1,
+            };
+        },
+    },
 };
 
 // Utility functions

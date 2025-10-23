@@ -22,6 +22,8 @@ export const SUPPORTED_MODELS = [
     "replicate-seedream-4",
     "veo-2.0-generate",
     "veo-3.0-generate",
+    "veo-3.1-generate",
+    "veo-3.1-fast-generate",
     "replicate-seedance-1-pro",
 ];
 
@@ -109,6 +111,22 @@ export const DEFAULT_MODEL_SETTINGS = {
         resolution: "1080p",
         cameraFixed: false,
     },
+    "veo-3.1-generate": {
+        type: "video",
+        aspectRatio: "16:9",
+        duration: 8,
+        generateAudio: true,
+        resolution: "1080p",
+        cameraFixed: false,
+    },
+    "veo-3.1-fast-generate": {
+        type: "video",
+        aspectRatio: "16:9",
+        duration: 8,
+        generateAudio: true,
+        resolution: "1080p",
+        cameraFixed: false,
+    },
     "replicate-seedance-1-pro": {
         type: "video",
         aspectRatio: "16:9",
@@ -147,6 +165,22 @@ export const NEW_MODELS = {
         numberResults: 1,
         sequentialImageGeneration: "disabled",
         seed: 0,
+    },
+    "veo-3.1-generate": {
+        type: "video",
+        aspectRatio: "16:9",
+        duration: 8,
+        generateAudio: true,
+        resolution: "1080p",
+        cameraFixed: false,
+    },
+    "veo-3.1-fast-generate": {
+        type: "video",
+        aspectRatio: "16:9",
+        duration: 8,
+        generateAudio: true,
+        resolution: "1080p",
+        cameraFixed: false,
     },
 };
 
@@ -408,6 +442,24 @@ export const migrateSettings = (oldSettings) => {
                 duration: 8,
                 generateAudio:
                     oldSettings.video?.defaultGenerateAudio !== false, // Default to true for Veo 3.0
+                resolution: oldSettings.video?.defaultResolution || "1080p",
+                cameraFixed: oldSettings.video?.defaultCameraFixed || false,
+            },
+            "veo-3.1-generate": {
+                type: "video",
+                aspectRatio: oldSettings.video?.defaultAspectRatio || "16:9",
+                duration: 8,
+                generateAudio:
+                    oldSettings.video?.defaultGenerateAudio !== false, // Default to true for Veo 3.1
+                resolution: oldSettings.video?.defaultResolution || "1080p",
+                cameraFixed: oldSettings.video?.defaultCameraFixed || false,
+            },
+            "veo-3.1-fast-generate": {
+                type: "video",
+                aspectRatio: oldSettings.video?.defaultAspectRatio || "16:9",
+                duration: 8,
+                generateAudio:
+                    oldSettings.video?.defaultGenerateAudio !== false, // Default to true for Veo 3.1 Fast
                 resolution: oldSettings.video?.defaultResolution || "1080p",
                 cameraFixed: oldSettings.video?.defaultCameraFixed || false,
             },

@@ -57,7 +57,7 @@ function customMarkdownDirective() {
     };
 }
 
-function convertMessageToMarkdown(message, finalRender = true) {
+function convertMessageToMarkdown(message, finalRender = true, onLoad = null) {
     const { payload, tool } = message;
     const citations = tool ? JSON.parse(tool).citations : null;
     let componentIndex = 0; // Counter for code blocks
@@ -163,6 +163,7 @@ function convertMessageToMarkdown(message, finalRender = true) {
                         <MermaidDiagram
                             key={`mermaid-${++componentIndex}`}
                             code={children}
+                            onLoad={onLoad}
                         />
                     );
                 } else {

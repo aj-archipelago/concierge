@@ -106,7 +106,7 @@ function Chat({ viewingChat = null }) {
     const handleExportActiveChat = () => {
         try {
             const chatToExport = viewingChat || chat;
-            if (!chatToExport?._id) return;
+            if (!chatToExport?._id || !chatToExport?.messages?.length) return;
 
             const now = new Date();
             const stamp = now.toISOString().replace(/[:T]/g, "-").split(".")[0];
@@ -205,9 +205,14 @@ function Chat({ viewingChat = null }) {
                         </SelectContent>
                     </Select>
                     <button
-                        className="flex items-center gap-1 px-3 py-1.5 rounded-md transition-colors border bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 border-gray-200 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-600 text-xs"
+                        disabled={!chat?.messages?.length}
+                        className="flex items-center gap-1 px-3 py-1.5 rounded-md transition-colors border bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 border-gray-200 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-600 text-xs disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-white dark:disabled:hover:bg-gray-700"
                         onClick={handleExportActiveChat}
-                        title={t("Export JSON")}
+                        title={
+                            chat?.messages?.length
+                                ? t("Export JSON")
+                                : `${t("Export JSON")} - ${t("Empty chat")}`
+                        }
                     >
                         <Download className="w-4 h-4" />
                         <span className="hidden sm:inline">
