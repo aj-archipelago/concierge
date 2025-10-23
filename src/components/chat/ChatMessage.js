@@ -66,14 +66,6 @@ function convertMessageToMarkdown(message, finalRender = true, onLoad = null) {
         return payload;
     }
 
-    // Check if we're in a Mermaid block during streaming
-    const isInMermaidBlock = !finalRender && payload.includes("```mermaid");
-
-    if (isInMermaidBlock) {
-        // During streaming with Mermaid, show placeholder instead of processing markdown
-        return <MermaidPlaceholder key="mermaid-streaming-placeholder" />;
-    }
-
     const components = {
         ol({ node, ...rest }) {
             return (
