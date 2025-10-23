@@ -440,6 +440,7 @@ const MessageList = React.memo(
                             entities={entities}
                             entityIconSize={entityIconSize}
                             entityIconClasses={classNames(basis)}
+                            onLoad={() => handleMessageLoad(message.id)}
                         />
                     );
                 }
@@ -510,6 +511,7 @@ const MessageList = React.memo(
                 entities,
                 entityIconSize,
                 messages,
+                handleMessageLoad,
             ],
         );
 

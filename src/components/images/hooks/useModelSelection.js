@@ -71,10 +71,12 @@ export const useModelSelection = ({
                 if (hasTwoInputImages || hasThreeInputImages) {
                     return false; // No video models support 2+ input images
                 } else if (hasInputImage) {
-                    // Only Veo 2.0, Veo 3.0 and Seedance support input images
+                    // Only Veo 2.0, Veo 3.0+ and Seedance support input images
                     return [
                         "veo-2.0-generate",
                         "veo-3.0-generate",
+                        "veo-3.1-generate",
+                        "veo-3.1-fast-generate",
                         "replicate-seedance-1-pro",
                     ].includes(modelName);
                 } else {

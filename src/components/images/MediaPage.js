@@ -751,6 +751,9 @@ function MediaPage() {
                                             t("Seedream 4.0"),
                                         "veo-2.0-generate": t("Veo 2.0"),
                                         "veo-3.0-generate": t("Veo 3.0"),
+                                        "veo-3.1-generate": t("Veo 3.1"),
+                                        "veo-3.1-fast-generate":
+                                            t("Veo 3.1 Fast"),
                                         "replicate-seedance-1-pro":
                                             t("Seedance 1.0"),
                                     };
@@ -1314,6 +1317,8 @@ function SettingsDialog({
             "replicate-seedream-4": t("Seedream 4.0"),
             "veo-2.0-generate": t("Veo 2.0"),
             "veo-3.0-generate": t("Veo 3.0"),
+            "veo-3.1-generate": t("Veo 3.1"),
+            "veo-3.1-fast-generate": t("Veo 3.1 Fast"),
             "replicate-seedance-1-pro": t("Seedance 1.0"),
         };
         return names[modelName] || modelName;
@@ -1401,7 +1406,11 @@ function SettingsDialog({
     };
 
     const getAvailableDurations = (modelName) => {
-        if (modelName === "veo-3.0-generate") {
+        if (
+            modelName === "veo-3.0-generate" ||
+            modelName === "veo-3.1-generate" ||
+            modelName === "veo-3.1-fast-generate"
+        ) {
             return [{ value: 8, label: "8s" }];
         } else if (modelName === "veo-2.0-generate") {
             return [
@@ -1569,17 +1578,24 @@ function SettingsDialog({
                                 </div>
                             )}
 
-                        {/* Generate Audio (for Veo 3.0) */}
-                        {selectedModel === "veo-3.0-generate" && (
+                        {/* Generate Audio (for Veo 3.0+) */}
+                        {(selectedModel === "veo-3.0-generate" ||
+                            selectedModel === "veo-3.1-generate" ||
+                            selectedModel === "veo-3.1-fast-generate") && (
                             <div>
                                 <label className="flex items-center space-x-2">
                                     <input
                                         type="checkbox"
                                         className="lb-checkbox"
                                         checked={
-                                            selectedModel === "veo-3.0-generate"
+                                            selectedModel ===
+                                                "veo-3.0-generate" ||
+                                            selectedModel ===
+                                                "veo-3.1-generate" ||
+                                            selectedModel ===
+                                                "veo-3.1-fast-generate"
                                                 ? currentModelSettings.generateAudio !==
-                                                  false // Default to true for Veo 3.0
+                                                  false // Default to true for Veo 3.0+
                                                 : currentModelSettings.generateAudio ||
                                                   false
                                         }
@@ -1849,6 +1865,8 @@ function ImageInfo({ data, type }) {
             "replicate-seedream-4": t("Seedream 4.0"),
             "veo-2.0-generate": t("Veo 2.0"),
             "veo-3.0-generate": t("Veo 3.0"),
+            "veo-3.1-generate": t("Veo 3.1"),
+            "veo-3.1-fast-generate": t("Veo 3.1 Fast"),
             "replicate-seedance-1-pro": t("Seedance 1.0"),
         };
         return names[modelName] || modelName;
