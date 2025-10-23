@@ -122,7 +122,7 @@ export const getCurrentUser = async (convertToJsonObj = true) => {
         });
     } else if (!user.contextId) {
         // Only generate contextId on server-side to avoid race conditions
-        if (typeof window === 'undefined') {
+        if (typeof window === "undefined") {
             console.log(
                 `User ${user.userId} has no contextId, creating the contextId`,
             );
@@ -138,8 +138,10 @@ export const getCurrentUser = async (convertToJsonObj = true) => {
     // Migration: Generate contextKey for existing users without one
     if (!user.contextKey) {
         // Only generate contextKey on server-side to avoid race conditions
-        if (typeof window === 'undefined') {
-            console.log(`User ${user.userId} has no contextKey, generating one`);
+        if (typeof window === "undefined") {
+            console.log(
+                `User ${user.userId} has no contextKey, generating one`,
+            );
             user.contextKey = crypto.randomBytes(32).toString("hex");
             try {
                 user = await user.save();

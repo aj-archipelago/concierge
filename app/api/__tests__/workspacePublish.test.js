@@ -53,7 +53,6 @@ import {
 import Pathway from "../models/pathway";
 import Prompt from "../models/prompt";
 import User from "../models/user.mjs";
-import LLM from "../models/llm";
 import { putPathway, deletePathway } from "../pathways/[id]/db";
 import { getLLMWithFallback } from "../utils/llm-file-utils";
 
