@@ -35,7 +35,7 @@ const UserOptions = ({ show, handleClose }) => {
         loading: memoryLoading,
         refetch: refetchMemory,
     } = useQuery(QUERIES.SYS_READ_MEMORY, {
-        variables: { contextId: user.contextId },
+        variables: { contextId: user.contextId, contextKey: user.contextKey },
         skip: !user.contextId,
         fetchPolicy: "network-only", // This ensures we always fetch from the network
     });
@@ -106,6 +106,7 @@ const UserOptions = ({ show, handleClose }) => {
                 mutation: QUERIES.SYS_SAVE_MEMORY,
                 variables: {
                     contextId: user.contextId,
+                    contextKey: user.contextKey,
                     aiMemory: combinedMemory,
                 },
             })
