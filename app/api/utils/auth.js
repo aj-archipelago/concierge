@@ -121,25 +121,31 @@ export const getCurrentUser = async (convertToJsonObj = true) => {
             aiStyle,
         });
     } else if (!user.contextId) {
-        console.log(
-            `User ${user.userId} has no contextId, creating the contextId`,
-        );
-        user.contextId = uuidv4();
-        try {
-            user = await user.save();
-        } catch (err) {
-            console.log("Error saving user: ", err);
+        // Only generate contextId on server-side to avoid race conditions
+        if (typeof window === 'undefined') {
+            console.log(
+                `User ${user.userId} has no contextId, creating the contextId`,
+            );
+            user.contextId = uuidv4();
+            try {
+                user = await user.save();
+            } catch (err) {
+                console.log("Error saving user: ", err);
+            }
         }
     }
 
     // Migration: Generate contextKey for existing users without one
     if (!user.contextKey) {
-        console.log(`User ${user.userId} has no contextKey, generating one`);
-        user.contextKey = crypto.randomBytes(32).toString("hex");
-        try {
-            user = await user.save();
-        } catch (err) {
-            console.log("Error saving user contextKey: ", err);
+        // Only generate contextKey on server-side to avoid race conditions
+        if (typeof window === 'undefined') {
+            console.log(`User ${user.userId} has no contextKey, generating one`);
+            user.contextKey = crypto.randomBytes(32).toString("hex");
+            try {
+                user = await user.save();
+            } catch (err) {
+                console.log("Error saving user contextKey: ", err);
+            }
         }
     }
 
