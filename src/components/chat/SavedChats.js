@@ -24,8 +24,8 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useQueryClient } from "@tanstack/react-query";
-import { useInView } from "react-intersection-observer";
 import Loader from "../../../app/components/loader";
+import { useInfiniteScroll } from "../../hooks/useInfiniteScroll";
 import {
     useAddChat,
     useBulkDeleteChats,
@@ -366,19 +366,16 @@ function SavedChats({ displayState }) {
     const [serverContentLimit, setServerContentLimit] = useState(20);
     const [bottomActionsLeft, setBottomActionsLeft] = useState(null);
 
-    // Search hook for title-only search
+    // Debounce search query to prevent API calls on every keystroke
+    const [debouncedSearchQuery, setDebouncedSearchQuery] = useState("");
+    const debounceTimerRef = useRef(null);
+
+    // Title search limit - needs to be declared before the useEffect that uses it
     const [titleSearchLimit, setTitleSearchLimit] = useState(
         DEFAULT_TITLE_SEARCH_LIMIT,
     );
-    const {
-        data: searchResults = [],
-        isLoading: isSearching,
-        error: titleSearchError,
-    } = useSearchChats(searchQuery, { limit: titleSearchLimit });
 
-    // Debounce server-side content search to prevent flicker while typing
-    const [debouncedSearchQuery, setDebouncedSearchQuery] = useState("");
-    const debounceTimerRef = useRef(null);
+    // Debounce effect - reset limit and debounce search query
     useEffect(() => {
         setTitleSearchLimit(DEFAULT_TITLE_SEARCH_LIMIT);
         if (debounceTimerRef.current) {
@@ -396,6 +393,13 @@ function SavedChats({ displayState }) {
             }
         };
     }, [searchQuery]);
+
+    // Search hook for title-only search (uses debounced query)
+    const {
+        data: searchResults = [],
+        isLoading: isSearching,
+        error: titleSearchError,
+    } = useSearchChats(debouncedSearchQuery, { limit: titleSearchLimit });
 
     // Server-side content search (fast, CSFLE-safe)
     const {
@@ -915,21 +919,13 @@ function SavedChats({ displayState }) {
     const getCategoryTitle = (key, count) =>
         `${getCategoryTranslation(key, t)} (${count})`;
 
-    const { ref, inView } = useInView({
-        threshold: 0,
-    });
-
-    useEffect(() => {
-        if (!isBulkProcessing && inView && hasNextPage && !isFetchingNextPage) {
-            fetchNextPage();
-        }
-    }, [
-        fetchNextPage,
-        inView,
+    // Infinite scroll with additional condition: don't load if bulk processing
+    const { ref } = useInfiniteScroll({
         hasNextPage,
         isFetchingNextPage,
-        isBulkProcessing,
-    ]);
+        fetchNextPage,
+        additionalConditions: [!isBulkProcessing],
+    });
 
     // Decide which content matches to show (server preferred), then memoize visible sets BEFORE any conditional returns
     const contentMatchesDisplay =
@@ -1100,7 +1096,7 @@ function SavedChats({ displayState }) {
                                     )}
                                 </div>
                             ) : (
-                                `${data?.pages.flat().length || 0} ${t("chats")} (${totalChatCount} ${t("total")})`
+                                `${totalChatCount} ${t("chats")}`
                             )}
                         </div>
                     </div>

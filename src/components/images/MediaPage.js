@@ -9,6 +9,7 @@ import {
     useState,
 } from "react";
 import { useTranslation } from "react-i18next";
+import { useInfiniteScroll } from "../../hooks/useInfiniteScroll";
 import {
     Download,
     Trash2,
@@ -42,7 +43,7 @@ import {
 } from "../../../@/components/ui/alert-dialog";
 import { useRunTask } from "../../../app/queries/notifications";
 import {
-    useMediaItems,
+    useInfiniteMediaItems,
     useCreateMediaItem,
     useDeleteMediaItem,
     useMigrateMediaItems,
@@ -109,20 +110,20 @@ function MediaPage() {
         },
     });
 
-    // New media items API with pagination
-    const [currentPage, setCurrentPage] = useState(1);
-    const [pageSize] = useState(50);
-
+    // Infinite scroll for media items API
     const {
-        data: mediaItemsData = { mediaItems: [], pagination: {} },
+        data: mediaItemsData,
         isLoading: mediaItemsLoading,
-    } = useMediaItems(currentPage, pageSize, debouncedFilterText);
+        isFetchingNextPage,
+        hasNextPage,
+        fetchNextPage,
+    } = useInfiniteMediaItems(debouncedFilterText);
 
-    // Use mediaItems from API instead of local state
-    const images = useMemo(
-        () => mediaItemsData.mediaItems || [],
-        [mediaItemsData.mediaItems],
-    );
+    // Flatten all pages into a single array
+    const images = useMemo(() => {
+        if (!mediaItemsData?.pages) return [];
+        return mediaItemsData.pages.flatMap((page) => page.mediaItems || []);
+    }, [mediaItemsData?.pages]);
 
     // Memoize sorted images by creation date (newest first) - only if we have data
     const sortedImages = useMemo(() => {
@@ -132,7 +133,12 @@ function MediaPage() {
         return [];
     }, [images]);
 
-    const pagination = mediaItemsData.pagination || {};
+    // Infinite scroll detection and triggering
+    const { ref, shouldShowLoading } = useInfiniteScroll({
+        hasNextPage,
+        isFetchingNextPage,
+        fetchNextPage,
+    });
 
     const [showModal, setShowModal] = useState(false);
     const [selectedImage, setSelectedImage] = useState(null);
@@ -837,7 +843,6 @@ function MediaPage() {
                             value={filterText}
                             onChange={(e) => {
                                 setFilterText(e.target.value);
-                                setCurrentPage(1); // Reset to first page when filter changes
                             }}
                             onFocus={() => {
                                 wasInputFocusedRef.current = true;
@@ -868,7 +873,6 @@ function MediaPage() {
                                 onClick={() => {
                                     setFilterText("");
                                     setDebouncedFilterText("");
-                                    setCurrentPage(1); // Reset to first page when filter is cleared
                                 }}
                             >
                                 <X className="h-4 w-4 text-gray-400 hover:text-gray-600" />
@@ -1025,7 +1029,6 @@ function MediaPage() {
                                     onClick={() => {
                                         setFilterText("");
                                         setDebouncedFilterText("");
-                                        setCurrentPage(1); // Reset to first page when filter is cleared
                                     }}
                                 >
                                     {t("Clear Filter")}
@@ -1034,43 +1037,19 @@ function MediaPage() {
                         </div>
                     )}
 
-                    {/* Pagination Controls */}
-                    {pagination.total > pageSize && (
-                        <div className="flex justify-center items-center gap-4 mt-8 mb-4">
-                            <button
-                                onClick={() =>
-                                    setCurrentPage(Math.max(1, currentPage - 1))
-                                }
-                                disabled={!pagination.hasPrev}
-                                className="lb-secondary disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                                {t("Previous")}
-                            </button>
-
-                            <span className="text-sm text-gray-600">
-                                {t("Page")} {pagination.page} {t("of")}{" "}
-                                {pagination.pages}
-                                {pagination.total > 0 && (
-                                    <span className="ml-2">
-                                        ({pagination.total} {t("total")})
-                                    </span>
-                                )}
-                            </span>
-
-                            <button
-                                onClick={() =>
-                                    setCurrentPage(
-                                        Math.min(
-                                            pagination.pages,
-                                            currentPage + 1,
-                                        ),
-                                    )
-                                }
-                                disabled={!pagination.hasNext}
-                                className="lb-secondary disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                                {t("Next")}
-                            </button>
+                    {/* Infinite scroll trigger */}
+                    {sortedImages.length > 0 && hasNextPage && (
+                        <div ref={ref} className="flex justify-center py-8">
+                            {shouldShowLoading ? (
+                                <div className="flex items-center gap-2 text-gray-500">
+                                    <Loader2 className="animate-spin h-5 w-5" />
+                                    <span>{t("Loading more...")}</span>
+                                </div>
+                            ) : (
+                                <div className="text-gray-400 text-sm">
+                                    {t("Scroll for more")}
+                                </div>
+                            )}
                         </div>
                     )}
                 </>
