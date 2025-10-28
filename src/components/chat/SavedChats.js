@@ -1176,9 +1176,7 @@ function SavedChats({ displayState }) {
                                         <Download />
                                     </button>
                                 </TooltipTrigger>
-                                <TooltipContent>
-                                    {t("Export")}
-                                </TooltipContent>
+                                <TooltipContent>{t("Export")}</TooltipContent>
                             </Tooltip>
 
                             {/* Delete button - always visible, disabled when nothing selected */}
@@ -1243,9 +1241,7 @@ function SavedChats({ displayState }) {
                                         <Upload />
                                     </button>
                                 </TooltipTrigger>
-                                <TooltipContent>
-                                    {t("Import")}
-                                </TooltipContent>
+                                <TooltipContent>{t("Import")}</TooltipContent>
                             </Tooltip>
 
                             {/* New Chat button - using lb-primary brand blue */}

@@ -215,9 +215,7 @@ function Chat({ viewingChat = null }) {
                         }
                     >
                         <Download className="w-4 h-4" />
-                        <span className="hidden sm:inline">
-                            {t("Export")}
-                        </span>
+                        <span className="hidden sm:inline">{t("Export")}</span>
                     </button>
                     <button
                         disabled={readOnly}
