@@ -1146,9 +1146,9 @@ function SavedChats({ displayState }) {
                         }}
                         onClear={() => setSearchQuery("")}
                         placeholder={t(
-                            'Search chats... (e.g., react hooks or "API error")',
+                            'Search chats... (e.g., interview notes or "campaign strategy")',
                         )}
-                        className="w-full sm:flex-1 sm:max-w-md"
+                        className="w-full sm:flex-1 sm:max-w-lg"
                     />
 
                     {/* Action Buttons */}
@@ -1177,7 +1177,7 @@ function SavedChats({ displayState }) {
                                     </button>
                                 </TooltipTrigger>
                                 <TooltipContent>
-                                    {t("Export JSON")}
+                                    {t("Export")}
                                 </TooltipContent>
                             </Tooltip>
 
@@ -1226,7 +1226,7 @@ function SavedChats({ displayState }) {
                             {/* Separator - always visible */}
                             <div className="h-6 w-px bg-gray-300 dark:bg-gray-600 mx-1" />
 
-                            {/* Import JSON button */}
+                            {/* Import button */}
                             <input
                                 ref={importInputRef}
                                 type="file"
@@ -1244,7 +1244,7 @@ function SavedChats({ displayState }) {
                                     </button>
                                 </TooltipTrigger>
                                 <TooltipContent>
-                                    {t("Import JSON")}
+                                    {t("Import")}
                                 </TooltipContent>
                             </Tooltip>
 
@@ -1478,8 +1478,8 @@ function SavedChats({ displayState }) {
                     download: {
                         onClick: handleExportSelected,
                         disabled: false,
-                        label: t("Export JSON"),
-                        ariaLabel: `${t("Export JSON")} (${selectedIds.size})`,
+                        label: t("Export"),
+                        ariaLabel: `${t("Export")} (${selectedIds.size})`,
                     },
                     delete: {
                         onClick: () => setIsBulkDialogOpen(true),

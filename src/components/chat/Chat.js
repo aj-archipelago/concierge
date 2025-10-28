@@ -210,13 +210,13 @@ function Chat({ viewingChat = null }) {
                         onClick={handleExportActiveChat}
                         title={
                             chat?.messages?.length
-                                ? t("Export JSON")
-                                : `${t("Export JSON")} - ${t("Empty chat")}`
+                                ? t("Export")
+                                : `${t("Export")} - ${t("Empty chat")}`
                         }
                     >
                         <Download className="w-4 h-4" />
                         <span className="hidden sm:inline">
-                            {t("Export JSON")}
+                            {t("Export")}
                         </span>
                     </button>
                     <button

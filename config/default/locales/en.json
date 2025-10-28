@@ -142,8 +142,8 @@
     "Enter a description for your app": "Enter a description for your app",
     "App Description": "App Description",
     "Enter app description": "Enter app description",
-    "Import JSON": "Import JSON",
-    "Export JSON": "Export JSON",
+    "Import": "Import",
+    "Export": "Export",
     "Selected": "Selected",
     "Some deletions failed": "Some deletions failed",
     "Deleted {{success}} of {{total}} chats. Failed: {{failedList}}. You can try again.": "Deleted {{success}} of {{total}} chats. Failed: {{failedList}}. You can try again.",
@@ -199,5 +199,5 @@
     "Chat": "Chat",
     "total": "total",
     "Search tags... (e.g., cat dog or \"black cat\")": "Search tags... (e.g., cat dog or \"black cat\")",
-    "Search chats... (e.g., react hooks or \"API error\")": "Search chats... (e.g., react hooks or \"API error\")"
+    "Search chats... (e.g., interview notes or \"campaign strategy\")": "Search chats... (e.g., interview notes or \"campaign strategy\")"
 }

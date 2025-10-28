@@ -338,8 +338,8 @@
     "Screen capture permission was denied. You can try again or upload an image instead.": "تم رفض إذن التقاط الشاشة. يمكنك إعادة المحاولة أو رفع صورة بدلاً من ذلك.",
     "Create New Chat": "إنشاء دردشة جديدة",
     "New Chat": "دردشة جديدة",
-    "Import JSON": "استيراد JSON",
-    "Export JSON": "تصدير JSON",
+    "Import": "استيراد",
+    "Export": "تصدير",
     "Selected": "محدد",
     "Some deletions failed": "تعذر حذف بعض المحادثات",
     "Deleted {{success}} of {{total}} chats. Failed: {{failedList}}. You can try again.": "تم حذف {{success}} من {{total}} من المحادثات. تعذر حذف: {{failedList}}. يمكنك المحاولة مرة أخرى.",
@@ -798,5 +798,5 @@
     "Filter...": "تصفية...",
     "Try different search terms or clear the search": "جرب كلمات بحث مختلفة أو امسح البحث",
     "Search tags... (e.g., cat dog or \"black cat\")": "البحث في العلامات... (مثلاً، قطة كلب أو \"قطة سوداء\")",
-    "Search chats... (e.g., react hooks or \"API error\")": "البحث في الدردشات... (مثلاً، react hooks أو \"API error\")"
+    "Search chats... (e.g., interview notes or \"campaign strategy\")": "البحث في الدردشات... (مثلاً، ملاحظات المقابلة أو \"استراتيجية الحملة\")"
 }

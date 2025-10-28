@@ -731,8 +731,8 @@
     "Veo 3.1 Fast": "Veo 3.1 سريع",
     "Seedance 1.0": "Seedance 1.0",
     "Match Input Image": "مطابقة الصورة المدخلة",
-    "Import JSON": "استيراد JSON",
-    "Export JSON": "تصدير JSON",
+    "Import": "استيراد",
+    "Export": "تصدير",
     "Selected": "محدد",
     "Some deletions failed": "تعذر حذف بعض المحادثات",
     "Deleted {{success}} of {{total}} chats. Failed: {{failedList}}. You can try again.": "تم حذف {{success}} من {{total}} من المحادثات. تعذر حذف: {{failedList}}. يمكنك المحاولة مرة أخرى.",
@@ -765,5 +765,5 @@
     "Filter...": "تصفية...",
     "Try different search terms or clear the search": "جرب كلمات بحث مختلفة أو امسح البحث",
     "Search tags... (e.g., cat dog or \"black cat\")": "البحث في العلامات... (مثلاً، قطة كلب أو \"قطة سوداء\")",
-    "Search chats... (e.g., react hooks or \"API error\")": "البحث في الدردشات... (مثلاً، react hooks أو \"API error\")"
+    "Search chats... (e.g., interview notes or \"campaign strategy\")": "البحث في الدردشات... (مثلاً، ملاحظات المقابلة أو \"استراتيجية الحملة\")"
 }
