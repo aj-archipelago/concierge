@@ -97,7 +97,11 @@ $image-container-height: 200px;
 }
 
 .chat-tile {
-    aspect-ratio: 1.8/1;
+    // Responsive aspect ratio - taller ratio means more width, less height on mobile
+    aspect-ratio: 2.2/1;
+    @media (min-width: 640px) {
+        aspect-ratio: 1.8/1;
+    }
     position: relative;
     border: 1px solid #e5e7eb;
     border-radius: 0.5rem;
