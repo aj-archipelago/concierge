@@ -124,20 +124,23 @@ export default function BulkActionsBar({
 
                 {/* Custom actions */}
                 {actions.custom &&
-                    actions.custom.map((action, index) => (
-                        <button
-                            key={index}
-                            onClick={action.onClick}
-                            disabled={action.disabled}
-                            className={`${action.className || "lb-outline"} flex items-center gap-2 whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-50`}
-                            aria-label={action.ariaLabel}
-                        >
-                            {action.icon && <action.icon className="h-4 w-4" />}
-                            <span className="hidden sm:inline">
-                                {action.label}
-                            </span>
-                        </button>
-                    ))}
+                    actions.custom.map((action, index) => {
+                        const Icon = action.icon;
+                        return (
+                            <button
+                                key={index}
+                                onClick={action.onClick}
+                                disabled={action.disabled}
+                                className={`${action.className || "lb-outline"} flex items-center gap-2 whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-50`}
+                                aria-label={action.ariaLabel}
+                            >
+                                {Icon && <Icon className="h-4 w-4" />}
+                                <span className="hidden sm:inline">
+                                    {action.label}
+                                </span>
+                            </button>
+                        );
+                    })}
 
                 {/* Cancel/Clear Selection */}
                 {onClearSelection && (
