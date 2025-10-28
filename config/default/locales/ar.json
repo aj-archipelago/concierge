@@ -751,5 +751,19 @@
     "import.allFailed": "تعذر استيراد أي من المحادثات.",
     "import.successNoErrors": "تم استيراد جميع المحادثات بنجاح.",
     "Delete selected chats?": "حذف المحادثات المحددة؟",
-    "Are you sure you want to delete the selected chats? This action cannot be undone.": "هل أنت متأكد أنك تريد حذف الدردشات المحددة؟ لا يمكن التراجع عن هذا الإجراء."
+    "Are you sure you want to delete the selected chats? This action cannot be undone.": "هل أنت متأكد أنك تريد حذف الدردشات المحددة؟ لا يمكن التراجع عن هذا الإجراء.",
+    "Download ZIP": "تنزيل ملف ZIP",
+    "Enter tag name...": "أدخل اسم العلامة...",
+    "Loading more...": "جاري تحميل المزيد...",
+    "Scroll for more": "مرر لعرض المزيد",
+    "Adding...": "جاري الإضافة...",
+    "Empty chat": "دردشة فارغة",
+    "Bulk delete failed": "فشل الحذف الجماعي",
+    "Import failed": "فشل الاستيراد",
+    "Show all": "عرض الكل",
+    "Clear Search": "مسح البحث",
+    "Filter...": "تصفية...",
+    "Try different search terms or clear the search": "جرب كلمات بحث مختلفة أو امسح البحث",
+    "Search tags... (e.g., cat dog or \"black cat\")": "البحث في العلامات... (مثلاً، قطة كلب أو \"قطة سوداء\")",
+    "Search chats... (e.g., react hooks or \"API error\")": "البحث في الدردشات... (مثلاً، react hooks أو \"API error\")"
 }

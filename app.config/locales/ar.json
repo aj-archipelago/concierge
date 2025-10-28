@@ -784,5 +784,19 @@
     "Seedance 1.0": "Seedance 1.0",
     "Match Input Image": "مطابقة الصورة المدخلة",
     "Loading chart...": "جاري تحميل الرسم البياني...",
-    "moreLabel": "+{{count}} أخرى"
+    "moreLabel": "+{{count}} أخرى",
+    "Download ZIP": "تنزيل ملف ZIP",
+    "Enter tag name...": "أدخل اسم العلامة...",
+    "Loading more...": "جاري تحميل المزيد...",
+    "Scroll for more": "مرر لعرض المزيد",
+    "Adding...": "جاري الإضافة...",
+    "Empty chat": "دردشة فارغة",
+    "Bulk delete failed": "فشل الحذف الجماعي",
+    "Import failed": "فشل الاستيراد",
+    "Show all": "عرض الكل",
+    "Clear Search": "مسح البحث",
+    "Filter...": "تصفية...",
+    "Try different search terms or clear the search": "جرب كلمات بحث مختلفة أو امسح البحث",
+    "Search tags... (e.g., cat dog or \"black cat\")": "البحث في العلامات... (مثلاً، قطة كلب أو \"قطة سوداء\")",
+    "Search chats... (e.g., react hooks or \"API error\")": "البحث في الدردشات... (مثلاً، react hooks أو \"API error\")"
 }

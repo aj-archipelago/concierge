@@ -89,6 +89,114 @@ $image-container-height: 200px;
     width: 100%;
 }
 
+.chat-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 1rem;
+    width: 100%;
+}
+
+.chat-tile {
+    aspect-ratio: 1.8/1;
+    position: relative;
+    border: 1px solid #e5e7eb;
+    border-radius: 0.5rem;
+    overflow: hidden;
+
+    // Prevent text selection and image dragging
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+
+    // Selection styling
+    .selection-checkbox {
+        position: absolute;
+        top: 0.5rem;
+        right: 0.5rem;
+        z-index: 10;
+        width: 1.5rem;
+        height: 1.5rem;
+        background: rgba(255, 255, 255, 0.9);
+        border: 2px solid #e5e7eb;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.2s;
+        cursor: pointer;
+
+        pointer-events: auto;
+
+        &.selected {
+            background: #3b82f6;
+            border-color: #3b82f6;
+
+            svg {
+                color: white;
+            }
+        }
+
+        &:hover {
+            transform: scale(1.1);
+        }
+    }
+
+    // Hamburger menu styling
+    .hamburger-menu {
+        position: absolute;
+        top: 0.5rem;
+        right: 0.5rem;
+        z-index: 10;
+        width: 1.5rem;
+        height: 1.5rem;
+        background: rgba(255, 255, 255, 0.9);
+        border: 2px solid #e5e7eb;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.2s;
+        cursor: pointer;
+
+        pointer-events: auto;
+
+        &:hover {
+            transform: scale(1.1);
+            background: rgba(255, 255, 255, 1);
+        }
+
+        svg {
+            width: 1rem;
+            height: 1rem;
+            color: #374151;
+        }
+    }
+
+    .media-wrapper {
+        width: 100%;
+        height: 100%;
+
+        // Prevent text selection on video play button overlay
+        .absolute {
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+            user-select: none;
+        }
+    }
+
+    // Allow text selection in chat content
+    h3,
+    li,
+    input {
+        -webkit-user-select: text;
+        -moz-user-select: text;
+        -ms-user-select: text;
+        user-select: text;
+    }
+}
+
 .image-tile,
 .media-tile {
     aspect-ratio: 1;
@@ -145,6 +253,37 @@ $image-container-height: 200px;
 
         &:hover {
             transform: scale(1.1);
+        }
+    }
+
+    // Hamburger menu styling
+    .hamburger-menu {
+        position: absolute;
+        top: 0.5rem;
+        right: 0.5rem;
+        z-index: 10;
+        width: 1.5rem;
+        height: 1.5rem;
+        background: rgba(255, 255, 255, 0.9);
+        border: 2px solid #e5e7eb;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.2s;
+        cursor: pointer;
+
+        pointer-events: auto;
+
+        &:hover {
+            transform: scale(1.1);
+            background: rgba(255, 255, 255, 1);
+        }
+
+        svg {
+            width: 1rem;
+            height: 1rem;
+            color: #374151;
         }
     }
 
@@ -294,21 +433,35 @@ $image-container-height: 200px;
     box-sizing: border-box;
 }
 
-/* Sync the button height to the dropdown using JS or CSS variable if needed */
-.media-toolbar-row {
-    /* This will be set by JS if needed for perfect sync, but fallback works for most cases */
-}
-
 /* Dark mode styles */
 .dark {
     .image-tile,
-    .media-tile {
+    .media-tile,
+    .chat-tile {
         border-color: #4b5563;
     }
 
-    .selection-checkbox {
+    .selection-checkbox,
+    .hamburger-menu {
         background: rgba(31, 41, 55, 0.9);
         border-color: #6b7280;
+
+        svg {
+            color: #d1d5db;
+        }
+
+        &:hover {
+            background: rgba(31, 41, 55, 1);
+        }
+    }
+
+    .selection-checkbox.selected {
+        background: #3b82f6;
+        border-color: #3b82f6;
+
+        svg {
+            color: white;
+        }
     }
 
     .lb-icon-button {
@@ -338,6 +491,21 @@ html[dir="rtl"] {
         background-position: left 0.5rem center;
         padding-left: 2.5rem;
         padding-right: 0.75rem;
+    }
+
+    /* Swap selection checkbox and hamburger menu for RTL */
+    .chat-tile,
+    .media-tile,
+    .image-tile {
+        .selection-checkbox {
+            right: auto;
+            left: 0.5rem;
+        }
+
+        .hamburger-menu {
+            right: auto;
+            left: 0.5rem;
+        }
     }
 }
 
