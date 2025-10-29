@@ -3,7 +3,8 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Plus, Loader2, Globe } from "lucide-react";
+import { Plus, Loader2, Globe, AppWindow } from "lucide-react";
+import * as Icons from "lucide-react";
 import {
     Tooltip,
     TooltipTrigger,
@@ -189,32 +190,40 @@ function WorkspaceTile({ workspace, onClick }) {
         ? dayjs(workspace.updatedAt).fromNow()
         : null;
 
+    // Get icon component from applet or use default
+    const IconComponent = workspace.publishedAppletIcon
+        ? Icons[workspace.publishedAppletIcon] || AppWindow
+        : AppWindow;
+
     return (
         <div
-            className="workspace-tile cursor-pointer group hover:shadow-md transition-shadow"
+            className="workspace-tile cursor-pointer group hover:shadow-lg transition-all duration-200 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700"
             onClick={onClick}
         >
             {/* Workspace content */}
             <div className="p-4 flex flex-col h-full">
-                {/* Title and Slug */}
-                <div className="mb-2">
-                    <h3 className="font-semibold text-md truncate">
-                        {workspace.name || t("Untitled Workspace")}
-                    </h3>
-                    {workspace.slug && (
-                        <div className="text-xs text-gray-400 truncate font-mono mt-0.5">
-                            {workspace.slug}
-                        </div>
-                    )}
+                {/* Title Section with Icon */}
+                <div className="flex items-start gap-2.5 mb-2">
+                    <IconComponent className="h-8 w-8 flex-shrink-0 text-gray-800 dark:text-gray-200" />
+                    <div className="flex-1 min-w-0">
+                        <h3 className="font-semibold text-base leading-tight text-gray-900 dark:text-gray-100 truncate">
+                            {workspace.name || t("Untitled Workspace")}
+                        </h3>
+                        {workspace.slug && (
+                            <div className="text-xs text-gray-500 dark:text-gray-400 truncate font-mono mt-0.5">
+                                {workspace.slug}
+                            </div>
+                        )}
+                    </div>
                 </div>
 
-                {/* Workspace details */}
+                {/* Workspace details - aligned with slug */}
                 <div className="flex-1 overflow-hidden">
-                    <div className="text-xs text-gray-500 dark:text-gray-400 space-y-1">
+                    <div className="space-y-1 ms-11">
                         {workspace.hasPublishedApplet && (
-                            <div className="flex items-center gap-1 text-blue-600 dark:text-blue-400">
-                                <Globe className="h-3 w-3 flex-shrink-0" />
-                                <span className="truncate">
+                            <div className="flex items-center gap-1.5 text-blue-600 dark:text-blue-400">
+                                <Globe className="h-3.5 w-3.5 flex-shrink-0" />
+                                <span className="text-xs truncate">
                                     <span className="font-medium">
                                         {t("Applet")}:
                                     </span>{" "}
@@ -224,9 +233,9 @@ function WorkspaceTile({ workspace, onClick }) {
                             </div>
                         )}
                         {workspace.hasPublishedPathway && (
-                            <div className="flex items-center gap-1 text-blue-600 dark:text-blue-400">
-                                <Globe className="h-3 w-3 flex-shrink-0" />
-                                <span className="truncate">
+                            <div className="flex items-center gap-1.5 text-blue-600 dark:text-blue-400">
+                                <Globe className="h-3.5 w-3.5 flex-shrink-0" />
+                                <span className="text-xs truncate">
                                     <span className="font-medium">
                                         {t("Pathway")}:
                                     </span>{" "}
@@ -235,18 +244,18 @@ function WorkspaceTile({ workspace, onClick }) {
                             </div>
                         )}
                         {promptCount > 0 && (
-                            <div>
+                            <div className="text-xs text-gray-600 dark:text-gray-400">
                                 {promptCount} {t("prompt")}
                                 {promptCount !== 1 ? "s" : ""}
                             </div>
                         )}
                         {createdAt && (
-                            <div>
+                            <div className="text-xs text-gray-600 dark:text-gray-400">
                                 {t("Created")} {createdAt}
                             </div>
                         )}
                         {updatedAt && (
-                            <div>
+                            <div className="text-xs text-gray-600 dark:text-gray-400">
                                 {t("Updated")} {updatedAt}
                             </div>
                         )}

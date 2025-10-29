@@ -76,6 +76,7 @@ export async function GET(req, res) {
                 workspaceObj.hasPublishedApplet = true;
                 workspaceObj.publishedAppletName = app.name;
                 workspaceObj.publishedAppletSlug = app.slug;
+                workspaceObj.publishedAppletIcon = app.icon;
             } else {
                 workspaceObj.hasPublishedApplet = false;
             }
