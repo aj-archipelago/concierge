@@ -89,7 +89,8 @@ $image-container-height: 200px;
     width: 100%;
 }
 
-.chat-grid {
+.chat-grid,
+.workspace-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
     gap: 1rem;
@@ -191,6 +192,28 @@ $image-container-height: 200px;
     }
 
     // Allow text selection in chat content
+    h3,
+    li,
+    input {
+        -webkit-user-select: text;
+        -moz-user-select: text;
+        -ms-user-select: text;
+        user-select: text;
+    }
+}
+
+.workspace-tile {
+    // Responsive aspect ratio - taller ratio means more width, less height on mobile
+    aspect-ratio: 2.2/1;
+    @media (min-width: 640px) {
+        aspect-ratio: 1.8/1;
+    }
+    position: relative;
+    border: 1px solid #e5e7eb;
+    border-radius: 0.5rem;
+    overflow: hidden;
+
+    // Allow text selection in workspace content
     h3,
     li,
     input {
@@ -441,7 +464,8 @@ $image-container-height: 200px;
 .dark {
     .image-tile,
     .media-tile,
-    .chat-tile {
+    .chat-tile,
+    .workspace-tile {
         border-color: #4b5563;
     }
 

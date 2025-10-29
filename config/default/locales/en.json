@@ -199,5 +199,8 @@
     "Chat": "Chat",
     "total": "total",
     "Search tags... (e.g., cat dog or \"black cat\")": "Search tags... (e.g., cat dog or \"black cat\")",
-    "Search chats... (e.g., interview notes or \"campaign strategy\")": "Search chats... (e.g., interview notes or \"campaign strategy\")"
+    "Search chats... (e.g., interview notes or \"campaign strategy\")": "Search chats... (e.g., interview notes or \"campaign strategy\")",
+    "prompts": "{{count}} prompt",
+    "prompts_one": "{{count}} prompt",
+    "prompts_other": "{{count}} prompts"
 }
