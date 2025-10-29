@@ -12,6 +12,7 @@ export default function LLMSelector({
     value,
     onChange,
     defaultModelIdentifier,
+    disabled = false,
 }) {
     const { data: llms, isLoading } = useLLMs();
 
@@ -33,7 +34,7 @@ export default function LLMSelector({
     if (isLoading) return null;
 
     return (
-        <Select value={value} onValueChange={onChange}>
+        <Select value={value} onValueChange={onChange} disabled={disabled}>
             <SelectTrigger>
                 <SelectValue />
             </SelectTrigger>
