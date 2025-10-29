@@ -1,31 +1,22 @@
-import {
-    DropdownMenu,
-    DropdownMenuContent,
-    DropdownMenuItem,
-    DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { Input } from "@/components/ui/input";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
 import i18next from "i18next";
 import {
     EditIcon,
-    MoreVertical,
-    XIcon,
     UserCircle,
     Trash2,
     Plus,
-    Download,
     Upload,
-    CheckSquare,
-    Search,
+    Check,
+    Download,
+    X,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useQueryClient } from "@tanstack/react-query";
-import { useInView } from "react-intersection-observer";
 import Loader from "../../../app/components/loader";
+import { useInfiniteScroll } from "../../hooks/useInfiniteScroll";
 import {
     useAddChat,
     useBulkDeleteChats,
@@ -41,6 +32,7 @@ import {
 import classNames from "../../../app/utils/class-names";
 import config from "../../../config";
 import { getChatIdString, isValidObjectId } from "../../utils/helper";
+import { useItemSelection } from "../images/hooks/useItemSelection";
 import {
     AlertDialog,
     AlertDialogContent,
@@ -51,11 +43,18 @@ import {
     AlertDialogAction,
     AlertDialogCancel,
 } from "@/components/ui/alert-dialog";
+import {
+    Tooltip,
+    TooltipTrigger,
+    TooltipContent,
+    TooltipProvider,
+} from "@/components/ui/tooltip";
+import BulkActionsBar from "../common/BulkActionsBar";
+import FilterInput from "../common/FilterInput";
+import EmptyState from "../common/EmptyState";
 
 dayjs.extend(relativeTime);
 
-// Extra bottom padding used when sticky bulk actions are visible
-const STICKY_ACTIONS_PADDING_CLASS = "pb-24";
 const CONTENT_SEARCH_DEBOUNCE_MS = 250;
 const MAX_AUTOLOAD_CHATS_FOR_CONTENT_SEARCH = 200;
 const MIN_SEARCH_QUERY_LENGTH = 1;
@@ -97,10 +96,20 @@ function SavedChats({ displayState }) {
     const [editedName, setEditedName] = useState("");
     const { language } = i18next;
     const [deleteChatId, setDeleteChatId] = useState(null);
-    const [selectMode, setSelectMode] = useState(false);
-    const [selectedIds, setSelectedIds] = useState(new Set());
+
+    // Use shared selection hook
+    const {
+        selectedIds,
+        lastSelectedId,
+        clearSelection: clearSelectionHook,
+        toggleSelection,
+        selectRange: selectRangeHook,
+        setSelectedIds,
+    } = useItemSelection((chat) => getChatIdString(chat._id));
+
     const [isBulkDialogOpen, setIsBulkDialogOpen] = useState(false);
-    const stickyExportButtonRef = useRef(null);
+    const [isLoadingAll, setIsLoadingAll] = useState(false);
+    const [shouldSelectAll, setShouldSelectAll] = useState(false);
     const importInputRef = useRef(null);
     const chatsContainerRef = useRef(null);
     const [noticeDialog, setNoticeDialog] = useState({
@@ -147,23 +156,10 @@ function SavedChats({ displayState }) {
         }
     }, [data]);
 
-    const isAnyDialogOpen = useMemo(
-        () => isBulkDialogOpen || deleteChatId !== null || noticeDialog.open,
-        [isBulkDialogOpen, deleteChatId, noticeDialog.open],
-    );
-
-    const toggleSelect = (chatId) => {
-        if (!chatId) return;
-        setSelectedIds((prev) => {
-            const next = new Set(prev);
-            if (next.has(chatId)) {
-                next.delete(chatId);
-            } else {
-                next.add(chatId);
-            }
-            return next;
-        });
-    };
+    // Wrapper to clear selection and reset last selected
+    const clearSelection = useCallback(() => {
+        clearSelectionHook();
+    }, [clearSelectionHook]);
 
     const handleBulkDelete = async () => {
         const ids = Array.from(selectedIds);
@@ -189,8 +185,7 @@ function SavedChats({ displayState }) {
                         .filter((id) => !deletedSet.has(id)),
                 );
 
-                setSelectedIds(new Set());
-                setSelectMode(false);
+                clearSelection();
 
                 if (notDeleted.size > 0) {
                     const failedLabels = Array.from(notDeleted).map((id) => {
@@ -223,13 +218,6 @@ function SavedChats({ displayState }) {
             }
         }, 0);
     };
-
-    // Improve keyboard experience: focus the sticky Export button when entering select mode
-    useEffect(() => {
-        if (selectMode && stickyExportButtonRef.current) {
-            stickyExportButtonRef.current.focus();
-        }
-    }, [selectMode]);
 
     const handleExportSelected = () => {
         try {
@@ -329,13 +317,14 @@ function SavedChats({ displayState }) {
                     }),
                     ...allChats,
                 ];
-                setSelectedIds(new Set());
-                setSelectMode(false);
+                clearSelection();
                 queryClient.setQueryData(["chats"], {
                     pages: [merged, ...(data?.pages?.slice(1) || [])],
                     pageParams: data?.pageParams || [],
                 });
             }
+
+            clearSelection();
 
             if (errors.length > 0) {
                 const errorLabels = errors.map(
@@ -360,25 +349,23 @@ function SavedChats({ displayState }) {
             if (importInputRef.current) importInputRef.current.value = "";
         }
     };
+
     const [searchQuery, setSearchQuery] = useState("");
     const [contentMatches, setContentMatches] = useState([]);
     const [searchError, setSearchError] = useState(null);
     const [serverContentLimit, setServerContentLimit] = useState(20);
     const [bottomActionsLeft, setBottomActionsLeft] = useState(null);
 
-    // Search hook for title-only search
+    // Debounce search query to prevent API calls on every keystroke
+    const [debouncedSearchQuery, setDebouncedSearchQuery] = useState("");
+    const debounceTimerRef = useRef(null);
+
+    // Title search limit - needs to be declared before the useEffect that uses it
     const [titleSearchLimit, setTitleSearchLimit] = useState(
         DEFAULT_TITLE_SEARCH_LIMIT,
     );
-    const {
-        data: searchResults = [],
-        isLoading: isSearching,
-        error: titleSearchError,
-    } = useSearchChats(searchQuery, { limit: titleSearchLimit });
 
-    // Debounce server-side content search to prevent flicker while typing
-    const [debouncedSearchQuery, setDebouncedSearchQuery] = useState("");
-    const debounceTimerRef = useRef(null);
+    // Debounce effect - reset limit and debounce search query
     useEffect(() => {
         setTitleSearchLimit(DEFAULT_TITLE_SEARCH_LIMIT);
         if (debounceTimerRef.current) {
@@ -396,6 +383,13 @@ function SavedChats({ displayState }) {
             }
         };
     }, [searchQuery]);
+
+    // Search hook for title-only search (uses debounced query)
+    const {
+        data: searchResults = [],
+        isLoading: isSearching,
+        error: titleSearchError,
+    } = useSearchChats(debouncedSearchQuery, { limit: titleSearchLimit });
 
     // Server-side content search (fast, CSFLE-safe)
     const {
@@ -654,6 +648,13 @@ function SavedChats({ displayState }) {
     const handleSaveEdit = async (chat) => {
         try {
             if (!chat._id || !editedName) return;
+
+            // Only update if the title actually changed
+            if (editedName === chat.title) {
+                setEditingId(null);
+                return;
+            }
+
             await updateChat.mutateAsync({
                 chatId: chat._id,
                 title: editedName,
@@ -662,6 +663,21 @@ function SavedChats({ displayState }) {
             setEditingId(null);
         } catch (error) {
             console.error("Failed to update chat title", error);
+        }
+    };
+
+    const handleChatClick = async (chat, e) => {
+        // If clicking on the title in edit mode or if any input element, don't navigate
+        if (editingId === chat._id) return;
+        if (e?.target?.tagName === "INPUT") return;
+
+        try {
+            const chatId = chat._id;
+            if (!chatId || !isValidObjectId(chatId)) return;
+            await setActiveChatId.mutateAsync(chatId);
+            router.push(`/chat/${chatId}`);
+        } catch (error) {
+            console.error("Failed to set active chat ID:", error, chat);
         }
     };
 
@@ -678,7 +694,7 @@ function SavedChats({ displayState }) {
         }
 
         return (
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 pt-2">
+            <div className="chat-grid">
                 {uniqueChats.map(
                     (chat) =>
                         chat &&
@@ -686,106 +702,100 @@ function SavedChats({ displayState }) {
                         isValidObjectId(chat._id) && (
                             <div
                                 key={chat._id}
-                                className="flex flex-col group text-start p-4 border rounded-lg relative min-h-[135px] overflow-auto"
+                                className="chat-tile cursor-pointer"
+                                onClick={(e) => handleChatClick(chat, e)}
                             >
-                                <div className="flex justify-between mb-2 w-full">
-                                    <div className="flex items-start gap-2 w-full">
-                                        {selectMode && (
-                                            <input
-                                                type="checkbox"
-                                                checked={selectedIds.has(
-                                                    chat._id,
-                                                )}
-                                                onChange={() =>
-                                                    toggleSelect(chat._id)
-                                                }
-                                                onClick={(e) =>
-                                                    e.stopPropagation()
-                                                }
-                                                className="mt-1"
-                                            />
-                                        )}
-                                        {chat._id && editingId === chat._id ? (
-                                            <input
-                                                autoFocus
-                                                type="text"
-                                                className="font-semibold underline focus:ring-0 text-md relative w-full p-0 bg-transparent border-0 ring-0 grow"
-                                                value={editedName}
-                                                onChange={(e) =>
-                                                    setEditedName(
-                                                        e.target.value,
-                                                    )
-                                                }
-                                                onBlur={() => {
+                                {/* Selection checkbox - always visible */}
+                                <div
+                                    className={`selection-checkbox ${selectedIds.has(chat._id) ? "selected" : ""}`}
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        const chatIdStr = getChatIdString(
+                                            chat._id,
+                                        );
+                                        if (e.shiftKey && lastSelectedId) {
+                                            // Find indices for range selection
+                                            const lastIndex =
+                                                uniqueChats.findIndex(
+                                                    (c) =>
+                                                        getChatIdString(
+                                                            c._id,
+                                                        ) === lastSelectedId,
+                                                );
+                                            const currentIndex =
+                                                uniqueChats.findIndex(
+                                                    (c) =>
+                                                        getChatIdString(
+                                                            c._id,
+                                                        ) === chatIdStr,
+                                                );
+
+                                            if (
+                                                lastIndex !== -1 &&
+                                                currentIndex !== -1
+                                            ) {
+                                                const start = Math.min(
+                                                    lastIndex,
+                                                    currentIndex,
+                                                );
+                                                const end = Math.max(
+                                                    lastIndex,
+                                                    currentIndex,
+                                                );
+                                                selectRangeHook(
+                                                    uniqueChats,
+                                                    start,
+                                                    end,
+                                                );
+                                            }
+                                        } else {
+                                            toggleSelection(chat);
+                                        }
+                                    }}
+                                >
+                                    <Check
+                                        className={`text-sm ${selectedIds.has(chat._id) ? "opacity-100" : "opacity-0"}`}
+                                    />
+                                </div>
+
+                                {/* Chat content wrapper */}
+                                <div className="p-4 flex flex-col h-full">
+                                    {/* Title */}
+                                    {chat._id && editingId === chat._id ? (
+                                        <input
+                                            autoFocus
+                                            type="text"
+                                            className="font-semibold underline focus:ring-0 text-md w-full p-0 mb-2 bg-transparent border-0 ring-0"
+                                            value={editedName}
+                                            onChange={(e) =>
+                                                setEditedName(e.target.value)
+                                            }
+                                            onBlur={() => {
+                                                handleSaveEdit(chat);
+                                            }}
+                                            onKeyDown={(e) => {
+                                                if (e.key === "Enter") {
                                                     handleSaveEdit(chat);
-                                                }}
-                                                onKeyDown={(e) => {
-                                                    if (e.key === "Enter") {
-                                                        handleSaveEdit(chat);
-                                                    }
-                                                    if (e.key === "Escape") {
-                                                        setEditingId(null);
-                                                    }
-                                                }}
-                                            />
-                                        ) : (
+                                                }
+                                                if (e.key === "Escape") {
+                                                    setEditingId(null);
+                                                }
+                                            }}
+                                            onClick={(e) => e.stopPropagation()}
+                                        />
+                                    ) : (
+                                        <div className="flex items-center justify-between gap-2 mb-2">
                                             <h3
-                                                onClick={async () => {
-                                                    if (selectMode) return; // disable navigation during multiselect
-                                                    if (
-                                                        editingId !== chat._id
-                                                    ) {
-                                                        try {
-                                                            const chatId =
-                                                                chat._id;
-                                                            if (
-                                                                !chatId ||
-                                                                !isValidObjectId(
-                                                                    chatId,
-                                                                )
-                                                            )
-                                                                return;
-                                                            await setActiveChatId.mutateAsync(
-                                                                chatId,
-                                                            );
-                                                            router.push(
-                                                                `/chat/${chatId}`,
-                                                            );
-                                                        } catch (error) {
-                                                            console.error(
-                                                                "Failed to set active chat ID:",
-                                                                error,
-                                                                chat,
-                                                            );
-                                                        }
-                                                    }
+                                                className="font-semibold text-md truncate flex-1 cursor-pointer hover:text-sky-500"
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    setEditingId(chat._id);
+                                                    setEditedName(chat.title);
                                                 }}
-                                                className="font-semibold text-md relative grow text-start hover:text-sky-500 cursor-pointer"
                                             >
                                                 {t(chat.title) || t("New Chat")}
                                             </h3>
-                                        )}
-                                    </div>
-                                    {!selectMode && !isAnyDialogOpen && (
-                                        <div
-                                            className={classNames(
-                                                editingId === chat._id
-                                                    ? "flex"
-                                                    : "hidden sm:group-hover:flex",
-                                                "items-center gap-1 -mt-5 -me-2",
-                                            )}
-                                        >
-                                            {editingId === chat._id ? (
-                                                <button
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        setEditingId(null);
-                                                    }}
-                                                    className="text-gray-400 hover:text-gray-700"
-                                                >
-                                                    <XIcon className="h-3 w-3" />
-                                                </button>
-                                            ) : (
+                                            <div className="flex items-center gap-1 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
                                                 <button
                                                     onClick={(e) => {
                                                         e.stopPropagation();
@@ -794,117 +804,74 @@ function SavedChats({ displayState }) {
                                                             chat.title,
                                                         );
                                                     }}
-                                                    className="text-gray-400 hover:text-gray-700"
+                                                    className="text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"
+                                                    title={t("Edit title")}
                                                 >
                                                     <EditIcon className="h-3 w-3" />
                                                 </button>
-                                            )}
-                                            <button
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    setDeleteChatId(chat._id);
-                                                }}
-                                                className={classNames(
-                                                    "text-gray-400 hover:text-red-500",
-                                                    editingId === chat._id
-                                                        ? "hidden"
-                                                        : "block",
-                                                )}
-                                            >
-                                                <Trash2 className="h-3 w-3 flex-shrink-0" />
-                                            </button>
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        setDeleteChatId(
+                                                            chat._id,
+                                                        );
+                                                    }}
+                                                    className="text-gray-400 hover:text-red-500"
+                                                    title={t("Delete")}
+                                                >
+                                                    <Trash2 className="h-3 w-3" />
+                                                </button>
+                                            </div>
                                         </div>
                                     )}
-                                    {!selectMode &&
-                                        !isAnyDialogOpen &&
-                                        editingId !== chat._id && (
-                                            <div className="block sm:hidden -me-2 -mt-2">
-                                                <DropdownMenu>
-                                                    <DropdownMenuTrigger className="">
-                                                        <MoreVertical className="h-3 w-3 text-gray-400" />
-                                                    </DropdownMenuTrigger>
-                                                    <DropdownMenuContent>
-                                                        {/* add Edit and taxonomy options here */}
-                                                        <DropdownMenuItem
-                                                            className="text-sm flex items-center gap-2"
-                                                            onClick={() => {
-                                                                setEditingId(
-                                                                    chat._id,
-                                                                );
-                                                                setEditedName(
-                                                                    chat.title,
-                                                                );
-                                                            }}
-                                                        >
-                                                            <EditIcon className="h-3 w-3" />
-                                                            {t("Edit title")}
-                                                        </DropdownMenuItem>
-                                                        <DropdownMenuItem
-                                                            className="text-sm flex items-center gap-2"
-                                                            onClick={(e) => {
-                                                                e.stopPropagation();
-                                                                setDeleteChatId(
-                                                                    chat._id,
-                                                                );
-                                                            }}
-                                                        >
-                                                            <Trash2 className="h-3 w-3" />
-                                                            {t("Delete chat")}
-                                                        </DropdownMenuItem>
-                                                    </DropdownMenuContent>
-                                                </DropdownMenu>
-                                            </div>
-                                        )}
-                                </div>
-                                <div className="flex justify-between items-center pb-2 overflow-hidden text-start w-full">
-                                    <ul className="w-full">
-                                        {!chat?.messages?.length && (
-                                            <li className="text-xs text-gray-500 flex gap-1 items-center overflow-auto">
-                                                {t("Empty chat")}
-                                            </li>
-                                        )}
-                                        {chat?.messages
-                                            ?.slice(-3)
-                                            .map((m, index) => (
-                                                <li
-                                                    key={index}
-                                                    className={classNames(
-                                                        "text-xs text-gray-500 dark:text-gray-400 flex gap-1 items-center overflow-auto",
-                                                        m?.sender === "user"
-                                                            ? "bg-white dark:bg-gray-800"
-                                                            : "bg-sky-50 dark:bg-gray-700",
-                                                    )}
-                                                >
-                                                    <div className="basis-[1rem] flex items-center gap-1">
-                                                        {m?.sender ===
-                                                        "user" ? (
-                                                            <UserCircle className="w-4 h-4 text-gray-300" />
-                                                        ) : (
-                                                            <img
-                                                                src={getLogo(
-                                                                    language,
-                                                                )}
-                                                                alt="Logo"
-                                                                className={classNames(
-                                                                    "w-4 h-4",
-                                                                )}
-                                                            />
-                                                        )}
-                                                    </div>
-                                                    <div
+
+                                    {/* Messages preview */}
+                                    <div className="flex-1 overflow-hidden">
+                                        <ul className="w-full">
+                                            {!chat?.messages?.length && (
+                                                <li className="text-xs text-gray-500 flex gap-1 items-center">
+                                                    {t("Empty chat")}
+                                                </li>
+                                            )}
+                                            {chat?.messages
+                                                ?.slice(-3)
+                                                .map((m, index) => (
+                                                    <li
+                                                        key={index}
                                                         className={classNames(
-                                                            "basis-[calc(100%-1rem)] truncate py-0.5",
+                                                            "text-xs text-gray-500 dark:text-gray-400 flex gap-1 items-center overflow-hidden mb-0.5",
+                                                            m?.sender === "user"
+                                                                ? "bg-white dark:bg-gray-800"
+                                                                : "bg-sky-50 dark:bg-gray-700",
                                                         )}
                                                     >
-                                                        {m?.payload}
-                                                    </div>
-                                                </li>
-                                            ))}
-                                    </ul>
+                                                        <div className="flex-shrink-0 flex items-center gap-1">
+                                                            {m?.sender ===
+                                                            "user" ? (
+                                                                <UserCircle className="w-4 h-4 text-gray-300" />
+                                                            ) : (
+                                                                <img
+                                                                    src={getLogo(
+                                                                        language,
+                                                                    )}
+                                                                    alt="Logo"
+                                                                    className="w-4 h-4"
+                                                                />
+                                                            )}
+                                                        </div>
+                                                        <div className="flex-1 truncate py-0.5">
+                                                            {m?.payload}
+                                                        </div>
+                                                    </li>
+                                                ))}
+                                        </ul>
+                                    </div>
+
+                                    {/* Timestamp */}
+                                    <div className="text-[.7rem] text-gray-400 text-right mt-2">
+                                        {dayjs(chat.createdAt).fromNow()}
+                                    </div>
                                 </div>
-                                <span className="text-[.7rem] absolute right-2 bottom-2 text-gray-400 text-right">
-                                    {dayjs(chat.createdAt).fromNow()}
-                                </span>
                             </div>
                         ),
                 )}
@@ -915,27 +882,38 @@ function SavedChats({ displayState }) {
     const getCategoryTitle = (key, count) =>
         `${getCategoryTranslation(key, t)} (${count})`;
 
-    const { ref, inView } = useInView({
-        threshold: 0,
-    });
-
-    useEffect(() => {
-        if (!isBulkProcessing && inView && hasNextPage && !isFetchingNextPage) {
-            fetchNextPage();
-        }
-    }, [
-        fetchNextPage,
-        inView,
+    // Infinite scroll with additional condition: don't load if bulk processing
+    const { ref } = useInfiniteScroll({
         hasNextPage,
         isFetchingNextPage,
-        isBulkProcessing,
-    ]);
+        fetchNextPage,
+        additionalConditions: [!isBulkProcessing],
+    });
 
     // Decide which content matches to show (server preferred), then memoize visible sets BEFORE any conditional returns
-    const contentMatchesDisplay =
-        contentServerResults && contentServerResults.length > 0
-            ? contentServerResults
-            : contentMatches;
+    // Filter out any content matches that are already in title matches to avoid duplicates
+    const titleMatchIds = useMemo(() => {
+        return new Set(
+            (searchResults || [])
+                .filter(Boolean)
+                .map((chat) => getChatIdString(chat._id))
+                .filter(Boolean),
+        );
+    }, [searchResults]);
+
+    const contentMatchesDisplay = useMemo(() => {
+        const rawContentMatches =
+            contentServerResults && contentServerResults.length > 0
+                ? contentServerResults
+                : contentMatches;
+
+        // Filter out any chats that are already in title matches
+        return rawContentMatches.filter((chat) => {
+            if (!chat?._id) return false;
+            const chatIdStr = getChatIdString(chat._id);
+            return chatIdStr && !titleMatchIds.has(chatIdStr);
+        });
+    }, [contentServerResults, contentMatches, titleMatchIds]);
 
     const updateBottomActionsPosition = useCallback(() => {
         if (typeof window === "undefined") {
@@ -964,7 +942,7 @@ function SavedChats({ displayState }) {
         updateBottomActionsPosition();
     }, [
         updateBottomActionsPosition,
-        selectMode,
+        selectedIds.size,
         searchQuery,
         contentMatchesDisplay.length,
         searchResults.length,
@@ -1004,20 +982,74 @@ function SavedChats({ displayState }) {
         [visibleIds, selectedIds],
     );
 
-    const handleToggleVisibleSelection = () => {
+    // Load all pages before selecting all
+    const handleToggleVisibleSelection = useCallback(async () => {
+        // If all visible are already selected, deselect them
         if (allVisibleSelected) {
             const next = new Set(
                 Array.from(selectedIds).filter((id) => !visibleIdSet.has(id)),
             );
             setSelectedIds(next);
+            return;
+        }
+
+        // If there are more pages to load in non-search mode, load them first
+        if (!searchQuery && hasNextPage) {
+            setIsLoadingAll(true);
+            setShouldSelectAll(true);
+            try {
+                // Keep fetching pages - fetchNextPage returns updated query info
+                let result = await fetchNextPage();
+                while (result.hasNextPage && !result.isFetchingNextPage) {
+                    result = await fetchNextPage();
+                }
+            } catch (error) {
+                console.error("Error loading all pages:", error);
+                setShouldSelectAll(false);
+            } finally {
+                setIsLoadingAll(false);
+            }
         } else {
+            // No more pages or in search mode, just select visible items
             const next = new Set(selectedIds);
             for (const id of visibleIds) {
                 next.add(id);
             }
             setSelectedIds(next);
         }
-    };
+    }, [
+        allVisibleSelected,
+        selectedIds,
+        visibleIdSet,
+        searchQuery,
+        hasNextPage,
+        fetchNextPage,
+        visibleIds,
+        setSelectedIds,
+    ]);
+
+    // Effect to select all items once loading is complete
+    useEffect(() => {
+        if (shouldSelectAll && !isLoadingAll && !hasNextPage) {
+            const allLoadedChats = data?.pages?.flat() || [];
+            const next = new Set(selectedIds);
+            for (const chat of allLoadedChats) {
+                const id = getChatIdString(chat?._id);
+                if (id && isValidObjectId(chat._id)) {
+                    next.add(id);
+                }
+            }
+            setSelectedIds(next);
+            setShouldSelectAll(false);
+        }
+    }, [
+        shouldSelectAll,
+        isLoadingAll,
+        hasNextPage,
+        data?.pages,
+        selectedIds,
+        setSelectedIds,
+    ]);
 
     const handleShowAllResults = useCallback(() => {
         setTitleSearchLimit(MAX_TITLE_SEARCH_LIMIT);
@@ -1048,179 +1080,184 @@ function SavedChats({ displayState }) {
     const shouldShowAllResults = isTitleLimitReached || isContentLimitReached;
 
     return (
-        <div
-            className={`${isDocked ? "text-xs" : ""} pb-4 ${selectMode ? STICKY_ACTIONS_PADDING_CLASS : ""}`}
-        >
+        <div className={`${isDocked ? "text-xs" : ""} pb-4`}>
             <div className="mb-4">
-                <div className="flex justify-between items-center mb-4">
-                    <div>
-                        <h1 className="text-lg font-semibold">
-                            {t("Chat history")}
-                        </h1>
+                {/* Header with title and count */}
+                <div className="mb-4">
+                    <h1 className="text-lg font-semibold">
+                        {t("Chat history")}
+                    </h1>
 
-                        <div className="text-sm text-gray-500 dark:text-gray-400">
-                            {searchQuery ? (
-                                <div>
-                                    <span>
-                                        {titleMatchesCountDisplay}{" "}
-                                        {t("title matches")}
-                                    </span>
-                                    {contentMatchesDisplay.length > 0 && (
-                                        <>
-                                            {`, `}
-                                            <span>
-                                                {contentMatchesDisplay.length >=
-                                                serverContentLimit
-                                                    ? `${contentMatchesDisplay.length}+`
-                                                    : contentMatchesDisplay.length}{" "}
-                                                {t("content matches")}
-                                            </span>
-                                            {shouldShowAllResults && (
-                                                <button
-                                                    onClick={
-                                                        handleShowAllResults
-                                                    }
-                                                    className="ml-2 text-xs text-blue-600 dark:text-blue-400 hover:underline"
-                                                >
-                                                    {t("Show all")}
-                                                </button>
-                                            )}
-                                        </>
-                                    )}
-                                    {` ${t("of")} ${totalChatCount} ${t("total")}`}
-                                    {statusLabel && (
-                                        <>
-                                            <span className="mx-1 text-gray-400 dark:text-gray-500">
-                                                •
-                                            </span>
-                                            <span className="text-blue-500 dark:text-blue-400">
-                                                {statusLabel}
-                                            </span>
-                                        </>
-                                    )}
-                                </div>
-                            ) : (
-                                `${data?.pages.flat().length || 0} ${t("chats")} (${totalChatCount} ${t("total")})`
-                            )}
-                        </div>
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                        {!selectMode ? (
-                            <>
-                                <button
-                                    onClick={() => setSelectMode(true)}
-                                    className="lb-outline flex items-center gap-2"
-                                    aria-label={t("Select")}
-                                >
-                                    <CheckSquare className="h-4 w-4" />
-                                    <span className="hidden sm:inline">
-                                        {t("Select")}
-                                    </span>
-                                </button>
-                                <input
-                                    ref={importInputRef}
-                                    type="file"
-                                    accept="application/json"
-                                    className="hidden"
-                                    onChange={handleImportFile}
-                                />
-                                <button
-                                    onClick={handleImportClick}
-                                    className="lb-outline-secondary font-medium flex items-center gap-2"
-                                    aria-label={t("Import JSON")}
-                                >
-                                    <Upload className="h-4 w-4" />
-                                    <span className="hidden sm:inline">
-                                        {t("Import JSON")}
-                                    </span>
-                                </button>
-                                <button
-                                    onClick={handleCreateNewChat}
-                                    className="lb-primary flex items-center gap-2 "
-                                    aria-label={t("New Chat")}
-                                >
-                                    <Plus className="h-4 w-4" />
-                                    <span className="hidden sm:inline">
-                                        {t("New Chat")}
-                                    </span>
-                                </button>
-                            </>
+                    <div className="text-sm text-gray-500 dark:text-gray-400">
+                        {searchQuery ? (
+                            <div>
+                                <span>
+                                    {titleMatchesCountDisplay}{" "}
+                                    {t("title matches")}
+                                </span>
+                                {contentMatchesDisplay.length > 0 && (
+                                    <>
+                                        {`, `}
+                                        <span>
+                                            {contentMatchesDisplay.length >=
+                                            serverContentLimit
+                                                ? `${contentMatchesDisplay.length}+`
+                                                : contentMatchesDisplay.length}{" "}
+                                            {t("content matches")}
+                                        </span>
+                                        {shouldShowAllResults && (
+                                            <button
+                                                onClick={handleShowAllResults}
+                                                className="ml-2 text-xs text-blue-600 dark:text-blue-400 hover:underline"
+                                            >
+                                                {t("Show all")}
+                                            </button>
+                                        )}
+                                    </>
+                                )}
+                                {` ${t("of")} ${totalChatCount} ${t("total")}`}
+                                {statusLabel && (
+                                    <>
+                                        <span className="mx-1 text-gray-400 dark:text-gray-500">
+                                            •
+                                        </span>
+                                        <span className="text-blue-500 dark:text-blue-400">
+                                            {statusLabel}
+                                        </span>
+                                    </>
+                                )}
+                            </div>
                         ) : (
-                            <>
-                                <button
-                                    onClick={handleToggleVisibleSelection}
-                                    className="lb-outline flex items-center gap-2 whitespace-nowrap"
-                                    aria-label={
-                                        allVisibleSelected
-                                            ? t("Deselect All")
-                                            : t("Select All")
-                                    }
-                                >
-                                    <CheckSquare className="h-4 w-4" />
-                                    <span className="hidden sm:inline">
-                                        {allVisibleSelected
-                                            ? t("Deselect All")
-                                            : t("Select All")}
-                                    </span>
-                                </button>
-                                <button
-                                    onClick={handleExportSelected}
-                                    disabled={selectedIds.size === 0}
-                                    className="lb-secondary font-medium flex items-center gap-2 whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
-                                    aria-label={`${t("Export JSON")} (${selectedIds.size})`}
-                                >
-                                    <Download className="h-4 w-4" />
-                                    <span className="hidden sm:inline">
-                                        {t("Export JSON")} ({selectedIds.size})
-                                    </span>
-                                </button>
-                                <button
-                                    onClick={() => setIsBulkDialogOpen(true)}
-                                    disabled={selectedIds.size === 0}
-                                    className="lb-outline-danger flex items-center gap-2 whitespace-nowrap disabled:cursor-not-allowed"
-                                    aria-label={`${t("Delete")} (${selectedIds.size})`}
-                                >
-                                    <Trash2 className="h-4 w-4" />
-                                    <span className="hidden sm:inline">
-                                        {t("Delete")} ({selectedIds.size})
-                                    </span>
-                                </button>
-                                <button
-                                    onClick={() => {
-                                        setSelectMode(false);
-                                        setSelectedIds(new Set());
-                                    }}
-                                    className="lb-outline flex items-center gap-2 whitespace-nowrap"
-                                    aria-label={t("Cancel")}
-                                >
-                                    <XIcon className="h-4 w-4" />
-                                    <span className="hidden sm:inline">
-                                        {t("Cancel")}
-                                    </span>
-                                </button>
-                            </>
+                            `${totalChatCount} ${t("chats")}`
                         )}
                     </div>
                 </div>
 
-                {/* Search input */}
-                <div className="relative">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                    <Input
-                        type="text"
-                        placeholder={t("Search chats...")}
+                {/* Filter and Action Controls */}
+                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
+                    {/* Filter Search Control */}
+                    <FilterInput
                         value={searchQuery}
-                        onChange={(e) => {
-                            const value = e.target.value;
+                        onChange={(value) => {
                             // Limit search query length to prevent performance issues
                             if (value.length <= MAX_SEARCH_QUERY_LENGTH) {
                                 setSearchQuery(value);
                             }
                         }}
-                        className="pl-10"
-                        maxLength={MAX_SEARCH_QUERY_LENGTH}
+                        onClear={() => setSearchQuery("")}
+                        placeholder={t(
+                            'Search chats... (e.g., interview notes or "campaign strategy")',
+                        )}
+                        className="w-full sm:flex-1 sm:max-w-lg"
                     />
+
+                    {/* Action Buttons */}
+                    <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+                        <div className="text-sm text-gray-500 mr-2">
+                            {selectedIds.size > 0 && (
+                                <span>
+                                    {selectedIds.size} {t("selected")}
+                                </span>
+                            )}
+                        </div>
+                        <TooltipProvider>
+                            {/* Export button - always visible, disabled when nothing selected */}
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <button
+                                        className={`lb-icon-button text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 dark:bg-transparent dark:border-gray-600 dark:hover:border-gray-500 ${
+                                            selectedIds.size === 0
+                                                ? "opacity-50 cursor-not-allowed"
+                                                : ""
+                                        }`}
+                                        disabled={selectedIds.size === 0}
+                                        onClick={handleExportSelected}
+                                    >
+                                        <Download />
+                                    </button>
+                                </TooltipTrigger>
+                                <TooltipContent>{t("Export")}</TooltipContent>
+                            </Tooltip>
+
+                            {/* Delete button - always visible, disabled when nothing selected */}
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <button
+                                        className={`lb-icon-button text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 dark:bg-transparent dark:border-gray-600 dark:hover:border-gray-500 ${
+                                            selectedIds.size === 0
+                                                ? "opacity-50 cursor-not-allowed"
+                                                : ""
+                                        }`}
+                                        disabled={selectedIds.size === 0}
+                                        onClick={() =>
+                                            setIsBulkDialogOpen(true)
+                                        }
+                                    >
+                                        <Trash2 />
+                                    </button>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                    {t("Delete Selected")}
+                                </TooltipContent>
+                            </Tooltip>
+
+                            {/* Clear Selection button - always visible, disabled when nothing selected */}
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <button
+                                        className={`lb-icon-button text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 dark:bg-transparent dark:border-gray-600 dark:hover:border-gray-500 ${
+                                            selectedIds.size === 0
+                                                ? "opacity-50 cursor-not-allowed"
+                                                : ""
+                                        }`}
+                                        disabled={selectedIds.size === 0}
+                                        onClick={clearSelection}
+                                    >
+                                        <X />
+                                    </button>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                    {t("Clear Selection")}
+                                </TooltipContent>
+                            </Tooltip>
+
+                            {/* Separator - always visible */}
+                            <div className="h-6 w-px bg-gray-300 dark:bg-gray-600 mx-1" />
+
+                            {/* Import button */}
+                            <input
+                                ref={importInputRef}
+                                type="file"
+                                accept="application/json"
+                                className="hidden"
+                                onChange={handleImportFile}
+                            />
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <button
+                                        className="lb-icon-button text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 dark:bg-transparent dark:border-gray-600 dark:hover:border-gray-500"
+                                        onClick={handleImportClick}
+                                    >
+                                        <Upload />
+                                    </button>
+                                </TooltipTrigger>
+                                <TooltipContent>{t("Import")}</TooltipContent>
+                            </Tooltip>
+
+                            {/* New Chat button - using lb-primary brand blue */}
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <button
+                                        className="lb-primary inline-flex items-center justify-center h-9 w-9 p-0"
+                                        onClick={handleCreateNewChat}
+                                    >
+                                        <Plus className="h-5 w-5" />
+                                    </button>
+                                </TooltipTrigger>
+                                <TooltipContent>{t("New Chat")}</TooltipContent>
+                            </Tooltip>
+                        </TooltipProvider>
+                    </div>
                 </div>
             </div>
             <div ref={chatsContainerRef} className="chats">
@@ -1276,17 +1313,31 @@ function SavedChats({ displayState }) {
                                     contentMatchesDisplay.length === 0 &&
                                     !isSearching &&
                                     !showContentSearching && (
-                                        <div className="text-center py-8 text-gray-500">
-                                            {t(
+                                        <EmptyState
+                                            icon={
+                                                <svg
+                                                    className="w-16 h-16 mx-auto"
+                                                    fill="none"
+                                                    stroke="currentColor"
+                                                    viewBox="0 0 24 24"
+                                                >
+                                                    <path
+                                                        strokeLinecap="round"
+                                                        strokeLinejoin="round"
+                                                        strokeWidth={1}
+                                                        d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                                                    />
+                                                </svg>
+                                            }
+                                            title={t(
                                                 "No chats found matching your search",
                                             )}
-                                            <div className="text-xs mt-2">
-                                                {t("Searched")}{" "}
-                                                {data?.pages.flat().length || 0}{" "}
-                                                {t("of")} {totalChatCount}{" "}
-                                                {t("loaded chats")}
-                                            </div>
-                                        </div>
+                                            description={t(
+                                                "Try different search terms or clear the search",
+                                            )}
+                                            action={() => setSearchQuery("")}
+                                            actionLabel={t("Clear Search")}
+                                        />
                                     )}
                             </div>
                         )}
@@ -1382,82 +1433,6 @@ function SavedChats({ displayState }) {
                 </AlertDialogContent>
             </AlertDialog>
 
-            {selectMode && (
-                <div
-                    className="pointer-events-none"
-                    role="region"
-                    aria-label="Bulk actions"
-                    style={{
-                        position: "fixed",
-                        bottom: "3rem",
-                        left:
-                            bottomActionsLeft !== null
-                                ? `${bottomActionsLeft}px`
-                                : "50%",
-                        transform: "translateX(-50%)",
-                        zIndex: 40,
-                    }}
-                >
-                    <div className="pointer-events-auto bg-white dark:bg-gray-900 border rounded-md shadow-md px-3 py-2 flex items-center gap-2">
-                        <span className="text-sm whitespace-nowrap">
-                            {t("Selected")} {selectedIds.size}
-                        </span>
-                        <button
-                            onClick={handleToggleVisibleSelection}
-                            className="lb-outline flex items-center gap-2 whitespace-nowrap"
-                            aria-label={
-                                allVisibleSelected
-                                    ? t("Deselect All")
-                                    : t("Select All")
-                            }
-                        >
-                            <CheckSquare className="h-4 w-4" />
-                            <span className="hidden sm:inline">
-                                {allVisibleSelected
-                                    ? t("Deselect All")
-                                    : t("Select All")}
-                            </span>
-                        </button>
-                        <button
-                            ref={stickyExportButtonRef}
-                            onClick={handleExportSelected}
-                            disabled={selectedIds.size === 0}
-                            className="lb-secondary flex items-center gap-2 whitespace-nowrap disabled:cursor-not-allowed"
-                            aria-label={`${t("Export JSON")} (${selectedIds.size})`}
-                        >
-                            <Download className="h-4 w-4" />
-                            <span className="hidden sm:inline">
-                                {t("Export JSON")} ({selectedIds.size})
-                            </span>
-                        </button>
-                        <button
-                            onClick={() => setIsBulkDialogOpen(true)}
-                            disabled={selectedIds.size === 0}
-                            className="lb-danger flex items-center gap-2 whitespace-nowrap disabled:cursor-not-allowed"
-                            aria-label={`${t("Delete")} (${selectedIds.size})`}
-                        >
-                            <Trash2 className="h-4 w-4" />
-                            <span className="hidden sm:inline">
-                                {t("Delete")} ({selectedIds.size})
-                            </span>
-                        </button>
-                        <button
-                            onClick={() => {
-                                setSelectMode(false);
-                                setSelectedIds(new Set());
-                            }}
-                            className="lb-outline flex items-center gap-2 whitespace-nowrap"
-                            aria-label={t("Cancel")}
-                        >
-                            <XIcon className="h-4 w-4" />
-                            <span className="hidden sm:inline">
-                                {t("Cancel")}
-                            </span>
-                        </button>
-                    </div>
-                </div>
-            )}
-
             <AlertDialog
                 open={isBulkDialogOpen}
                 onOpenChange={setIsBulkDialogOpen}
@@ -1486,6 +1461,30 @@ function SavedChats({ displayState }) {
                     </AlertDialogFooter>
                 </AlertDialogContent>
             </AlertDialog>
+
+            {/* Floating Bulk Actions Bar */}
+            <BulkActionsBar
+                selectedCount={selectedIds.size}
+                allSelected={allVisibleSelected}
+                onSelectAll={handleToggleVisibleSelection}
+                onClearSelection={clearSelection}
+                bottomActionsLeft={bottomActionsLeft}
+                isLoadingAll={isLoadingAll}
+                actions={{
+                    download: {
+                        onClick: handleExportSelected,
+                        disabled: false,
+                        label: t("Export"),
+                        ariaLabel: `${t("Export")} (${selectedIds.size})`,
+                    },
+                    delete: {
+                        onClick: () => setIsBulkDialogOpen(true),
+                        disabled: false,
+                        label: t("Delete"),
+                        ariaLabel: `${t("Delete")} (${selectedIds.size})`,
+                    },
+                }}
+            />
         </div>
     );
 }

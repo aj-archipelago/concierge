@@ -9,6 +9,7 @@ import {
     useState,
 } from "react";
 import { useTranslation } from "react-i18next";
+import { useInfiniteScroll } from "../../hooks/useInfiniteScroll";
 import {
     Download,
     Trash2,
@@ -42,7 +43,7 @@ import {
 } from "../../../@/components/ui/alert-dialog";
 import { useRunTask } from "../../../app/queries/notifications";
 import {
-    useMediaItems,
+    useInfiniteMediaItems,
     useCreateMediaItem,
     useDeleteMediaItem,
     useMigrateMediaItems,
@@ -56,11 +57,14 @@ import {
     migrateSettings,
     DEFAULT_MODEL_SETTINGS,
 } from "./config/models";
-import { useMediaSelection } from "./hooks/useMediaSelection";
+import { useMediaSelection } from "./hooks/useItemSelection";
 import { useBulkOperations } from "./hooks/useBulkOperations";
 import { useModelSelection } from "./hooks/useModelSelection";
 import { useMediaGeneration } from "./hooks/useMediaGeneration";
 import { useFileUpload } from "./hooks/useFileUpload";
+import BulkActionsBar from "../common/BulkActionsBar";
+import FilterInput from "../common/FilterInput";
+import EmptyState from "../common/EmptyState";
 import "./Media.scss";
 
 function MediaPage() {
@@ -75,8 +79,6 @@ function MediaPage() {
     const [disableTooltip, setDisableTooltip] = useState(false);
     const [filterText, setFilterText] = useState("");
     const [debouncedFilterText, setDebouncedFilterText] = useState("");
-    const filterInputRef = useRef(null);
-    const wasInputFocusedRef = useRef(false);
     const runTask = useRunTask();
 
     // Disable tooltip when settings dialog is open or just closed
@@ -109,20 +111,20 @@ function MediaPage() {
         },
     });
 
-    // New media items API with pagination
-    const [currentPage, setCurrentPage] = useState(1);
-    const [pageSize] = useState(50);
-
+    // Infinite scroll for media items API
     const {
-        data: mediaItemsData = { mediaItems: [], pagination: {} },
+        data: mediaItemsData,
         isLoading: mediaItemsLoading,
-    } = useMediaItems(currentPage, pageSize, debouncedFilterText);
+        isFetchingNextPage,
+        hasNextPage,
+        fetchNextPage,
+    } = useInfiniteMediaItems(debouncedFilterText);
 
-    // Use mediaItems from API instead of local state
-    const images = useMemo(
-        () => mediaItemsData.mediaItems || [],
-        [mediaItemsData.mediaItems],
-    );
+    // Flatten all pages into a single array
+    const images = useMemo(() => {
+        if (!mediaItemsData?.pages) return [];
+        return mediaItemsData.pages.flatMap((page) => page.mediaItems || []);
+    }, [mediaItemsData?.pages]);
 
     // Memoize sorted images by creation date (newest first) - only if we have data
     const sortedImages = useMemo(() => {
@@ -132,7 +134,12 @@ function MediaPage() {
         return [];
     }, [images]);
 
-    const pagination = mediaItemsData.pagination || {};
+    // Infinite scroll detection and triggering
+    const { ref, shouldShowLoading } = useInfiniteScroll({
+        hasNextPage,
+        isFetchingNextPage,
+        fetchNextPage,
+    });
 
     const [showModal, setShowModal] = useState(false);
     const [selectedImage, setSelectedImage] = useState(null);
@@ -148,12 +155,16 @@ function MediaPage() {
     const [downloadError, setDownloadError] = useState("");
     const [showBulkTagDialog, setShowBulkTagDialog] = useState(false);
     const [bulkTagInput, setBulkTagInput] = useState("");
+    const [isLoadingAll, setIsLoadingAll] = useState(false);
+    const [shouldSelectAll, setShouldSelectAll] = useState(false);
     const promptRef = useRef(null);
     const bulkTagInputRef = useRef(null);
     const createMediaItem = useCreateMediaItem();
     const deleteMediaItem = useDeleteMediaItem();
     const migrateMediaItems = useMigrateMediaItems();
     const updateTagsMutation = useUpdateMediaItemTags();
+    const [bottomActionsLeft, setBottomActionsLeft] = useState(null);
+    const mediaContainerRef = useRef(null);
 
     // Use custom selection hook
     const {
@@ -181,12 +192,33 @@ function MediaPage() {
         return () => clearTimeout(timer);
     }, [filterText]);
 
-    // Restore focus to filter input after re-renders
-    useEffect(() => {
-        if (filterInputRef.current && wasInputFocusedRef.current) {
-            filterInputRef.current.focus();
+    // Calculate position for floating bulk actions bar
+    const updateBottomActionsPosition = useCallback(() => {
+        if (typeof window === "undefined") {
+            return;
         }
-    }, [debouncedFilterText]);
+        const container = mediaContainerRef.current;
+        if (container) {
+            const rect = container.getBoundingClientRect();
+            if (rect?.width) {
+                setBottomActionsLeft(rect.left + rect.width / 2);
+                return;
+            }
+        }
+        setBottomActionsLeft(window.innerWidth / 2);
+    }, []);
+
+    useEffect(() => {
+        if (typeof window === "undefined") return;
+        updateBottomActionsPosition();
+        window.addEventListener("resize", updateBottomActionsPosition);
+        return () =>
+            window.removeEventListener("resize", updateBottomActionsPosition);
+    }, [updateBottomActionsPosition]);
+
+    useEffect(() => {
+        updateBottomActionsPosition();
+    }, [updateBottomActionsPosition, selectedImages.size]);
 
     // Load settings from user state (only when user state changes)
     useEffect(() => {
@@ -492,6 +524,65 @@ function MediaPage() {
     // Check if download is disabled due to limits
     const downloadLimits = checkDownloadLimits();
     const isDownloadDisabled = !downloadLimits.allowed;
+
+    // Load all pages before selecting all
+    const handleSelectAll = useCallback(async () => {
+        // If already all selected, just deselect
+        if (selectedImages.size === sortedImages.length && !hasNextPage) {
+            handleClearSelection();
+            return;
+        }
+
+        // If there are more pages to load, load them first
+        if (hasNextPage) {
+            setIsLoadingAll(true);
+            setShouldSelectAll(true);
+            try {
+                // Keep fetching pages - fetchNextPage returns updated query info
+                let result = await fetchNextPage();
+                while (result.hasNextPage && !result.isFetchingNextPage) {
+                    result = await fetchNextPage();
+                }
+            } catch (error) {
+                console.error("Error loading all pages:", error);
+                setShouldSelectAll(false);
+            } finally {
+                setIsLoadingAll(false);
+            }
+        } else {
+            // No more pages, just select what we have
+            setSelectedImages(
+                new Set(sortedImages.map((img) => img.cortexRequestId)),
+            );
+            setSelectedImagesObjects(sortedImages);
+        }
+    }, [
+        selectedImages.size,
+        sortedImages,
+        hasNextPage,
+        fetchNextPage,
+        handleClearSelection,
+        setSelectedImages,
+        setSelectedImagesObjects,
+    ]);
+
+    // Effect to select all items once loading is complete
+    useEffect(() => {
+        if (shouldSelectAll && !isLoadingAll && !hasNextPage) {
+            setSelectedImages(
+                new Set(sortedImages.map((img) => img.cortexRequestId)),
+            );
+            setSelectedImagesObjects(sortedImages);
+            setShouldSelectAll(false);
+        }
+    }, [
+        shouldSelectAll,
+        isLoadingAll,
+        hasNextPage,
+        sortedImages,
+        setSelectedImages,
+        setSelectedImagesObjects,
+    ]);
 
     const mediaTiles = useMemo(() => {
         return sortedImages.map((image, index) => {
@@ -824,61 +915,23 @@ function MediaPage() {
             </div>
 
             {/* Filter and Action Controls - Always visible */}
-            <div className="flex justify-between items-center gap-4 mb-4">
+            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-4">
                 {/* Filter Search Control */}
-                <div className="flex-1 max-w-md">
-                    <div className="relative">
-                        <input
-                            type="text"
-                            className="lb-input w-full pl-10"
-                            placeholder={t(
-                                "Filter by tags... (e.g., cat, cartoon)",
-                            )}
-                            value={filterText}
-                            onChange={(e) => {
-                                setFilterText(e.target.value);
-                                setCurrentPage(1); // Reset to first page when filter changes
-                            }}
-                            onFocus={() => {
-                                wasInputFocusedRef.current = true;
-                            }}
-                            onBlur={() => {
-                                wasInputFocusedRef.current = false;
-                            }}
-                            ref={filterInputRef}
-                        />
-                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                            <svg
-                                className="h-4 w-4 text-gray-400"
-                                fill="none"
-                                stroke="currentColor"
-                                viewBox="0 0 24 24"
-                            >
-                                <path
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                    strokeWidth={2}
-                                    d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-                                />
-                            </svg>
-                        </div>
-                        {filterText && (
-                            <button
-                                className="absolute inset-y-0 right-0 pr-3 flex items-center"
-                                onClick={() => {
-                                    setFilterText("");
-                                    setDebouncedFilterText("");
-                                    setCurrentPage(1); // Reset to first page when filter is cleared
-                                }}
-                            >
-                                <X className="h-4 w-4 text-gray-400 hover:text-gray-600" />
-                            </button>
-                        )}
-                    </div>
-                </div>
+                <FilterInput
+                    value={filterText}
+                    onChange={setFilterText}
+                    onClear={() => {
+                        setFilterText("");
+                        setDebouncedFilterText("");
+                    }}
+                    placeholder={t(
+                        'Search tags... (e.g., cat dog or "black cat")',
+                    )}
+                    className="w-full sm:flex-1 sm:max-w-md"
+                />
 
                 {/* Action Buttons */}
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
                     <div className="text-sm text-gray-500 mr-2">
                         {selectedImages.size > 0 && (
                             <span>
@@ -989,10 +1042,12 @@ function MediaPage() {
             ) : (
                 <>
                     {sortedImages.length > 0 ? (
-                        <div className="media-grid">{mediaTiles}</div>
+                        <div className="media-grid" ref={mediaContainerRef}>
+                            {mediaTiles}
+                        </div>
                     ) : (
-                        <div className="flex flex-col items-center justify-center py-16 text-center">
-                            <div className="text-gray-400 mb-4">
+                        <EmptyState
+                            icon={
                                 <svg
                                     className="w-16 h-16 mx-auto"
                                     fill="none"
@@ -1006,71 +1061,44 @@ function MediaPage() {
                                         d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
                                     />
                                 </svg>
-                            </div>
-                            <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">
-                                {filterText
+                            }
+                            title={
+                                filterText
                                     ? t("No media found")
-                                    : t("No media yet")}
-                            </h3>
-                            <p className="text-gray-500 dark:text-gray-400 mb-4">
-                                {filterText
+                                    : t("No media yet")
+                            }
+                            description={
+                                filterText
                                     ? t(
                                           "Try adjusting your search or clear the filter",
                                       )
-                                    : t("Generate some media to get started")}
-                            </p>
-                            {filterText && (
-                                <button
-                                    className="lb-primary"
-                                    onClick={() => {
-                                        setFilterText("");
-                                        setDebouncedFilterText("");
-                                        setCurrentPage(1); // Reset to first page when filter is cleared
-                                    }}
-                                >
-                                    {t("Clear Filter")}
-                                </button>
-                            )}
-                        </div>
+                                    : t("Generate some media to get started")
+                            }
+                            action={
+                                filterText
+                                    ? () => {
+                                          setFilterText("");
+                                          setDebouncedFilterText("");
+                                      }
+                                    : null
+                            }
+                            actionLabel={filterText ? t("Clear Filter") : null}
+                        />
                     )}
 
-                    {/* Pagination Controls */}
-                    {pagination.total > pageSize && (
-                        <div className="flex justify-center items-center gap-4 mt-8 mb-4">
-                            <button
-                                onClick={() =>
-                                    setCurrentPage(Math.max(1, currentPage - 1))
-                                }
-                                disabled={!pagination.hasPrev}
-                                className="lb-secondary disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                                {t("Previous")}
-                            </button>
-
-                            <span className="text-sm text-gray-600">
-                                {t("Page")} {pagination.page} {t("of")}{" "}
-                                {pagination.pages}
-                                {pagination.total > 0 && (
-                                    <span className="ml-2">
-                                        ({pagination.total} {t("total")})
-                                    </span>
-                                )}
-                            </span>
-
-                            <button
-                                onClick={() =>
-                                    setCurrentPage(
-                                        Math.min(
-                                            pagination.pages,
-                                            currentPage + 1,
-                                        ),
-                                    )
-                                }
-                                disabled={!pagination.hasNext}
-                                className="lb-secondary disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                                {t("Next")}
-                            </button>
+                    {/* Infinite scroll trigger */}
+                    {sortedImages.length > 0 && hasNextPage && (
+                        <div ref={ref} className="flex justify-center py-8">
+                            {shouldShowLoading ? (
+                                <div className="flex items-center gap-2 text-gray-500">
+                                    <Loader2 className="animate-spin h-5 w-5" />
+                                    <span>{t("Loading more...")}</span>
+                                </div>
+                            ) : (
+                                <div className="text-gray-400 text-sm">
+                                    {t("Scroll for more")}
+                                </div>
+                            )}
                         </div>
                     )}
                 </>
@@ -1243,6 +1271,41 @@ function MediaPage() {
                     </div>
                 </div>
             </Modal>
+
+            {/* Floating Bulk Actions Bar */}
+            <BulkActionsBar
+                selectedCount={selectedImages.size}
+                allSelected={
+                    selectedImages.size === sortedImages.length && !hasNextPage
+                }
+                onSelectAll={handleSelectAll}
+                onClearSelection={handleClearSelection}
+                bottomActionsLeft={bottomActionsLeft}
+                isLoadingAll={isLoadingAll}
+                actions={{
+                    download: {
+                        onClick: handleDownload,
+                        disabled: isDownloadDisabled,
+                        label:
+                            selectedImages.size === 1
+                                ? t("Download")
+                                : t("Download ZIP"),
+                        ariaLabel: `${t("Download")} (${selectedImages.size})`,
+                    },
+                    tag: {
+                        onClick: () => setShowBulkTagDialog(true),
+                        disabled: false,
+                        label: t("Add Tag"),
+                        ariaLabel: `${t("Add Tag")} (${selectedImages.size})`,
+                    },
+                    delete: {
+                        onClick: () => handleBulkAction("delete"),
+                        disabled: false,
+                        label: t("Delete"),
+                        ariaLabel: `${t("Delete")} (${selectedImages.size})`,
+                    },
+                }}
+            />
         </div>
     );
 }
