@@ -245,8 +245,7 @@ function WorkspaceTile({ workspace, onClick }) {
                         )}
                         {promptCount > 0 && (
                             <div className="text-xs text-gray-600 dark:text-gray-400">
-                                {promptCount} {t("prompt")}
-                                {promptCount !== 1 ? "s" : ""}
+                                {t("prompts", { count: promptCount })}
                             </div>
                         )}
                         {createdAt && (

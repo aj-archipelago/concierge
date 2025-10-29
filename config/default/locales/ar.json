@@ -733,7 +733,6 @@
     "Veo 3.1 Fast": "Veo 3.1 سريع",
     "Seedance 1.0": "Seedance 1.0",
     "Match Input Image": "مطابقة الصورة المدخلة",
-    "Import": "استيراد",
     "Export": "تصدير",
     "Selected": "محدد",
     "Some deletions failed": "تعذر حذف بعض المحادثات",
@@ -775,8 +774,13 @@
     "Create Workspace": "إنشاء مساحة عمل",
     "Create your first workspace to get started": "أنشئ مساحة عملك الأولى للبدء",
     "Untitled Workspace": "مساحة عمل بدون عنوان",
-    "Created": "تم الإنشاء",
     "prompt": "تلميح",
-    "prompts": "تلميحات",
+    "prompts": "{{count}} تلميح",
+    "prompts_zero": "{{count}} تلميحات",
+    "prompts_one": "{{count}} تلميح",
+    "prompts_two": "{{count}} تلميح",
+    "prompts_few": "{{count}} تلميحات",
+    "prompts_many": "{{count}} تلميح",
+    "prompts_other": "{{count}} تلميح",
     "matching": "مطابقة"
 }

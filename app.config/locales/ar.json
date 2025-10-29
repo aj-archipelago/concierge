@@ -338,7 +338,6 @@
     "Screen capture permission was denied. You can try again or upload an image instead.": "تم رفض إذن التقاط الشاشة. يمكنك إعادة المحاولة أو رفع صورة بدلاً من ذلك.",
     "Create New Chat": "إنشاء دردشة جديدة",
     "New Chat": "دردشة جديدة",
-    "Import": "استيراد",
     "Export": "تصدير",
     "Selected": "محدد",
     "Some deletions failed": "تعذر حذف بعض المحادثات",
@@ -808,8 +807,13 @@
     "Create Workspace": "إنشاء مساحة عمل",
     "Create your first workspace to get started": "أنشئ مساحة عملك الأولى للبدء",
     "Untitled Workspace": "مساحة عمل بدون عنوان",
-    "Created": "تم الإنشاء",
     "prompt": "تلميح",
-    "prompts": "تلميحات",
+    "prompts": "{{count}} تلميح",
+    "prompts_zero": "{{count}} تلميحات",
+    "prompts_one": "{{count}} تلميح",
+    "prompts_two": "{{count}} تلميح",
+    "prompts_few": "{{count}} تلميحات",
+    "prompts_many": "{{count}} تلميح",
+    "prompts_other": "{{count}} تلميح",
     "matching": "مطابقة"
 }
