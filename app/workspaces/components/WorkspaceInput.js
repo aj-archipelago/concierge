@@ -1,15 +1,19 @@
 import {
+    CheckSquare,
     Edit,
     File,
     FolderOpen,
     Loader2Icon,
     Paperclip,
+    Square,
     Trash2,
     UploadIcon,
     X,
 } from "lucide-react";
 import { useCallback, useContext, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { useQueryClient } from "@tanstack/react-query";
+import LLMSelector from "./LLMSelector";
 
 import {
     AlertDialog,
@@ -42,7 +46,7 @@ import PromptList from "./PromptList";
 import PromptSelectorModal from "./PromptSelectorModal";
 import { WorkspaceContext } from "./WorkspaceContent";
 
-import { isSupportedFileUrl } from "../../../src/utils/mediaUtils";
+import { isSupportedFileUrl, getFileIcon } from "../../../src/utils/mediaUtils";
 import FileUploadDialog from "./FileUploadDialog";
 
 export default function WorkspaceInput({ onRun, onRunMany }) {
@@ -258,46 +262,54 @@ export default function WorkspaceInput({ onRun, onRunMany }) {
                                             </div>
                                         );
                                     })}
-                                    {selectedFiles.map((file, index) => (
-                                        <div
-                                            key={
-                                                file._id || `selected-${index}`
-                                            }
-                                            className="flex items-center gap-1 bg-blue-50 dark:bg-blue-900/50 border border-blue-200 dark:border-blue-700 rounded px-2 py-1 text-xs"
-                                        >
-                                            <File className="w-3 h-3 text-blue-500 flex-shrink-0" />
-                                            <span
-                                                className="text-blue-700 dark:text-blue-300 truncate max-w-20"
-                                                title={
-                                                    file.originalName ||
-                                                    file.filename
+                                    {selectedFiles.map((file, index) => {
+                                        const fileName =
+                                            file.originalName || file.filename;
+                                        const Icon = getFileIcon(fileName);
+                                        return (
+                                            <div
+                                                key={
+                                                    file._id ||
+                                                    `selected-${index}`
                                                 }
+                                                className="flex items-center gap-1 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded px-2 py-1 text-xs"
                                             >
-                                                {file.originalName ||
-                                                    file.filename}
-                                            </span>
-                                            <button
-                                                type="button"
-                                                onClick={() =>
-                                                    setSelectedFiles((prev) =>
-                                                        prev.filter(
-                                                            (_, i) =>
-                                                                i !== index,
-                                                        ),
-                                                    )
-                                                }
-                                                className="hover:bg-blue-100 dark:hover:bg-blue-800 rounded-full p-0.5"
-                                                title={t("Remove file")}
-                                            >
-                                                <X className="w-3 h-3 text-blue-500 hover:text-red-500" />
-                                            </button>
-                                        </div>
-                                    ))}
+                                                <Icon className="w-3 h-3 text-gray-500 flex-shrink-0" />
+                                                <span
+                                                    className="text-gray-700 dark:text-gray-300 truncate max-w-20"
+                                                    title={fileName}
+                                                >
+                                                    {fileName}
+                                                </span>
+                                                <button
+                                                    type="button"
+                                                    onClick={() =>
+                                                        setSelectedFiles(
+                                                            (prev) =>
+                                                                prev.filter(
+                                                                    (_, i) =>
+                                                                        i !==
+                                                                        index,
+                                                                ),
+                                                        )
+                                                    }
+                                                    className="hover:bg-gray-100 dark:hover:bg-gray-600 rounded-full p-0.5"
+                                                    title={t("Remove file")}
+                                                >
+                                                    <X className="w-3 h-3 text-gray-400 hover:text-red-500" />
+                                                </button>
+                                            </div>
+                                        );
+                                    })}
                                 </div>
                             </div>
                         )}
                     </div>
                 </div>
+
+                {/* Separator */}
+                <div className="border-t border-gray-200 dark:border-gray-600"></div>
+
                 <div className="basis-8/12 min-h-[250px] flex flex-col overflow-y-auto">
                     <SystemPrompt
                         editing={systemPromptEditing}
@@ -365,7 +377,7 @@ export default function WorkspaceInput({ onRun, onRunMany }) {
                         >
                             <div className="flex items-center gap-2">
                                 <FolderOpen className="w-4 h-4" />
-                                <span>{t("Workspace Files")}</span>
+                                <span>{t("Manage Workspace Files")}</span>
                             </div>
                             <div className="flex items-center gap-1">
                                 <span className="bg-gray-100 dark:bg-gray-600 text-gray-700 dark:text-gray-300 px-2 py-1 rounded-full text-xs font-medium">
@@ -414,20 +426,26 @@ function SystemPrompt({ editing, setEditing }) {
 
     if (!value && !editing) {
         return (
-            <div className="p-1 flex gap-2">
-                <h4 className="font-medium mt-1 mb-1">{t("Context")}</h4>
-                <div className="flex gap-2 items-center text-sm">
-                    <div className="text-gray-500 dark:text-gray-400">
-                        {t("(None)")}
-                    </div>
-                    <div
-                        className="text-sky-500 hover:text-gray-700 active:text-gray-900 cursor-pointer"
-                        onClick={(e) => {
-                            setEditing(true);
-                        }}
-                        title={t("Add a prompt")}
-                    >
-                        + {t("Add context")}
+            <div className="p-1">
+                <div className="w-full text-start bg-gray-50 dark:bg-gray-800 rounded-md border dark:border-gray-600">
+                    <div className="p-2">
+                        <div className="flex gap-2 items-center justify-between mb-1">
+                            <div className="font-medium">{t("Context")}</div>
+                            {isOwner && (
+                                <div
+                                    className="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 active:text-gray-900 dark:active:text-gray-200 cursor-pointer"
+                                    onClick={(e) => {
+                                        setEditing(true);
+                                    }}
+                                    title={t("Edit prompt")}
+                                >
+                                    <Edit />
+                                </div>
+                            )}
+                        </div>
+                        <div className="text-gray-500 dark:text-gray-400 text-xs">
+                            {t("(None)")}
+                        </div>
                     </div>
                 </div>
             </div>
@@ -435,7 +453,7 @@ function SystemPrompt({ editing, setEditing }) {
     }
 
     return (
-        <div className="p-1 flex gap-2 items-center">
+        <div className="p-1">
             <Modal
                 show={editing}
                 onHide={() => setEditing(false)}
@@ -449,29 +467,25 @@ function SystemPrompt({ editing, setEditing }) {
                     }}
                 />
             </Modal>
-            <h4 className="font-medium mb-1">{t("Context")}</h4>
-
-            <div className="overflow-auto text-start bg-gray-50 dark:bg-gray-800 p-2 rounded-md border dark:border-gray-600 w-full">
-                <div className="flex gap-2 items-center justify-between w-full">
-                    <div className="min-w-0 flex-1">
-                        <div
-                            className="truncate min-w-0 text-gray-500 dark:text-gray-400 text-xs"
-                            title={value}
-                        >
-                            {value}
-                        </div>
+            <div className="w-full text-start bg-gray-50 dark:bg-gray-800 rounded-md border dark:border-gray-600">
+                <div className="p-2">
+                    <div className="flex gap-2 items-center justify-between mb-1">
+                        <div className="font-medium">{t("Context")}</div>
+                        {isOwner && (
+                            <div
+                                className="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 active:text-gray-900 dark:active:text-gray-200 cursor-pointer"
+                                onClick={(e) => {
+                                    setEditing(true);
+                                }}
+                                title={t("Edit prompt")}
+                            >
+                                <Edit />
+                            </div>
+                        )}
                     </div>
-                    {isOwner && (
-                        <div
-                            className="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 active:text-gray-900 dark:active:text-gray-200 cursor-pointer"
-                            onClick={(e) => {
-                                setEditing(true);
-                            }}
-                            title={t("Edit prompt")}
-                        >
-                            <Edit />
-                        </div>
-                    )}
+                    <div className="text-gray-500 dark:text-gray-400 text-xs whitespace-pre-wrap break-words">
+                        {value}
+                    </div>
                 </div>
             </div>
         </div>
@@ -583,41 +597,48 @@ function PromptEditor({ selectedPrompt, onBack }) {
 
     return (
         <div className="p-1">
-            <input
-                type="text"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                className="lb-input mb-2"
-                placeholder={t("Enter a title for the prompt")}
-            />
-            <textarea
-                value={prompt}
-                onChange={(e) => setPrompt(e.target.value)}
-                className="lb-input mb-2"
-                rows={5}
-                type="text"
-                placeholder={t("Enter a prompt here to run against the input")}
-            />
-            <div className="flex gap-3 items-start mb-4">
-                <label className="text-sm text-gray-500 mt-2">
+            <div className="mb-2">
+                <label className="text-sm text-gray-500 mb-1 block">
+                    {t("Title")}
+                </label>
+                <input
+                    type="text"
+                    value={title}
+                    onChange={(e) => setTitle(e.target.value)}
+                    className="lb-input"
+                    placeholder={t("Enter a title for the prompt")}
+                />
+            </div>
+            <div className="mb-2">
+                <label className="text-sm text-gray-500 mb-1 block">
+                    {t("Prompt")}
+                </label>
+                <textarea
+                    value={prompt}
+                    onChange={(e) => setPrompt(e.target.value)}
+                    className="lb-input"
+                    rows={5}
+                    type="text"
+                    placeholder={t(
+                        "Enter a prompt here to run against the input",
+                    )}
+                />
+            </div>
+            <div className="mb-4">
+                <label className="text-sm text-gray-500 mb-1 block">
                     {t("Model")}
                 </label>
                 <div>
-                    <select
-                        className="lb-select mb-1"
+                    <LLMSelector
                         value={llm}
-                        onChange={(e) => setLLM(e.target.value)}
+                        onChange={(newValue) => {
+                            setLLM(newValue);
+                        }}
                         disabled={isPublished}
-                    >
-                        {llms?.map((llm) => (
-                            <option key={llm._id} value={llm._id}>
-                                {llm.name}
-                            </option>
-                        ))}
-                    </select>
+                    />
 
                     {isPublished && (
-                        <div className="text-xs text-gray-400 dark:text-gray-500 mb-4">
+                        <div className="text-xs text-gray-400 dark:text-gray-500 mt-1">
                             {t(
                                 "The model cannot be modified because this workspace is published to Cortex.",
                             )}
@@ -627,55 +648,62 @@ function PromptEditor({ selectedPrompt, onBack }) {
             </div>
 
             {/* File Attachments Section */}
-            <div className="mb-4">
-                <div className="flex items-center justify-between mb-2">
-                    <label className="text-sm text-gray-500">
-                        {t("Attached Files")}
-                    </label>
+            <div className="mb-6">
+                <label className="text-sm text-gray-500 mb-1 block">
+                    {t("Attached Files")}
+                </label>
+                <div className="flex items-center gap-2 flex-wrap">
                     <button
                         type="button"
                         onClick={() => setShowFilePicker(true)}
-                        className="text-sm text-blue-600 hover:text-blue-800 flex items-center gap-1"
+                        disabled={isPublished}
+                        className="lb-outline-secondary flex items-center gap-1 px-2 py-1 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 shadow-sm"
+                        title={t("Attach files")}
                     >
-                        <Paperclip className="w-4 h-4" />
-                        {t("Attach Files")}
+                        <Paperclip className="w-3 h-3 text-gray-500" />
+                        <span className="text-xs font-medium">
+                            {t("Attach")}
+                        </span>
                     </button>
+                    {selectedFiles.length > 0 && (
+                        <>
+                            {selectedFiles.map((file, index) => {
+                                const fileName =
+                                    file.originalName || file.filename;
+                                const Icon = getFileIcon(fileName);
+                                return (
+                                    <div
+                                        key={file._id || index}
+                                        className="flex items-center gap-1 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded px-2 py-1 text-xs"
+                                    >
+                                        <Icon className="w-3 h-3 text-gray-500 flex-shrink-0" />
+                                        <span
+                                            className="text-gray-700 dark:text-gray-300 truncate max-w-20"
+                                            title={fileName}
+                                        >
+                                            {fileName}
+                                        </span>
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setSelectedFiles((prev) =>
+                                                    prev.filter(
+                                                        (_, i) => i !== index,
+                                                    ),
+                                                );
+                                            }}
+                                            className="hover:bg-gray-100 dark:hover:bg-gray-600 rounded-full p-0.5"
+                                            title={t("Remove file")}
+                                            disabled={isPublished}
+                                        >
+                                            <X className="w-3 h-3 text-gray-400 hover:text-red-500" />
+                                        </button>
+                                    </div>
+                                );
+                            })}
+                        </>
+                    )}
                 </div>
-
-                {selectedFiles.length > 0 ? (
-                    <div className="space-y-2 max-h-32 overflow-y-auto border border-gray-200 dark:border-gray-600 rounded p-2">
-                        {selectedFiles.map((file, index) => (
-                            <div
-                                key={file._id || index}
-                                className="flex items-center justify-between p-1 bg-gray-50 dark:bg-gray-700 rounded"
-                            >
-                                <div className="flex items-center gap-2 min-w-0 flex-1">
-                                    <File className="w-3 h-3 text-gray-500 flex-shrink-0" />
-                                    <span className="text-xs text-gray-700 dark:text-gray-300 truncate">
-                                        {file.originalName || file.filename}
-                                    </span>
-                                </div>
-                                <button
-                                    type="button"
-                                    onClick={() => {
-                                        setSelectedFiles((prev) =>
-                                            prev.filter((_, i) => i !== index),
-                                        );
-                                    }}
-                                    className="text-gray-400 hover:text-red-500 ml-2"
-                                    disabled={isPublished}
-                                >
-                                    <X className="w-3 h-3" />
-                                </button>
-                            </div>
-                        ))}
-                    </div>
-                ) : (
-                    <div className="text-xs text-gray-400 dark:text-gray-500">
-                        {t("No files attached")}
-                    </div>
-                )}
-
                 {isPublished && selectedFiles.length > 0 && (
                     <div className="text-xs text-gray-400 dark:text-gray-500 mt-1">
                         {t(
@@ -685,35 +713,46 @@ function PromptEditor({ selectedPrompt, onBack }) {
                 )}
             </div>
 
-            <div className="flex justify-between gap-2">
-                <LoadingButton
-                    text={t("Deleting") + "..."}
-                    className="lb-outline-danger"
-                    disabled={updatePrompt.isPending}
-                    onClick={async () => {
-                        if (
-                            window.confirm(
-                                t(
-                                    "Are you sure you want to delete this prompt?",
-                                ),
-                            )
-                        ) {
-                            await deletePrompt.mutateAsync({
-                                id: selectedPrompt._id,
-                                workspaceId: workspace._id,
-                            });
-                            onBack();
-                        }
-                    }}
-                >
-                    {t("Delete")}
-                </LoadingButton>
-                <div className="flex gap-2">
+            {(deletePrompt.isError || updatePrompt.isError) && (
+                <div className="text-red-500 mb-2">
+                    {t("Error saving prompt")}:
+                    {deletePrompt.error?.response?.data?.message ||
+                        updatePrompt.error?.response?.data?.message}
+                </div>
+            )}
+            <div className="flex justify-between gap-2 mt-2 pt-4 border-t border-gray-200 dark:border-gray-600">
+                {selectedPrompt && isOwner && (
+                    <LoadingButton
+                        text={t("Deleting") + "..."}
+                        className="lb-outline-danger"
+                        disabled={updatePrompt.isPending}
+                        onClick={async () => {
+                            if (
+                                window.confirm(
+                                    t(
+                                        "Are you sure you want to delete this prompt?",
+                                    ),
+                                )
+                            ) {
+                                await deletePrompt.mutateAsync({
+                                    id: selectedPrompt._id,
+                                    workspaceId: workspace._id,
+                                });
+                                onBack();
+                            }
+                        }}
+                    >
+                        {t("Delete")}
+                    </LoadingButton>
+                )}
+                <div className="flex gap-2 ml-auto">
                     <LoadingButton
                         loading={updatePrompt.isPending}
                         text={t("Saving") + "..."}
                         className="lb-primary flex justify-center gap-2 px-4"
-                        disabled={!prompt || !title}
+                        disabled={
+                            !prompt || !title || (selectedPrompt && !isOwner)
+                        }
                         onClick={async () => {
                             if (selectedPrompt && isOwner) {
                                 await updatePrompt.mutateAsync({
@@ -729,7 +768,7 @@ function PromptEditor({ selectedPrompt, onBack }) {
                                     },
                                 });
                                 onBack();
-                            } else {
+                            } else if (!selectedPrompt) {
                                 await createPrompt.mutateAsync({
                                     workspaceId: workspace._id,
                                     prompt: {
@@ -755,14 +794,6 @@ function PromptEditor({ selectedPrompt, onBack }) {
                         {t("Cancel")}
                     </button>
                 </div>
-                {deletePrompt.isError ||
-                    (updatePrompt.isError && (
-                        <div className="text-red-500">
-                            {t("Error saving prompt")}:
-                            {deletePrompt.error?.response?.data?.message ||
-                                updatePrompt.error?.response?.data?.message}
-                        </div>
-                    ))}
             </div>
 
             {/* File Picker Modal */}
@@ -778,8 +809,147 @@ function PromptEditor({ selectedPrompt, onBack }) {
     );
 }
 
+// Shared File List Component
+function FileList({
+    files,
+    isLoading,
+    error,
+    getFileIcon,
+    isPickerMode = false,
+    selectedFiles = [],
+    onFileToggle,
+    deletingFiles = new Set(),
+    onDeleteClick,
+    isPublished = false,
+    emptyMessage,
+}) {
+    const { t } = useTranslation();
+
+    if (isLoading) {
+        return (
+            <div className="flex items-center justify-center py-8">
+                <Loader2Icon className="w-6 h-6 animate-spin text-gray-400" />
+                <span className="ml-2 text-sm text-gray-500">
+                    {t("Loading files...")}
+                </span>
+            </div>
+        );
+    }
+
+    if (error) {
+        return (
+            <div className="text-center py-6">
+                <div className="text-red-600 dark:text-red-400 text-sm mb-2">
+                    {t("Error loading files")}: {error.message}
+                </div>
+            </div>
+        );
+    }
+
+    if (files.length === 0) {
+        return (
+            <div className="text-center py-8">
+                <File className="w-8 h-8 text-gray-400 mx-auto mb-2" />
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                    {emptyMessage || t("No files found in this workspace")}
+                </p>
+            </div>
+        );
+    }
+
+    return (
+        <div className="space-y-2 max-h-96 overflow-y-auto">
+            {files.map((file) => {
+                const Icon = getFileIcon(file.originalName || file.filename);
+                const isSelected = selectedFiles.some(
+                    (f) => f._id === file._id,
+                );
+                const isDeleting = deletingFiles.has(file._id);
+
+                return (
+                    <div
+                        key={file._id}
+                        className={`flex items-center gap-2 ${
+                            isPickerMode
+                                ? `p-2 border rounded cursor-pointer transition-colors ${
+                                      isSelected
+                                          ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20"
+                                          : "border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700"
+                                  }`
+                                : "justify-between p-2 border border-gray-200 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700"
+                        }`}
+                        onClick={
+                            isPickerMode ? () => onFileToggle(file) : undefined
+                        }
+                    >
+                        {isPickerMode && (
+                            <input
+                                type="checkbox"
+                                checked={isSelected}
+                                onChange={() => onFileToggle(file)}
+                                className="w-4 h-4 flex-shrink-0 self-center"
+                            />
+                        )}
+                        <Icon className="w-6 h-6 text-gray-500 flex-shrink-0" />
+                        <div className="min-w-0 flex-1 flex items-baseline gap-2">
+                            <span className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
+                                {file.originalName || file.filename}
+                            </span>
+                            {isPickerMode && file.size && (
+                                <span className="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap flex-shrink-0 leading-normal">
+                                    {(file.size / 1024).toFixed(1)} KB
+                                </span>
+                            )}
+                        </div>
+                        {isPickerMode && (
+                            <div className="flex-shrink-0 w-6 h-6" />
+                        )}
+                        {!isPickerMode && (
+                            <span className="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap self-center">
+                                {file.size && (file.size / 1024).toFixed(1)} KB
+                                {file.uploadedAt && (
+                                    <span className="ml-2">
+                                        •{" "}
+                                        {new Date(
+                                            file.uploadedAt,
+                                        ).toLocaleDateString()}
+                                    </span>
+                                )}
+                            </span>
+                        )}
+                        {onDeleteClick && (
+                            <button
+                                type="button"
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    onDeleteClick(file, e);
+                                }}
+                                disabled={isDeleting || isPublished}
+                                className="flex-shrink-0 p-1.5 text-gray-400 hover:text-red-500 hover:bg-gray-100 dark:hover:bg-gray-600 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                title={
+                                    isPublished
+                                        ? t(
+                                              "Cannot delete files because this workspace is published to Cortex",
+                                          )
+                                        : t("Delete file")
+                                }
+                            >
+                                {isDeleting ? (
+                                    <Loader2Icon className="w-4 h-4 animate-spin" />
+                                ) : (
+                                    <Trash2 className="w-4 h-4" />
+                                )}
+                            </button>
+                        )}
+                    </div>
+                );
+            })}
+        </div>
+    );
+}
+
 // File Picker Modal Component
-function FilePickerModal({
+export function FilePickerModal({
     isOpen,
     onClose,
     workspaceId,
@@ -791,6 +961,7 @@ function FilePickerModal({
     const [deleteConfirmation, setDeleteConfirmation] = useState(null);
     const [deletingFiles, setDeletingFiles] = useState(new Set());
     const { t } = useTranslation();
+    const queryClient = useQueryClient();
     const {
         data: filesData,
         isLoading,
@@ -884,6 +1055,11 @@ function FilePickerModal({
 
             // Remove file from selected files if it was selected
             onFilesSelected(selectedFiles.filter((f) => f._id !== file._id));
+
+            // If file was attached to prompts, invalidate prompt queries to reload them
+            if (isAttached) {
+                queryClient.invalidateQueries({ queryKey: ["prompt"] });
+            }
         } catch (err) {
             console.error("Error deleting file:", err);
         } finally {
@@ -907,6 +1083,7 @@ function FilePickerModal({
             show={isOpen}
             onHide={onClose}
             title={t("Select Files to Attach")}
+            widthClassName="max-w-2xl"
         >
             <div className="p-4">
                 {/* Read-only notice for published workspaces */}
@@ -929,123 +1106,61 @@ function FilePickerModal({
                         <button
                             type="button"
                             onClick={() => setShowUploadDialog(true)}
-                            className="flex items-center gap-1 text-sm text-green-600 hover:text-green-800 px-2 py-1 border border-green-300 rounded hover:bg-green-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                            className="lb-outline-secondary flex items-center gap-1 px-2 py-1 text-sm"
                             disabled={isPublished}
                             title={
                                 isPublished
                                     ? t(
                                           "Cannot upload files because this workspace is published to Cortex",
                                       )
-                                    : ""
+                                    : t("Upload")
                             }
                         >
                             <UploadIcon className="w-3 h-3" />
-                            {t("Upload")}
+                            <span className="hidden sm:inline">
+                                {t("Upload")}
+                            </span>
                         </button>
                         <button
                             type="button"
                             onClick={handleSelectAll}
-                            className="text-sm text-blue-600 hover:text-blue-800"
+                            className="lb-outline-secondary flex items-center gap-1 px-2 py-1 text-sm"
                             disabled={files.length === 0}
+                            title={t("Select All")}
                         >
-                            {t("Select All")}
+                            <CheckSquare className="w-3 h-3" />
+                            <span className="hidden sm:inline">
+                                {t("Select All")}
+                            </span>
                         </button>
                         <button
                             type="button"
                             onClick={handleDeselectAll}
-                            className="text-sm text-gray-600 hover:text-gray-800"
+                            className="lb-outline-secondary flex items-center gap-1 px-2 py-1 text-sm"
                             disabled={selectedFiles.length === 0}
+                            title={t("Deselect All")}
                         >
-                            {t("Deselect All")}
+                            <Square className="w-3 h-3" />
+                            <span className="hidden sm:inline">
+                                {t("Deselect All")}
+                            </span>
                         </button>
                     </div>
                 </div>
 
                 {/* File list */}
-                {isLoading ? (
-                    <div className="flex items-center justify-center py-8">
-                        <Loader2Icon className="w-6 h-6 animate-spin text-gray-400" />
-                        <span className="ml-2 text-sm text-gray-500">
-                            {t("Loading files...")}
-                        </span>
-                    </div>
-                ) : error ? (
-                    <div className="text-center py-6">
-                        <div className="text-red-600 dark:text-red-400 text-sm mb-2">
-                            {t("Error loading files")}: {error.message}
-                        </div>
-                    </div>
-                ) : files.length === 0 ? (
-                    <div className="text-center py-8">
-                        <File className="w-8 h-8 text-gray-400 mx-auto mb-2" />
-                        <p className="text-sm text-gray-500 dark:text-gray-400">
-                            {t("No files found in this workspace")}
-                        </p>
-                    </div>
-                ) : (
-                    <div className="space-y-2 max-h-64 overflow-y-auto">
-                        {files.map((file) => {
-                            const isSelected = selectedFiles.some(
-                                (f) => f._id === file._id,
-                            );
-                            return (
-                                <div
-                                    key={file._id}
-                                    className={`flex items-center p-3 border rounded cursor-pointer transition-colors ${
-                                        isSelected
-                                            ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20"
-                                            : "border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700"
-                                    }`}
-                                    onClick={() => handleFileToggle(file)}
-                                >
-                                    <input
-                                        type="checkbox"
-                                        checked={isSelected}
-                                        onChange={() => handleFileToggle(file)}
-                                        className="mr-3"
-                                    />
-                                    <File className="w-4 h-4 text-gray-500 mr-2 flex-shrink-0" />
-                                    <div className="min-w-0 flex-1">
-                                        <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
-                                            {file.originalName}
-                                        </p>
-                                        <p className="text-xs text-gray-500 dark:text-gray-400">
-                                            {file.size &&
-                                                (file.size / 1024).toFixed(
-                                                    1,
-                                                )}{" "}
-                                            KB
-                                        </p>
-                                    </div>
-                                    <button
-                                        type="button"
-                                        onClick={(e) =>
-                                            handleDeleteClick(file, e)
-                                        }
-                                        disabled={
-                                            deletingFiles.has(file._id) ||
-                                            isPublished
-                                        }
-                                        className="ml-2 p-1 text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                                        title={
-                                            isPublished
-                                                ? t(
-                                                      "Cannot delete files because this workspace is published to Cortex",
-                                                  )
-                                                : t("Delete file")
-                                        }
-                                    >
-                                        {deletingFiles.has(file._id) ? (
-                                            <Loader2Icon className="w-4 h-4 animate-spin" />
-                                        ) : (
-                                            <Trash2 className="w-4 h-4" />
-                                        )}
-                                    </button>
-                                </div>
-                            );
-                        })}
-                    </div>
-                )}
+                <FileList
+                    files={files}
+                    isLoading={isLoading}
+                    error={error}
+                    getFileIcon={getFileIcon}
+                    isPickerMode={true}
+                    selectedFiles={selectedFiles}
+                    onFileToggle={handleFileToggle}
+                    deletingFiles={deletingFiles}
+                    onDeleteClick={handleDeleteClick}
+                    isPublished={isPublished}
+                />
 
                 {/* Footer buttons */}
                 <div className="flex justify-end gap-2 mt-6 pt-4 border-t border-gray-200 dark:border-gray-600">
@@ -1142,6 +1257,7 @@ function FilePickerModal({
 // Workspace Files Management Dialog Component
 function WorkspaceFilesDialog({ isOpen, onClose, workspaceId }) {
     const { t } = useTranslation();
+    const queryClient = useQueryClient();
     const {
         data: filesData,
         isLoading,
@@ -1189,6 +1305,11 @@ function WorkspaceFilesDialog({ isOpen, onClose, workspaceId }) {
                 fileId: file._id,
                 force: isAttached, // Use force if attached to prompts
             });
+
+            // If file was attached to prompts, invalidate prompt queries to reload them
+            if (isAttached) {
+                queryClient.invalidateQueries({ queryKey: ["prompt"] });
+            }
         } catch (err) {
             console.error("Error deleting file:", err);
         } finally {
@@ -1208,7 +1329,12 @@ function WorkspaceFilesDialog({ isOpen, onClose, workspaceId }) {
     if (!isOpen) return null;
 
     return (
-        <Modal show={isOpen} onHide={onClose} title={t("Workspace Files")}>
+        <Modal
+            show={isOpen}
+            onHide={onClose}
+            title={t("Manage Workspace Files")}
+            widthClassName="max-w-4xl"
+        >
             <div className="p-4">
                 <div className="mb-4">
                     <div className="text-sm text-gray-600 dark:text-gray-400">
@@ -1217,82 +1343,16 @@ function WorkspaceFilesDialog({ isOpen, onClose, workspaceId }) {
                 </div>
 
                 {/* File list */}
-                {isLoading ? (
-                    <div className="flex items-center justify-center py-8">
-                        <Loader2Icon className="w-6 h-6 animate-spin text-gray-400" />
-                        <span className="ml-2 text-sm text-gray-500">
-                            {t("Loading files...")}
-                        </span>
-                    </div>
-                ) : error ? (
-                    <div className="text-center py-6">
-                        <div className="text-red-600 dark:text-red-400 text-sm mb-2">
-                            {t("Error loading files")}: {error.message}
-                        </div>
-                    </div>
-                ) : files.length === 0 ? (
-                    <div className="text-center py-8">
-                        <File className="w-8 h-8 text-gray-400 mx-auto mb-2" />
-                        <p className="text-sm text-gray-500 dark:text-gray-400">
-                            {t("No files found in this workspace")}
-                        </p>
-                    </div>
-                ) : (
-                    <div className="space-y-2 max-h-96 overflow-y-auto">
-                        {files.map((file) => {
-                            const isDeleting = deletingFiles.has(file._id);
-                            return (
-                                <div
-                                    key={file._id}
-                                    className="flex items-center justify-between p-3 border border-gray-200 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700"
-                                >
-                                    <div className="flex items-center gap-3 min-w-0 flex-1">
-                                        <File className="w-4 h-4 text-gray-500 flex-shrink-0" />
-                                        <div className="min-w-0 flex-1">
-                                            <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
-                                                {file.originalName ||
-                                                    file.filename}
-                                            </p>
-                                            <p className="text-xs text-gray-500 dark:text-gray-400">
-                                                {file.size &&
-                                                    (file.size / 1024).toFixed(
-                                                        1,
-                                                    )}{" "}
-                                                KB
-                                                {file.uploadedAt && (
-                                                    <span className="ml-2">
-                                                        •{" "}
-                                                        {new Date(
-                                                            file.uploadedAt,
-                                                        ).toLocaleDateString()}
-                                                    </span>
-                                                )}
-                                            </p>
-                                        </div>
-                                    </div>
-                                    <button
-                                        type="button"
-                                        onClick={() => handleDeleteClick(file)}
-                                        disabled={
-                                            isDeleting ||
-                                            deleteFileMutation.isPending ||
-                                            checkAttachmentsMutation.isPending
-                                        }
-                                        className="flex items-center gap-1 px-2 py-1 text-xs text-red-600 hover:text-red-800 hover:bg-red-50 dark:hover:bg-red-900/20 rounded border border-red-200 dark:border-red-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                                        title={t("Delete file")}
-                                    >
-                                        {isDeleting ? (
-                                            <Loader2Icon className="w-3 h-3 animate-spin" />
-                                        ) : (
-                                            <Trash2 className="w-3 h-3" />
-                                        )}
-                                        <span>{t("Delete")}</span>
-                                    </button>
-                                </div>
-                            );
-                        })}
-                    </div>
-                )}
+                <FileList
+                    files={files}
+                    isLoading={isLoading}
+                    error={error}
+                    getFileIcon={getFileIcon}
+                    isPickerMode={false}
+                    deletingFiles={deletingFiles}
+                    onDeleteClick={handleDeleteClick}
+                    isPublished={false}
+                />
 
                 {/* Footer */}
                 <div className="flex justify-end gap-2 mt-6 pt-4 border-t border-gray-200 dark:border-gray-600">

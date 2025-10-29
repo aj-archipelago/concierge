@@ -1,14 +1,7 @@
 import { useSelector } from "react-redux";
 import { useTranslation } from "react-i18next";
 import { Popover } from "@headlessui/react";
-import {
-    Microscope,
-    Database,
-    Trash2,
-    FileImage,
-    FileText,
-    FileSpreadsheet,
-} from "lucide-react";
+import { Microscope, Database, Trash2 } from "lucide-react";
 import { COGNITIVE_DELETE } from "../../graphql";
 import { useLazyQuery } from "@apollo/client";
 import { useContext, useState, useEffect } from "react";
@@ -20,22 +13,7 @@ import {
 } from "../../../app/queries/uploadedDocs";
 import { useGetActiveChat } from "../../../app/queries/chats";
 import { useUpdateChat } from "../../../app/queries/chats";
-
-function getFileIcon(filename) {
-    const extension = filename?.split(".").pop().toLowerCase();
-    switch (extension) {
-        case "pdf":
-            return <FileImage />;
-        case "docx":
-        case "doc":
-            return <FileText />;
-        case "xlsx":
-        case "xls":
-            return <FileSpreadsheet />;
-        default:
-            return <FileText />;
-    }
-}
+import { getFileIcon } from "../../utils/mediaUtils";
 
 const DELETE_ALL_UPLOADS_STR = "__ALL__";
 
@@ -145,7 +123,11 @@ function ChatTopMenu({ displayState = "full" }) {
                                         className={`flex border justify-between items-center mx-1 my-2 py-1 px-1 rounded-md cursor-default ${isCurrentlyGettingDeleted ? "bg-red-400" : "bg-gray-100"}`}
                                     >
                                         <div className="flex gap-1 items-center">
-                                            {getFileIcon(filename)}
+                                            {(() => {
+                                                const Icon =
+                                                    getFileIcon(filename);
+                                                return <Icon />;
+                                            })()}
                                             <span className="text-nowrap">
                                                 {isCurrentlyGettingDeleted ? (
                                                     <span
