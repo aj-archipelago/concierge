@@ -1,5 +1,6 @@
 import { getCurrentUser } from "../utils/auth.js";
 import MediaItem from "../models/media-item.mjs";
+import { parseSearchQuery } from "../utils/search-parser.js";
 
 export async function GET(req) {
     const user = await getCurrentUser();
@@ -24,36 +25,36 @@ export async function GET(req) {
 
         // Handle search functionality
         // Note: Cannot search prompt field due to MongoDB encryption - only search tags
-        // Support comma-delimited search terms with AND logic
+        // Support space-separated search terms with AND logic and "quoted phrases"
         if (search) {
-            // Split search terms by comma and trim whitespace
-            const searchTerms = search
-                .split(",")
-                .map((term) => term.trim())
-                .filter((term) => term);
+            // Parse search query (handles spaces and quotes)
+            const searchTerms = parseSearchQuery(search);
 
             if (searchTerms.length === 1) {
                 // Single term - use regex search
+                const term = searchTerms[0];
+                const isQuoted =
+                    (term.startsWith('"') && term.endsWith('"')) ||
+                    (term.startsWith("'") && term.endsWith("'"));
+                const searchPattern = isQuoted ? term.slice(1, -1) : term;
+
                 query.$or = [
-                    { tags: { $regex: searchTerms[0], $options: "i" } },
+                    { tags: { $regex: searchPattern, $options: "i" } },
                     { status: "pending" },
                 ];
             } else if (searchTerms.length > 1) {
                 // Multiple terms - use AND logic (all terms must match)
-                query.$and = [
-                    {
-                        $or: [
-                            { tags: { $regex: searchTerms[0], $options: "i" } },
-                            { status: "pending" },
-                        ],
-                    },
-                ];
+                query.$and = [];
 
-                // Add additional AND conditions for each remaining term
-                for (let i = 1; i < searchTerms.length; i++) {
+                for (const term of searchTerms) {
+                    const isQuoted =
+                        (term.startsWith('"') && term.endsWith('"')) ||
+                        (term.startsWith("'") && term.endsWith("'"));
+                    const searchPattern = isQuoted ? term.slice(1, -1) : term;
+
                     query.$and.push({
                         $or: [
-                            { tags: { $regex: searchTerms[i], $options: "i" } },
+                            { tags: { $regex: searchPattern, $options: "i" } },
                             { status: "pending" },
                         ],
                     });

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Download, Trash2, Check } from "lucide-react";
+import { Check } from "lucide-react";
 import ChatImage from "./ChatImage";
 import ProgressUpdate from "../editor/ProgressUpdate";
 
@@ -101,40 +101,6 @@ function ImageTile({
             </div>
 
             <div className="media-wrapper relative" onClick={onClick}>
-                {/* Action buttons overlay - top left */}
-                <div className="absolute top-2 left-2 z-10 flex gap-1 opacity-0 hover:opacity-100 transition-opacity duration-200">
-                    <button
-                        className="lb-icon-button bg-white bg-opacity-80 hover:bg-opacity-100 text-gray-700 hover:text-gray-900 dark:bg-gray-800 dark:bg-opacity-80 dark:hover:bg-opacity-100 dark:text-gray-200 dark:hover:text-white shadow-sm"
-                        title={t("Download")}
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            // Create a hidden anchor element to trigger download without opening new tabs
-                            const link = document.createElement("a");
-                            link.href = url;
-                            link.download = ""; // Let browser determine filename
-                            link.style.display = "none";
-                            document.body.appendChild(link);
-                            link.click();
-                            document.body.removeChild(link);
-                        }}
-                    >
-                        <Download />
-                    </button>
-                    <button
-                        className="lb-icon-button bg-white bg-opacity-80 hover:bg-opacity-100 text-gray-700 hover:text-gray-900 dark:bg-gray-800 dark:bg-opacity-80 dark:hover:bg-opacity-100 dark:text-gray-200 dark:hover:text-white shadow-sm"
-                        title={t("Delete")}
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            // Select this image and trigger delete selected dialog
-                            setSelectedImages(new Set([image.cortexRequestId]));
-                            setSelectedImagesObjects([image]);
-                            setShowDeleteSelectedConfirm(true);
-                        }}
-                    >
-                        <Trash2 />
-                    </button>
-                </div>
-
                 {regenerating ||
                 (image?.status === "pending" && image?.taskId) ||
                 (!url &&
