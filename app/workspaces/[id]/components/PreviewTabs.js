@@ -92,8 +92,6 @@ function CreatingAppletDialog({ isVisible, containerRef: parentContainerRef }) {
         width: 0,
         height: 0,
     });
-    const scrollableElementsRef = useRef(new Set());
-
     useEffect(() => {
         if (!isVisible || !parentContainerRef?.current) return;
 
@@ -164,9 +162,6 @@ function CreatingAppletDialog({ isVisible, containerRef: parentContainerRef }) {
                 passive: true,
             });
             scrollableElements.add(container);
-
-            // Update ref for external access if needed
-            scrollableElementsRef.current = scrollableElements;
         };
 
         updatePosition();
