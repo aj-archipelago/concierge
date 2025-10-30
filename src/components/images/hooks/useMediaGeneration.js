@@ -158,7 +158,7 @@ export const useMediaGeneration = ({
                 promptRef.current && promptRef.current.focus();
             }, 0);
         },
-        [],
+        [setLoading],
     );
 
     const handleCombineSelected = useCallback(
@@ -276,7 +276,7 @@ export const useMediaGeneration = ({
                 setLoading?.(false);
             }
         },
-        [],
+        [setLoading],
     );
 
     return {

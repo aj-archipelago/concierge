@@ -160,3 +160,22 @@ export function useMigrateMediaItems() {
         },
     });
 }
+
+export function useCleanupOrphanedMediaItems() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: async () => {
+            const response = await axios.post(
+                `/api/media-items/cleanup-orphaned`,
+            );
+            return response.data;
+        },
+        onSuccess: (data) => {
+            // Only invalidate if items were actually cleaned up
+            if (data?.cleanedCount > 0) {
+                queryClient.invalidateQueries({ queryKey: ["mediaItems"] });
+            }
+        },
+    });
+}

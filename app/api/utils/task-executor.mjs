@@ -15,6 +15,19 @@ export async function executeTask(jobData, job) {
     // Check if cancelled
     const request = await Task.findOne({ _id: taskId });
     if (request?.status === "cancelled") {
+        // Call handler's cancelRequest method if it exists
+        const handler = await loadTaskDefinition(type);
+        if (
+            handler.cancelRequest &&
+            typeof handler.cancelRequest === "function"
+        ) {
+            try {
+                await handler.cancelRequest(taskId, client);
+            } catch (error) {
+                console.error("Error in handler.cancelRequest:", error);
+                // Don't throw - cancellation check should succeed
+            }
+        }
         return;
     }
 
@@ -120,6 +133,31 @@ class CortexRequestTracker {
             "Operation timed out after 5 minutes of inactivity",
         );
 
+        // Call handler's handleError for timeout errors
+        try {
+            const { type, userId, metadata } = this.job.data;
+            const handler = await loadTaskDefinition(type);
+            if (
+                handler.handleError &&
+                typeof handler.handleError === "function"
+            ) {
+                const timeoutError = new Error(
+                    "Operation timed out after 5 minutes of inactivity",
+                );
+                await handler.handleError(
+                    this.job.data.taskId,
+                    timeoutError,
+                    { ...metadata, userId },
+                    this.client,
+                );
+            }
+        } catch (error) {
+            console.error(
+                "Error calling handler.handleError on timeout:",
+                error,
+            );
+        }
+
         this.reject(
             new Error("Operation timed out after 5 minutes of inactivity"),
         );
@@ -135,6 +173,23 @@ class CortexRequestTracker {
                 );
 
                 if (updatedRequest?.status === "cancelled") {
+                    // Call handler's cancelRequest method if it exists
+                    try {
+                        const { type } = this.job.data;
+                        const handler = await loadTaskDefinition(type);
+                        if (
+                            handler.cancelRequest &&
+                            typeof handler.cancelRequest === "function"
+                        ) {
+                            await handler.cancelRequest(
+                                this.job.data.taskId,
+                                this.client,
+                            );
+                        }
+                    } catch (error) {
+                        console.error("Error in handler.cancelRequest:", error);
+                        // Don't throw - cancellation check should succeed
+                    }
                     this.cleanup();
                     return true; // Indicates cancellation
                 }
