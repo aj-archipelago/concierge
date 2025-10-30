@@ -18,6 +18,7 @@ import {
     Loader2,
     X,
     Tag,
+    Sparkles,
 } from "lucide-react";
 import { LanguageContext } from "../../contexts/LanguageProvider";
 import { AuthContext } from "../../App";
@@ -29,6 +30,21 @@ import {
     TooltipContent,
     TooltipProvider,
 } from "../../../@/components/ui/tooltip";
+import {
+    Popover,
+    PopoverTrigger,
+    PopoverContent,
+} from "../../../@/components/ui/popover";
+import {
+    Select,
+    SelectContent,
+    SelectGroup,
+    SelectItem,
+    SelectLabel,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select";
+import { AutosizeTextarea } from "@/components/ui/autosize-textarea";
 import ChatImage from "./ChatImage";
 import ImageTile from "./ImageTile";
 import {
@@ -144,10 +160,9 @@ function MediaPage() {
     const [showModal, setShowModal] = useState(false);
     const [selectedImage, setSelectedImage] = useState(null);
     const { t } = useTranslation();
-    const [loading] = useState(false);
+    const [loading, setLoading] = useState(false);
     const [isModifyMode, setIsModifyMode] = useState(false);
     const [isUploading] = useState(false);
-    const [showDeleteAllConfirm, setShowDeleteAllConfirm] = useState(false);
     const [showDeleteSelectedConfirm, setShowDeleteSelectedConfirm] =
         useState(false);
     const [isMigrationInProgress, setIsMigrationInProgress] = useState(false);
@@ -165,6 +180,9 @@ function MediaPage() {
     const updateTagsMutation = useUpdateMediaItemTags();
     const [bottomActionsLeft, setBottomActionsLeft] = useState(null);
     const mediaContainerRef = useRef(null);
+    const modelSelectorRef = useRef(null);
+    const [isDarkMode, setIsDarkMode] = useState(false);
+    const [isImageBadgeHovered, setIsImageBadgeHovered] = useState(false);
 
     // Use custom selection hook
     const {
@@ -366,6 +384,32 @@ function MediaPage() {
         getModelSettings,
     });
 
+    // Get current model settings for display
+    const currentModelSettings = useMemo(() => {
+        return getModelSettings(settings, selectedModel);
+    }, [settings, selectedModel, getModelSettings]);
+
+    // Count selected images for context badge
+    const selectedImageCount = useMemo(() => {
+        return selectedImagesObjects.filter((img) => img.type === "image")
+            .length;
+    }, [selectedImagesObjects]);
+
+    // Detect dark mode for dropdown arrow
+    useEffect(() => {
+        const updateDarkMode = () => {
+            const dark = document.documentElement.classList.contains("dark");
+            setIsDarkMode(dark);
+        };
+        updateDarkMode();
+        const observer = new MutationObserver(updateDarkMode);
+        observer.observe(document.documentElement, {
+            attributes: true,
+            attributeFilter: ["class"],
+        });
+        return () => observer.disconnect();
+    }, []);
+
     // Use custom media generation hook
     const {
         generateMedia,
@@ -378,6 +422,7 @@ function MediaPage() {
         runTask,
         createMediaItem,
         promptRef,
+        setLoading,
     });
 
     useEffect(() => {
@@ -448,33 +493,15 @@ function MediaPage() {
     });
 
     // Use custom bulk operations hook
-    const {
-        handleBulkAction,
-        handleDeleteSelected,
-        handleDeleteAll,
-        checkDownloadLimits,
-    } = useBulkOperations({
-        selectedImagesObjects,
-        deleteMediaItem,
-        setSelectedImages,
-        setSelectedImagesObjects,
-        setShowDeleteSelectedConfirm,
-        t,
-    });
-
-    // Wrapper for handleDeleteAll to pass sortedImages
-    const handleDeleteAllWrapper = useCallback(async () => {
-        await handleDeleteAll(
-            sortedImages,
+    const { handleBulkAction, handleDeleteSelected, checkDownloadLimits } =
+        useBulkOperations({
+            selectedImagesObjects,
             deleteMediaItem,
-            setShowDeleteAllConfirm,
-        );
-    }, [
-        sortedImages,
-        deleteMediaItem,
-        setShowDeleteAllConfirm,
-        handleDeleteAll,
-    ]);
+            setSelectedImages,
+            setSelectedImagesObjects,
+            setShowDeleteSelectedConfirm,
+            t,
+        });
 
     const handleClearSelection = clearSelection;
 
@@ -699,6 +726,7 @@ function MediaPage() {
                         className="flex flex-col gap-2"
                         onSubmit={(e) => {
                             e.preventDefault();
+                            setLoading(true);
                             if (!prompt.trim()) return;
                             setGenerationPrompt(prompt);
                             if (isModifyMode) {
@@ -717,111 +745,140 @@ function MediaPage() {
                             }
                         }}
                     >
-                        <textarea
-                            className="lb-input flex-grow min-h-[2.5rem] max-h-32 resize-y"
-                            placeholder={
-                                selectedImages.size > 0
-                                    ? t(
-                                          "Describe what you want to do with the selected media",
-                                      )
-                                    : t("Describe what you want to generate")
-                            }
-                            value={prompt}
-                            onChange={(e) => setPrompt(e.target.value)}
-                            onKeyDown={(e) => {
-                                if (e.key === "Enter" && !e.shiftKey) {
-                                    e.preventDefault();
-                                    if (!prompt.trim()) return;
-                                    setGenerationPrompt(prompt);
-                                    if (isModifyMode) {
-                                        if (
-                                            selectedImages.size >= 2 &&
-                                            selectedImages.size <= 3
-                                        ) {
-                                            handleCombineSelected();
-                                        } else if (selectedImages.size === 1) {
-                                            handleModifySelected();
-                                        } else {
-                                            generateMedia(prompt);
+                        {/* Container with border for prompt box and thin bar */}
+                        <div className="border border-gray-300 dark:border-gray-600 rounded-xl p-3">
+                            {/* Flex container for textarea and button */}
+                            <div className="flex items-start gap-2">
+                                <div className="flex-1">
+                                    <AutosizeTextarea
+                                        className="bg-transparent border-none outline-none min-h-[2.5rem] resize-y w-full focus:outline-none focus:ring-0 focus:border-0 p-0 ps-1 pt-1 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 dark:bg-transparent"
+                                        maxHeight={200}
+                                        minHeight={40}
+                                        placeholder={
+                                            selectedImages.size > 0
+                                                ? t(
+                                                      "Describe what you want to do with the selected media",
+                                                  )
+                                                : t(
+                                                      "Describe what you want to generate",
+                                                  )
                                         }
-                                    } else {
-                                        generateMedia(prompt);
-                                    }
-                                }
-                            }}
-                            ref={promptRef}
-                            onFocus={(e) => e.target.select()}
-                        />
-
-                        <div className="flex gap-2 items-center media-toolbar-row">
-                            <TooltipProvider>
-                                <Tooltip>
-                                    <TooltipTrigger asChild>
-                                        <label className="lb-input flex items-center justify-center settings-btn-square text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 cursor-pointer">
-                                            <input
-                                                type="file"
-                                                className="hidden"
-                                                accept="image/*"
-                                                onChange={handleFileSelect}
-                                                disabled={isUploading}
-                                            />
-                                            {isUploading ? (
-                                                <Loader2 className="animate-spin" />
-                                            ) : (
-                                                <Plus />
-                                            )}
-                                        </label>
-                                    </TooltipTrigger>
-                                    <TooltipContent>
-                                        {t("Upload Image")}
-                                    </TooltipContent>
-                                </Tooltip>
-                            </TooltipProvider>
-
-                            <TooltipProvider>
-                                <Tooltip
-                                    open={disableTooltip ? false : undefined}
-                                >
-                                    <TooltipTrigger asChild>
-                                        <button
-                                            type="button"
-                                            className="lb-input flex items-center justify-center settings-btn-square text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
-                                            onClick={() =>
-                                                setShowSettings(true)
+                                        value={prompt}
+                                        onChange={(e) =>
+                                            setPrompt(e.target.value)
+                                        }
+                                        onKeyDown={(e) => {
+                                            if (
+                                                e.key === "Enter" &&
+                                                !e.shiftKey
+                                            ) {
+                                                e.preventDefault();
+                                                if (!prompt.trim()) return;
+                                                setGenerationPrompt(prompt);
+                                                if (isModifyMode) {
+                                                    if (
+                                                        selectedImages.size >=
+                                                            2 &&
+                                                        selectedImages.size <= 3
+                                                    ) {
+                                                        handleCombineSelected();
+                                                    } else if (
+                                                        selectedImages.size ===
+                                                        1
+                                                    ) {
+                                                        handleModifySelected();
+                                                    } else {
+                                                        generateMedia(prompt);
+                                                    }
+                                                } else {
+                                                    generateMedia(prompt);
+                                                }
                                             }
-                                        >
-                                            <Settings />
-                                        </button>
-                                    </TooltipTrigger>
-                                    <TooltipContent>
-                                        {t("Generation Settings")}
-                                    </TooltipContent>
-                                </Tooltip>
-                            </TooltipProvider>
+                                        }}
+                                        ref={promptRef}
+                                        onFocus={(e) => e.target.select()}
+                                    />
+                                </div>
+                                {/* Selected images thumbnails - hidden on mobile */}
+                                {selectedImageCount > 0 && (
+                                    <div className="hidden md:flex items-start gap-1.5 flex-shrink-0">
+                                        {selectedImagesObjects
+                                            .filter(
+                                                (img) => img.type === "image",
+                                            )
+                                            .slice(0, 3) // Show max 3 thumbnails
+                                            .map((image) => {
+                                                const imageUrl =
+                                                    image?.azureUrl ||
+                                                    image?.url;
+                                                if (
+                                                    !imageUrl ||
+                                                    imageUrl === "null" ||
+                                                    imageUrl === "undefined"
+                                                )
+                                                    return null;
 
-                            <select
-                                className="lb-input flex-1 media-toolbar-dropdown"
-                                value={selectedModel}
-                                dir={direction}
-                                onChange={(e) => {
-                                    const newSelectedModel = e.target.value;
-                                    const modelSettings = getModelSettings(
-                                        settings,
-                                        newSelectedModel,
-                                    );
+                                                return (
+                                                    <div
+                                                        key={
+                                                            image.cortexRequestId
+                                                        }
+                                                        className="relative w-10 h-10 rounded overflow-hidden border border-gray-200 dark:border-gray-700 flex-shrink-0"
+                                                    >
+                                                        <ChatImage
+                                                            src={imageUrl}
+                                                            alt={
+                                                                image.prompt ||
+                                                                ""
+                                                            }
+                                                            className="w-full h-full object-cover"
+                                                        />
+                                                    </div>
+                                                );
+                                            })}
+                                        {selectedImageCount > 3 && (
+                                            <div className="flex items-center justify-center w-10 h-10 rounded bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-xs text-gray-600 dark:text-gray-400">
+                                                +{selectedImageCount - 3}
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+                                {/* Generate button */}
+                                <div className="flex items-start flex-shrink-0">
+                                    <TooltipProvider>
+                                        <Tooltip>
+                                            <TooltipTrigger asChild>
+                                                <button
+                                                    type="submit"
+                                                    className="border-none outline-none hover:bg-sky-700 dark:bg-sky-700 dark:hover:bg-sky-200 p-1.5 cursor-pointer hover:opacity-80 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1 
+                                                    bg-sky-600 text-white rounded-lg px-3 py-2 
+                                                    text-sm justify-center"
+                                                    disabled={
+                                                        !prompt.trim() ||
+                                                        loading
+                                                    }
+                                                >
+                                                    {loading ? (
+                                                        <Loader2 className="h-4 w-4 animate-spin" />
+                                                    ) : (
+                                                        <Sparkles className="h-4 w-4" />
+                                                    )}
+                                                    <span className="hidden md:block">
+                                                        {t("Generate")}
+                                                    </span>
+                                                </button>
+                                            </TooltipTrigger>
+                                            <TooltipContent>
+                                                {t("Generate")}
+                                            </TooltipContent>
+                                        </Tooltip>
+                                    </TooltipProvider>
+                                </div>
+                            </div>
 
-                                    setSelectedModel(newSelectedModel);
-
-                                    if (modelSettings.type === "image") {
-                                        setOutputType("image");
-                                        setQuality(
-                                            modelSettings.quality || "draft",
-                                        );
-                                    } else {
-                                        setOutputType("video");
-                                    }
-                                }}
-                            >
+                            {/* Thin bar with model selector and settings */}
+                            <div className="flex md:items-center flex-col md:flex-row  gap-2">
+                                {/* Model selector */}
                                 {(() => {
                                     const availableModels =
                                         getAvailableModels();
@@ -849,66 +906,311 @@ function MediaPage() {
                                             t("Seedance 1.0"),
                                     };
 
-                                    const options = [];
-
-                                    // Add image models group
-                                    if (availableModels.image.length > 0) {
-                                        availableModels.image.forEach(
-                                            (modelName) => {
-                                                const displayName =
-                                                    displayNames[modelName] ||
-                                                    modelName;
-                                                options.push(
-                                                    <option
-                                                        key={modelName}
-                                                        value={modelName}
-                                                    >
-                                                        🖼️ {displayName}
-                                                    </option>,
-                                                );
-                                            },
+                                    const getDisplayName = (modelName) => {
+                                        return (
+                                            displayNames[modelName] || modelName
                                         );
-                                    }
+                                    };
 
-                                    // Add video models group
-                                    if (availableModels.video.length > 0) {
-                                        availableModels.video.forEach(
-                                            (modelName) => {
-                                                const displayName =
-                                                    displayNames[modelName] ||
-                                                    modelName;
-                                                options.push(
-                                                    <option
-                                                        key={modelName}
-                                                        value={modelName}
-                                                    >
-                                                        🎬 {displayName}
-                                                    </option>,
-                                                );
-                                            },
+                                    const getCurrentDisplayName = () => {
+                                        const currentDisplayName =
+                                            getDisplayName(selectedModel);
+                                        const modelSettings = getModelSettings(
+                                            settings,
+                                            selectedModel,
                                         );
-                                    }
+                                        const icon =
+                                            modelSettings.type === "video"
+                                                ? "🎬"
+                                                : "🖼️";
+                                        return `${icon} ${currentDisplayName}`;
+                                    };
 
-                                    return options;
+                                    return (
+                                        <Select
+                                            value={selectedModel}
+                                            onValueChange={(
+                                                newSelectedModel,
+                                            ) => {
+                                                const modelSettings =
+                                                    getModelSettings(
+                                                        settings,
+                                                        newSelectedModel,
+                                                    );
+
+                                                setSelectedModel(
+                                                    newSelectedModel,
+                                                );
+
+                                                if (
+                                                    modelSettings.type ===
+                                                    "image"
+                                                ) {
+                                                    setOutputType("image");
+                                                    setQuality(
+                                                        modelSettings.quality ||
+                                                            "draft",
+                                                    );
+                                                } else {
+                                                    setOutputType("video");
+                                                }
+                                            }}
+                                        >
+                                            <SelectTrigger
+                                                ref={modelSelectorRef}
+                                                className="bg-transparent border-none outline-none text-sm text-gray-700 dark:text-gray-300 ps-1 pe-2 py-1 h-auto max-w-[200px] shadow-none focus:ring-0 focus:ring-offset-0 hover:opacity-80"
+                                                dir={direction}
+                                            >
+                                                <SelectValue>
+                                                    {getCurrentDisplayName()}
+                                                </SelectValue>
+                                            </SelectTrigger>
+                                            <SelectContent dir={direction}>
+                                                {/* Image models group */}
+                                                {availableModels.image.length >
+                                                    0 && (
+                                                    <SelectGroup>
+                                                        <SelectLabel>
+                                                            {t("Image Models")}
+                                                        </SelectLabel>
+                                                        {availableModels.image.map(
+                                                            (modelName) => {
+                                                                const displayName =
+                                                                    getDisplayName(
+                                                                        modelName,
+                                                                    );
+                                                                return (
+                                                                    <SelectItem
+                                                                        key={
+                                                                            modelName
+                                                                        }
+                                                                        value={
+                                                                            modelName
+                                                                        }
+                                                                    >
+                                                                        🖼️{" "}
+                                                                        {
+                                                                            displayName
+                                                                        }
+                                                                    </SelectItem>
+                                                                );
+                                                            },
+                                                        )}
+                                                    </SelectGroup>
+                                                )}
+                                                {/* Video models group */}
+                                                {availableModels.video.length >
+                                                    0 && (
+                                                    <SelectGroup>
+                                                        <SelectLabel>
+                                                            {t("Video Models")}
+                                                        </SelectLabel>
+                                                        {availableModels.video.map(
+                                                            (modelName) => {
+                                                                const displayName =
+                                                                    getDisplayName(
+                                                                        modelName,
+                                                                    );
+                                                                return (
+                                                                    <SelectItem
+                                                                        key={
+                                                                            modelName
+                                                                        }
+                                                                        value={
+                                                                            modelName
+                                                                        }
+                                                                    >
+                                                                        🎬{" "}
+                                                                        {
+                                                                            displayName
+                                                                        }
+                                                                    </SelectItem>
+                                                                );
+                                                            },
+                                                        )}
+                                                    </SelectGroup>
+                                                )}
+                                            </SelectContent>
+                                        </Select>
+                                    );
                                 })()}
-                            </select>
 
-                            <button
-                                className="lb-primary whitespace-nowrap flex items-center justify-center relative"
-                                type="submit"
-                                disabled={!prompt.trim() || loading}
-                            >
-                                <span
-                                    className={
-                                        loading ? "invisible" : "visible"
-                                    }
-                                >
-                                    {t("Generate")}
-                                </span>
-                                {loading && (
-                                    <Loader2 className="animate-spin h-4 w-4 absolute" />
-                                )}
-                            </button>
+                                <div className="flex items-center gap-2">
+                                    {/* Settings button */}
+                                    <TooltipProvider>
+                                        <Tooltip
+                                            open={
+                                                disableTooltip
+                                                    ? false
+                                                    : undefined
+                                            }
+                                        >
+                                            <TooltipTrigger asChild>
+                                                <button
+                                                    type="button"
+                                                    className="bg-transparent border-none outline-none text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 p-1 cursor-pointer hover:opacity-80 focus:outline-none"
+                                                    onClick={() =>
+                                                        setShowSettings(true)
+                                                    }
+                                                >
+                                                    <Settings className="h-4 w-4" />
+                                                </button>
+                                            </TooltipTrigger>
+                                            <TooltipContent>
+                                                {t("Generation Settings")}
+                                            </TooltipContent>
+                                        </Tooltip>
+                                    </TooltipProvider>
+
+                                    {/* Model settings display and image context badge */}
+                                    <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+                                        {/* Model settings */}
+                                        {currentModelSettings.aspectRatio && (
+                                            <span className="px-1.5 py-0.5">
+                                                {currentModelSettings.aspectRatio ===
+                                                "match_input_image"
+                                                    ? t("Match Input")
+                                                    : currentModelSettings.aspectRatio}
+                                            </span>
+                                        )}
+                                        {currentModelSettings.type ===
+                                            "image" &&
+                                            currentModelSettings.quality && (
+                                                <span className="px-1.5 py-0.5 capitalize">
+                                                    {
+                                                        currentModelSettings.quality
+                                                    }
+                                                </span>
+                                            )}
+                                        {currentModelSettings.type ===
+                                            "video" && (
+                                            <>
+                                                {currentModelSettings.duration && (
+                                                    <span className="px-1.5 py-0.5">
+                                                        {
+                                                            currentModelSettings.duration
+                                                        }
+                                                        s
+                                                    </span>
+                                                )}
+                                                {currentModelSettings.resolution && (
+                                                    <span className="px-1.5 py-0.5">
+                                                        {
+                                                            currentModelSettings.resolution
+                                                        }
+                                                    </span>
+                                                )}
+                                                {currentModelSettings.generateAudio !==
+                                                    undefined && (
+                                                    <span className="px-1.5 py-0.5">
+                                                        {currentModelSettings.generateAudio
+                                                            ? t("Audio")
+                                                            : t("No Audio")}
+                                                    </span>
+                                                )}
+                                                {currentModelSettings.cameraFixed && (
+                                                    <span className="px-1.5 py-0.5">
+                                                        {t("Fixed Camera")}
+                                                    </span>
+                                                )}
+                                            </>
+                                        )}
+                                        {currentModelSettings.optimizePrompt && (
+                                            <span className="px-1.5 py-0.5">
+                                                {t("Optimized")}
+                                            </span>
+                                        )}
+                                    </div>
+                                </div>
+                                <div className="flex ml-auto text-xs">
+                                    {/* Image context badge */}
+                                    {selectedImageCount > 0 && (
+                                        <Popover
+                                            open={isImageBadgeHovered}
+                                            onOpenChange={
+                                                setIsImageBadgeHovered
+                                            }
+                                        >
+                                            <PopoverTrigger asChild>
+                                                <span
+                                                    className="px-2 py-0.5 bg-sky-100 dark:bg-sky-900 text-sky-700 dark:text-sky-300 rounded-md cursor-pointer"
+                                                    onMouseEnter={() =>
+                                                        setIsImageBadgeHovered(
+                                                            true,
+                                                        )
+                                                    }
+                                                    onMouseLeave={() =>
+                                                        setIsImageBadgeHovered(
+                                                            false,
+                                                        )
+                                                    }
+                                                >
+                                                    {selectedImageCount}{" "}
+                                                    {selectedImageCount === 1
+                                                        ? t("image")
+                                                        : t("images")}
+                                                </span>
+                                            </PopoverTrigger>
+                                            <PopoverContent
+                                                className="w-auto p-3"
+                                                onMouseEnter={() =>
+                                                    setIsImageBadgeHovered(true)
+                                                }
+                                                onMouseLeave={() =>
+                                                    setIsImageBadgeHovered(
+                                                        false,
+                                                    )
+                                                }
+                                            >
+                                                <div className="text-xs font-medium mb-2 text-gray-700 dark:text-gray-300">
+                                                    {t("Selected Images")}
+                                                </div>
+                                                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-w-xs">
+                                                    {selectedImagesObjects
+                                                        .filter(
+                                                            (img) =>
+                                                                img.type ===
+                                                                "image",
+                                                        )
+                                                        .map((image) => {
+                                                            const imageUrl =
+                                                                image?.azureUrl ||
+                                                                image?.url;
+                                                            if (
+                                                                !imageUrl ||
+                                                                imageUrl ===
+                                                                    "null" ||
+                                                                imageUrl ===
+                                                                    "undefined"
+                                                            )
+                                                                return null;
+
+                                                            return (
+                                                                <div
+                                                                    key={
+                                                                        image.cortexRequestId
+                                                                    }
+                                                                    className="relative aspect-square rounded overflow-hidden border border-gray-200 dark:border-gray-700"
+                                                                >
+                                                                    <ChatImage
+                                                                        src={
+                                                                            imageUrl
+                                                                        }
+                                                                        alt={
+                                                                            image.prompt ||
+                                                                            ""
+                                                                        }
+                                                                        className="w-full h-full object-cover"
+                                                                    />
+                                                                </div>
+                                                            );
+                                                        })}
+                                                </div>
+                                            </PopoverContent>
+                                        </Popover>
+                                    )}
+                                </div>
+                            </div>
                         </div>
                     </form>
                 </div>
@@ -1015,16 +1317,22 @@ function MediaPage() {
 
                         <Tooltip>
                             <TooltipTrigger asChild>
-                                <button
-                                    className="lb-icon-button text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 dark:bg-transparent dark:border-gray-600 dark:hover:border-gray-500"
-                                    onClick={() =>
-                                        setShowDeleteAllConfirm(true)
-                                    }
-                                >
-                                    <Trash2 />
-                                </button>
+                                <label className="lb-icon-button text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 dark:bg-transparent dark:border-gray-600 dark:hover:border-gray-500 cursor-pointer flex items-center justify-center">
+                                    <input
+                                        type="file"
+                                        className="hidden"
+                                        accept="image/*"
+                                        onChange={handleFileSelect}
+                                        disabled={isUploading}
+                                    />
+                                    {isUploading ? (
+                                        <Loader2 className="animate-spin h-5 w-5" />
+                                    ) : (
+                                        <Plus className="h-5 w-5" />
+                                    )}
+                                </label>
                             </TooltipTrigger>
-                            <TooltipContent>{t("Delete All")}</TooltipContent>
+                            <TooltipContent>{t("Upload Image")}</TooltipContent>
                         </Tooltip>
                     </TooltipProvider>
                 </div>
@@ -1115,33 +1423,6 @@ function MediaPage() {
             />
 
             <AlertDialog
-                open={showDeleteAllConfirm}
-                onOpenChange={setShowDeleteAllConfirm}
-            >
-                <AlertDialogContent>
-                    <AlertDialogHeader>
-                        <AlertDialogTitle>
-                            {t("Delete All Media?")}
-                        </AlertDialogTitle>
-                        <AlertDialogDescription>
-                            {t(
-                                "Are you sure you want to delete all media? This action cannot be undone.",
-                            )}
-                        </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                        <AlertDialogCancel>{t("Cancel")}</AlertDialogCancel>
-                        <AlertDialogAction
-                            autoFocus
-                            onClick={handleDeleteAllWrapper}
-                        >
-                            {t("Delete All Media")}
-                        </AlertDialogAction>
-                    </AlertDialogFooter>
-                </AlertDialogContent>
-            </AlertDialog>
-
-            <AlertDialog
                 open={showDeleteSelectedConfirm}
                 onOpenChange={setShowDeleteSelectedConfirm}
             >
@@ -1175,6 +1456,7 @@ function MediaPage() {
                 onHide={() => setShowSettings(false)}
                 debouncedUpdateUserState={debouncedUpdateUserState}
                 userState={userState}
+                currentSelectedModel={selectedModel}
             />
 
             <AlertDialog
@@ -1249,7 +1531,7 @@ function MediaPage() {
                             {t("Cancel")}
                         </button>
                         <button
-                            className="px-4 py-2 text-sm bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                            className="px-4 py-2 text-sm bg-sky-500 text-white rounded hover:bg-sky-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                             onClick={handleBulkTag}
                             disabled={
                                 !bulkTagInput.trim() ||
@@ -1317,24 +1599,31 @@ function SettingsDialog({
     onHide,
     debouncedUpdateUserState,
     userState,
+    currentSelectedModel,
 }) {
     const { t } = useTranslation();
     const { direction } = useContext(LanguageContext);
     const [localSettings, setLocalSettings] = useState(settings);
-    const [selectedModel, setSelectedModel] = useState("replicate-flux-11-pro");
+    const [selectedModel, setSelectedModel] = useState(
+        currentSelectedModel || "replicate-flux-11-pro",
+    );
     const initializedRef = useRef(false);
 
-    // Initialize localSettings when dialog opens
+    // Initialize localSettings and selectedModel when dialog opens
     useEffect(() => {
         if (show) {
             // Always sync localSettings with the current settings when dialog opens
             // This ensures we always show the latest saved settings
             setLocalSettings(settings);
+            // Set the selected model to the current one from the main component
+            if (currentSelectedModel) {
+                setSelectedModel(currentSelectedModel);
+            }
             initializedRef.current = true;
         } else if (!show) {
             initializedRef.current = false;
         }
-    }, [show, settings]);
+    }, [show, settings, currentSelectedModel]);
 
     const handleSave = () => {
         // Update local settings state immediately
@@ -1649,7 +1938,6 @@ function SettingsDialog({
                                 <label className="flex items-center space-x-2">
                                     <input
                                         type="checkbox"
-                                        className="lb-checkbox"
                                         checked={
                                             selectedModel ===
                                                 "veo-3.0-generate" ||
@@ -1683,7 +1971,6 @@ function SettingsDialog({
                                 <label className="flex items-center space-x-2">
                                     <input
                                         type="checkbox"
-                                        className="lb-checkbox"
                                         checked={
                                             currentModelSettings.cameraFixed ||
                                             false
@@ -1709,7 +1996,6 @@ function SettingsDialog({
                                 <label className="flex items-center space-x-2">
                                     <input
                                         type="checkbox"
-                                        className="lb-checkbox"
                                         checked={
                                             currentModelSettings.optimizePrompt !==
                                             false // Default to true
@@ -1850,11 +2136,11 @@ function ImageModal({ show, image, onHide }) {
                             {tags.map((tag, index) => (
                                 <span
                                     key={index}
-                                    className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200"
+                                    className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-sky-100 text-sky-800 dark:bg-sky-900 dark:text-sky-200"
                                 >
                                     #{tag}
                                     <button
-                                        className="ml-1 hover:text-blue-600 dark:hover:text-blue-300"
+                                        className="ml-1 hover:text-sky-600 dark:hover:text-sky-300"
                                         onClick={() => removeTag(tag)}
                                         disabled={updateTagsMutation.isPending}
                                     >
@@ -1875,7 +2161,7 @@ function ImageModal({ show, image, onHide }) {
                                 ref={tagInputRef}
                             />
                             <button
-                                className="px-3 py-1 text-sm bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed w-14 flex items-center justify-center"
+                                className="px-3 py-1 text-sm bg-sky-500 text-white rounded hover:bg-sky-600 disabled:opacity-50 disabled:cursor-not-allowed w-14 flex items-center justify-center"
                                 onClick={addTag}
                                 disabled={
                                     !newTag.trim() ||
@@ -1896,7 +2182,7 @@ function ImageModal({ show, image, onHide }) {
                             {t("Prompt")}
                         </div>
                         <textarea
-                            className="w-full p-2 rounded-md bg-gray-50 dark:bg-gray-700 sm:text-sm resize-none"
+                            className="w-full p-2 rounded-md bg-gray-50 dark:bg-gray-700 sm:text-sm resize-none focus:outline-none focus:ring-0 focus:border-0"
                             value={image?.prompt}
                             readOnly
                             rows={8}

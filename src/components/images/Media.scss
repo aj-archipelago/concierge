@@ -448,6 +448,46 @@ $image-container-height: 200px;
     min-width: 120px;
 }
 
+.model-selector-bar {
+    min-height: 2rem;
+}
+
+.model-selector-thin {
+    background: transparent;
+    border: none;
+    outline: none;
+    color: inherit;
+    font-size: 0.875rem;
+    padding: 0.25rem 0.5rem;
+    cursor: pointer;
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    min-width: 140px;
+
+    &:hover {
+        opacity: 0.8;
+    }
+
+    &:focus {
+        outline: none;
+    }
+
+    // Custom dropdown arrow
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23374151' d='M6 9L1 4h10z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 0.5rem center;
+    padding-right: 1.75rem;
+}
+
+/* Dark mode for model selector */
+.dark {
+    .model-selector-thin {
+        color: #d1d5db;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23d1d5db' d='M6 9L1 4h10z'/%3E%3C/svg%3E");
+    }
+}
+
 .settings-btn-square {
     height: var(--dropdown-height, 2.5rem);
     width: var(--dropdown-height, 2.5rem);

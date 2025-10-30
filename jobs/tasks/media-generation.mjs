@@ -404,7 +404,7 @@ class MediaGenerationHandler extends BaseTask {
     }
 
     async startRequest(job) {
-        const { taskId, metadata } = job.data;
+        const { taskId, metadata, userId } = job.data;
         const {
             prompt,
             outputType,
@@ -416,9 +416,16 @@ class MediaGenerationHandler extends BaseTask {
         } = metadata;
 
         metadata.taskId = taskId;
+        metadata.userId = userId;
 
         if (!prompt) {
-            throw new Error("Prompt is required for media generation");
+            const error = new Error("Prompt is required for media generation");
+            await this.updateMediaItemOnError(
+                metadata,
+                error,
+                "VALIDATION_ERROR",
+            );
+            throw error;
         }
 
         const modelName =
@@ -450,14 +457,27 @@ class MediaGenerationHandler extends BaseTask {
                     `[MediaGenerationHandler] GraphQL errors encountered`,
                     result.errors,
                 );
-                throw new Error(
+                const error = new Error(
                     `GraphQL errors: ${JSON.stringify(result.errors)}`,
                 );
+                await this.updateMediaItemOnError(
+                    metadata,
+                    error,
+                    "GRAPHQL_ERROR",
+                );
+                throw error;
             }
         } catch (error) {
             console.error(
                 `[MediaGenerationHandler] GraphQL error:`,
                 error.message,
+                metadata,
+            );
+            // Update MediaItem if not already updated
+            await this.updateMediaItemOnError(
+                metadata,
+                error,
+                "REQUEST_FAILED",
             );
             throw error;
         }
@@ -469,10 +489,87 @@ class MediaGenerationHandler extends BaseTask {
             console.debug(
                 `[MediaGenerationHandler] No result returned from service`,
             );
-            throw new Error("No result returned from media generation service");
+            const error = new Error(
+                "No result returned from media generation service",
+            );
+            await this.updateMediaItemOnError(metadata, error, "NO_RESULT");
+            throw error;
         }
 
         return result;
+    }
+
+    async updateOrCreateMediaItemWithError(
+        userId,
+        metadata,
+        errorCode,
+        errorMessage,
+    ) {
+        if (!userId || !metadata?.taskId) {
+            return;
+        }
+
+        try {
+            const error = {
+                code: errorCode,
+                message: errorMessage || "Media generation failed",
+            };
+
+            const mediaItem = await MediaItem.findOneAndUpdate(
+                { user: userId, taskId: metadata.taskId },
+                {
+                    status: "failed",
+                    error,
+                },
+                { new: true, runValidators: true },
+            );
+
+            // Create media item if it doesn't exist yet
+            if (!mediaItem) {
+                const newMediaItem = new MediaItem({
+                    user: userId,
+                    taskId: metadata.taskId,
+                    cortexRequestId: metadata.taskId,
+                    prompt: metadata.prompt || "",
+                    type: metadata.outputType || "image",
+                    model: metadata.model || "",
+                    status: "failed",
+                    error,
+                    inputImageUrl: metadata.inputImageUrl,
+                    inputImageUrl2: metadata.inputImageUrl2,
+                    inputImageUrl3: metadata.inputImageUrl3,
+                    settings: metadata.settings,
+                });
+                await newMediaItem.save();
+            }
+        } catch (updateError) {
+            console.error(
+                "Error updating/creating media item with error status:",
+                updateError,
+            );
+        }
+    }
+
+    async updateMediaItemOnError(metadata, error, errorCode) {
+        console.log("Updating media item with error status:", metadata);
+        const userId = metadata.userId;
+        if (!userId) {
+            return;
+        }
+
+        const errorMessage =
+            error?.message || error?.toString() || "Media generation failed";
+        console.log(
+            "Updating media item with error status:",
+            errorCode,
+            errorMessage,
+        );
+        await this.updateOrCreateMediaItemWithError(
+            userId,
+            metadata,
+            errorCode,
+            errorMessage,
+        );
     }
 
     async retryGeminiRequest(job, retryCount = 0) {
@@ -612,25 +709,12 @@ class MediaGenerationHandler extends BaseTask {
                     // If this was the last retry, fall through to error handling
                     if (retryCount + 1 >= maxRetries) {
                         if (userId) {
-                            try {
-                                await MediaItem.findOneAndUpdate(
-                                    { user: userId, taskId: metadata.taskId },
-                                    {
-                                        status: "failed",
-                                        error: {
-                                            code: "GEMINI_RETRY_FAILED",
-                                            message:
-                                                "Gemini failed to generate image after 3 retries",
-                                        },
-                                    },
-                                    { new: true, runValidators: true },
-                                );
-                            } catch (updateError) {
-                                console.error(
-                                    "Error updating media item with retry failure:",
-                                    updateError,
-                                );
-                            }
+                            await this.updateOrCreateMediaItemWithError(
+                                userId,
+                                metadata,
+                                "GEMINI_RETRY_FAILED",
+                                "Gemini failed to generate image after 3 retries",
+                            );
                         }
 
                         return {
@@ -643,25 +727,12 @@ class MediaGenerationHandler extends BaseTask {
                 }
             } else {
                 if (userId) {
-                    try {
-                        await MediaItem.findOneAndUpdate(
-                            { user: userId, taskId: metadata.taskId },
-                            {
-                                status: "failed",
-                                error: {
-                                    code: "GEMINI_RETRY_FAILED",
-                                    message:
-                                        "Gemini failed to generate image after 3 retries",
-                                },
-                            },
-                            { new: true, runValidators: true },
-                        );
-                    } catch (updateError) {
-                        console.error(
-                            "Error updating media item with retry failure:",
-                            updateError,
-                        );
-                    }
+                    await this.updateOrCreateMediaItemWithError(
+                        userId,
+                        metadata,
+                        "GEMINI_RETRY_FAILED",
+                        "Gemini failed to generate image after 3 retries",
+                    );
                 }
 
                 return {
@@ -704,19 +775,23 @@ class MediaGenerationHandler extends BaseTask {
         const userId = metadata.userId;
 
         // Extract the actual error message from Veo error responses
-        let actualErrorMessage = error.message || "Media generation failed";
-        let errorCode = error.code || "TASK_FAILED";
+        let actualErrorMessage =
+            error?.message || error?.toString() || "Media generation failed";
+        let errorCode = error?.code || "TASK_FAILED";
 
         // Handle Veo error format: "Veo operation completed but no videos returned: {...}"
+        const errorString =
+            typeof error === "string" ? error : error?.message || "";
         if (
-            typeof error === "string" &&
-            error.includes("Veo operation completed but no videos returned:")
+            errorString.includes(
+                "Veo operation completed but no videos returned:",
+            )
         ) {
             try {
                 // Extract the JSON part after the colon
-                const jsonStart = error.indexOf("{");
+                const jsonStart = errorString.indexOf("{");
                 if (jsonStart !== -1) {
-                    const jsonString = error.substring(jsonStart);
+                    const jsonString = errorString.substring(jsonStart);
                     const veoError = JSON.parse(jsonString);
 
                     // Extract the nested error message
@@ -732,24 +807,12 @@ class MediaGenerationHandler extends BaseTask {
         }
 
         if (userId) {
-            try {
-                await MediaItem.findOneAndUpdate(
-                    { user: userId, taskId: metadata.taskId },
-                    {
-                        status: "failed",
-                        error: {
-                            code: errorCode,
-                            message: actualErrorMessage,
-                        },
-                    },
-                    { new: true, runValidators: true },
-                );
-            } catch (updateError) {
-                console.error(
-                    "Error updating media item with error status:",
-                    updateError,
-                );
-            }
+            await this.updateOrCreateMediaItemWithError(
+                userId,
+                metadata,
+                errorCode,
+                actualErrorMessage,
+            );
         }
 
         return { error: actualErrorMessage };

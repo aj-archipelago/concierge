@@ -7,6 +7,7 @@ export const useMediaGeneration = ({
     runTask,
     createMediaItem,
     promptRef,
+    setLoading,
 }) => {
     const generateMedia = useCallback(
         async (prompt, inputImageUrl = null, modelOverride = null) => {
@@ -30,6 +31,9 @@ export const useMediaGeneration = ({
                 const result = await runTask.mutateAsync(taskData);
 
                 if (result.taskId) {
+                    // Task is queued, set loading to false
+                    setLoading?.(false);
+
                     // Create placeholder in the database
                     const mediaItemData = {
                         taskId: result.taskId,
@@ -54,6 +58,7 @@ export const useMediaGeneration = ({
                 }
             } catch (error) {
                 console.error(`Error generating ${outputType}:`, error);
+                setLoading?.(false);
             }
         },
         [
@@ -63,6 +68,7 @@ export const useMediaGeneration = ({
             runTask,
             createMediaItem,
             promptRef,
+            setLoading,
         ],
     );
 
@@ -116,6 +122,11 @@ export const useMediaGeneration = ({
                     const result = await runTask.mutateAsync(taskData);
 
                     if (result.taskId) {
+                        // Task is queued, set loading to false (only for first image in batch)
+                        if (image === selectedImageObjects[0]) {
+                            setLoading?.(false);
+                        }
+
                         // Create placeholder in the database
                         const mediaItemData = {
                             taskId: result.taskId,
@@ -138,6 +149,7 @@ export const useMediaGeneration = ({
                     }
                 } catch (error) {
                     console.error(`Error modifying ${outputType}:`, error);
+                    setLoading?.(false);
                 }
             }
 
@@ -224,6 +236,9 @@ export const useMediaGeneration = ({
                 const result = await runTask.mutateAsync(taskData);
 
                 if (result.taskId) {
+                    // Task is queued, set loading to false
+                    setLoading?.(false);
+
                     // Create placeholder in the database
                     const mediaItemData = {
                         taskId: result.taskId,
@@ -258,6 +273,7 @@ export const useMediaGeneration = ({
                     `Error combining ${outputType === "image" ? "images" : "videos"}:`,
                     error,
                 );
+                setLoading?.(false);
             }
         },
         [],

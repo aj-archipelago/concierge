@@ -5,6 +5,13 @@ import { useTranslation } from "react-i18next";
 import { Check } from "lucide-react";
 import ChatImage from "./ChatImage";
 import ProgressUpdate from "../editor/ProgressUpdate";
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogHeader,
+    DialogTitle,
+} from "@/components/ui/dialog";
 
 function ImageTile({
     image,
@@ -24,6 +31,7 @@ function ImageTile({
 }) {
     const [loadError, setLoadError] = useState(false);
     const [retryCount, setRetryCount] = useState(0);
+    const [showErrorDialog, setShowErrorDialog] = useState(false);
     // Always use Azure URL for display - GCS URL is only for internal model use
     const url = image?.azureUrl || image?.url;
     // Check if URL is valid (not null, undefined, or "null" string)
@@ -183,6 +191,52 @@ function ImageTile({
             <div className="media-prompt" title={prompt}>
                 {prompt}
             </div>
+
+            {/* Error Dialog */}
+            <Dialog open={showErrorDialog} onOpenChange={setShowErrorDialog}>
+                <DialogContent className="max-w-4xl">
+                    <DialogHeader>
+                        <DialogTitle className="text-red-600 dark:text-red-400">
+                            {code === "ERR_BAD_REQUEST"
+                                ? t("Content blocked by safety system")
+                                : t("Media generation failed")}
+                        </DialogTitle>
+                    </DialogHeader>
+                    <div className="mt-4 space-y-3 overflow-auto">
+                        <div>
+                            <span className="font-semibold text-gray-700 dark:text-gray-300">
+                                {t("Error Details")}:
+                            </span>
+                            <pre className="mt-2 text-xs p-2 bg-gray-50 text-gray-600 dark:text-gray-400 whitespace-pre-wrap break-words">
+                                {message ||
+                                    error?.message ||
+                                    result?.error?.message ||
+                                    t("Unknown error occurred")}
+                            </pre>
+                        </div>
+                        {code && (
+                            <div>
+                                <span className="font-semibold text-gray-700 dark:text-gray-300">
+                                    {t("Error Code")}:
+                                </span>
+                                <p className="mt-1 text-sm text-gray-600 dark:text-gray-400 font-mono">
+                                    {code}
+                                </p>
+                            </div>
+                        )}
+                        {prompt && (
+                            <div>
+                                <span className="font-semibold text-gray-700 dark:text-gray-300">
+                                    {t("Prompt")}:
+                                </span>
+                                <p className="mt-2 text-sm text-gray-600 dark:text-gray-400 whitespace-pre-wrap break-words">
+                                    {prompt}
+                                </p>
+                            </div>
+                        )}
+                    </div>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 
@@ -218,10 +272,16 @@ function ImageTile({
 
     function BadRequestError() {
         return (
-            <div className="flex flex-col items-center justify-center h-full p-4">
-                <div className="text-center">
+            <div
+                className="flex flex-col items-center justify-center h-full p-4 overflow-hidden cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors"
+                onClick={(e) => {
+                    e.stopPropagation();
+                    setShowErrorDialog(true);
+                }}
+            >
+                <div className="text-center overflow-hidden w-full">
                     <div className="flex items-center justify-center gap-2 mb-3">
-                        <div className="w-6 h-6 rounded-full bg-red-100 dark:bg-red-900 flex items-center justify-center">
+                        <div className="w-6 h-6 rounded-full bg-red-100 dark:bg-red-900 flex items-center justify-center flex-shrink-0">
                             <svg
                                 className="w-4 h-4 text-red-600 dark:text-red-400"
                                 fill="currentColor"
@@ -234,12 +294,15 @@ function ImageTile({
                                 />
                             </svg>
                         </div>
-                        <div className="text-sm text-gray-600 dark:text-gray-400">
+                        <div className="text-sm text-gray-600 dark:text-gray-400 break-words overflow-hidden px-2">
                             {t("Content blocked by safety system")}
                         </div>
                     </div>
-                    <div className="text-xs text-gray-500 dark:text-gray-500">
+                    <div className="text-xs text-gray-500 dark:text-gray-500 break-words overflow-hidden px-2">
                         {t("Please try a different prompt")}
+                    </div>
+                    <div className="text-xs text-sky-600 dark:text-sky-400 mt-2">
+                        {t("Click for details")}
                     </div>
                 </div>
             </div>
@@ -255,8 +318,14 @@ function ImageTile({
             "Unknown error occurred";
 
         return (
-            <div className="flex flex-col items-center justify-center h-full p-4">
-                <div className="text-center w-full">
+            <div className="flex flex-col items-center justify-center h-full overflow-hidden">
+                <div
+                    className="text-center w-full overflow-hidden cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors rounded"
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        setShowErrorDialog(true);
+                    }}
+                >
                     <div className="flex items-center justify-center gap-2 mb-3">
                         <div className="w-6 h-6 rounded-full bg-red-100 dark:bg-red-900 flex items-center justify-center flex-shrink-0">
                             <svg
@@ -271,19 +340,19 @@ function ImageTile({
                                 />
                             </svg>
                         </div>
-                        <div className="text-sm text-gray-600 dark:text-gray-400 whitespace-nowrap">
+                        <div className="text-sm text-gray-600 dark:text-gray-400 whitespace-nowrap overflow-hidden text-ellipsis">
                             {t("Media generation failed")}
                         </div>
                     </div>
                     <div
-                        className="text-xs text-gray-500 dark:text-gray-500 px-2 line-clamp-4"
+                        className="text-xs text-gray-500 dark:text-gray-500 px-2 line-clamp-4 break-words overflow-hidden"
                         title={actualErrorMessage}
                     >
                         {actualErrorMessage}
                     </div>
                 </div>
 
-                <div className="mt-4">
+                <div className="mt-4 flex-shrink-0">
                     {image.type === "video" ? null : !image.model ? null : (
                         <button
                             className="lb-primary text-sm px-3 py-1"
@@ -345,8 +414,14 @@ function ImageTile({
             "No media was generated";
 
         return (
-            <div className="flex flex-col items-center justify-center h-full p-4">
-                <div className="text-center w-full">
+            <div className="flex flex-col items-center justify-center h-full p-4 overflow-hidden">
+                <div
+                    className="text-center w-full overflow-hidden cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors rounded p-2"
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        setShowErrorDialog(true);
+                    }}
+                >
                     <div className="flex items-center justify-center gap-2 mb-3">
                         <div className="w-6 h-6 rounded-full bg-red-100 dark:bg-red-900 flex items-center justify-center flex-shrink-0">
                             <svg
@@ -361,21 +436,24 @@ function ImageTile({
                                 />
                             </svg>
                         </div>
-                        <div className="text-sm text-gray-600 dark:text-gray-400 whitespace-nowrap">
+                        <div className="text-sm text-gray-600 dark:text-gray-400 whitespace-nowrap overflow-hidden text-ellipsis">
                             {t("Media generation failed")}
                         </div>
                     </div>
                     <div
-                        className="text-xs text-gray-500 dark:text-gray-500 px-2 line-clamp-4"
+                        className="text-xs text-gray-500 dark:text-gray-500 px-2 line-clamp-4 break-words overflow-hidden"
                         title={actualErrorMessage}
                     >
                         {actualErrorMessage}
                     </div>
+                    <div className="text-xs text-sky-600 dark:text-sky-400 mt-2">
+                        {t("Click for details")}
+                    </div>
                 </div>
 
-                <div className="mt-4">
+                <div className="mt-4 flex-shrink-0">
                     {image.type === "video" ? (
-                        <div className="text-xs text-gray-500 dark:text-gray-500 text-center">
+                        <div className="text-xs text-gray-500 dark:text-gray-500 text-center break-words overflow-hidden px-2">
                             {t(
                                 "Please try a different prompt or contact support if the issue persists.",
                             )}
