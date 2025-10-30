@@ -64,6 +64,7 @@ import {
     useDeleteMediaItem,
     useMigrateMediaItems,
     useUpdateMediaItemTags,
+    useCleanupOrphanedMediaItems,
 } from "../../../app/queries/media-items";
 
 // Import extracted modules and hooks
@@ -136,10 +137,36 @@ function MediaPage() {
         fetchNextPage,
     } = useInfiniteMediaItems(debouncedFilterText);
 
-    // Flatten all pages into a single array
+    // Flatten all pages into a single array, deduplicating by taskId
     const images = useMemo(() => {
         if (!mediaItemsData?.pages) return [];
-        return mediaItemsData.pages.flatMap((page) => page.mediaItems || []);
+        const allItems = mediaItemsData.pages.flatMap(
+            (page) => page.mediaItems || [],
+        );
+        // Deduplicate by taskId (or _id if taskId is missing) to prevent duplicate tiles
+        // Use a Map to track the most recent item for each ID
+        const seen = new Map();
+        const itemsWithoutId = [];
+
+        allItems.forEach((item) => {
+            const id = item.taskId || item._id || item.cortexRequestId;
+            if (!id) {
+                // Include items without IDs (shouldn't happen, but be safe)
+                itemsWithoutId.push(item);
+                return;
+            }
+            const existing = seen.get(id);
+            // Keep the item with the higher created timestamp (more recent)
+            if (
+                !existing ||
+                (item.created && item.created > existing.created)
+            ) {
+                seen.set(id, item);
+            }
+        });
+
+        // Combine deduplicated items with items that had no ID
+        return [...Array.from(seen.values()), ...itemsWithoutId];
     }, [mediaItemsData?.pages]);
 
     // Memoize sorted images by creation date (newest first) - only if we have data
@@ -178,10 +205,10 @@ function MediaPage() {
     const deleteMediaItem = useDeleteMediaItem();
     const migrateMediaItems = useMigrateMediaItems();
     const updateTagsMutation = useUpdateMediaItemTags();
+    const cleanupOrphanedMediaItems = useCleanupOrphanedMediaItems();
     const [bottomActionsLeft, setBottomActionsLeft] = useState(null);
     const mediaContainerRef = useRef(null);
     const modelSelectorRef = useRef(null);
-    const [isDarkMode, setIsDarkMode] = useState(false);
     const [isImageBadgeHovered, setIsImageBadgeHovered] = useState(false);
 
     // Use custom selection hook
@@ -209,6 +236,13 @@ function MediaPage() {
 
         return () => clearTimeout(timer);
     }, [filterText]);
+
+    // Cleanup orphaned pending media items on page load
+    useEffect(() => {
+        // Run cleanup once when component mounts
+        cleanupOrphanedMediaItems.mutate();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []); // Empty dependency array - only run on mount
 
     // Calculate position for floating bulk actions bar
     const updateBottomActionsPosition = useCallback(() => {
@@ -387,28 +421,13 @@ function MediaPage() {
     // Get current model settings for display
     const currentModelSettings = useMemo(() => {
         return getModelSettings(settings, selectedModel);
-    }, [settings, selectedModel, getModelSettings]);
+    }, [settings, selectedModel]);
 
     // Count selected images for context badge
     const selectedImageCount = useMemo(() => {
         return selectedImagesObjects.filter((img) => img.type === "image")
             .length;
     }, [selectedImagesObjects]);
-
-    // Detect dark mode for dropdown arrow
-    useEffect(() => {
-        const updateDarkMode = () => {
-            const dark = document.documentElement.classList.contains("dark");
-            setIsDarkMode(dark);
-        };
-        updateDarkMode();
-        const observer = new MutationObserver(updateDarkMode);
-        observer.observe(document.documentElement, {
-            attributes: true,
-            attributeFilter: ["class"],
-        });
-        return () => observer.disconnect();
-    }, []);
 
     // Use custom media generation hook
     const {

@@ -818,6 +818,29 @@ class MediaGenerationHandler extends BaseTask {
         return { error: actualErrorMessage };
     }
 
+    async cancelRequest(taskId, client) {
+        // Update MediaItem when task is cancelled
+        try {
+            const Task = (await import("../../app/api/models/task.mjs"))
+                .default;
+            const task = await Task.findOne({ _id: taskId });
+
+            if (!task || !task.owner) {
+                return;
+            }
+
+            await this.updateOrCreateMediaItemWithError(
+                task.owner.toString(),
+                { taskId },
+                "TASK_CANCELLED",
+                "Task was cancelled",
+            );
+        } catch (error) {
+            console.error("Error updating MediaItem on cancellation:", error);
+            // Don't throw - cancellation should succeed even if MediaItem update fails
+        }
+    }
+
     async processMediaData(dataObject, infoObject, metadata) {
         try {
             let mediaUrl = null;

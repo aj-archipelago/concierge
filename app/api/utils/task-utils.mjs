@@ -33,6 +33,39 @@ export async function checkAndUpdateAbandonedTask(task) {
                 },
                 { new: true },
             );
+
+            // Call handler's handleError method if it exists for abandoned tasks
+            // This allows task-specific cleanup (e.g., updating MediaItem for media-generation)
+            try {
+                const { loadTaskDefinition } = await import(
+                    "../../../src/utils/task-loader.mjs"
+                );
+                const { getClient } = await import("../../../jobs/graphql.mjs");
+                const handler = await loadTaskDefinition(task.type);
+                const client = await getClient();
+
+                if (
+                    handler.handleError &&
+                    typeof handler.handleError === "function"
+                ) {
+                    const abandonedError = new Error(
+                        "Task was abandoned due to inactivity",
+                    );
+                    await handler.handleError(
+                        task._id.toString(),
+                        abandonedError,
+                        { userId: task.owner.toString() },
+                        client,
+                    );
+                }
+            } catch (handlerError) {
+                console.error(
+                    "Error calling handler.handleError for abandoned task:",
+                    handlerError,
+                );
+                // Don't throw - abandoned check should succeed even if handler fails
+            }
+
             await copyTaskToChatMessage(task);
         }
     }
@@ -305,6 +338,27 @@ export async function cancelTask(taskId, userId) {
             { status: "cancelled" },
             { new: true },
         );
+
+        // Call handler's cancelRequest method if it exists
+        // This allows task-specific cleanup (e.g., updating MediaItem for media-generation)
+        try {
+            const { loadTaskDefinition } = await import(
+                "../../../src/utils/task-loader.mjs"
+            );
+            const { getClient } = await import("../../../jobs/graphql.mjs");
+            const handler = await loadTaskDefinition(task.type);
+            const client = await getClient();
+
+            if (
+                handler.cancelRequest &&
+                typeof handler.cancelRequest === "function"
+            ) {
+                await handler.cancelRequest(taskId, client);
+            }
+        } catch (handlerError) {
+            console.error("Error calling handler.cancelRequest:", handlerError);
+            // Don't throw - cancellation should succeed even if handler fails
+        }
 
         // Copy the cancelled task to chat message
         await copyTaskToChatMessage(updatedTask);

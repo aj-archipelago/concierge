@@ -8,7 +8,6 @@ import ProgressUpdate from "../editor/ProgressUpdate";
 import {
     Dialog,
     DialogContent,
-    DialogDescription,
     DialogHeader,
     DialogTitle,
 } from "@/components/ui/dialog";
