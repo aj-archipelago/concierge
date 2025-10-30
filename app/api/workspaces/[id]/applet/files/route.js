@@ -27,7 +27,8 @@ export async function POST(request, { params }) {
                 });
 
                 if (existingAppletFile && existingAppletFile.files.length > 0) {
-                    // File with this hash already exists, return existing files without adding
+                    // File with this hash already exists, return existing file and files without adding
+                    const existingFile = existingAppletFile.files[0];
                     const allFiles = await AppletFile.findOne({
                         appletId: workspace.applet,
                         userId: user._id,
@@ -38,6 +39,7 @@ export async function POST(request, { params }) {
 
                     return {
                         success: true,
+                        file: existingFile, // Return the existing file, not the duplicate
                         files: allFiles ? allFiles.files : [],
                     };
                 }
@@ -61,7 +63,7 @@ export async function POST(request, { params }) {
                 },
             ).populate("files");
 
-            return { success: true, files: appletFile.files };
+            return { success: true, file: newFile, files: appletFile.files };
         },
 
         errorPrefix: "applet file upload",
