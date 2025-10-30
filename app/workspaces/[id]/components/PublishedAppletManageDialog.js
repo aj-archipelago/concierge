@@ -39,22 +39,31 @@ export default function PublishedAppletManageDialog({
 
     // Fetch current app data and applet data
     const { data: app, refetch: refetchApp } = useWorkspaceApp(workspaceId);
-    const { data: applet } = useWorkspaceApplet(workspaceId);
+    const { data: applet, refetch: refetchApplet } =
+        useWorkspaceApplet(workspaceId);
     const updateApplet = useUpdateWorkspaceApplet();
 
+    // Check if app is published to app store (has slug and is active)
+    const isAppStorePublished = app?.slug && app?.status === "active";
+
     // Generate the published link
-    const publishedLink = app?.slug
+    const publishedLink = isAppStorePublished
         ? `${serverContext.serverUrl}/apps/${app.slug}`
         : `${serverContext.serverUrl}/published/workspaces/${workspaceId}/applet`;
 
-    // Prefill form when dialog opens
+    // Prefill form when dialog opens and refetch data to ensure it's up to date
     useEffect(() => {
-        if (isOpen && app) {
-            setAppName(app.name || "");
-            setAppSlug(app.slug || "");
-            setAppDescription(app.description || "");
+        if (isOpen) {
+            // Refetch app and applet data when dialog opens to ensure we have latest info
+            refetchApp();
+            refetchApplet();
+            if (app) {
+                setAppName(app.name || "");
+                setAppSlug(app.slug || "");
+                setAppDescription(app.description || "");
+            }
         }
-    }, [isOpen, app]);
+    }, [isOpen, app, refetchApp, refetchApplet]);
 
     // Reset form when dialog closes
     useEffect(() => {
@@ -126,6 +135,7 @@ export default function PublishedAppletManageDialog({
         appSlug.trim().length > 0 &&
         appDescription.trim().length > 0;
     const hasChanges =
+        isAppStorePublished &&
         app &&
         (appName !== app.name ||
             appSlug !== app.slug ||
@@ -139,68 +149,78 @@ export default function PublishedAppletManageDialog({
                         {t("Manage Published App")}
                     </DialogTitle>
                     <DialogDescription>
-                        {t(
-                            "Edit your app details or manage publication settings.",
-                        )}
+                        {isAppStorePublished
+                            ? t(
+                                  "Edit your app details or manage publication settings.",
+                              )
+                            : t(
+                                  "Your applet has been published! Share the link below or manage publication settings.",
+                              )}
                     </DialogDescription>
                 </DialogHeader>
 
                 <div className="space-y-4">
-                    {/* App Name */}
-                    <div className="space-y-2">
-                        <Label
-                            htmlFor="app-name"
-                            className="text-sm font-medium"
-                        >
-                            {t("App Name")}
-                        </Label>
-                        <Input
-                            id="app-name"
-                            value={appName}
-                            onChange={(e) => setAppName(e.target.value)}
-                            placeholder={t("Enter app name")}
-                        />
-                    </div>
+                    {/* App Name - Only show for app store publishing */}
+                    {isAppStorePublished && (
+                        <>
+                            <div className="space-y-2">
+                                <Label
+                                    htmlFor="app-name"
+                                    className="text-sm font-medium"
+                                >
+                                    {t("App Name")}
+                                </Label>
+                                <Input
+                                    id="app-name"
+                                    value={appName}
+                                    onChange={(e) => setAppName(e.target.value)}
+                                    placeholder={t("Enter app name")}
+                                />
+                            </div>
 
-                    {/* App Slug */}
-                    <div className="space-y-2">
-                        <Label
-                            htmlFor="app-slug"
-                            className="text-sm font-medium"
-                        >
-                            {t("App Slug")}
-                        </Label>
-                        <Input
-                            id="app-slug"
-                            value={appSlug}
-                            onChange={(e) => setAppSlug(e.target.value)}
-                            placeholder={t("Enter app slug")}
-                        />
-                        <p className="text-xs text-muted-foreground">
-                            {t(
-                                "Your app will be accessible at: /apps/{{slug}}",
-                                { slug: appSlug || "your-slug" },
-                            )}
-                        </p>
-                    </div>
+                            {/* App Slug */}
+                            <div className="space-y-2">
+                                <Label
+                                    htmlFor="app-slug"
+                                    className="text-sm font-medium"
+                                >
+                                    {t("App Slug")}
+                                </Label>
+                                <Input
+                                    id="app-slug"
+                                    value={appSlug}
+                                    onChange={(e) => setAppSlug(e.target.value)}
+                                    placeholder={t("Enter app slug")}
+                                />
+                                <p className="text-xs text-muted-foreground">
+                                    {t(
+                                        "Your app will be accessible at: /apps/{{slug}}",
+                                        { slug: appSlug || "your-slug" },
+                                    )}
+                                </p>
+                            </div>
 
-                    {/* App Description */}
-                    <div className="space-y-2">
-                        <Label
-                            htmlFor="app-description"
-                            className="text-sm font-medium"
-                        >
-                            {t("App Description")}
-                        </Label>
-                        <Textarea
-                            id="app-description"
-                            value={appDescription}
-                            onChange={(e) => setAppDescription(e.target.value)}
-                            placeholder={t("Enter app description")}
-                            className="min-h-[80px]"
-                            rows={3}
-                        />
-                    </div>
+                            {/* App Description */}
+                            <div className="space-y-2">
+                                <Label
+                                    htmlFor="app-description"
+                                    className="text-sm font-medium"
+                                >
+                                    {t("App Description")}
+                                </Label>
+                                <Textarea
+                                    id="app-description"
+                                    value={appDescription}
+                                    onChange={(e) =>
+                                        setAppDescription(e.target.value)
+                                    }
+                                    placeholder={t("Enter app description")}
+                                    className="min-h-[80px]"
+                                    rows={3}
+                                />
+                            </div>
+                        </>
+                    )}
 
                     {/* Published Link */}
                     <div className="space-y-2">
@@ -246,30 +266,25 @@ export default function PublishedAppletManageDialog({
                     )}
                 </div>
 
-                <DialogFooter className="flex justify-between">
+                <DialogFooter className="flex gap-2">
+                    <Button variant="outline" onClick={onClose}>
+                        {t("Close")}
+                    </Button>
                     <Button
                         variant="destructive"
                         onClick={onUnpublish}
-                        disabled={isPending}
+                        disabled={isPending || hasChanges}
                         className="flex items-center gap-2"
                     >
                         <Trash2 className="w-4 h-4" />
                         {isPending ? t("Unpublishing...") : t("Unpublish")}
                     </Button>
-
-                    <div className="flex gap-2">
-                        <Button variant="outline" onClick={onClose}>
-                            {t("Close")}
-                        </Button>
-                        {hasChanges && (
-                            <Button
-                                onClick={handleSave}
-                                disabled={!isFormValid || isSaving}
-                            >
-                                {isSaving ? t("Saving...") : t("Save Changes")}
-                            </Button>
-                        )}
-                    </div>
+                    <Button
+                        onClick={handleSave}
+                        disabled={!hasChanges || !isFormValid || isSaving}
+                    >
+                        {isSaving ? t("Saving...") : t("Save Changes")}
+                    </Button>
                 </DialogFooter>
             </DialogContent>
         </Dialog>

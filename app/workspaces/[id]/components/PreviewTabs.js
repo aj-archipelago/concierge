@@ -457,9 +457,9 @@ function FilesTab({ workspaceId, isOwner }) {
     if (error) {
         return (
             <div className="flex flex-col items-center justify-center h-full text-center p-8">
-                <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mb-4">
+                <div className="w-16 h-16 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center mb-4">
                     <svg
-                        className="w-8 h-8 text-red-400"
+                        className="w-8 h-8 text-red-400 dark:text-red-500"
                         fill="none"
                         stroke="currentColor"
                         viewBox="0 0 24 24"
@@ -472,10 +472,12 @@ function FilesTab({ workspaceId, isOwner }) {
                         />
                     </svg>
                 </div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">
                     {t("Error loading files")}
                 </h3>
-                <p className="text-gray-600 max-w-md">{error}</p>
+                <p className="text-gray-600 dark:text-gray-400 max-w-md">
+                    {error}
+                </p>
             </div>
         );
     }
@@ -484,9 +486,9 @@ function FilesTab({ workspaceId, isOwner }) {
 
     return (
         <div className="h-full flex flex-col">
-            <div className="mb-3 p-2 bg-purple-50 border border-purple-200 rounded-md">
-                <div className="flex items-center gap-2 text-purple-800 text-sm">
-                    <span className="text-purple-600">📁</span>
+            <div className="mb-3 p-2 bg-sky-50 dark:bg-sky-900/20 border border-blue-200 dark:border-sky-800 rounded-md">
+                <div className="flex items-center gap-2 text-sky-800 dark:text-sky-300 text-sm">
+                    <span className="text-sky-600 dark:text-sky-400">📁</span>
                     <span>
                         {t(
                             "Debug files - Your personal files uploaded while developing this applet",
@@ -498,9 +500,9 @@ function FilesTab({ workspaceId, isOwner }) {
             <div className="flex-1 overflow-auto">
                 {!hasFiles ? (
                     <div className="flex flex-col items-center justify-center h-full text-center p-8">
-                        <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">
+                        <div className="w-16 h-16 bg-gray-100 dark:bg-gray-700 rounded-full flex items-center justify-center mb-4">
                             <svg
-                                className="w-8 h-8 text-gray-400"
+                                className="w-8 h-8 text-gray-400 dark:text-gray-500"
                                 fill="none"
                                 stroke="currentColor"
                                 viewBox="0 0 24 24"
@@ -513,10 +515,10 @@ function FilesTab({ workspaceId, isOwner }) {
                                 />
                             </svg>
                         </div>
-                        <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                        <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">
                             {t("No debug files uploaded yet")}
                         </h3>
-                        <p className="text-gray-600 max-w-md">
+                        <p className="text-gray-600 dark:text-gray-400 max-w-md">
                             {t(
                                 "No personal files have been uploaded while developing this applet. These files are for debugging purposes only, not for end users.",
                             )}
@@ -527,12 +529,12 @@ function FilesTab({ workspaceId, isOwner }) {
                         {files.map((file, index) => (
                             <div
                                 key={`${file.filename}-${index}`}
-                                className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border"
+                                className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg border border-gray-200 dark:border-gray-600"
                             >
                                 <div className="flex items-center gap-3 flex-1 min-w-0">
-                                    <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                                    <div className="w-10 h-10 bg-sky-100 dark:bg-sky-900/30 rounded-lg flex items-center justify-center flex-shrink-0">
                                         <svg
-                                            className="w-5 h-5 text-purple-600"
+                                            className="w-5 h-5 text-sky-600 dark:text-sky-400"
                                             fill="none"
                                             stroke="currentColor"
                                             viewBox="0 0 24 24"
@@ -546,15 +548,15 @@ function FilesTab({ workspaceId, isOwner }) {
                                         </svg>
                                     </div>
                                     <div className="flex-1 min-w-0">
-                                        <p className="text-sm font-medium text-gray-900 truncate">
+                                        <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
                                             {file.originalName}
                                         </p>
-                                        <p className="text-xs text-gray-500">
+                                        <p className="text-xs text-gray-500 dark:text-gray-400">
                                             {formatFileSize(file.size)} •{" "}
                                             {formatDate(file.uploadedAt)}
                                         </p>
                                         {file.url && (
-                                            <p className="text-xs text-sky-600 truncate">
+                                            <p className="text-xs text-sky-600 dark:text-sky-400 truncate">
                                                 <a
                                                     href={file.url}
                                                     target="_blank"
@@ -763,9 +765,9 @@ function DataTab({ workspaceId, isOwner }) {
     if (error) {
         return (
             <div className="flex flex-col items-center justify-center h-full text-center p-8">
-                <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mb-4">
+                <div className="w-16 h-16 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center mb-4">
                     <svg
-                        className="w-8 h-8 text-red-400"
+                        className="w-8 h-8 text-red-400 dark:text-red-500"
                         fill="none"
                         stroke="currentColor"
                         viewBox="0 0 24 24"
@@ -778,10 +780,12 @@ function DataTab({ workspaceId, isOwner }) {
                         />
                     </svg>
                 </div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">
                     {t("Error loading data")}
                 </h3>
-                <p className="text-gray-600 max-w-md">{error}</p>
+                <p className="text-gray-600 dark:text-gray-400 max-w-md">
+                    {error}
+                </p>
             </div>
         );
     }
@@ -791,10 +795,12 @@ function DataTab({ workspaceId, isOwner }) {
 
     return (
         <div className="h-full flex flex-col">
-            <div className="mb-3 p-2 bg-sky-50 border border-blue-200 rounded-md">
-                <div className="flex items-center justify-between text-sky-800 text-sm">
+            <div className="mb-3 p-2 bg-sky-50 dark:bg-sky-900/20 border border-blue-200 dark:border-sky-800 rounded-md">
+                <div className="flex items-center justify-between text-sky-800 dark:text-sky-300 text-sm">
                     <div className="flex items-center gap-2">
-                        <span className="text-sky-600">💾</span>
+                        <span className="text-sky-600 dark:text-sky-400">
+                            💾
+                        </span>
                         <span>
                             {t(
                                 "Debug data - Your personal data stored while developing this applet",
@@ -802,8 +808,8 @@ function DataTab({ workspaceId, isOwner }) {
                         </span>
                     </div>
                     {isSaving && (
-                        <div className="flex items-center gap-1 text-sky-600">
-                            <div className="w-3 h-3 border border-blue-600 border-t-transparent rounded-full animate-spin" />
+                        <div className="flex items-center gap-1 text-sky-600 dark:text-sky-400">
+                            <div className="w-3 h-3 border border-blue-600 dark:border-sky-400 border-t-transparent rounded-full animate-spin" />
                             <span className="text-xs">{t("Saving...")}</span>
                         </div>
                     )}
@@ -812,9 +818,9 @@ function DataTab({ workspaceId, isOwner }) {
             <div className="flex-1 overflow-auto">
                 {!hasData ? (
                     <div className="flex flex-col items-center justify-center h-full text-center p-8">
-                        <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">
+                        <div className="w-16 h-16 bg-gray-100 dark:bg-gray-700 rounded-full flex items-center justify-center mb-4">
                             <svg
-                                className="w-8 h-8 text-gray-400"
+                                className="w-8 h-8 text-gray-400 dark:text-gray-500"
                                 fill="none"
                                 stroke="currentColor"
                                 viewBox="0 0 24 24"
@@ -827,10 +833,10 @@ function DataTab({ workspaceId, isOwner }) {
                                 />
                             </svg>
                         </div>
-                        <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                        <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">
                             {t("No debug data stored yet")}
                         </h3>
-                        <p className="text-gray-600 max-w-md">
+                        <p className="text-gray-600 dark:text-gray-400 max-w-md">
                             {t(
                                 "No personal data has been stored while developing this applet. This data is for debugging purposes only, not for end users.",
                             )}
@@ -963,9 +969,9 @@ export default function PreviewTabs({
                             ) : (
                                 <div className="h-full flex flex-col">
                                     {isCurrentVersionPublished && (
-                                        <div className="mb-3 p-2 bg-sky-50 border border-sky-200 rounded-md">
-                                            <div className="flex items-center gap-2 text-sky-800 text-sm">
-                                                <span className="text-sky-600">
+                                        <div className="mb-3 p-2 bg-sky-50 dark:bg-sky-900/20 border border-sky-200 dark:border-sky-800 rounded-md">
+                                            <div className="flex items-center gap-2 text-sky-800 dark:text-sky-300 text-sm">
+                                                <span className="text-sky-600 dark:text-sky-400">
                                                     🔒
                                                 </span>
                                                 <span>

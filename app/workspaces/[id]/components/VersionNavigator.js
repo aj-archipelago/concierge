@@ -163,8 +163,9 @@ export default function VersionNavigator({
                 appSlug,
                 appDescription,
             );
-            // Only close dialog on success
+            // Close publish dialog and open manage dialog to show the link
             setShowPublishDialog(false);
+            setShowManageDialog(true);
         } catch (error) {
             // Don't close dialog on error - let PublishConfirmDialog handle it
             throw error;
