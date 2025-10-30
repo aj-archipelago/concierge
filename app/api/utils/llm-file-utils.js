@@ -102,3 +102,11 @@ export async function getLLMWithFallback(LLM, llmId) {
 
     return llm;
 }
+
+export async function getAnyAgenticLLM(LLM) {
+    const llm = await LLM.findOne({ isAgentic: true });
+    if (!llm) {
+        return getLLMWithFallback(LLM, null);
+    }
+    return llm;
+}

@@ -6,6 +6,7 @@ import Prompt from "../../../../models/prompt";
 import {
     prepareFileContentForLLM,
     getLLMWithFallback,
+    getAnyAgenticLLM,
 } from "../../../../utils/llm-file-utils";
 
 export async function POST(request, { params }) {
@@ -41,7 +42,7 @@ export async function POST(request, { params }) {
             llm = await getLLMWithFallback(LLM, promptDoc.llm);
         } else {
             // No promptId provided, get default LLM
-            llm = await getLLMWithFallback(LLM, null);
+            llm = await getAnyAgenticLLM(LLM, null);
         }
 
         const pathwayName = llm.cortexPathwayName;
