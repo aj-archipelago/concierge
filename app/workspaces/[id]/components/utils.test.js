@@ -477,4 +477,219 @@ describe("Workspace Utils", () => {
             expect(result).toBe("**Applet code generated and applied.**");
         });
     });
+
+    describe("APPLET tag parsing - extractHtmlFromStreamingContent", () => {
+        it("should extract HTML from complete APPLET tag", () => {
+            const content = "<APPLET><div>Hello World</div></APPLET>";
+            const result = extractHtmlFromStreamingContent(content);
+            expect(result).toEqual({
+                html: "<div>Hello World</div>",
+                changes: "HTML code generated from APPLET tag",
+                isComplete: true,
+            });
+        });
+
+        it("should extract HTML from APPLET tag with markdown code block inside", () => {
+            const content =
+                "<APPLET>```html\n<div>Hello World</div>\n```</APPLET>";
+            const result = extractHtmlFromStreamingContent(content);
+            expect(result).toEqual({
+                html: "<div>Hello World</div>",
+                changes: "HTML code generated from APPLET tag",
+                isComplete: true,
+            });
+        });
+
+        it("should extract HTML from APPLET tag with leading/trailing whitespace", () => {
+            const content =
+                "<APPLET> <!DOCTYPE html>\n<html><body>Test</body></html> </APPLET>";
+            const result = extractHtmlFromStreamingContent(content);
+            expect(result.html.trim()).toContain("<!DOCTYPE html>");
+            expect(result.html.trim()).toContain("<html>");
+        });
+
+        it("should handle APPLET tag with attributes", () => {
+            const content = '<APPLET id="test"><div>Hello</div></APPLET>';
+            const result = extractHtmlFromStreamingContent(content);
+            expect(result.html).toBe("<div>Hello</div>");
+        });
+
+        it("should use last code block when multiple exist inside APPLET", () => {
+            const content =
+                "<APPLET>```html\n<div>First</div>\n```\n```html\n<div>Second</div>\n```</APPLET>";
+            const result = extractHtmlFromStreamingContent(content);
+            expect(result.html).toBe("<div>Second</div>");
+        });
+
+        it("should handle APPLET tag case-insensitively", () => {
+            const content = "<applet><div>Hello</div></applet>";
+            const result = extractHtmlFromStreamingContent(content);
+            expect(result.html).toBe("<div>Hello</div>");
+        });
+
+        it("should return null for empty APPLET tag", () => {
+            const content = "<APPLET></APPLET>";
+            const result = extractHtmlFromStreamingContent(content);
+            expect(result).toBeNull();
+        });
+
+        it("should fall back to code blocks if no APPLET tag found", () => {
+            const content = "```html\n<div>Hello</div>\n```";
+            const result = extractHtmlFromStreamingContent(content);
+            expect(result.html).toBe("<div>Hello</div>");
+        });
+    });
+
+    describe("APPLET tag parsing - detectCodeBlockInStream", () => {
+        it("should detect complete APPLET tag", () => {
+            const content = "<APPLET><div>Hello</div></APPLET>";
+            const result = detectCodeBlockInStream(content);
+            expect(result).toEqual({
+                html: "<div>Hello</div>",
+                isInCodeBlock: false,
+                changes: "HTML code being generated...",
+                isComplete: true,
+                chatContent: null,
+            });
+        });
+
+        it("should detect incomplete APPLET tag (streaming)", () => {
+            const content = "<APPLET><div>Hello";
+            const result = detectCodeBlockInStream(content);
+            expect(result).toEqual({
+                html: "<div>Hello",
+                isInCodeBlock: true,
+                changes: "HTML code being generated...",
+                isComplete: false,
+                chatContent: null,
+            });
+        });
+
+        it("should detect APPLET tag with markdown code block inside", () => {
+            const content = "<APPLET>```html\n<div>Hello</div>\n```</APPLET>";
+            const result = detectCodeBlockInStream(content);
+            expect(result.html).toBe("<div>Hello</div>");
+            expect(result.isComplete).toBe(true);
+        });
+
+        it("should handle APPLET tag with content before it", () => {
+            const content =
+                "Here's the applet: <APPLET><div>Hello</div></APPLET>";
+            const result = detectCodeBlockInStream(content);
+            expect(result.html).toBe("<div>Hello</div>");
+            expect(result.chatContent).toBe("Here's the applet:");
+        });
+
+        it("should handle streaming APPLET tag with content before it", () => {
+            const content = "Here's the applet: <APPLET><div>Hello";
+            const result = detectCodeBlockInStream(content);
+            expect(result.html).toBe("<div>Hello");
+            expect(result.isInCodeBlock).toBe(true);
+            expect(result.chatContent).toBe("Here's the applet:");
+        });
+
+        it("should handle APPLET tag with whitespace after opening tag", () => {
+            const content =
+                "<APPLET> <!DOCTYPE html><html><body>Test</body></html></APPLET>";
+            const result = detectCodeBlockInStream(content);
+            expect(result.html.trim()).toContain("<!DOCTYPE html>");
+        });
+
+        it("should handle APPLET tag with attributes", () => {
+            const content =
+                '<APPLET id="test" class="app"><div>Hello</div></APPLET>';
+            const result = detectCodeBlockInStream(content);
+            expect(result.html).toBe("<div>Hello</div>");
+        });
+
+        it("should handle case-insensitive APPLET tags", () => {
+            const content = "<applet><div>Hello</div></applet>";
+            const result = detectCodeBlockInStream(content);
+            expect(result.html).toBe("<div>Hello</div>");
+        });
+
+        it("should handle streaming markdown code block inside APPLET tag", () => {
+            const content = "<APPLET>```html\n<div>Hello";
+            const result = detectCodeBlockInStream(content);
+            expect(result.html).toBe("<div>Hello");
+            expect(result.isInCodeBlock).toBe(true);
+        });
+
+        it("should handle complex HTML in streaming APPLET tag", () => {
+            const content =
+                "<APPLET><!DOCTYPE html>\n<html>\n<head><title>Test</title></head>\n<body><h1>Hello";
+            const result = detectCodeBlockInStream(content);
+            expect(result.html).toContain("<!DOCTYPE html>");
+            expect(result.html).toContain("<html>");
+            expect(result.isInCodeBlock).toBe(true);
+        });
+
+        it("should return null when no APPLET tag and no code block", () => {
+            const content = "This is plain text";
+            const result = detectCodeBlockInStream(content);
+            expect(result).toBeNull();
+        });
+
+        it("should fall back to code block detection if no APPLET tag", () => {
+            const content = "```html\n<div>Hello</div>\n```";
+            const result = detectCodeBlockInStream(content);
+            expect(result.html).toBe("<div>Hello</div>");
+        });
+
+        it("should handle APPLET tag starting with whitespace", () => {
+            const content = "<APPLET> <div>Hello</div></APPLET>";
+            const result = detectCodeBlockInStream(content);
+            expect(result.html.trim()).toBe("<div>Hello</div>");
+        });
+
+        it("should handle APPLET tag with space and DOCTYPE (user reported case)", () => {
+            const content =
+                '<APPLET> <!DOCTYPE html> <html lang="en"> <head> <meta charset="UTF-8">';
+            const result = detectCodeBlockInStream(content);
+            expect(result).not.toBeNull();
+            expect(result.html.trim()).toContain("<!DOCTYPE html>");
+            expect(result.html.trim()).toContain("<html");
+            expect(result.isInCodeBlock).toBe(true);
+        });
+
+        it("should handle multiple APPLET tags (use first)", () => {
+            const content =
+                "<APPLET><div>First</div></APPLET><APPLET><div>Second</div></APPLET>";
+            const result = detectCodeBlockInStream(content);
+            // Should match the first APPLET tag
+            expect(result.html).toBe("<div>First</div>");
+        });
+    });
+
+    describe("APPLET tag parsing - extractChatContent", () => {
+        it("should replace APPLET tag with placeholder", () => {
+            const content =
+                "Here's the applet: <APPLET><div>Hello</div></APPLET>";
+            const result = extractChatContent(content);
+            expect(result).toBe(
+                "Here's the applet: **Applet code generated and applied.**",
+            );
+        });
+
+        it("should handle APPLET tag with markdown inside", () => {
+            const content = "<APPLET>```html\n<div>Hello</div>\n```</APPLET>";
+            const result = extractChatContent(content);
+            expect(result).toBe("**Applet code generated and applied.**");
+        });
+
+        it("should handle case-insensitive APPLET tags", () => {
+            const content = "<applet><div>Hello</div></applet>";
+            const result = extractChatContent(content);
+            expect(result).toBe("**Applet code generated and applied.**");
+        });
+
+        it("should handle content with both APPLET and code blocks", () => {
+            const content =
+                "Text before <APPLET><div>Hello</div></APPLET> and ```html\n<div>Code</div>\n``` after";
+            const result = extractChatContent(content);
+            expect(result).toBe(
+                "Text before **Applet code generated and applied.** and **Applet code generated and applied.** after",
+            );
+        });
+    });
 });

@@ -84,14 +84,135 @@ function HtmlEditor({ value, onChange, options }) {
 }
 
 // Creating Applet Dialog Component
-function CreatingAppletDialog({ isVisible }) {
+function CreatingAppletDialog({ isVisible, containerRef: parentContainerRef }) {
     const { t } = useTranslation();
+    const [position, setPosition] = useState({
+        top: 0,
+        left: 0,
+        width: 0,
+        height: 0,
+    });
+    const scrollableElementsRef = useRef(new Set());
+
+    useEffect(() => {
+        if (!isVisible || !parentContainerRef?.current) return;
+
+        const container = parentContainerRef.current;
+        // Track scrollable elements in a Set that's captured in the closure
+        const scrollableElements = new Set();
+
+        const updatePosition = () => {
+            const rect = container.getBoundingClientRect();
+            setPosition({
+                top: rect.top,
+                left: rect.left,
+                width: rect.width,
+                height: rect.height,
+            });
+        };
+
+        // Find all scrollable elements within the container (including nested ones)
+        const findScrollableElements = (element) => {
+            const scrollables = new Set();
+
+            const checkElement = (el) => {
+                if (!el || !el.classList) return;
+
+                const style = window.getComputedStyle(el);
+                const hasScroll =
+                    style.overflow === "auto" ||
+                    style.overflow === "scroll" ||
+                    style.overflowY === "auto" ||
+                    style.overflowY === "scroll" ||
+                    style.overflowX === "auto" ||
+                    style.overflowX === "scroll";
+
+                if (
+                    hasScroll &&
+                    (el.scrollHeight > el.clientHeight ||
+                        el.scrollWidth > el.clientWidth)
+                ) {
+                    scrollables.add(el);
+                }
+
+                // Check children recursively
+                Array.from(el.children).forEach((child) => checkElement(child));
+            };
+
+            checkElement(element);
+            return scrollables;
+        };
+
+        const setupScrollListeners = () => {
+            // Clear previous listeners
+            scrollableElements.forEach((el) => {
+                el.removeEventListener("scroll", updatePosition);
+            });
+            scrollableElements.clear();
+
+            // Find and listen to all scrollable elements
+            const scrollables = findScrollableElements(container);
+            scrollables.forEach((el) => {
+                el.addEventListener("scroll", updatePosition, {
+                    passive: true,
+                });
+                scrollableElements.add(el);
+            });
+
+            // Also listen to the container itself
+            container.addEventListener("scroll", updatePosition, {
+                passive: true,
+            });
+            scrollableElements.add(container);
+
+            // Update ref for external access if needed
+            scrollableElementsRef.current = scrollableElements;
+        };
+
+        updatePosition();
+        setupScrollListeners();
+
+        // Use MutationObserver to detect when scrollable elements are added/removed
+        const observer = new MutationObserver(() => {
+            setupScrollListeners();
+            updatePosition();
+        });
+
+        observer.observe(container, {
+            childList: true,
+            subtree: true,
+            attributes: true,
+            attributeFilter: ["class", "style"],
+        });
+
+        window.addEventListener("scroll", updatePosition, true);
+        window.addEventListener("resize", updatePosition);
+
+        return () => {
+            // Use the captured scrollableElements Set from closure
+            scrollableElements.forEach((el) => {
+                el.removeEventListener("scroll", updatePosition);
+            });
+            scrollableElements.clear();
+            observer.disconnect();
+            window.removeEventListener("scroll", updatePosition, true);
+            window.removeEventListener("resize", updatePosition);
+        };
+    }, [isVisible, parentContainerRef]);
 
     if (!isVisible) return null;
 
     return (
-        <div className="absolute inset-0 bg-white/5 backdrop-blur-sm flex items-center justify-center z-10">
-            <div className="bg-white rounded-lg shadow-lg p-6 max-w-sm mx-4">
+        <div
+            className="fixed bg-white/5 backdrop-blur-sm flex items-center justify-center z-10 pointer-events-none"
+            style={{
+                top: `${position.top}px`,
+                left: `${position.left}px`,
+                width: `${position.width}px`,
+                height: `${position.height}px`,
+            }}
+        >
+            <div className="bg-white rounded-lg shadow-lg p-6 max-w-sm mx-4 pointer-events-auto">
                 <div className="flex items-center gap-3 mb-3">
                     <div className="w-5 h-5 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin" />
                     <h3 className="text-lg font-semibold text-gray-900">
@@ -366,7 +487,11 @@ function FilesTab({ workspaceId, isOwner }) {
             <div className="mb-3 p-2 bg-purple-50 border border-purple-200 rounded-md">
                 <div className="flex items-center gap-2 text-purple-800 text-sm">
                     <span className="text-purple-600">📁</span>
-                    <span>{t("Files for this applet")}</span>
+                    <span>
+                        {t(
+                            "Debug files - Your personal files uploaded while developing this applet",
+                        )}
+                    </span>
                 </div>
             </div>
 
@@ -389,10 +514,12 @@ function FilesTab({ workspaceId, isOwner }) {
                             </svg>
                         </div>
                         <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                            {t("No files uploaded yet")}
+                            {t("No debug files uploaded yet")}
                         </h3>
                         <p className="text-gray-600 max-w-md">
-                            {t("This applet doesn't have any files yet.")}
+                            {t(
+                                "No personal files have been uploaded while developing this applet. These files are for debugging purposes only, not for end users.",
+                            )}
                         </p>
                     </div>
                 ) : (
@@ -668,7 +795,11 @@ function DataTab({ workspaceId, isOwner }) {
                 <div className="flex items-center justify-between text-sky-800 text-sm">
                     <div className="flex items-center gap-2">
                         <span className="text-sky-600">💾</span>
-                        <span>{t("Persisted applet data for this user")}</span>
+                        <span>
+                            {t(
+                                "Debug data - Your personal data stored while developing this applet",
+                            )}
+                        </span>
                     </div>
                     {isSaving && (
                         <div className="flex items-center gap-1 text-sky-600">
@@ -697,11 +828,11 @@ function DataTab({ workspaceId, isOwner }) {
                             </svg>
                         </div>
                         <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                            {t("No data stored yet")}
+                            {t("No debug data stored yet")}
                         </h3>
                         <p className="text-gray-600 max-w-md">
                             {t(
-                                "This applet hasn't stored any data yet. Data will appear here when the applet saves information.",
+                                "No personal data has been stored while developing this applet. This data is for debugging purposes only, not for end users.",
                             )}
                         </p>
                     </div>
@@ -734,6 +865,7 @@ export default function PreviewTabs({
     const { theme } = useContext(ThemeContext);
     const [processedContent, setProcessedContent] = useState("");
     const { id: workspaceId } = useParams();
+    const scrollableContainerRef = useRef(null);
 
     const hasVersions = htmlVersions.length > 0;
     const currentContent = hasVersions ? htmlVersions[activeVersionIndex] : "";
@@ -791,8 +923,14 @@ export default function PreviewTabs({
                 <TabsTrigger value="files">{t("Files")}</TabsTrigger>
             </TabsList>
 
-            <div className="border rounded-md shadow-md bg-white dark:bg-gray-800 dark:border-gray-600 flex-1 min-w-0 overflow-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent hover:scrollbar-thumb-gray-400 relative">
-                <CreatingAppletDialog isVisible={showCreatingDialog} />
+            <div
+                ref={scrollableContainerRef}
+                className="border rounded-md shadow-md bg-white dark:bg-gray-800 dark:border-gray-600 flex-1 min-w-0 overflow-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent hover:scrollbar-thumb-gray-400 relative"
+            >
+                <CreatingAppletDialog
+                    isVisible={showCreatingDialog}
+                    containerRef={scrollableContainerRef}
+                />
                 <div className="flex flex-col h-full">
                     <div className="flex-1 p-4">
                         <TabsContent
