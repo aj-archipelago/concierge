@@ -134,14 +134,34 @@ const OutputSandbox = forwardRef(
                             );
                             return;
                         }
+                    } else {
                     }
 
                     try {
-                        if (!preElement.textContent) {
+                        // Check if element has text content
+                        if (
+                            !preElement.textContent ||
+                            !preElement.textContent.trim()
+                        ) {
+                            // If it was previously processed but now has no content, clear the flags
+                            if (preElement.dataset.processed === "true") {
+                                delete preElement.dataset.processed;
+                                delete preElement.dataset.portalId;
+                                delete preElement.dataset.lastContent;
+                            } else {
+                            }
                             return;
                         }
 
-                        const textContent = preElement.textContent.trim();
+                        let textContent = preElement.textContent.trim();
+                        // Remove surrounding double quotes if present
+                        if (
+                            textContent.startsWith('"') &&
+                            textContent.endsWith('"') &&
+                            textContent.length >= 2
+                        ) {
+                            textContent = textContent.slice(1, -1);
+                        }
 
                         let jsonData;
                         try {
@@ -241,7 +261,9 @@ const OutputSandbox = forwardRef(
         );
 
         useEffect(() => {
-            if (!iframeRef.current) return;
+            if (!iframeRef.current) {
+                return;
+            }
 
             const iframe = iframeRef.current;
 
@@ -321,35 +343,68 @@ const OutputSandbox = forwardRef(
                             (mutations) => {
                                 let shouldProcess = false;
 
-                                mutations.forEach((mutation) => {
+                                mutations.forEach((mutation, mutationIndex) => {
                                     // Skip mutations caused by our own portal containers
                                     if (mutation.type === "childList") {
-                                        mutation.addedNodes.forEach((node) => {
-                                            if (
-                                                node.nodeType ===
-                                                Node.ELEMENT_NODE
-                                            ) {
-                                                // Skip if it's our own portal container
+                                        mutation.addedNodes.forEach(
+                                            (node, nodeIndex) => {
                                                 if (
-                                                    node.classList &&
-                                                    node.classList.contains(
-                                                        "react-portal-container",
-                                                    )
+                                                    node.nodeType ===
+                                                    Node.ELEMENT_NODE
                                                 ) {
-                                                    return;
-                                                }
+                                                    // Skip if it's our own portal container
+                                                    if (
+                                                        node.classList &&
+                                                        node.classList.contains(
+                                                            "react-portal-container",
+                                                        )
+                                                    ) {
+                                                        return;
+                                                    }
 
-                                                // Check if the added node is a pre element or contains pre elements
-                                                if (
-                                                    node.tagName === "PRE" ||
-                                                    node.querySelector(
-                                                        "pre.llm-output",
-                                                    )
+                                                    // Check if the added node is a pre element with llm-output class
+                                                    const isPreWithClass =
+                                                        node.tagName ===
+                                                            "PRE" &&
+                                                        node.classList &&
+                                                        node.classList.contains(
+                                                            "llm-output",
+                                                        );
+
+                                                    // Check if it contains pre.llm-output elements
+                                                    const containsPre =
+                                                        node.querySelector &&
+                                                        node.querySelector(
+                                                            "pre.llm-output",
+                                                        );
+
+                                                    if (
+                                                        isPreWithClass ||
+                                                        containsPre
+                                                    ) {
+                                                        shouldProcess = true;
+                                                    }
+                                                } else if (
+                                                    node.nodeType ===
+                                                    Node.TEXT_NODE
                                                 ) {
-                                                    shouldProcess = true;
+                                                    // Text nodes are children, check parent
+                                                    const parent =
+                                                        node.parentNode;
+                                                    if (
+                                                        parent &&
+                                                        parent.tagName ===
+                                                            "PRE" &&
+                                                        parent.classList &&
+                                                        parent.classList.contains(
+                                                            "llm-output",
+                                                        )
+                                                    ) {
+                                                        shouldProcess = true;
+                                                    }
                                                 }
-                                            }
-                                        });
+                                            },
+                                        );
                                     } else if (
                                         mutation.type === "characterData" ||
                                         mutation.type === "attributes"
@@ -376,13 +431,19 @@ const OutputSandbox = forwardRef(
                                         }
 
                                         // Check if the target is a pre element with llm-output class
-                                        if (
+                                        const isPreWithClass =
                                             target &&
                                             target.tagName === "PRE" &&
+                                            target.classList &&
                                             target.classList.contains(
                                                 "llm-output",
-                                            )
-                                        ) {
+                                            );
+
+                                        if (isPreWithClass) {
+                                            // Specifically check if content was added (element now has content)
+                                            const hasContent =
+                                                target.textContent &&
+                                                target.textContent.trim();
                                             shouldProcess = true;
                                         }
 
@@ -401,6 +462,7 @@ const OutputSandbox = forwardRef(
 
                                 if (shouldProcess) {
                                     processPreElements(frameDoc);
+                                } else {
                                 }
                             },
                         );
@@ -422,8 +484,9 @@ const OutputSandbox = forwardRef(
                         iframe.contentWindow.addEventListener(
                             "message",
                             (event) => {
-                                if (event.origin !== window.location.origin)
+                                if (event.origin !== window.location.origin) {
                                     return;
+                                }
                                 // Handle messages from the iframe
                                 console.log(
                                     "Message from sandbox:",
@@ -482,6 +545,7 @@ const OutputSandbox = forwardRef(
                         error,
                     );
                 }
+            } else {
             }
         }, [theme]);
 

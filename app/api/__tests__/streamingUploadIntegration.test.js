@@ -44,6 +44,11 @@ jest.mock("../models/workspace", () => ({
 }));
 
 jest.mock("../models/applet-file", () => ({
+    findOne: jest.fn().mockReturnValue({
+        populate: jest.fn().mockResolvedValue({
+            files: [],
+        }),
+    }),
     findOneAndUpdate: jest.fn().mockReturnValue({
         populate: jest.fn().mockResolvedValue({
             files: [],
@@ -56,11 +61,13 @@ jest.mock("../workspaces/[id]/db", () => ({
 }));
 
 jest.mock("../models/file", () => {
-    return jest.fn().mockImplementation((data) => ({
+    const mockFile = jest.fn().mockImplementation((data) => ({
         ...data,
         _id: "mockFileId123",
         save: jest.fn().mockResolvedValue(true),
     }));
+    mockFile.findByIdAndDelete = jest.fn().mockResolvedValue(true);
+    return mockFile;
 });
 
 jest.mock("../../../config", () => ({
@@ -138,6 +145,13 @@ describe("Streaming Upload Integration Tests", () => {
         getWorkspace.mockResolvedValue(mockWorkspace);
 
         const AppletFile = require("../models/applet-file");
+        // Mock findOne for deduplication check (returns empty files, so no duplicate)
+        AppletFile.findOne.mockReturnValue({
+            populate: jest.fn().mockResolvedValue({
+                files: [],
+            }),
+        });
+        // Mock findOneAndUpdate for normal file association
         AppletFile.findOneAndUpdate.mockReturnValue({
             populate: jest.fn().mockResolvedValue({
                 files: [],
@@ -265,6 +279,78 @@ describe("Streaming Upload Integration Tests", () => {
             expect(response.file).toBeDefined();
             expect(response.files).toBeDefined();
             expect(response.files).toHaveLength(2);
+        });
+
+        test("should deduplicate files with same hash", async () => {
+            const AppletFile = require("../models/applet-file");
+            const File = require("../models/file");
+
+            const existingFile = {
+                _id: "existingFileId",
+                filename: "existing-file.pdf",
+                hash: "abc123",
+            };
+
+            // Reset mocks for this test
+            AppletFile.findOne.mockReset();
+            File.findByIdAndDelete.mockClear();
+
+            // First findOne call: check for duplicate (finds existing file with same hash)
+            AppletFile.findOne.mockReturnValueOnce({
+                populate: jest.fn().mockResolvedValue({
+                    files: [existingFile], // Found duplicate
+                }),
+            });
+
+            // Second findOne call: get all files for the applet
+            AppletFile.findOne.mockReturnValueOnce({
+                populate: jest.fn().mockResolvedValue({
+                    files: [existingFile, { _id: "otherFile" }],
+                }),
+            });
+
+            // Mock the File constructor to return a file with the same hash
+            const FileModel = require("../models/file");
+            FileModel.mockImplementation((data) => ({
+                ...data,
+                _id: "mockFileId123",
+                hash: "abc123", // Same hash as existing file
+                save: jest.fn().mockResolvedValue(true),
+            }));
+
+            // Mock fetch to return hash in response
+            global.fetch.mockImplementationOnce(() =>
+                Promise.resolve({
+                    ok: true,
+                    json: () =>
+                        Promise.resolve({
+                            url: "https://example.com/duplicate-file.pdf",
+                            gcs: "gs://bucket/duplicate-file.pdf",
+                            filename: "duplicate-file.pdf",
+                            hash: "abc123", // Same hash
+                        }),
+                }),
+            );
+
+            const mockRequest = createMockRequest(
+                "duplicate-file.pdf",
+                "application/pdf",
+                2048,
+            );
+            const params = { id: "workspace123" };
+
+            const response = await appletFilesPost(mockRequest, { params });
+
+            // Should return the existing file, not the duplicate
+            expect(response.file).toBeDefined();
+            expect(response.file._id).toBe("existingFileId");
+            expect(response.file.hash).toBe("abc123");
+            expect(response.files).toBeDefined();
+            expect(response.files).toHaveLength(2);
+            // Verify the duplicate file was deleted
+            expect(File.findByIdAndDelete).toHaveBeenCalledWith(
+                "mockFileId123",
+            );
         });
     });
 

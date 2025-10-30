@@ -125,9 +125,12 @@ export async function handleStreamingFileUpload(request, options) {
                             return { error: associationResult.error };
                         }
 
+                        // Use the file from associationResult if provided (for duplicates), otherwise use newFile
+                        const fileToReturn = associationResult.file || newFile;
+
                         const responseData = {
                             success: true,
-                            file: newFile,
+                            file: fileToReturn,
                             files: associationResult.files,
                         };
 
@@ -185,9 +188,12 @@ export async function handleStreamingFileUpload(request, options) {
             return { error: associationResult.error };
         }
 
+        // Use the file from associationResult if provided (for duplicates), otherwise use newFile
+        const fileToReturn = associationResult.file || newFile;
+
         const responseData = {
             success: true,
-            file: newFile,
+            file: fileToReturn,
             files: associationResult.files,
         };
 

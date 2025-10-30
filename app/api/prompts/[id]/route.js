@@ -9,3 +9,5 @@ export async function GET(req, { params }) {
         return Response.json({ message: e.message }, { status: 500 });
     }
 }
+
+export const dynamic = "force-dynamic"; // defaults to auto

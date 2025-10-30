@@ -191,6 +191,7 @@ const config = {
                 name: "Labeeb Agent",
                 cortexPathwayName: "run_labeeb_agent",
                 cortexModelName: "labeeb-agent",
+                isAgentic: true,
             },
         ],
     },

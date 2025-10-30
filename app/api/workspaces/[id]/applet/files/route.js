@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import AppletFile from "../../../../models/applet-file.js";
+import File from "../../../../models/file.js";
 import { getWorkspace } from "../../db.js";
 import { getCurrentUser } from "../../../../utils/auth.js";
 import { handleStreamingFileUpload } from "../../../../utils/upload-utils.js";
@@ -15,6 +16,35 @@ export async function POST(request, { params }) {
         checkAuthorization: null,
 
         associateFile: async (newFile, workspace, user) => {
+            // Check if a file with the same hash already exists for this user/applet
+            if (newFile.hash) {
+                const existingAppletFile = await AppletFile.findOne({
+                    appletId: workspace.applet,
+                    userId: user._id,
+                }).populate({
+                    path: "files",
+                    match: { hash: newFile.hash },
+                });
+
+                if (existingAppletFile && existingAppletFile.files.length > 0) {
+                    // File with this hash already exists, return existing file and files without adding
+                    const existingFile = existingAppletFile.files[0];
+                    const allFiles = await AppletFile.findOne({
+                        appletId: workspace.applet,
+                        userId: user._id,
+                    }).populate("files");
+
+                    // Delete the duplicate File document we just created
+                    await File.findByIdAndDelete(newFile._id);
+
+                    return {
+                        success: true,
+                        file: existingFile, // Return the existing file, not the duplicate
+                        files: allFiles ? allFiles.files : [],
+                    };
+                }
+            }
+
             // Find or create applet file record for this user and applet
             const appletFile = await AppletFile.findOneAndUpdate(
                 {
@@ -33,7 +63,7 @@ export async function POST(request, { params }) {
                 },
             ).populate("files");
 
-            return { success: true, files: appletFile.files };
+            return { success: true, file: newFile, files: appletFile.files };
         },
 
         errorPrefix: "applet file upload",
