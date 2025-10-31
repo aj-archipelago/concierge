@@ -32,7 +32,9 @@ export const useMediaGeneration = ({
 
                 if (result.taskId) {
                     // Task is queued, set loading to false
-                    setLoading?.(false);
+                    setTimeout(() => {
+                        setLoading?.(false);
+                    }, 1000);
 
                     // Create placeholder in the database
                     const mediaItemData = {
@@ -58,7 +60,9 @@ export const useMediaGeneration = ({
                 }
             } catch (error) {
                 console.error(`Error generating ${outputType}:`, error);
-                setLoading?.(false);
+                setTimeout(() => {
+                    setLoading?.(false);
+                }, 1000);
             }
         },
         [
