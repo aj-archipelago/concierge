@@ -14,8 +14,10 @@ export function extractHtmlStructure(content) {
     let bodyContent = "";
 
     // Only process if content appears to start with structural tags
-    const startsWithStructuralTag = /^\s*(<!DOCTYPE|<html|<head|<body)/i.test(html);
-    
+    const startsWithStructuralTag = /^\s*(<!DOCTYPE|<html|<head|<body)/i.test(
+        html,
+    );
+
     if (!startsWithStructuralTag) {
         // Content doesn't start with structural tags, treat it all as body content
         return { headContent: "", bodyContent: html };
@@ -40,7 +42,9 @@ export function extractHtmlStructure(content) {
         // Handle incomplete head tag during streaming
         // Only extract if we haven't seen a <body> tag yet
         if (!/<body/i.test(html)) {
-            const incompleteHeadMatch = html.match(/^\s*<head(\s+[^>]*)?>([\s\S]*)$/i);
+            const incompleteHeadMatch = html.match(
+                /^\s*<head(\s+[^>]*)?>([\s\S]*)$/i,
+            );
             if (incompleteHeadMatch) {
                 // During streaming, we might have incomplete head
                 // Extract head content but keep everything after </head> or after <head> tag
@@ -66,7 +70,9 @@ export function extractHtmlStructure(content) {
         bodyContent = bodyMatch[2];
     } else {
         // Handle incomplete body tag during streaming
-        const incompleteBodyMatch = html.match(/^\s*<body(\s+[^>]*)?>([\s\S]*)$/i);
+        const incompleteBodyMatch = html.match(
+            /^\s*<body(\s+[^>]*)?>([\s\S]*)$/i,
+        );
         if (incompleteBodyMatch) {
             bodyContent = incompleteBodyMatch[2];
         } else {
