@@ -273,13 +273,16 @@ const OutputSandbox = forwardRef(
             const updateContent = async () => {
                 try {
                     // Import the shared utility functions
-                    const { generateFilteredSandboxHtml, extractHtmlStructure } = await import(
-                        "../../utils/themeUtils"
-                    );
+                    const {
+                        generateFilteredSandboxHtml,
+                        extractHtmlStructure,
+                    } = await import("../../utils/themeUtils");
 
                     // Extract head and body content to check if head changed
-                    const { headContent, bodyContent } = extractHtmlStructure(content);
-                    const headContentChanged = headContent !== lastHeadContentRef.current;
+                    const { headContent, bodyContent } =
+                        extractHtmlStructure(content);
+                    const headContentChanged =
+                        headContent !== lastHeadContentRef.current;
                     const themeChanged = theme !== lastThemeRef.current;
 
                     // IMPORTANT: Only do incremental updates if:
@@ -287,9 +290,9 @@ const OutputSandbox = forwardRef(
                     // 2. Only body content changed (head/theme unchanged)
                     // 3. Iframe document is accessible
                     // Otherwise, do a full reload (which is needed for first load anyway)
-                    const canDoIncrementalUpdate = 
-                        isInitializedRef.current && 
-                        !headContentChanged && 
+                    const canDoIncrementalUpdate =
+                        isInitializedRef.current &&
+                        !headContentChanged &&
                         !themeChanged &&
                         iframe.contentDocument &&
                         iframe.contentDocument.body &&
@@ -297,21 +300,30 @@ const OutputSandbox = forwardRef(
 
                     if (canDoIncrementalUpdate) {
                         try {
-                            const frameDoc = iframe.contentDocument || iframe.contentWindow.document;
+                            const frameDoc =
+                                iframe.contentDocument ||
+                                iframe.contentWindow.document;
                             // Update body content directly without reloading
                             frameDoc.body.innerHTML = bodyContent;
-                            
+
                             // Process any new pre elements that might have been added
                             processPreElements(frameDoc);
                             return; // Skip the reload
                         } catch (error) {
                             // If we can't access the document, fall through to full reload
-                            console.warn("Cannot update iframe content directly, reloading:", error);
+                            console.warn(
+                                "Cannot update iframe content directly, reloading:",
+                                error,
+                            );
                         }
                     }
 
                     // Full reload needed (first load, head content changed, theme changed, or incremental update failed)
-                    if (!isInitializedRef.current || headContentChanged || themeChanged) {
+                    if (
+                        !isInitializedRef.current ||
+                        headContentChanged ||
+                        themeChanged
+                    ) {
                         setIsLoading(true);
                         clearAllPortals();
                     }
@@ -477,10 +489,7 @@ const OutputSandbox = forwardRef(
                                             );
 
                                         if (isPreWithClass) {
-                                            // Specifically check if content was added (element now has content)
-                                            const hasContent =
-                                                target.textContent &&
-                                                target.textContent.trim();
+                                            // Pre element with llm-output class changed, process it
                                             shouldProcess = true;
                                         }
 

@@ -316,11 +316,7 @@ function StreamingPreview({ content, theme }) {
     // Use OutputSandbox for proper iframe isolation and security
     // This prevents HTML from escaping and affecting the parent page
     return (
-        <OutputSandbox
-            content={displayContent}
-            height="100%"
-            theme={theme}
-        />
+        <OutputSandbox content={displayContent} height="100%" theme={theme} />
     );
 }
 
