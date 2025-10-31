@@ -308,6 +308,58 @@ const OutputSandbox = forwardRef(
 
                             // Process any new pre elements that might have been added
                             processPreElements(frameDoc);
+
+                            // Manually update iframe height after content change
+                            // ResizeObserver might not fire immediately after innerHTML update
+                            // Use a double RAF to ensure layout has settled
+                            requestAnimationFrame(() => {
+                                requestAnimationFrame(() => {
+                                    if (
+                                        frameDoc.body &&
+                                        frameDoc.documentElement
+                                    ) {
+                                        // Force a reflow to ensure measurements are accurate
+                                        void frameDoc.body.offsetHeight;
+
+                                        // Calculate height based on the actual content
+                                        const bodyHeight = Math.max(
+                                            frameDoc.body.scrollHeight,
+                                            frameDoc.body.offsetHeight,
+                                            frameDoc.body.clientHeight,
+                                        );
+                                        const docHeight = Math.max(
+                                            frameDoc.documentElement
+                                                .scrollHeight,
+                                            frameDoc.documentElement
+                                                .offsetHeight,
+                                            frameDoc.documentElement
+                                                .clientHeight,
+                                        );
+                                        const height = Math.max(
+                                            bodyHeight,
+                                            docHeight,
+                                            100,
+                                        ); // Minimum 100px
+                                        iframe.style.height = `${height}px`;
+
+                                        // Also trigger ResizeObserver if it exists
+                                        if (
+                                            resizeObserverRef.current &&
+                                            frameDoc.body
+                                        ) {
+                                            // Manually trigger by temporarily changing body content
+                                            // This forces ResizeObserver to fire
+                                            const temp =
+                                                frameDoc.body.style.display;
+                                            frameDoc.body.style.display =
+                                                "none";
+                                            void frameDoc.body.offsetHeight;
+                                            frameDoc.body.style.display = temp;
+                                        }
+                                    }
+                                });
+                            });
+
                             return; // Skip the reload
                         } catch (error) {
                             // If we can't access the document, fall through to full reload

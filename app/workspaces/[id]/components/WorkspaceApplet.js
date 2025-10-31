@@ -768,6 +768,12 @@ export default function WorkspaceApplet() {
     const handleHtmlChange = (value, versionIndex) => {
         if (!isOwner) return;
 
+        // Don't save to database during streaming - we'll save once when streaming completes
+        // This prevents thousands of database writes during streaming
+        if (isStreaming) {
+            return;
+        }
+
         // If there are no versions and we're getting content, create the first version
         if (htmlVersions.length === 0 && value.trim()) {
             const newVersions = [value];

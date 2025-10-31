@@ -368,26 +368,27 @@ export function detectCodeBlockInStream(content) {
 
 /**
  * Extracts chat content (non-applet text) from a complete response
+ * Removes APPLET tags entirely without leaving placeholders
  * @param {string} content - The complete response content
- * @returns {string} - The chat content with placeholders for APPLET tags
+ * @returns {string} - The chat content with APPLET tags removed
  */
 export function extractChatContent(content) {
     if (!content || typeof content !== "string") {
         return content;
     }
 
-    // First, replace APPLET tags with placeholders
-    const appletTagRegex = /<APPLET>[\s\S]*?<\/APPLET>/i;
-    let chatContent = content.replace(
-        appletTagRegex,
-        "**Applet code generated and applied.**",
-    );
+    // Remove APPLET tags entirely (with any attributes)
+    // Match opening tag (case-insensitive, with optional attributes), content, and closing tag
+    const appletTagRegex = /<APPLET(?:\s+[^>]*)?>[\s\S]*?<\/APPLET>/gi;
+    let chatContent = content.replace(appletTagRegex, "");
 
-    // Also replace code blocks with placeholders (for backward compatibility)
-    const codeBlockRegex = /```(?:html)?\s*[\s\S]*?```/g;
-    chatContent = chatContent
-        .replace(codeBlockRegex, "**Applet code generated and applied.**")
-        .trim();
+    // Clean up whitespace: normalize 2+ consecutive newlines to single newline
+    // This handles cases where APPLET tags were on their own lines
+    chatContent = chatContent.replace(/\n{2,}/g, "\n");
 
-    return chatContent || content; // Return original content if nothing remains
+    // Trim any extra whitespace left behind
+    chatContent = chatContent.trim();
+
+    // Return the cleaned content (even if empty)
+    return chatContent;
 }

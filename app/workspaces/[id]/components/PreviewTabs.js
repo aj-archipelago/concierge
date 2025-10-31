@@ -198,7 +198,7 @@ function CreatingAppletDialog({ isVisible, containerRef: parentContainerRef }) {
 
     return (
         <div
-            className="fixed bg-white/5 backdrop-blur-sm flex items-center justify-center z-10 pointer-events-none"
+            className="fixed bg-white/5 dark:bg-black/20 backdrop-blur-sm flex items-center justify-center z-10 pointer-events-none"
             style={{
                 top: `${position.top}px`,
                 left: `${position.left}px`,
@@ -206,14 +206,14 @@ function CreatingAppletDialog({ isVisible, containerRef: parentContainerRef }) {
                 height: `${position.height}px`,
             }}
         >
-            <div className="bg-white rounded-lg shadow-lg p-6 max-w-sm mx-4 pointer-events-auto">
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg dark:shadow-gray-900/50 p-6 max-w-sm mx-4 pointer-events-auto border dark:border-gray-700">
                 <div className="flex items-center gap-3 mb-3">
-                    <div className="w-5 h-5 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin" />
-                    <h3 className="text-lg font-semibold text-gray-900">
+                    <div className="w-5 h-5 border-2 border-r-emerald-600 dark:border-r-emerald-500 border-b-emerald-600 dark:border-b-emerald-500 border-l-emerald-600 dark:border-l-emerald-500 border-t-transparent rounded-full animate-spin" />
+                    <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
                         {t("Creating Applet...")}
                     </h3>
                 </div>
-                <p className="text-sm text-gray-600">
+                <p className="text-sm text-gray-600 dark:text-gray-300">
                     {t(
                         "The AI is generating your applet. The preview will update in real-time as the code is being written.",
                     )}
@@ -870,11 +870,13 @@ export default function PreviewTabs({
                 setProcessedContent(result.html);
 
                 // If changes were made and we have an onChange handler, update the HTML
+                // Don't trigger updates during streaming - they'll be saved when streaming completes
                 if (
                     result.hasChanges &&
                     onHtmlChange &&
                     isOwner &&
-                    !isCurrentVersionPublished
+                    !isCurrentVersionPublished &&
+                    !isStreaming
                 ) {
                     onHtmlChange(result.html, activeVersionIndex);
                 }
@@ -892,6 +894,7 @@ export default function PreviewTabs({
         isOwner,
         isCurrentVersionPublished,
         activeVersionIndex,
+        isStreaming,
     ]);
 
     // Use processed content for display

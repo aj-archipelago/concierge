@@ -1,6 +1,6 @@
 /**
  * Extracts head and body content from HTML, handling both complete and incomplete HTML
- * Returns an object with headContent and bodyContent
+ * Uses DOM parsing for robustness with malformed or streaming content
  * @param {string} content - The HTML content to parse
  * @returns {object} - Object with headContent and bodyContent properties
  */
@@ -10,8 +10,6 @@ export function extractHtmlStructure(content) {
     }
 
     let html = content.trim();
-    let headContent = "";
-    let bodyContent = "";
 
     // Only process if content appears to start with structural tags
     const startsWithStructuralTag = /^\s*(<!DOCTYPE|<html|<head|<body)/i.test(
@@ -23,71 +21,136 @@ export function extractHtmlStructure(content) {
         return { headContent: "", bodyContent: html };
     }
 
-    // Remove DOCTYPE declarations
-    html = html.replace(/^\s*<!DOCTYPE\s+[^>]*>/gi, "");
-    html = html.replace(/^\s*<!DOCTYPE[^<]*/gi, "");
+    // Use DOM parser for more robust extraction
+    // This handles incomplete/malformed HTML better than regex
+    try {
+        const parser = new DOMParser();
+        // Wrap in a complete HTML structure so parser can handle incomplete content
+        const wrappedHtml = `<html>${html}</html>`;
+        const doc = parser.parseFromString(wrappedHtml, "text/html");
 
-    // Remove <html> tags (opening and closing)
-    html = html.replace(/^\s*<\/?\s*html(\s+[^>]*)?>/gi, "");
-    html = html.replace(/^\s*<\/?\s*html[^<>\s]*/gi, "");
-    html = html.replace(/<\/html>\s*$/gi, "");
+        // Extract head content
+        let headContent = "";
+        const headElement = doc.querySelector("head");
+        if (headElement) {
+            // Get all child nodes of head (styles, scripts, meta tags, etc.)
+            headContent = Array.from(headElement.childNodes)
+                .map((node) => {
+                    if (node.nodeType === Node.ELEMENT_NODE) {
+                        return node.outerHTML;
+                    } else if (
+                        node.nodeType === Node.TEXT_NODE &&
+                        node.textContent.trim()
+                    ) {
+                        return node.textContent;
+                    }
+                    return "";
+                })
+                .filter(Boolean)
+                .join("\n");
+        }
 
-    // Extract <head> content
-    const headMatch = html.match(/^\s*<head(\s+[^>]*)?>([\s\S]*?)<\/head>/i);
-    if (headMatch) {
-        headContent = headMatch[2];
-        // Remove the head tag but keep everything after it
-        html = html.replace(/^\s*<head(\s+[^>]*)?>[\s\S]*?<\/head>/gi, "");
-    } else {
-        // Handle incomplete head tag during streaming
-        // Only extract if we haven't seen a <body> tag yet
-        if (!/<body/i.test(html)) {
+        // Extract body content
+        let bodyContent = "";
+        const bodyElement = doc.querySelector("body");
+        if (bodyElement) {
+            // Get innerHTML of body (all content inside body tag)
+            bodyContent = bodyElement.innerHTML;
+        } else {
+            // No body tag found - check if content is just body-level elements
+            // The parser might have put content directly in html element
+            const htmlElement = doc.documentElement;
+            if (htmlElement) {
+                // Get all nodes that aren't head
+                const nonHeadNodes = Array.from(htmlElement.childNodes).filter(
+                    (node) => node.nodeName.toLowerCase() !== "head",
+                );
+                bodyContent = nonHeadNodes
+                    .map((node) => {
+                        if (node.nodeType === Node.ELEMENT_NODE) {
+                            return node.outerHTML;
+                        } else if (
+                            node.nodeType === Node.TEXT_NODE &&
+                            node.textContent.trim()
+                        ) {
+                            return node.textContent;
+                        }
+                        return "";
+                    })
+                    .filter(Boolean)
+                    .join("\n");
+            }
+        }
+
+        return {
+            headContent: headContent.trim(),
+            bodyContent: bodyContent.trim(),
+        };
+    } catch (error) {
+        // Fallback to regex-based extraction if DOM parsing fails
+        console.warn("DOM parsing failed, using regex fallback:", error);
+
+        // Fallback regex extraction (simplified version)
+        let headContent = "";
+        let bodyContent = "";
+
+        // Remove DOCTYPE declarations
+        html = html.replace(/^\s*<!DOCTYPE\s+[^>]*>/gi, "");
+        html = html.replace(/^\s*<!DOCTYPE[^<]*/gi, "");
+
+        // Remove <html> tags
+        html = html.replace(/^\s*<\/?\s*html(\s+[^>]*)?>/gi, "");
+        html = html.replace(/^\s*<\/?\s*html[^<>\s]*/gi, "");
+        html = html.replace(/<\/html>\s*$/gi, "");
+
+        // Extract <head> content
+        const headMatch = html.match(
+            /^\s*<head(\s+[^>]*)?>([\s\S]*?)<\/head>/i,
+        );
+        if (headMatch) {
+            headContent = headMatch[2];
+            html = html.replace(/^\s*<head(\s+[^>]*)?>[\s\S]*?<\/head>/gi, "");
+        } else {
             const incompleteHeadMatch = html.match(
                 /^\s*<head(\s+[^>]*)?>([\s\S]*)$/i,
             );
-            if (incompleteHeadMatch) {
-                // During streaming, we might have incomplete head
-                // Extract head content but keep everything after </head> or after <head> tag
+            if (incompleteHeadMatch && !/<body/i.test(html)) {
                 const headTagEnd = incompleteHeadMatch[0].length;
                 const afterHead = html.substring(headTagEnd);
-                // If there's content after head tag, it might be body content
                 if (afterHead.trim()) {
                     html = afterHead;
                 } else {
-                    // No content after head, clear headContent since it's incomplete
                     headContent = "";
                     html = html.replace(/^\s*<head(\s+[^>]*)?>/gi, "");
                 }
             }
+            html = html.replace(/^\s*<head[^>]*>/gi, "");
         }
-        // Remove any incomplete head opening tags
-        html = html.replace(/^\s*<head[^>]*>/gi, "");
-    }
 
-    // Extract <body> content
-    const bodyMatch = html.match(/^\s*<body(\s+[^>]*)?>([\s\S]*?)<\/body>/i);
-    if (bodyMatch) {
-        bodyContent = bodyMatch[2];
-    } else {
-        // Handle incomplete body tag during streaming
-        const incompleteBodyMatch = html.match(
-            /^\s*<body(\s+[^>]*)?>([\s\S]*)$/i,
+        // Extract <body> content
+        const bodyMatch = html.match(
+            /^\s*<body(\s+[^>]*)?>([\s\S]*?)<\/body>/i,
         );
-        if (incompleteBodyMatch) {
-            bodyContent = incompleteBodyMatch[2];
+        if (bodyMatch) {
+            bodyContent = bodyMatch[2];
         } else {
-            // No body tag found, treat remaining content as body
-            // This handles cases where content doesn't have a body tag yet (during streaming)
-            // or is just raw HTML without structural tags
-            bodyContent = html;
+            const incompleteBodyMatch = html.match(
+                /^\s*<body(\s+[^>]*)?>([\s\S]*)$/i,
+            );
+            if (incompleteBodyMatch) {
+                bodyContent = incompleteBodyMatch[2];
+            } else {
+                bodyContent = html;
+            }
         }
+
+        bodyContent = bodyContent.replace(/<\/body>\s*$/gi, "");
+
+        return {
+            headContent: headContent.trim(),
+            bodyContent: bodyContent.trim(),
+        };
     }
-
-    // Remove any remaining closing tags
-    bodyContent = bodyContent.replace(/<\/body>\s*$/gi, "");
-    bodyContent = bodyContent.trim();
-
-    return { headContent: headContent.trim(), bodyContent };
 }
 
 /**
@@ -129,9 +192,18 @@ export function generateFilteredSandboxHtml(content, theme) {
                 <meta charset="utf-8">
                 <meta name="viewport" content="width=device-width, initial-scale=1">
                 <style>
+                    html, body {
+                        margin: 0;
+                        padding: 0;
+                        width: 100%;
+                    }
+                    html {
+                        height: auto;
+                    }
                     body { 
-                        margin: 0; 
                         font-family: system-ui, -apple-system, sans-serif;
+                        min-height: auto;
+                        height: auto;
                     }
                     /* Ensure images don't overflow */
                     img { max-width: 100%; height: auto; }

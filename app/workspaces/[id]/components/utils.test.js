@@ -420,22 +420,18 @@ describe("Workspace Utils", () => {
             expect(extractChatContent(123)).toBe(123);
         });
 
-        it("should replace code blocks with placeholders", () => {
+        it("should remove APPLET tags entirely", () => {
             const content =
-                "Here is the explanation.\n```html\n<div>Hello</div>\n```\nAnd more text.";
+                "Here is the explanation.\n<APPLET><div>Hello</div></APPLET>\nAnd more text.";
             const result = extractChatContent(content);
-            expect(result).toBe(
-                "Here is the explanation.\n**Applet code generated and applied.**\nAnd more text.",
-            );
+            expect(result).toBe("Here is the explanation.\nAnd more text.");
         });
 
-        it("should handle multiple code blocks", () => {
+        it("should handle multiple APPLET tags", () => {
             const content =
-                "```html\n<div>First</div>\n```\n```html\n<div>Second</div>\n```";
+                "<APPLET><div>First</div></APPLET>\n<APPLET><div>Second</div></APPLET>";
             const result = extractChatContent(content);
-            expect(result).toBe(
-                "**Applet code generated and applied.**\n**Applet code generated and applied.**",
-            );
+            expect(result).toBe("");
         });
 
         it("should handle content without code blocks", () => {
@@ -450,31 +446,31 @@ describe("Workspace Utils", () => {
             expect(result).toBe("");
         });
 
-        it("should handle content with only code blocks", () => {
-            const content = "```html\n<div>Hello</div>\n```";
+        it("should handle content with only APPLET tags", () => {
+            const content = "<APPLET><div>Hello</div></APPLET>";
             const result = extractChatContent(content);
-            expect(result).toBe("**Applet code generated and applied.**");
+            expect(result).toBe("");
         });
 
-        it("should handle whitespace around code blocks", () => {
-            const content = "  ```html\n  <div>Hello</div>\n  ```  ";
+        it("should handle whitespace around APPLET tags", () => {
+            const content = "  <APPLET><div>Hello</div></APPLET>  ";
             const result = extractChatContent(content);
-            expect(result).toBe("**Applet code generated and applied.**");
+            expect(result).toBe("");
         });
 
-        it("should handle complex content with mixed code blocks", () => {
+        it("should handle complex content with mixed APPLET tags", () => {
             const content =
-                "First explanation.\n```html\n<div>First</div>\n```\nSecond explanation.\n```html\n<div>Second</div>\n```\nFinal text.";
+                "First explanation.\n<APPLET><div>First</div></APPLET>\nSecond explanation.\n<APPLET><div>Second</div></APPLET>\nFinal text.";
             const result = extractChatContent(content);
             expect(result).toBe(
-                "First explanation.\n**Applet code generated and applied.**\nSecond explanation.\n**Applet code generated and applied.**\nFinal text.",
+                "First explanation.\nSecond explanation.\nFinal text.",
             );
         });
 
-        it("should return original content if nothing remains after replacement", () => {
-            const content = "```html\n<div>Hello</div>\n```";
+        it("should return original content if nothing remains after removal", () => {
+            const content = "<APPLET><div>Hello</div></APPLET>";
             const result = extractChatContent(content);
-            expect(result).toBe("**Applet code generated and applied.**");
+            expect(result).toBe("");
         });
     });
 
@@ -662,34 +658,30 @@ describe("Workspace Utils", () => {
     });
 
     describe("APPLET tag parsing - extractChatContent", () => {
-        it("should replace APPLET tag with placeholder", () => {
+        it("should remove APPLET tag entirely", () => {
             const content =
                 "Here's the applet: <APPLET><div>Hello</div></APPLET>";
             const result = extractChatContent(content);
-            expect(result).toBe(
-                "Here's the applet: **Applet code generated and applied.**",
-            );
+            expect(result).toBe("Here's the applet:");
         });
 
         it("should handle APPLET tag with markdown inside", () => {
             const content = "<APPLET>```html\n<div>Hello</div>\n```</APPLET>";
             const result = extractChatContent(content);
-            expect(result).toBe("**Applet code generated and applied.**");
+            expect(result).toBe("");
         });
 
         it("should handle case-insensitive APPLET tags", () => {
             const content = "<applet><div>Hello</div></applet>";
             const result = extractChatContent(content);
-            expect(result).toBe("**Applet code generated and applied.**");
+            expect(result).toBe("");
         });
 
-        it("should handle content with both APPLET and code blocks", () => {
+        it("should handle APPLET tags with attributes", () => {
             const content =
-                "Text before <APPLET><div>Hello</div></APPLET> and ```html\n<div>Code</div>\n``` after";
+                "Text before <APPLET id='test'><div>Hello</div></APPLET> after";
             const result = extractChatContent(content);
-            expect(result).toBe(
-                "Text before **Applet code generated and applied.** and **Applet code generated and applied.** after",
-            );
+            expect(result).toBe("Text before  after");
         });
     });
 });
