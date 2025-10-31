@@ -1,7 +1,7 @@
 import { DragDropContext, Draggable, Droppable } from "@hello-pangea/dnd";
 import { useContext, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Edit, Play, Paperclip } from "lucide-react";
+import { Edit, Play, Paperclip, Loader2 } from "lucide-react";
 import LoadingButton from "../../../src/components/editor/LoadingButton";
 import { LanguageContext } from "../../../src/contexts/LanguageProvider";
 import Loader from "../../components/loader";
@@ -24,7 +24,7 @@ export default function PromptList({
     const { t } = useTranslation();
     const { direction } = useContext(LanguageContext);
     const [tempPromptIds, setTempPromptIds] = useState(promptIds);
-    const { data: prompts } = usePromptsByIds(tempPromptIds);
+    const { data: prompts, isLoading } = usePromptsByIds(tempPromptIds);
 
     useEffect(() => {
         setTempPromptIds(promptIds);
@@ -33,6 +33,20 @@ export default function PromptList({
     const filteredPrompts = prompts?.filter((prompt) =>
         prompt?.title.toLowerCase().includes(filter.toLowerCase()),
     );
+
+    // Show loading spinner while prompts are loading
+    if (isLoading) {
+        return (
+            <div className="flex flex-col grow overflow-auto p-1">
+                <div className="flex justify-between items-center mb-3">
+                    <h4 className=" font-medium">{t("Prompts")}</h4>
+                </div>
+                <div className="flex items-center justify-center py-8">
+                    <Loader2 className="w-6 h-6 animate-spin text-gray-400 dark:text-gray-500" />
+                </div>
+            </div>
+        );
+    }
 
     if (!prompts?.length && isOwner) {
         return (

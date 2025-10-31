@@ -15,6 +15,9 @@ const OutputSandbox = forwardRef(
         const resizeObserverRef = useRef(null);
         const mutationObserverRef = useRef(null);
         const [portalContainers, setPortalContainers] = useState(new Map());
+        const isInitializedRef = useRef(false);
+        const lastHeadContentRef = useRef("");
+        const lastThemeRef = useRef(theme);
 
         // Forward the ref to the iframe
         React.useImperativeHandle(ref, () => ({
@@ -267,24 +270,122 @@ const OutputSandbox = forwardRef(
 
             const iframe = iframeRef.current;
 
-            // Clear all portal containers when iframe is being recreated
-            clearAllPortals();
-
-            const setupFrame = async () => {
+            const updateContent = async () => {
                 try {
-                    setIsLoading(true);
+                    // Import the shared utility functions
+                    const {
+                        generateFilteredSandboxHtml,
+                        extractHtmlStructure,
+                    } = await import("../../utils/themeUtils");
 
-                    // Create a base tag to handle relative URLs
-                    const base = document.createElement("base");
-                    base.href = window.location.origin;
+                    // Extract head and body content to check if head changed
+                    const { headContent, bodyContent } =
+                        extractHtmlStructure(content);
+                    const headContentChanged =
+                        headContent !== lastHeadContentRef.current;
+                    const themeChanged = theme !== lastThemeRef.current;
 
-                    // Import the shared utility function
-                    const { generateFilteredSandboxHtml } = await import(
-                        "../../utils/themeUtils"
-                    );
+                    // IMPORTANT: Only do incremental updates if:
+                    // 1. Iframe is fully initialized (onload has fired)
+                    // 2. Only body content changed (head/theme unchanged)
+                    // 3. Iframe document is accessible
+                    // Otherwise, do a full reload (which is needed for first load anyway)
+                    const canDoIncrementalUpdate =
+                        isInitializedRef.current &&
+                        !headContentChanged &&
+                        !themeChanged &&
+                        iframe.contentDocument &&
+                        iframe.contentDocument.body &&
+                        iframe.contentDocument.body.parentNode;
+
+                    if (canDoIncrementalUpdate) {
+                        try {
+                            const frameDoc =
+                                iframe.contentDocument ||
+                                iframe.contentWindow.document;
+                            // Update body content directly without reloading
+                            frameDoc.body.innerHTML = bodyContent;
+
+                            // Process any new pre elements that might have been added
+                            processPreElements(frameDoc);
+
+                            // Manually update iframe height after content change
+                            // ResizeObserver might not fire immediately after innerHTML update
+                            // Use a double RAF to ensure layout has settled
+                            requestAnimationFrame(() => {
+                                requestAnimationFrame(() => {
+                                    if (
+                                        frameDoc.body &&
+                                        frameDoc.documentElement
+                                    ) {
+                                        // Force a reflow to ensure measurements are accurate
+                                        void frameDoc.body.offsetHeight;
+
+                                        // Calculate height based on the actual content
+                                        const bodyHeight = Math.max(
+                                            frameDoc.body.scrollHeight,
+                                            frameDoc.body.offsetHeight,
+                                            frameDoc.body.clientHeight,
+                                        );
+                                        const docHeight = Math.max(
+                                            frameDoc.documentElement
+                                                .scrollHeight,
+                                            frameDoc.documentElement
+                                                .offsetHeight,
+                                            frameDoc.documentElement
+                                                .clientHeight,
+                                        );
+                                        const height = Math.max(
+                                            bodyHeight,
+                                            docHeight,
+                                            100,
+                                        ); // Minimum 100px
+                                        iframe.style.height = `${height}px`;
+
+                                        // Also trigger ResizeObserver if it exists
+                                        if (
+                                            resizeObserverRef.current &&
+                                            frameDoc.body
+                                        ) {
+                                            // Manually trigger by temporarily changing body content
+                                            // This forces ResizeObserver to fire
+                                            const temp =
+                                                frameDoc.body.style.display;
+                                            frameDoc.body.style.display =
+                                                "none";
+                                            void frameDoc.body.offsetHeight;
+                                            frameDoc.body.style.display = temp;
+                                        }
+                                    }
+                                });
+                            });
+
+                            return; // Skip the reload
+                        } catch (error) {
+                            // If we can't access the document, fall through to full reload
+                            console.warn(
+                                "Cannot update iframe content directly, reloading:",
+                                error,
+                            );
+                        }
+                    }
+
+                    // Full reload needed (first load, head content changed, theme changed, or incremental update failed)
+                    if (
+                        !isInitializedRef.current ||
+                        headContentChanged ||
+                        themeChanged
+                    ) {
+                        setIsLoading(true);
+                        clearAllPortals();
+                    }
 
                     // Generate the filtered HTML document using the shared template
                     const html = generateFilteredSandboxHtml(content, theme);
+
+                    // Update references
+                    lastHeadContentRef.current = headContent;
+                    lastThemeRef.current = theme;
 
                     // Use srcdoc for better security and performance
                     iframe.srcdoc = html;
@@ -440,10 +541,7 @@ const OutputSandbox = forwardRef(
                                             );
 
                                         if (isPreWithClass) {
-                                            // Specifically check if content was added (element now has content)
-                                            const hasContent =
-                                                target.textContent &&
-                                                target.textContent.trim();
+                                            // Pre element with llm-output class changed, process it
                                             shouldProcess = true;
                                         }
 
@@ -496,20 +594,23 @@ const OutputSandbox = forwardRef(
                         );
 
                         setIsLoading(false);
+                        isInitializedRef.current = true;
                     };
 
                     // Handle errors
                     iframe.onerror = (error) => {
                         console.error("Sandbox iframe error:", error);
                         setIsLoading(false);
+                        isInitializedRef.current = false;
                     };
                 } catch (error) {
                     console.error("Error setting up sandbox:", error);
                     setIsLoading(false);
+                    isInitializedRef.current = false;
                 }
             };
 
-            setupFrame();
+            updateContent();
 
             // Cleanup
             return () => {

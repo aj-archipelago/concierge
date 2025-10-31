@@ -14,9 +14,8 @@ import OutputSandbox from "@/src/components/sandbox/OutputSandbox";
 import { ThemeContext } from "@/src/contexts/ThemeProvider";
 import MonacoEditor from "@monaco-editor/react";
 import { useParams } from "next/navigation";
-import { memo, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { useContext, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { generateFilteredSandboxHtml } from "../../../../src/utils/themeUtils";
 
 // Function to convert unpkg.com Lucide icon URLs to local routes
 const convertLucideIconsToLocalRoutes = async (htmlContent) => {
@@ -199,7 +198,7 @@ function CreatingAppletDialog({ isVisible, containerRef: parentContainerRef }) {
 
     return (
         <div
-            className="fixed bg-white/5 backdrop-blur-sm flex items-center justify-center z-10 pointer-events-none"
+            className="fixed bg-white/5 dark:bg-black/20 backdrop-blur-sm flex items-center justify-center z-10 pointer-events-none"
             style={{
                 top: `${position.top}px`,
                 left: `${position.left}px`,
@@ -207,14 +206,14 @@ function CreatingAppletDialog({ isVisible, containerRef: parentContainerRef }) {
                 height: `${position.height}px`,
             }}
         >
-            <div className="bg-white rounded-lg shadow-lg p-6 max-w-sm mx-4 pointer-events-auto">
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg dark:shadow-gray-900/50 p-6 max-w-sm mx-4 pointer-events-auto border dark:border-gray-700">
                 <div className="flex items-center gap-3 mb-3">
-                    <div className="w-5 h-5 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin" />
-                    <h3 className="text-lg font-semibold text-gray-900">
+                    <div className="w-5 h-5 border-2 border-r-emerald-600 dark:border-r-emerald-500 border-b-emerald-600 dark:border-b-emerald-500 border-l-emerald-600 dark:border-l-emerald-500 border-t-transparent rounded-full animate-spin" />
+                    <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
                         {t("Creating Applet...")}
                     </h3>
                 </div>
-                <p className="text-sm text-gray-600">
+                <p className="text-sm text-gray-600 dark:text-gray-300">
                     {t(
                         "The AI is generating your applet. The preview will update in real-time as the code is being written.",
                     )}
@@ -276,27 +275,15 @@ function LoadingStatePlaceholder() {
     );
 }
 
-// Memoized div component that only re-renders when HTML actually changes
-const MemoizedHtmlDiv = memo(({ html }) => {
-    return (
-        <div
-            className="w-full h-full overflow-auto min-w-0"
-            dangerouslySetInnerHTML={{
-                __html: html,
-            }}
-        />
-    );
-});
-MemoizedHtmlDiv.displayName = "MemoizedHtmlDiv";
-
 // Streaming preview component that throttles updates for better performance
+// Uses OutputSandbox (iframe) for proper isolation and security
 function StreamingPreview({ content, theme }) {
     const [displayContent, setDisplayContent] = useState(content);
     const updateTimeoutRef = useRef(null);
     const lastUpdateRef = useRef(Date.now());
 
     // Throttle updates to avoid re-rendering on every character
-    // Update immediately if it's been more than 100ms, otherwise debounce
+    // Update immediately if it's been more than 1000ms, otherwise debounce
     useEffect(() => {
         const now = Date.now();
         const timeSinceLastUpdate = now - lastUpdateRef.current;
@@ -326,13 +313,11 @@ function StreamingPreview({ content, theme }) {
         };
     }, [content]);
 
-    // Memoize the filtered HTML so it only regenerates when displayContent or theme changes
-    // This prevents unnecessary HTML generation on every render caused by content prop changes
-    const filteredHtml = useMemo(() => {
-        return generateFilteredSandboxHtml(displayContent, theme);
-    }, [displayContent, theme]);
-
-    return <MemoizedHtmlDiv html={filteredHtml} />;
+    // Use OutputSandbox for proper iframe isolation and security
+    // This prevents HTML from escaping and affecting the parent page
+    return (
+        <OutputSandbox content={displayContent} height="100%" theme={theme} />
+    );
 }
 
 // JSON Editor component for displaying applet data
@@ -885,11 +870,13 @@ export default function PreviewTabs({
                 setProcessedContent(result.html);
 
                 // If changes were made and we have an onChange handler, update the HTML
+                // Don't trigger updates during streaming - they'll be saved when streaming completes
                 if (
                     result.hasChanges &&
                     onHtmlChange &&
                     isOwner &&
-                    !isCurrentVersionPublished
+                    !isCurrentVersionPublished &&
+                    !isStreaming
                 ) {
                     onHtmlChange(result.html, activeVersionIndex);
                 }
@@ -907,6 +894,7 @@ export default function PreviewTabs({
         isOwner,
         isCurrentVersionPublished,
         activeVersionIndex,
+        isStreaming,
     ]);
 
     // Use processed content for display

@@ -18,6 +18,15 @@ export async function GET(req) {
     const tags = searchParams.get("tags"); // Comma-separated tags
 
     try {
+        // Validate user._id exists (prevents issues when DB is disconnected)
+        if (!user._id) {
+            console.error("User _id is missing, cannot fetch media items");
+            return Response.json(
+                { error: "User authentication invalid" },
+                { status: 401 },
+            );
+        }
+
         // Build query
         const query = { user: user._id };
         if (status) query.status = status;
