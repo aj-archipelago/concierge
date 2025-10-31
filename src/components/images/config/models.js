@@ -307,7 +307,11 @@ export const getAvailableAspectRatios = (modelName) => {
 };
 
 export const getAvailableDurations = (modelName) => {
-    if (modelName === "veo-3.0-generate") {
+    if (
+        modelName === "veo-3.0-generate" ||
+        modelName === "veo-3.1-generate" ||
+        modelName === "veo-3.1-fast-generate"
+    ) {
         return [{ value: 8, label: "8s" }];
     } else if (modelName === "veo-2.0-generate") {
         return [

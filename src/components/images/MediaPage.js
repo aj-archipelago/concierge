@@ -73,6 +73,9 @@ import {
     mergeNewModels,
     migrateSettings,
     DEFAULT_MODEL_SETTINGS,
+    getModelType,
+    getAvailableAspectRatios,
+    getAvailableDurations,
 } from "./config/models";
 import { useMediaSelection } from "./hooks/useItemSelection";
 import { useBulkOperations } from "./hooks/useBulkOperations";
@@ -200,6 +203,7 @@ function MediaPage() {
     const [isLoadingAll, setIsLoadingAll] = useState(false);
     const [shouldSelectAll, setShouldSelectAll] = useState(false);
     const promptRef = useRef(null);
+    const formRef = useRef(null);
     const bulkTagInputRef = useRef(null);
     const createMediaItem = useCreateMediaItem();
     const deleteMediaItem = useDeleteMediaItem();
@@ -742,11 +746,12 @@ function MediaPage() {
             <div className="flex flex-col gap-4">
                 <div className="mb-4">
                     <form
+                        ref={formRef}
                         className="flex flex-col gap-2"
                         onSubmit={(e) => {
                             e.preventDefault();
-                            setLoading(true);
                             if (!prompt.trim()) return;
+                            setLoading(true);
                             setGenerationPrompt(prompt);
                             if (isModifyMode) {
                                 if (
@@ -792,26 +797,7 @@ function MediaPage() {
                                                 !e.shiftKey
                                             ) {
                                                 e.preventDefault();
-                                                if (!prompt.trim()) return;
-                                                setGenerationPrompt(prompt);
-                                                if (isModifyMode) {
-                                                    if (
-                                                        selectedImages.size >=
-                                                            2 &&
-                                                        selectedImages.size <= 3
-                                                    ) {
-                                                        handleCombineSelected();
-                                                    } else if (
-                                                        selectedImages.size ===
-                                                        1
-                                                    ) {
-                                                        handleModifySelected();
-                                                    } else {
-                                                        generateMedia(prompt);
-                                                    }
-                                                } else {
-                                                    generateMedia(prompt);
-                                                }
+                                                formRef.current?.requestSubmit();
                                             }
                                         }}
                                         ref={promptRef}
@@ -864,39 +850,28 @@ function MediaPage() {
                                 )}
                                 {/* Generate button */}
                                 <div className="flex items-start flex-shrink-0">
-                                    <TooltipProvider>
-                                        <Tooltip>
-                                            <TooltipTrigger asChild>
-                                                <button
-                                                    type="submit"
-                                                    className="border-none outline-none hover:bg-sky-700 dark:bg-sky-700 dark:hover:bg-sky-200 p-1.5 cursor-pointer hover:opacity-80 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1 
-                                                    bg-sky-600 text-white rounded-lg px-3 py-2 
+                                    <button
+                                        type="submit"
+                                        className="border-none outline-none enabled:hover:bg-sky-700 enabled:active:bg-sky-800 dark:bg-sky-700 dark:enabled:hover:bg-sky-200 p-1.5 cursor-pointer focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1 bg-sky-600 dark:enabled:hover:bg-sky-800 text-white rounded-lg px-3 py-2 dark:enabled:hover:text-white dark:enabled:active:bg-sky-900
                                                     text-sm justify-center"
-                                                    disabled={
-                                                        !prompt.trim() ||
-                                                        loading
-                                                    }
-                                                >
-                                                    {loading ? (
-                                                        <Loader2 className="h-4 w-4 animate-spin" />
-                                                    ) : (
-                                                        <Sparkles className="h-4 w-4" />
-                                                    )}
-                                                    <span className="hidden md:block">
-                                                        {t("Generate")}
-                                                    </span>
-                                                </button>
-                                            </TooltipTrigger>
-                                            <TooltipContent>
-                                                {t("Generate")}
-                                            </TooltipContent>
-                                        </Tooltip>
-                                    </TooltipProvider>
+                                        disabled={!prompt.trim() || loading}
+                                    >
+                                        {loading ? (
+                                            <Loader2 className="h-4 w-4 animate-spin" />
+                                        ) : (
+                                            <Sparkles className="h-4 w-4" />
+                                        )}
+                                        <span className="hidden md:block">
+                                            {loading
+                                                ? t("Generating")
+                                                : t("Generate")}
+                                        </span>
+                                    </button>
                                 </div>
                             </div>
 
                             {/* Thin bar with model selector and settings */}
-                            <div className="flex md:items-center flex-col md:flex-row  gap-2">
+                            <div className="flex md:items-center flex-col md:flex-row mt-2 gap-2">
                                 {/* Model selector */}
                                 {(() => {
                                     const availableModels =
@@ -1083,62 +1058,71 @@ function MediaPage() {
 
                                     {/* Model settings display and image context badge */}
                                     <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
-                                        {/* Model settings */}
-                                        {currentModelSettings.aspectRatio && (
-                                            <span className="px-1.5 py-0.5">
-                                                {currentModelSettings.aspectRatio ===
-                                                "match_input_image"
-                                                    ? t("Match Input")
-                                                    : currentModelSettings.aspectRatio}
-                                            </span>
-                                        )}
-                                        {currentModelSettings.type ===
-                                            "image" &&
-                                            currentModelSettings.quality && (
-                                                <span className="px-1.5 py-0.5 capitalize">
-                                                    {
-                                                        currentModelSettings.quality
-                                                    }
+                                        {/* Model settings - only show configurable fields */}
+                                        {getAvailableAspectRatios(selectedModel)
+                                            .length > 0 &&
+                                            currentModelSettings.aspectRatio && (
+                                                <span className="px-1.5 py-0.5">
+                                                    {currentModelSettings.aspectRatio ===
+                                                    "match_input_image"
+                                                        ? t("Match Input")
+                                                        : currentModelSettings.aspectRatio}
                                                 </span>
                                             )}
-                                        {currentModelSettings.type ===
+                                        {getModelType(selectedModel) ===
                                             "video" && (
                                             <>
-                                                {currentModelSettings.duration && (
-                                                    <span className="px-1.5 py-0.5">
-                                                        {
-                                                            currentModelSettings.duration
-                                                        }
-                                                        s
-                                                    </span>
-                                                )}
-                                                {currentModelSettings.resolution && (
-                                                    <span className="px-1.5 py-0.5">
-                                                        {
-                                                            currentModelSettings.resolution
-                                                        }
-                                                    </span>
-                                                )}
-                                                {currentModelSettings.generateAudio !==
-                                                    undefined && (
-                                                    <span className="px-1.5 py-0.5">
-                                                        {currentModelSettings.generateAudio
-                                                            ? t("Audio")
-                                                            : t("No Audio")}
-                                                    </span>
-                                                )}
-                                                {currentModelSettings.cameraFixed && (
-                                                    <span className="px-1.5 py-0.5">
-                                                        {t("Fixed Camera")}
-                                                    </span>
-                                                )}
+                                                {getAvailableDurations(
+                                                    selectedModel,
+                                                ).length > 0 &&
+                                                    currentModelSettings.duration && (
+                                                        <span className="px-1.5 py-0.5">
+                                                            {
+                                                                currentModelSettings.duration
+                                                            }
+                                                            s
+                                                        </span>
+                                                    )}
+                                                {!selectedModel.startsWith(
+                                                    "veo",
+                                                ) &&
+                                                    currentModelSettings.resolution && (
+                                                        <span className="px-1.5 py-0.5">
+                                                            {
+                                                                currentModelSettings.resolution
+                                                            }
+                                                        </span>
+                                                    )}
+                                                {(selectedModel ===
+                                                    "veo-3.0-generate" ||
+                                                    selectedModel ===
+                                                        "veo-3.1-generate" ||
+                                                    selectedModel ===
+                                                        "veo-3.1-fast-generate") &&
+                                                    currentModelSettings.generateAudio !==
+                                                        undefined && (
+                                                        <span className="px-1.5 py-0.5">
+                                                            {currentModelSettings.generateAudio
+                                                                ? t("Audio")
+                                                                : t("No Audio")}
+                                                        </span>
+                                                    )}
+                                                {selectedModel ===
+                                                    "replicate-seedance-1-pro" &&
+                                                    currentModelSettings.cameraFixed && (
+                                                        <span className="px-1.5 py-0.5">
+                                                            {t("Fixed Camera")}
+                                                        </span>
+                                                    )}
                                             </>
                                         )}
-                                        {currentModelSettings.optimizePrompt && (
-                                            <span className="px-1.5 py-0.5">
-                                                {t("Optimized")}
-                                            </span>
-                                        )}
+                                        {selectedModel ===
+                                            "gemini-25-flash-image-preview" &&
+                                            currentModelSettings.optimizePrompt && (
+                                                <span className="px-1.5 py-0.5">
+                                                    {t("Optimized")}
+                                                </span>
+                                            )}
                                     </div>
                                 </div>
                                 <div className="flex ml-auto text-xs">

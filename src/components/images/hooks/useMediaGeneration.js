@@ -1,5 +1,7 @@
 import { useCallback } from "react";
 
+const LOADING_STATE_DELAY_MS = 1000;
+
 export const useMediaGeneration = ({
     selectedModel,
     outputType,
@@ -32,7 +34,9 @@ export const useMediaGeneration = ({
 
                 if (result.taskId) {
                     // Task is queued, set loading to false
-                    setLoading?.(false);
+                    setTimeout(() => {
+                        setLoading?.(false);
+                    }, LOADING_STATE_DELAY_MS);
 
                     // Create placeholder in the database
                     const mediaItemData = {
@@ -58,7 +62,9 @@ export const useMediaGeneration = ({
                 }
             } catch (error) {
                 console.error(`Error generating ${outputType}:`, error);
-                setLoading?.(false);
+                setTimeout(() => {
+                    setLoading?.(false);
+                }, LOADING_STATE_DELAY_MS);
             }
         },
         [
