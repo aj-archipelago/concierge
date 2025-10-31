@@ -1,4 +1,90 @@
 /**
+ * Extracts head and body content from HTML, handling both complete and incomplete HTML
+ * Returns an object with headContent and bodyContent
+ * @param {string} content - The HTML content to parse
+ * @returns {object} - Object with headContent and bodyContent properties
+ */
+export function extractHtmlStructure(content) {
+    if (!content || typeof content !== "string") {
+        return { headContent: "", bodyContent: "" };
+    }
+
+    let html = content.trim();
+    let headContent = "";
+    let bodyContent = "";
+
+    // Only process if content appears to start with structural tags
+    const startsWithStructuralTag = /^\s*(<!DOCTYPE|<html|<head|<body)/i.test(html);
+    
+    if (!startsWithStructuralTag) {
+        // Content doesn't start with structural tags, treat it all as body content
+        return { headContent: "", bodyContent: html };
+    }
+
+    // Remove DOCTYPE declarations
+    html = html.replace(/^\s*<!DOCTYPE\s+[^>]*>/gi, "");
+    html = html.replace(/^\s*<!DOCTYPE[^<]*/gi, "");
+
+    // Remove <html> tags (opening and closing)
+    html = html.replace(/^\s*<\/?\s*html(\s+[^>]*)?>/gi, "");
+    html = html.replace(/^\s*<\/?\s*html[^<>\s]*/gi, "");
+    html = html.replace(/<\/html>\s*$/gi, "");
+
+    // Extract <head> content
+    const headMatch = html.match(/^\s*<head(\s+[^>]*)?>([\s\S]*?)<\/head>/i);
+    if (headMatch) {
+        headContent = headMatch[2];
+        // Remove the head tag but keep everything after it
+        html = html.replace(/^\s*<head(\s+[^>]*)?>[\s\S]*?<\/head>/gi, "");
+    } else {
+        // Handle incomplete head tag during streaming
+        // Only extract if we haven't seen a <body> tag yet
+        if (!/<body/i.test(html)) {
+            const incompleteHeadMatch = html.match(/^\s*<head(\s+[^>]*)?>([\s\S]*)$/i);
+            if (incompleteHeadMatch) {
+                // During streaming, we might have incomplete head
+                // Extract head content but keep everything after </head> or after <head> tag
+                const headTagEnd = incompleteHeadMatch[0].length;
+                const afterHead = html.substring(headTagEnd);
+                // If there's content after head tag, it might be body content
+                if (afterHead.trim()) {
+                    html = afterHead;
+                } else {
+                    // No content after head, clear headContent since it's incomplete
+                    headContent = "";
+                    html = html.replace(/^\s*<head(\s+[^>]*)?>/gi, "");
+                }
+            }
+        }
+        // Remove any incomplete head opening tags
+        html = html.replace(/^\s*<head[^>]*>/gi, "");
+    }
+
+    // Extract <body> content
+    const bodyMatch = html.match(/^\s*<body(\s+[^>]*)?>([\s\S]*?)<\/body>/i);
+    if (bodyMatch) {
+        bodyContent = bodyMatch[2];
+    } else {
+        // Handle incomplete body tag during streaming
+        const incompleteBodyMatch = html.match(/^\s*<body(\s+[^>]*)?>([\s\S]*)$/i);
+        if (incompleteBodyMatch) {
+            bodyContent = incompleteBodyMatch[2];
+        } else {
+            // No body tag found, treat remaining content as body
+            // This handles cases where content doesn't have a body tag yet (during streaming)
+            // or is just raw HTML without structural tags
+            bodyContent = html;
+        }
+    }
+
+    // Remove any remaining closing tags
+    bodyContent = bodyContent.replace(/<\/body>\s*$/gi, "");
+    bodyContent = bodyContent.trim();
+
+    return { headContent: headContent.trim(), bodyContent };
+}
+
+/**
  * Filters out dark mode classes from HTML content based on the current theme
  * @param {string} content - The HTML content to filter
  * @param {string} theme - The current theme ('light' or 'dark')
@@ -20,12 +106,16 @@ export function filterDarkClasses(content, theme) {
 
 /**
  * Generates the complete HTML template for sandbox/preview iframes with theme filtering applied
- * @param {string} content - The HTML content to include in the body
+ * Extracts head content (styles, scripts) and body content from user HTML and merges them properly
+ * @param {string} content - The HTML content to include
  * @param {string} theme - The current theme ('light' or 'dark')
  * @returns {string} - The complete HTML document with dark classes filtered based on theme
  */
 export function generateFilteredSandboxHtml(content, theme) {
-    // Generate the full HTML document
+    // Extract head and body content from the user's HTML
+    const { headContent, bodyContent } = extractHtmlStructure(content);
+
+    // Generate the full HTML document with user's head content merged in
     const fullHtml = `
         <!DOCTYPE html>
         <html data-theme="${theme}">
@@ -116,6 +206,7 @@ export function generateFilteredSandboxHtml(content, theme) {
                         @apply bg-gray-100 dark:bg-gray-700 font-semibold;
                     }
                 </style>
+                ${headContent}
                 <script>
                     // Make theme available to applets via JavaScript
                     window.LABEEB_THEME = "${theme}";
@@ -133,7 +224,7 @@ export function generateFilteredSandboxHtml(content, theme) {
                     });
                 </script>
             </head>
-            <body>${content}</body>
+            <body>${bodyContent}</body>
         </html>
     `;
 

@@ -14,9 +14,8 @@ import OutputSandbox from "@/src/components/sandbox/OutputSandbox";
 import { ThemeContext } from "@/src/contexts/ThemeProvider";
 import MonacoEditor from "@monaco-editor/react";
 import { useParams } from "next/navigation";
-import { memo, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { useContext, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { generateFilteredSandboxHtml } from "../../../../src/utils/themeUtils";
 
 // Function to convert unpkg.com Lucide icon URLs to local routes
 const convertLucideIconsToLocalRoutes = async (htmlContent) => {
@@ -276,27 +275,15 @@ function LoadingStatePlaceholder() {
     );
 }
 
-// Memoized div component that only re-renders when HTML actually changes
-const MemoizedHtmlDiv = memo(({ html }) => {
-    return (
-        <div
-            className="w-full h-full overflow-auto min-w-0"
-            dangerouslySetInnerHTML={{
-                __html: html,
-            }}
-        />
-    );
-});
-MemoizedHtmlDiv.displayName = "MemoizedHtmlDiv";
-
 // Streaming preview component that throttles updates for better performance
+// Uses OutputSandbox (iframe) for proper isolation and security
 function StreamingPreview({ content, theme }) {
     const [displayContent, setDisplayContent] = useState(content);
     const updateTimeoutRef = useRef(null);
     const lastUpdateRef = useRef(Date.now());
 
     // Throttle updates to avoid re-rendering on every character
-    // Update immediately if it's been more than 100ms, otherwise debounce
+    // Update immediately if it's been more than 1000ms, otherwise debounce
     useEffect(() => {
         const now = Date.now();
         const timeSinceLastUpdate = now - lastUpdateRef.current;
@@ -326,13 +313,15 @@ function StreamingPreview({ content, theme }) {
         };
     }, [content]);
 
-    // Memoize the filtered HTML so it only regenerates when displayContent or theme changes
-    // This prevents unnecessary HTML generation on every render caused by content prop changes
-    const filteredHtml = useMemo(() => {
-        return generateFilteredSandboxHtml(displayContent, theme);
-    }, [displayContent, theme]);
-
-    return <MemoizedHtmlDiv html={filteredHtml} />;
+    // Use OutputSandbox for proper iframe isolation and security
+    // This prevents HTML from escaping and affecting the parent page
+    return (
+        <OutputSandbox
+            content={displayContent}
+            height="100%"
+            theme={theme}
+        />
+    );
 }
 
 // JSON Editor component for displaying applet data

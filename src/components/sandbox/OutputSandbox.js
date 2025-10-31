@@ -15,6 +15,9 @@ const OutputSandbox = forwardRef(
         const resizeObserverRef = useRef(null);
         const mutationObserverRef = useRef(null);
         const [portalContainers, setPortalContainers] = useState(new Map());
+        const isInitializedRef = useRef(false);
+        const lastHeadContentRef = useRef("");
+        const lastThemeRef = useRef(theme);
 
         // Forward the ref to the iframe
         React.useImperativeHandle(ref, () => ({
@@ -267,24 +270,58 @@ const OutputSandbox = forwardRef(
 
             const iframe = iframeRef.current;
 
-            // Clear all portal containers when iframe is being recreated
-            clearAllPortals();
-
-            const setupFrame = async () => {
+            const updateContent = async () => {
                 try {
-                    setIsLoading(true);
-
-                    // Create a base tag to handle relative URLs
-                    const base = document.createElement("base");
-                    base.href = window.location.origin;
-
-                    // Import the shared utility function
-                    const { generateFilteredSandboxHtml } = await import(
+                    // Import the shared utility functions
+                    const { generateFilteredSandboxHtml, extractHtmlStructure } = await import(
                         "../../utils/themeUtils"
                     );
 
+                    // Extract head and body content to check if head changed
+                    const { headContent, bodyContent } = extractHtmlStructure(content);
+                    const headContentChanged = headContent !== lastHeadContentRef.current;
+                    const themeChanged = theme !== lastThemeRef.current;
+
+                    // IMPORTANT: Only do incremental updates if:
+                    // 1. Iframe is fully initialized (onload has fired)
+                    // 2. Only body content changed (head/theme unchanged)
+                    // 3. Iframe document is accessible
+                    // Otherwise, do a full reload (which is needed for first load anyway)
+                    const canDoIncrementalUpdate = 
+                        isInitializedRef.current && 
+                        !headContentChanged && 
+                        !themeChanged &&
+                        iframe.contentDocument &&
+                        iframe.contentDocument.body &&
+                        iframe.contentDocument.body.parentNode;
+
+                    if (canDoIncrementalUpdate) {
+                        try {
+                            const frameDoc = iframe.contentDocument || iframe.contentWindow.document;
+                            // Update body content directly without reloading
+                            frameDoc.body.innerHTML = bodyContent;
+                            
+                            // Process any new pre elements that might have been added
+                            processPreElements(frameDoc);
+                            return; // Skip the reload
+                        } catch (error) {
+                            // If we can't access the document, fall through to full reload
+                            console.warn("Cannot update iframe content directly, reloading:", error);
+                        }
+                    }
+
+                    // Full reload needed (first load, head content changed, theme changed, or incremental update failed)
+                    if (!isInitializedRef.current || headContentChanged || themeChanged) {
+                        setIsLoading(true);
+                        clearAllPortals();
+                    }
+
                     // Generate the filtered HTML document using the shared template
                     const html = generateFilteredSandboxHtml(content, theme);
+
+                    // Update references
+                    lastHeadContentRef.current = headContent;
+                    lastThemeRef.current = theme;
 
                     // Use srcdoc for better security and performance
                     iframe.srcdoc = html;
@@ -496,20 +533,23 @@ const OutputSandbox = forwardRef(
                         );
 
                         setIsLoading(false);
+                        isInitializedRef.current = true;
                     };
 
                     // Handle errors
                     iframe.onerror = (error) => {
                         console.error("Sandbox iframe error:", error);
                         setIsLoading(false);
+                        isInitializedRef.current = false;
                     };
                 } catch (error) {
                     console.error("Error setting up sandbox:", error);
                     setIsLoading(false);
+                    isInitializedRef.current = false;
                 }
             };
 
-            setupFrame();
+            updateContent();
 
             // Cleanup
             return () => {
