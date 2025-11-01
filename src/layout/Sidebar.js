@@ -65,7 +65,7 @@ const appNavigationMap = {
         href: "/write",
     },
     workspaces: {
-        name: "Workspaces",
+        name: "Applets",
         href: "/workspaces",
     },
     media: {

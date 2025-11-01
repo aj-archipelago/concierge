@@ -235,6 +235,8 @@
     "Run all": "تشغيل الكل",
     "Add Prompt": "إضافة تلميح",
     "Workspaces": "مساحات العمل",
+    "Applets": "التطبيقات الصغيرة",
+    "Applet Workspaces": "مساحات عمل التطبيقات الصغيرة",
     "Create workspaces to organize and share your prompts": "إنشاء مساحات العمل لتنظيم ومشاركة تلميحاتك",
     "Create workspace": "إنشاء مساحة عمل",
     "Jira": "Jira",

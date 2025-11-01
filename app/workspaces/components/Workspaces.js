@@ -67,7 +67,9 @@ export default function Workspaces() {
             <div className="mb-4">
                 {/* Header */}
                 <div className="mb-4">
-                    <h1 className="text-lg font-semibold">{t("Workspaces")}</h1>
+                    <h1 className="text-lg font-semibold">
+                        {t("Applet Workspaces")}
+                    </h1>
                     <div className="text-sm text-gray-500 dark:text-gray-400">
                         {debouncedFilterText
                             ? `${filteredWorkspaces.length} ${t("matching")} ${t("workspaces")}`
