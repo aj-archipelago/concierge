@@ -57,7 +57,7 @@ const appNavigationMap = {
         href: "/translate",
     },
     video: {
-        name: "Video",
+        name: "Transcribe",
         href: "/video",
     },
     write: {
