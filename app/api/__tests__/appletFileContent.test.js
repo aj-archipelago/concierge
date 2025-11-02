@@ -59,11 +59,18 @@ jest.mock("../utils/auth", () => ({
     getCurrentUser: jest.fn(),
 }));
 
-jest.mock("../models/applet-file", () => ({
-    findOne: jest.fn().mockReturnValue({
+jest.mock("../models/applet-file", () => {
+    const mockFindOne = jest.fn().mockReturnValue({
         populate: jest.fn(),
-    }),
-}));
+    });
+    return {
+        __esModule: true,
+        default: {
+            findOne: mockFindOne,
+        },
+        findOne: mockFindOne, // Also export directly for require() compatibility
+    };
+});
 
 jest.mock("../workspaces/[id]/db", () => ({
     getWorkspace: jest.fn(),
@@ -126,7 +133,9 @@ describe("Applet File Content Endpoint", () => {
         getWorkspace.mockResolvedValue(mockWorkspace);
 
         const AppletFile = require("../models/applet-file");
-        AppletFile.findOne.mockReturnValue({
+        // Handle both ES6 default export and CommonJS require
+        const mockAppletFileModel = AppletFile.default || AppletFile;
+        mockAppletFileModel.findOne.mockReturnValue({
             populate: jest.fn().mockResolvedValue(mockAppletFile),
         });
 
@@ -255,6 +264,27 @@ describe("Applet File Content Endpoint", () => {
     });
 
     describe("Security Validation", () => {
+        test("should return 401 if user is not authenticated", async () => {
+            const { getCurrentUser } = require("../utils/auth");
+            getCurrentUser.mockResolvedValueOnce(null);
+
+            const mockRequest = {
+                url: "https://example.com",
+            };
+            const params = {
+                id: "workspace123",
+                fileId: "file123",
+            };
+
+            const response = await appletFileContentGet(mockRequest, {
+                params,
+            });
+
+            expect(response.status).toBe(401);
+            expect(response.error).toBe("Authentication required");
+            expect(global.fetch).not.toHaveBeenCalled();
+        });
+
         test("should return 404 if workspace not found", async () => {
             const { getWorkspace } = require("../workspaces/[id]/db");
             getWorkspace.mockResolvedValueOnce(null);
@@ -278,7 +308,8 @@ describe("Applet File Content Endpoint", () => {
 
         test("should return 404 if applet file not found", async () => {
             const AppletFile = require("../models/applet-file");
-            AppletFile.findOne.mockReturnValueOnce({
+            const mockAppletFileModel = AppletFile.default || AppletFile;
+            mockAppletFileModel.findOne.mockReturnValueOnce({
                 populate: jest.fn().mockResolvedValue(null),
             });
 
@@ -301,7 +332,8 @@ describe("Applet File Content Endpoint", () => {
 
         test("should return 404 if file ID doesn't match", async () => {
             const AppletFile = require("../models/applet-file");
-            AppletFile.findOne.mockReturnValueOnce({
+            const mockAppletFileModel = AppletFile.default || AppletFile;
+            mockAppletFileModel.findOne.mockReturnValueOnce({
                 populate: jest.fn().mockResolvedValue({
                     files: [
                         {
@@ -331,8 +363,9 @@ describe("Applet File Content Endpoint", () => {
 
         test("should validate file belongs to correct user", async () => {
             const AppletFile = require("../models/applet-file");
+            const mockAppletFileModel = AppletFile.default || AppletFile;
             // Mock different user's files
-            AppletFile.findOne.mockReturnValueOnce({
+            mockAppletFileModel.findOne.mockReturnValueOnce({
                 populate: jest.fn().mockResolvedValue({
                     files: [], // Empty - file doesn't belong to this user
                 }),
@@ -377,7 +410,6 @@ describe("Applet File Content Endpoint", () => {
 
             expect(response.status).toBe(404);
             expect(response.error).toBe("Failed to fetch file from storage");
-            expect(response.status).toBe(404);
         });
 
         test("should handle Azure fetch server error", async () => {
@@ -435,7 +467,8 @@ describe("Applet File Content Endpoint", () => {
             };
 
             const AppletFile = require("../models/applet-file");
-            AppletFile.findOne.mockReturnValueOnce({
+            const mockAppletFileModel = AppletFile.default || AppletFile;
+            mockAppletFileModel.findOne.mockReturnValueOnce({
                 populate: jest.fn().mockResolvedValue({
                     files: [pdfFile],
                 }),
@@ -481,7 +514,8 @@ describe("Applet File Content Endpoint", () => {
             };
 
             const AppletFile = require("../models/applet-file");
-            AppletFile.findOne.mockReturnValueOnce({
+            const mockAppletFileModel = AppletFile.default || AppletFile;
+            mockAppletFileModel.findOne.mockReturnValueOnce({
                 populate: jest.fn().mockResolvedValue({
                     files: [textFile],
                 }),
@@ -526,7 +560,8 @@ describe("Applet File Content Endpoint", () => {
             };
 
             const AppletFile = require("../models/applet-file");
-            AppletFile.findOne.mockReturnValueOnce({
+            const mockAppletFileModel = AppletFile.default || AppletFile;
+            mockAppletFileModel.findOne.mockReturnValueOnce({
                 populate: jest.fn().mockResolvedValue({
                     files: [unknownFile],
                 }),

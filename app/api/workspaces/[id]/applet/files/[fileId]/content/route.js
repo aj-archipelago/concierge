@@ -19,6 +19,12 @@ export async function GET(request, { params }) {
 
         // Get current user
         const user = await getCurrentUser();
+        if (!user) {
+            return NextResponse.json(
+                { error: "Authentication required" },
+                { status: 401 },
+            );
+        }
 
         // Find applet files for this user and applet
         const appletFile = await AppletFile.findOne({
@@ -79,6 +85,11 @@ export async function GET(request, { params }) {
                 ...(contentLength && { "Content-Length": contentLength }),
 
                 // CORS headers for applet browser access
+                // Note: Using wildcard '*' is intentional to allow applets embedded
+                // in various domains to access files. Security is maintained through
+                // authentication (getCurrentUser) and file ownership validation above.
+                // Consider making this configurable via environment variable if specific
+                // trusted origins are known.
                 "Access-Control-Allow-Origin": "*",
                 "Access-Control-Allow-Methods": "GET",
                 "Access-Control-Expose-Headers":
