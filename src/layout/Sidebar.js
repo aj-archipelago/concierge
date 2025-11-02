@@ -57,7 +57,7 @@ const appNavigationMap = {
         href: "/translate",
     },
     video: {
-        name: "Video",
+        name: "Transcribe",
         href: "/video",
     },
     write: {
@@ -65,7 +65,7 @@ const appNavigationMap = {
         href: "/write",
     },
     workspaces: {
-        name: "Workspaces",
+        name: "Applets",
         href: "/workspaces",
     },
     media: {

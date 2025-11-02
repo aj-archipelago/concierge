@@ -135,11 +135,12 @@ async function seedNativeApps() {
                 "Translate text between multiple languages with AI-powered accuracy",
         },
         {
-            name: "Video",
+            name: "Transcribe",
             slug: "video",
             type: APP_TYPES.NATIVE,
             icon: "Video",
-            description: "Create and edit videos with AI assistance",
+            description:
+                "Transcribe and translate video and audio files with AI-powered accuracy",
         },
         {
             name: "Write",

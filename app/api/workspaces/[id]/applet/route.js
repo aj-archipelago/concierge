@@ -146,7 +146,7 @@ export async function PUT(request, { params }) {
                 // Check if app name conflicts with built-in native apps
                 const nativeAppNames = [
                     "Translate",
-                    "Video",
+                    "Transcribe",
                     "Write",
                     "Workspaces",
                     "Images",

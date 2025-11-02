@@ -10,6 +10,7 @@
     "tool.default": "default",
     "tool.coding": "coding",
     "tool.memory": "memory",
+    "Transcribe": "Transcribe",
     "Prompts": "Prompts",
     "UI": "UI",
     "Read-only mode - Only the workspace owner can make changes": "Read-only mode - Only the workspace owner can make changes",

@@ -202,10 +202,11 @@ describe("Native Apps Seeding", () => {
                     "Translate text between multiple languages with AI-powered accuracy",
             },
             {
-                name: "Video",
+                name: "Transcribe",
                 slug: "video",
                 icon: "Video",
-                description: "Create and edit videos with AI assistance",
+                description:
+                    "Transcribe and translate video and audio files with AI-powered accuracy",
             },
             {
                 name: "Write",
