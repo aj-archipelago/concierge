@@ -845,5 +845,7 @@
     "prompts_few": "{{count}} تلميحات",
     "prompts_many": "{{count}} تلميح",
     "prompts_other": "{{count}} تلميح",
-    "matching": "مطابقة"
+    "matching": "مطابقة",
+    "Words per line": "عدد الكلمات في السطر",
+    "Please enter a value greater than 0": "يرجى إدخال قيمة أكبر من 0"
 }

@@ -218,5 +218,7 @@
     "Search chats... (e.g., interview notes or \"campaign strategy\")": "Search chats... (e.g., interview notes or \"campaign strategy\")",
     "prompts": "{{count}} prompt",
     "prompts_one": "{{count}} prompt",
-    "prompts_other": "{{count}} prompts"
+    "prompts_other": "{{count}} prompts",
+    "Words per line": "Words per line",
+    "Please enter a value greater than 0": "Please enter a value greater than 0"
 }
