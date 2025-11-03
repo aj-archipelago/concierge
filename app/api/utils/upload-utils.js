@@ -89,12 +89,12 @@ export async function handleStreamingFileUpload(request, options) {
                 const checkUrl = new URL(mediaHelperUrl);
                 checkUrl.searchParams.set("hash", metadata.hash);
                 checkUrl.searchParams.set("checkHash", "true");
-                checkUrl.searchParams.set(
-                    "container",
-                    permanent
-                        ? process.env.CORTEX_MEDIA_PERMANENT_STORE_NAME
-                        : undefined,
-                );
+                if (permanent) {
+                    checkUrl.searchParams.set(
+                        "container",
+                        process.env.CORTEX_MEDIA_PERMANENT_STORE_NAME,
+                    );
+                }
 
                 const checkResponse = await fetch(checkUrl);
 
