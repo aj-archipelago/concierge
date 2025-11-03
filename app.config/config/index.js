@@ -177,13 +177,13 @@ const config = {
                 identifier: LLM_IDENTIFIERS.grok4fastreasoningazure,
                 name: "Grok 4 Fast Reasoning Azure",
                 cortexPathwayName: "run_workspace_prompt",
-                cortexModelName: "xai-grok-4-fast-reasoning-azure",
+                cortexModelName: "xai-grok-4-fast-reasoning",
             },
             {
                 identifier: LLM_IDENTIFIERS.grok4fastnonreasoningazure,
                 name: "Grok 4 Fast Non-Reasoning Azure",
                 cortexPathwayName: "run_workspace_prompt",
-                cortexModelName: "xai-grok-4-fast-non-reasoning-azure",
+                cortexModelName: "xai-grok-4-fast-non-reasoning",
             },
             // Labeeb
             {
