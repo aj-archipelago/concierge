@@ -143,11 +143,8 @@ function MyFilePond({
 
         // Sync previousFileItemsRef with files prop when it changes
         // This ensures we have a baseline for comparison
-        if (
-            files &&
-            files.length > 0 &&
-            previousFileItemsRef.current.length === 0
-        ) {
+        // Always sync (not just when empty) to handle case where files are removed then re-added
+        if (files && files.length > 0) {
             previousFileItemsRef.current = files;
         }
     }, [files]);
@@ -558,7 +555,12 @@ function MyFilePond({
                                             isFileRemoved(fileUrl) ||
                                             isFileRemoved(urlFilename)
                                         ) {
+                                            // File was removed - abort processing to clean up UI state
                                             setIsUploadingMedia(false);
+                                            error({
+                                                body: "File was removed before processing could complete.",
+                                                type: "error",
+                                            });
                                             return;
                                         }
                                         const responseWithFilename = {
@@ -704,6 +706,11 @@ function MyFilePond({
                                                 responseWithFilename.gcs,
                                             )
                                         ) {
+                                            // File was removed - abort processing to clean up UI state
+                                            error({
+                                                body: "File was removed before processing could complete.",
+                                                type: "error",
+                                            });
                                             return;
                                         }
 
@@ -871,7 +878,19 @@ function MyFilePond({
                                                 responseWithFilename.gcs,
                                             )
                                         ) {
+                                            // File was removed - abort processing to clean up UI state
                                             setIsUploadingMedia(false);
+                                            // Clear any running progress interval
+                                            if (cloudProgressInterval) {
+                                                clearInterval(
+                                                    cloudProgressInterval,
+                                                );
+                                                cloudProgressInterval = null;
+                                            }
+                                            error({
+                                                body: "File was removed before processing could complete.",
+                                                type: "error",
+                                            });
                                             return;
                                         }
 
