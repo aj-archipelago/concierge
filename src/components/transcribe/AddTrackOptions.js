@@ -430,7 +430,7 @@ export default function TranscribeVideo({
         } else if (selectedValue === "wordsPerLine") {
             newOptions.wordTimestamped = true;
             newOptions.maxWordsPerLine =
-                transcriptionOption?.maxWordsPerLine ?? 5;
+                transcriptionOption?.maxWordsPerLine ?? 3;
         }
 
         setSelectedTranscriptionType(selectedValue);
