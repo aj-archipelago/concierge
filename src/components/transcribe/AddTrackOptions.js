@@ -312,7 +312,8 @@ export default function TranscribeVideo({
         isYouTubeVideo ? "Gemini" : "Whisper",
     );
     const [transcriptionOption, setTranscriptionOption] = useState(null);
-    const [selectedTranscriptionType, setSelectedTranscriptionType] = useState("");
+    const [selectedTranscriptionType, setSelectedTranscriptionType] =
+        useState("");
     const [loading, setLoading] = useState(false);
     const [currentOperation, setCurrentOperation] = useState("");
     const [error, setError] = useState(null);
@@ -428,7 +429,8 @@ export default function TranscribeVideo({
             newOptions.maxLineCount = 1;
         } else if (selectedValue === "wordsPerLine") {
             newOptions.wordTimestamped = true;
-            newOptions.maxWordsPerLine = transcriptionOption?.maxWordsPerLine ?? 5;
+            newOptions.maxWordsPerLine =
+                transcriptionOption?.maxWordsPerLine ?? 5;
         }
 
         setSelectedTranscriptionType(selectedValue);
@@ -478,17 +480,19 @@ export default function TranscribeVideo({
                             <h5 className="font-semibold text-xs text-gray-400 mb-1">
                                 {t("Transcription type")}
                             </h5>
-                        <TranscriptionTypeSelector
-                            loading={loading}
-                            wordTimestamped={wordTimestamped}
-                            maxLineWidth={maxLineWidth}
-                            maxWordsPerLine={maxWordsPerLine}
-                            selectedTranscriptionType={selectedTranscriptionType}
-                            handleTranscriptionTypeChange={
-                                handleTranscriptionTypeChange
-                            }
-                            selectedModelOption={selectedModelOption}
-                        />
+                            <TranscriptionTypeSelector
+                                loading={loading}
+                                wordTimestamped={wordTimestamped}
+                                maxLineWidth={maxLineWidth}
+                                maxWordsPerLine={maxWordsPerLine}
+                                selectedTranscriptionType={
+                                    selectedTranscriptionType
+                                }
+                                handleTranscriptionTypeChange={
+                                    handleTranscriptionTypeChange
+                                }
+                                selectedModelOption={selectedModelOption}
+                            />
                         </div>
 
                         {selectedTranscriptionType === "wordsPerLine" && (
@@ -504,7 +508,10 @@ export default function TranscribeVideo({
                                     className="lb-input"
                                     value={maxWordsPerLine || ""}
                                     onChange={(e) => {
-                                        const value = e.target.value === "" ? undefined : parseInt(e.target.value);
+                                        const value =
+                                            e.target.value === ""
+                                                ? undefined
+                                                : parseInt(e.target.value);
                                         setTranscriptionOption((prev) => ({
                                             ...prev,
                                             maxWordsPerLine: value,
@@ -515,11 +522,14 @@ export default function TranscribeVideo({
                                         }));
                                     }}
                                 />
-                                {maxWordsPerLine !== undefined && maxWordsPerLine < 1 && (
-                                    <div className="text-red-500 text-xs mt-1">
-                                        {t("Please enter a value greater than 0")}
-                                    </div>
-                                )}
+                                {maxWordsPerLine !== undefined &&
+                                    maxWordsPerLine < 1 && (
+                                        <div className="text-red-500 text-xs mt-1">
+                                            {t(
+                                                "Please enter a value greater than 0",
+                                            )}
+                                        </div>
+                                    )}
                             </div>
                         )}
                     </>
