@@ -211,5 +211,9 @@
     "prompts_one": "{{count}} prompt",
     "prompts_other": "{{count}} prompts",
     "Words per line": "Words per line",
-    "Please enter a value greater than 0": "Please enter a value greater than 0"
+    "Please enter a value greater than 0": "Please enter a value greater than 0",
+    "Shared chat": "Shared chat",
+    "Show All Chats": "Show All Chats",
+    "Show Shared Chats Only": "Show Shared Chats Only",
+    "Shared": "Shared"
 }

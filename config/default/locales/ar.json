@@ -810,5 +810,9 @@
     "prompts_other": "{{count}} تلميح",
     "matching": "مطابقة",
     "Words per line": "عدد الكلمات في السطر",
-    "Please enter a value greater than 0": "يرجى إدخال قيمة أكبر من 0"
+    "Please enter a value greater than 0": "يرجى إدخال قيمة أكبر من 0",
+    "Shared chat": "دردشة مشتركة",
+    "Show All Chats": "عرض جميع الدردشات",
+    "Show Shared Chats Only": "عرض الدردشات المشتركة فقط",
+    "Shared": "مشترك"
 }

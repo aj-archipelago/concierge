@@ -17,7 +17,7 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 import EntityIcon from "./EntityIcon";
-import { Share, Trash2, Check, Download } from "lucide-react";
+import { Share, Trash2, Check, Download, Users } from "lucide-react";
 import { useEntities } from "../../hooks/useEntities";
 import {
     AlertDialog,
@@ -144,14 +144,26 @@ function Chat({ viewingChat = null }) {
         <div className="flex flex-col gap-3 h-full">
             <div className="flex justify-between items-center">
                 <ChatTopMenuDynamic />
-                {publicChatOwner && (
-                    <div className="text-sm font-medium text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-800 px-3 py-1 rounded shadow-sm">
-                        {t("Shared by")}{" "}
-                        <span className="font-bold text-sky-600">
-                            {publicChatOwner.name || publicChatOwner.username}
-                        </span>
-                    </div>
-                )}
+                <div className="flex items-center gap-2">
+                    {chat?.isPublic && !publicChatOwner && (
+                        <div
+                            className="flex items-center gap-1 text-sm font-medium text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 px-3 py-1 rounded-full border border-blue-200 dark:border-blue-800"
+                            title={t("This chat is shared")}
+                        >
+                            <Users className="w-4 h-4" />
+                            <span>{t("Shared")}</span>
+                        </div>
+                    )}
+                    {publicChatOwner && (
+                        <div className="text-sm font-medium text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-800 px-3 py-1 rounded shadow-sm">
+                            {t("Shared by")}{" "}
+                            <span className="font-bold text-sky-600">
+                                {publicChatOwner.name ||
+                                    publicChatOwner.username}
+                            </span>
+                        </div>
+                    )}
+                </div>
                 <div className="flex gap-2 items-center">
                     <Select
                         value={selectedEntityId || defaultAiName}

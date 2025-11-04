@@ -10,6 +10,7 @@ import {
     Check,
     Download,
     X,
+    Users,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -118,6 +119,7 @@ function SavedChats({ displayState }) {
         description: "",
     });
     const [isBulkProcessing, setIsBulkProcessing] = useState(false);
+    const [showSharedOnly, setShowSharedOnly] = useState(false);
     const queryClient = useQueryClient();
 
     const summarizeItems = useCallback(
@@ -607,6 +609,11 @@ function SavedChats({ displayState }) {
         const now = dayjs();
         data.pages.forEach((page) => {
             page.forEach((chat) => {
+                // Filter out non-shared chats when showSharedOnly is active
+                if (showSharedOnly && !chat.isPublic) {
+                    return;
+                }
+
                 const chatDate = dayjs(chat.createdAt);
                 if (chatDate.isSame(now, "day")) {
                     categories.today.push(chat);
@@ -623,7 +630,7 @@ function SavedChats({ displayState }) {
         });
 
         return categories;
-    }, [data]);
+    }, [data, showSharedOnly]);
 
     const handleCreateNewChat = async () => {
         try {
@@ -785,16 +792,29 @@ function SavedChats({ displayState }) {
                                         />
                                     ) : (
                                         <div className="flex items-center justify-between gap-2 mb-2">
-                                            <h3
-                                                className="font-semibold text-md truncate flex-1 cursor-pointer hover:text-sky-500"
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    setEditingId(chat._id);
-                                                    setEditedName(chat.title);
-                                                }}
-                                            >
-                                                {t(chat.title) || t("New Chat")}
-                                            </h3>
+                                            <div className="flex items-center gap-2 flex-1 min-w-0">
+                                                <h3
+                                                    className="font-semibold text-md truncate flex-1 cursor-pointer hover:text-sky-500"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        setEditingId(chat._id);
+                                                        setEditedName(
+                                                            chat.title,
+                                                        );
+                                                    }}
+                                                >
+                                                    {t(chat.title) ||
+                                                        t("New Chat")}
+                                                </h3>
+                                                {chat.isPublic && (
+                                                    <div
+                                                        className="flex-shrink-0 flex items-center justify-center w-5 h-5 bg-blue-500 rounded-full"
+                                                        title={t("Shared chat")}
+                                                    >
+                                                        <Users className="w-3 h-3 text-white" />
+                                                    </div>
+                                                )}
+                                            </div>
                                             <div className="flex items-center gap-1 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
                                                 <button
                                                     onClick={(e) => {
@@ -894,12 +914,12 @@ function SavedChats({ displayState }) {
     // Filter out any content matches that are already in title matches to avoid duplicates
     const titleMatchIds = useMemo(() => {
         return new Set(
-            (searchResults || [])
+            (filteredSearchResults || [])
                 .filter(Boolean)
                 .map((chat) => getChatIdString(chat._id))
                 .filter(Boolean),
         );
-    }, [searchResults]);
+    }, [filteredSearchResults]);
 
     const contentMatchesDisplay = useMemo(() => {
         const rawContentMatches =
@@ -907,13 +927,18 @@ function SavedChats({ displayState }) {
                 ? contentServerResults
                 : contentMatches;
 
-        // Filter out any chats that are already in title matches
+        // Filter out any chats that are already in title matches and apply shared filter
         return rawContentMatches.filter((chat) => {
             if (!chat?._id) return false;
             const chatIdStr = getChatIdString(chat._id);
-            return chatIdStr && !titleMatchIds.has(chatIdStr);
+            if (!chatIdStr || titleMatchIds.has(chatIdStr)) return false;
+
+            // Filter out non-shared chats when showSharedOnly is active
+            if (showSharedOnly && !chat.isPublic) return false;
+
+            return true;
         });
-    }, [contentServerResults, contentMatches, titleMatchIds]);
+    }, [contentServerResults, contentMatches, titleMatchIds, showSharedOnly]);
 
     const updateBottomActionsPosition = useCallback(() => {
         if (typeof window === "undefined") {
@@ -952,8 +977,8 @@ function SavedChats({ displayState }) {
     // Visible chats/ids under current view (search or normal), memoized for performance
     const visibleChats = useMemo(() => {
         if (searchQuery) {
-            const title = Array.isArray(searchResults)
-                ? searchResults.filter(Boolean)
+            const title = Array.isArray(filteredSearchResults)
+                ? filteredSearchResults.filter(Boolean)
                 : [];
             const content = Array.isArray(contentMatchesDisplay)
                 ? contentMatchesDisplay.filter(Boolean)
@@ -961,7 +986,7 @@ function SavedChats({ displayState }) {
             return [...title, ...content];
         }
         return Array.isArray(allChats) ? allChats : [];
-    }, [searchQuery, searchResults, contentMatchesDisplay, allChats]);
+    }, [searchQuery, filteredSearchResults, contentMatchesDisplay, allChats]);
 
     const visibleIdSet = useMemo(() => {
         const set = new Set();
@@ -974,6 +999,24 @@ function SavedChats({ displayState }) {
     }, [visibleChats]);
 
     const visibleIds = useMemo(() => Array.from(visibleIdSet), [visibleIdSet]);
+
+    // Calculate the count of visible chats for display
+    const visibleChatCount = useMemo(() => {
+        if (searchQuery) {
+            return visibleChats.length;
+        }
+        if (showSharedOnly) {
+            // Count shared chats when filter is active
+            return allChats.filter((chat) => chat?.isPublic).length;
+        }
+        return totalChatCount;
+    }, [
+        searchQuery,
+        showSharedOnly,
+        visibleChats.length,
+        allChats,
+        totalChatCount,
+    ]);
 
     const allVisibleSelected = useMemo(
         () =>
@@ -1056,6 +1099,12 @@ function SavedChats({ displayState }) {
         setServerContentLimit(500);
     }, []);
 
+    // Filter search results for shared chats when showSharedOnly is active
+    const filteredSearchResults = useMemo(() => {
+        if (!showSharedOnly) return searchResults;
+        return searchResults.filter((chat) => chat?.isPublic);
+    }, [searchResults, showSharedOnly]);
+
     if (areChatsLoading) {
         return <Loader />;
     }
@@ -1067,11 +1116,11 @@ function SavedChats({ displayState }) {
     const isTitleLimitReached =
         Boolean(searchQuery) &&
         titleSearchLimit < MAX_TITLE_SEARCH_LIMIT &&
-        searchResults.length >= titleSearchLimit;
+        filteredSearchResults.length >= titleSearchLimit;
 
     const titleMatchesCountDisplay = isTitleLimitReached
         ? `${titleSearchLimit}+`
-        : searchResults.length;
+        : filteredSearchResults.length;
 
     const isContentLimitReached =
         Boolean(searchQuery) &&
@@ -1128,7 +1177,7 @@ function SavedChats({ displayState }) {
                                 )}
                             </div>
                         ) : (
-                            `${totalChatCount} ${t("chats")}`
+                            `${visibleChatCount} ${t("chats")}`
                         )}
                     </div>
                 </div>
@@ -1161,6 +1210,32 @@ function SavedChats({ displayState }) {
                             )}
                         </div>
                         <TooltipProvider>
+                            {/* Shared Chats Toggle - its own group */}
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <button
+                                        className={`lb-icon-button ${
+                                            showSharedOnly
+                                                ? "lb-primary text-white"
+                                                : "text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 dark:bg-transparent dark:border-gray-600 dark:hover:border-gray-500"
+                                        }`}
+                                        onClick={() =>
+                                            setShowSharedOnly(!showSharedOnly)
+                                        }
+                                    >
+                                        <Users className="h-4 w-4" />
+                                    </button>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                    {showSharedOnly
+                                        ? t("Show All Chats")
+                                        : t("Show Shared Chats Only")}
+                                </TooltipContent>
+                            </Tooltip>
+
+                            {/* Separator - after shared chats group */}
+                            <div className="h-6 w-px bg-gray-300 dark:bg-gray-600 mx-1" />
+
                             {/* Export button - always visible, disabled when nothing selected */}
                             <Tooltip>
                                 <TooltipTrigger asChild>
@@ -1221,7 +1296,7 @@ function SavedChats({ displayState }) {
                                 </TooltipContent>
                             </Tooltip>
 
-                            {/* Separator - always visible */}
+                            {/* Separator - after selection group */}
                             <div className="h-6 w-px bg-gray-300 dark:bg-gray-600 mx-1" />
 
                             {/* Import button */}
@@ -1271,13 +1346,15 @@ function SavedChats({ displayState }) {
                         ) : (
                             <div>
                                 {/* Title matches section */}
-                                {searchResults.length > 0 && (
+                                {filteredSearchResults.length > 0 && (
                                     <div>
                                         <h2 className="text-md font-semibold mt-4 mb-2 border-b border-gray-200 dark:border-gray-700 pb-1">
                                             📝 {t("Title Matches")} (
                                             {titleMatchesCountDisplay})
                                         </h2>
-                                        {renderChatElements(searchResults)}
+                                        {renderChatElements(
+                                            filteredSearchResults,
+                                        )}
                                     </div>
                                 )}
 
@@ -1309,7 +1386,7 @@ function SavedChats({ displayState }) {
                                 {!titleSearchError &&
                                     !searchError &&
                                     searchQuery.length >= 1 &&
-                                    searchResults.length === 0 &&
+                                    filteredSearchResults.length === 0 &&
                                     contentMatchesDisplay.length === 0 &&
                                     !isSearching &&
                                     !showContentSearching && (
