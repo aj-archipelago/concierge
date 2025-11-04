@@ -1108,7 +1108,7 @@ function SavedChats({ displayState }) {
                                         {shouldShowAllResults && (
                                             <button
                                                 onClick={handleShowAllResults}
-                                                className="ml-2 text-xs text-blue-600 dark:text-blue-400 hover:underline"
+                                                className="ml-2 text-xs text-sky-600 dark:text-sky-400 hover:underline"
                                             >
                                                 {t("Show all")}
                                             </button>
@@ -1121,7 +1121,7 @@ function SavedChats({ displayState }) {
                                         <span className="mx-1 text-gray-400 dark:text-gray-500">
                                             •
                                         </span>
-                                        <span className="text-blue-500 dark:text-blue-400">
+                                        <span className="text-sky-500 dark:text-sky-400">
                                             {statusLabel}
                                         </span>
                                     </>

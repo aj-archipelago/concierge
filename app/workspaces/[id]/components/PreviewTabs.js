@@ -466,7 +466,7 @@ function FilesTab({ workspaceId, isOwner }) {
 
     return (
         <div className="h-full flex flex-col">
-            <div className="mb-3 p-2 bg-sky-50 dark:bg-sky-900/20 border border-blue-200 dark:border-sky-800 rounded-md">
+            <div className="mb-3 p-2 bg-sky-50 dark:bg-sky-900/20 border border-sky-200 dark:border-sky-800 rounded-md">
                 <div className="flex items-center gap-2 text-sky-800 dark:text-sky-300 text-sm">
                     <span className="text-sky-600 dark:text-sky-400">📁</span>
                     <span>
@@ -775,7 +775,7 @@ function DataTab({ workspaceId, isOwner }) {
 
     return (
         <div className="h-full flex flex-col">
-            <div className="mb-3 p-2 bg-sky-50 dark:bg-sky-900/20 border border-blue-200 dark:border-sky-800 rounded-md">
+            <div className="mb-3 p-2 bg-sky-50 dark:bg-sky-900/20 border border-sky-200 dark:border-sky-800 rounded-md">
                 <div className="flex items-center justify-between text-sky-800 dark:text-sky-300 text-sm">
                     <div className="flex items-center gap-2">
                         <span className="text-sky-600 dark:text-sky-400">
@@ -789,7 +789,7 @@ function DataTab({ workspaceId, isOwner }) {
                     </div>
                     {isSaving && (
                         <div className="flex items-center gap-1 text-sky-600 dark:text-sky-400">
-                            <div className="w-3 h-3 border border-blue-600 dark:border-sky-400 border-t-transparent rounded-full animate-spin" />
+                            <div className="w-3 h-3 border border-sky-600 dark:border-sky-400 border-t-transparent rounded-full animate-spin" />
                             <span className="text-xs">{t("Saving...")}</span>
                         </div>
                     )}
