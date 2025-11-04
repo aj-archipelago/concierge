@@ -54,6 +54,7 @@ export default function PublishedAppletPage() {
     if (applet && typeof applet.publishedVersionIndex === "number") {
         return (
             <PublishedAppletView
+                key={applet._id || id}
                 applet={applet}
                 app={null} // No app document for non-app-store publishing
                 isLoading={false}

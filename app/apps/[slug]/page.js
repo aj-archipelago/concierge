@@ -13,6 +13,7 @@ export default function AppBySlugPage() {
 
     return (
         <PublishedAppletView
+            key={applet?._id || app?._id || slug}
             applet={applet}
             app={app}
             isLoading={isLoading}

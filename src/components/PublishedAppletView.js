@@ -42,11 +42,12 @@ export default function PublishedAppletView({
         ) {
             setError("This applet is not published.");
             setPublishedHtml(null);
-        } else {
-            setError(null);
-            setPublishedHtml(htmlVersions[publishedVersionIndex].content);
+            return;
         }
-    }, [applet, isLoading, appletError]);
+
+        setError(null);
+        setPublishedHtml(htmlVersions[publishedVersionIndex].content);
+    }, [applet, isLoading, appletError, app]);
 
     // Check if app is installed
     const isAppInstalled = currentUser?.apps?.some(
