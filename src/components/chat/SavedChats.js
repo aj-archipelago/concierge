@@ -158,6 +158,31 @@ function SavedChats({ displayState }) {
         }
     }, [data]);
 
+    const sharedChats = useMemo(() => {
+        if (!Array.isArray(allChats)) return [];
+        return allChats.filter((chat) => chat?.isPublic);
+    }, [allChats]);
+
+    const shouldIncludeChat = useCallback(
+        (chat) => !showSharedOnly || Boolean(chat?.isPublic),
+        [showSharedOnly],
+    );
+
+    const filterSharedChats = useCallback(
+        (chats) => {
+            if (!Array.isArray(chats)) {
+                return [];
+            }
+
+            if (!showSharedOnly) {
+                return chats;
+            }
+
+            return chats.filter(shouldIncludeChat);
+        },
+        [showSharedOnly, shouldIncludeChat],
+    );
+
     // Wrapper to clear selection and reset last selected
     const clearSelection = useCallback(() => {
         clearSelectionHook();
@@ -608,12 +633,7 @@ function SavedChats({ displayState }) {
 
         const now = dayjs();
         data.pages.forEach((page) => {
-            page.forEach((chat) => {
-                // Filter out non-shared chats when showSharedOnly is active
-                if (showSharedOnly && !chat.isPublic) {
-                    return;
-                }
-
+            filterSharedChats(page).forEach((chat) => {
                 const chatDate = dayjs(chat.createdAt);
                 if (chatDate.isSame(now, "day")) {
                     categories.today.push(chat);
@@ -630,7 +650,7 @@ function SavedChats({ displayState }) {
         });
 
         return categories;
-    }, [data, showSharedOnly]);
+    }, [data, filterSharedChats]);
 
     const handleCreateNewChat = async () => {
         try {
@@ -910,6 +930,11 @@ function SavedChats({ displayState }) {
         additionalConditions: [!isBulkProcessing],
     });
 
+    const filteredSearchResults = useMemo(
+        () => filterSharedChats(searchResults),
+        [filterSharedChats, searchResults],
+    );
+
     // Decide which content matches to show (server preferred), then memoize visible sets BEFORE any conditional returns
     // Filter out any content matches that are already in title matches to avoid duplicates
     const titleMatchIds = useMemo(() => {
@@ -928,17 +953,21 @@ function SavedChats({ displayState }) {
                 : contentMatches;
 
         // Filter out any chats that are already in title matches and apply shared filter
-        return rawContentMatches.filter((chat) => {
+        const sharedContentMatches = filterSharedChats(rawContentMatches);
+
+        return sharedContentMatches.filter((chat) => {
             if (!chat?._id) return false;
             const chatIdStr = getChatIdString(chat._id);
             if (!chatIdStr || titleMatchIds.has(chatIdStr)) return false;
 
-            // Filter out non-shared chats when showSharedOnly is active
-            if (showSharedOnly && !chat.isPublic) return false;
-
             return true;
         });
-    }, [contentServerResults, contentMatches, titleMatchIds, showSharedOnly]);
+    }, [
+        contentServerResults,
+        contentMatches,
+        titleMatchIds,
+        filterSharedChats,
+    ]);
 
     const updateBottomActionsPosition = useCallback(() => {
         if (typeof window === "undefined") {
@@ -985,8 +1014,18 @@ function SavedChats({ displayState }) {
                 : [];
             return [...title, ...content];
         }
+        if (showSharedOnly) {
+            return sharedChats;
+        }
         return Array.isArray(allChats) ? allChats : [];
-    }, [searchQuery, filteredSearchResults, contentMatchesDisplay, allChats]);
+    }, [
+        searchQuery,
+        filteredSearchResults,
+        contentMatchesDisplay,
+        allChats,
+        showSharedOnly,
+        sharedChats,
+    ]);
 
     const visibleIdSet = useMemo(() => {
         const set = new Set();
@@ -1007,14 +1046,14 @@ function SavedChats({ displayState }) {
         }
         if (showSharedOnly) {
             // Count shared chats when filter is active
-            return allChats.filter((chat) => chat?.isPublic).length;
+            return sharedChats.length;
         }
         return totalChatCount;
     }, [
         searchQuery,
         showSharedOnly,
         visibleChats.length,
-        allChats,
+        sharedChats.length,
         totalChatCount,
     ]);
 
@@ -1098,12 +1137,6 @@ function SavedChats({ displayState }) {
         setTitleSearchLimit(MAX_TITLE_SEARCH_LIMIT);
         setServerContentLimit(500);
     }, []);
-
-    // Filter search results for shared chats when showSharedOnly is active
-    const filteredSearchResults = useMemo(() => {
-        if (!showSharedOnly) return searchResults;
-        return searchResults.filter((chat) => chat?.isPublic);
-    }, [searchResults, showSharedOnly]);
 
     if (areChatsLoading) {
         return <Loader />;
