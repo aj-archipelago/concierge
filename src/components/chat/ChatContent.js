@@ -163,7 +163,13 @@ function ChatContent({
                     content: optimisticUserMessage.payload,
                 });
 
-                const { contextId, aiMemorySelfModify, aiName, aiStyle } = user;
+                const {
+                    contextId,
+                    contextKey,
+                    aiMemorySelfModify,
+                    aiName,
+                    aiStyle,
+                } = user;
 
                 // Use entity ID directly from the prop
                 const currentSelectedEntityId = selectedEntityIdFromProp || "";
@@ -171,6 +177,7 @@ function ChatContent({
                 const variables = {
                     chatHistory: conversation,
                     contextId,
+                    contextKey,
                     // Use entity name if available, else fallback to default
                     aiName:
                         entities?.find((e) => e.id === currentSelectedEntityId)

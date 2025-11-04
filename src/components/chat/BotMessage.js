@@ -9,8 +9,8 @@ import { convertMessageToMarkdown } from "./ChatMessage";
 import EntityIcon from "./EntityIcon";
 
 const MemoizedMarkdownMessage = React.memo(
-    ({ message }) => {
-        return convertMessageToMarkdown(message);
+    ({ message, onLoad }) => {
+        return convertMessageToMarkdown(message, true, onLoad);
     },
     (prevProps, nextProps) => {
         // If messages are completely identical, no need to re-render
@@ -364,6 +364,7 @@ const BotMessage = ({
     selectedEntityId,
     entities = [],
     entityIconSize,
+    onLoad,
 }) => {
     const { t } = useTranslation();
     const { data: serverTask } = useTask(message.taskId);
@@ -512,7 +513,10 @@ const BotMessage = ({
                             {message.taskId && task ? (
                                 <TaskPlaceholder message={message} />
                             ) : (
-                                <MemoizedMarkdownMessage message={message} />
+                                <MemoizedMarkdownMessage
+                                    message={message}
+                                    onLoad={onLoad}
+                                />
                             )}
                         </React.Fragment>
                     </div>

@@ -22,8 +22,8 @@ function Output({ output, onDelete }) {
 
     // Check if the output is HTML content
     const isHtmlContent =
-        output.output.trim().startsWith("<!DOCTYPE html>") ||
-        output.output.trim().startsWith("<html>") ||
+        output.output?.trim().startsWith("<!DOCTYPE html>") ||
+        output.output?.trim().startsWith("<html>") ||
         (output.tool && JSON.parse(output.tool)?.isHtml);
 
     return (

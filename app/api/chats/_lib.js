@@ -3,6 +3,11 @@ import Chat from "../models/chat.mjs";
 import { getCurrentUser } from "../utils/auth";
 import mongoose from "mongoose";
 import { Types } from "mongoose";
+import { parseSearchQuery, matchesAllTerms } from "../utils/search-parser";
+
+// Search limits for title search
+const DEFAULT_TITLE_SEARCH_LIMIT = 20;
+const DEFAULT_TITLE_SEARCH_SCAN_LIMIT = 500;
 
 const getSimpleTitle = (message) => {
     return (message?.payload || "").substring(0, 14);
@@ -393,4 +398,105 @@ export async function deleteChatIdFromRecentList(chatId) {
     );
 
     return { recentChatIds, activeChatId: activeChatId.toString() };
+}
+
+// Returns total number of chats for current user
+export async function getTotalChatCount() {
+    const currentUser = await getCurrentUser(false);
+    return await Chat.countDocuments({ userId: currentUser._id });
+}
+
+// Title search that avoids regex on encrypted fields by filtering in memory
+// Scans recent chats up to scanLimit and returns up to limit matches
+// Supports space-separated terms with AND logic and "quoted phrases"
+export async function searchChatTitles(
+    searchTerm,
+    {
+        limit = DEFAULT_TITLE_SEARCH_LIMIT,
+        scanLimit = DEFAULT_TITLE_SEARCH_SCAN_LIMIT,
+    } = {},
+) {
+    const currentUser = await getCurrentUser(false);
+    const term = String(searchTerm || "").trim();
+    if (!term) return [];
+
+    // Parse search query into terms (handles quotes and spaces)
+    const searchTerms = parseSearchQuery(term);
+    if (searchTerms.length === 0) return [];
+
+    // Fetch a window of recent chats; fields will be auto-decrypted by CSFLE
+    const chats = await Chat.find(
+        { userId: currentUser._id },
+        {
+            _id: 1,
+            title: 1,
+            createdAt: 1,
+            updatedAt: 1,
+            messages: { $slice: 1 },
+        },
+    )
+        .sort({ updatedAt: -1 })
+        .limit(scanLimit)
+        .lean();
+
+    const results = [];
+    for (const chat of chats) {
+        const title = chat?.title || "";
+        if (matchesAllTerms(title, searchTerms)) {
+            results.push(chat);
+            if (results.length >= limit) break;
+        }
+    }
+    return results;
+}
+
+// Content search that avoids regex on encrypted fields by filtering in memory
+// Scans recent chats (by updatedAt desc) up to scanLimit
+// For speed, only inspects the last `slice` messages per chat
+// Supports space-separated terms with AND logic and "quoted phrases"
+const MIN_MESSAGE_SLICE = 1;
+
+const getMessageSliceWindow = (slice) => -Math.max(MIN_MESSAGE_SLICE, slice);
+
+export async function searchChatContent(
+    searchTerm,
+    { limit = 20, scanLimit = 500, slice = 50 } = {},
+) {
+    const currentUser = await getCurrentUser(false);
+    const term = String(searchTerm || "").trim();
+    if (!term) return [];
+
+    // Parse search query into terms (handles quotes and spaces)
+    const searchTerms = parseSearchQuery(term);
+    if (searchTerms.length === 0) return [];
+
+    // Fetch a window of recent chats; fields will be auto-decrypted by CSFLE
+    const chats = await Chat.find(
+        { userId: currentUser._id },
+        {
+            _id: 1,
+            title: 1,
+            createdAt: 1,
+            updatedAt: 1,
+            // Use a helper to ensure at least one message is returned when slice <= 0.
+            messages: { $slice: getMessageSliceWindow(slice) },
+        },
+    )
+        .sort({ updatedAt: -1 })
+        .limit(scanLimit)
+        .lean();
+
+    const results = [];
+    for (const chat of chats) {
+        const msgs = Array.isArray(chat?.messages) ? chat.messages : [];
+        const hasMatch = msgs.some((m) => {
+            if (!m || typeof m.payload !== "string") return false;
+            return matchesAllTerms(m.payload, searchTerms);
+        });
+        if (hasMatch) {
+            results.push(chat);
+            if (results.length >= limit) break;
+        }
+    }
+    return results;
 }

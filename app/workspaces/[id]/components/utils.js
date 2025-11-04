@@ -151,6 +151,55 @@ export function cleanJsonCodeBlocks(content) {
 }
 
 /**
+ * Extracts HTML content from APPLET tags, stripping any markdown code blocks inside
+ * @param {string} content - The content that may contain APPLET tags
+ * @returns {string|null} - The extracted HTML content or null
+ */
+function extractHtmlFromAppletTag(content) {
+    if (!content || typeof content !== "string") {
+        return null;
+    }
+
+    // Look for APPLET tags (case-insensitive) with optional attributes
+    const appletStartRegex = /<APPLET(?:\s+[^>]*)?>/i;
+    const appletStartMatch = content.match(appletStartRegex);
+
+    if (!appletStartMatch) {
+        return null;
+    }
+
+    const startIndex = appletStartMatch.index;
+    const tagLength = appletStartMatch[0].length;
+    const afterStart = content.substring(startIndex + tagLength);
+
+    // Look for closing tag
+    const closingMatch = afterStart.match(/<\/APPLET\s*>/i);
+
+    if (!closingMatch) {
+        return null; // Tag not closed, can't extract reliably in non-streaming context
+    }
+
+    const appletContent = afterStart.substring(0, closingMatch.index).trim();
+
+    if (!appletContent) {
+        return null;
+    }
+
+    let htmlContent = appletContent;
+
+    // If the content inside APPLET tags contains markdown code blocks, extract the inner content
+    const codeBlockRegex = /```(?:html)?\s*([\s\S]*?)```/g;
+    const codeBlockMatches = [...appletContent.matchAll(codeBlockRegex)];
+
+    if (codeBlockMatches.length > 0) {
+        // Use the last (most complete) code block content
+        htmlContent = codeBlockMatches[codeBlockMatches.length - 1][1].trim();
+    }
+
+    return htmlContent || null;
+}
+
+/**
  * Extracts HTML content from code block response, handling both complete and partial code blocks
  * @param {string} content - The streaming content
  * @returns {object|null} - Object with html and changes properties, or null
@@ -160,7 +209,17 @@ export function extractHtmlFromStreamingContent(content) {
         return null;
     }
 
-    // Look for code blocks anywhere in the content
+    // First try to extract from APPLET tags
+    const htmlContent = extractHtmlFromAppletTag(content);
+    if (htmlContent) {
+        return {
+            html: htmlContent,
+            changes: "HTML code generated from APPLET tag",
+            isComplete: true,
+        };
+    }
+
+    // Fallback: Look for code blocks anywhere in the content (for backward compatibility)
     const codeBlockRegex = /```(?:html)?\s*([\s\S]*?)```/g;
     let match;
     let lastMatch = null;
@@ -171,10 +230,10 @@ export function extractHtmlFromStreamingContent(content) {
     }
 
     if (lastMatch) {
-        const htmlContent = lastMatch[1].trim();
-        if (htmlContent) {
+        const htmlFromBlock = lastMatch[1].trim();
+        if (htmlFromBlock) {
             return {
-                html: htmlContent,
+                html: htmlFromBlock,
                 changes: "HTML code generated from code block",
                 isComplete: true,
             };
@@ -186,16 +245,73 @@ export function extractHtmlFromStreamingContent(content) {
 }
 
 /**
- * Detects if content contains a code block and extracts partial HTML content during streaming
+ * Detects if content contains an APPLET tag and extracts partial HTML content during streaming
  * @param {string} content - The streaming content
- * @returns {object|null} - Object with html (partial), isInCodeBlock, changes, and chatContent properties, or null
+ * @returns {object|null} - Object with html (partial), isInApplet, changes, and chatContent properties, or null
  */
 export function detectCodeBlockInStream(content) {
     if (!content || typeof content !== "string") {
         return null;
     }
 
-    // Check if we're inside a code block
+    // First, check for APPLET tags (case-insensitive)
+    // Handle opening tag with optional whitespace and attributes: <APPLET>, <APPLET >, <APPLET id="...">
+    const appletStartRegex = /<APPLET(?:\s+[^>]*)?>/i;
+    const appletStartMatch = content.match(appletStartRegex);
+
+    if (appletStartMatch) {
+        const startIndex = appletStartMatch.index;
+        const tagLength = appletStartMatch[0].length; // Length of the actual matched tag
+        const afterStart = content.substring(startIndex + tagLength);
+        const closingMatch = afterStart.match(/<\/APPLET\s*>/i);
+
+        // Extract content before APPLET tag for chat display
+        const beforeApplet = content.substring(0, startIndex).trim();
+
+        let appletContent = "";
+        let isComplete = false;
+
+        if (closingMatch) {
+            // Complete APPLET tag
+            appletContent = afterStart.substring(0, closingMatch.index);
+            isComplete = true;
+        } else {
+            // Streaming - APPLET tag not yet closed, take everything after the opening tag
+            appletContent = afterStart;
+            isComplete = false;
+        }
+
+        // Extract HTML from inside APPLET tag, handling potential markdown code blocks
+        let htmlContent = appletContent.trim();
+
+        // If content contains markdown code blocks, extract from the last one
+        // Handle both complete and streaming code blocks
+        const codeBlockRegex = /```(?:html)?\s*([\s\S]*?)(?:```|$)/g;
+        const codeBlockMatches = [...appletContent.matchAll(codeBlockRegex)];
+
+        if (codeBlockMatches.length > 0) {
+            // Use the last (most complete) code block
+            const lastMatch = codeBlockMatches[codeBlockMatches.length - 1];
+            const extracted = lastMatch[1].trim();
+            if (extracted) {
+                htmlContent = extracted;
+            }
+        }
+
+        // Return if we have any content inside the APPLET tag
+        // During streaming, return even if content is still being generated
+        if (appletContent || htmlContent) {
+            return {
+                html: htmlContent || appletContent.trim(),
+                isInCodeBlock: !isComplete,
+                changes: "HTML code being generated...",
+                isComplete: isComplete,
+                chatContent: beforeApplet || null,
+            };
+        }
+    }
+
+    // Fallback: Check if we're inside a code block (for backward compatibility)
     const codeBlockStartRegex = /```(?:html)?\s*$/;
     const codeBlockEndRegex = /```$/;
 
@@ -251,20 +367,28 @@ export function detectCodeBlockInStream(content) {
 }
 
 /**
- * Extracts chat content (non-code-block text) from a complete response
+ * Extracts chat content (non-applet text) from a complete response
+ * Removes APPLET tags entirely without leaving placeholders
  * @param {string} content - The complete response content
- * @returns {string} - The chat content with placeholders for code blocks
+ * @returns {string} - The chat content with APPLET tags removed
  */
 export function extractChatContent(content) {
     if (!content || typeof content !== "string") {
         return content;
     }
 
-    // Replace code blocks with placeholders
-    const codeBlockRegex = /```(?:html)?\s*[\s\S]*?```/g;
-    const chatContent = content
-        .replace(codeBlockRegex, "**Applet code generated and applied.**")
-        .trim();
+    // Remove APPLET tags entirely (with any attributes)
+    // Match opening tag (case-insensitive, with optional attributes), content, and closing tag
+    const appletTagRegex = /<APPLET(?:\s+[^>]*)?>[\s\S]*?<\/APPLET>/gi;
+    let chatContent = content.replace(appletTagRegex, "");
 
-    return chatContent || content; // Return original content if nothing remains
+    // Clean up whitespace: normalize 2+ consecutive newlines to single newline
+    // This handles cases where APPLET tags were on their own lines
+    chatContent = chatContent.replace(/\n{2,}/g, "\n");
+
+    // Trim any extra whitespace left behind
+    chatContent = chatContent.trim();
+
+    // Return the cleaned content (even if empty)
+    return chatContent;
 }

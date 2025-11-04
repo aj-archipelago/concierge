@@ -504,9 +504,10 @@ function PublishedWorkspace({ workspace }) {
                 <pre>
                     {`
 QUERY:
-query ExecuteWorkspace($pathwayName: String!, $text: String, $userId: String!) {
-  executeWorkspace(pathwayName: $pathwayName, text: $text, userId: $userId) {
+query ExecuteWorkspace($pathwayName: String!, $text: String, $userId: String!, $promptNames: [String]) {
+  executeWorkspace(pathwayName: $pathwayName, text: $text, userId: $userId, promptNames: $promptNames) {
     result
+    errors
   }
 }
 
@@ -514,8 +515,21 @@ VARIABLES:
 {
   "text": "Hello, world",
   "pathwayName": "${pathway?.name}",
-  "userId": "${user.username}"
+  "userId": "${user.username}",
+  "promptNames": null
 }
+
+NOTES:
+• promptNames: Optional array of prompt names to execute specific prompts
+  - If provided, only those prompts will be executed in parallel
+  - Example: "promptNames": ["Grammar Check", "Tone Analysis"]
+  - Use ["*"] to execute all prompts in parallel
+• Default behavior (promptNames omitted): prompts are applied to the input serially and only one result is returned
+• Parallel execution: When promptNames contains specific names or ["*"], all specified prompts execute simultaneously
+• Response format:
+  - Serial execution: Single result string in result field
+  - Parallel execution: JSON.stringify([{result: <string>, promptName: <string>}, ...]) in result field
+    - Returns an array of results (one per executed prompt)
                     `}
                 </pre>
             </div>
@@ -543,7 +557,7 @@ function UnpublishedWorkspace({ workspace }) {
     const publishWorkspace = usePublishWorkspace();
     const { t } = useTranslation();
     const { data: prompts, isLoading: promptsLoading } = usePromptsByIds(
-        workspace.prompts,
+        workspace.prompts?.map((prompt) => prompt._id || prompt) || [],
     );
 
     const pathwayName = stringcase.snakecase(workspace.name);

@@ -457,6 +457,13 @@ export default function AppsPage() {
                                                             <h3 className="font-medium text-gray-900 dark:text-gray-100 truncate">
                                                                 {t(app.name)}
                                                             </h3>
+                                                            {app.description && (
+                                                                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 line-clamp-2">
+                                                                    {
+                                                                        app.description
+                                                                    }
+                                                                </p>
+                                                            )}
                                                         </div>
                                                     </div>
                                                 </div>
@@ -489,12 +496,23 @@ export default function AppsPage() {
                                                         onClick={() => {
                                                             if (
                                                                 app.type ===
-                                                                    "applet" &&
-                                                                app.workspaceId
+                                                                "applet"
                                                             ) {
-                                                                router.push(
-                                                                    `/published/workspaces/${app.workspaceId}/applet`,
-                                                                );
+                                                                if (app.slug) {
+                                                                    // Use new slug-based route
+                                                                    router.push(
+                                                                        `/apps/${app.slug}`,
+                                                                    );
+                                                                } else if (
+                                                                    app.workspaceId
+                                                                ) {
+                                                                    // Fallback to old route for backwards compatibility
+                                                                    router.push(
+                                                                        app.slug
+                                                                            ? `/apps/${app.slug}`
+                                                                            : `/published/workspaces/${app.workspaceId}/applet`,
+                                                                    );
+                                                                }
                                                             } else if (
                                                                 app.slug
                                                             ) {
@@ -559,6 +577,13 @@ export default function AppsPage() {
                                                                         app.name,
                                                                     )}
                                                                 </h3>
+                                                                {app.description && (
+                                                                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 line-clamp-2">
+                                                                        {
+                                                                            app.description
+                                                                        }
+                                                                    </p>
+                                                                )}
                                                             </div>
                                                         </div>
                                                         <div className="mt-2 space-y-1">

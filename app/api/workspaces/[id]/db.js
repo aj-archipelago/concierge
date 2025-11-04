@@ -7,9 +7,21 @@ export async function getWorkspace(id) {
     let workspace;
 
     if (mongoose.isObjectIdOrHexString(id)) {
-        workspace = await Workspace.findOne({ _id: id });
+        workspace = await Workspace.findOne({ _id: id }).populate({
+            path: "prompts",
+            populate: {
+                path: "files",
+                model: "File",
+            },
+        });
     } else {
-        workspace = await Workspace.findOne({ slug: id });
+        workspace = await Workspace.findOne({ slug: id }).populate({
+            path: "prompts",
+            populate: {
+                path: "files",
+                model: "File",
+            },
+        });
     }
 
     const user = await getCurrentUser();

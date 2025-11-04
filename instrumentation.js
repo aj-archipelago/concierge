@@ -131,27 +131,48 @@ async function seedNativeApps() {
             slug: "translate",
             type: APP_TYPES.NATIVE,
             icon: "Globe",
+            description:
+                "Translate text between multiple languages with AI-powered accuracy",
         },
-        { name: "Video", slug: "video", type: APP_TYPES.NATIVE, icon: "Video" },
+        {
+            name: "Transcribe",
+            slug: "video",
+            type: APP_TYPES.NATIVE,
+            icon: "Video",
+            description:
+                "Transcribe and translate video and audio files with AI-powered accuracy",
+        },
         {
             name: "Write",
             slug: "write",
             type: APP_TYPES.NATIVE,
             icon: "Pencil",
+            description:
+                "Write and edit content with AI-powered writing assistance",
         },
         {
             name: "Workspaces",
             slug: "workspaces",
             type: APP_TYPES.NATIVE,
             icon: "AppWindow",
+            description:
+                "Manage your AI workspaces and collaborate on projects",
         },
         {
             name: "Media",
             slug: "media",
             type: APP_TYPES.NATIVE,
             icon: "Image",
+            description: "Generate and manage images and media content",
         },
-        { name: "Jira", slug: "jira", type: APP_TYPES.NATIVE, icon: "Bug" },
+        {
+            name: "Jira",
+            slug: "jira",
+            type: APP_TYPES.NATIVE,
+            icon: "Bug",
+            description:
+                "Integrate with Jira for issue tracking and project management",
+        },
     ];
 
     // Upsert each native app

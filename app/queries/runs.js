@@ -28,17 +28,47 @@ export function useCreateRun() {
     const queryClient = useQueryClient();
 
     const mutation = useMutation({
-        mutationFn: async ({ text, promptId, systemPrompt, workspaceId }) => {
+        mutationFn: async ({
+            text,
+            promptId,
+            systemPrompt,
+            workspaceId,
+            files,
+        }) => {
             const { data } = await axios.post(`/api/runs`, {
                 text,
                 promptId,
                 systemPrompt,
                 workspaceId,
+                files,
             });
             return data;
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ["runs"] });
+        },
+    });
+
+    return mutation;
+}
+
+export function useCreateStreamRun() {
+    const mutation = useMutation({
+        mutationFn: async ({
+            text,
+            promptId,
+            systemPrompt,
+            workspaceId,
+            chatHistory,
+        }) => {
+            const { data } = await axios.post(`/api/runs/stream`, {
+                text,
+                promptId,
+                systemPrompt,
+                workspaceId,
+                chatHistory,
+            });
+            return data;
         },
     });
 

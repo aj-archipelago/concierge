@@ -7,7 +7,7 @@ import {
 import axios from "../utils/axios-client";
 import { isValidObjectId } from "../../src/utils/helper.js";
 
-export const DEFAULT_PAGE_SIZE = 10;
+export const DEFAULT_PAGE_SIZE = 30;
 
 export function useGetChats() {
     return useInfiniteQuery({
@@ -64,12 +64,62 @@ export function useGetActiveChats() {
     });
 }
 
+// Search chats by title (server side)
+export function useSearchChats(searchQuery, { limit = 20 } = {}) {
+    return useQuery({
+        queryKey: ["searchChats", searchQuery, limit],
+        queryFn: async () => {
+            if (!searchQuery) return [];
+            const response = await axios.get(
+                `/api/chats?search=${encodeURIComponent(searchQuery)}&limit=${limit}`,
+            );
+            return response.data || [];
+        },
+        enabled:
+            typeof searchQuery === "string" && searchQuery.trim().length > 0,
+        staleTime: 1000 * 30,
+    });
+}
+// Server-side content search (CSFLE-safe) scanning recent chats
+export function useSearchContent(searchQuery, { limit = 20 } = {}) {
+    return useQuery({
+        queryKey: ["searchContent", searchQuery, limit],
+        queryFn: async () => {
+            if (!searchQuery) return [];
+            const response = await axios.get(
+                `/api/chats?content=${encodeURIComponent(searchQuery)}&limit=${limit}`,
+            );
+            const data = Array.isArray(response.data) ? response.data : [];
+            return data.slice(0, limit);
+        },
+        enabled:
+            typeof searchQuery === "string" && searchQuery.trim().length > 0,
+        staleTime: 1000 * 30,
+    });
+}
+
+// Total chat count for current user
+export function useTotalChatCount() {
+    return useQuery({
+        queryKey: ["totalChatCount"],
+        queryFn: async () => {
+            const response = await axios.get(`/api/chats/count`);
+            return Number(response.data || 0);
+        },
+        staleTime: 1000 * 60,
+    });
+}
+
 function temporaryNewChat({ messages, title }) {
     const tempId = `temp_${Date.now()}_${crypto.randomUUID()}`;
+    const now = new Date().toISOString();
     return {
         _id: tempId,
         messages: messages || [],
         title: title || "",
+        // Ensure optimistic items categorize correctly and display timestamps
+        createdAt: now,
+        updatedAt: now,
         isTemporary: true,
     };
 }
@@ -97,6 +147,7 @@ export function useAddChat() {
                 queryClient.getQueryData(["activeChats"]) || [];
             const previousUserChatInfo =
                 queryClient.getQueryData(["userChatInfo"]) || {};
+            const previousChats = queryClient.getQueryData(["chats"]);
 
             // Create an optimistic chat entry
             const optimisticChat = temporaryNewChat(newChatData);
@@ -123,10 +174,22 @@ export function useAddChat() {
                     : [optimisticChat._id],
             });
 
+            // Optimistically add to chats infinite list (prepend to first page)
+            queryClient.setQueryData(["chats"], (old) => {
+                if (!old || !old.pages) return old;
+                return {
+                    ...old,
+                    pages: old.pages.map((page, idx) =>
+                        idx === 0 ? [optimisticChat, ...page] : page,
+                    ),
+                };
+            });
+
             // Return context for potential rollback
             return {
                 previousActiveChats,
                 previousUserChatInfo,
+                previousChats,
                 optimisticChatId: optimisticChat._id,
             };
         },
@@ -141,6 +204,9 @@ export function useAddChat() {
                     ["userChatInfo"],
                     context.previousUserChatInfo,
                 );
+                if (context.previousChats) {
+                    queryClient.setQueryData(["chats"], context.previousChats);
+                }
                 queryClient.removeQueries({
                     queryKey: ["chat", context.optimisticChatId],
                 });
@@ -169,6 +235,43 @@ export function useAddChat() {
                 ];
             });
 
+            // Update chats infinite list immediately to replace optimistic
+            queryClient.setQueryData(["chats"], (old) => {
+                if (!old || !old.pages) return old;
+
+                const updateChatsPages = (
+                    pages,
+                    confirmedChat,
+                    optimisticId,
+                ) => {
+                    if (!Array.isArray(pages)) return [];
+                    return pages.map((page, idx) => {
+                        if (idx === 0) {
+                            const safePage = Array.isArray(page) ? page : [];
+                            const filtered = safePage.filter(
+                                (c) =>
+                                    c._id !== optimisticId &&
+                                    c._id !== confirmedChat._id,
+                            );
+                            return [confirmedChat, ...filtered];
+                        }
+                        const safeRest = Array.isArray(page) ? page : [];
+                        return safeRest.map((c) =>
+                            c._id === optimisticId ? confirmedChat : c,
+                        );
+                    });
+                };
+
+                return {
+                    ...old,
+                    pages: updateChatsPages(
+                        old.pages,
+                        serverChat,
+                        context?.optimisticChatId,
+                    ),
+                };
+            });
+
             // Update the userChatInfo with the actual chat ID
             queryClient.setQueryData(["userChatInfo"], (oldData = {}) => {
                 return {
@@ -192,6 +295,11 @@ export function useAddChat() {
             queryClient.invalidateQueries({ queryKey: ["chats"] });
             queryClient.invalidateQueries({ queryKey: ["activeChats"] });
             queryClient.invalidateQueries({ queryKey: ["userChatInfo"] });
+            queryClient.invalidateQueries({ queryKey: ["totalChatCount"] });
+            // Ensure title search results include newly added chats immediately
+            queryClient.invalidateQueries({ queryKey: ["searchChats"] });
+            // Ensure server-side content search includes newly added chats immediately
+            queryClient.invalidateQueries({ queryKey: ["searchContent"] });
         },
     });
 }
@@ -272,6 +380,7 @@ export function useDeleteChat() {
                 queryClient.getQueryData(["activeChats"]) || [];
             const previousUserChatInfo =
                 queryClient.getQueryData(["userChatInfo"]) || {};
+            const previousChats = queryClient.getQueryData(["chats"]);
 
             const updatedActiveChats = previousActiveChats.filter(
                 (chat) => chat._id !== chatId,
@@ -294,7 +403,20 @@ export function useDeleteChat() {
             queryClient.setQueryData(["activeChats"], updatedActiveChats);
             queryClient.setQueryData(["userChatInfo"], updatedUserChatInfo);
 
-            return { previousActiveChats, previousUserChatInfo };
+            // Optimistically remove from chats infinite list
+            queryClient.setQueryData(["chats"], (old) => {
+                if (!old || !old.pages) return old;
+                return {
+                    ...old,
+                    pages: old.pages.map((page) =>
+                        Array.isArray(page)
+                            ? page.filter((chat) => chat._id !== chatId)
+                            : page,
+                    ),
+                };
+            });
+
+            return { previousActiveChats, previousUserChatInfo, previousChats };
         },
         onError: (err, variables, context) => {
             if (context?.previousActiveChats) {
@@ -309,11 +431,83 @@ export function useDeleteChat() {
                     context.previousUserChatInfo,
                 );
             }
+            if (context?.previousChats) {
+                queryClient.setQueryData(["chats"], context.previousChats);
+            }
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ["userChatInfo"] });
             queryClient.invalidateQueries({ queryKey: ["activeChats"] });
             queryClient.invalidateQueries({ queryKey: ["chats"] });
+            queryClient.invalidateQueries({ queryKey: ["totalChatCount"] });
+            queryClient.invalidateQueries({ queryKey: ["searchChats"] });
+            queryClient.invalidateQueries({ queryKey: ["searchContent"] });
+        },
+    });
+}
+
+export function useBulkImportChats() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: async ({ chats }) => {
+            if (!Array.isArray(chats)) {
+                throw new Error("chats must be an array");
+            }
+            const response = await axios.post(`/api/chats/bulk`, { chats });
+            const data = response.data || {};
+            return {
+                createdIds: Array.isArray(data.createdIds)
+                    ? data.createdIds.map((id) => String(id))
+                    : [],
+                createdChats: Array.isArray(data.createdChats)
+                    ? data.createdChats
+                    : [],
+                errors: Array.isArray(data.errors) ? data.errors : [],
+                createdCount: Number.isFinite(data.createdCount)
+                    ? data.createdCount
+                    : 0,
+            };
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ["chats"] });
+            queryClient.invalidateQueries({ queryKey: ["activeChats"] });
+            queryClient.invalidateQueries({ queryKey: ["userChatInfo"] });
+            queryClient.invalidateQueries({ queryKey: ["totalChatCount"] });
+            queryClient.invalidateQueries({ queryKey: ["searchChats"] });
+            queryClient.invalidateQueries({ queryKey: ["searchContent"] });
+        },
+    });
+}
+
+export function useBulkDeleteChats() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: async ({ chatIds }) => {
+            if (!Array.isArray(chatIds)) {
+                throw new Error("chatIds must be an array");
+            }
+            const response = await axios.delete(`/api/chats/bulk`, {
+                data: { chatIds },
+            });
+            const data = response.data || {};
+            return {
+                deletedIds: Array.isArray(data.deletedIds)
+                    ? data.deletedIds.map((id) => String(id))
+                    : [],
+                missingIds: Array.isArray(data.missingIds)
+                    ? data.missingIds.map((id) => String(id))
+                    : [],
+            };
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ["userChatInfo"] });
+            queryClient.invalidateQueries({ queryKey: ["activeChats"] });
+            queryClient.invalidateQueries({ queryKey: ["chats"] });
+            queryClient.invalidateQueries({ queryKey: ["totalChatCount"] });
+            queryClient.invalidateQueries({ queryKey: ["searchChats"] });
+            queryClient.invalidateQueries({ queryKey: ["searchContent"] });
         },
     });
 }

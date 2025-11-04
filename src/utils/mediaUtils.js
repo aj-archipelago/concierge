@@ -1,6 +1,14 @@
 import xxhash from "xxhash-wasm";
 import mime from "mime-types";
 import { isYoutubeUrl } from "./urlUtils.js";
+import {
+    File,
+    FileImage,
+    FileText,
+    FileSpreadsheet,
+    FileVideo,
+    FileAudio,
+} from "lucide-react";
 
 let xxhashInstance = null;
 
@@ -229,3 +237,46 @@ export const getVideoDurationFromUrl = (url) => {
         video.onerror = reject;
     });
 };
+
+// Get file icon component based on filename
+export function getFileIcon(filename) {
+    if (!filename) return File;
+
+    const extension = filename.split(".").pop()?.toLowerCase();
+
+    switch (extension) {
+        case "pdf":
+            return FileImage;
+        case "doc":
+        case "docx":
+        case "txt":
+        case "md":
+        case "rtf":
+            return FileText;
+        case "xls":
+        case "xlsx":
+        case "csv":
+            return FileSpreadsheet;
+        case "mp4":
+        case "mov":
+        case "avi":
+        case "webm":
+        case "mkv":
+            return FileVideo;
+        case "mp3":
+        case "wav":
+        case "m4a":
+        case "aac":
+        case "ogg":
+            return FileAudio;
+        case "jpg":
+        case "jpeg":
+        case "png":
+        case "gif":
+        case "webp":
+        case "svg":
+            return FileImage;
+        default:
+            return File;
+    }
+}

@@ -9,21 +9,44 @@ import {
     useState,
 } from "react";
 import { useTranslation } from "react-i18next";
-import { Download, Trash2, Check, Plus, Settings, Loader2 } from "lucide-react";
+import { useInfiniteScroll } from "../../hooks/useInfiniteScroll";
+import {
+    Download,
+    Trash2,
+    Plus,
+    Settings,
+    Loader2,
+    X,
+    Tag,
+    Sparkles,
+} from "lucide-react";
 import { LanguageContext } from "../../contexts/LanguageProvider";
 import { AuthContext } from "../../App";
 import { Modal } from "../../../@/components/ui/modal";
 
-import ProgressUpdate from "../editor/ProgressUpdate";
 import {
     Tooltip,
     TooltipTrigger,
     TooltipContent,
     TooltipProvider,
 } from "../../../@/components/ui/tooltip";
+import {
+    Popover,
+    PopoverTrigger,
+    PopoverContent,
+} from "../../../@/components/ui/popover";
+import {
+    Select,
+    SelectContent,
+    SelectGroup,
+    SelectItem,
+    SelectLabel,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select";
+import { AutosizeTextarea } from "@/components/ui/autosize-textarea";
 import ChatImage from "./ChatImage";
-import axios from "../../../app/utils/axios-client";
-import { hashMediaFile } from "../../utils/mediaUtils";
+import ImageTile from "./ImageTile";
 import {
     AlertDialog,
     AlertDialogContent,
@@ -36,145 +59,33 @@ import {
 } from "../../../@/components/ui/alert-dialog";
 import { useRunTask } from "../../../app/queries/notifications";
 import {
-    useMediaItems,
+    useInfiniteMediaItems,
     useCreateMediaItem,
     useDeleteMediaItem,
     useMigrateMediaItems,
+    useUpdateMediaItemTags,
+    useCleanupOrphanedMediaItems,
 } from "../../../app/queries/media-items";
+
+// Import extracted modules and hooks
+import {
+    getModelSettings,
+    mergeNewModels,
+    migrateSettings,
+    DEFAULT_MODEL_SETTINGS,
+    getModelType,
+    getAvailableAspectRatios,
+    getAvailableDurations,
+} from "./config/models";
+import { useMediaSelection } from "./hooks/useItemSelection";
+import { useBulkOperations } from "./hooks/useBulkOperations";
+import { useModelSelection } from "./hooks/useModelSelection";
+import { useMediaGeneration } from "./hooks/useMediaGeneration";
+import { useFileUpload } from "./hooks/useFileUpload";
+import BulkActionsBar from "../common/BulkActionsBar";
+import FilterInput from "../common/FilterInput";
+import EmptyState from "../common/EmptyState";
 import "./Media.scss";
-
-// Function to get settings for a specific model
-const getModelSettings = (settings, modelName) => {
-    return settings.models?.[modelName] || getDefaultModelSettings(modelName);
-};
-
-// Function to get default settings for a model
-const getDefaultModelSettings = (modelName) => {
-    const defaults = {
-        // Image models
-        "replicate-flux-1-schnell": {
-            type: "image",
-            quality: "draft",
-            aspectRatio: "1:1",
-        },
-        "replicate-flux-11-pro": {
-            type: "image",
-            quality: "high",
-            aspectRatio: "1:1",
-        },
-        "replicate-flux-kontext-max": {
-            type: "image",
-            quality: "high",
-            aspectRatio: "match_input_image",
-        },
-        "replicate-multi-image-kontext-max": {
-            type: "image",
-            quality: "high",
-            aspectRatio: "1:1",
-        },
-        // Video models
-        "veo-2.0-generate": {
-            type: "video",
-            aspectRatio: "16:9",
-            duration: 5,
-            generateAudio: false,
-            resolution: "1080p",
-            cameraFixed: false,
-        },
-        "veo-3.0-generate": {
-            type: "video",
-            aspectRatio: "16:9",
-            duration: 8,
-            generateAudio: true,
-            resolution: "1080p",
-            cameraFixed: false,
-        },
-        "replicate-seedance-1-pro": {
-            type: "video",
-            aspectRatio: "16:9",
-            duration: 5,
-            generateAudio: false,
-            resolution: "1080p",
-            cameraFixed: false,
-        },
-    };
-    return defaults[modelName] || defaults["replicate-flux-11-pro"];
-};
-
-// Function to migrate old settings to new structure
-const migrateSettings = (oldSettings) => {
-    if (oldSettings.models) {
-        return oldSettings; // Already migrated
-    }
-
-    const newSettings = {
-        models: {
-            // Image models
-            "replicate-flux-1-schnell": {
-                type: "image",
-                quality: oldSettings.image?.defaultQuality || "draft",
-                aspectRatio: oldSettings.image?.defaultAspectRatio || "1:1",
-            },
-            "replicate-flux-11-pro": {
-                type: "image",
-                quality: "high",
-                aspectRatio: oldSettings.image?.defaultAspectRatio || "1:1",
-            },
-            "replicate-flux-kontext-max": {
-                type: "image",
-                quality: "high",
-                aspectRatio: "match_input_image",
-            },
-            "replicate-multi-image-kontext-max": {
-                type: "image",
-                quality: "high",
-                aspectRatio: "1:1",
-            },
-            // Video models
-            "veo-2.0-generate": {
-                type: "video",
-                aspectRatio: oldSettings.video?.defaultAspectRatio || "16:9",
-                duration: oldSettings.video?.defaultDuration || 5,
-                generateAudio: oldSettings.video?.defaultGenerateAudio || false,
-                resolution: oldSettings.video?.defaultResolution || "1080p",
-                cameraFixed: oldSettings.video?.defaultCameraFixed || false,
-            },
-            "veo-3.0-generate": {
-                type: "video",
-                aspectRatio: oldSettings.video?.defaultAspectRatio || "16:9",
-                duration: 8,
-                generateAudio:
-                    oldSettings.video?.defaultGenerateAudio !== false, // Default to true for Veo 3.0
-                resolution: oldSettings.video?.defaultResolution || "1080p",
-                cameraFixed: oldSettings.video?.defaultCameraFixed || false,
-            },
-            "replicate-seedance-1-pro": {
-                type: "video",
-                aspectRatio: oldSettings.video?.defaultAspectRatio || "16:9",
-                duration: oldSettings.video?.defaultDuration || 5,
-                generateAudio: oldSettings.video?.defaultGenerateAudio || false,
-                resolution: oldSettings.video?.defaultResolution || "1080p",
-                cameraFixed: oldSettings.video?.defaultCameraFixed || false,
-            },
-        },
-        // Keep legacy settings for backward compatibility
-        image: oldSettings.image || {
-            defaultQuality: "high",
-            defaultModel: "replicate-flux-11-pro",
-            defaultAspectRatio: "1:1",
-        },
-        video: oldSettings.video || {
-            defaultModel: "replicate-seedance-1-pro",
-            defaultAspectRatio: "16:9",
-            defaultDuration: 5,
-            defaultGenerateAudio: false,
-            defaultResolution: "1080p",
-            defaultCameraFixed: false,
-        },
-    };
-
-    return newSettings;
-};
 
 function MediaPage() {
     const { direction } = useContext(LanguageContext);
@@ -185,56 +96,25 @@ function MediaPage() {
     const [outputType, setOutputType] = useState("image"); // "image" or "video"
     const [selectedModel, setSelectedModel] = useState("replicate-flux-11-pro"); // Current selected model - Flux Pro as default
     const [showSettings, setShowSettings] = useState(false);
+    const [disableTooltip, setDisableTooltip] = useState(false);
+    const [filterText, setFilterText] = useState("");
+    const [debouncedFilterText, setDebouncedFilterText] = useState("");
     const runTask = useRunTask();
+
+    // Disable tooltip when settings dialog is open or just closed
+    useEffect(() => {
+        if (showSettings) {
+            setDisableTooltip(true);
+        } else {
+            // Keep disabled briefly after closing to prevent reappearance
+            const timer = setTimeout(() => {
+                setDisableTooltip(false);
+            }, 300);
+            return () => clearTimeout(timer);
+        }
+    }, [showSettings]);
     const [settings, setSettings] = useState({
-        models: {
-            // Image models
-            "replicate-flux-1-schnell": {
-                type: "image",
-                quality: "draft",
-                aspectRatio: "1:1",
-            },
-            "replicate-flux-11-pro": {
-                type: "image",
-                quality: "high",
-                aspectRatio: "1:1",
-            },
-            "replicate-flux-kontext-max": {
-                type: "image",
-                quality: "high",
-                aspectRatio: "match_input_image",
-            },
-            "replicate-multi-image-kontext-max": {
-                type: "image",
-                quality: "high",
-                aspectRatio: "1:1",
-            },
-            // Video models
-            "veo-2.0-generate": {
-                type: "video",
-                aspectRatio: "16:9",
-                duration: 5,
-                generateAudio: false,
-                resolution: "1080p",
-                cameraFixed: false,
-            },
-            "veo-3.0-generate": {
-                type: "video",
-                aspectRatio: "16:9",
-                duration: 8,
-                generateAudio: true,
-                resolution: "1080p",
-                cameraFixed: false,
-            },
-            "replicate-seedance-1-pro": {
-                type: "video",
-                aspectRatio: "16:9",
-                duration: 5,
-                generateAudio: false,
-                resolution: "1080p",
-                cameraFixed: false,
-            },
-        },
+        models: DEFAULT_MODEL_SETTINGS,
         // Legacy support - will be migrated
         image: {
             defaultQuality: "high",
@@ -251,20 +131,46 @@ function MediaPage() {
         },
     });
 
-    // New media items API with pagination
-    const [currentPage, setCurrentPage] = useState(1);
-    const [pageSize] = useState(50);
-
+    // Infinite scroll for media items API
     const {
-        data: mediaItemsData = { mediaItems: [], pagination: {} },
+        data: mediaItemsData,
         isLoading: mediaItemsLoading,
-    } = useMediaItems(currentPage, pageSize);
+        isFetchingNextPage,
+        hasNextPage,
+        fetchNextPage,
+    } = useInfiniteMediaItems(debouncedFilterText);
 
-    // Use mediaItems from API instead of local state
-    const images = useMemo(
-        () => mediaItemsData.mediaItems || [],
-        [mediaItemsData.mediaItems],
-    );
+    // Flatten all pages into a single array, deduplicating by taskId
+    const images = useMemo(() => {
+        if (!mediaItemsData?.pages) return [];
+        const allItems = mediaItemsData.pages.flatMap(
+            (page) => page.mediaItems || [],
+        );
+        // Deduplicate by taskId (or _id if taskId is missing) to prevent duplicate tiles
+        // Use a Map to track the most recent item for each ID
+        const seen = new Map();
+        const itemsWithoutId = [];
+
+        allItems.forEach((item) => {
+            const id = item.taskId || item._id || item.cortexRequestId;
+            if (!id) {
+                // Include items without IDs (shouldn't happen, but be safe)
+                itemsWithoutId.push(item);
+                return;
+            }
+            const existing = seen.get(id);
+            // Keep the item with the higher created timestamp (more recent)
+            if (
+                !existing ||
+                (item.created && item.created > existing.created)
+            ) {
+                seen.set(id, item);
+            }
+        });
+
+        // Combine deduplicated items with items that had no ID
+        return [...Array.from(seen.values()), ...itemsWithoutId];
+    }, [mediaItemsData?.pages]);
 
     // Memoize sorted images by creation date (newest first) - only if we have data
     const sortedImages = useMemo(() => {
@@ -274,32 +180,108 @@ function MediaPage() {
         return [];
     }, [images]);
 
-    const pagination = mediaItemsData.pagination || {};
+    // Infinite scroll detection and triggering
+    const { ref, shouldShowLoading } = useInfiniteScroll({
+        hasNextPage,
+        isFetchingNextPage,
+        fetchNextPage,
+    });
 
     const [showModal, setShowModal] = useState(false);
     const [selectedImage, setSelectedImage] = useState(null);
     const { t } = useTranslation();
     const [loading, setLoading] = useState(false);
-    const [selectedImages, setSelectedImages] = useState(new Set());
-    const [lastSelectedImage, setLastSelectedImage] = useState(null);
     const [isModifyMode, setIsModifyMode] = useState(false);
-    const [isUploading, setIsUploading] = useState(false);
-    const [showDeleteAllConfirm, setShowDeleteAllConfirm] = useState(false);
+    const [isUploading] = useState(false);
     const [showDeleteSelectedConfirm, setShowDeleteSelectedConfirm] =
         useState(false);
     const [isMigrationInProgress, setIsMigrationInProgress] = useState(false);
+    const [showDownloadError, setShowDownloadError] = useState(false);
+    const [downloadError, setDownloadError] = useState("");
+    const [showBulkTagDialog, setShowBulkTagDialog] = useState(false);
+    const [bulkTagInput, setBulkTagInput] = useState("");
+    const [isLoadingAll, setIsLoadingAll] = useState(false);
+    const [shouldSelectAll, setShouldSelectAll] = useState(false);
     const promptRef = useRef(null);
+    const formRef = useRef(null);
+    const bulkTagInputRef = useRef(null);
     const createMediaItem = useCreateMediaItem();
     const deleteMediaItem = useDeleteMediaItem();
     const migrateMediaItems = useMigrateMediaItems();
+    const updateTagsMutation = useUpdateMediaItemTags();
+    const cleanupOrphanedMediaItems = useCleanupOrphanedMediaItems();
+    const [bottomActionsLeft, setBottomActionsLeft] = useState(null);
+    const mediaContainerRef = useRef(null);
+    const modelSelectorRef = useRef(null);
+    const [isImageBadgeHovered, setIsImageBadgeHovered] = useState(false);
 
-    // No longer needed - images are managed by the API now
+    // Use custom selection hook
+    const {
+        selectedImages,
+        selectedImagesObjects,
+        lastSelectedImage,
+        setLastSelectedImage,
+        clearSelection,
+        setSelectedImages,
+        setSelectedImagesObjects,
+        getImageCount,
+    } = useMediaSelection();
+
+    // Reset selection when filter changes
+    useEffect(() => {
+        clearSelection();
+    }, [debouncedFilterText, clearSelection]);
+
+    // Debounce filter text to prevent API calls on every keystroke
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            setDebouncedFilterText(filterText);
+        }, 300); // 300ms delay
+
+        return () => clearTimeout(timer);
+    }, [filterText]);
+
+    // Cleanup orphaned pending media items on page load
+    useEffect(() => {
+        // Run cleanup once when component mounts
+        cleanupOrphanedMediaItems.mutate();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []); // Empty dependency array - only run on mount
+
+    // Calculate position for floating bulk actions bar
+    const updateBottomActionsPosition = useCallback(() => {
+        if (typeof window === "undefined") {
+            return;
+        }
+        const container = mediaContainerRef.current;
+        if (container) {
+            const rect = container.getBoundingClientRect();
+            if (rect?.width) {
+                setBottomActionsLeft(rect.left + rect.width / 2);
+                return;
+            }
+        }
+        setBottomActionsLeft(window.innerWidth / 2);
+    }, []);
+
+    useEffect(() => {
+        if (typeof window === "undefined") return;
+        updateBottomActionsPosition();
+        window.addEventListener("resize", updateBottomActionsPosition);
+        return () =>
+            window.removeEventListener("resize", updateBottomActionsPosition);
+    }, [updateBottomActionsPosition]);
+
+    useEffect(() => {
+        updateBottomActionsPosition();
+    }, [updateBottomActionsPosition, selectedImages.size]);
 
     // Load settings from user state (only when user state changes)
     useEffect(() => {
         if (userState?.media?.settings && !isMigrationInProgress) {
             const migratedSettings = migrateSettings(userState.media.settings);
-            setSettings(migratedSettings);
+            const settingsWithNewModels = mergeNewModels(migratedSettings);
+            setSettings(settingsWithNewModels);
         }
     }, [userState?.media?.settings, isMigrationInProgress]);
 
@@ -346,8 +328,9 @@ function MediaPage() {
                     try {
                         const parsedSettings = JSON.parse(localSettings);
                         const settings = migrateSettings(parsedSettings);
+                        const settingsWithNewModels = mergeNewModels(settings);
                         debouncedUpdateUserState({
-                            media: { settings },
+                            media: { settings: settingsWithNewModels },
                         });
                     } catch (error) {
                         console.warn(
@@ -403,514 +386,263 @@ function MediaPage() {
             }
         };
 
-        runMigration();
+        // If no migration needed, ensure new models are available
+        if (!hasDataToMigrate) {
+            console.log(
+                "🔄 No migration needed, ensuring new models are available...",
+            );
+            // Get current settings and merge new models
+            const currentSettings = userState?.media?.settings || {};
+            const settingsWithNewModels = mergeNewModels(currentSettings);
+
+            // Only update if we actually added new models
+            const hasNewModels =
+                Object.keys(settingsWithNewModels.models || {}).length >
+                Object.keys(currentSettings.models || {}).length;
+
+            if (hasNewModels) {
+                debouncedUpdateUserState({
+                    media: { settings: settingsWithNewModels },
+                });
+            }
+        } else {
+            runMigration();
+        }
     }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-    // No longer needed - images come from API
-
-    // Get available models based on current input conditions (for validation only)
-    const getAvailableModels = useCallback(() => {
-        // If no images, return all models (no restrictions)
-        if (!sortedImages || sortedImages.length === 0) {
-            return Object.keys(settings.models || {});
-        }
-
-        // Filter out videos from selected images - only count images as input
-        const selectedImageObjects = sortedImages.filter(
-            (img) =>
-                selectedImages.has(img.cortexRequestId) && img.type === "image",
-        );
-        const hasInputImage = selectedImageObjects.length === 1;
-        const hasTwoInputImages = selectedImageObjects.length === 2;
-
-        const allModels = Object.keys(settings.models || {});
-        const availableModels = allModels.filter((modelName) => {
-            const modelSettings = settings.models[modelName];
-            const modelType = modelSettings?.type || "image";
-
-            // Apply input condition restrictions
-            if (modelType === "image") {
-                if (hasTwoInputImages) {
-                    // Only multi-image models for 2 input images
-                    return modelName === "replicate-multi-image-kontext-max";
-                } else if (hasInputImage) {
-                    // Only kontext-max for 1 input image
-                    return modelName === "replicate-flux-kontext-max";
-                } else {
-                    // Only regular image models for text-only
-                    return [
-                        "replicate-flux-1-schnell",
-                        "replicate-flux-11-pro",
-                    ].includes(modelName);
-                }
-            } else {
-                // Video models - only available for 0 or 1 input images
-                if (hasTwoInputImages) {
-                    return false; // No video models support 2 input images
-                } else if (hasInputImage) {
-                    // Only Veo 2.0, Veo 3.0 and Seedance support input images
-                    return [
-                        "veo-2.0-generate",
-                        "veo-3.0-generate",
-                        "replicate-seedance-1-pro",
-                    ].includes(modelName);
-                } else {
-                    // All video models available for text-only
-                    return true;
-                }
-            }
-        });
-
-        return availableModels;
-    }, [selectedImages, sortedImages, settings]);
-
-    // Apply intelligent model selection based on input conditions
-    useEffect(() => {
-        const availableModels = getAvailableModels();
-
-        // Check if current model is still available for current input conditions
-        const isCurrentModelAvailable = availableModels.includes(selectedModel);
-
-        if (!isCurrentModelAvailable) {
-            // Current model is no longer available, switch to appropriate model
-            const newModel = availableModels[0];
-
-            if (newModel) {
-                setSelectedModel(newModel);
-                // Update output type based on the new model
-                const newModelSettings = getModelSettings(settings, newModel);
-                if (newModelSettings.type === "image") {
-                    setOutputType("image");
-                    setQuality(newModelSettings.quality || "draft");
-                } else {
-                    setOutputType("video");
-                }
-            }
-        }
-    }, [
-        selectedImages,
+    // Use custom model selection hook
+    const { getAvailableModels } = useModelSelection({
+        selectedImagesObjects,
         sortedImages,
         settings,
         selectedModel,
-        getAvailableModels,
-    ]);
+        setSelectedModel,
+        setOutputType,
+        setQuality,
+        getModelSettings,
+    });
 
-    const generateMedia = useCallback(
-        async (prompt, inputImageUrl = null, modelOverride = null) => {
-            // Determine which model to use
-            const modelToUse = modelOverride || selectedModel;
+    // Get current model settings for display
+    const currentModelSettings = useMemo(() => {
+        return getModelSettings(settings, selectedModel);
+    }, [settings, selectedModel]);
 
-            // Determine the model name based on input conditions
-            let modelName = modelToUse;
-            if (outputType === "image" && inputImageUrl) {
-                modelName = modelOverride || "replicate-flux-kontext-max";
-            }
+    // Count selected images for context badge
+    const selectedImageCount = useMemo(() => {
+        return selectedImagesObjects.filter((img) => img.type === "image")
+            .length;
+    }, [selectedImagesObjects]);
 
-            setLoading(true);
-            try {
-                const taskData = {
-                    type: "media-generation",
-                    prompt,
-                    outputType,
-                    model: modelName,
-                    inputImageUrl: inputImageUrl || "",
-                    inputImageUrl2: "", // For multi-image generation
-                    settings,
-                    source: "media_page",
-                };
-
-                const result = await runTask.mutateAsync(taskData);
-
-                if (result.taskId) {
-                    // Create placeholder in the database
-                    const mediaItemData = {
-                        taskId: result.taskId,
-                        cortexRequestId: result.taskId,
-                        prompt: prompt,
-                        type: outputType,
-                        model: modelName,
-                        status: "pending",
-                        settings: settings,
-                    };
-
-                    // Only add inputImageUrl if it exists
-                    if (inputImageUrl) {
-                        mediaItemData.inputImageUrl = inputImageUrl;
-                    }
-
-                    await createMediaItem.mutateAsync(mediaItemData);
-
-                    setTimeout(() => {
-                        promptRef.current && promptRef.current.focus();
-                    }, 0);
-                }
-            } catch (error) {
-                setLoading(false);
-                console.error(`Error generating ${outputType}:`, error);
-            } finally {
-                setLoading(false);
-            }
-        },
-        [outputType, selectedModel, settings, runTask, createMediaItem],
-    );
+    // Use custom media generation hook
+    const {
+        generateMedia,
+        handleModifySelected: handleModifySelectedHook,
+        handleCombineSelected: handleCombineSelectedHook,
+    } = useMediaGeneration({
+        selectedModel,
+        outputType,
+        settings,
+        runTask,
+        createMediaItem,
+        promptRef,
+        setLoading,
+    });
 
     useEffect(() => {
         // Only consider images for modify mode, not videos
-        const selectedImageObjects = sortedImages.filter(
-            (img) =>
-                selectedImages.has(img.cortexRequestId) && img.type === "image",
-        );
-        setIsModifyMode(
-            selectedImageObjects.length === 1 ||
-                selectedImageObjects.length === 2,
-        );
-    }, [selectedImages, sortedImages]);
+        const imageCount = getImageCount();
+        setIsModifyMode(imageCount === 1 || imageCount === 2);
+    }, [selectedImagesObjects, getImageCount]);
 
-    const handleModifySelected = useCallback(async () => {
-        if (!prompt.trim() || selectedImages.size === 0) return;
-
-        const selectedImageObjects = sortedImages.filter(
-            (img) =>
-                selectedImages.has(img.cortexRequestId) &&
-                img.url &&
-                img.type === "image",
-        );
-
-        for (const image of selectedImageObjects) {
-            setLoading(true);
-            try {
-                const combinedPrompt = image.prompt
-                    ? `${image.prompt} - ${prompt}`
-                    : prompt;
-
-                // For Veo models, use GCS URL; for others, use Azure URL
-                const isVeoModel = selectedModel.includes("veo");
-                const inputImageUrl = isVeoModel
-                    ? image.gcsUrl || image.azureUrl || image.url
-                    : image.azureUrl || image.gcsUrl || image.url;
-
-                const taskData = {
-                    type: "media-generation",
-                    prompt: combinedPrompt,
-                    outputType,
-                    model:
-                        outputType === "image"
-                            ? "replicate-flux-kontext-max"
-                            : selectedModel,
-                    inputImageUrl: inputImageUrl,
-                    inputImageUrl2: "",
-                    settings,
-                    source: "media_page",
-                };
-
-                const result = await runTask.mutateAsync(taskData);
-
-                if (result.taskId) {
-                    // Create placeholder in the database
-                    const mediaItemData = {
-                        taskId: result.taskId,
-                        cortexRequestId: result.taskId,
-                        prompt: combinedPrompt,
-                        type: outputType,
-                        model: selectedModel,
-                        status: "pending",
-                        settings: settings,
-                    };
-
-                    // Only add inputImageUrl if it exists
-                    if (image.url) {
-                        mediaItemData.inputImageUrl = image.url;
-                    }
-
-                    await createMediaItem.mutateAsync(mediaItemData);
-                }
-            } catch (error) {
-                setLoading(false);
-                console.error(`Error modifying ${outputType}:`, error);
-            } finally {
-                setLoading(false);
-            }
-        }
-
-        // Keep existing selection and focus prompt box
-        setTimeout(() => {
-            promptRef.current && promptRef.current.focus();
-        }, 0);
+    // Wrapper functions to pass required parameters to hooks
+    const handleModifySelectedWrapper = useCallback(async () => {
+        await handleModifySelectedHook({
+            prompt,
+            selectedImagesObjects,
+            outputType,
+            selectedModel,
+            settings,
+            runTask,
+            createMediaItem,
+            promptRef,
+        });
     }, [
         prompt,
-        selectedImages,
-        sortedImages,
+        selectedImagesObjects,
         outputType,
         selectedModel,
         settings,
         runTask,
         createMediaItem,
+        promptRef,
+        handleModifySelectedHook,
     ]);
 
-    const handleCombineSelected = useCallback(async () => {
-        if (!prompt.trim() || selectedImages.size !== 2) return;
+    const handleCombineSelectedWrapper = useCallback(async () => {
+        await handleCombineSelectedHook({
+            prompt,
+            selectedImagesObjects,
+            outputType,
+            selectedModel,
+            settings,
+            runTask,
+            createMediaItem,
+            promptRef,
+        });
+    }, [
+        prompt,
+        selectedImagesObjects,
+        outputType,
+        selectedModel,
+        settings,
+        runTask,
+        createMediaItem,
+        promptRef,
+        handleCombineSelectedHook,
+    ]);
 
-        const selectedImageObjects = sortedImages.filter(
-            (img) =>
-                selectedImages.has(img.cortexRequestId) &&
-                img.url &&
-                img.type === "image",
-        );
+    // Use wrapper functions that call the custom hooks
+    const handleModifySelected = handleModifySelectedWrapper;
+    const handleCombineSelected = handleCombineSelectedWrapper;
 
-        if (selectedImageObjects.length !== 2) return;
+    // Use custom file upload hook
+    const { handleFileSelect } = useFileUpload({
+        createMediaItem,
+        settings,
+        t,
+        promptRef,
+        setSelectedImages,
+        setSelectedImagesObjects,
+    });
 
-        const [image1, image2] = selectedImageObjects;
+    // Use custom bulk operations hook
+    const { handleBulkAction, handleDeleteSelected, checkDownloadLimits } =
+        useBulkOperations({
+            selectedImagesObjects,
+            deleteMediaItem,
+            setSelectedImages,
+            setSelectedImagesObjects,
+            setShowDeleteSelectedConfirm,
+            t,
+        });
 
-        setLoading(true);
+    const handleClearSelection = clearSelection;
+
+    // Handle download with error handling
+    const handleDownload = useCallback(async () => {
         try {
-            const combinedPrompt =
-                outputType === "image"
-                    ? `${image1.prompt} + ${image2.prompt} - ${prompt}`
-                    : `${image1.prompt} - ${prompt}`;
-
-            // For Veo models, use GCS URL; for others, use Azure URL
-            const isVeoModel = selectedModel.includes("veo");
-            const inputImageUrl1 = isVeoModel
-                ? image1.gcsUrl || image1.azureUrl || image1.url
-                : image1.azureUrl || image1.gcsUrl || image1.url;
-            const inputImageUrl2 = isVeoModel
-                ? image2.gcsUrl || image2.azureUrl || image2.url
-                : image2.azureUrl || image2.gcsUrl || image2.url;
-
-            const taskData = {
-                type: "media-generation",
-                prompt: combinedPrompt,
-                outputType,
-                model:
-                    outputType === "image"
-                        ? "replicate-multi-image-kontext-max"
-                        : selectedModel,
-                inputImageUrl: inputImageUrl1,
-                inputImageUrl2: outputType === "image" ? inputImageUrl2 : "",
-                settings,
-                source: "media_page",
-            };
-
-            const result = await runTask.mutateAsync(taskData);
-
-            if (result.taskId) {
-                // Create placeholder in the database
-                const mediaItemData = {
-                    taskId: result.taskId,
-                    cortexRequestId: result.taskId,
-                    prompt: combinedPrompt,
-                    type: outputType,
-                    model: selectedModel,
-                    status: "pending",
-                    settings: settings,
-                };
-
-                // Only add inputImageUrl if it exists
-                if (image1.url) {
-                    mediaItemData.inputImageUrl = image1.url;
-                }
-
-                // Only add inputImageUrl2 if it exists
-                if (image2.url) {
-                    mediaItemData.inputImageUrl2 = image2.url;
-                }
-
-                await createMediaItem.mutateAsync(mediaItemData);
-
-                setTimeout(() => {
-                    promptRef.current && promptRef.current.focus();
-                }, 0);
-            }
+            await handleBulkAction("download");
         } catch (error) {
-            setLoading(false);
-            console.error(
-                `Error combining ${outputType === "image" ? "images" : "videos"}:`,
-                error,
-            );
-        } finally {
-            setLoading(false);
+            setDownloadError(error.message);
+            setShowDownloadError(true);
         }
-    }, [
-        prompt,
-        selectedImages,
-        sortedImages,
-        outputType,
-        selectedModel,
-        settings,
-        runTask,
-        createMediaItem,
-    ]);
+    }, [handleBulkAction]);
 
-    const handleFileUpload = useCallback(
-        async (file) => {
-            if (!file) return;
+    // Handle bulk tagging
+    const handleBulkTag = useCallback(async () => {
+        if (!bulkTagInput.trim() || selectedImagesObjects.length === 0) return;
 
-            setIsUploading(true);
-            const serverUrl = "/media-helper";
+        const newTag = bulkTagInput.trim();
 
-            try {
-                // Start showing upload progress
-                const fileHash = await hashMediaFile(file);
+        try {
+            // Update tags for all selected images
+            const updatePromises = selectedImagesObjects.map(async (image) => {
+                const currentTags = image.tags || [];
+                const updatedTags = [...currentTags];
 
-                // Check if file exists first
-                try {
-                    const url = new URL(serverUrl, window.location.origin);
-                    url.searchParams.set("hash", fileHash);
-                    url.searchParams.set("checkHash", "true");
-
-                    const checkResponse = await axios.get(url.toString());
-                    if (
-                        checkResponse.status === 200 &&
-                        checkResponse.data?.url
-                    ) {
-                        // Create media item in database
-                        const mediaItemData = {
-                            taskId: `upload-${Date.now()}`,
-                            cortexRequestId: `upload-${Date.now()}`,
-                            prompt: t("Uploaded image"),
-                            type: "image",
-                            model: "upload",
-                            status: "completed",
-                            settings: settings,
-                        };
-
-                        // Only add URLs if they exist
-                        if (checkResponse.data.url) {
-                            mediaItemData.url = checkResponse.data.url;
-                            mediaItemData.azureUrl = checkResponse.data.url;
-                        }
-                        if (checkResponse.data.gcs) {
-                            mediaItemData.gcsUrl = checkResponse.data.gcs;
-                        }
-
-                        await createMediaItem.mutateAsync(mediaItemData);
-
-                        setTimeout(() => {
-                            promptRef.current && promptRef.current.focus();
-                        }, 0);
-                        setIsUploading(false);
-                        return;
-                    }
-                } catch (err) {
-                    if (err.response?.status !== 404) {
-                        console.error("Error checking file hash:", err);
-                    }
+                // Add the new tag if it doesn't already exist
+                if (!updatedTags.includes(newTag)) {
+                    updatedTags.push(newTag);
                 }
 
-                // If we get here, we need to upload the file
-                const formData = new FormData();
-                formData.append("hash", fileHash);
-                formData.append("file", file, file.name);
+                return updateTagsMutation.mutateAsync({
+                    taskId: image.taskId,
+                    tags: updatedTags,
+                });
+            });
 
-                const uploadUrl = new URL(serverUrl, window.location.origin);
-                uploadUrl.searchParams.set("hash", fileHash);
+            await Promise.all(updatePromises);
 
-                const response = await axios.post(
-                    uploadUrl.toString(),
-                    formData,
-                    {
-                        headers: {
-                            "Content-Type": "multipart/form-data",
-                        },
-                        onUploadProgress: (progressEvent) => {
-                            // Progress tracking removed - using generic upload message
-                        },
-                    },
-                );
+            // Close dialog and clear input
+            setShowBulkTagDialog(false);
+            setBulkTagInput("");
+        } catch (error) {
+            console.error("Error updating tags:", error);
+        }
+    }, [bulkTagInput, selectedImagesObjects, updateTagsMutation]);
 
-                if (response.data?.url) {
-                    // Create media item in database
-                    const mediaItemData = {
-                        taskId: `upload-${Date.now()}`,
-                        cortexRequestId: `upload-${Date.now()}`,
-                        prompt: t("Uploaded image"),
-                        type: "image",
-                        model: "upload",
-                        status: "completed",
-                        settings: settings,
-                    };
+    // Check if download is disabled due to limits
+    const downloadLimits = checkDownloadLimits();
+    const isDownloadDisabled = !downloadLimits.allowed;
 
-                    // Only add URLs if they exist
-                    if (response.data.url) {
-                        mediaItemData.url = response.data.url;
-                        mediaItemData.azureUrl = response.data.url;
-                    }
-                    if (response.data.gcs) {
-                        mediaItemData.gcsUrl = response.data.gcs;
-                    }
+    // Load all pages before selecting all
+    const handleSelectAll = useCallback(async () => {
+        // If already all selected, just deselect
+        if (selectedImages.size === sortedImages.length && !hasNextPage) {
+            handleClearSelection();
+            return;
+        }
 
-                    const mediaItem =
-                        await createMediaItem.mutateAsync(mediaItemData);
-
-                    setSelectedImages(new Set([mediaItem.cortexRequestId]));
-                    setTimeout(() => {
-                        promptRef.current && promptRef.current.focus();
-                    }, 0);
+        // If there are more pages to load, load them first
+        if (hasNextPage) {
+            setIsLoadingAll(true);
+            setShouldSelectAll(true);
+            try {
+                // Keep fetching pages - fetchNextPage returns updated query info
+                let result = await fetchNextPage();
+                while (result.hasNextPage && !result.isFetchingNextPage) {
+                    result = await fetchNextPage();
                 }
             } catch (error) {
-                console.error("Error uploading file:", error);
+                console.error("Error loading all pages:", error);
+                setShouldSelectAll(false);
             } finally {
-                setIsUploading(false);
+                setIsLoadingAll(false);
             }
-        },
-        [t, createMediaItem, settings],
-    );
-
-    const handleFileSelect = useCallback(
-        (event) => {
-            const file = event.target.files[0];
-            if (file) {
-                handleFileUpload(file);
-            }
-        },
-        [handleFileUpload],
-    );
-
-    const handleBulkAction = useCallback(
-        (action) => {
-            if (action === "delete") {
-                setShowDeleteSelectedConfirm(true);
-            } else if (action === "download") {
-                sortedImages.forEach((img) => {
-                    if (
-                        selectedImages.has(img.cortexRequestId) &&
-                        (img.azureUrl || img.url)
-                    ) {
-                        window.open(img.azureUrl || img.url, "_blank");
-                    }
-                });
-                setSelectedImages(new Set());
-            }
-        },
-        [sortedImages, selectedImages],
-    );
-
-    const handleDeleteSelected = useCallback(async () => {
-        // Delete selected media items from database
-        for (const image of sortedImages) {
-            if (selectedImages.has(image.cortexRequestId)) {
-                await deleteMediaItem.mutateAsync(image.taskId);
-            }
+        } else {
+            // No more pages, just select what we have
+            setSelectedImages(
+                new Set(sortedImages.map((img) => img.cortexRequestId)),
+            );
+            setSelectedImagesObjects(sortedImages);
         }
+    }, [
+        selectedImages.size,
+        sortedImages,
+        hasNextPage,
+        fetchNextPage,
+        handleClearSelection,
+        setSelectedImages,
+        setSelectedImagesObjects,
+    ]);
 
-        setSelectedImages(new Set());
-        setShowDeleteSelectedConfirm(false);
-    }, [sortedImages, selectedImages, deleteMediaItem]);
-
-    const handleDeleteAll = useCallback(async () => {
-        // Delete all media items for the current user
-        for (const image of sortedImages) {
-            await deleteMediaItem.mutateAsync(image.taskId);
+    // Effect to select all items once loading is complete
+    useEffect(() => {
+        if (shouldSelectAll && !isLoadingAll && !hasNextPage) {
+            setSelectedImages(
+                new Set(sortedImages.map((img) => img.cortexRequestId)),
+            );
+            setSelectedImagesObjects(sortedImages);
+            setShouldSelectAll(false);
         }
-
-        setSelectedImages(new Set());
-        setShowDeleteAllConfirm(false);
-    }, [sortedImages, deleteMediaItem]);
+    }, [
+        shouldSelectAll,
+        isLoadingAll,
+        hasNextPage,
+        sortedImages,
+        setSelectedImages,
+        setSelectedImagesObjects,
+    ]);
 
     const mediaTiles = useMemo(() => {
         return sortedImages.map((image, index) => {
             // Since we now preserve cortexRequestId, we can use it directly
             const key = image?.cortexRequestId || `temp-${index}`;
+            // Check if URL is valid (not null, undefined, or "null" string)
+            const hasValidUrl =
+                (image?.azureUrl || image?.url) &&
+                (image?.azureUrl || image?.url) !== "null" &&
+                (image?.azureUrl || image?.url) !== "undefined";
 
             return (
                 <ImageTile
@@ -919,12 +651,14 @@ function MediaPage() {
                     quality={quality}
                     selectedImages={selectedImages}
                     setSelectedImages={setSelectedImages}
+                    selectedImagesObjects={selectedImagesObjects}
+                    setSelectedImagesObjects={setSelectedImagesObjects}
                     lastSelectedImage={lastSelectedImage}
                     setLastSelectedImage={setLastSelectedImage}
                     images={sortedImages}
                     setShowDeleteSelectedConfirm={setShowDeleteSelectedConfirm}
                     onClick={() => {
-                        if (image?.url) {
+                        if (hasValidUrl) {
                             setSelectedImage(image);
                             setShowModal(true);
                         }
@@ -977,6 +711,15 @@ function MediaPage() {
                             const newSelectedImages = new Set(selectedImages);
                             newSelectedImages.delete(image.cortexRequestId);
                             setSelectedImages(newSelectedImages);
+
+                            // Also remove from selectedImagesObjects
+                            const newSelectedImagesObjects =
+                                selectedImagesObjects.filter(
+                                    (img) =>
+                                        img.cortexRequestId !==
+                                        image.cortexRequestId,
+                                );
+                            setSelectedImagesObjects(newSelectedImagesObjects);
                         }
                     }}
                 />
@@ -988,6 +731,9 @@ function MediaPage() {
         generateMedia,
         quality,
         selectedImages,
+        selectedImagesObjects,
+        setSelectedImagesObjects,
+        setSelectedImages,
         lastSelectedImage,
         setLastSelectedImage,
         setShowDeleteSelectedConfirm,
@@ -1000,13 +746,18 @@ function MediaPage() {
             <div className="flex flex-col gap-4">
                 <div className="mb-4">
                     <form
+                        ref={formRef}
                         className="flex flex-col gap-2"
                         onSubmit={(e) => {
                             e.preventDefault();
                             if (!prompt.trim()) return;
+                            setLoading(true);
                             setGenerationPrompt(prompt);
                             if (isModifyMode) {
-                                if (selectedImages.size === 2) {
+                                if (
+                                    selectedImages.size >= 2 &&
+                                    selectedImages.size <= 3
+                                ) {
                                     handleCombineSelected();
                                 } else if (selectedImages.size === 1) {
                                     handleModifySelected();
@@ -1018,161 +769,474 @@ function MediaPage() {
                             }
                         }}
                     >
-                        <textarea
-                            className="lb-input flex-grow min-h-[2.5rem] max-h-32 resize-y"
-                            placeholder={
-                                selectedImages.size > 0
-                                    ? t(
-                                          "Describe what you want to do with the selected media",
-                                      )
-                                    : t("Describe what you want to generate")
-                            }
-                            value={prompt}
-                            onChange={(e) => setPrompt(e.target.value)}
-                            onKeyDown={(e) => {
-                                if (e.key === "Enter" && !e.shiftKey) {
-                                    e.preventDefault();
-                                    if (!prompt.trim()) return;
-                                    setGenerationPrompt(prompt);
-                                    if (isModifyMode) {
-                                        if (selectedImages.size === 2) {
-                                            handleCombineSelected();
-                                        } else if (selectedImages.size === 1) {
-                                            handleModifySelected();
-                                        } else {
-                                            generateMedia(prompt);
+                        {/* Container with border for prompt box and thin bar */}
+                        <div className="border border-gray-300 dark:border-gray-600 rounded-xl p-3">
+                            {/* Flex container for textarea and button */}
+                            <div className="flex items-start gap-2">
+                                <div className="flex-1">
+                                    <AutosizeTextarea
+                                        className="bg-transparent border-none outline-none min-h-[2.5rem] resize-y w-full focus:outline-none focus:ring-0 focus:border-0 p-0 ps-1 pt-1 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 dark:bg-transparent"
+                                        maxHeight={200}
+                                        minHeight={40}
+                                        placeholder={
+                                            selectedImages.size > 0
+                                                ? t(
+                                                      "Describe what you want to do with the selected media",
+                                                  )
+                                                : t(
+                                                      "Describe what you want to generate",
+                                                  )
                                         }
-                                    } else {
-                                        generateMedia(prompt);
-                                    }
-                                }
-                            }}
-                            ref={promptRef}
-                            onFocus={(e) => e.target.select()}
-                        />
-
-                        <div className="flex gap-2 items-center media-toolbar-row">
-                            <TooltipProvider>
-                                <Tooltip>
-                                    <TooltipTrigger asChild>
-                                        <label className="lb-input flex items-center justify-center settings-btn-square text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 cursor-pointer">
-                                            <input
-                                                type="file"
-                                                className="hidden"
-                                                accept="image/*"
-                                                onChange={handleFileSelect}
-                                                disabled={isUploading}
-                                            />
-                                            {isUploading ? (
-                                                <Loader2 className="animate-spin" />
-                                            ) : (
-                                                <Plus />
-                                            )}
-                                        </label>
-                                    </TooltipTrigger>
-                                    <TooltipContent>
-                                        {t("Upload Image")}
-                                    </TooltipContent>
-                                </Tooltip>
-                            </TooltipProvider>
-
-                            <TooltipProvider>
-                                <Tooltip>
-                                    <TooltipTrigger asChild>
-                                        <button
-                                            type="button"
-                                            className="lb-input flex items-center justify-center settings-btn-square text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
-                                            onClick={() =>
-                                                setShowSettings(true)
+                                        value={prompt}
+                                        onChange={(e) =>
+                                            setPrompt(e.target.value)
+                                        }
+                                        onKeyDown={(e) => {
+                                            if (
+                                                e.key === "Enter" &&
+                                                !e.shiftKey
+                                            ) {
+                                                e.preventDefault();
+                                                formRef.current?.requestSubmit();
                                             }
-                                        >
-                                            <Settings />
-                                        </button>
-                                    </TooltipTrigger>
-                                    <TooltipContent>
-                                        {t("Generation Settings")}
-                                    </TooltipContent>
-                                </Tooltip>
-                            </TooltipProvider>
+                                        }}
+                                        ref={promptRef}
+                                        onFocus={(e) => e.target.select()}
+                                    />
+                                </div>
+                                {/* Selected images thumbnails - hidden on mobile */}
+                                {selectedImageCount > 0 && (
+                                    <div className="hidden md:flex items-start gap-1.5 flex-shrink-0">
+                                        {selectedImagesObjects
+                                            .filter(
+                                                (img) => img.type === "image",
+                                            )
+                                            .slice(0, 3) // Show max 3 thumbnails
+                                            .map((image) => {
+                                                const imageUrl =
+                                                    image?.azureUrl ||
+                                                    image?.url;
+                                                if (
+                                                    !imageUrl ||
+                                                    imageUrl === "null" ||
+                                                    imageUrl === "undefined"
+                                                )
+                                                    return null;
 
-                            <select
-                                className="lb-input flex-1 media-toolbar-dropdown"
-                                value={selectedModel}
-                                dir={direction}
-                                onChange={(e) => {
-                                    const newSelectedModel = e.target.value;
-                                    const modelSettings = getModelSettings(
-                                        settings,
-                                        newSelectedModel,
-                                    );
+                                                return (
+                                                    <div
+                                                        key={
+                                                            image.cortexRequestId
+                                                        }
+                                                        className="relative w-10 h-10 rounded overflow-hidden border border-gray-200 dark:border-gray-700 flex-shrink-0"
+                                                    >
+                                                        <ChatImage
+                                                            src={imageUrl}
+                                                            alt={
+                                                                image.prompt ||
+                                                                ""
+                                                            }
+                                                            className="w-full h-full object-cover"
+                                                        />
+                                                    </div>
+                                                );
+                                            })}
+                                        {selectedImageCount > 3 && (
+                                            <div className="flex items-center justify-center w-10 h-10 rounded bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-xs text-gray-600 dark:text-gray-400">
+                                                +{selectedImageCount - 3}
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+                                {/* Generate button */}
+                                <div className="flex items-start flex-shrink-0">
+                                    <button
+                                        type="submit"
+                                        className="border-none outline-none enabled:hover:bg-sky-700 enabled:active:bg-sky-800 dark:bg-sky-700 dark:enabled:hover:bg-sky-200 p-1.5 cursor-pointer focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1 bg-sky-600 dark:enabled:hover:bg-sky-800 text-white rounded-lg px-3 py-2 dark:enabled:hover:text-white dark:enabled:active:bg-sky-900
+                                                    text-sm justify-center"
+                                        disabled={!prompt.trim() || loading}
+                                    >
+                                        {loading ? (
+                                            <Loader2 className="h-4 w-4 animate-spin" />
+                                        ) : (
+                                            <Sparkles className="h-4 w-4" />
+                                        )}
+                                        <span className="hidden md:block">
+                                            {loading
+                                                ? t("Generating")
+                                                : t("Generate")}
+                                        </span>
+                                    </button>
+                                </div>
+                            </div>
 
-                                    setSelectedModel(newSelectedModel);
+                            {/* Thin bar with model selector and settings */}
+                            <div className="flex md:items-center flex-col md:flex-row mt-2 gap-2">
+                                {/* Model selector */}
+                                {(() => {
+                                    const availableModels =
+                                        getAvailableModels();
+                                    const displayNames = {
+                                        "replicate-flux-11-pro": t("Flux Pro"),
+                                        "replicate-flux-kontext-max":
+                                            t("Flux Kontext Max"),
+                                        "replicate-multi-image-kontext-max": t(
+                                            "Multi-Image Kontext Max",
+                                        ),
+                                        "gemini-25-flash-image-preview":
+                                            t("Gemini Flash Image"),
+                                        "replicate-qwen-image": t("Qwen Image"),
+                                        "replicate-qwen-image-edit-plus": t(
+                                            "Qwen Image Edit Plus",
+                                        ),
+                                        "replicate-seedream-4":
+                                            t("Seedream 4.0"),
+                                        "veo-2.0-generate": t("Veo 2.0"),
+                                        "veo-3.0-generate": t("Veo 3.0"),
+                                        "veo-3.1-generate": t("Veo 3.1"),
+                                        "veo-3.1-fast-generate":
+                                            t("Veo 3.1 Fast"),
+                                        "replicate-seedance-1-pro":
+                                            t("Seedance 1.0"),
+                                    };
 
-                                    if (modelSettings.type === "image") {
-                                        setOutputType("image");
-                                        setQuality(
-                                            modelSettings.quality || "draft",
+                                    const getDisplayName = (modelName) => {
+                                        return (
+                                            displayNames[modelName] || modelName
                                         );
-                                    } else {
-                                        setOutputType("video");
-                                    }
-                                }}
-                            >
-                                {getAvailableModels().map((modelName) => {
-                                    const modelSettings =
-                                        settings.models[modelName];
-                                    const displayName =
-                                        {
-                                            "replicate-flux-1-schnell":
-                                                "Flux Draft",
-                                            "replicate-flux-11-pro": "Flux Pro",
-                                            "replicate-flux-kontext-max":
-                                                "Flux Kontext Max",
-                                            "replicate-multi-image-kontext-max":
-                                                "Multi-Image Kontext Max",
-                                            "veo-2.0-generate": "Veo 2.0",
-                                            "veo-3.0-generate": "Veo 3.0",
-                                            "replicate-seedance-1-pro":
-                                                "Seedance 1.0",
-                                        }[modelName] || modelName;
+                                    };
+
+                                    const getCurrentDisplayName = () => {
+                                        const currentDisplayName =
+                                            getDisplayName(selectedModel);
+                                        const modelSettings = getModelSettings(
+                                            settings,
+                                            selectedModel,
+                                        );
+                                        const icon =
+                                            modelSettings.type === "video"
+                                                ? "🎬"
+                                                : "🖼️";
+                                        return `${icon} ${currentDisplayName}`;
+                                    };
 
                                     return (
-                                        <option
-                                            key={modelName}
-                                            value={modelName}
-                                        >
-                                            {modelSettings?.type === "image"
-                                                ? "Image"
-                                                : "Video"}{" "}
-                                            ({displayName})
-                                        </option>
-                                    );
-                                })}
-                            </select>
+                                        <Select
+                                            value={selectedModel}
+                                            onValueChange={(
+                                                newSelectedModel,
+                                            ) => {
+                                                const modelSettings =
+                                                    getModelSettings(
+                                                        settings,
+                                                        newSelectedModel,
+                                                    );
 
-                            <button
-                                className="lb-primary whitespace-nowrap flex items-center justify-center relative"
-                                type="submit"
-                                disabled={!prompt.trim() || loading}
-                            >
-                                <span
-                                    className={
-                                        loading ? "invisible" : "visible"
-                                    }
-                                >
-                                    {t("Generate")}
-                                </span>
-                                {loading && (
-                                    <Loader2 className="animate-spin h-4 w-4 absolute" />
-                                )}
-                            </button>
+                                                setSelectedModel(
+                                                    newSelectedModel,
+                                                );
+
+                                                if (
+                                                    modelSettings.type ===
+                                                    "image"
+                                                ) {
+                                                    setOutputType("image");
+                                                    setQuality(
+                                                        modelSettings.quality ||
+                                                            "draft",
+                                                    );
+                                                } else {
+                                                    setOutputType("video");
+                                                }
+                                            }}
+                                        >
+                                            <SelectTrigger
+                                                ref={modelSelectorRef}
+                                                className="bg-transparent border-none outline-none text-sm text-gray-700 dark:text-gray-300 ps-1 pe-2 py-1 h-auto max-w-[200px] shadow-none focus:ring-0 focus:ring-offset-0 hover:opacity-80"
+                                                dir={direction}
+                                            >
+                                                <SelectValue>
+                                                    {getCurrentDisplayName()}
+                                                </SelectValue>
+                                            </SelectTrigger>
+                                            <SelectContent dir={direction}>
+                                                {/* Image models group */}
+                                                {availableModels.image.length >
+                                                    0 && (
+                                                    <SelectGroup>
+                                                        <SelectLabel>
+                                                            {t("Image Models")}
+                                                        </SelectLabel>
+                                                        {availableModels.image.map(
+                                                            (modelName) => {
+                                                                const displayName =
+                                                                    getDisplayName(
+                                                                        modelName,
+                                                                    );
+                                                                return (
+                                                                    <SelectItem
+                                                                        key={
+                                                                            modelName
+                                                                        }
+                                                                        value={
+                                                                            modelName
+                                                                        }
+                                                                    >
+                                                                        🖼️{" "}
+                                                                        {
+                                                                            displayName
+                                                                        }
+                                                                    </SelectItem>
+                                                                );
+                                                            },
+                                                        )}
+                                                    </SelectGroup>
+                                                )}
+                                                {/* Video models group */}
+                                                {availableModels.video.length >
+                                                    0 && (
+                                                    <SelectGroup>
+                                                        <SelectLabel>
+                                                            {t("Video Models")}
+                                                        </SelectLabel>
+                                                        {availableModels.video.map(
+                                                            (modelName) => {
+                                                                const displayName =
+                                                                    getDisplayName(
+                                                                        modelName,
+                                                                    );
+                                                                return (
+                                                                    <SelectItem
+                                                                        key={
+                                                                            modelName
+                                                                        }
+                                                                        value={
+                                                                            modelName
+                                                                        }
+                                                                    >
+                                                                        🎬{" "}
+                                                                        {
+                                                                            displayName
+                                                                        }
+                                                                    </SelectItem>
+                                                                );
+                                                            },
+                                                        )}
+                                                    </SelectGroup>
+                                                )}
+                                            </SelectContent>
+                                        </Select>
+                                    );
+                                })()}
+
+                                <div className="flex items-center gap-2">
+                                    {/* Settings button */}
+                                    <TooltipProvider>
+                                        <Tooltip
+                                            open={
+                                                disableTooltip
+                                                    ? false
+                                                    : undefined
+                                            }
+                                        >
+                                            <TooltipTrigger asChild>
+                                                <button
+                                                    type="button"
+                                                    className="bg-transparent border-none outline-none text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 p-1 cursor-pointer hover:opacity-80 focus:outline-none"
+                                                    onClick={() =>
+                                                        setShowSettings(true)
+                                                    }
+                                                >
+                                                    <Settings className="h-4 w-4" />
+                                                </button>
+                                            </TooltipTrigger>
+                                            <TooltipContent>
+                                                {t("Generation Settings")}
+                                            </TooltipContent>
+                                        </Tooltip>
+                                    </TooltipProvider>
+
+                                    {/* Model settings display and image context badge */}
+                                    <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+                                        {/* Model settings - only show configurable fields */}
+                                        {getAvailableAspectRatios(selectedModel)
+                                            .length > 0 &&
+                                            currentModelSettings.aspectRatio && (
+                                                <span className="px-1.5 py-0.5">
+                                                    {currentModelSettings.aspectRatio ===
+                                                    "match_input_image"
+                                                        ? t("Match Input")
+                                                        : currentModelSettings.aspectRatio}
+                                                </span>
+                                            )}
+                                        {getModelType(selectedModel) ===
+                                            "video" && (
+                                            <>
+                                                {getAvailableDurations(
+                                                    selectedModel,
+                                                ).length > 0 &&
+                                                    currentModelSettings.duration && (
+                                                        <span className="px-1.5 py-0.5">
+                                                            {
+                                                                currentModelSettings.duration
+                                                            }
+                                                            s
+                                                        </span>
+                                                    )}
+                                                {!selectedModel.startsWith(
+                                                    "veo",
+                                                ) &&
+                                                    currentModelSettings.resolution && (
+                                                        <span className="px-1.5 py-0.5">
+                                                            {
+                                                                currentModelSettings.resolution
+                                                            }
+                                                        </span>
+                                                    )}
+                                                {(selectedModel ===
+                                                    "veo-3.0-generate" ||
+                                                    selectedModel ===
+                                                        "veo-3.1-generate" ||
+                                                    selectedModel ===
+                                                        "veo-3.1-fast-generate") &&
+                                                    currentModelSettings.generateAudio !==
+                                                        undefined && (
+                                                        <span className="px-1.5 py-0.5">
+                                                            {currentModelSettings.generateAudio
+                                                                ? t("Audio")
+                                                                : t("No Audio")}
+                                                        </span>
+                                                    )}
+                                                {selectedModel ===
+                                                    "replicate-seedance-1-pro" &&
+                                                    currentModelSettings.cameraFixed && (
+                                                        <span className="px-1.5 py-0.5">
+                                                            {t("Fixed Camera")}
+                                                        </span>
+                                                    )}
+                                            </>
+                                        )}
+                                        {selectedModel ===
+                                            "gemini-25-flash-image-preview" &&
+                                            currentModelSettings.optimizePrompt && (
+                                                <span className="px-1.5 py-0.5">
+                                                    {t("Optimized")}
+                                                </span>
+                                            )}
+                                    </div>
+                                </div>
+                                <div className="flex ml-auto text-xs">
+                                    {/* Image context badge */}
+                                    {selectedImageCount > 0 && (
+                                        <Popover
+                                            open={isImageBadgeHovered}
+                                            onOpenChange={
+                                                setIsImageBadgeHovered
+                                            }
+                                        >
+                                            <PopoverTrigger asChild>
+                                                <span
+                                                    className="px-2 py-0.5 bg-sky-100 dark:bg-sky-900 text-sky-700 dark:text-sky-300 rounded-md cursor-pointer"
+                                                    onMouseEnter={() =>
+                                                        setIsImageBadgeHovered(
+                                                            true,
+                                                        )
+                                                    }
+                                                    onMouseLeave={() =>
+                                                        setIsImageBadgeHovered(
+                                                            false,
+                                                        )
+                                                    }
+                                                >
+                                                    {selectedImageCount}{" "}
+                                                    {selectedImageCount === 1
+                                                        ? t("image")
+                                                        : t("images")}
+                                                </span>
+                                            </PopoverTrigger>
+                                            <PopoverContent
+                                                className="w-auto p-3"
+                                                onMouseEnter={() =>
+                                                    setIsImageBadgeHovered(true)
+                                                }
+                                                onMouseLeave={() =>
+                                                    setIsImageBadgeHovered(
+                                                        false,
+                                                    )
+                                                }
+                                            >
+                                                <div className="text-xs font-medium mb-2 text-gray-700 dark:text-gray-300">
+                                                    {t("Selected Images")}
+                                                </div>
+                                                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-w-xs">
+                                                    {selectedImagesObjects
+                                                        .filter(
+                                                            (img) =>
+                                                                img.type ===
+                                                                "image",
+                                                        )
+                                                        .map((image) => {
+                                                            const imageUrl =
+                                                                image?.azureUrl ||
+                                                                image?.url;
+                                                            if (
+                                                                !imageUrl ||
+                                                                imageUrl ===
+                                                                    "null" ||
+                                                                imageUrl ===
+                                                                    "undefined"
+                                                            )
+                                                                return null;
+
+                                                            return (
+                                                                <div
+                                                                    key={
+                                                                        image.cortexRequestId
+                                                                    }
+                                                                    className="relative aspect-square rounded overflow-hidden border border-gray-200 dark:border-gray-700"
+                                                                >
+                                                                    <ChatImage
+                                                                        src={
+                                                                            imageUrl
+                                                                        }
+                                                                        alt={
+                                                                            image.prompt ||
+                                                                            ""
+                                                                        }
+                                                                        className="w-full h-full object-cover"
+                                                                    />
+                                                                </div>
+                                                            );
+                                                        })}
+                                                </div>
+                                            </PopoverContent>
+                                        </Popover>
+                                    )}
+                                </div>
+                            </div>
                         </div>
                     </form>
                 </div>
             </div>
 
-            {sortedImages.length > 0 && (
-                <div className="flex justify-end items-center gap-2 mb-4">
+            {/* Filter and Action Controls - Always visible */}
+            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-4">
+                {/* Filter Search Control */}
+                <FilterInput
+                    value={filterText}
+                    onChange={setFilterText}
+                    onClear={() => {
+                        setFilterText("");
+                        setDebouncedFilterText("");
+                    }}
+                    placeholder={t(
+                        'Search tags... (e.g., cat dog or "black cat")',
+                    )}
+                    className="w-full sm:flex-1 sm:max-w-md"
+                />
+
+                {/* Action Buttons */}
+                <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
                     <div className="text-sm text-gray-500 mr-2">
                         {selectedImages.size > 0 && (
                             <span>
@@ -1184,15 +1248,26 @@ function MediaPage() {
                         <Tooltip>
                             <TooltipTrigger asChild>
                                 <button
-                                    className="lb-icon-button text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 dark:bg-transparent dark:border-gray-600 dark:hover:border-gray-500"
-                                    disabled={selectedImages.size === 0}
-                                    onClick={() => handleBulkAction("download")}
+                                    className={`lb-icon-button text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 dark:bg-transparent dark:border-gray-600 dark:hover:border-gray-500 ${
+                                        isDownloadDisabled
+                                            ? "opacity-50 cursor-not-allowed"
+                                            : ""
+                                    }`}
+                                    disabled={
+                                        selectedImages.size === 0 ||
+                                        isDownloadDisabled
+                                    }
+                                    onClick={handleDownload}
                                 >
                                     <Download />
                                 </button>
                             </TooltipTrigger>
                             <TooltipContent>
-                                {t("Download Selected")}
+                                {isDownloadDisabled
+                                    ? downloadLimits.error
+                                    : selectedImages.size === 1
+                                      ? t("Download Selected")
+                                      : t("Download ZIP of Selected Media")}
                             </TooltipContent>
                         </Tooltip>
 
@@ -1211,24 +1286,60 @@ function MediaPage() {
                             </TooltipContent>
                         </Tooltip>
 
-                        <div className="w-px h-4 bg-gray-300 mx-1" />
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <button
+                                    className="lb-icon-button text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 dark:bg-transparent dark:border-gray-600 dark:hover:border-gray-500"
+                                    disabled={selectedImages.size === 0}
+                                    onClick={() => setShowBulkTagDialog(true)}
+                                >
+                                    <Tag />
+                                </button>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                                {t("Add Tag to Selected")}
+                            </TooltipContent>
+                        </Tooltip>
 
                         <Tooltip>
                             <TooltipTrigger asChild>
                                 <button
                                     className="lb-icon-button text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 dark:bg-transparent dark:border-gray-600 dark:hover:border-gray-500"
-                                    onClick={() =>
-                                        setShowDeleteAllConfirm(true)
-                                    }
+                                    disabled={selectedImages.size === 0}
+                                    onClick={handleClearSelection}
                                 >
-                                    <Trash2 />
+                                    <X />
                                 </button>
                             </TooltipTrigger>
-                            <TooltipContent>{t("Delete All")}</TooltipContent>
+                            <TooltipContent>
+                                {t("Clear Selection")}
+                            </TooltipContent>
+                        </Tooltip>
+
+                        <div className="w-px h-4 bg-gray-300 mx-1" />
+
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <label className="lb-icon-button text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 dark:bg-transparent dark:border-gray-600 dark:hover:border-gray-500 cursor-pointer flex items-center justify-center">
+                                    <input
+                                        type="file"
+                                        className="hidden"
+                                        accept="image/*"
+                                        onChange={handleFileSelect}
+                                        disabled={isUploading}
+                                    />
+                                    {isUploading ? (
+                                        <Loader2 className="animate-spin h-5 w-5" />
+                                    ) : (
+                                        <Plus className="h-5 w-5" />
+                                    )}
+                                </label>
+                            </TooltipTrigger>
+                            <TooltipContent>{t("Upload Image")}</TooltipContent>
                         </Tooltip>
                     </TooltipProvider>
                 </div>
-            )}
+            </div>
 
             {mediaItemsLoading || isMigrationInProgress ? (
                 <div className="flex justify-center items-center py-8">
@@ -1241,45 +1352,64 @@ function MediaPage() {
                 </div>
             ) : (
                 <>
-                    <div className="media-grid">{mediaTiles}</div>
+                    {sortedImages.length > 0 ? (
+                        <div className="media-grid" ref={mediaContainerRef}>
+                            {mediaTiles}
+                        </div>
+                    ) : (
+                        <EmptyState
+                            icon={
+                                <svg
+                                    className="w-16 h-16 mx-auto"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    viewBox="0 0 24 24"
+                                >
+                                    <path
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        strokeWidth={1}
+                                        d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
+                                    />
+                                </svg>
+                            }
+                            title={
+                                filterText
+                                    ? t("No media found")
+                                    : t("No media yet")
+                            }
+                            description={
+                                filterText
+                                    ? t(
+                                          "Try adjusting your search or clear the filter",
+                                      )
+                                    : t("Generate some media to get started")
+                            }
+                            action={
+                                filterText
+                                    ? () => {
+                                          setFilterText("");
+                                          setDebouncedFilterText("");
+                                      }
+                                    : null
+                            }
+                            actionLabel={filterText ? t("Clear Filter") : null}
+                        />
+                    )}
 
-                    {/* Pagination Controls */}
-                    {pagination.total > pageSize && (
-                        <div className="flex justify-center items-center gap-4 mt-8 mb-4">
-                            <button
-                                onClick={() =>
-                                    setCurrentPage(Math.max(1, currentPage - 1))
-                                }
-                                disabled={!pagination.hasPrev}
-                                className="lb-secondary disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                                {t("Previous")}
-                            </button>
-
-                            <span className="text-sm text-gray-600">
-                                {t("Page")} {pagination.page} {t("of")}{" "}
-                                {pagination.pages}
-                                {pagination.total > 0 && (
-                                    <span className="ml-2">
-                                        ({pagination.total} {t("total")})
-                                    </span>
-                                )}
-                            </span>
-
-                            <button
-                                onClick={() =>
-                                    setCurrentPage(
-                                        Math.min(
-                                            pagination.pages,
-                                            currentPage + 1,
-                                        ),
-                                    )
-                                }
-                                disabled={!pagination.hasNext}
-                                className="lb-secondary disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                                {t("Next")}
-                            </button>
+                    {/* Infinite scroll trigger */}
+                    {sortedImages.length > 0 && hasNextPage && (
+                        <div ref={ref} className="flex justify-center py-8">
+                            {shouldShowLoading ? (
+                                <div className="flex items-center gap-2 text-gray-500">
+                                    <Loader2 className="animate-spin h-5 w-5" />
+                                    <span>{t("Loading more...")}</span>
+                                </div>
+                            ) : (
+                                <div className="text-gray-400 text-sm">
+                                    {t("Scroll for more")}
+                                </div>
+                            )}
                         </div>
                     )}
                 </>
@@ -1294,30 +1424,6 @@ function MediaPage() {
                     }, 300);
                 }}
             />
-
-            <AlertDialog
-                open={showDeleteAllConfirm}
-                onOpenChange={setShowDeleteAllConfirm}
-            >
-                <AlertDialogContent>
-                    <AlertDialogHeader>
-                        <AlertDialogTitle>
-                            {t("Delete All Media?")}
-                        </AlertDialogTitle>
-                        <AlertDialogDescription>
-                            {t(
-                                "Are you sure you want to delete all media? This action cannot be undone.",
-                            )}
-                        </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                        <AlertDialogCancel>{t("Cancel")}</AlertDialogCancel>
-                        <AlertDialogAction autoFocus onClick={handleDeleteAll}>
-                            {t("Delete All Media")}
-                        </AlertDialogAction>
-                    </AlertDialogFooter>
-                </AlertDialogContent>
-            </AlertDialog>
 
             <AlertDialog
                 open={showDeleteSelectedConfirm}
@@ -1353,6 +1459,137 @@ function MediaPage() {
                 onHide={() => setShowSettings(false)}
                 debouncedUpdateUserState={debouncedUpdateUserState}
                 userState={userState}
+                currentSelectedModel={selectedModel}
+            />
+
+            <AlertDialog
+                open={showDownloadError}
+                onOpenChange={setShowDownloadError}
+            >
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>
+                            {t("Download limit exceeded")}
+                        </AlertDialogTitle>
+                        <AlertDialogDescription>
+                            {downloadError}
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogAction
+                            onClick={() => setShowDownloadError(false)}
+                        >
+                            {t("OK")}
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+
+            {/* Bulk Tag Dialog */}
+            <Modal
+                show={showBulkTagDialog}
+                onHide={() => {
+                    setShowBulkTagDialog(false);
+                    setBulkTagInput("");
+                }}
+                title={t("Add Tag to Selected Media")}
+                initialFocus={bulkTagInputRef}
+            >
+                <div className="space-y-4">
+                    <div>
+                        <label className="block text-sm font-medium mb-2">
+                            {t("Tag")}
+                        </label>
+                        <input
+                            type="text"
+                            className="lb-input w-full"
+                            placeholder={t("Enter tag name...")}
+                            value={bulkTagInput}
+                            onChange={(e) => setBulkTagInput(e.target.value)}
+                            onKeyDown={(e) => {
+                                if (e.key === "Enter") {
+                                    e.preventDefault();
+                                    handleBulkTag();
+                                }
+                            }}
+                            ref={bulkTagInputRef}
+                        />
+                    </div>
+                    <div className="text-sm text-gray-600 dark:text-gray-400">
+                        {t(
+                            "This tag will be added to {{count}} selected media items",
+                            {
+                                count: selectedImages.size,
+                            },
+                        )}
+                    </div>
+                    <div className="flex justify-end gap-2">
+                        <button
+                            className="px-4 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-50 dark:hover:bg-gray-700"
+                            onClick={() => {
+                                setShowBulkTagDialog(false);
+                                setBulkTagInput("");
+                            }}
+                        >
+                            {t("Cancel")}
+                        </button>
+                        <button
+                            className="px-4 py-2 text-sm bg-sky-500 text-white rounded hover:bg-sky-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                            onClick={handleBulkTag}
+                            disabled={
+                                !bulkTagInput.trim() ||
+                                updateTagsMutation.isPending
+                            }
+                        >
+                            {updateTagsMutation.isPending ? (
+                                <>
+                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                    {t("Adding...")}
+                                </>
+                            ) : (
+                                <>
+                                    <Tag className="h-4 w-4" />
+                                    {t("Add Tag")}
+                                </>
+                            )}
+                        </button>
+                    </div>
+                </div>
+            </Modal>
+
+            {/* Floating Bulk Actions Bar */}
+            <BulkActionsBar
+                selectedCount={selectedImages.size}
+                allSelected={
+                    selectedImages.size === sortedImages.length && !hasNextPage
+                }
+                onSelectAll={handleSelectAll}
+                onClearSelection={handleClearSelection}
+                bottomActionsLeft={bottomActionsLeft}
+                isLoadingAll={isLoadingAll}
+                actions={{
+                    download: {
+                        onClick: handleDownload,
+                        disabled: isDownloadDisabled,
+                        label:
+                            selectedImages.size === 1
+                                ? t("Download")
+                                : t("Download ZIP"),
+                        ariaLabel: `${t("Download")} (${selectedImages.size})`,
+                    },
+                    tag: {
+                        onClick: () => setShowBulkTagDialog(true),
+                        disabled: false,
+                        label: t("Add Tag"),
+                        ariaLabel: `${t("Add Tag")} (${selectedImages.size})`,
+                    },
+                    delete: {
+                        onClick: () => handleBulkAction("delete"),
+                        disabled: false,
+                        label: t("Delete"),
+                        ariaLabel: `${t("Delete")} (${selectedImages.size})`,
+                    },
+                }}
             />
         </div>
     );
@@ -1365,30 +1602,44 @@ function SettingsDialog({
     onHide,
     debouncedUpdateUserState,
     userState,
+    currentSelectedModel,
 }) {
     const { t } = useTranslation();
     const { direction } = useContext(LanguageContext);
     const [localSettings, setLocalSettings] = useState(settings);
     const [selectedModel, setSelectedModel] = useState(
-        "replicate-flux-1-schnell",
+        currentSelectedModel || "replicate-flux-11-pro",
     );
+    const initializedRef = useRef(false);
 
-    // Initialize localSettings when dialog opens
+    // Initialize localSettings and selectedModel when dialog opens
     useEffect(() => {
         if (show) {
+            // Always sync localSettings with the current settings when dialog opens
+            // This ensures we always show the latest saved settings
             setLocalSettings(settings);
+            // Set the selected model to the current one from the main component
+            if (currentSelectedModel) {
+                setSelectedModel(currentSelectedModel);
+            }
+            initializedRef.current = true;
+        } else if (!show) {
+            initializedRef.current = false;
         }
-    }, [show, settings]); // Include settings dependency - necessary to avoid infinite re-renders
+    }, [show, settings, currentSelectedModel]);
 
     const handleSave = () => {
+        // Update local settings state immediately
         setSettings(localSettings);
-        // Save settings to user state
+
+        // Save settings to user state (debounced for server persistence)
         debouncedUpdateUserState({
             media: {
                 ...userState?.media,
                 settings: localSettings,
             },
         });
+
         onHide();
     };
 
@@ -1412,13 +1663,18 @@ function SettingsDialog({
 
     const getModelDisplayName = (modelName) => {
         const names = {
-            "replicate-flux-1-schnell": "Flux Draft",
-            "replicate-flux-11-pro": "Flux Pro",
-            "replicate-flux-kontext-max": "Flux Kontext Max",
-            "replicate-multi-image-kontext-max": "Multi-Image Kontext Max",
-            "veo-2.0-generate": "Veo 2.0",
-            "veo-3.0-generate": "Veo 3.0",
-            "replicate-seedance-1-pro": "Seedance 1.0",
+            "replicate-flux-11-pro": t("Flux Pro"),
+            "replicate-flux-kontext-max": t("Flux Kontext Max"),
+            "replicate-multi-image-kontext-max": t("Multi-Image Kontext Max"),
+            "gemini-25-flash-image-preview": t("Gemini Flash Image"),
+            "replicate-qwen-image": t("Qwen Image"),
+            "replicate-qwen-image-edit-plus": t("Qwen Image Edit Plus"),
+            "replicate-seedream-4": t("Seedream 4.0"),
+            "veo-2.0-generate": t("Veo 2.0"),
+            "veo-3.0-generate": t("Veo 3.0"),
+            "veo-3.1-generate": t("Veo 3.1"),
+            "veo-3.1-fast-generate": t("Veo 3.1 Fast"),
+            "replicate-seedance-1-pro": t("Seedance 1.0"),
         };
         return names[modelName] || modelName;
     };
@@ -1447,7 +1703,37 @@ function SettingsDialog({
                 ];
             }
         } else {
-            // Base aspect ratios for all image models
+            // Gemini doesn't support aspect ratio control
+            if (modelName === "gemini-25-flash-image-preview") {
+                return [];
+            }
+
+            // Qwen models have specific aspect ratio support
+            if (modelName === "replicate-qwen-image") {
+                return [
+                    { value: "1:1", label: "1:1" },
+                    { value: "16:9", label: "16:9" },
+                    { value: "9:16", label: "9:16" },
+                    { value: "4:3", label: "4:3" },
+                    { value: "3:4", label: "3:4" },
+                ];
+            }
+
+            if (modelName === "replicate-qwen-image-edit-plus") {
+                return [
+                    { value: "1:1", label: "1:1" },
+                    { value: "16:9", label: "16:9" },
+                    { value: "9:16", label: "9:16" },
+                    { value: "4:3", label: "4:3" },
+                    { value: "3:4", label: "3:4" },
+                    {
+                        value: "match_input_image",
+                        label: t("Match Input Image"),
+                    },
+                ];
+            }
+
+            // Base aspect ratios for all other image models
             const baseRatios = [
                 { value: "1:1", label: "1:1" },
                 { value: "16:9", label: "16:9" },
@@ -1475,7 +1761,11 @@ function SettingsDialog({
     };
 
     const getAvailableDurations = (modelName) => {
-        if (modelName === "veo-3.0-generate") {
+        if (
+            modelName === "veo-3.0-generate" ||
+            modelName === "veo-3.1-generate" ||
+            modelName === "veo-3.1-fast-generate"
+        ) {
             return [{ value: 8, label: "8s" }];
         } else if (modelName === "veo-2.0-generate") {
             return [
@@ -1493,7 +1783,19 @@ function SettingsDialog({
         return [];
     };
 
-    const modelNames = Object.keys(localSettings.models || {});
+    // Group and sort models for SettingsDialog
+    const allModelNames = Object.keys(localSettings.models || {});
+    const imageModels = allModelNames
+        .filter(
+            (name) => (localSettings.models[name]?.type || "image") === "image",
+        )
+        .sort();
+    const videoModels = allModelNames
+        .filter(
+            (name) => (localSettings.models[name]?.type || "image") === "video",
+        )
+        .sort();
+    const modelNames = [...imageModels, ...videoModels];
     const currentModelSettings = localSettings.models?.[selectedModel] || {};
 
     return (
@@ -1514,11 +1816,15 @@ function SettingsDialog({
                         dir={direction}
                         onChange={(e) => setSelectedModel(e.target.value)}
                     >
-                        {modelNames.map((modelName) => (
-                            <option key={modelName} value={modelName}>
-                                {getModelDisplayName(modelName)}
-                            </option>
-                        ))}
+                        {modelNames.map((modelName) => {
+                            const modelType = getModelType(modelName);
+                            const icon = modelType === "video" ? "🎬" : "🖼️";
+                            return (
+                                <option key={modelName} value={modelName}>
+                                    {icon} {getModelDisplayName(modelName)}
+                                </option>
+                            );
+                        })}
                     </select>
                 </div>
 
@@ -1529,37 +1835,40 @@ function SettingsDialog({
                     </h3>
 
                     <div className="space-y-3">
-                        {/* Aspect Ratio */}
-                        <div>
-                            <label className="block text-sm font-medium mb-1">
-                                {t("Aspect Ratio")}
-                            </label>
-                            <select
-                                className="lb-input w-full"
-                                value={
-                                    currentModelSettings.aspectRatio || "1:1"
-                                }
-                                dir={direction}
-                                onChange={(e) =>
-                                    updateModelSetting(
+                        {/* Aspect Ratio - only show if model supports it */}
+                        {getAvailableAspectRatios(selectedModel).length > 0 && (
+                            <div>
+                                <label className="block text-sm font-medium mb-1">
+                                    {t("Aspect Ratio")}
+                                </label>
+                                <select
+                                    className="lb-input w-full"
+                                    value={
+                                        currentModelSettings.aspectRatio ||
+                                        "1:1"
+                                    }
+                                    dir={direction}
+                                    onChange={(e) =>
+                                        updateModelSetting(
+                                            selectedModel,
+                                            "aspectRatio",
+                                            e.target.value,
+                                        )
+                                    }
+                                >
+                                    {getAvailableAspectRatios(
                                         selectedModel,
-                                        "aspectRatio",
-                                        e.target.value,
-                                    )
-                                }
-                            >
-                                {getAvailableAspectRatios(selectedModel).map(
-                                    (ratio) => (
+                                    ).map((ratio) => (
                                         <option
                                             key={ratio.value}
                                             value={ratio.value}
                                         >
                                             {ratio.label}
                                         </option>
-                                    ),
-                                )}
-                            </select>
-                        </div>
+                                    ))}
+                                </select>
+                            </div>
+                        )}
 
                         {/* Duration (for video models) */}
                         {getModelType(selectedModel) === "video" &&
@@ -1624,17 +1933,23 @@ function SettingsDialog({
                                 </div>
                             )}
 
-                        {/* Generate Audio (for Veo 3.0) */}
-                        {selectedModel === "veo-3.0-generate" && (
+                        {/* Generate Audio (for Veo 3.0+) */}
+                        {(selectedModel === "veo-3.0-generate" ||
+                            selectedModel === "veo-3.1-generate" ||
+                            selectedModel === "veo-3.1-fast-generate") && (
                             <div>
                                 <label className="flex items-center space-x-2">
                                     <input
                                         type="checkbox"
-                                        className="lb-checkbox"
                                         checked={
-                                            selectedModel === "veo-3.0-generate"
+                                            selectedModel ===
+                                                "veo-3.0-generate" ||
+                                            selectedModel ===
+                                                "veo-3.1-generate" ||
+                                            selectedModel ===
+                                                "veo-3.1-fast-generate"
                                                 ? currentModelSettings.generateAudio !==
-                                                  false // Default to true for Veo 3.0
+                                                  false // Default to true for Veo 3.0+
                                                 : currentModelSettings.generateAudio ||
                                                   false
                                         }
@@ -1659,7 +1974,6 @@ function SettingsDialog({
                                 <label className="flex items-center space-x-2">
                                     <input
                                         type="checkbox"
-                                        className="lb-checkbox"
                                         checked={
                                             currentModelSettings.cameraFixed ||
                                             false
@@ -1678,6 +1992,36 @@ function SettingsDialog({
                                 </label>
                             </div>
                         )}
+
+                        {/* Optimize Prompt (for Gemini) */}
+                        {selectedModel === "gemini-25-flash-image-preview" && (
+                            <div>
+                                <label className="flex items-center space-x-2">
+                                    <input
+                                        type="checkbox"
+                                        checked={
+                                            currentModelSettings.optimizePrompt !==
+                                            false // Default to true
+                                        }
+                                        onChange={(e) =>
+                                            updateModelSetting(
+                                                selectedModel,
+                                                "optimizePrompt",
+                                                e.target.checked,
+                                            )
+                                        }
+                                    />
+                                    <span className="text-sm font-medium">
+                                        {t("Optimize Prompt")}
+                                    </span>
+                                </label>
+                                <p className="text-xs text-gray-500 mt-1">
+                                    {t(
+                                        "Use AI to rewrite your prompt for better results",
+                                    )}
+                                </p>
+                            </div>
+                        )}
                     </div>
                 </div>
             </div>
@@ -1694,394 +2038,69 @@ function SettingsDialog({
     );
 }
 
-function Progress({
-    requestId,
-    taskId,
-    prompt,
-    quality,
-    onDataReceived,
-    inputImageUrl,
-    outputType,
-    mode,
-}) {
-    const [data, setData] = useState(null);
-    const { t } = useTranslation();
-
-    // Use taskId if available, otherwise fall back to requestId
-    const id = taskId || requestId;
-
-    if (!id) {
-        return null;
-    }
-
-    if (id && !data) {
-        return (
-            <ProgressUpdate
-                initialText={t("Generating...")}
-                requestId={id}
-                mode={mode || (outputType === "video" ? "spinner" : "progress")}
-                setFinalData={(finalData) => {
-                    // Update local state to stop showing spinner
-                    setData(finalData);
-
-                    // If data is already an object with error, pass it through
-                    if (finalData?.result?.error) {
-                        onDataReceived({ result: finalData.result, prompt });
-                        return;
-                    }
-
-                    try {
-                        const parsedData = JSON.parse(finalData);
-                        onDataReceived({ result: { ...parsedData }, prompt });
-                    } catch (e) {
-                        console.error("Error parsing data", e);
-                        onDataReceived({
-                            result: {
-                                error: {
-                                    code: "PARSE_ERROR",
-                                    message: `Failed to generate ${outputType || "media"}`,
-                                },
-                            },
-                            prompt,
-                        });
-                    }
-                }}
-                autoDuration={
-                    outputType === "video"
-                        ? null
-                        : !inputImageUrl && quality === "draft"
-                          ? 1000
-                          : 10000
-                }
-            />
-        );
-    }
-}
-
-function ImageTile({
-    image,
-    onClick,
-    onDelete,
-    onRegenerate,
-    onGenerationComplete,
-    quality,
-    selectedImages,
-    setSelectedImages,
-    lastSelectedImage,
-    setLastSelectedImage,
-    images,
-    setShowDeleteSelectedConfirm,
-}) {
-    const [loadError, setLoadError] = useState(false);
-    const [retryCount, setRetryCount] = useState(0);
-    // Always use Azure URL for display - GCS URL is only for internal model use
-    const url = image?.azureUrl || image?.url;
-    const { t } = useTranslation();
-    const expired = image?.expires ? image.expires < Date.now() / 1000 : false;
-    const { cortexRequestId, prompt, result, regenerating, uploading, error } =
-        image || {};
-    const { code, message } = error || result?.error || {};
-    const isSelected = selectedImages.has(cortexRequestId);
-
-    const handleSelection = (e) => {
-        e.stopPropagation();
-        const newSelectedImages = new Set(selectedImages);
-
-        if (e.shiftKey && lastSelectedImage) {
-            // Find indices of last selected and current image
-            const lastIndex = images.findIndex(
-                (img) => img.cortexRequestId === lastSelectedImage,
-            );
-            const currentIndex = images.findIndex(
-                (img) => img.cortexRequestId === cortexRequestId,
-            );
-
-            // Select all images between last selected and current
-            const start = Math.min(lastIndex, currentIndex);
-            const end = Math.max(lastIndex, currentIndex);
-
-            for (let i = start; i <= end; i++) {
-                newSelectedImages.add(images[i].cortexRequestId);
-            }
-        } else {
-            // Normal click behavior
-            if (isSelected) {
-                newSelectedImages.delete(cortexRequestId);
-            } else {
-                newSelectedImages.add(cortexRequestId);
-            }
-        }
-
-        setSelectedImages(newSelectedImages);
-        setLastSelectedImage(cortexRequestId);
-    };
-
-    return (
-        <div className="media-tile">
-            {/* Selection checkbox - always visible */}
-            <div
-                className={`selection-checkbox ${isSelected ? "selected" : ""}`}
-                onClick={handleSelection}
-            >
-                <Check
-                    className={`text-sm ${isSelected ? "opacity-100" : "opacity-0"}`}
-                />
-            </div>
-
-            <div className="media-wrapper relative" onClick={onClick}>
-                {/* Action buttons overlay - top left */}
-                <div className="absolute top-2 left-2 z-10 flex gap-1 opacity-0 hover:opacity-100 transition-opacity duration-200">
-                    <button
-                        className="lb-icon-button bg-white bg-opacity-80 hover:bg-opacity-100 text-gray-700 hover:text-gray-900 dark:bg-gray-800 dark:bg-opacity-80 dark:hover:bg-opacity-100 dark:text-gray-200 dark:hover:text-white shadow-sm"
-                        title={t("Download")}
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            window.open(url, "_blank");
-                        }}
-                    >
-                        <Download />
-                    </button>
-                    <button
-                        className="lb-icon-button bg-white bg-opacity-80 hover:bg-opacity-100 text-gray-700 hover:text-gray-900 dark:bg-gray-800 dark:bg-opacity-80 dark:hover:bg-opacity-100 dark:text-gray-200 dark:hover:text-white shadow-sm"
-                        title={t("Delete")}
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            // Select this image and trigger delete selected dialog
-                            setSelectedImages(new Set([image.cortexRequestId]));
-                            setShowDeleteSelectedConfirm(true);
-                        }}
-                    >
-                        <Trash2 />
-                    </button>
-                </div>
-
-                {regenerating ||
-                (image?.status === "pending" && image?.taskId) ||
-                (!url &&
-                    !error &&
-                    !result?.error &&
-                    image?.status !== "completed" &&
-                    image?.status !== "failed") ? (
-                    <div className="h-full bg-gray-50 dark:bg-gray-700 p-4 text-sm flex items-center justify-center">
-                        <ProgressComponent />
-                    </div>
-                ) : uploading ? (
-                    <div className="h-full bg-gray-50 dark:bg-gray-700 p-4 text-sm flex items-center justify-center">
-                        <UploadComponent />
-                    </div>
-                ) : !expired && url && !loadError ? (
-                    image.type === "video" ? (
-                        <div className="relative w-full h-full">
-                            <video
-                                src={url}
-                                className="w-full h-full object-cover object-center"
-                                preload="metadata"
-                                onError={() => {
-                                    if (retryCount < 2) {
-                                        setRetryCount((prev) => prev + 1);
-                                        // Reset loadError to allow retry
-                                        setLoadError(false);
-                                    } else {
-                                        setLoadError(true);
-                                    }
-                                }}
-                                onLoad={() => {
-                                    setLoadError(false);
-                                    setRetryCount(0);
-                                }}
-                            />
-                            <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-20 hover:bg-opacity-30 transition-all duration-200">
-                                <div className="w-12 h-12 bg-white bg-opacity-50 rounded-full flex items-center justify-center shadow-lg">
-                                    <svg
-                                        className="w-6 h-6 text-gray-800 ml-1"
-                                        fill="currentColor"
-                                        viewBox="0 0 24 24"
-                                    >
-                                        <path d="M8 5v14l11-7z" />
-                                    </svg>
-                                </div>
-                            </div>
-                        </div>
-                    ) : (
-                        <ChatImage
-                            src={url}
-                            alt={prompt}
-                            onError={() => setLoadError(true)}
-                            onLoad={() => setLoadError(false)}
-                            className="w-full h-full object-cover object-center"
-                        />
-                    )
-                ) : (
-                    <div className="h-full bg-gray-50 dark:bg-gray-700 p-4 text-sm flex items-center justify-center">
-                        {cortexRequestId &&
-                            !url &&
-                            !code &&
-                            !image?.taskId &&
-                            image?.status !== "failed" &&
-                            (result ? <NoImageError /> : <ProgressComponent />)}
-                        {code === "ERR_BAD_REQUEST" && <BadRequestError />}
-                        {code && code !== "ERR_BAD_REQUEST" && <OtherError />}
-                        {expired && url && <ExpiredImageComponent />}
-                        {loadError && <ExpiredImageComponent />}
-                    </div>
-                )}
-            </div>
-
-            <div className="media-prompt" title={prompt}>
-                {prompt}
-            </div>
-        </div>
-    );
-
-    function ProgressComponent() {
-        return (
-            <div>
-                <Progress
-                    requestId={cortexRequestId}
-                    taskId={image?.taskId}
-                    prompt={prompt}
-                    quality={quality}
-                    onDataReceived={(data) =>
-                        onGenerationComplete(cortexRequestId, data)
-                    }
-                    inputImageUrl={image?.inputImageUrl}
-                    outputType={image?.type || "image"}
-                    mode="spinner"
-                />
-            </div>
-        );
-    }
-
-    function UploadComponent() {
-        return (
-            <div className="flex flex-col items-center gap-2 text-gray-500">
-                <ProgressUpdate
-                    initialText={t("Uploading to cloud...")}
-                    mode="spinner"
-                />
-            </div>
-        );
-    }
-
-    function BadRequestError() {
-        return (
-            <div className="text-center">
-                <div>
-                    {t(
-                        `${image.type === "video" ? "Video" : "Image"} blocked by safety system.`,
-                    )}
-                </div>
-            </div>
-        );
-    }
-
-    function OtherError() {
-        return (
-            <div className="text-center flex flex-col items-center justify-center h-full">
-                <div>{`${t(`${image.type === "video" ? "Video" : "Image"} Error: `)} ${message}`}</div>
-                <div className="mt-4">
-                    {image.type === "video" ? (
-                        <button
-                            className="lb-primary"
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                // For videos, just reload the page to retry
-                                window.location.reload();
-                            }}
-                        >
-                            {t("Reload")}
-                        </button>
-                    ) : !image.model ? null : (
-                        <button
-                            className="lb-primary"
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                onRegenerate();
-                            }}
-                        >
-                            {t("Regenerate")}
-                        </button>
-                    )}
-                </div>
-            </div>
-        );
-    }
-
-    function ExpiredImageComponent() {
-        return (
-            <div className="flex flex-col items-center justify-center h-full">
-                <div className="mb-4 text-center">
-                    {t(
-                        `${image.type === "video" ? "Video" : "Image"} expired or not available.`,
-                    )}
-                </div>
-                <div>
-                    {image.type === "video" ? (
-                        <button
-                            className="lb-primary"
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                // For videos, just reload the page to retry
-                                window.location.reload();
-                            }}
-                        >
-                            {t("Reload")}
-                        </button>
-                    ) : !image.model ? null : (
-                        <button
-                            className="lb-primary"
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                onRegenerate();
-                            }}
-                        >
-                            {t("Regenerate")}
-                        </button>
-                    )}
-                </div>
-            </div>
-        );
-    }
-
-    function NoImageError() {
-        return (
-            <div className="flex flex-col items-center justify-center h-full">
-                <div className="text-center">
-                    {t(
-                        `Generation completed but no ${image.type === "video" ? "video" : "image"} was produced.`,
-                    )}
-                </div>
-                <div className="mt-4">
-                    {image.type === "video" ? (
-                        <button
-                            className="lb-primary"
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                // For videos, just reload the page to retry
-                                window.location.reload();
-                            }}
-                        >
-                            {t("Reload")}
-                        </button>
-                    ) : !image.model ? null : (
-                        <button
-                            className="lb-primary"
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                onRegenerate();
-                            }}
-                        >
-                            {t("Regenerate")}
-                        </button>
-                    )}
-                </div>
-            </div>
-        );
-    }
-}
-
 function ImageModal({ show, image, onHide }) {
     const { t } = useTranslation();
+    const [tags, setTags] = useState([]);
+    const [newTag, setNewTag] = useState("");
+    const updateTagsMutation = useUpdateMediaItemTags();
+    const tagInputRef = useRef(null);
+
+    // Initialize tags when image changes
+    useEffect(() => {
+        if (image?.tags) {
+            setTags(image.tags);
+        } else {
+            setTags([]);
+        }
+    }, [image]);
+
+    const addTag = async () => {
+        if (!newTag.trim() || tags.includes(newTag.trim())) return;
+
+        const updatedTags = [...tags, newTag.trim()];
+        setTags(updatedTags);
+        setNewTag("");
+
+        // Update on server
+        await updateTagsOnServer(updatedTags);
+
+        // Restore focus after state update
+        setTimeout(() => {
+            if (tagInputRef.current) {
+                tagInputRef.current.focus();
+            }
+        }, 0);
+    };
+
+    const removeTag = async (tagToRemove) => {
+        const updatedTags = tags.filter((tag) => tag !== tagToRemove);
+        setTags(updatedTags);
+
+        // Update on server
+        await updateTagsOnServer(updatedTags);
+    };
+
+    const updateTagsOnServer = async (updatedTags) => {
+        if (!image?.taskId) return;
+
+        try {
+            await updateTagsMutation.mutateAsync({
+                taskId: image.taskId,
+                tags: updatedTags,
+            });
+        } catch (error) {
+            console.error("Error updating tags:", error);
+            // Revert tags on error
+            setTags(image?.tags || []);
+        }
+    };
+
+    const handleKeyPress = (e) => {
+        if (e.key === "Enter") {
+            e.preventDefault();
+            addTag();
+        }
+    };
 
     return (
         <Modal
@@ -2090,7 +2109,7 @@ function ImageModal({ show, image, onHide }) {
             title={t(`Generated ${image?.type || "image"}`)}
         >
             <div className="flex flex-col gap-4 sm:flex-row sm:gap-6">
-                <div className="sm:basis-9/12">
+                <div className="sm:basis-7/12">
                     {image?.type === "video" ? (
                         <video
                             className="rounded-md w-full"
@@ -2106,26 +2125,71 @@ function ImageModal({ show, image, onHide }) {
                         />
                     )}
                 </div>
-                <div className="sm:basis-3/12 flex flex-col max-h-[400px]">
-                    <div className="sm:text-sm">
+                <div className="sm:basis-5/12 flex flex-col max-h-[500px] overflow-y-auto overflow-x-hidden">
+                    <div className="sm:text-sm flex-shrink-0">
                         <ImageInfo data={image} type={image?.type || "image"} />
                     </div>
-                    <div className="flex-grow overflow-hidden">
-                        <div className="font-semibold text-gray-500 sm:text-sm">
+
+                    {/* Tags Section */}
+                    <div className="mb-4 flex-shrink-0">
+                        <div className="font-semibold text-gray-500 sm:text-sm mb-2">
+                            {t("Tags")}
+                        </div>
+                        <div className="flex flex-wrap gap-1 mb-2">
+                            {tags.map((tag, index) => (
+                                <span
+                                    key={index}
+                                    className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-sky-100 text-sky-800 dark:bg-sky-900 dark:text-sky-200"
+                                >
+                                    #{tag}
+                                    <button
+                                        className="ml-1 hover:text-sky-600 dark:hover:text-sky-300"
+                                        onClick={() => removeTag(tag)}
+                                        disabled={updateTagsMutation.isPending}
+                                    >
+                                        <X className="h-3 w-3" />
+                                    </button>
+                                </span>
+                            ))}
+                        </div>
+                        <div className="flex gap-2">
+                            <input
+                                type="text"
+                                className="flex-1 text-sm px-2 py-1 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                                placeholder={t("Add tag...")}
+                                value={newTag}
+                                onChange={(e) => setNewTag(e.target.value)}
+                                onKeyPress={handleKeyPress}
+                                disabled={updateTagsMutation.isPending}
+                                ref={tagInputRef}
+                            />
+                            <button
+                                className="px-3 py-1 text-sm bg-sky-500 text-white rounded hover:bg-sky-600 disabled:opacity-50 disabled:cursor-not-allowed w-14 flex items-center justify-center"
+                                onClick={addTag}
+                                disabled={
+                                    !newTag.trim() ||
+                                    updateTagsMutation.isPending
+                                }
+                            >
+                                {updateTagsMutation.isPending ? (
+                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : (
+                                    t("Add")
+                                )}
+                            </button>
+                        </div>
+                    </div>
+
+                    <div className="flex-grow">
+                        <div className="font-semibold text-gray-500 sm:text-sm mb-2">
                             {t("Prompt")}
                         </div>
-                        <div className="h-full">
-                            <textarea
-                                className="w-full p-2 rounded-md bg-gray-50 dark:bg-gray-700 sm:text-sm overflow-y-auto"
-                                value={image?.prompt}
-                                readOnly
-                                style={{
-                                    height: "100%",
-                                    maxHeight: "calc(100% - 1.5rem)",
-                                    minHeight: "3rem",
-                                }}
-                            />
-                        </div>
+                        <textarea
+                            className="w-full p-2 rounded-md bg-gray-50 dark:bg-gray-700 sm:text-sm resize-none focus:outline-none focus:ring-0 focus:border-0"
+                            value={image?.prompt}
+                            readOnly
+                            rows={8}
+                        />
                     </div>
                 </div>
             </div>
@@ -2144,13 +2208,18 @@ function ImageInfo({ data, type }) {
 
     const getModelDisplayName = (modelName) => {
         const names = {
-            "replicate-flux-1-schnell": "Flux Draft",
-            "replicate-flux-11-pro": "Flux Pro",
-            "replicate-flux-kontext-max": "Flux Kontext Max",
-            "replicate-multi-image-kontext-max": "Multi-Image Kontext Max",
-            "veo-2.0-generate": "Veo 2.0",
-            "veo-3.0-generate": "Veo 3.0",
-            "replicate-seedance-1-pro": "Seedance 1.0",
+            "replicate-flux-11-pro": t("Flux Pro"),
+            "replicate-flux-kontext-max": t("Flux Kontext Max"),
+            "replicate-multi-image-kontext-max": t("Multi-Image Kontext Max"),
+            "gemini-25-flash-image-preview": t("Gemini Flash Image"),
+            "replicate-qwen-image": t("Qwen Image"),
+            "replicate-qwen-image-edit-plus": t("Qwen Image Edit Plus"),
+            "replicate-seedream-4": t("Seedream 4.0"),
+            "veo-2.0-generate": t("Veo 2.0"),
+            "veo-3.0-generate": t("Veo 3.0"),
+            "veo-3.1-generate": t("Veo 3.1"),
+            "veo-3.1-fast-generate": t("Veo 3.1 Fast"),
+            "replicate-seedance-1-pro": t("Seedance 1.0"),
         };
         return names[modelName] || modelName;
     };
@@ -2169,6 +2238,51 @@ function ImageInfo({ data, type }) {
                         : t("(not found)")}
                 </div>
             </div>
+            {data?.created && (
+                <div className="mb-2">
+                    <div>
+                        <div className="font-semibold text-gray-500">
+                            {t("Expires")}
+                        </div>
+                    </div>
+                    <div>
+                        {(() => {
+                            const createdDate = new Date(data.created * 1000);
+                            const expiresDate = new Date(
+                                createdDate.getTime() +
+                                    30 * 24 * 60 * 60 * 1000,
+                            ); // Add 30 days
+                            const now = new Date();
+                            const daysUntilExpiry = Math.ceil(
+                                (expiresDate.getTime() - now.getTime()) /
+                                    (24 * 60 * 60 * 1000),
+                            );
+                            const isExpiringSoon = daysUntilExpiry <= 7;
+
+                            return (
+                                <span
+                                    className={
+                                        isExpiringSoon
+                                            ? "text-red-500 font-semibold"
+                                            : ""
+                                    }
+                                >
+                                    {expiresDate.toLocaleString()}
+                                    {isExpiringSoon && (
+                                        <span className="ml-2 text-xs">
+                                            ({daysUntilExpiry}{" "}
+                                            {daysUntilExpiry === 1
+                                                ? t("day")
+                                                : t("days")}{" "}
+                                            {t("remaining")})
+                                        </span>
+                                    )}
+                                </span>
+                            );
+                        })()}
+                    </div>
+                </div>
+            )}
             {data?.model && (
                 <div className="mb-2">
                     <div>

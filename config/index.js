@@ -1,5 +1,5 @@
 import appConfig from "../app.config/config";
-import defaultConfig from "./default/config";
+import defaultConfig from "./default/config/index.js";
 
 export default mergeObjects(defaultConfig, appConfig);
 

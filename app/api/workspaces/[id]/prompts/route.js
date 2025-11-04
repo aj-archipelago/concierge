@@ -22,5 +22,8 @@ export async function POST(req, { params }) {
     await workspace.save();
     await republishWorkspace(workspace);
 
-    return Response.json(prompt);
+    // Populate the prompt with files before returning
+    const populatedPrompt = await Prompt.findById(prompt._id).populate("files");
+
+    return Response.json(populatedPrompt);
 }

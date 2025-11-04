@@ -8,7 +8,7 @@ import React, {
     useState,
 } from "react";
 import { useTranslation } from "react-i18next";
-import { FileImage, FileText, UserCircle } from "lucide-react";
+import { UserCircle } from "lucide-react";
 import Loader from "../../../app/components/loader";
 import classNames from "../../../app/utils/class-names";
 import config from "../../../config";
@@ -18,6 +18,7 @@ import {
     isAudioUrl,
     isVideoUrl,
     DOC_EXTENSIONS,
+    getFileIcon,
 } from "../../utils/mediaUtils";
 import CopyButton from "../CopyButton";
 import ReplayButton from "../ReplayButton";
@@ -192,7 +193,7 @@ const MessageListContent = React.memo(function MessageListContent({
                         const ext = getExtension(src);
 
                         if (DOC_EXTENSIONS.includes(ext)) {
-                            const Icon = ext === ".pdf" ? FileImage : FileText;
+                            const Icon = getFileIcon(filename);
                             return (
                                 <a
                                     key={`file-${index}-${index2}`}
@@ -440,6 +441,7 @@ const MessageList = React.memo(
                             entities={entities}
                             entityIconSize={entityIconSize}
                             entityIconClasses={classNames(basis)}
+                            onLoad={() => handleMessageLoad(message.id)}
                         />
                     );
                 }
@@ -510,6 +512,7 @@ const MessageList = React.memo(
                 entities,
                 entityIconSize,
                 messages,
+                handleMessageLoad,
             ],
         );
 

@@ -103,8 +103,16 @@ const VISION = gql`
 `;
 
 const SYS_SAVE_MEMORY = gql`
-    query SysSaveMemory($aiMemory: String!, $contextId: String!) {
-        sys_save_memory(aiMemory: $aiMemory, contextId: $contextId) {
+    query SysSaveMemory(
+        $aiMemory: String!
+        $contextId: String!
+        $contextKey: String
+    ) {
+        sys_save_memory(
+            aiMemory: $aiMemory
+            contextId: $contextId
+            contextKey: $contextKey
+        ) {
             result
         }
     }
@@ -122,6 +130,7 @@ const SYS_ENTITY_AGENT = gql`
     query RagStart(
         $chatHistory: [MultiMessage]!
         $contextId: String
+        $contextKey: String
         $text: String
         $aiName: String
         $aiMemorySelfModify: Boolean
@@ -135,6 +144,7 @@ const SYS_ENTITY_AGENT = gql`
         sys_entity_agent(
             chatHistory: $chatHistory
             contextId: $contextId
+            contextKey: $contextKey
             text: $text
             aiName: $aiName
             aiMemorySelfModify: $aiMemorySelfModify
@@ -610,6 +620,121 @@ const IMAGE_FLUX = gql`
     }
 `;
 
+const IMAGE_GEMINI_25 = gql`
+    query ImageGemini25(
+        $text: String!
+        $async: Boolean
+        $input_image: String
+        $input_image_2: String
+        $input_image_3: String
+        $optimizePrompt: Boolean
+    ) {
+        image_gemini_25(
+            text: $text
+            async: $async
+            input_image: $input_image
+            input_image_2: $input_image_2
+            input_image_3: $input_image_3
+            optimizePrompt: $optimizePrompt
+        ) {
+            result
+            resultData
+        }
+    }
+`;
+
+const IMAGE_QWEN = gql`
+    query ImageQwen(
+        $text: String!
+        $model: String!
+        $async: Boolean
+        $negativePrompt: String
+        $width: Int
+        $height: Int
+        $aspectRatio: String
+        $numberResults: Int
+        $output_format: String
+        $output_quality: Int
+        $input_image: String
+        $input_image_2: String
+        $input_image_3: String
+        $go_fast: Boolean
+        $guidance: Float
+        $strength: Float
+        $image_size: String
+        $lora_scale: Float
+        $enhance_prompt: Boolean
+        $num_inference_steps: Int
+        $disable_safety_checker: Boolean
+    ) {
+        image_qwen(
+            text: $text
+            model: $model
+            async: $async
+            negativePrompt: $negativePrompt
+            width: $width
+            height: $height
+            aspectRatio: $aspectRatio
+            numberResults: $numberResults
+            output_format: $output_format
+            output_quality: $output_quality
+            input_image: $input_image
+            input_image_2: $input_image_2
+            input_image_3: $input_image_3
+            go_fast: $go_fast
+            guidance: $guidance
+            strength: $strength
+            image_size: $image_size
+            lora_scale: $lora_scale
+            enhance_prompt: $enhance_prompt
+            num_inference_steps: $num_inference_steps
+            disable_safety_checker: $disable_safety_checker
+        ) {
+            result
+        }
+    }
+`;
+
+const IMAGE_SEEDREAM4 = gql`
+    query ImageSeedream4(
+        $text: String!
+        $model: String!
+        $async: Boolean
+        $size: String
+        $width: Int
+        $height: Int
+        $aspectRatio: String
+        $maxImages: Int
+        $numberResults: Int
+        $input_image: String
+        $input_image_1: String
+        $input_image_2: String
+        $input_image_3: String
+        $sequentialImageGeneration: String
+        $seed: Int
+    ) {
+        image_seedream4(
+            text: $text
+            model: $model
+            async: $async
+            size: $size
+            width: $width
+            height: $height
+            aspectRatio: $aspectRatio
+            maxImages: $maxImages
+            numberResults: $numberResults
+            input_image: $input_image
+            input_image_1: $input_image_1
+            input_image_2: $input_image_2
+            input_image_3: $input_image_3
+            sequentialImageGeneration: $sequentialImageGeneration
+            seed: $seed
+        ) {
+            result
+        }
+    }
+`;
+
 const VIDEO_VEO = gql`
     query VideoVeo(
         $text: String!
@@ -745,6 +870,9 @@ const QUERIES = {
     COGNITIVE_INSERT,
     IMAGE,
     IMAGE_FLUX,
+    IMAGE_GEMINI_25,
+    IMAGE_QWEN,
+    IMAGE_SEEDREAM4,
     VIDEO_VEO,
     VIDEO_SEEDANCE,
     SYS_SAVE_MEMORY,
@@ -809,6 +937,9 @@ export {
     HASHTAGS,
     HEADLINE,
     IMAGE_FLUX,
+    IMAGE_GEMINI_25,
+    IMAGE_QWEN,
+    IMAGE_SEEDREAM4,
     VIDEO_VEO,
     VIDEO_SEEDANCE,
     GRAMMAR,

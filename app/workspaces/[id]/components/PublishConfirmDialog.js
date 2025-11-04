@@ -11,12 +11,13 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { AlertTriangle, Search } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import * as Icons from "lucide-react";
 import { getUniqueLucideIcons } from "@/lib/utils";
-import { useWorkspaceApp } from "../../../queries/workspaces";
+import { useWorkspaceApp, useWorkspace } from "../../../queries/workspaces";
 
 export default function PublishConfirmDialog({
     isOpen,
@@ -29,32 +30,58 @@ export default function PublishConfirmDialog({
     const { t } = useTranslation();
     const [publishToAppStore, setPublishToAppStore] = useState(false);
     const [appName, setAppName] = useState("");
+    const [appSlug, setAppSlug] = useState("");
+    const [appDescription, setAppDescription] = useState("");
     const [selectedIcon, setSelectedIcon] = useState("AppWindow");
     const [iconSearch, setIconSearch] = useState("");
     const [showIconSelector, setShowIconSelector] = useState(false);
+    const [error, setError] = useState("");
     const searchInputRef = useRef(null);
 
-    // Fetch existing app data to prefill app name
+    // Fetch existing app data to prefill app name and workspace data for slug
     const { data: existingApp } = useWorkspaceApp(workspaceId);
+    const { data: workspace } = useWorkspace(workspaceId);
 
-    // Prefill app name when dialog opens and existing app data is available
+    // Prefill app name, slug, description, and publish to app store setting when dialog opens
     useEffect(() => {
-        if (isOpen && existingApp?.name) {
-            setAppName(existingApp.name);
+        if (isOpen) {
+            // Check if app is currently published to app store
+            const isCurrentlyPublished =
+                existingApp && existingApp.status === "active";
+            setPublishToAppStore(isCurrentlyPublished || false);
+
+            if (existingApp?.name) {
+                setAppName(existingApp.name);
+            } else if (workspace?.name) {
+                // Default to workspace name if no existing app name
+                setAppName(workspace.name);
+            }
+            if (existingApp?.icon) {
+                setSelectedIcon(existingApp.icon);
+            }
+            if (existingApp?.slug) {
+                setAppSlug(existingApp.slug);
+            } else if (workspace?.slug) {
+                // Default to workspace slug if no existing app slug
+                setAppSlug(workspace.slug);
+            }
+            if (existingApp?.description) {
+                setAppDescription(existingApp.description);
+            }
         }
-        if (isOpen && existingApp?.icon) {
-            setSelectedIcon(existingApp.icon);
-        }
-    }, [isOpen, existingApp]);
+    }, [isOpen, existingApp, workspace]);
 
     // Reset form when dialog closes
     useEffect(() => {
         if (!isOpen) {
             setAppName("");
+            setAppSlug("");
+            setAppDescription("");
             setSelectedIcon("AppWindow");
             setPublishToAppStore(false);
             setIconSearch("");
             setShowIconSelector(false);
+            setError("");
         }
     }, [isOpen]);
 
@@ -65,14 +92,41 @@ export default function PublishConfirmDialog({
         }
     }, [showIconSelector]);
 
-    const handleConfirm = () => {
-        if (publishToAppStore && !appName.trim()) {
-            return; // Don't proceed if app store is selected but no name provided
+    const handleConfirm = async () => {
+        if (
+            publishToAppStore &&
+            (!appName.trim() || !appSlug.trim() || !appDescription.trim())
+        ) {
+            return; // Don't proceed if app store is selected but no name, slug, or description provided
         }
-        onConfirm(publishToAppStore, appName.trim(), selectedIcon);
+
+        setError(""); // Clear any previous errors
+
+        try {
+            await onConfirm(
+                publishToAppStore,
+                appName.trim(),
+                selectedIcon,
+                appSlug.trim(),
+                appDescription.trim(),
+            );
+        } catch (error) {
+            // Handle errors from the mutation - check multiple possible error locations
+            console.error("Publishing error:", error);
+            const errorMessage =
+                error?.response?.data?.error ||
+                error?.data?.error ||
+                error?.message ||
+                "An error occurred while publishing";
+            setError(errorMessage);
+        }
     };
 
-    const isFormValid = !publishToAppStore || appName.trim().length > 0;
+    const isFormValid =
+        !publishToAppStore ||
+        (appName.trim().length > 0 &&
+            appSlug.trim().length > 0 &&
+            appDescription.trim().length > 0);
 
     // Get unique icons without aliases
     const uniqueIcons = getUniqueLucideIcons(Icons);
@@ -135,6 +189,53 @@ export default function PublishConfirmDialog({
                                             "Enter a name for your app",
                                         )}
                                         className="w-full"
+                                    />
+                                </div>
+
+                                <div className="space-y-2">
+                                    <Label
+                                        htmlFor="app-slug"
+                                        className="text-sm font-medium"
+                                    >
+                                        {t("App Slug *")}
+                                    </Label>
+                                    <Input
+                                        id="app-slug"
+                                        value={appSlug}
+                                        onChange={(e) =>
+                                            setAppSlug(e.target.value)
+                                        }
+                                        placeholder={t(
+                                            "Enter a slug for your app URL",
+                                        )}
+                                        className="w-full"
+                                    />
+                                    <p className="text-xs text-muted-foreground">
+                                        {t(
+                                            "Your app will be accessible at: /apps/{{slug}}",
+                                            { slug: appSlug || "your-slug" },
+                                        )}
+                                    </p>
+                                </div>
+
+                                <div className="space-y-2">
+                                    <Label
+                                        htmlFor="app-description"
+                                        className="text-sm font-medium"
+                                    >
+                                        {t("App Description *")}
+                                    </Label>
+                                    <Textarea
+                                        id="app-description"
+                                        value={appDescription}
+                                        onChange={(e) =>
+                                            setAppDescription(e.target.value)
+                                        }
+                                        placeholder={t(
+                                            "Enter a description for your app",
+                                        )}
+                                        className="w-full min-h-[80px]"
+                                        rows={3}
                                     />
                                 </div>
 
@@ -232,6 +333,16 @@ export default function PublishConfirmDialog({
                                 </div>
                             </div>
                         )}
+
+                        {/* Error Message */}
+                        {error && (
+                            <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md p-3">
+                                <p className="text-sm text-red-600 dark:text-red-400">
+                                    {error}
+                                </p>
+                            </div>
+                        )}
+
                         <p className="text-xs text-muted-foreground">
                             {publishToAppStore
                                 ? t(

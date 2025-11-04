@@ -57,7 +57,7 @@ const appNavigationMap = {
         href: "/translate",
     },
     video: {
-        name: "Video",
+        name: "Transcribe",
         href: "/video",
     },
     write: {
@@ -65,7 +65,7 @@ const appNavigationMap = {
         href: "/write",
     },
     workspaces: {
-        name: "Workspaces",
+        name: "Applets",
         href: "/workspaces",
     },
     media: {
@@ -213,7 +213,9 @@ export default React.forwardRef(function Sidebar(
                     return {
                         name: app.name || "Applet",
                         icon: Icons[app.icon] || AppWindow,
-                        href: `/published/workspaces/${app.workspaceId}/applet`,
+                        href: app.slug
+                            ? `/apps/${app.slug}`
+                            : `/published/workspaces/${app.workspaceId}/applet`,
                         appId: userApp.appId._id || userApp.appId,
                         workspaceId: app.workspaceId,
                         type: "applet",

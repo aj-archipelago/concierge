@@ -189,12 +189,12 @@ export default function ChatInterface({
                                             </h3>
                                         ),
                                         ul: ({ children }) => (
-                                            <ul className="list-disc list-inside mb-3 space-y-1 mobile-text-wrap">
+                                            <ul className="list-disc list-outside mb-3 space-y-1 pl-6 mobile-text-wrap">
                                                 {children}
                                             </ul>
                                         ),
                                         ol: ({ children }) => (
-                                            <ol className="list-decimal list-inside mb-3 space-y-1 mobile-text-wrap">
+                                            <ol className="list-decimal list-outside mb-3 space-y-1 pl-6 mobile-text-wrap">
                                                 {children}
                                             </ol>
                                         ),
