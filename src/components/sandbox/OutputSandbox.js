@@ -394,14 +394,9 @@ const OutputSandbox = forwardRef(
                     lastHeadContentRef.current = headContent;
                     lastThemeRef.current = theme;
 
-                    // Clear srcdoc first to ensure clean reload
-                    iframe.srcdoc = "";
-                    // Use setTimeout to ensure browser processes the clear
-                    setTimeout(() => {
-                        if (iframe && iframe.parentNode) {
-                            iframe.srcdoc = html;
-                        }
-                    }, 0);
+                    // Set srcdoc directly - browsers will reload if content changed
+                    // Route-level key props ensure clean remounts, so no need to clear first
+                    iframe.srcdoc = html;
 
                     // Handle iframe load
                     iframe.onload = () => {

@@ -47,7 +47,7 @@ export default function PublishedAppletView({
 
         setError(null);
         setPublishedHtml(htmlVersions[publishedVersionIndex].content);
-    }, [applet, isLoading, appletError, app]);
+    }, [applet, isLoading, appletError]);
 
     // Check if app is installed
     const isAppInstalled = currentUser?.apps?.some(
