@@ -268,6 +268,11 @@ const OutputSandbox = forwardRef(
                 return;
             }
 
+            // Don't process if content is null/empty
+            if (!content) {
+                return;
+            }
+
             const iframe = iframeRef.current;
 
             const updateContent = async () => {
@@ -378,6 +383,8 @@ const OutputSandbox = forwardRef(
                     ) {
                         setIsLoading(true);
                         clearAllPortals();
+                        // Reset initialization state to ensure clean reload
+                        isInitializedRef.current = false;
                     }
 
                     // Generate the filtered HTML document using the shared template
@@ -387,7 +394,8 @@ const OutputSandbox = forwardRef(
                     lastHeadContentRef.current = headContent;
                     lastThemeRef.current = theme;
 
-                    // Use srcdoc for better security and performance
+                    // Set srcdoc directly - browsers will reload if content changed
+                    // Route-level key props ensure clean remounts, so no need to clear first
                     iframe.srcdoc = html;
 
                     // Handle iframe load
@@ -610,22 +618,34 @@ const OutputSandbox = forwardRef(
                 }
             };
 
+            // Call updateContent directly
             updateContent();
 
             // Cleanup
             return () => {
                 if (resizeObserverRef.current) {
                     resizeObserverRef.current.disconnect();
+                    resizeObserverRef.current = null;
                 }
                 if (mutationObserverRef.current) {
                     mutationObserverRef.current.disconnect();
+                    mutationObserverRef.current = null;
                 }
-                if (iframe.contentWindow) {
-                    iframe.contentWindow.removeEventListener(
-                        "message",
-                        () => {},
-                    );
+                // Clear iframe content to force fresh load on next mount
+                if (iframe && iframe.contentWindow) {
+                    try {
+                        // Clear srcdoc to force reload
+                        iframe.srcdoc = "";
+                    } catch (e) {
+                        console.warn(
+                            "[OutputSandbox] Could not clear iframe srcdoc:",
+                            e,
+                        );
+                    }
                 }
+                // Reset initialization state
+                isInitializedRef.current = false;
+                clearAllPortals();
             };
         }, [content, theme, processPreElements, clearAllPortals]);
 
@@ -651,9 +671,12 @@ const OutputSandbox = forwardRef(
         }, [theme]);
 
         return (
-            <div className="relative">
+            <div
+                className="relative w-full h-full"
+                style={{ minHeight: height === "100%" ? "100%" : undefined }}
+            >
                 {isLoading && (
-                    <div className="absolute inset-0 flex items-center justify-center bg-gray-50 dark:bg-gray-700">
+                    <div className="absolute inset-0 flex items-center justify-center bg-gray-50 dark:bg-gray-700 z-10">
                         <div className="text-gray-500">Loading...</div>
                     </div>
                 )}
@@ -666,6 +689,8 @@ const OutputSandbox = forwardRef(
                         backgroundColor: "transparent",
                         opacity: isLoading ? 0 : 1,
                         transition: "opacity 0.2s",
+                        display: "block", // Ensure iframe is displayed as block element
+                        visibility: isLoading ? "hidden" : "visible", // Add visibility for mobile
                     }}
                     sandbox="allow-scripts allow-popups allow-forms allow-same-origin allow-downloads allow-presentation"
                     title="Output Sandbox"
