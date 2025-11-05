@@ -579,11 +579,18 @@ const SendFeedbackButton = React.forwardRef(function SendFeedbackButton(
                 onHide={() => setShow(false)}
             />
             <button
-                className="flex gap-2 items-center text-xs"
+                className="flex gap-2 items-center text-xs w-full hover:opacity-80 transition-opacity"
                 onClick={handleClick}
             >
-                <HelpCircle className="h-4 w-4 shrink-0 text-gray-400" />
-                {!isCollapsed && t("Send feedback")}
+                <HelpCircle className="h-4 w-4 shrink-0 text-gray-400 dark:text-gray-300" />
+                <span
+                    className={cn(
+                        "text-xs text-gray-500 dark:text-gray-300",
+                        isCollapsed && "hidden group-hover:block",
+                    )}
+                >
+                    {t("Send feedback")}
+                </span>
             </button>
         </>
     );
