@@ -750,7 +750,7 @@ function MediaPage() {
                         className="flex flex-col gap-2"
                         onSubmit={(e) => {
                             e.preventDefault();
-                            if (!prompt.trim()) return;
+                            if (!prompt.trim() || loading) return;
                             setLoading(true);
                             setGenerationPrompt(prompt);
                             if (isModifyMode) {
@@ -797,7 +797,9 @@ function MediaPage() {
                                                 !e.shiftKey
                                             ) {
                                                 e.preventDefault();
-                                                formRef.current?.requestSubmit();
+                                                if (!loading && prompt.trim()) {
+                                                    formRef.current?.requestSubmit();
+                                                }
                                             }
                                         }}
                                         ref={promptRef}
@@ -852,8 +854,7 @@ function MediaPage() {
                                 <div className="flex items-start flex-shrink-0">
                                     <button
                                         type="submit"
-                                        className="border-none outline-none enabled:hover:bg-sky-700 enabled:active:bg-sky-800 dark:bg-sky-700 dark:enabled:hover:bg-sky-200 p-1.5 cursor-pointer focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1 bg-sky-600 dark:enabled:hover:bg-sky-800 text-white rounded-lg px-3 py-2 dark:enabled:hover:text-white dark:enabled:active:bg-sky-900
-                                                    text-sm justify-center"
+                                        className="border-none outline-none enabled:hover:bg-sky-700 enabled:active:bg-sky-800 dark:bg-sky-700 p-1.5 cursor-pointer focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1 bg-sky-600 dark:enabled:hover:bg-sky-800 text-white rounded-lg px-3 py-2 dark:enabled:hover:text-white dark:enabled:active:bg-sky-900 text-sm justify-center"
                                         disabled={!prompt.trim() || loading}
                                     >
                                         {loading ? (
