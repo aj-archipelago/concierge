@@ -6,9 +6,12 @@ import dynamic from "next/dynamic";
 import {
     useUpdateActiveChat,
     useGetActiveChat,
+    useGetChatById,
+    useSetActiveChatId,
 } from "../../../app/queries/chats";
-import { useContext, useState, useEffect } from "react";
+import { useContext, useState, useEffect, useRef } from "react";
 import { AuthContext } from "../../App";
+import { useParams } from "next/navigation";
 import {
     Select,
     SelectContent,
@@ -34,14 +37,101 @@ const ChatTopMenuDynamic = dynamic(() => import("./ChatTopMenu"), {
     loading: () => <div style={{ width: "80px", height: "20px" }}></div>,
 });
 
+/**
+ * Determines which chat to use based on URL and viewing state.
+ * Matches the logic in ChatContent.js for consistency:
+ * 1. If viewing a read-only chat, use viewingChat
+ * 2. Otherwise, if URL chat is available, use urlChat
+ * 3. Otherwise, fall back to active chat
+ */
+function getChatToUse(urlChatId, urlChat, viewingChat, activeChat) {
+    // If viewing a read-only chat, use it directly
+    if (viewingChat && viewingChat.readOnly) {
+        return viewingChat;
+    }
+
+    // Otherwise, use URL chat if available
+    if (urlChatId && urlChat) {
+        return urlChat;
+    }
+
+    // Fall back to active chat
+    return activeChat;
+}
+
 function Chat({ viewingChat = null }) {
     const { t } = useTranslation();
+    const params = useParams();
+    const urlChatId = params?.id;
     const updateActiveChat = useUpdateActiveChat();
-    const { data: chat } = useGetActiveChat();
+    const setActiveChatId = useSetActiveChatId();
+    const { data: activeChat } = useGetActiveChat();
+    const { data: urlChat } = useGetChatById(urlChatId);
+
+    const chat = getChatToUse(urlChatId, urlChat, viewingChat, activeChat);
     const activeChatId = chat?._id;
     const { user } = useContext(AuthContext);
     const { readOnly } = viewingChat || {};
     const publicChatOwner = viewingChat?.owner;
+
+    // Track the last URL chat ID we've synced to prevent duplicate calls
+    const lastSyncedUrlChatId = useRef(null);
+    const isSyncingRef = useRef(false);
+
+    // Reset sync state when active chat matches URL (sync completed or was already in sync)
+    // This effect handles the case where activeChat updates to match urlChatId
+    useEffect(() => {
+        if (urlChatId && urlChatId === activeChat?._id) {
+            lastSyncedUrlChatId.current = urlChatId;
+            isSyncingRef.current = false;
+        }
+    }, [urlChatId, activeChat?._id]);
+
+    // Sync active chat ID with URL when URL changes (e.g., browser back/forward)
+    // This effect handles the actual sync operation when urlChatId changes
+    useEffect(() => {
+        // Don't sync if already syncing or if pending
+        if (isSyncingRef.current || setActiveChatId.isPending) {
+            return;
+        }
+
+        // Don't sync if already synced to this URL chat ID
+        if (urlChatId === lastSyncedUrlChatId.current) {
+            return;
+        }
+
+        // Don't sync if active chat already matches URL
+        if (urlChatId === activeChat?._id) {
+            lastSyncedUrlChatId.current = urlChatId;
+            return;
+        }
+
+        // Only sync if URL chat ID is different from current active chat
+        // and all conditions are met (not viewing, urlChat exists, not read-only)
+        if (
+            urlChatId &&
+            urlChatId !== activeChat?._id &&
+            !viewingChat &&
+            urlChat &&
+            !urlChat.readOnly
+        ) {
+            // URL chat ID is different from current active chat, update it
+            lastSyncedUrlChatId.current = urlChatId;
+            isSyncingRef.current = true;
+            setActiveChatId.mutate(urlChatId, {
+                onSettled: () => {
+                    isSyncingRef.current = false;
+                },
+            });
+        }
+    }, [
+        urlChatId,
+        activeChat?._id,
+        viewingChat,
+        urlChat,
+        setActiveChatId.isPending,
+        setActiveChatId,
+    ]);
     const [selectedEntityId, setSelectedEntityId] = useState(
         chat?.selectedEntityId || "",
     );

@@ -11,12 +11,39 @@ import { toast } from "react-toastify";
 import { AuthContext } from "../../App.js";
 import ChatMessages from "./ChatMessages";
 import { QUERIES } from "../../graphql";
-import { useGetActiveChat, useUpdateChat } from "../../../app/queries/chats";
+import {
+    useGetActiveChat,
+    useUpdateChat,
+    useGetChatById,
+} from "../../../app/queries/chats";
 import { useStreamingMessages } from "../../hooks/useStreamingMessages";
 import { useQueryClient } from "@tanstack/react-query";
 import { useRunTask } from "../../../app/queries/notifications";
+import { useParams } from "next/navigation";
 
 const contextMessageCount = 50;
+
+/**
+ * Determines which chat to use based on viewing state and URL parameters.
+ * Priority: read-only viewing chat > URL chat > active chat
+ */
+function determineActiveChat(
+    viewingReadOnlyChat,
+    viewingChat,
+    urlChatId,
+    urlChat,
+    activeChatHookData,
+) {
+    if (viewingReadOnlyChat) {
+        return viewingChat;
+    }
+
+    if (urlChatId && urlChat) {
+        return urlChat;
+    }
+
+    return activeChatHookData?.data;
+}
 
 function ChatContent({
     displayState = "full",
@@ -29,7 +56,10 @@ function ChatContent({
     const { t } = useTranslation();
     const client = useApolloClient();
     const { user } = useContext(AuthContext);
+    const params = useParams();
+    const urlChatId = params?.id;
     const activeChatHookData = useGetActiveChat();
+    const { data: urlChat } = useGetChatById(urlChatId);
     const updateChatHook = useUpdateChat();
     const queryClient = useQueryClient();
     const runTask = useRunTask();
@@ -38,7 +68,15 @@ function ChatContent({
         [displayState, viewingChat],
     );
 
-    const chat = viewingReadOnlyChat ? viewingChat : activeChatHookData?.data;
+    // Use URL chat if available (and not viewing a read-only chat),
+    // otherwise fall back to active chat
+    const chat = determineActiveChat(
+        viewingReadOnlyChat,
+        viewingChat,
+        urlChatId,
+        urlChat,
+        activeChatHookData,
+    );
     const chatId = String(chat?._id);
 
     // Simple approach - if we have a chat ID but no messages, refetch once
