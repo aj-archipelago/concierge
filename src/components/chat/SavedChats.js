@@ -163,11 +163,6 @@ function SavedChats({ displayState }) {
         return allChats.filter((chat) => chat?.isPublic);
     }, [allChats]);
 
-    const shouldIncludeChat = useCallback(
-        (chat) => !showSharedOnly || Boolean(chat?.isPublic),
-        [showSharedOnly],
-    );
-
     const filterSharedChats = useCallback(
         (chats) => {
             if (!Array.isArray(chats)) {
@@ -178,9 +173,11 @@ function SavedChats({ displayState }) {
                 return chats;
             }
 
-            return chats.filter(shouldIncludeChat);
+            return chats.filter(
+                (chat) => !showSharedOnly || Boolean(chat?.isPublic),
+            );
         },
-        [showSharedOnly, shouldIncludeChat],
+        [showSharedOnly],
     );
 
     // Wrapper to clear selection and reset last selected
@@ -958,9 +955,7 @@ function SavedChats({ displayState }) {
         return sharedContentMatches.filter((chat) => {
             if (!chat?._id) return false;
             const chatIdStr = getChatIdString(chat._id);
-            if (!chatIdStr || titleMatchIds.has(chatIdStr)) return false;
-
-            return true;
+            return chatIdStr && !titleMatchIds.has(chatIdStr);
         });
     }, [
         contentServerResults,
