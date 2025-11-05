@@ -16,7 +16,6 @@ import {
     useAddChat,
     useDeleteChat,
     useGetActiveChats,
-    useSetActiveChatId,
     findEmptyChat,
 } from "../../app/queries/chats";
 import { useQueryClient } from "@tanstack/react-query";
@@ -149,7 +148,6 @@ export default React.forwardRef(function Sidebar(
     const isOnLoginPage = pathname === "/auth/login";
 
     const deleteChat = useDeleteChat();
-    const setActiveChatId = useSetActiveChatId();
     const addChat = useAddChat();
     const queryClient = useQueryClient();
 
@@ -163,7 +161,7 @@ export default React.forwardRef(function Sidebar(
 
             if (existingEmptyChat) {
                 // Navigate to existing empty chat without creating a new one
-                await setActiveChatId.mutateAsync(existingEmptyChat._id);
+                // Active chat ID will be updated asynchronously by Chat.js component
                 router.push(`/chat/${String(existingEmptyChat._id)}`);
                 return;
             }
@@ -474,9 +472,6 @@ export default React.forwardRef(function Sidebar(
                                                                     pathname
                                                                 }
                                                                 router={router}
-                                                                setActiveChatId={
-                                                                    setActiveChatId
-                                                                }
                                                                 handleDeleteChat={
                                                                     handleDeleteChat
                                                                 }

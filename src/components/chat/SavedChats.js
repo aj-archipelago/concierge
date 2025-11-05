@@ -23,7 +23,6 @@ import {
     useBulkImportChats,
     useDeleteChat,
     useGetChats,
-    useSetActiveChatId,
     useUpdateChat,
     useSearchChats,
     useSearchContent,
@@ -88,7 +87,6 @@ function SavedChats({ displayState }) {
         isFetchingNextPage,
         hasNextPage,
     } = useGetChats();
-    const setActiveChatId = useSetActiveChatId();
     const router = useRouter();
     const addChat = useAddChat();
     const updateChat = useUpdateChat();
@@ -633,7 +631,7 @@ function SavedChats({ displayState }) {
 
             if (existingEmptyChat) {
                 // Navigate to existing empty chat without creating a new one
-                await setActiveChatId.mutateAsync(existingEmptyChat._id);
+                // Active chat ID will be updated asynchronously by Chat.js component
                 router.push(`/chat/${String(existingEmptyChat._id)}`);
                 return;
             }
@@ -686,10 +684,12 @@ function SavedChats({ displayState }) {
         try {
             const chatId = chat._id;
             if (!chatId || !isValidObjectId(chatId)) return;
-            await setActiveChatId.mutateAsync(chatId);
+
+            // Navigate immediately - active chat ID will be updated
+            // asynchronously in the background by Chat.js component
             router.push(`/chat/${chatId}`);
         } catch (error) {
-            console.error("Failed to set active chat ID:", error, chat);
+            console.error("Failed to navigate:", error, chat);
         }
     };
 

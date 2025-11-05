@@ -41,16 +41,8 @@ export default async function ChatPage({ params }) {
     let viewingChat = JSON.parse(JSON.stringify(chat));
     if (!readOnly) {
         viewingChat = null;
-        await setActiveChatId(id);
-
-        //Prefetch the active chat id with the provided id
-        await queryClient.prefetchQuery({
-            queryKey: ["activeChatId"],
-            queryFn: async () => {
-                return id;
-            },
-            staleTime: Infinity,
-        });
+        // Note: Active chat ID will be updated asynchronously by Chat.js component
+        // No need to update it here during navigation
     }
 
     // Prefetch the chat data

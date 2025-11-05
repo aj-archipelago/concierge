@@ -9,7 +9,7 @@ import {
     useGetChatById,
     useSetActiveChatId,
 } from "../../../app/queries/chats";
-import { useContext, useState, useEffect, useRef } from "react";
+import { useContext, useState, useEffect, useRef, useMemo } from "react";
 import { AuthContext } from "../../App";
 import { useParams } from "next/navigation";
 import {
@@ -68,70 +68,49 @@ function Chat({ viewingChat = null }) {
     const { data: activeChat } = useGetActiveChat();
     const { data: urlChat } = useGetChatById(urlChatId);
 
-    const chat = getChatToUse(urlChatId, urlChat, viewingChat, activeChat);
-    const activeChatId = chat?._id;
+    // Memoize chat determination to avoid recalculation on every render
+    const chat = useMemo(
+        () => getChatToUse(urlChatId, urlChat, viewingChat, activeChat),
+        [urlChatId, urlChat, viewingChat, activeChat],
+    );
+    const activeChatId = useMemo(() => chat?._id, [chat?._id]);
     const { user } = useContext(AuthContext);
     const { readOnly } = viewingChat || {};
     const publicChatOwner = viewingChat?.owner;
 
-    // Track the last URL chat ID we've synced to prevent duplicate calls
-    const lastSyncedUrlChatId = useRef(null);
-    const isSyncingRef = useRef(false);
+    // Track the last URL chat ID we've updated to prevent duplicate calls
+    const lastUpdatedUrlChatId = useRef(null);
 
-    // Reset sync state when active chat matches URL (sync completed or was already in sync)
-    // This effect handles the case where activeChat updates to match urlChatId
+    // Update active chat ID asynchronously in the background after reading from URL
+    // This is non-blocking and only used for ChatBox fallback purposes
     useEffect(() => {
-        if (urlChatId && urlChatId === activeChat?._id) {
-            lastSyncedUrlChatId.current = urlChatId;
-            isSyncingRef.current = false;
-        }
-    }, [urlChatId, activeChat?._id]);
-
-    // Sync active chat ID with URL when URL changes (e.g., browser back/forward)
-    // This effect handles the actual sync operation when urlChatId changes
-    useEffect(() => {
-        // Don't sync if already syncing or if pending
-        if (isSyncingRef.current || setActiveChatId.isPending) {
+        // Skip if no URL chat ID or already updated this ID
+        if (!urlChatId || urlChatId === lastUpdatedUrlChatId.current) {
             return;
         }
 
-        // Don't sync if already synced to this URL chat ID
-        if (urlChatId === lastSyncedUrlChatId.current) {
+        // Skip if viewing a read-only chat or chat doesn't exist
+        if (viewingChat || !urlChat || urlChat.readOnly) {
             return;
         }
 
-        // Don't sync if active chat already matches URL
+        // Skip if already matches active chat (no update needed)
         if (urlChatId === activeChat?._id) {
-            lastSyncedUrlChatId.current = urlChatId;
+            lastUpdatedUrlChatId.current = urlChatId;
             return;
         }
 
-        // Only sync if URL chat ID is different from current active chat
-        // and all conditions are met (not viewing, urlChat exists, not read-only)
-        if (
-            urlChatId &&
-            urlChatId !== activeChat?._id &&
-            !viewingChat &&
-            urlChat &&
-            !urlChat.readOnly
-        ) {
-            // URL chat ID is different from current active chat, update it
-            lastSyncedUrlChatId.current = urlChatId;
-            isSyncingRef.current = true;
-            setActiveChatId.mutate(urlChatId, {
-                onSettled: () => {
-                    isSyncingRef.current = false;
-                },
-            });
-        }
-    }, [
-        urlChatId,
-        activeChat?._id,
-        viewingChat,
-        urlChat,
-        setActiveChatId.isPending,
-        setActiveChatId,
-    ]);
+        // Update active chat ID asynchronously in the background (non-blocking)
+        // This is only for ChatBox fallback, not for navigation
+        lastUpdatedUrlChatId.current = urlChatId;
+        setActiveChatId.mutate(urlChatId, {
+            onError: (error) => {
+                console.error("Error updating active chat ID:", error);
+                // Reset on error so we can retry
+                lastUpdatedUrlChatId.current = null;
+            },
+        });
+    }, [urlChatId, activeChat?._id, viewingChat, urlChat, setActiveChatId]);
     const [selectedEntityId, setSelectedEntityId] = useState(
         chat?.selectedEntityId || "",
     );

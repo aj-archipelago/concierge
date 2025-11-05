@@ -70,14 +70,25 @@ function ChatContent({
 
     // Use URL chat if available (and not viewing a read-only chat),
     // otherwise fall back to active chat
-    const chat = determineActiveChat(
-        viewingReadOnlyChat,
-        viewingChat,
-        urlChatId,
-        urlChat,
-        activeChatHookData,
+    // Memoize chat determination to avoid recalculation on every render
+    const chat = useMemo(
+        () =>
+            determineActiveChat(
+                viewingReadOnlyChat,
+                viewingChat,
+                urlChatId,
+                urlChat,
+                activeChatHookData,
+            ),
+        [
+            viewingReadOnlyChat,
+            viewingChat,
+            urlChatId,
+            urlChat,
+            activeChatHookData?.data,
+        ],
     );
-    const chatId = String(chat?._id);
+    const chatId = useMemo(() => String(chat?._id), [chat?._id]);
 
     // Simple approach - if we have a chat ID but no messages, refetch once
     useEffect(() => {
@@ -91,7 +102,11 @@ function ChatContent({
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [chat?._id]); // Only run when the chat ID changes
 
-    const memoizedMessages = useMemo(() => chat?.messages || [], [chat]);
+    // Only recalculate when messages array actually changes, not when other chat properties change
+    const memoizedMessages = useMemo(
+        () => chat?.messages || [],
+        [chat?.messages],
+    );
     const publicChatOwner = viewingChat?.owner;
     const isChatLoading = chat?.isChatLoading;
 
