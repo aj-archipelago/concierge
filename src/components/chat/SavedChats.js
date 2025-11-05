@@ -1003,7 +1003,7 @@ function SavedChats({ displayState }) {
             return [...title, ...content];
         }
         if (showSharedOnly) {
-            return allChats.filter((chat) => chat?.isPublic);
+            return filterSharedChats(allChats);
         }
         return Array.isArray(allChats) ? allChats : [];
     }, [
@@ -1012,6 +1012,7 @@ function SavedChats({ displayState }) {
         contentMatchesDisplay,
         allChats,
         showSharedOnly,
+        filterSharedChats,
     ]);
 
     const visibleIdSet = useMemo(() => {
@@ -1033,7 +1034,7 @@ function SavedChats({ displayState }) {
         }
         if (showSharedOnly) {
             // Count shared chats when filter is active
-            return allChats.filter((chat) => chat?.isPublic).length;
+            return filterSharedChats(allChats).length;
         }
         return totalChatCount;
     }, [
@@ -1042,6 +1043,7 @@ function SavedChats({ displayState }) {
         visibleChats.length,
         allChats,
         totalChatCount,
+        filterSharedChats,
     ]);
 
     const allVisibleSelected = useMemo(
