@@ -10,7 +10,7 @@ function TranslatePage() {
     const [inputText, setInputText] = useState("");
     const [translatedText, setTranslatedText] = useState("");
     const [translationLanguage, setTranslationLanguage] = useState("en");
-    const [translationStrategy, setTranslationStrategy] = useState("translate");
+    const [translationStrategy, setTranslationStrategy] = useState("GPT-5");
 
     useEffect(() => {
         if (userState?.translate?.inputText) {
@@ -57,12 +57,13 @@ function TranslatePage() {
             }}
             setTranslationLanguage={(t) => {
                 setTranslationLanguage(t);
+                setTranslatedText(""); // Clear output when language changes
                 debouncedUpdateUserState({
                     translate: {
                         inputText,
                         translationStrategy,
                         translationLanguage: t,
-                        translatedText,
+                        translatedText: "",
                     },
                 });
             }}
