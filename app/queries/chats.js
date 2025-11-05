@@ -768,3 +768,38 @@ export function useUpdateActiveChat() {
         },
     };
 }
+
+/**
+ * Finds the first empty chat from activeChats, checking individual chat cache
+ * for accurate message counts to avoid stale data issues.
+ *
+ * @param {QueryClient} queryClient - The React Query client instance
+ * @returns {Object|null} The first empty chat found, or null if none exists
+ */
+export function findEmptyChat(queryClient) {
+    const activeChats = queryClient.getQueryData(["activeChats"]) || [];
+
+    return (
+        activeChats.find((chat) => {
+            if (!chat || !isValidObjectId(chat._id)) return false;
+
+            // Check the individual chat cache which is more up-to-date
+            const individualChat = queryClient.getQueryData(["chat", chat._id]);
+
+            // If we have individual chat data, use that for accurate message count
+            if (individualChat) {
+                return (
+                    !individualChat.messages ||
+                    individualChat.messages.length === 0
+                );
+            }
+
+            // Fallback to activeChats data if individual chat not in cache
+            // But note: activeChats might not have messages array (only firstMessage)
+            // So we check both messages and firstMessage
+            const hasMessages = chat.messages && chat.messages.length > 0;
+            const hasFirstMessage = chat.firstMessage;
+            return !hasMessages && !hasFirstMessage;
+        }) || null
+    );
+}

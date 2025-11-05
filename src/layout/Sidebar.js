@@ -17,7 +17,9 @@ import {
     useDeleteChat,
     useGetActiveChats,
     useSetActiveChatId,
+    findEmptyChat,
 } from "../../app/queries/chats";
+import { useQueryClient } from "@tanstack/react-query";
 import { useCurrentUser } from "../../app/queries/users";
 import { useWorkspace } from "../../app/queries/workspaces";
 
@@ -149,12 +151,24 @@ export default React.forwardRef(function Sidebar(
     const deleteChat = useDeleteChat();
     const setActiveChatId = useSetActiveChatId();
     const addChat = useAddChat();
+    const queryClient = useQueryClient();
 
     const isCollapsed =
         (propIsCollapsed || shouldForceCollapse(pathname)) && !isMobile;
 
     const handleNewChat = async () => {
         try {
+            // Check if there's already an empty chat before creating a new one
+            const existingEmptyChat = findEmptyChat(queryClient);
+
+            if (existingEmptyChat) {
+                // Navigate to existing empty chat without creating a new one
+                await setActiveChatId.mutateAsync(existingEmptyChat._id);
+                router.push(`/chat/${String(existingEmptyChat._id)}`);
+                return;
+            }
+
+            // No existing empty chat, create a new one
             const { _id } = await addChat.mutateAsync({ messages: [] });
             router.push(`/chat/${String(_id)}`);
         } catch (error) {
