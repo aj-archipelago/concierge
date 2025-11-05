@@ -57,12 +57,13 @@ function TranslatePage() {
             }}
             setTranslationLanguage={(t) => {
                 setTranslationLanguage(t);
+                setTranslatedText(""); // Clear output when language changes
                 debouncedUpdateUserState({
                     translate: {
                         inputText,
                         translationStrategy,
                         translationLanguage: t,
-                        translatedText,
+                        translatedText: "",
                     },
                 });
             }}
