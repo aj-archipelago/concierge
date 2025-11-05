@@ -298,7 +298,7 @@ function Translation({
                                             )}
                                             <CopyButton
                                                 item={translatedText}
-                                                className=""
+                                                className="static"
                                             />
                                         </div>
                                     );
