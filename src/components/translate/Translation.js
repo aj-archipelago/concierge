@@ -198,7 +198,7 @@ function Translation({
                         <LoadingButton
                             disabled={!inputText || inputText.length === 0}
                             loading={loading}
-                            className="lb-primary"
+                            className="lb-primary whitespace-nowrap min-w-[120px]"
                             text={t("Translating")}
                             onClick={() => {
                                 setLoading(true);
