@@ -158,11 +158,6 @@ function SavedChats({ displayState }) {
         }
     }, [data]);
 
-    const sharedChats = useMemo(() => {
-        if (!Array.isArray(allChats)) return [];
-        return allChats.filter((chat) => chat?.isPublic);
-    }, [allChats]);
-
     const filterSharedChats = useCallback(
         (chats) => {
             if (!Array.isArray(chats)) {
@@ -173,9 +168,7 @@ function SavedChats({ displayState }) {
                 return chats;
             }
 
-            return chats.filter(
-                (chat) => !showSharedOnly || Boolean(chat?.isPublic),
-            );
+            return chats.filter((chat) => Boolean(chat?.isPublic));
         },
         [showSharedOnly],
     );
@@ -1010,7 +1003,7 @@ function SavedChats({ displayState }) {
             return [...title, ...content];
         }
         if (showSharedOnly) {
-            return sharedChats;
+            return allChats.filter((chat) => chat?.isPublic);
         }
         return Array.isArray(allChats) ? allChats : [];
     }, [
@@ -1019,7 +1012,6 @@ function SavedChats({ displayState }) {
         contentMatchesDisplay,
         allChats,
         showSharedOnly,
-        sharedChats,
     ]);
 
     const visibleIdSet = useMemo(() => {
@@ -1041,14 +1033,14 @@ function SavedChats({ displayState }) {
         }
         if (showSharedOnly) {
             // Count shared chats when filter is active
-            return sharedChats.length;
+            return allChats.filter((chat) => chat?.isPublic).length;
         }
         return totalChatCount;
     }, [
         searchQuery,
         showSharedOnly,
         visibleChats.length,
-        sharedChats.length,
+        allChats,
         totalChatCount,
     ]);
 
