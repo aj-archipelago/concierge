@@ -55,9 +55,9 @@ const getCachedAuthStatus = async () => {
         })
         .catch((error) => {
             authCache.pendingCheck = null;
-            // On error, assume not authenticated to be safe
-            authCache.isAuthenticated = false;
-            authCache.timestamp = Date.now();
+            // On error, don't cache the result - allow immediate retry
+            // This ensures transient errors (network issues, timeouts) don't
+            // block auth checks for the full TTL period
             return false;
         });
 
