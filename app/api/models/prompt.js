@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import "./file";
 
 // Define the Prompt schema
 const promptSchema = new mongoose.Schema({
@@ -18,6 +19,12 @@ const promptSchema = new mongoose.Schema({
         type: mongoose.Schema.Types.ObjectId,
         ref: "LLM",
     },
+    files: [
+        {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "File",
+        },
+    ],
 });
 
 // create index on user

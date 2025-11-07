@@ -3,6 +3,11 @@ import Chat from "../models/chat.mjs";
 import { getCurrentUser } from "../utils/auth";
 import mongoose from "mongoose";
 import { Types } from "mongoose";
+import { parseSearchQuery, matchesAllTerms } from "../utils/search-parser";
+
+// Search limits for title search
+const DEFAULT_TITLE_SEARCH_LIMIT = 20;
+const DEFAULT_TITLE_SEARCH_SCAN_LIMIT = 500;
 
 const getSimpleTitle = (message) => {
     return (message?.payload || "").substring(0, 14);
@@ -17,13 +22,22 @@ export async function getRecentChatsOfCurrentUser() {
             _id: { $in: recentChatIds },
             userId: currentUser._id,
         },
-        { _id: 1, title: 1, titleSetByUser: 1 },
+        { _id: 1, title: 1, titleSetByUser: 1, isUnused: 1 },
     );
 
     // For chats without a custom title, fetch the first message separately
     // This approach avoids truncating the messages array in the main cache
+    const firstChatId =
+        recentChatIds.length > 0 ? String(recentChatIds[0]) : null;
     for (const chat of recentChatsUnordered) {
-        if (!chat.title || chat.title === "New Chat" || chat.title === "") {
+        const isFirstChat = firstChatId && String(chat._id) === firstChatId;
+        const needsFirstMessage =
+            isFirstChat ||
+            !chat.title ||
+            chat.title === "New Chat" ||
+            chat.title === "";
+
+        if (needsFirstMessage) {
             const chatWithFirstMessage = await Chat.findOne(
                 { _id: chat._id },
                 { messages: { $slice: 1 } },
@@ -84,68 +98,29 @@ export async function createNewChat(data) {
           ? [messages]
           : [];
 
-    // Only look for existing empty chat if we're creating a new empty chat
+    // Only look for existing unused chat if we're creating a new empty chat
     if (normalizedMessages.length === 0) {
-        // First find chats marked as empty
-        const emptyChats = await Chat.find({
+        // Find the latest unused chat (one-way gate: once used, never unused again)
+        const unusedChat = await Chat.findOne({
             userId: currentUser._id,
-            isEmpty: true,
-        });
+            isUnused: true,
+        }).sort({ createdAt: -1 });
 
-        // Then verify they are actually empty by checking messages
-        for (const chat of emptyChats) {
-            if (!chat.messages || chat.messages.length === 0) {
-                await setActiveChatId(chat._id);
-                return chat;
-            }
-            // If we find a chat marked as empty but with messages, fix it
-            if (chat.messages && chat.messages.length > 0) {
-                chat.isEmpty = false;
-                await chat.save();
-            }
+        if (unusedChat) {
+            await setActiveChatId(unusedChat._id);
+            return unusedChat;
         }
     }
 
     const chat = new Chat({
         userId,
         messages: normalizedMessages,
-        isEmpty: normalizedMessages.length === 0,
+        isUnused: normalizedMessages.length === 0,
         title: title || getSimpleTitle(normalizedMessages[0] || ""),
     });
 
     await chat.save();
     await setActiveChatId(chat._id);
-    return chat;
-}
-
-export async function updateChat(data) {
-    const { chatId, newMessageContent } = data;
-    const currentUser = await getCurrentUser(false);
-
-    const messageArray = Array.isArray(newMessageContent)
-        ? newMessageContent
-        : [];
-    const hasMessages = messageArray.length > 0;
-
-    const chat = await Chat.findOneAndUpdate(
-        { _id: chatId, userId: currentUser._id },
-        {
-            $set: {
-                messages: messageArray,
-                isEmpty: !hasMessages,
-            },
-        },
-        { new: true, useFindAndModify: false },
-    );
-
-    if (!chat) throw new Error("Chat not found");
-
-    // Double check the isEmpty state matches reality
-    if (chat.isEmpty !== !hasMessages) {
-        chat.isEmpty = !hasMessages;
-        await chat.save();
-    }
-
     return chat;
 }
 
@@ -286,13 +261,14 @@ export async function getUserChatInfo() {
     }
 
     if (!activeChatId) {
-        const existingEmptyChat = await Chat.findOne({
+        // Find the latest unused chat, or create a new one
+        const existingUnusedChat = await Chat.findOne({
             userId: currentUser._id,
-            isEmpty: true,
-        });
+            isUnused: true,
+        }).sort({ createdAt: -1 });
 
-        if (existingEmptyChat) {
-            activeChatId = existingEmptyChat._id;
+        if (existingUnusedChat) {
+            activeChatId = existingUnusedChat._id;
         } else {
             const emptyChat = await createNewChat({
                 messages: [],
@@ -393,4 +369,105 @@ export async function deleteChatIdFromRecentList(chatId) {
     );
 
     return { recentChatIds, activeChatId: activeChatId.toString() };
+}
+
+// Returns total number of chats for current user
+export async function getTotalChatCount() {
+    const currentUser = await getCurrentUser(false);
+    return await Chat.countDocuments({ userId: currentUser._id });
+}
+
+// Title search that avoids regex on encrypted fields by filtering in memory
+// Scans recent chats up to scanLimit and returns up to limit matches
+// Supports space-separated terms with AND logic and "quoted phrases"
+export async function searchChatTitles(
+    searchTerm,
+    {
+        limit = DEFAULT_TITLE_SEARCH_LIMIT,
+        scanLimit = DEFAULT_TITLE_SEARCH_SCAN_LIMIT,
+    } = {},
+) {
+    const currentUser = await getCurrentUser(false);
+    const term = String(searchTerm || "").trim();
+    if (!term) return [];
+
+    // Parse search query into terms (handles quotes and spaces)
+    const searchTerms = parseSearchQuery(term);
+    if (searchTerms.length === 0) return [];
+
+    // Fetch a window of recent chats; fields will be auto-decrypted by CSFLE
+    const chats = await Chat.find(
+        { userId: currentUser._id },
+        {
+            _id: 1,
+            title: 1,
+            createdAt: 1,
+            updatedAt: 1,
+            messages: { $slice: 1 },
+        },
+    )
+        .sort({ updatedAt: -1 })
+        .limit(scanLimit)
+        .lean();
+
+    const results = [];
+    for (const chat of chats) {
+        const title = chat?.title || "";
+        if (matchesAllTerms(title, searchTerms)) {
+            results.push(chat);
+            if (results.length >= limit) break;
+        }
+    }
+    return results;
+}
+
+// Content search that avoids regex on encrypted fields by filtering in memory
+// Scans recent chats (by updatedAt desc) up to scanLimit
+// For speed, only inspects the last `slice` messages per chat
+// Supports space-separated terms with AND logic and "quoted phrases"
+const MIN_MESSAGE_SLICE = 1;
+
+const getMessageSliceWindow = (slice) => -Math.max(MIN_MESSAGE_SLICE, slice);
+
+export async function searchChatContent(
+    searchTerm,
+    { limit = 20, scanLimit = 500, slice = 50 } = {},
+) {
+    const currentUser = await getCurrentUser(false);
+    const term = String(searchTerm || "").trim();
+    if (!term) return [];
+
+    // Parse search query into terms (handles quotes and spaces)
+    const searchTerms = parseSearchQuery(term);
+    if (searchTerms.length === 0) return [];
+
+    // Fetch a window of recent chats; fields will be auto-decrypted by CSFLE
+    const chats = await Chat.find(
+        { userId: currentUser._id },
+        {
+            _id: 1,
+            title: 1,
+            createdAt: 1,
+            updatedAt: 1,
+            // Use a helper to ensure at least one message is returned when slice <= 0.
+            messages: { $slice: getMessageSliceWindow(slice) },
+        },
+    )
+        .sort({ updatedAt: -1 })
+        .limit(scanLimit)
+        .lean();
+
+    const results = [];
+    for (const chat of chats) {
+        const msgs = Array.isArray(chat?.messages) ? chat.messages : [];
+        const hasMatch = msgs.some((m) => {
+            if (!m || typeof m.payload !== "string") return false;
+            return matchesAllTerms(m.payload, searchTerms);
+        });
+        if (hasMatch) {
+            results.push(chat);
+            if (results.length >= limit) break;
+        }
+    }
+    return results;
 }

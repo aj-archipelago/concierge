@@ -199,7 +199,7 @@ function SubtitleUpload({ onAdd }) {
         <div className="flex flex-col gap-4">
             <form
                 className={`relative flex flex-col items-center justify-center w-full min-h-[200px] border-2 border-dashed rounded-lg p-4 
-                    ${dragActive ? "border-blue-500 bg-blue-50" : "border-gray-300"}`}
+                    ${dragActive ? "border-sky-500 bg-sky-50" : "border-gray-300"}`}
                 onDragEnter={handleDrag}
                 onDragLeave={handleDrag}
                 onDragOver={handleDrag}
@@ -312,6 +312,8 @@ export default function TranscribeVideo({
         isYouTubeVideo ? "Gemini" : "Whisper",
     );
     const [transcriptionOption, setTranscriptionOption] = useState(null);
+    const [selectedTranscriptionType, setSelectedTranscriptionType] =
+        useState("");
     const [loading, setLoading] = useState(false);
     const [currentOperation, setCurrentOperation] = useState("");
     const [error, setError] = useState(null);
@@ -411,6 +413,7 @@ export default function TranscribeVideo({
             textFormatted: false,
             maxLineWidth: undefined,
             maxLineCount: undefined,
+            maxWordsPerLine: undefined,
         };
 
         if (selectedValue === "wordLevel") {
@@ -424,14 +427,20 @@ export default function TranscribeVideo({
             newOptions.wordTimestamped = true;
             newOptions.maxLineWidth = 25;
             newOptions.maxLineCount = 1;
+        } else if (selectedValue === "wordsPerLine") {
+            newOptions.wordTimestamped = true;
+            newOptions.maxWordsPerLine =
+                transcriptionOption?.maxWordsPerLine ?? 3;
         }
 
+        setSelectedTranscriptionType(selectedValue);
         setTranscriptionOption(newOptions);
         debouncedUpdateUserState((prev) => ({
             ...prev,
             transcriptionType: newOptions.transcriptionType || "",
             maxLineWidth: newOptions.maxLineWidth,
             maxLineCount: newOptions.maxLineCount,
+            maxWordsPerLine: newOptions.maxWordsPerLine,
             wordTimestamped: newOptions.wordTimestamped,
         }));
     };
@@ -453,7 +462,7 @@ export default function TranscribeVideo({
                 </span>
             </div> */}
 
-            <div className="options-section flex flex-col justify-between gap-2 mb-5 p-2.5 border border-gray-300 rounded-md bg-neutral-100 w-full">
+            <div className="options-section flex flex-col justify-between gap-2 mb-5 p-2.5 border border-gray-300 rounded-md bg-neutral-100 dark:bg-gray-700 w-full">
                 <div className="flex flex-col">
                     <h5 className="font-semibold text-xs text-gray-400 mb-1">
                         {t("Output format")}
@@ -466,20 +475,64 @@ export default function TranscribeVideo({
                 </div>
 
                 {responseFormat === "vtt" && (
-                    <div className={`flex flex-col`}>
-                        <h5 className="font-semibold text-xs text-gray-400 mb-1">
-                            {t("Transcription type")}
-                        </h5>
-                        <TranscriptionTypeSelector
-                            loading={loading}
-                            wordTimestamped={wordTimestamped}
-                            maxLineWidth={maxLineWidth}
-                            handleTranscriptionTypeChange={
-                                handleTranscriptionTypeChange
-                            }
-                            selectedModelOption={selectedModelOption}
-                        />
-                    </div>
+                    <>
+                        <div className={`flex flex-col`}>
+                            <h5 className="font-semibold text-xs text-gray-400 mb-1">
+                                {t("Transcription type")}
+                            </h5>
+                            <TranscriptionTypeSelector
+                                loading={loading}
+                                wordTimestamped={wordTimestamped}
+                                maxLineWidth={maxLineWidth}
+                                maxWordsPerLine={maxWordsPerLine}
+                                selectedTranscriptionType={
+                                    selectedTranscriptionType
+                                }
+                                handleTranscriptionTypeChange={
+                                    handleTranscriptionTypeChange
+                                }
+                                selectedModelOption={selectedModelOption}
+                            />
+                        </div>
+
+                        {selectedTranscriptionType === "wordsPerLine" && (
+                            <div className={`flex flex-col`}>
+                                <h5 className="font-semibold text-xs text-gray-400 mb-1">
+                                    {t("Words per line")}
+                                </h5>
+                                <input
+                                    type="number"
+                                    min="1"
+                                    max="99"
+                                    disabled={loading}
+                                    className="lb-input"
+                                    value={maxWordsPerLine || ""}
+                                    onChange={(e) => {
+                                        const value =
+                                            e.target.value === ""
+                                                ? undefined
+                                                : parseInt(e.target.value);
+                                        setTranscriptionOption((prev) => ({
+                                            ...prev,
+                                            maxWordsPerLine: value,
+                                        }));
+                                        debouncedUpdateUserState((prev) => ({
+                                            ...prev,
+                                            maxWordsPerLine: value,
+                                        }));
+                                    }}
+                                />
+                                {maxWordsPerLine !== undefined &&
+                                    maxWordsPerLine < 1 && (
+                                        <div className="text-red-500 text-xs mt-1">
+                                            {t(
+                                                "Please enter a value greater than 0",
+                                            )}
+                                        </div>
+                                    )}
+                            </div>
+                        )}
+                    </>
                 )}
 
                 <div className="flex flex-col">
@@ -537,6 +590,8 @@ function TranscriptionTypeSelector({
     loading,
     wordTimestamped,
     maxLineWidth,
+    maxWordsPerLine,
+    selectedTranscriptionType,
     handleTranscriptionTypeChange,
     selectedModelOption,
 }) {
@@ -548,15 +603,18 @@ function TranscriptionTypeSelector({
             disabled={loading}
             className="lb-select"
             value={
-                !wordTimestamped && !maxLineWidth
+                selectedTranscriptionType ||
+                (!wordTimestamped && !maxLineWidth && !maxWordsPerLine
                     ? "phraseLevel"
-                    : wordTimestamped && !maxLineWidth
+                    : wordTimestamped && !maxLineWidth && !maxWordsPerLine
                       ? "wordLevel"
                       : maxLineWidth === 35
                         ? "horizontal"
                         : maxLineWidth === 25
                           ? "vertical"
-                          : ""
+                          : maxWordsPerLine
+                            ? "wordsPerLine"
+                            : "")
             }
             onChange={handleTranscriptionTypeChange}
         >
@@ -564,6 +622,7 @@ function TranscriptionTypeSelector({
             {!isGemini && <option value="wordLevel">{t("Word level")}</option>}
             <option value="horizontal">{t("Horizontal")}</option>
             <option value="vertical">{t("Vertical")}</option>
+            <option value="wordsPerLine">{t("Words per line")}</option>
         </select>
     );
 }

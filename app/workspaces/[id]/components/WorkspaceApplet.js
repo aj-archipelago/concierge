@@ -33,6 +33,129 @@ import {
 } from "./utils";
 import VersionNavigator from "./VersionNavigator";
 import { toast } from "react-toastify";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+
+// Chat Section Component - Extracted for reuse in mobile and desktop layouts
+function ChatSection({
+    messages,
+    inputMessage,
+    setInputMessage,
+    onSendMessage,
+    onStopStreaming,
+    isLoading,
+    blockOldVersionChat,
+    showContinueConfirm,
+    setShowContinueConfirm,
+    showClearConfirm,
+    setShowClearConfirm,
+    onContinueFromOldVersion,
+    onClearChat,
+    onMessageClick,
+    htmlVersions,
+    onReplayMessage,
+    streamingContent,
+    isStreaming,
+    isOwner,
+    t,
+}) {
+    return (
+        <>
+            {/* Clear button */}
+            <div className="mb-2 md:mb-4 flex items-center justify-end gap-2 md:gap-4">
+                {messages && messages.length > 0 && isOwner && (
+                    <button
+                        className={cn(
+                            "lb-outline-secondary lb-sm text-xs md:text-sm",
+                            blockOldVersionChat &&
+                                "opacity-50 cursor-not-allowed",
+                        )}
+                        onClick={() => setShowClearConfirm(true)}
+                        disabled={blockOldVersionChat}
+                    >
+                        {t("Clear chat")}
+                    </button>
+                )}
+            </div>
+
+            {/* Chat Interface */}
+            <div className={cn("relative flex-1 grow overflow-hidden min-h-0")}>
+                {blockOldVersionChat && isOwner && (
+                    <>
+                        <div className="absolute inset-0 bg-white/5 backdrop-blur-sm flex items-center justify-center z-10">
+                            <button
+                                className="px-4 py-2 bg-emerald-500 text-white rounded-md hover:bg-emerald-600 transition-colors"
+                                onClick={() => setShowContinueConfirm(true)}
+                            >
+                                {t("Continue from here")}
+                            </button>
+                        </div>
+                        <AlertDialog
+                            open={showContinueConfirm}
+                            onOpenChange={setShowContinueConfirm}
+                        >
+                            <AlertDialogContent>
+                                <AlertDialogHeader>
+                                    <AlertDialogTitle>
+                                        {t("Continue from this version?")}
+                                    </AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                        {t(
+                                            "Continuing from this version will remove all future versions. This action cannot be undone.",
+                                        )}
+                                        <br />
+                                        <br />
+                                        <span className="text-emerald-600 font-medium">
+                                            {t(
+                                                "Note: Published versions are never lost.",
+                                            )}
+                                        </span>
+                                    </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                    <AlertDialogCancel>
+                                        {t("Cancel")}
+                                    </AlertDialogCancel>
+                                    <AlertDialogAction
+                                        autoFocus
+                                        onClick={() => {
+                                            onContinueFromOldVersion();
+                                            setShowContinueConfirm(false);
+                                        }}
+                                    >
+                                        {t("Continue")}
+                                    </AlertDialogAction>
+                                </AlertDialogFooter>
+                            </AlertDialogContent>
+                        </AlertDialog>
+                    </>
+                )}
+                <div className="overflow-auto h-full">
+                    <ChatInterface
+                        messages={messages}
+                        inputMessage={inputMessage}
+                        setInputMessage={setInputMessage}
+                        onSendMessage={onSendMessage}
+                        onStopStreaming={onStopStreaming}
+                        isLoading={isLoading}
+                        blockOldVersionChat={blockOldVersionChat}
+                        showContinueConfirm={showContinueConfirm}
+                        setShowContinueConfirm={setShowContinueConfirm}
+                        showClearConfirm={showClearConfirm}
+                        setShowClearConfirm={setShowClearConfirm}
+                        onContinueFromOldVersion={onContinueFromOldVersion}
+                        onClearChat={onClearChat}
+                        onMessageClick={onMessageClick}
+                        htmlVersions={htmlVersions}
+                        onReplayMessage={onReplayMessage}
+                        streamingContent={streamingContent}
+                        isStreaming={isStreaming}
+                        isOwner={isOwner}
+                    />
+                </div>
+            </div>
+        </>
+    );
+}
 
 export default function WorkspaceApplet() {
     const { t } = useTranslation();
@@ -52,6 +175,7 @@ export default function WorkspaceApplet() {
     const [isContinuingFromOldVersion, setIsContinuingFromOldVersion] =
         useState(false);
     const [showCreatingDialog, setShowCreatingDialog] = useState(false);
+    const [mobileTab, setMobileTab] = useState("preview"); // For mobile tab switching
 
     // Streaming state
     const [subscriptionId, setSubscriptionId] = useState(null);
@@ -574,11 +698,13 @@ export default function WorkspaceApplet() {
         }
     };
 
-    const handlePublishVersion = (
+    const handlePublishVersion = async (
         versionIdx,
         publishToAppStore,
         appName,
         appIcon,
+        appSlug,
+        appDescription,
     ) => {
         if (!isOwner) return;
 
@@ -597,23 +723,25 @@ export default function WorkspaceApplet() {
             `Publishing version ${versionIdx + 1} (index ${versionIdx}) of ${htmlVersions.length} total versions`,
         );
 
-        updateApplet.mutate(
-            {
+        try {
+            await updateApplet.mutateAsync({
                 id,
                 data: {
                     publishedVersionIndex: versionIdx,
                     publishToAppStore,
                     appName,
                     appIcon,
+                    appSlug,
+                    appDescription,
                 },
-            },
-            {
-                onSuccess: () => setPublishedVersionIndex(versionIdx),
-                onError: (error) => {
-                    toast.error(error?.response?.data?.error || error.message);
-                },
-            },
-        );
+            });
+
+            // Only update UI state on success
+            setPublishedVersionIndex(versionIdx);
+        } catch (error) {
+            // Don't show toast here - let the dialog handle the error display
+            throw error;
+        }
     };
 
     const handleUnpublish = () => {
@@ -639,6 +767,12 @@ export default function WorkspaceApplet() {
 
     const handleHtmlChange = (value, versionIndex) => {
         if (!isOwner) return;
+
+        // Don't save to database during streaming - we'll save once when streaming completes
+        // This prevents thousands of database writes during streaming
+        if (isStreaming) {
+            return;
+        }
 
         // If there are no versions and we're getting content, create the first version
         if (htmlVersions.length === 0 && value.trim()) {
@@ -781,9 +915,11 @@ export default function WorkspaceApplet() {
         <TooltipProvider>
             <div className="flex flex-col h-full overflow-auto">
                 {!isOwner && (
-                    <div className="bg-blue-50 border-b border-blue-200 px-4 py-2">
-                        <div className="flex items-center gap-2 text-blue-800 text-sm">
-                            <span className="text-blue-600">👁️</span>
+                    <div className="bg-sky-50 dark:bg-sky-900/20 border-b border-sky-200 dark:border-sky-700 px-4 py-2">
+                        <div className="flex items-center gap-2 text-sky-800 dark:text-sky-300 text-sm">
+                            <span className="text-sky-600 dark:text-sky-400">
+                                👁️
+                            </span>
                             <span>
                                 {t(
                                     "Read-only mode - Only the workspace owner can make changes",
@@ -792,8 +928,101 @@ export default function WorkspaceApplet() {
                         </div>
                     </div>
                 )}
-                <div className="flex justify-between gap-4 h-full overflow-auto bg-gray-100 p-4">
-                    <div className="flex flex-col flex-1 min-w-0 overflow-auto">
+                <div className="flex flex-col md:flex-row justify-between gap-4 h-full overflow-auto bg-gray-100 dark:bg-gray-700 rounded-md p-2 md:p-4">
+                    {/* Mobile Tabs - Only visible on mobile */}
+                    <Tabs
+                        value={mobileTab}
+                        onValueChange={setMobileTab}
+                        className="flex flex-col h-full md:hidden"
+                    >
+                        <TabsList className="w-full grid grid-cols-2 mb-2">
+                            <TabsTrigger value="preview" className="flex-1">
+                                {t("Preview")} / {t("Code")}
+                            </TabsTrigger>
+                            <TabsTrigger value="chat" className="flex-1">
+                                {t("Chat")}
+                            </TabsTrigger>
+                        </TabsList>
+
+                        <TabsContent
+                            value="preview"
+                            className="flex-1 m-0 overflow-auto"
+                        >
+                            <div className="flex flex-col h-full overflow-auto">
+                                {htmlVersions.length > 0 && (
+                                    <VersionNavigator
+                                        activeVersionIndex={activeVersionIndex}
+                                        setActiveVersionIndex={
+                                            setActiveVersionIndex
+                                        }
+                                        htmlVersions={htmlVersions}
+                                        setHtmlVersions={setHtmlVersions}
+                                        publishedVersionIndex={
+                                            publishedVersionIndex
+                                        }
+                                        setPublishedVersionIndex={
+                                            setPublishedVersionIndex
+                                        }
+                                        onPublishVersion={handlePublishVersion}
+                                        onUnpublish={handleUnpublish}
+                                        updateApplet={updateApplet}
+                                        workspaceId={id}
+                                        isOwner={isOwner}
+                                    />
+                                )}
+                                <PreviewTabs
+                                    htmlVersions={htmlVersions}
+                                    activeVersionIndex={activeVersionIndex}
+                                    onHtmlChange={handleHtmlChange}
+                                    isStreaming={isStreaming}
+                                    isOwner={isOwner}
+                                    hasStreamingVersion={
+                                        streamingVersionRef.current !== null
+                                    }
+                                    showCreatingDialog={showCreatingDialog}
+                                    isLoading={appletQuery.isLoading}
+                                    isCurrentVersionPublished={
+                                        publishedVersionIndex !== null &&
+                                        activeVersionIndex ===
+                                            publishedVersionIndex
+                                    }
+                                />
+                            </div>
+                        </TabsContent>
+
+                        <TabsContent
+                            value="chat"
+                            className="flex-1 m-0 overflow-auto"
+                        >
+                            <ChatSection
+                                messages={messages}
+                                inputMessage={inputMessage}
+                                setInputMessage={setInputMessage}
+                                onSendMessage={handleSendMessage}
+                                onStopStreaming={handleStopStreaming}
+                                isLoading={isLoading}
+                                blockOldVersionChat={blockOldVersionChat}
+                                showContinueConfirm={showContinueConfirm}
+                                setShowContinueConfirm={setShowContinueConfirm}
+                                showClearConfirm={showClearConfirm}
+                                setShowClearConfirm={setShowClearConfirm}
+                                onContinueFromOldVersion={
+                                    handleContinueFromOldVersion
+                                }
+                                onClearChat={handleClearChat}
+                                onMessageClick={handleMessageClick}
+                                htmlVersions={htmlVersions}
+                                onReplayMessage={handleReplayMessage}
+                                streamingContent={streamingContent}
+                                isStreaming={isStreaming}
+                                isOwner={isOwner}
+                                t={t}
+                            />
+                        </TabsContent>
+                    </Tabs>
+
+                    {/* Desktop Layout - Side by side */}
+                    <div className="hidden md:flex flex-col flex-1 min-w-0 overflow-auto">
                         {htmlVersions.length > 0 && (
                             <VersionNavigator
                                 activeVersionIndex={activeVersionIndex}
@@ -829,114 +1058,31 @@ export default function WorkspaceApplet() {
                         />
                     </div>
 
-                    <div className="w-80 flex-shrink-0 flex h-full overflow-auto flex-col">
-                        {/* Remove model selector and keep only Clear button */}
-                        <div className="mb-4 flex items-center justify-end gap-4">
-                            {messages && messages.length > 0 && isOwner && (
-                                <button
-                                    className={cn(
-                                        "lb-outline-secondary lb-sm",
-                                        blockOldVersionChat &&
-                                            "opacity-50 cursor-not-allowed",
-                                    )}
-                                    onClick={() => setShowClearConfirm(true)}
-                                    disabled={blockOldVersionChat}
-                                >
-                                    {t("Clear chat")}
-                                </button>
-                            )}
-                        </div>
-
-                        {/* Chat Interface - Always show */}
-                        <div
-                            className={cn(
-                                "relative flex-1 grow overflow-hidden",
-                            )}
-                        >
-                            {blockOldVersionChat && isOwner && (
-                                <>
-                                    <div className="absolute inset-0 bg-white/5 backdrop-blur-sm flex items-center justify-center z-10">
-                                        <button
-                                            className="px-4 py-2 bg-emerald-500 text-white rounded-md hover:bg-emerald-600 transition-colors"
-                                            onClick={() =>
-                                                setShowContinueConfirm(true)
-                                            }
-                                        >
-                                            {t("Continue from here")}
-                                        </button>
-                                    </div>
-                                    <AlertDialog
-                                        open={showContinueConfirm}
-                                        onOpenChange={setShowContinueConfirm}
-                                    >
-                                        <AlertDialogContent>
-                                            <AlertDialogHeader>
-                                                <AlertDialogTitle>
-                                                    {t(
-                                                        "Continue from this version?",
-                                                    )}
-                                                </AlertDialogTitle>
-                                                <AlertDialogDescription>
-                                                    {t(
-                                                        "Continuing from this version will remove all future versions. This action cannot be undone.",
-                                                    )}
-                                                    <br />
-                                                    <br />
-                                                    <span className="text-emerald-600 font-medium">
-                                                        {t(
-                                                            "Note: Published versions are never lost.",
-                                                        )}
-                                                    </span>
-                                                </AlertDialogDescription>
-                                            </AlertDialogHeader>
-                                            <AlertDialogFooter>
-                                                <AlertDialogCancel>
-                                                    {t("Cancel")}
-                                                </AlertDialogCancel>
-                                                <AlertDialogAction
-                                                    autoFocus
-                                                    onClick={() => {
-                                                        handleContinueFromOldVersion();
-                                                        setShowContinueConfirm(
-                                                            false,
-                                                        );
-                                                    }}
-                                                >
-                                                    {t("Continue")}
-                                                </AlertDialogAction>
-                                            </AlertDialogFooter>
-                                        </AlertDialogContent>
-                                    </AlertDialog>
-                                </>
-                            )}
-                            <div className="overflow-auto h-full">
-                                <ChatInterface
-                                    messages={messages}
-                                    inputMessage={inputMessage}
-                                    setInputMessage={setInputMessage}
-                                    onSendMessage={handleSendMessage}
-                                    onStopStreaming={handleStopStreaming}
-                                    isLoading={isLoading}
-                                    blockOldVersionChat={blockOldVersionChat}
-                                    showContinueConfirm={showContinueConfirm}
-                                    setShowContinueConfirm={
-                                        setShowContinueConfirm
-                                    }
-                                    showClearConfirm={showClearConfirm}
-                                    setShowClearConfirm={setShowClearConfirm}
-                                    onContinueFromOldVersion={
-                                        handleContinueFromOldVersion
-                                    }
-                                    onClearChat={handleClearChat}
-                                    onMessageClick={handleMessageClick}
-                                    htmlVersions={htmlVersions}
-                                    onReplayMessage={handleReplayMessage}
-                                    streamingContent={streamingContent}
-                                    isStreaming={isStreaming}
-                                    isOwner={isOwner}
-                                />
-                            </div>
-                        </div>
+                    <div className="hidden md:flex w-80 flex-shrink-0 h-full overflow-auto flex-col">
+                        <ChatSection
+                            messages={messages}
+                            inputMessage={inputMessage}
+                            setInputMessage={setInputMessage}
+                            onSendMessage={handleSendMessage}
+                            onStopStreaming={handleStopStreaming}
+                            isLoading={isLoading}
+                            blockOldVersionChat={blockOldVersionChat}
+                            showContinueConfirm={showContinueConfirm}
+                            setShowContinueConfirm={setShowContinueConfirm}
+                            showClearConfirm={showClearConfirm}
+                            setShowClearConfirm={setShowClearConfirm}
+                            onContinueFromOldVersion={
+                                handleContinueFromOldVersion
+                            }
+                            onClearChat={handleClearChat}
+                            onMessageClick={handleMessageClick}
+                            htmlVersions={htmlVersions}
+                            onReplayMessage={handleReplayMessage}
+                            streamingContent={streamingContent}
+                            isStreaming={isStreaming}
+                            isOwner={isOwner}
+                            t={t}
+                        />
                     </div>
                 </div>
             </div>

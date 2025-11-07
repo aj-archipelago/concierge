@@ -64,13 +64,18 @@ export default function DigestBlock({ block, contentClassName }) {
     };
 
     return (
-        <div key={block._id} className="bg-gray-50 p-4 rounded-md border">
+        <div
+            key={block._id}
+            className="bg-gray-50 dark:bg-gray-700 p-4 rounded-md border"
+        >
             <div className="flex justify-between gap-2 items-center mb-4">
-                <h4 className="font-semibold">{block.title}</h4>
+                <h4 className="font-semibold text-gray-900 dark:text-gray-100">
+                    {block.title}
+                </h4>
                 <div className="flex items-center gap-2">
                     {block.content && (
                         <button
-                            className="shrink-0 text-gray-600 hover:text-gray-800"
+                            className="shrink-0 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-300"
                             onClick={handleOpenInChat}
                             title={t("Open in chat")}
                         >
@@ -80,10 +85,10 @@ export default function DigestBlock({ block, contentClassName }) {
                     <div>
                         <div
                             className={classNames(
-                                "text-xs flex items-center gap-2 rounded-full px-3 py-2 border bg-gray-50 whitespace-nowrap",
+                                "text-xs flex items-center gap-2 rounded-full px-3 py-2 border bg-gray-50 dark:bg-gray-600 whitespace-nowrap",
                                 task?.status !== "pending" &&
                                     task?.status !== "in_progress" &&
-                                    "cursor-pointer hover:bg-gray-100",
+                                    "cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-500",
                             )}
                             onClick={() => {
                                 if (
@@ -100,7 +105,7 @@ export default function DigestBlock({ block, contentClassName }) {
                                 (!isRebuilding || !task?.progress) && (
                                     <RefreshCw
                                         className={classNames(
-                                            "text-gray-600 hover:text-gray-800 shrink-0",
+                                            "text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-300 shrink-0",
                                             isRebuilding ? "animate-spin" : "",
                                             "inline-block",
                                         )}
@@ -160,7 +165,7 @@ function BlockContent({ block }) {
         !block.content
     ) {
         return (
-            <div className="text-gray-500 flex items-center gap-4 m-2 ">
+            <div className="text-gray-500 dark:text-gray-400 flex items-center gap-4 m-2 ">
                 <Loader />
                 {t("Building")}. {t("This may take a minute or two.")}
             </div>

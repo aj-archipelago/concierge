@@ -6,6 +6,8 @@ const projects = process.env.CI
               testMatch: [
                   "<rootDir>/instrumentation.test.js",
                   "<rootDir>/app/api/**/*.test.js",
+                  "<rootDir>/jobs/**/*.test.js",
+                  "<rootDir>/config/**/*.test.js",
               ],
               setupFiles: ["<rootDir>/jest.setup.js"],
               transform: {
@@ -34,6 +36,9 @@ const projects = process.env.CI
                       "<rootDir>/__mocks__/styleMock.js",
                   "^config/(.*)$": "<rootDir>/__mocks__/config/$1",
                   "^./config/(.*)$": "<rootDir>/__mocks__/config/$1",
+                  "^../../../config/(.*)$": "<rootDir>/__mocks__/config/$1",
+                  "^../../../../../config/(.*)$":
+                      "<rootDir>/__mocks__/config/$1",
                   "^@amplitude/analytics-browser$":
                       "<rootDir>/__mocks__/@amplitude/analytics-browser.js",
               },
@@ -50,6 +55,7 @@ const projects = process.env.CI
                   "<rootDir>/src/**/*.test.js",
                   "<rootDir>/app/**/*.test.js",
                   "!<rootDir>/app/api/**/*.test.js",
+                  "!<rootDir>/instrumentation.test.js",
               ],
               setupFiles: [
                   "<rootDir>/jest.setup.js",
@@ -83,8 +89,13 @@ const projects = process.env.CI
                       "<rootDir>/__mocks__/styleMock.js",
                   "^config/(.*)$": "<rootDir>/__mocks__/config/$1",
                   "^./config/(.*)$": "<rootDir>/__mocks__/config/$1",
+                  "^../../../config/(.*)$": "<rootDir>/__mocks__/config/$1",
+                  "^../../../../../config/(.*)$":
+                      "<rootDir>/__mocks__/config/$1",
                   "^@amplitude/analytics-browser$":
                       "<rootDir>/__mocks__/@amplitude/analytics-browser.js",
+                  "^@uidotdev/usehooks$":
+                      "<rootDir>/__mocks__/@uidotdev/usehooks.js",
               },
               transformIgnorePatterns: [
                   "/node_modules/(?!(react-markdown|vfile|unist-.*|unified|bail|is-plain-obj|trough|remark-.*|mdast-util-.*|micromark.*|decode-named-character-reference|character-entities|property-information|hast-util-whitespace|space-separated-tokens|comma-separated-tokens|rehype-.*|hastscript|web-namespaces|zwitch|html-void-elements)/)",
@@ -96,6 +107,8 @@ const projects = process.env.CI
               testMatch: [
                   "<rootDir>/instrumentation.test.js",
                   "<rootDir>/app/api/**/*.test.js",
+                  "<rootDir>/jobs/**/*.test.js",
+                  "<rootDir>/config/**/*.test.js",
               ],
               setupFiles: ["<rootDir>/jest.setup.js"],
               transform: {
@@ -124,6 +137,9 @@ const projects = process.env.CI
                       "<rootDir>/__mocks__/styleMock.js",
                   "^config/(.*)$": "<rootDir>/__mocks__/config/$1",
                   "^./config/(.*)$": "<rootDir>/__mocks__/config/$1",
+                  "^../../../config/(.*)$": "<rootDir>/__mocks__/config/$1",
+                  "^../../../../../config/(.*)$":
+                      "<rootDir>/__mocks__/config/$1",
                   "^@amplitude/analytics-browser$":
                       "<rootDir>/__mocks__/@amplitude/analytics-browser.js",
               },

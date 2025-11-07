@@ -66,7 +66,7 @@ export default function Jira({ clientSecret }) {
                 </li>
                 <li>
                     <h4 className="mb-2">{t("Enter story details")}</h4>
-                    <div className="text-base mb-2 text-gray-500 font-normal">
+                    <div className="text-base mb-2 text-gray-500 dark:text-gray-300 font-normal">
                         {t(
                             "In a few sentences, describe the story you want to create in Jira. Alternatively, you can copy-paste an email or a Slack thread to automatically create stories from.",
                         )}

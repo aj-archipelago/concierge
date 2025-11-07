@@ -43,7 +43,7 @@ export const taskSchema = new mongoose.Schema(
         invokedFrom: {
             source: {
                 type: String,
-                enum: ["unknown", "chat", "video_page"],
+                enum: ["unknown", "chat", "video_page", "media_page"],
                 default: "unknown",
             },
             chatId: {

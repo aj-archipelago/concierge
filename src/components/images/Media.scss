@@ -89,13 +89,30 @@ $image-container-height: 200px;
     width: 100%;
 }
 
-.image-tile,
-.media-tile {
-    aspect-ratio: 1;
+.chat-grid,
+.workspace-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 1rem;
+    width: 100%;
+}
+
+.chat-tile {
+    // Responsive aspect ratio - taller ratio means more width, less height on mobile
+    aspect-ratio: 2.2/1;
+    @media (min-width: 640px) {
+        aspect-ratio: 1.8/1;
+    }
     position: relative;
     border: 1px solid #e5e7eb;
     border-radius: 0.5rem;
     overflow: hidden;
+
+    // Prevent text selection and image dragging
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
 
     // Selection styling
     .selection-checkbox {
@@ -112,10 +129,13 @@ $image-container-height: 200px;
         align-items: center;
         justify-content: center;
         transition: all 0.2s;
+        cursor: pointer;
+
+        pointer-events: auto;
 
         &.selected {
-            background: #3b82f6;
-            border-color: #3b82f6;
+            background: #00a6f4;
+            border-color: #00a6f4;
 
             svg {
                 color: white;
@@ -124,6 +144,173 @@ $image-container-height: 200px;
 
         &:hover {
             transform: scale(1.1);
+        }
+    }
+
+    // Hamburger menu styling
+    .hamburger-menu {
+        position: absolute;
+        top: 0.5rem;
+        right: 0.5rem;
+        z-index: 10;
+        width: 1.5rem;
+        height: 1.5rem;
+        background: rgba(255, 255, 255, 0.9);
+        border: 2px solid #e5e7eb;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.2s;
+        cursor: pointer;
+
+        pointer-events: auto;
+
+        &:hover {
+            transform: scale(1.1);
+            background: rgba(255, 255, 255, 1);
+        }
+
+        svg {
+            width: 1rem;
+            height: 1rem;
+            color: #374151;
+        }
+    }
+
+    .media-wrapper {
+        width: 100%;
+        height: 100%;
+
+        // Prevent text selection on video play button overlay
+        .absolute {
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+            user-select: none;
+        }
+    }
+
+    // Allow text selection in chat content
+    h3,
+    li,
+    input {
+        -webkit-user-select: text;
+        -moz-user-select: text;
+        -ms-user-select: text;
+        user-select: text;
+    }
+}
+
+.workspace-tile {
+    // Responsive aspect ratio - taller ratio means more width, less height on mobile
+    aspect-ratio: 2.2/1;
+    @media (min-width: 640px) {
+        aspect-ratio: 1.8/1;
+    }
+    position: relative;
+    border: 1px solid #e5e7eb;
+    border-radius: 0.5rem;
+    overflow: hidden;
+
+    // Allow text selection in workspace content
+    h3,
+    li,
+    input {
+        -webkit-user-select: text;
+        -moz-user-select: text;
+        -ms-user-select: text;
+        user-select: text;
+    }
+}
+
+.image-tile,
+.media-tile {
+    aspect-ratio: 1;
+    position: relative;
+    border: 1px solid #e5e7eb;
+    border-radius: 0.5rem;
+    overflow: hidden;
+
+    // Prevent text selection and image dragging
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+
+    // Prevent image dragging
+    img,
+    video {
+        -webkit-user-drag: none;
+        -khtml-user-drag: none;
+        -moz-user-drag: none;
+        -o-user-drag: none;
+        user-drag: none;
+        pointer-events: none;
+    }
+
+    // Selection styling
+    .selection-checkbox {
+        position: absolute;
+        top: 0.5rem;
+        right: 0.5rem;
+        z-index: 10;
+        width: 1.5rem;
+        height: 1.5rem;
+        background: rgba(255, 255, 255, 0.9);
+        border: 2px solid #e5e7eb;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.2s;
+        cursor: pointer;
+
+        // Ensure checkbox is clickable despite pointer-events: none on images
+        pointer-events: auto;
+
+        &.selected {
+            background: #00a6f4;
+            border-color: #00a6f4;
+
+            svg {
+                color: white;
+            }
+        }
+
+        &:hover {
+            transform: scale(1.1);
+        }
+    }
+
+    // Hamburger menu styling
+    .hamburger-menu {
+        position: absolute;
+        top: 0.5rem;
+        right: 0.5rem;
+        z-index: 10;
+        width: 1.5rem;
+        height: 1.5rem;
+        background: rgba(255, 255, 255, 0.9);
+        border: 2px solid #e5e7eb;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.2s;
+        cursor: pointer;
+
+        pointer-events: auto;
+
+        &:hover {
+            transform: scale(1.1);
+            background: rgba(255, 255, 255, 1);
+        }
+
+        svg {
+            width: 1rem;
+            height: 1rem;
+            color: #374151;
         }
     }
 
@@ -138,6 +325,14 @@ $image-container-height: 200px;
             height: 100%;
             object-fit: cover;
             object-position: center;
+        }
+
+        // Prevent text selection on video play button overlay
+        .absolute {
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+            user-select: none;
         }
     }
 
@@ -154,6 +349,12 @@ $image-container-height: 200px;
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
+
+        // Prevent text selection on prompt text
+        -webkit-user-select: none;
+        -moz-user-select: none;
+        -ms-user-select: none;
+        user-select: none;
     }
 }
 
@@ -185,13 +386,17 @@ $image-container-height: 200px;
     background-color: white;
     color: #374151;
     transition: all 0.2s;
+    cursor: pointer;
+
+    // Ensure buttons are clickable despite pointer-events: none on images
+    pointer-events: auto;
 
     &:hover:not(:disabled) {
         background-color: #f9fafb;
     }
 
     &:focus {
-        outline: 2px solid #3b82f6;
+        outline: 2px solid #00a6f4;
         outline-offset: 2px;
     }
 
@@ -243,6 +448,46 @@ $image-container-height: 200px;
     min-width: 120px;
 }
 
+.model-selector-bar {
+    min-height: 2rem;
+}
+
+.model-selector-thin {
+    background: transparent;
+    border: none;
+    outline: none;
+    color: inherit;
+    font-size: 0.875rem;
+    padding: 0.25rem 0.5rem;
+    cursor: pointer;
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    min-width: 140px;
+
+    &:hover {
+        opacity: 0.8;
+    }
+
+    &:focus {
+        outline: none;
+    }
+
+    // Custom dropdown arrow
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23374151' d='M6 9L1 4h10z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 0.5rem center;
+    padding-right: 1.75rem;
+}
+
+/* Dark mode for model selector */
+.dark {
+    .model-selector-thin {
+        color: #d1d5db;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23d1d5db' d='M6 9L1 4h10z'/%3E%3C/svg%3E");
+    }
+}
+
 .settings-btn-square {
     height: var(--dropdown-height, 2.5rem);
     width: var(--dropdown-height, 2.5rem);
@@ -255,9 +500,51 @@ $image-container-height: 200px;
     box-sizing: border-box;
 }
 
-/* Sync the button height to the dropdown using JS or CSS variable if needed */
-.media-toolbar-row {
-    /* This will be set by JS if needed for perfect sync, but fallback works for most cases */
+/* Dark mode styles */
+.dark {
+    .image-tile,
+    .media-tile,
+    .chat-tile,
+    .workspace-tile {
+        border-color: #4b5563;
+    }
+
+    .selection-checkbox,
+    .hamburger-menu {
+        background: rgba(31, 41, 55, 0.9);
+        border-color: #6b7280;
+
+        svg {
+            color: #d1d5db;
+        }
+
+        &:hover {
+            background: rgba(31, 41, 55, 1);
+        }
+    }
+
+    .selection-checkbox.selected {
+        background: #00a6f4;
+        border-color: #00a6f4;
+
+        svg {
+            color: white;
+        }
+    }
+
+    .lb-icon-button {
+        border-color: #6b7280;
+        background-color: #374151;
+        color: #d1d5db;
+
+        &:hover:not(:disabled) {
+            background-color: #4b5563;
+        }
+
+        &:disabled:hover {
+            background-color: #374151;
+        }
+    }
 }
 
 /* RTL support for select elements */
@@ -272,6 +559,21 @@ html[dir="rtl"] {
         background-position: left 0.5rem center;
         padding-left: 2.5rem;
         padding-right: 0.75rem;
+    }
+
+    /* Swap selection checkbox and hamburger menu for RTL */
+    .chat-tile,
+    .media-tile,
+    .image-tile {
+        .selection-checkbox {
+            right: auto;
+            left: 0.5rem;
+        }
+
+        .hamburger-menu {
+            right: auto;
+            left: 0.5rem;
+        }
     }
 }
 

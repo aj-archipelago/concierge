@@ -103,8 +103,16 @@ const VISION = gql`
 `;
 
 const SYS_SAVE_MEMORY = gql`
-    query SysSaveMemory($aiMemory: String!, $contextId: String!) {
-        sys_save_memory(aiMemory: $aiMemory, contextId: $contextId) {
+    query SysSaveMemory(
+        $aiMemory: String!
+        $contextId: String!
+        $contextKey: String
+    ) {
+        sys_save_memory(
+            aiMemory: $aiMemory
+            contextId: $contextId
+            contextKey: $contextKey
+        ) {
             result
         }
     }
@@ -122,6 +130,7 @@ const SYS_ENTITY_AGENT = gql`
     query RagStart(
         $chatHistory: [MultiMessage]!
         $contextId: String
+        $contextKey: String
         $text: String
         $aiName: String
         $aiMemorySelfModify: Boolean
@@ -135,6 +144,7 @@ const SYS_ENTITY_AGENT = gql`
         sys_entity_agent(
             chatHistory: $chatHistory
             contextId: $contextId
+            contextKey: $contextKey
             text: $text
             aiName: $aiName
             aiMemorySelfModify: $aiMemorySelfModify
@@ -405,16 +415,26 @@ const TRANSCRIBE_GEMINI = gql`
 `;
 
 const TRANSLATE_SUBTITLE = gql`
-    query TranslateSubtitle($text: String, $to: String, $async: Boolean) {
-        translate_subtitle(text: $text, to: $to, async: $async) {
+    query TranslateSubtitle(
+        $text: String
+        $to: String
+        $async: Boolean
+        $format: String
+    ) {
+        translate_subtitle(
+            text: $text
+            to: $to
+            async: $async
+            format: $format
+        ) {
             result
         }
     }
 `;
 
 const TRANSLATE = gql`
-    query Translate($text: String!, $to: String!) {
-        translate(text: $text, to: $to) {
+    query Translate($text: String!, $to: String!, $model: String) {
+        translate(text: $text, to: $to, model: $model) {
             result
         }
     }
@@ -423,38 +443,6 @@ const TRANSLATE = gql`
 const TRANSLATE_CONTEXT = gql`
     query TranslateContext($text: String!, $to: String!) {
         translate_context(text: $text, to: $to) {
-            result
-        }
-    }
-`;
-
-const TRANSLATE_TURBO = gql`
-    query TranslateTurbo($text: String!, $to: String!) {
-        translate_turbo(text: $text, to: $to) {
-            result
-        }
-    }
-`;
-
-const TRANSLATE_GPT4 = gql`
-    query TranslateGpt4($text: String!, $to: String!, $async: Boolean) {
-        translate_gpt4(text: $text, to: $to, async: $async) {
-            result
-        }
-    }
-`;
-
-const TRANSLATE_GPT4_TURBO = gql`
-    query TranslateGpt4Turbo($text: String!, $to: String!) {
-        translate_gpt4_turbo(text: $text, to: $to) {
-            result
-        }
-    }
-`;
-
-const TRANSLATE_GPT4_OMNI = gql`
-    query TranslateGpt4Omni($text: String!, $to: String!) {
-        translate_gpt4_omni(text: $text, to: $to) {
             result
         }
     }
@@ -578,6 +566,213 @@ const IMAGE = gql`
     }
 `;
 
+const IMAGE_FLUX = gql`
+    query ImageFlux(
+        $text: String!
+        $model: String
+        $async: Boolean
+        $input_image: String
+        $input_image_2: String
+        $aspectRatio: String
+    ) {
+        image_flux(
+            text: $text
+            model: $model
+            async: $async
+            input_image: $input_image
+            input_image_2: $input_image_2
+            aspectRatio: $aspectRatio
+        ) {
+            result
+        }
+    }
+`;
+
+const IMAGE_GEMINI_25 = gql`
+    query ImageGemini25(
+        $text: String!
+        $async: Boolean
+        $input_image: String
+        $input_image_2: String
+        $input_image_3: String
+        $optimizePrompt: Boolean
+    ) {
+        image_gemini_25(
+            text: $text
+            async: $async
+            input_image: $input_image
+            input_image_2: $input_image_2
+            input_image_3: $input_image_3
+            optimizePrompt: $optimizePrompt
+        ) {
+            result
+            resultData
+        }
+    }
+`;
+
+const IMAGE_QWEN = gql`
+    query ImageQwen(
+        $text: String!
+        $model: String!
+        $async: Boolean
+        $negativePrompt: String
+        $width: Int
+        $height: Int
+        $aspectRatio: String
+        $numberResults: Int
+        $output_format: String
+        $output_quality: Int
+        $input_image: String
+        $input_image_2: String
+        $input_image_3: String
+        $go_fast: Boolean
+        $guidance: Float
+        $strength: Float
+        $image_size: String
+        $lora_scale: Float
+        $enhance_prompt: Boolean
+        $num_inference_steps: Int
+        $disable_safety_checker: Boolean
+    ) {
+        image_qwen(
+            text: $text
+            model: $model
+            async: $async
+            negativePrompt: $negativePrompt
+            width: $width
+            height: $height
+            aspectRatio: $aspectRatio
+            numberResults: $numberResults
+            output_format: $output_format
+            output_quality: $output_quality
+            input_image: $input_image
+            input_image_2: $input_image_2
+            input_image_3: $input_image_3
+            go_fast: $go_fast
+            guidance: $guidance
+            strength: $strength
+            image_size: $image_size
+            lora_scale: $lora_scale
+            enhance_prompt: $enhance_prompt
+            num_inference_steps: $num_inference_steps
+            disable_safety_checker: $disable_safety_checker
+        ) {
+            result
+        }
+    }
+`;
+
+const IMAGE_SEEDREAM4 = gql`
+    query ImageSeedream4(
+        $text: String!
+        $model: String!
+        $async: Boolean
+        $size: String
+        $width: Int
+        $height: Int
+        $aspectRatio: String
+        $maxImages: Int
+        $numberResults: Int
+        $input_image: String
+        $input_image_1: String
+        $input_image_2: String
+        $input_image_3: String
+        $sequentialImageGeneration: String
+        $seed: Int
+    ) {
+        image_seedream4(
+            text: $text
+            model: $model
+            async: $async
+            size: $size
+            width: $width
+            height: $height
+            aspectRatio: $aspectRatio
+            maxImages: $maxImages
+            numberResults: $numberResults
+            input_image: $input_image
+            input_image_1: $input_image_1
+            input_image_2: $input_image_2
+            input_image_3: $input_image_3
+            sequentialImageGeneration: $sequentialImageGeneration
+            seed: $seed
+        ) {
+            result
+        }
+    }
+`;
+
+const VIDEO_VEO = gql`
+    query VideoVeo(
+        $text: String!
+        $async: Boolean
+        $image: String
+        $video: String
+        $lastFrame: String
+        $model: String
+        $aspectRatio: String
+        $durationSeconds: Int
+        $enhancePrompt: Boolean
+        $generateAudio: Boolean
+        $negativePrompt: String
+        $personGeneration: String
+        $sampleCount: Int
+        $storageUri: String
+        $location: String
+        $seed: Int
+    ) {
+        video_veo(
+            text: $text
+            async: $async
+            image: $image
+            video: $video
+            lastFrame: $lastFrame
+            model: $model
+            aspectRatio: $aspectRatio
+            durationSeconds: $durationSeconds
+            enhancePrompt: $enhancePrompt
+            generateAudio: $generateAudio
+            negativePrompt: $negativePrompt
+            personGeneration: $personGeneration
+            sampleCount: $sampleCount
+            storageUri: $storageUri
+            location: $location
+            seed: $seed
+        ) {
+            result
+        }
+    }
+`;
+
+const VIDEO_SEEDANCE = gql`
+    query VideoSeedance(
+        $text: String!
+        $async: Boolean
+        $model: String
+        $resolution: String
+        $aspectRatio: String
+        $duration: Int
+        $image: String
+        $seed: Int
+        $camera_fixed: Boolean
+    ) {
+        video_seedance(
+            text: $text
+            async: $async
+            model: $model
+            resolution: $resolution
+            aspectRatio: $aspectRatio
+            duration: $duration
+            image: $image
+            seed: $seed
+            camera_fixed: $camera_fixed
+        ) {
+            result
+        }
+    }
+`;
+
 const JIRA_STORY = gql`
     query JiraStory(
         $text: String!
@@ -642,6 +837,12 @@ const QUERIES = {
     COGNITIVE_DELETE,
     COGNITIVE_INSERT,
     IMAGE,
+    IMAGE_FLUX,
+    IMAGE_GEMINI_25,
+    IMAGE_QWEN,
+    IMAGE_SEEDREAM4,
+    VIDEO_VEO,
+    VIDEO_SEEDANCE,
     SYS_SAVE_MEMORY,
     SYS_ENTITY_AGENT,
     EXPAND_STORY,
@@ -671,10 +872,6 @@ const QUERIES = {
     TRANSLATE_AZURE,
     TRANSLATE_CONTEXT,
     TIMELINE,
-    TRANSLATE_TURBO,
-    TRANSLATE_GPT4,
-    TRANSLATE_GPT4_TURBO,
-    TRANSLATE_GPT4_OMNI,
     TRANSLATE_SUBTITLE,
     HIGHLIGHTS,
     REMOVE_CONTENT,
@@ -703,6 +900,12 @@ export {
     SUMMARY,
     HASHTAGS,
     HEADLINE,
+    IMAGE_FLUX,
+    IMAGE_GEMINI_25,
+    IMAGE_QWEN,
+    IMAGE_SEEDREAM4,
+    VIDEO_VEO,
+    VIDEO_SEEDANCE,
     GRAMMAR,
     SPELLING,
     PARAPHRASE,
@@ -719,9 +922,6 @@ export {
     TRANSLATE_AZURE,
     TRANSLATE_CONTEXT,
     TIMELINE,
-    TRANSLATE_TURBO,
-    TRANSLATE_GPT4,
-    TRANSLATE_GPT4_TURBO,
     TRANSLATE_SUBTITLE,
     HIGHLIGHTS,
     REMOVE_CONTENT,

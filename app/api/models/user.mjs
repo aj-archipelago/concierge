@@ -32,6 +32,16 @@ const userSchema = new mongoose.Schema(
             required: true,
             trim: true,
         },
+        contextKey: {
+            type: String,
+            required: false,
+            trim: true,
+        },
+        previousContextKey: {
+            type: String,
+            required: false,
+            trim: true,
+        },
         aiName: {
             type: String,
             required: false,

@@ -1,13 +1,47 @@
 "use client";
 
-import { createContext, useEffect, useState } from "react";
+import { createContext, useContext, useEffect, useState } from "react";
+import { AuthContext } from "../App";
 
 // create the theme context with default selected theme
 export const ThemeContext = createContext({});
 
 // it provides the theme context to app
 export function ThemeProvider({ children, savedTheme = "light" }) {
+    const authContext = useContext(AuthContext);
+    const { userState, debouncedUpdateUserState } = authContext || {};
     const [theme, setTheme] = useState(savedTheme);
+    const [hasMigrated, setHasMigrated] = useState(false);
+
+    // Migrate existing cookie preferences to userState (run once)
+    useEffect(() => {
+        if (
+            !hasMigrated &&
+            userState &&
+            debouncedUpdateUserState &&
+            !userState.preferences?.theme &&
+            savedTheme
+        ) {
+            // Migrate cookie preference to userState
+            debouncedUpdateUserState((prev) => ({
+                ...prev,
+                preferences: {
+                    ...prev?.preferences,
+                    theme: savedTheme,
+                },
+            }));
+            setHasMigrated(true);
+        }
+    }, [userState, savedTheme, hasMigrated, debouncedUpdateUserState]);
+
+    // Initialize theme from userState or fall back to savedTheme (from cookies)
+    useEffect(() => {
+        if (userState?.preferences?.theme) {
+            setTheme(userState.preferences.theme);
+        } else if (savedTheme) {
+            setTheme(savedTheme);
+        }
+    }, [userState?.preferences?.theme, savedTheme]);
 
     useEffect(() => {
         // Set the data-color-mode attribute
@@ -37,6 +71,19 @@ export function ThemeProvider({ children, savedTheme = "light" }) {
         theme,
         changeTheme: (newTheme) => {
             setTheme(newTheme);
+
+            // Update userState for persistence across re-auth
+            if (debouncedUpdateUserState) {
+                debouncedUpdateUserState((prev) => ({
+                    ...prev,
+                    preferences: {
+                        ...prev?.preferences,
+                        theme: newTheme,
+                    },
+                }));
+            }
+
+            // Keep cookie for backward compatibility and SSR
             document.cookie = `theme=${newTheme}; path=/`;
         },
     };

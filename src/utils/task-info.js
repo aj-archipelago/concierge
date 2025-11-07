@@ -11,6 +11,10 @@ export const TASK_INFO = {
         displayName: "Subtitle translation",
         isRetryable: true,
     },
+    "media-generation": {
+        displayName: "Media generation",
+        isRetryable: true,
+    },
     coding: {
         displayName: "Coding task",
         isRetryable: false,

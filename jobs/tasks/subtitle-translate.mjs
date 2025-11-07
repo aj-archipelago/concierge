@@ -1,6 +1,6 @@
 import mongoose from "mongoose";
 import { connectToDatabase } from "../../src/db.mjs";
-import { TRANSLATE_GPT4 } from "../graphql.mjs";
+import { TRANSLATE_SUBTITLE } from "../graphql.mjs";
 import { BaseTask } from "./base-task.mjs";
 
 // Update model imports to use dynamic import since they're ES modules
@@ -45,8 +45,10 @@ class SubtitleTranslateHandler extends BaseTask {
 
         // Select query based on model option
         let query;
-        console.debug(`[SubtitleTranslateHandler] Selected model option: GPT4`);
-        query = TRANSLATE_GPT4;
+        console.debug(
+            `[SubtitleTranslateHandler] Selected model option: TRANSLATE_SUBTITLE`,
+        );
+        query = TRANSLATE_SUBTITLE;
 
         console.debug(
             `[SubtitleTranslateHandler] Sending translation request`,
@@ -75,7 +77,7 @@ class SubtitleTranslateHandler extends BaseTask {
             throw new Error(`GraphQL errors: ${JSON.stringify(errors)}`);
         }
 
-        const result = data?.translate_gpt4?.result;
+        const result = data?.translate_subtitle?.result;
 
         if (!result) {
             console.debug(
@@ -94,7 +96,7 @@ class SubtitleTranslateHandler extends BaseTask {
         return result;
     }
 
-    async handleCompletion(taskId, dataObject, metadata, client) {
+    async handleCompletion(taskId, dataObject, infoObject, metadata, client) {
         console.debug(
             `[SubtitleTranslateHandler] Handling completion for ${taskId}`,
             {

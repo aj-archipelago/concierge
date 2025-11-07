@@ -22,7 +22,7 @@ const darkThemeVars = {
     background: "#222",
 };
 
-const MermaidDiagram = ({ code }) => {
+const MermaidDiagram = ({ code, onLoad }) => {
     const { theme } = useContext(ThemeContext);
     const containerRef = useRef(null);
     const [isRendering, setIsRendering] = useState(false);
@@ -77,11 +77,11 @@ const MermaidDiagram = ({ code }) => {
 
                 if (isMounted && containerRef.current) {
                     containerRef.current.innerHTML = svg;
-                    console.log("Mermaid diagram rendered:", {
-                        id,
-                        code,
-                        theme,
-                    });
+
+                    // Notify parent that the diagram has loaded
+                    if (onLoad) {
+                        onLoad();
+                    }
                 }
             } catch (error) {
                 console.error("Error rendering mermaid diagram:", error);

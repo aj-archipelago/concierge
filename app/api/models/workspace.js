@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import "./file";
 
 // Define the Workspace schema
 export const workspaceSchema = new mongoose.Schema(
@@ -39,6 +40,15 @@ export const workspaceSchema = new mongoose.Schema(
         applet: {
             type: mongoose.Schema.Types.ObjectId,
             ref: "Applet",
+        },
+        files: {
+            type: [
+                {
+                    type: mongoose.Schema.Types.ObjectId,
+                    ref: "File",
+                },
+            ],
+            default: [],
         },
     },
     {

@@ -9,6 +9,14 @@ export async function GET(request) {
         const token = searchParams.get("token");
         const site = searchParams.get("siteId");
 
+        // Validate required parameters
+        if (!token || !site || site === "undefined") {
+            return Response.json(
+                { error: "Missing required parameters: token or siteId" },
+                { status: 400 },
+            );
+        }
+
         const response = await axios.get(getJiraRestUrl(site), {
             headers: {
                 Authorization: `Bearer ${token}`,
@@ -17,7 +25,20 @@ export async function GET(request) {
             },
         });
 
-        return Response.json(response.data);
+        // Filter out archived projects
+        const activeProjects = response.data.filter((project) => {
+            // Check if project is archived based on common indicators
+            const isArchived =
+                project.archived === true ||
+                project.status === "archived" ||
+                project.projectCategory?.name === "Archived" ||
+                project.name?.toLowerCase().includes("(archived)") ||
+                project.name?.toLowerCase().includes("[archived]");
+
+            return !isArchived;
+        });
+
+        return Response.json(activeProjects);
     } catch (error) {
         return Response.json(
             { error: error.message },

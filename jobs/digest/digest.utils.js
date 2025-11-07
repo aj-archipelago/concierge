@@ -17,6 +17,7 @@ const generateDigestBlockContent = async (
     const variables = {
         chatHistory: [{ role: "user", content: [prompt] }],
         contextId: user?.contextId,
+        contextKey: user?.contextKey,
         aiName: user?.aiName,
         aiStyle: user?.aiStyle,
         useMemory: true,

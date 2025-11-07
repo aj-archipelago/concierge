@@ -15,6 +15,9 @@ const OutputSandbox = forwardRef(
         const resizeObserverRef = useRef(null);
         const mutationObserverRef = useRef(null);
         const [portalContainers, setPortalContainers] = useState(new Map());
+        const isInitializedRef = useRef(false);
+        const lastHeadContentRef = useRef("");
+        const lastThemeRef = useRef(theme);
 
         // Forward the ref to the iframe
         React.useImperativeHandle(ref, () => ({
@@ -134,20 +137,58 @@ const OutputSandbox = forwardRef(
                             );
                             return;
                         }
+                    } else {
                     }
 
                     try {
-                        if (!preElement.textContent) {
+                        // Check if element has text content
+                        if (
+                            !preElement.textContent ||
+                            !preElement.textContent.trim()
+                        ) {
+                            // If it was previously processed but now has no content, clear the flags
+                            if (preElement.dataset.processed === "true") {
+                                delete preElement.dataset.processed;
+                                delete preElement.dataset.portalId;
+                                delete preElement.dataset.lastContent;
+                            } else {
+                            }
                             return;
                         }
 
-                        const textContent = preElement.textContent.trim();
+                        let textContent = preElement.textContent.trim();
+                        // Remove surrounding double quotes if present
+                        if (
+                            textContent.startsWith('"') &&
+                            textContent.endsWith('"') &&
+                            textContent.length >= 2
+                        ) {
+                            textContent = textContent.slice(1, -1);
+                        }
 
-                        const jsonData = JSON.parse(textContent);
+                        let jsonData;
+                        try {
+                            jsonData = JSON.parse(textContent);
+                        } catch (error) {
+                            console.error(
+                                "Failed to parse JSON content:",
+                                error,
+                            );
+                            return;
+                        }
+
+                        // Add explicit null/undefined checks
+                        if (!jsonData || typeof jsonData !== "object") {
+                            console.error("Invalid JSON data structure");
+                            return;
+                        }
+
+                        const output = jsonData.markdown || jsonData.output;
 
                         // Check if it has the expected structure with markdown and citations
                         if (
-                            jsonData.markdown &&
+                            output &&
+                            jsonData.citations &&
                             Array.isArray(jsonData.citations)
                         ) {
                             // Create a container for the React component
@@ -175,7 +216,7 @@ const OutputSandbox = forwardRef(
 
                             // Create a message object for convertMessageToMarkdown
                             const message = {
-                                payload: jsonData.markdown,
+                                payload: output,
                                 tool: JSON.stringify({
                                     citations: jsonData.citations,
                                 }),
@@ -223,30 +264,138 @@ const OutputSandbox = forwardRef(
         );
 
         useEffect(() => {
-            if (!iframeRef.current) return;
+            if (!iframeRef.current) {
+                return;
+            }
+
+            // Don't process if content is null/empty
+            if (!content) {
+                return;
+            }
 
             const iframe = iframeRef.current;
 
-            // Clear all portal containers when iframe is being recreated
-            clearAllPortals();
-
-            const setupFrame = async () => {
+            const updateContent = async () => {
                 try {
-                    setIsLoading(true);
+                    // Import the shared utility functions
+                    const {
+                        generateFilteredSandboxHtml,
+                        extractHtmlStructure,
+                    } = await import("../../utils/themeUtils");
 
-                    // Create a base tag to handle relative URLs
-                    const base = document.createElement("base");
-                    base.href = window.location.origin;
+                    // Extract head and body content to check if head changed
+                    const { headContent, bodyContent } =
+                        extractHtmlStructure(content);
+                    const headContentChanged =
+                        headContent !== lastHeadContentRef.current;
+                    const themeChanged = theme !== lastThemeRef.current;
 
-                    // Import the shared utility function
-                    const { generateFilteredSandboxHtml } = await import(
-                        "../../utils/themeUtils"
-                    );
+                    // IMPORTANT: Only do incremental updates if:
+                    // 1. Iframe is fully initialized (onload has fired)
+                    // 2. Only body content changed (head/theme unchanged)
+                    // 3. Iframe document is accessible
+                    // Otherwise, do a full reload (which is needed for first load anyway)
+                    const canDoIncrementalUpdate =
+                        isInitializedRef.current &&
+                        !headContentChanged &&
+                        !themeChanged &&
+                        iframe.contentDocument &&
+                        iframe.contentDocument.body &&
+                        iframe.contentDocument.body.parentNode;
+
+                    if (canDoIncrementalUpdate) {
+                        try {
+                            const frameDoc =
+                                iframe.contentDocument ||
+                                iframe.contentWindow.document;
+                            // Update body content directly without reloading
+                            frameDoc.body.innerHTML = bodyContent;
+
+                            // Process any new pre elements that might have been added
+                            processPreElements(frameDoc);
+
+                            // Manually update iframe height after content change
+                            // ResizeObserver might not fire immediately after innerHTML update
+                            // Use a double RAF to ensure layout has settled
+                            requestAnimationFrame(() => {
+                                requestAnimationFrame(() => {
+                                    if (
+                                        frameDoc.body &&
+                                        frameDoc.documentElement
+                                    ) {
+                                        // Force a reflow to ensure measurements are accurate
+                                        void frameDoc.body.offsetHeight;
+
+                                        // Calculate height based on the actual content
+                                        const bodyHeight = Math.max(
+                                            frameDoc.body.scrollHeight,
+                                            frameDoc.body.offsetHeight,
+                                            frameDoc.body.clientHeight,
+                                        );
+                                        const docHeight = Math.max(
+                                            frameDoc.documentElement
+                                                .scrollHeight,
+                                            frameDoc.documentElement
+                                                .offsetHeight,
+                                            frameDoc.documentElement
+                                                .clientHeight,
+                                        );
+                                        const height = Math.max(
+                                            bodyHeight,
+                                            docHeight,
+                                            100,
+                                        ); // Minimum 100px
+                                        iframe.style.height = `${height}px`;
+
+                                        // Also trigger ResizeObserver if it exists
+                                        if (
+                                            resizeObserverRef.current &&
+                                            frameDoc.body
+                                        ) {
+                                            // Manually trigger by temporarily changing body content
+                                            // This forces ResizeObserver to fire
+                                            const temp =
+                                                frameDoc.body.style.display;
+                                            frameDoc.body.style.display =
+                                                "none";
+                                            void frameDoc.body.offsetHeight;
+                                            frameDoc.body.style.display = temp;
+                                        }
+                                    }
+                                });
+                            });
+
+                            return; // Skip the reload
+                        } catch (error) {
+                            // If we can't access the document, fall through to full reload
+                            console.warn(
+                                "Cannot update iframe content directly, reloading:",
+                                error,
+                            );
+                        }
+                    }
+
+                    // Full reload needed (first load, head content changed, theme changed, or incremental update failed)
+                    if (
+                        !isInitializedRef.current ||
+                        headContentChanged ||
+                        themeChanged
+                    ) {
+                        setIsLoading(true);
+                        clearAllPortals();
+                        // Reset initialization state to ensure clean reload
+                        isInitializedRef.current = false;
+                    }
 
                     // Generate the filtered HTML document using the shared template
                     const html = generateFilteredSandboxHtml(content, theme);
 
-                    // Use srcdoc for better security and performance
+                    // Update references
+                    lastHeadContentRef.current = headContent;
+                    lastThemeRef.current = theme;
+
+                    // Set srcdoc directly - browsers will reload if content changed
+                    // Route-level key props ensure clean remounts, so no need to clear first
                     iframe.srcdoc = html;
 
                     // Handle iframe load
@@ -303,35 +452,68 @@ const OutputSandbox = forwardRef(
                             (mutations) => {
                                 let shouldProcess = false;
 
-                                mutations.forEach((mutation) => {
+                                mutations.forEach((mutation, mutationIndex) => {
                                     // Skip mutations caused by our own portal containers
                                     if (mutation.type === "childList") {
-                                        mutation.addedNodes.forEach((node) => {
-                                            if (
-                                                node.nodeType ===
-                                                Node.ELEMENT_NODE
-                                            ) {
-                                                // Skip if it's our own portal container
+                                        mutation.addedNodes.forEach(
+                                            (node, nodeIndex) => {
                                                 if (
-                                                    node.classList &&
-                                                    node.classList.contains(
-                                                        "react-portal-container",
-                                                    )
+                                                    node.nodeType ===
+                                                    Node.ELEMENT_NODE
                                                 ) {
-                                                    return;
-                                                }
+                                                    // Skip if it's our own portal container
+                                                    if (
+                                                        node.classList &&
+                                                        node.classList.contains(
+                                                            "react-portal-container",
+                                                        )
+                                                    ) {
+                                                        return;
+                                                    }
 
-                                                // Check if the added node is a pre element or contains pre elements
-                                                if (
-                                                    node.tagName === "PRE" ||
-                                                    node.querySelector(
-                                                        "pre.llm-output",
-                                                    )
+                                                    // Check if the added node is a pre element with llm-output class
+                                                    const isPreWithClass =
+                                                        node.tagName ===
+                                                            "PRE" &&
+                                                        node.classList &&
+                                                        node.classList.contains(
+                                                            "llm-output",
+                                                        );
+
+                                                    // Check if it contains pre.llm-output elements
+                                                    const containsPre =
+                                                        node.querySelector &&
+                                                        node.querySelector(
+                                                            "pre.llm-output",
+                                                        );
+
+                                                    if (
+                                                        isPreWithClass ||
+                                                        containsPre
+                                                    ) {
+                                                        shouldProcess = true;
+                                                    }
+                                                } else if (
+                                                    node.nodeType ===
+                                                    Node.TEXT_NODE
                                                 ) {
-                                                    shouldProcess = true;
+                                                    // Text nodes are children, check parent
+                                                    const parent =
+                                                        node.parentNode;
+                                                    if (
+                                                        parent &&
+                                                        parent.tagName ===
+                                                            "PRE" &&
+                                                        parent.classList &&
+                                                        parent.classList.contains(
+                                                            "llm-output",
+                                                        )
+                                                    ) {
+                                                        shouldProcess = true;
+                                                    }
                                                 }
-                                            }
-                                        });
+                                            },
+                                        );
                                     } else if (
                                         mutation.type === "characterData" ||
                                         mutation.type === "attributes"
@@ -358,13 +540,16 @@ const OutputSandbox = forwardRef(
                                         }
 
                                         // Check if the target is a pre element with llm-output class
-                                        if (
+                                        const isPreWithClass =
                                             target &&
                                             target.tagName === "PRE" &&
+                                            target.classList &&
                                             target.classList.contains(
                                                 "llm-output",
-                                            )
-                                        ) {
+                                            );
+
+                                        if (isPreWithClass) {
+                                            // Pre element with llm-output class changed, process it
                                             shouldProcess = true;
                                         }
 
@@ -383,6 +568,7 @@ const OutputSandbox = forwardRef(
 
                                 if (shouldProcess) {
                                     processPreElements(frameDoc);
+                                } else {
                                 }
                             },
                         );
@@ -404,8 +590,9 @@ const OutputSandbox = forwardRef(
                         iframe.contentWindow.addEventListener(
                             "message",
                             (event) => {
-                                if (event.origin !== window.location.origin)
+                                if (event.origin !== window.location.origin) {
                                     return;
+                                }
                                 // Handle messages from the iframe
                                 console.log(
                                     "Message from sandbox:",
@@ -415,35 +602,50 @@ const OutputSandbox = forwardRef(
                         );
 
                         setIsLoading(false);
+                        isInitializedRef.current = true;
                     };
 
                     // Handle errors
                     iframe.onerror = (error) => {
                         console.error("Sandbox iframe error:", error);
                         setIsLoading(false);
+                        isInitializedRef.current = false;
                     };
                 } catch (error) {
                     console.error("Error setting up sandbox:", error);
                     setIsLoading(false);
+                    isInitializedRef.current = false;
                 }
             };
 
-            setupFrame();
+            // Call updateContent directly
+            updateContent();
 
             // Cleanup
             return () => {
                 if (resizeObserverRef.current) {
                     resizeObserverRef.current.disconnect();
+                    resizeObserverRef.current = null;
                 }
                 if (mutationObserverRef.current) {
                     mutationObserverRef.current.disconnect();
+                    mutationObserverRef.current = null;
                 }
-                if (iframe.contentWindow) {
-                    iframe.contentWindow.removeEventListener(
-                        "message",
-                        () => {},
-                    );
+                // Clear iframe content to force fresh load on next mount
+                if (iframe && iframe.contentWindow) {
+                    try {
+                        // Clear srcdoc to force reload
+                        iframe.srcdoc = "";
+                    } catch (e) {
+                        console.warn(
+                            "[OutputSandbox] Could not clear iframe srcdoc:",
+                            e,
+                        );
+                    }
                 }
+                // Reset initialization state
+                isInitializedRef.current = false;
+                clearAllPortals();
             };
         }, [content, theme, processPreElements, clearAllPortals]);
 
@@ -464,13 +666,17 @@ const OutputSandbox = forwardRef(
                         error,
                     );
                 }
+            } else {
             }
         }, [theme]);
 
         return (
-            <div className="relative">
+            <div
+                className="relative w-full h-full"
+                style={{ minHeight: height === "100%" ? "100%" : undefined }}
+            >
                 {isLoading && (
-                    <div className="absolute inset-0 flex items-center justify-center bg-gray-50">
+                    <div className="absolute inset-0 flex items-center justify-center bg-gray-50 dark:bg-gray-700 z-10">
                         <div className="text-gray-500">Loading...</div>
                     </div>
                 )}
@@ -483,6 +689,8 @@ const OutputSandbox = forwardRef(
                         backgroundColor: "transparent",
                         opacity: isLoading ? 0 : 1,
                         transition: "opacity 0.2s",
+                        display: "block", // Ensure iframe is displayed as block element
+                        visibility: isLoading ? "hidden" : "visible", // Add visibility for mobile
                     }}
                     sandbox="allow-scripts allow-popups allow-forms allow-same-origin allow-downloads allow-presentation"
                     title="Output Sandbox"

@@ -49,7 +49,7 @@ describe("LLM Initialization", () => {
         const llmWithoutIdentifier = await LLM.create({
             name: "Test LLM",
             cortexModelName: "oai-gpt4o",
-            cortexPathwayName: "run_gpt4_o",
+            cortexPathwayName: "run_workspace_prompt",
             isDefault: false,
             identifier: null,
         });
@@ -77,7 +77,7 @@ describe("LLM Initialization", () => {
         const obsoleteLLM = await LLM.create({
             name: "Obsolete LLM",
             cortexModelName: "obsolete-model",
-            cortexPathwayName: "run_obsolete",
+            cortexPathwayName: "run_workspace_prompt",
             identifier: "obsolete",
             isDefault: false,
         });
@@ -106,7 +106,7 @@ describe("LLM Initialization", () => {
         const obsoleteLLM = await LLM.create({
             name: "Obsolete LLM",
             cortexModelName: "obsolete-model",
-            cortexPathwayName: "run_obsolete",
+            cortexPathwayName: "run_workspace_prompt",
             identifier: "obsolete",
             isDefault: false,
         });
@@ -194,12 +194,47 @@ describe("Native Apps Seeding", () => {
 
         // Check that each app has the expected properties
         const expectedApps = [
-            { name: "Translate", slug: "translate", icon: "Globe" },
-            { name: "Video", slug: "video", icon: "Video" },
-            { name: "Write", slug: "write", icon: "Pencil" },
-            { name: "Workspaces", slug: "workspaces", icon: "AppWindow" },
-            { name: "Media", slug: "media", icon: "Image" },
-            { name: "Jira", slug: "jira", icon: "Bug" },
+            {
+                name: "Translate",
+                slug: "translate",
+                icon: "Globe",
+                description:
+                    "Translate text between multiple languages with AI-powered accuracy",
+            },
+            {
+                name: "Transcribe",
+                slug: "video",
+                icon: "Video",
+                description:
+                    "Transcribe and translate video and audio files with AI-powered accuracy",
+            },
+            {
+                name: "Write",
+                slug: "write",
+                icon: "Pencil",
+                description:
+                    "Write and edit content with AI-powered writing assistance",
+            },
+            {
+                name: "Workspaces",
+                slug: "workspaces",
+                icon: "AppWindow",
+                description:
+                    "Manage your AI workspaces and collaborate on projects",
+            },
+            {
+                name: "Media",
+                slug: "media",
+                icon: "Image",
+                description: "Generate and manage images and media content",
+            },
+            {
+                name: "Jira",
+                slug: "jira",
+                icon: "Bug",
+                description:
+                    "Integrate with Jira for issue tracking and project management",
+            },
         ];
 
         expectedApps.forEach((expectedApp) => {
@@ -207,6 +242,7 @@ describe("Native Apps Seeding", () => {
             expect(app).toBeTruthy();
             expect(app.name).toBe(expectedApp.name);
             expect(app.icon).toBe(expectedApp.icon);
+            expect(app.description).toBe(expectedApp.description);
             expect(app.type).toBe(APP_TYPES.NATIVE);
             expect(app.status).toBe(APP_STATUS.ACTIVE);
         });

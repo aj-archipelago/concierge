@@ -28,7 +28,6 @@ import { useTranslation } from "react-i18next";
 import TimeAgo from "react-time-ago";
 import stringcase from "stringcase";
 import Loader from "../../../app/components/loader";
-import { useSetActiveChatId } from "../../../app/queries/chats";
 import { useJob } from "../../../app/queries/jobs";
 import {
     useCancelTask,
@@ -91,7 +90,6 @@ const NotificationItem = ({
     handlerDisplayNames,
     isRetryable,
     language,
-    setActiveChatId,
     router,
     setIsNotificationOpen,
     handleCancelRequest,
@@ -107,7 +105,7 @@ const NotificationItem = ({
             key={notification._id}
             data-request-id={notification._id}
             className={`
-            space-y-2 bg-gray-100 p-2 rounded-md mb-2 
+            space-y-2 bg-gray-100 dark:bg-gray-700 p-2 rounded-md mb-2 
             transform transition-all duration-300 ease-in-out
             ${dismissingIds.has(notification._id) ? "opacity-0 -translate-y-2" : "opacity-100 translate-y-0"}
         `}
@@ -118,30 +116,25 @@ const NotificationItem = ({
                 </div>
                 <div className="flex flex-col overflow-hidden grow">
                     <span
-                        className={`font-semibold text-gray-800 ${notification.invokedFrom?.source ? "cursor-pointer hover:text-sky-600" : ""}`}
+                        className={`font-semibold text-gray-800 dark:text-gray-200 ${notification.invokedFrom?.source ? "cursor-pointer hover:text-sky-600" : ""}`}
                         onClick={() => {
                             if (notification.invokedFrom?.source === "chat") {
-                                setActiveChatId
-                                    .mutateAsync(
-                                        notification.invokedFrom.chatId,
-                                    )
-                                    .then(() => {
-                                        router.push(
-                                            `/chat/${notification.invokedFrom.chatId}`,
-                                        );
-                                        setIsNotificationOpen(false);
-                                    })
-                                    .catch((error) => {
-                                        console.error(
-                                            "Error setting active chat ID:",
-                                            error,
-                                        );
-                                    });
+                                // Navigate immediately for snappy UX
+                                router.push(
+                                    `/chat/${notification.invokedFrom.chatId}`,
+                                );
+                                setIsNotificationOpen(false);
+                                // Active chat ID will be updated asynchronously by Chat.js component
                             } else if (
                                 notification.invokedFrom?.source ===
                                 "video_page"
                             ) {
                                 router.push("/video");
+                            } else if (
+                                notification.invokedFrom?.source ===
+                                "media_page"
+                            ) {
+                                router.push("/media");
                             }
                         }}
                     >
@@ -152,7 +145,7 @@ const NotificationItem = ({
                     </span>
                     {notification.metadata && (
                         <div
-                            className="text-xs text-gray-600 truncate"
+                            className="text-xs text-gray-600 dark:text-gray-400 truncate"
                             title={notification.statusText}
                         >
                             {notification.type === "video-translate" && (
@@ -214,7 +207,7 @@ const NotificationItem = ({
 
                     {notification.statusText && (
                         <div
-                            className="text-xs text-gray-600 truncate"
+                            className="text-xs text-gray-600 dark:text-gray-400 truncate"
                             title={notification.statusText}
                         >
                             {notification.statusText}
@@ -222,7 +215,7 @@ const NotificationItem = ({
                     )}
                     {(notification.status === "in_progress" ||
                         notification.status === "pending") && (
-                        <div className="my-1 h-2 w-full bg-gray-200 rounded-full">
+                        <div className="my-1 h-2 w-full bg-gray-200 dark:bg-gray-600 rounded-full">
                             <div
                                 className={`h-full rounded-full transition-all  ${
                                     notification.status === "pending"
@@ -239,7 +232,7 @@ const NotificationItem = ({
                         </div>
                     )}
                     {notification.createdAt && (
-                        <span className="text-xs text-gray-500">
+                        <span className="text-xs text-gray-500 dark:text-gray-300">
                             {t("Created ")}{" "}
                             <TimeAgo date={notification.createdAt} />
                         </span>
@@ -252,10 +245,10 @@ const NotificationItem = ({
                             onClick={() =>
                                 handleCancelRequest(notification._id)
                             }
-                            className="p-1 hover:bg-gray-100 rounded flex items-start"
+                            className="p-1 hover:bg-gray-100 dark:hover:bg-gray-600 rounded flex items-start"
                             title={t("Cancel")}
                         >
-                            <XIcon className="h-4 w-4 text-gray-500" />
+                            <XIcon className="h-4 w-4 text-gray-500 dark:text-gray-300" />
                         </button>
                     )}
                     {(notification.status === "completed" ||
@@ -264,10 +257,10 @@ const NotificationItem = ({
                         notification.status === "abandoned") && (
                         <button
                             onClick={() => handleDismiss(notification._id)}
-                            className="p-1 hover:bg-gray-100 rounded flex items-start"
+                            className="p-1 hover:bg-gray-100 dark:hover:bg-gray-600 rounded flex items-start"
                             title={t("Hide")}
                         >
-                            <EyeOff className="h-4 w-4 text-gray-500" />
+                            <EyeOff className="h-4 w-4 text-gray-500 dark:text-gray-300" />
                         </button>
                     )}
                     {job &&
@@ -277,10 +270,10 @@ const NotificationItem = ({
                         isRetryable && (
                             <button
                                 onClick={() => handleRetry(notification._id)}
-                                className="p-1 hover:bg-gray-100 rounded flex items-start"
+                                className="p-1 hover:bg-gray-100 dark:hover:bg-gray-600 rounded flex items-start"
                                 title={t("Retry")}
                             >
-                                <RotateCcw className="h-4 w-4 text-gray-500" />
+                                <RotateCcw className="h-4 w-4 text-gray-500 dark:text-gray-300" />
                             </button>
                         )}
                 </div>
@@ -304,7 +297,6 @@ export default function NotificationButton() {
     const { language } = useContext(LanguageContext);
     const router = useRouter();
     const cancelRequest = useCancelTask();
-    const setActiveChatId = useSetActiveChatId();
     const retryTask = useRetryTask();
 
     const handleDismiss = (_id) => {
@@ -367,7 +359,9 @@ export default function NotificationButton() {
                 </PopoverTrigger>
                 <PopoverContent className="w-80">
                     <div className="space-y-4">
-                        <h3 className="font-medium">{t("Notifications")}</h3>
+                        <h3 className="font-medium text-gray-900 dark:text-gray-100">
+                            {t("Notifications")}
+                        </h3>
                         <div className="max-h-[300px] overflow-y-auto">
                             {notifications.length === 0 ? (
                                 <p className="text-sm text-gray-500">
@@ -392,7 +386,6 @@ export default function NotificationButton() {
                                                     ?.isRetryable
                                             }
                                             language={language}
-                                            setActiveChatId={setActiveChatId}
                                             router={router}
                                             setIsNotificationOpen={
                                                 setIsNotificationOpen

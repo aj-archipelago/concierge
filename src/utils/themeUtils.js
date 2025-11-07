@@ -1,4 +1,159 @@
 /**
+ * Extracts head and body content from HTML, handling both complete and incomplete HTML
+ * Uses DOM parsing for robustness with malformed or streaming content
+ * @param {string} content - The HTML content to parse
+ * @returns {object} - Object with headContent and bodyContent properties
+ */
+export function extractHtmlStructure(content) {
+    if (!content || typeof content !== "string") {
+        return { headContent: "", bodyContent: "" };
+    }
+
+    let html = content.trim();
+
+    // Only process if content appears to start with structural tags
+    const startsWithStructuralTag = /^\s*(<!DOCTYPE|<html|<head|<body)/i.test(
+        html,
+    );
+
+    if (!startsWithStructuralTag) {
+        // Content doesn't start with structural tags, treat it all as body content
+        return { headContent: "", bodyContent: html };
+    }
+
+    // Use DOM parser for more robust extraction
+    // This handles incomplete/malformed HTML better than regex
+    try {
+        const parser = new DOMParser();
+        // Wrap in a complete HTML structure so parser can handle incomplete content
+        const wrappedHtml = `<html>${html}</html>`;
+        const doc = parser.parseFromString(wrappedHtml, "text/html");
+
+        // Extract head content
+        let headContent = "";
+        const headElement = doc.querySelector("head");
+        if (headElement) {
+            // Get all child nodes of head (styles, scripts, meta tags, etc.)
+            headContent = Array.from(headElement.childNodes)
+                .map((node) => {
+                    if (node.nodeType === Node.ELEMENT_NODE) {
+                        return node.outerHTML;
+                    } else if (
+                        node.nodeType === Node.TEXT_NODE &&
+                        node.textContent.trim()
+                    ) {
+                        return node.textContent;
+                    }
+                    return "";
+                })
+                .filter(Boolean)
+                .join("\n");
+        }
+
+        // Extract body content
+        let bodyContent = "";
+        const bodyElement = doc.querySelector("body");
+        if (bodyElement) {
+            // Get innerHTML of body (all content inside body tag)
+            bodyContent = bodyElement.innerHTML;
+        } else {
+            // No body tag found - check if content is just body-level elements
+            // The parser might have put content directly in html element
+            const htmlElement = doc.documentElement;
+            if (htmlElement) {
+                // Get all nodes that aren't head
+                const nonHeadNodes = Array.from(htmlElement.childNodes).filter(
+                    (node) => node.nodeName.toLowerCase() !== "head",
+                );
+                bodyContent = nonHeadNodes
+                    .map((node) => {
+                        if (node.nodeType === Node.ELEMENT_NODE) {
+                            return node.outerHTML;
+                        } else if (
+                            node.nodeType === Node.TEXT_NODE &&
+                            node.textContent.trim()
+                        ) {
+                            return node.textContent;
+                        }
+                        return "";
+                    })
+                    .filter(Boolean)
+                    .join("\n");
+            }
+        }
+
+        return {
+            headContent: headContent.trim(),
+            bodyContent: bodyContent.trim(),
+        };
+    } catch (error) {
+        // Fallback to regex-based extraction if DOM parsing fails
+        console.warn("DOM parsing failed, using regex fallback:", error);
+
+        // Fallback regex extraction (simplified version)
+        let headContent = "";
+        let bodyContent = "";
+
+        // Remove DOCTYPE declarations
+        html = html.replace(/^\s*<!DOCTYPE\s+[^>]*>/gi, "");
+        html = html.replace(/^\s*<!DOCTYPE[^<]*/gi, "");
+
+        // Remove <html> tags
+        html = html.replace(/^\s*<\/?\s*html(\s+[^>]*)?>/gi, "");
+        html = html.replace(/^\s*<\/?\s*html[^<>\s]*/gi, "");
+        html = html.replace(/<\/html>\s*$/gi, "");
+
+        // Extract <head> content
+        const headMatch = html.match(
+            /^\s*<head(\s+[^>]*)?>([\s\S]*?)<\/head>/i,
+        );
+        if (headMatch) {
+            headContent = headMatch[2];
+            html = html.replace(/^\s*<head(\s+[^>]*)?>[\s\S]*?<\/head>/gi, "");
+        } else {
+            const incompleteHeadMatch = html.match(
+                /^\s*<head(\s+[^>]*)?>([\s\S]*)$/i,
+            );
+            if (incompleteHeadMatch && !/<body/i.test(html)) {
+                const headTagEnd = incompleteHeadMatch[0].length;
+                const afterHead = html.substring(headTagEnd);
+                if (afterHead.trim()) {
+                    html = afterHead;
+                } else {
+                    headContent = "";
+                    html = html.replace(/^\s*<head(\s+[^>]*)?>/gi, "");
+                }
+            }
+            html = html.replace(/^\s*<head[^>]*>/gi, "");
+        }
+
+        // Extract <body> content
+        const bodyMatch = html.match(
+            /^\s*<body(\s+[^>]*)?>([\s\S]*?)<\/body>/i,
+        );
+        if (bodyMatch) {
+            bodyContent = bodyMatch[2];
+        } else {
+            const incompleteBodyMatch = html.match(
+                /^\s*<body(\s+[^>]*)?>([\s\S]*)$/i,
+            );
+            if (incompleteBodyMatch) {
+                bodyContent = incompleteBodyMatch[2];
+            } else {
+                bodyContent = html;
+            }
+        }
+
+        bodyContent = bodyContent.replace(/<\/body>\s*$/gi, "");
+
+        return {
+            headContent: headContent.trim(),
+            bodyContent: bodyContent.trim(),
+        };
+    }
+}
+
+/**
  * Filters out dark mode classes from HTML content based on the current theme
  * @param {string} content - The HTML content to filter
  * @param {string} theme - The current theme ('light' or 'dark')
@@ -20,12 +175,16 @@ export function filterDarkClasses(content, theme) {
 
 /**
  * Generates the complete HTML template for sandbox/preview iframes with theme filtering applied
- * @param {string} content - The HTML content to include in the body
+ * Extracts head content (styles, scripts) and body content from user HTML and merges them properly
+ * @param {string} content - The HTML content to include
  * @param {string} theme - The current theme ('light' or 'dark')
  * @returns {string} - The complete HTML document with dark classes filtered based on theme
  */
 export function generateFilteredSandboxHtml(content, theme) {
-    // Generate the full HTML document
+    // Extract head and body content from the user's HTML
+    const { headContent, bodyContent } = extractHtmlStructure(content);
+
+    // Generate the full HTML document with user's head content merged in
     const fullHtml = `
         <!DOCTYPE html>
         <html data-theme="${theme}">
@@ -33,9 +192,22 @@ export function generateFilteredSandboxHtml(content, theme) {
                 <meta charset="utf-8">
                 <meta name="viewport" content="width=device-width, initial-scale=1">
                 <style>
+                    html, body {
+                        margin: 0;
+                        padding: 0;
+                        width: 100%;
+                    }
+                    html {
+                        height: auto;
+                    }
                     body { 
-                        margin: 0; 
                         font-family: system-ui, -apple-system, sans-serif;
+                        min-height: auto;
+                        height: auto;
+                        background-color: #ffffff;
+                    }
+                    html[data-theme="dark"] body {
+                        background-color: #1f2937; /* gray-800 - matches layout content container */
                     }
                     /* Ensure images don't overflow */
                     img { max-width: 100%; height: auto; }
@@ -116,6 +288,7 @@ export function generateFilteredSandboxHtml(content, theme) {
                         @apply bg-gray-100 dark:bg-gray-700 font-semibold;
                     }
                 </style>
+                ${headContent}
                 <script>
                     // Make theme available to applets via JavaScript
                     window.LABEEB_THEME = "${theme}";
@@ -133,7 +306,7 @@ export function generateFilteredSandboxHtml(content, theme) {
                     });
                 </script>
             </head>
-            <body>${content}</body>
+            <body>${bodyContent}</body>
         </html>
     `;
 

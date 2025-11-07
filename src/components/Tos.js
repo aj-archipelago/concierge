@@ -88,14 +88,14 @@ const Tos = ({ showTos, setShowTos }) => {
                                 className={`rounded-md p-3 mb-2 ${
                                     hasScrolledToBottom
                                         ? "bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800"
-                                        : "bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800"
+                                        : "bg-sky-50 dark:bg-sky-900/20 border border-sky-200 dark:border-sky-800"
                                 }`}
                             >
                                 <div
                                     className={`flex items-center gap-2 ${
                                         hasScrolledToBottom
                                             ? "text-green-700 dark:text-green-300"
-                                            : "text-blue-700 dark:text-blue-300"
+                                            : "text-sky-700 dark:text-sky-300"
                                     }`}
                                 >
                                     {hasScrolledToBottom ? (
@@ -151,7 +151,7 @@ const Tos = ({ showTos, setShowTos }) => {
                                     href="/privacy"
                                     target="_blank"
                                     rel="noopener noreferrer"
-                                    className="underline text-blue-600 hover:text-blue-800"
+                                    className="underline text-sky-600 hover:text-sky-800"
                                 >
                                     {t("Privacy Policy")}
                                 </a>

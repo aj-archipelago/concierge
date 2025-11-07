@@ -23,6 +23,7 @@ export const appSchema = new mongoose.Schema(
             type: String,
             required: false,
             lowercase: true,
+            unique: true,
             trim: true,
         },
         author: {
@@ -48,6 +49,10 @@ export const appSchema = new mongoose.Schema(
             },
         },
         icon: {
+            type: String,
+            required: false,
+        },
+        description: {
             type: String,
             required: false,
         },
