@@ -76,7 +76,7 @@ const chatSchema = new mongoose.Schema(
             type: mongoose.Schema.Types.ObjectId,
             auto: true,
         },
-        isEmpty: {
+        isUnused: {
             type: Boolean,
             default: true,
         },
