@@ -23,7 +23,6 @@ import {
     useBulkImportChats,
     useDeleteChat,
     useGetChats,
-    useSetActiveChatId,
     useUpdateChat,
     useSearchChats,
     useSearchContent,
@@ -87,7 +86,6 @@ function SavedChats({ displayState }) {
         isFetchingNextPage,
         hasNextPage,
     } = useGetChats();
-    const setActiveChatId = useSetActiveChatId();
     const router = useRouter();
     const addChat = useAddChat();
     const updateChat = useUpdateChat();
@@ -627,6 +625,8 @@ function SavedChats({ displayState }) {
 
     const handleCreateNewChat = async () => {
         try {
+            // Always call server - it will find an unused chat or create a new one
+            // Server handles all the logic, we just navigate to the result
             const { _id } = await addChat.mutateAsync({ messages: [] });
             router.push(`/chat/${String(_id)}`);
         } catch (error) {
@@ -674,10 +674,12 @@ function SavedChats({ displayState }) {
         try {
             const chatId = chat._id;
             if (!chatId || !isValidObjectId(chatId)) return;
-            await setActiveChatId.mutateAsync(chatId);
+
+            // Navigate immediately - active chat ID will be updated
+            // asynchronously in the background by Chat.js component
             router.push(`/chat/${chatId}`);
         } catch (error) {
-            console.error("Failed to set active chat ID:", error, chat);
+            console.error("Failed to navigate:", error, chat);
         }
     };
 
@@ -1108,7 +1110,7 @@ function SavedChats({ displayState }) {
                                         {shouldShowAllResults && (
                                             <button
                                                 onClick={handleShowAllResults}
-                                                className="ml-2 text-xs text-blue-600 dark:text-blue-400 hover:underline"
+                                                className="ml-2 text-xs text-sky-600 dark:text-sky-400 hover:underline"
                                             >
                                                 {t("Show all")}
                                             </button>
@@ -1121,7 +1123,7 @@ function SavedChats({ displayState }) {
                                         <span className="mx-1 text-gray-400 dark:text-gray-500">
                                             •
                                         </span>
-                                        <span className="text-blue-500 dark:text-blue-400">
+                                        <span className="text-sky-500 dark:text-sky-400">
                                             {statusLabel}
                                         </span>
                                     </>

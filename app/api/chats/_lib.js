@@ -22,13 +22,22 @@ export async function getRecentChatsOfCurrentUser() {
             _id: { $in: recentChatIds },
             userId: currentUser._id,
         },
-        { _id: 1, title: 1, titleSetByUser: 1 },
+        { _id: 1, title: 1, titleSetByUser: 1, isUnused: 1 },
     );
 
     // For chats without a custom title, fetch the first message separately
     // This approach avoids truncating the messages array in the main cache
+    const firstChatId =
+        recentChatIds.length > 0 ? String(recentChatIds[0]) : null;
     for (const chat of recentChatsUnordered) {
-        if (!chat.title || chat.title === "New Chat" || chat.title === "") {
+        const isFirstChat = firstChatId && String(chat._id) === firstChatId;
+        const needsFirstMessage =
+            isFirstChat ||
+            !chat.title ||
+            chat.title === "New Chat" ||
+            chat.title === "";
+
+        if (needsFirstMessage) {
             const chatWithFirstMessage = await Chat.findOne(
                 { _id: chat._id },
                 { messages: { $slice: 1 } },
@@ -89,68 +98,29 @@ export async function createNewChat(data) {
           ? [messages]
           : [];
 
-    // Only look for existing empty chat if we're creating a new empty chat
+    // Only look for existing unused chat if we're creating a new empty chat
     if (normalizedMessages.length === 0) {
-        // First find chats marked as empty
-        const emptyChats = await Chat.find({
+        // Find the latest unused chat (one-way gate: once used, never unused again)
+        const unusedChat = await Chat.findOne({
             userId: currentUser._id,
-            isEmpty: true,
-        });
+            isUnused: true,
+        }).sort({ createdAt: -1 });
 
-        // Then verify they are actually empty by checking messages
-        for (const chat of emptyChats) {
-            if (!chat.messages || chat.messages.length === 0) {
-                await setActiveChatId(chat._id);
-                return chat;
-            }
-            // If we find a chat marked as empty but with messages, fix it
-            if (chat.messages && chat.messages.length > 0) {
-                chat.isEmpty = false;
-                await chat.save();
-            }
+        if (unusedChat) {
+            await setActiveChatId(unusedChat._id);
+            return unusedChat;
         }
     }
 
     const chat = new Chat({
         userId,
         messages: normalizedMessages,
-        isEmpty: normalizedMessages.length === 0,
+        isUnused: normalizedMessages.length === 0,
         title: title || getSimpleTitle(normalizedMessages[0] || ""),
     });
 
     await chat.save();
     await setActiveChatId(chat._id);
-    return chat;
-}
-
-export async function updateChat(data) {
-    const { chatId, newMessageContent } = data;
-    const currentUser = await getCurrentUser(false);
-
-    const messageArray = Array.isArray(newMessageContent)
-        ? newMessageContent
-        : [];
-    const hasMessages = messageArray.length > 0;
-
-    const chat = await Chat.findOneAndUpdate(
-        { _id: chatId, userId: currentUser._id },
-        {
-            $set: {
-                messages: messageArray,
-                isEmpty: !hasMessages,
-            },
-        },
-        { new: true, useFindAndModify: false },
-    );
-
-    if (!chat) throw new Error("Chat not found");
-
-    // Double check the isEmpty state matches reality
-    if (chat.isEmpty !== !hasMessages) {
-        chat.isEmpty = !hasMessages;
-        await chat.save();
-    }
-
     return chat;
 }
 
@@ -291,13 +261,14 @@ export async function getUserChatInfo() {
     }
 
     if (!activeChatId) {
-        const existingEmptyChat = await Chat.findOne({
+        // Find the latest unused chat, or create a new one
+        const existingUnusedChat = await Chat.findOne({
             userId: currentUser._id,
-            isEmpty: true,
-        });
+            isUnused: true,
+        }).sort({ createdAt: -1 });
 
-        if (existingEmptyChat) {
-            activeChatId = existingEmptyChat._id;
+        if (existingUnusedChat) {
+            activeChatId = existingUnusedChat._id;
         } else {
             const emptyChat = await createNewChat({
                 messages: [],

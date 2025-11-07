@@ -42,10 +42,11 @@ export default function PublishedAppletView({
         ) {
             setError("This applet is not published.");
             setPublishedHtml(null);
-        } else {
-            setError(null);
-            setPublishedHtml(htmlVersions[publishedVersionIndex].content);
+            return;
         }
+
+        setError(null);
+        setPublishedHtml(htmlVersions[publishedVersionIndex].content);
     }, [applet, isLoading, appletError]);
 
     // Check if app is installed
@@ -102,7 +103,7 @@ export default function PublishedAppletView({
     }
 
     return (
-        <div className="w-full h-full bg-gray-100 dark:bg-gray-900 flex items-center justify-center relative">
+        <div className="w-full h-full relative">
             {/* Add App Button */}
             {app && app._id && !isAppInstalled && (
                 <button
@@ -126,13 +127,12 @@ export default function PublishedAppletView({
                 </div>
             )}
 
-            <div className="w-full h-full bg-white dark:bg-gray-800">
-                <OutputSandbox
-                    content={publishedHtml}
-                    height="100%"
-                    theme={theme}
-                />
-            </div>
+            <OutputSandbox
+                key={applet?._id || app?._id || publishedHtml}
+                content={publishedHtml}
+                height="100%"
+                theme={theme}
+            />
         </div>
     );
 }

@@ -18,7 +18,6 @@ const ChatNavigationItem = ({
     subItem,
     pathname,
     router,
-    setActiveChatId,
     handleDeleteChat,
     isCollapsed,
 }) => {
@@ -49,17 +48,9 @@ const ChatNavigationItem = ({
                 onClick={() => {
                     if (subItem.href && editingId !== subItem.key) {
                         setEditingId(null);
-                        setActiveChatId
-                            .mutateAsync(subItem.key)
-                            .then(() => {
-                                router.push(subItem.href);
-                            })
-                            .catch((error) => {
-                                console.error(
-                                    "Error setting active chat ID:",
-                                    error,
-                                );
-                            });
+                        // Navigate immediately - active chat ID will be updated
+                        // asynchronously in the background by Chat.js component
+                        router.push(subItem.href);
                     }
                 }}
             >

@@ -223,7 +223,7 @@ function WorkspaceTile({ workspace, onClick }) {
                 <div className="flex-1 overflow-hidden">
                     <div className="space-y-1 ms-11">
                         {workspace.hasPublishedApplet && (
-                            <div className="flex items-center gap-1.5 text-blue-600 dark:text-blue-400">
+                            <div className="flex items-center gap-1.5 text-sky-600 dark:text-sky-400">
                                 <Globe className="h-3.5 w-3.5 flex-shrink-0" />
                                 <span className="text-xs truncate">
                                     <span className="font-medium">
@@ -235,7 +235,7 @@ function WorkspaceTile({ workspace, onClick }) {
                             </div>
                         )}
                         {workspace.hasPublishedPathway && (
-                            <div className="flex items-center gap-1.5 text-blue-600 dark:text-blue-400">
+                            <div className="flex items-center gap-1.5 text-sky-600 dark:text-sky-400">
                                 <Globe className="h-3.5 w-3.5 flex-shrink-0" />
                                 <span className="text-xs truncate">
                                     <span className="font-medium">

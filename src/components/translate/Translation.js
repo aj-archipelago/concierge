@@ -3,7 +3,7 @@ import { useApolloClient } from "@apollo/client";
 import { useRouter } from "next/navigation";
 import { useContext, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { Edit } from "lucide-react";
 import classNames from "../../../app/utils/class-names";
 import { AuthContext } from "../../App";
 import { LanguageContext } from "../../contexts/LanguageProvider";
@@ -31,6 +31,29 @@ const LANGUAGE_NAMES = {
     tr: "Turkish",
 };
 
+// Get optimal font family and direction for target language
+const getLanguageStyles = (languageCode) => {
+    const rtlLanguages = ["ar", "he"];
+    const isRTL = rtlLanguages.includes(languageCode);
+
+    const fontMap = {
+        ar: "'Noto Sans Arabic', 'Segoe UI', Arial, sans-serif",
+        ja: "'Noto Sans JP', 'Hiragino Sans', 'Yu Gothic', 'Meiryo', sans-serif",
+        zh: "'Noto Sans SC', 'Noto Sans TC', 'Microsoft YaHei', 'PingFang SC', sans-serif",
+        ko: "'Noto Sans KR', 'Nanum Gothic', 'Malgun Gothic', sans-serif",
+        he: "'Noto Sans Hebrew', 'Arial Hebrew', sans-serif",
+        th: "'Noto Sans Thai', 'Sarabun', sans-serif",
+        hi: "'Noto Sans Devanagari', sans-serif",
+        ru: "'Noto Sans', 'Roboto', 'Arial', sans-serif",
+        default: "system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif",
+    };
+
+    return {
+        fontFamily: fontMap[languageCode] || fontMap.default,
+        direction: isRTL ? "rtl" : "ltr",
+    };
+};
+
 function Translation({
     inputText,
     translationStrategy,
@@ -46,7 +69,7 @@ function Translation({
     const [loading, setLoading] = useState(false);
     const router = useRouter();
     const apolloClient = useApolloClient();
-    const { language, direction } = useContext(LanguageContext);
+    const { direction } = useContext(LanguageContext);
     const [activeTab, setActiveTab] = useState("input");
     const { debouncedUpdateUserState } = useContext(AuthContext);
 
@@ -68,41 +91,46 @@ function Translation({
     const executeTranslation = (strategy, inputText, to) => {
         let query;
         let resultKey;
+        let model;
 
         switch (strategy) {
-            case "GPT-4":
-                query = QUERIES.TRANSLATE_GPT4;
-                resultKey = "translate_gpt4";
+            case "GPT-5":
+                query = QUERIES.TRANSLATE;
+                resultKey = "translate";
+                model = "oai-gpt5-chat";
                 to = LANGUAGE_NAMES[to];
                 break;
             case "GPT-4-OMNI":
-                query = QUERIES.TRANSLATE_GPT4_OMNI;
-                resultKey = "translate_gpt4_omni";
+                query = QUERIES.TRANSLATE;
+                resultKey = "translate";
+                model = "oai-gpt4o";
                 to = LANGUAGE_NAMES[to];
                 break;
             case "traditional":
                 query = QUERIES.TRANSLATE_AZURE;
                 resultKey = "translate_azure";
                 break;
-            case "subtitle":
-                query = QUERIES.TRANSLATE_SUBTITLE;
-                resultKey = "translate_subtitle";
-                to = LANGUAGE_NAMES[to];
-                break;
             default:
-                query = QUERIES.TRANSLATE_GPT4_OMNI;
-                resultKey = "translate_gpt4_omni";
+                query = QUERIES.TRANSLATE;
+                resultKey = "translate";
+                model = "oai-gpt5-chat";
                 to = LANGUAGE_NAMES[to];
                 break;
+        }
+
+        const variables = {
+            text: stripHTML(inputText),
+            to: to,
+        };
+
+        if (model) {
+            variables.model = model;
         }
 
         apolloClient
             .query({
                 query: query,
-                variables: {
-                    text: stripHTML(inputText),
-                    to: to,
-                },
+                variables: variables,
             })
             .then((e) => {
                 setLoading(false);
@@ -157,23 +185,20 @@ function Translation({
                                 setTranslationStrategy(strategy);
                             }}
                         >
+                            <option value="GPT-5">
+                                {t("Best, Newest (GPT-5)")}
+                            </option>
                             <option value="GPT-4-OMNI">
                                 {t("Fast, High Quality (GPT-4-OMNI)")}
-                            </option>
-                            <option value="GPT-4">
-                                {t("Slower, Reliable (GPT-4)")}
                             </option>
                             <option value="traditional">
                                 {t("Fastest (Azure)")}
                             </option>
-                            {/* <option value="subtitle">
-                                {t("Subtitle Translation (SRT)")}
-                            </option> */}
                         </select>
                         <LoadingButton
                             disabled={!inputText || inputText.length === 0}
                             loading={loading}
-                            className="lb-primary"
+                            className="lb-primary whitespace-nowrap min-w-[120px]"
                             text={t("Translating")}
                             onClick={() => {
                                 setLoading(true);
@@ -206,7 +231,12 @@ function Translation({
                         </TabsTrigger>
                     ))}
                 </TabsList>
-                <div className="flex-1 flex gap-2 grow">
+                <div
+                    className={classNames(
+                        "flex-1 flex gap-2 grow",
+                        direction === "rtl" && "flex-row-reverse",
+                    )}
+                >
                     <div
                         className={classNames(
                             "flex-1",
@@ -214,7 +244,7 @@ function Translation({
                         )}
                     >
                         <textarea
-                            className="lb-input w-full h-full p-2 border border-gray-300 rounded-md resize-none"
+                            className="lb-input w-full h-full p-2 border border-gray-300 rounded-md resize-none text-base sm:text-sm"
                             dir="auto"
                             disabled={loading}
                             rows={10}
@@ -233,55 +263,67 @@ function Translation({
                             "flex-1 relative",
                         )}
                     >
-                        <div
-                            className={`h-full relative rounded-md ${translationLanguage === "ar" ? "rtl" : "ltr"}`}
-                        >
-                            {translatedText && (
-                                <div
-                                    className={classNames(
-                                        "absolute top-1 flex gap-1 items-center",
-                                        translationLanguage === "ar"
-                                            ? "start-7"
-                                            : "end-1",
-                                    )}
-                                >
-                                    <CopyButton item={translatedText} />
-                                </div>
-                            )}
-                            <textarea
-                                readOnly
-                                className="w-full h-full lb-input p-2 border border-gray-300 dark:border-gray-600 rounded-md resize-none bg-gray-100 dark:bg-gray-800"
-                                dir="auto"
-                                placeholder={t(
-                                    "Translation will appear here...",
-                                )}
-                                rows={10}
-                                value={translatedText || ""}
-                            />
+                        <div className="h-full relative rounded-md">
+                            {translatedText &&
+                                (() => {
+                                    const isTargetRTL = ["ar", "he"].includes(
+                                        translationLanguage,
+                                    );
+                                    return (
+                                        <div
+                                            className={classNames(
+                                                "absolute top-1 flex gap-1 items-center z-10",
+                                                isTargetRTL
+                                                    ? "start-1 flex-row-reverse"
+                                                    : "end-1",
+                                            )}
+                                        >
+                                            {showEditLink && (
+                                                <button
+                                                    className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 active:text-gray-900 dark:active:text-gray-200 cursor-pointer"
+                                                    onClick={() => {
+                                                        debouncedUpdateUserState(
+                                                            {
+                                                                write: {
+                                                                    text: translatedText,
+                                                                },
+                                                            },
+                                                        );
+                                                        router.push("/write");
+                                                    }}
+                                                    title={t("Start editing")}
+                                                >
+                                                    <Edit />
+                                                </button>
+                                            )}
+                                            <CopyButton
+                                                item={translatedText}
+                                                className="static"
+                                            />
+                                        </div>
+                                    );
+                                })()}
+                            {(() => {
+                                const languageStyles =
+                                    getLanguageStyles(translationLanguage);
+                                return (
+                                    <textarea
+                                        readOnly
+                                        className="w-full h-full lb-input p-2 border border-gray-300 dark:border-gray-600 rounded-md resize-none bg-gray-100 dark:bg-gray-800 text-base sm:text-sm"
+                                        dir={languageStyles.direction}
+                                        style={{
+                                            fontFamily:
+                                                languageStyles.fontFamily,
+                                        }}
+                                        placeholder={t(
+                                            "Translation will appear here...",
+                                        )}
+                                        rows={10}
+                                        value={translatedText || ""}
+                                    />
+                                );
+                            })()}
                         </div>
-
-                        {showEditLink && translatedText && (
-                            <button
-                                className="flex gap-2 items-center absolute bottom-1 p-2 px-14 bg-gray-200 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 border-l-0 border-b-0 rounded-bl rounded-br hover:bg-gray-300 dark:hover:bg-gray-600 active:bg-gray-400 dark:active:bg-gray-500"
-                                onClick={() => {
-                                    debouncedUpdateUserState({
-                                        write: {
-                                            text: translatedText,
-                                        },
-                                    });
-                                    router.push("/write");
-                                }}
-                            >
-                                {t("Start editing")}
-                                <span>
-                                    {language === "ar" ? (
-                                        <ChevronLeft />
-                                    ) : (
-                                        <ChevronRight />
-                                    )}
-                                </span>
-                            </button>
-                        )}
                     </div>
                 </div>
             </Tabs>

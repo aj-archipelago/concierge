@@ -518,8 +518,8 @@ const TRANSLATE_SUBTITLE = gql`
 `;
 
 const TRANSLATE = gql`
-    query Translate($text: String!, $to: String!) {
-        translate(text: $text, to: $to) {
+    query Translate($text: String!, $to: String!, $model: String) {
+        translate(text: $text, to: $to, model: $model) {
             result
         }
     }
@@ -528,38 +528,6 @@ const TRANSLATE = gql`
 const TRANSLATE_CONTEXT = gql`
     query TranslateContext($text: String!, $to: String!) {
         translate_context(text: $text, to: $to) {
-            result
-        }
-    }
-`;
-
-const TRANSLATE_TURBO = gql`
-    query TranslateTurbo($text: String!, $to: String!) {
-        translate_turbo(text: $text, to: $to) {
-            result
-        }
-    }
-`;
-
-const TRANSLATE_GPT4 = gql`
-    query TranslateGpt4($text: String!, $to: String!, $async: Boolean) {
-        translate_gpt4(text: $text, to: $to, async: $async) {
-            result
-        }
-    }
-`;
-
-const TRANSLATE_GPT4_TURBO = gql`
-    query TranslateGpt4Turbo($text: String!, $to: String!) {
-        translate_gpt4_turbo(text: $text, to: $to) {
-            result
-        }
-    }
-`;
-
-const TRANSLATE_GPT4_OMNI = gql`
-    query TranslateGpt4Omni($text: String!, $to: String!) {
-        translate_gpt4_omni(text: $text, to: $to) {
             result
         }
     }
@@ -1037,10 +1005,6 @@ const QUERIES = {
     TRANSLATE_AZURE,
     TRANSLATE_CONTEXT,
     TIMELINE,
-    TRANSLATE_TURBO,
-    TRANSLATE_GPT4,
-    TRANSLATE_GPT4_TURBO,
-    TRANSLATE_GPT4_OMNI,
     TRANSLATE_SUBTITLE,
     HIGHLIGHTS,
     REMOVE_CONTENT,
@@ -1130,9 +1094,6 @@ export {
     TRANSLATE_AZURE,
     TRANSLATE_CONTEXT,
     TIMELINE,
-    TRANSLATE_TURBO,
-    TRANSLATE_GPT4,
-    TRANSLATE_GPT4_TURBO,
     TRANSLATE_SUBTITLE,
     HIGHLIGHTS,
     REMOVE_CONTENT,
