@@ -124,36 +124,6 @@ export async function createNewChat(data) {
     return chat;
 }
 
-export async function updateChat(data) {
-    const { chatId, newMessageContent } = data;
-    const currentUser = await getCurrentUser(false);
-
-    const messageArray = Array.isArray(newMessageContent)
-        ? newMessageContent
-        : [];
-    const hasMessages = messageArray.length > 0;
-
-    // One-way gate: if chat has messages, mark it as used (never goes back to unused)
-    const updateData = {
-        messages: messageArray,
-    };
-    if (hasMessages) {
-        updateData.isUnused = false;
-    }
-
-    const chat = await Chat.findOneAndUpdate(
-        { _id: chatId, userId: currentUser._id },
-        {
-            $set: updateData,
-        },
-        { new: true, useFindAndModify: false },
-    );
-
-    if (!chat) throw new Error("Chat not found");
-
-    return chat;
-}
-
 export async function getChatById(chatId) {
     // Handle temporary chat IDs from client-side optimistic updates
     if (chatId && typeof chatId === "string" && chatId.startsWith("temp_")) {

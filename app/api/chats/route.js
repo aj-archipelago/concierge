@@ -51,15 +51,4 @@ export async function POST(req) {
     }
 }
 
-// Handle PUT request to edit existing saved messages for the current user
-export async function PUT(req) {
-    try {
-        const data = await req.json();
-        const updatedChat = await updateChat(data);
-        return NextResponse.json(updatedChat);
-    } catch (error) {
-        return handleError(error);
-    }
-}
-
 export const dynamic = "force-dynamic"; // defaults to auto
