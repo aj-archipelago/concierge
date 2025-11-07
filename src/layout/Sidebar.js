@@ -6,6 +6,7 @@ import {
     Grid3X3,
     EditIcon,
     Plus,
+    Loader2,
 } from "lucide-react";
 import * as Icons from "lucide-react";
 import Link from "next/link";
@@ -16,9 +17,7 @@ import {
     useAddChat,
     useDeleteChat,
     useGetActiveChats,
-    findEmptyChat,
 } from "../../app/queries/chats";
-import { useQueryClient } from "@tanstack/react-query";
 import { useCurrentUser } from "../../app/queries/users";
 import { useWorkspace } from "../../app/queries/workspaces";
 
@@ -136,7 +135,8 @@ export default React.forwardRef(function Sidebar(
     const { getLogo, getSidebarLogo } = config.global;
     const { language } = useContext(LanguageContext);
     const { t } = useTranslation();
-    const { data: chatsData = [] } = useGetActiveChats();
+    const { data: chatsData = [], isLoading: chatsLoading } =
+        useGetActiveChats();
     const chats = chatsData || [];
     const { data: currentUser } = useCurrentUser();
 
@@ -149,24 +149,14 @@ export default React.forwardRef(function Sidebar(
 
     const deleteChat = useDeleteChat();
     const addChat = useAddChat();
-    const queryClient = useQueryClient();
 
     const isCollapsed =
         (propIsCollapsed || shouldForceCollapse(pathname)) && !isMobile;
 
     const handleNewChat = async () => {
         try {
-            // Check if there's already an empty chat before creating a new one
-            const existingEmptyChat = findEmptyChat(queryClient);
-
-            if (existingEmptyChat) {
-                // Navigate to existing empty chat without creating a new one
-                // Active chat ID will be updated asynchronously by Chat.js component
-                router.push(`/chat/${String(existingEmptyChat._id)}`);
-                return;
-            }
-
-            // No existing empty chat, create a new one
+            // Always call server - it will find an unused chat or create a new one
+            // Server handles all the logic, we just navigate to the result
             const { _id } = await addChat.mutateAsync({ messages: [] });
             router.push(`/chat/${String(_id)}`);
         } catch (error) {
@@ -448,92 +438,102 @@ export default React.forwardRef(function Sidebar(
                                                     />
                                                 )}
                                         </div>
-                                        {item.children?.length > 0 && (
-                                            <ul
-                                                className={cn(
-                                                    "mt-1 px-1",
-                                                    isCollapsed
-                                                        ? "hidden group-hover:block"
-                                                        : "block",
-                                                )}
-                                            >
-                                                {item.children.map(
-                                                    (subItem, index) =>
-                                                        item.name === "Chat" ? (
-                                                            <ChatNavigationItem
-                                                                key={
-                                                                    subItem.key ||
-                                                                    `${item.name}-${index}`
-                                                                }
-                                                                subItem={
-                                                                    subItem
-                                                                }
-                                                                pathname={
-                                                                    pathname
-                                                                }
-                                                                router={router}
-                                                                handleDeleteChat={
-                                                                    handleDeleteChat
-                                                                }
-                                                                isCollapsed={
-                                                                    isCollapsed
-                                                                }
-                                                            />
-                                                        ) : (
-                                                            <li
-                                                                key={
-                                                                    subItem.key ||
-                                                                    `${item.name}-${index}`
-                                                                }
-                                                                className={classNames(
-                                                                    "group flex items-center justify-between rounded-md cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 my-0.5",
-                                                                    pathname ===
-                                                                        subItem?.href
-                                                                        ? "bg-gray-100 dark:bg-gray-700"
-                                                                        : "",
-                                                                )}
-                                                                onClick={() => {
-                                                                    if (
-                                                                        subItem.href
-                                                                    ) {
-                                                                        router.push(
-                                                                            subItem.href,
-                                                                        );
+                                        {item.name === "Chat" &&
+                                        chatsLoading ? (
+                                            <div className="mt-1 px-1 flex items-center justify-center py-2">
+                                                <Loader2 className="h-4 w-4 animate-spin text-gray-400" />
+                                            </div>
+                                        ) : (
+                                            item.children?.length > 0 && (
+                                                <ul
+                                                    className={cn(
+                                                        "mt-1 px-1",
+                                                        isCollapsed
+                                                            ? "hidden group-hover:block"
+                                                            : "block",
+                                                    )}
+                                                >
+                                                    {item.children.map(
+                                                        (subItem, index) =>
+                                                            item.name ===
+                                                            "Chat" ? (
+                                                                <ChatNavigationItem
+                                                                    key={
+                                                                        subItem.key ||
+                                                                        `${item.name}-${index}`
                                                                     }
-                                                                }}
-                                                            >
-                                                                <div
-                                                                    className={`relative block py-2 pe-1 ${"text-xs ps-4 pe-4"} leading-6 text-gray-700 w-full select-none flex items-center justify-between`}
-                                                                    dir={
-                                                                        document
-                                                                            .documentElement
-                                                                            .dir
+                                                                    subItem={
+                                                                        subItem
                                                                     }
+                                                                    pathname={
+                                                                        pathname
+                                                                    }
+                                                                    router={
+                                                                        router
+                                                                    }
+                                                                    handleDeleteChat={
+                                                                        handleDeleteChat
+                                                                    }
+                                                                    isCollapsed={
+                                                                        isCollapsed
+                                                                    }
+                                                                />
+                                                            ) : (
+                                                                <li
+                                                                    key={
+                                                                        subItem.key ||
+                                                                        `${item.name}-${index}`
+                                                                    }
+                                                                    className={classNames(
+                                                                        "group flex items-center justify-between rounded-md cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 my-0.5",
+                                                                        pathname ===
+                                                                            subItem?.href
+                                                                            ? "bg-gray-100 dark:bg-gray-700"
+                                                                            : "",
+                                                                    )}
+                                                                    onClick={() => {
+                                                                        if (
+                                                                            subItem.href
+                                                                        ) {
+                                                                            router.push(
+                                                                                subItem.href,
+                                                                            );
+                                                                        }
+                                                                    }}
                                                                 >
-                                                                    <span
-                                                                        className={`${
+                                                                    <div
+                                                                        className={`relative block py-2 pe-1 ${"text-xs ps-4 pe-4"} leading-6 text-gray-700 w-full select-none flex items-center justify-between`}
+                                                                        dir={
                                                                             document
                                                                                 .documentElement
-                                                                                .dir ===
-                                                                            "rtl"
-                                                                                ? "pe-3"
-                                                                                : "ps-3"
-                                                                        } truncate whitespace-nowrap overflow-hidden max-w-[150px]`}
-                                                                        title={t(
-                                                                            subItem.name ||
-                                                                                "",
-                                                                        )}
+                                                                                .dir
+                                                                        }
                                                                     >
-                                                                        {t(
-                                                                            subItem.name ||
-                                                                                "",
-                                                                        )}
-                                                                    </span>
-                                                                </div>
-                                                            </li>
-                                                        ),
-                                                )}
-                                            </ul>
+                                                                        <span
+                                                                            className={`${
+                                                                                document
+                                                                                    .documentElement
+                                                                                    .dir ===
+                                                                                "rtl"
+                                                                                    ? "pe-3"
+                                                                                    : "ps-3"
+                                                                            } truncate whitespace-nowrap overflow-hidden max-w-[150px]`}
+                                                                            title={t(
+                                                                                subItem.name ||
+                                                                                    "",
+                                                                            )}
+                                                                        >
+                                                                            {t(
+                                                                                subItem.name ||
+                                                                                    "",
+                                                                            )}
+                                                                        </span>
+                                                                    </div>
+                                                                </li>
+                                                            ),
+                                                    )}
+                                                </ul>
+                                            )
                                         )}
                                     </li>
                                 ))}

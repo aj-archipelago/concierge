@@ -27,7 +27,6 @@ import {
     useSearchChats,
     useSearchContent,
     useTotalChatCount,
-    findEmptyChat,
 } from "../../../app/queries/chats";
 import classNames from "../../../app/utils/class-names";
 import config from "../../../config";
@@ -626,17 +625,8 @@ function SavedChats({ displayState }) {
 
     const handleCreateNewChat = async () => {
         try {
-            // Check if there's already an empty chat before creating a new one
-            const existingEmptyChat = findEmptyChat(queryClient);
-
-            if (existingEmptyChat) {
-                // Navigate to existing empty chat without creating a new one
-                // Active chat ID will be updated asynchronously by Chat.js component
-                router.push(`/chat/${String(existingEmptyChat._id)}`);
-                return;
-            }
-
-            // No existing empty chat, create a new one
+            // Always call server - it will find an unused chat or create a new one
+            // Server handles all the logic, we just navigate to the result
             const { _id } = await addChat.mutateAsync({ messages: [] });
             router.push(`/chat/${String(_id)}`);
         } catch (error) {

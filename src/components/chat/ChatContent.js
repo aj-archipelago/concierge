@@ -85,7 +85,7 @@ function ChatContent({
             viewingChat,
             urlChatId,
             urlChat,
-            activeChatHookData?.data,
+            activeChatHookData,
         ],
     );
     const chatId = useMemo(() => String(chat?._id), [chat?._id]);

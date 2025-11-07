@@ -4,11 +4,7 @@ import {
     QueryClient,
 } from "@tanstack/react-query";
 import Chat from "../../../src/components/chat/Chat";
-import {
-    getActiveChatId,
-    getChatById,
-    setActiveChatId,
-} from "../../api/chats/_lib";
+import { getActiveChatId, getChatById } from "../../api/chats/_lib";
 
 export default async function ChatPage({ params }) {
     let id = String(params.id);
