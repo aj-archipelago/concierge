@@ -2156,7 +2156,7 @@ function ImageModal({ show, image, onHide }) {
                         <div className="flex gap-2">
                             <input
                                 type="text"
-                                className="flex-1 text-sm px-2 py-1 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                                className="flex-1 text-base md:text-sm px-2 py-1 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
                                 placeholder={t("Add tag...")}
                                 value={newTag}
                                 onChange={(e) => setNewTag(e.target.value)}
@@ -2186,7 +2186,7 @@ function ImageModal({ show, image, onHide }) {
                             {t("Prompt")}
                         </div>
                         <textarea
-                            className="w-full p-2 rounded-md bg-gray-50 dark:bg-gray-700 sm:text-sm resize-none focus:outline-none focus:ring-0 focus:border-0"
+                            className="w-full p-2 rounded-md bg-gray-50 dark:bg-gray-700 text-base md:text-sm resize-none focus:outline-none focus:ring-0 focus:border-0"
                             value={image?.prompt}
                             readOnly
                             rows={8}

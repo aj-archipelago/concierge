@@ -114,7 +114,7 @@ export default function PromptList({
                 placeholder={t("Search prompts")}
                 value={filter}
                 onChange={(e) => setFilter(e.target.value)}
-                className="lb-input text-sm mb-3"
+                className="lb-input mb-3"
             />
             <DragDropContext onDragEnd={onDragEnd}>
                 <Droppable droppableId="droppable">

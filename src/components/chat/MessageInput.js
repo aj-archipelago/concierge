@@ -291,7 +291,7 @@ function MessageInput({
                         <TextareaAutosize
                             typeahead="none"
                             className={classNames(
-                                `w-full border-0 outline-none focus:shadow-none [.docked_&]:text-sm focus:ring-0 pt-2 resize-none bg-transparent dark:bg-transparent`,
+                                `w-full border-0 outline-none focus:shadow-none text-base md:text-sm [.docked_&]:md:text-sm focus:ring-0 pt-2 resize-none bg-transparent dark:bg-transparent`,
                                 enableRag ? "px-1" : "px-3 rounded-s",
                             )}
                             rows={1}

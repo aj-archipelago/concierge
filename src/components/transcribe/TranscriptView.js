@@ -157,7 +157,7 @@ function EditableSubtitleText({ text, onSave, className = "" }) {
                         onSave(editedText);
                     }}
                     onKeyDown={handleKeyDown}
-                    className="bg-yellow-50 flex-1 border-0 bg-transparent p-0 focus:outline-0 focus:ring-0 text-sm max-w-[calc(100%-20px)] resize-none"
+                    className="bg-yellow-50 flex-1 border-0 bg-transparent p-0 focus:outline-0 focus:ring-0 text-base md:text-sm max-w-[calc(100%-20px)] resize-none"
                 />
             </div>
         );

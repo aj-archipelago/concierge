@@ -61,7 +61,7 @@ function HeadlineEditor({ articleText, headline, subhead, onChange }) {
                             placeholder={
                                 "e.g. the stock market fell by 500 points today."
                             }
-                            className="w-full border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:ring-2 focus:ring-sky-400 focus:border-sky-400 dark:focus:ring-sky-500 dark:focus:border-sky-500 resize-none"
+                            className="w-full border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:ring-2 focus:ring-sky-400 focus:border-sky-400 dark:focus:ring-sky-500 dark:focus:border-sky-500 resize-none text-base md:text-sm"
                             value={headline}
                             onChange={(e) => onChange(e.target.value)}
                         />
@@ -72,7 +72,7 @@ function HeadlineEditor({ articleText, headline, subhead, onChange }) {
                         </p>
                         <TextareaAutosize
                             placeholder={"e.g. stocks, recession"}
-                            className="w-full border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:ring-2 focus:ring-sky-400 focus:border-sky-400 dark:focus:ring-sky-500 dark:focus:border-sky-500 resize-none"
+                            className="w-full border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:ring-2 focus:ring-sky-400 focus:border-sky-400 dark:focus:ring-sky-500 dark:focus:border-sky-500 resize-none text-base md:text-sm"
                             value={headline}
                             onChange={(e) => onChange(e.target.value)}
                         />
