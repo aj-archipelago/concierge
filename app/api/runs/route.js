@@ -8,6 +8,7 @@ import {
     getLLMWithFallback,
     buildWorkspacePromptVariables,
 } from "../utils/llm-file-utils";
+import config from "../../../config";
 
 export async function POST(req, res) {
     const startedAt = Date.now();
@@ -57,7 +58,9 @@ export async function POST(req, res) {
             files: allFiles,
         });
 
-        variables.model = model;
+        if (model !== config.cortex?.AGENTIC_MODEL) {
+            variables.model = model;
+        }
 
         const query = getWorkspacePromptQuery(pathwayName);
 
