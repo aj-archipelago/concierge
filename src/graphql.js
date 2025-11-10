@@ -27,6 +27,10 @@ const getClient = (serverUrl, useBlueGraphQL) => {
 
     const httpLink = new HttpLink({
         uri: graphqlEndpoint,
+        fetchOptions: {
+            // Set timeout to 600 seconds (10 minutes) for long-running requests
+            signal: AbortSignal.timeout(600000),
+        },
     });
 
     const wsLink = new GraphQLWsLink(
@@ -887,17 +891,11 @@ const CODE_HUMAN_INPUT = gql`
 const getWorkspacePromptQuery = (pathwayName) => {
     return gql`
         query ${pathwayName}(
-            $text: String
-            $systemPrompt: String
-            $prompt: String
             $chatHistory: [MultiMessage]
             $async: Boolean
             $model: String
         ) {
             ${pathwayName}(
-                text: $text
-                systemPrompt: $systemPrompt
-                prompt: $prompt
                 chatHistory: $chatHistory
                 async: $async
                 model: $model

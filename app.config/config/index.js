@@ -37,6 +37,7 @@ const LLM_IDENTIFIERS = {
     grok4fastreasoningazure: "grok4fastreasoningazure",
     grok4fastnonreasoningazure: "grok4fastnonreasoningazure",
     labeebagent: "labeebagent",
+    labeebresearchagent: "labeebresearchagent",
 };
 
 // The entire Labeeb application can be configured here
@@ -190,6 +191,13 @@ const config = {
                 identifier: LLM_IDENTIFIERS.labeebagent,
                 name: "Labeeb Agent",
                 cortexPathwayName: "run_labeeb_agent",
+                cortexModelName: "labeeb-agent",
+                isAgentic: true,
+            },
+            {
+                identifier: LLM_IDENTIFIERS.labeebresearchagent,
+                name: "Labeeb Research Agent",
+                cortexPathwayName: "run_labeeb_research_agent",
                 cortexModelName: "labeeb-agent",
                 isAgentic: true,
             },
