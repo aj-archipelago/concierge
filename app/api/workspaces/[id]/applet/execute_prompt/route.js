@@ -9,6 +9,7 @@ import {
     getAnyAgenticLLM,
     buildWorkspacePromptVariables,
 } from "../../../../utils/llm-file-utils";
+import config from "../../../../../../config";
 
 export async function POST(request, { params }) {
     try {
@@ -71,7 +72,9 @@ export async function POST(request, { params }) {
             chatHistory: chatHistory,
         });
 
-        variables.model = llm.cortexModelName;
+        if (llm.cortexModelName !== config.cortex?.AGENTIC_MODEL) {
+            variables.model = llm.cortexModelName;
+        }
 
         const pathwayName = llm.cortexPathwayName;
         const query = QUERIES.getWorkspacePromptQuery(pathwayName);
