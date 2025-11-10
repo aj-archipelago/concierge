@@ -244,7 +244,7 @@ function Translation({
                         )}
                     >
                         <textarea
-                            className="lb-input w-full h-full p-2 border border-gray-300 rounded-md resize-none"
+                            className="lb-input w-full h-full p-2 border border-gray-300 rounded-md resize-none text-base sm:text-sm"
                             dir="auto"
                             disabled={loading}
                             rows={10}
