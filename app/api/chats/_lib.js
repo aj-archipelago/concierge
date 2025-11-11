@@ -5,6 +5,29 @@ import mongoose from "mongoose";
 import { Types } from "mongoose";
 import { parseSearchQuery, matchesAllTerms } from "../utils/search-parser";
 
+/**
+ * Sanitizes a message object to remove Mongoose metadata fields (createdAt, updatedAt)
+ * that shouldn't be sent to the client or included in updates
+ */
+export function sanitizeMessage(msg) {
+    if (!msg) return null;
+    const msgObj = msg.toObject ? msg.toObject() : msg;
+    return {
+        payload: msgObj.payload,
+        sender: msgObj.sender,
+        tool: msgObj.tool || null,
+        sentTime: msgObj.sentTime,
+        direction: msgObj.direction,
+        position: msgObj.position,
+        entityId: msgObj.entityId || null,
+        taskId: msgObj.taskId || null,
+        isServerGenerated: msgObj.isServerGenerated || false,
+        ephemeralContent: msgObj.ephemeralContent || null,
+        thinkingDuration: msgObj.thinkingDuration || 0,
+        _id: msgObj._id, // Keep _id for client-side reference
+    };
+}
+
 // Search limits for title search
 const DEFAULT_TITLE_SEARCH_LIMIT = 20;
 const DEFAULT_TITLE_SEARCH_SCAN_LIMIT = 500;
@@ -171,10 +194,15 @@ export async function getChatById(chatId) {
         selectedEntityId,
         researchMode,
     } = chat;
+    
+    // Sanitize messages to remove Mongoose metadata fields (createdAt, updatedAt)
+    // that shouldn't be sent to the client
+    const sanitizedMessages = (messages || []).map(sanitizeMessage);
+    
     const result = {
         _id,
         title,
-        messages,
+        messages: sanitizedMessages,
         isPublic,
         readOnly: isReadOnly,
         isChatLoading,
