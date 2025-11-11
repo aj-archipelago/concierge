@@ -24,6 +24,7 @@ export function sanitizeMessage(msg) {
         isServerGenerated: msgObj.isServerGenerated || false,
         ephemeralContent: msgObj.ephemeralContent || null,
         thinkingDuration: msgObj.thinkingDuration || 0,
+        task: msgObj.task || null,
         _id: msgObj._id, // Keep _id for client-side reference
     };
 }

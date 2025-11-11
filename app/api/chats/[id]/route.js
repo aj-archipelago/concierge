@@ -134,7 +134,7 @@ export async function PUT(req, { params }) {
                 for (const serverMsg of serverGeneratedMessages) {
                     const msgId = serverMsg._id?.toString();
                     if (msgId && !incomingMessagesMap.has(msgId)) {
-                        sanitizedMessages.push(serverMsg);
+                        sanitizedMessages.push(sanitizeMessage(serverMsg));
                     }
                 }
 
