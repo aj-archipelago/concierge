@@ -1,14 +1,7 @@
 import { useSelector } from "react-redux";
 import { useTranslation } from "react-i18next";
 import { Popover } from "@headlessui/react";
-import {
-    Microscope,
-    Database,
-    Trash2,
-    FileImage,
-    FileText,
-    FileSpreadsheet,
-} from "lucide-react";
+import { Microscope, Database, Trash2 } from "lucide-react";
 import { COGNITIVE_DELETE } from "../../graphql";
 import { useLazyQuery } from "@apollo/client";
 import { useContext, useState, useEffect } from "react";
@@ -20,22 +13,7 @@ import {
 } from "../../../app/queries/uploadedDocs";
 import { useGetActiveChat } from "../../../app/queries/chats";
 import { useUpdateChat } from "../../../app/queries/chats";
-
-function getFileIcon(filename) {
-    const extension = filename?.split(".").pop().toLowerCase();
-    switch (extension) {
-        case "pdf":
-            return <FileImage />;
-        case "docx":
-        case "doc":
-            return <FileText />;
-        case "xlsx":
-        case "xls":
-            return <FileSpreadsheet />;
-        default:
-            return <FileText />;
-    }
-}
+import { getFileIcon } from "../../utils/mediaUtils";
 
 const DELETE_ALL_UPLOADS_STR = "__ALL__";
 
@@ -106,8 +84,8 @@ function ChatTopMenu({ displayState = "full" }) {
                 onClick={toggleResearchMode}
                 className={`flex items-center gap-1 px-3 py-1.5 rounded-md transition-colors border ${
                     isResearchMode
-                        ? "bg-blue-500 text-white border-blue-600 hover:bg-blue-700 dark:hover:bg-blue-600 dark:hover:text-white"
-                        : "bg-white text-gray-700 border-gray-200 hover:bg-gray-100"
+                        ? "bg-sky-600 text-white border-sky-700 hover:bg-sky-700 dark:hover:bg-sky-500 dark:hover:text-white"
+                        : "bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 border-gray-200 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-600"
                 }`}
                 title={t("Toggle Research Mode")}
             >
@@ -115,13 +93,7 @@ function ChatTopMenu({ displayState = "full" }) {
                 <span className="hidden md:inline">{t("Research Mode")}</span>
             </button>
 
-            {!docs || docs?.length === 0 ? (
-                <>
-                    <span className="text-gray-400">
-                        {displayStateFull && t("No indexed files")}
-                    </span>
-                </>
-            ) : (
+            {docs && docs.length > 0 && (
                 <Popover className="relative">
                     {/* bg-slate-50  hover:bg-slate-300 */}
                     <Popover.Button className="flex gap-0 focus:outline-none items-center rounded-md underline hover:text-sky-500 active:text-sky-700">
@@ -151,7 +123,11 @@ function ChatTopMenu({ displayState = "full" }) {
                                         className={`flex border justify-between items-center mx-1 my-2 py-1 px-1 rounded-md cursor-default ${isCurrentlyGettingDeleted ? "bg-red-400" : "bg-gray-100"}`}
                                     >
                                         <div className="flex gap-1 items-center">
-                                            {getFileIcon(filename)}
+                                            {(() => {
+                                                const Icon =
+                                                    getFileIcon(filename);
+                                                return <Icon />;
+                                            })()}
                                             <span className="text-nowrap">
                                                 {isCurrentlyGettingDeleted ? (
                                                     <span
@@ -180,7 +156,7 @@ function ChatTopMenu({ displayState = "full" }) {
                         </div>
 
                         <div
-                            className="chat-option text-center justify-center pt-2.5 text-white dark:text-black"
+                            className="chat-option text-center justify-center pt-2.5 text-white dark:text-gray-100"
                             onClick={() => handleDeleteAll()}
                         >
                             {t("Delete all uploads")}

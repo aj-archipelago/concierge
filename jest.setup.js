@@ -1,6 +1,6 @@
 const { TextEncoder, TextDecoder } = require("util");
 
-// Suppress ReactDOMTestUtils.act deprecation warning
+// Suppress ReactDOMTestUtils.act deprecation warning and expected test errors
 const originalError = console.error;
 console.error = (...args) => {
     if (
@@ -8,6 +8,26 @@ console.error = (...args) => {
         args[0].includes("ReactDOMTestUtils.act")
     )
         return;
+
+    // Suppress expected error messages from tests
+    const errorMessage = args[0];
+    if (typeof errorMessage === "string") {
+        // Suppress streaming upload test errors
+        if (
+            errorMessage.includes("Error uploading to media service:") ||
+            errorMessage.includes("Error during test upload:") ||
+            errorMessage.includes("Auth check failed:") ||
+            errorMessage.includes("Error: Not implemented: navigation") ||
+            (errorMessage.includes("Warning: An update to") &&
+                errorMessage.includes(
+                    "inside a test was not wrapped in act",
+                )) ||
+            errorMessage.includes("Error fetching remote image from HTML src:")
+        ) {
+            return;
+        }
+    }
+
     originalError.call(console, ...args);
 };
 
@@ -41,6 +61,17 @@ global.MutationObserver = jest.fn().mockImplementation(() => ({
     disconnect: jest.fn(),
 }));
 
+// Mock fetch for jsdom environment
+global.fetch = jest.fn(() =>
+    Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve({}),
+        text: () => Promise.resolve(""),
+        status: 200,
+        statusText: "OK",
+    }),
+);
+
 // Add any missing window properties that might be needed
 Object.defineProperty(window, "matchMedia", {
     writable: true,
@@ -55,6 +86,28 @@ Object.defineProperty(window, "matchMedia", {
         dispatchEvent: jest.fn(),
     })),
 });
+
+// Mock window navigation methods
+Object.defineProperty(window, "location", {
+    writable: true,
+    value: {
+        href: "http://localhost",
+        hostname: "localhost",
+        assign: jest.fn(),
+        replace: jest.fn(),
+        reload: jest.fn(),
+        toString: () => "http://localhost",
+    },
+});
+
+// Mock history API
+global.history = {
+    pushState: jest.fn(),
+    replaceState: jest.fn(),
+    back: jest.fn(),
+    forward: jest.fn(),
+    go: jest.fn(),
+};
 
 // Mock require.context for webpack compatibility in jest
 require.context = (

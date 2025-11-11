@@ -1,4 +1,5 @@
 import { useTranslation } from "react-i18next";
+import { useMemo } from "react";
 import {
     FileText,
     Expand,
@@ -17,6 +18,7 @@ import SuggestionInput from "./SuggestionInput";
 import { getTextSuggestionsComponent } from "./TextSuggestions";
 import TranslateModalContent from "./TranslateModalContent";
 import HeadlineModal from "./headline/HeadlineModal";
+import { getGrammarEndpoint } from "../../utils/languageDetection";
 
 const ListRenderer = ({ value }) => {
     value.sort();
@@ -35,15 +37,44 @@ const ListRenderer = ({ value }) => {
 
 const customActions = config.write?.actions || {};
 
+// Pre-create grammar components to avoid recreating them on every render
+const grammarComponents = {
+    GRAMMAR: getTextSuggestionsComponent({
+        query: "GRAMMAR",
+        outputType: "diff",
+    }),
+    GRAMMAR_AR: getTextSuggestionsComponent({
+        query: "GRAMMAR_AR",
+        outputType: "diff",
+    }),
+};
+
 const actions = {
     grammar: {
         Icon: CheckCircle,
         title: "Spelling and grammar",
         dialogClassName: "modal-wide",
-        SuggestionsComponent: getTextSuggestionsComponent({
-            query: "GRAMMAR",
-            outputType: "diff",
-        }),
+        SuggestionsComponent: ({
+            text,
+            args = {},
+            onSelect,
+            diffEditorRef,
+        }) => {
+            const grammarQuery = getGrammarEndpoint(text);
+            // Memoize component selection to preserve state across renders
+            const GrammarComponent = useMemo(
+                () => grammarComponents[grammarQuery],
+                [grammarQuery],
+            );
+            return (
+                <GrammarComponent
+                    text={text}
+                    args={args}
+                    onSelect={onSelect}
+                    diffEditorRef={diffEditorRef}
+                />
+            );
+        },
         commitLabel: "Use Corrected Version",
     },
     headline: {

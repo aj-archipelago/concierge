@@ -35,7 +35,7 @@ class CodingTask extends BaseTask {
         return codeRequestId;
     }
 
-    async handleCompletion(taskId, dataObject, metadata, client) {
+    async handleCompletion(taskId, dataObject, infoObject, metadata, client) {
         console.log("[CodingTask] Starting handleCompletion. Task ID:", taskId);
 
         const task = await Task.findById(taskId);

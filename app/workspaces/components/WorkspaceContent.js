@@ -82,44 +82,70 @@ export default function WorkspaceContent({ idOrSlug, user }) {
                                 "md:basis-6/12 overflow-auto",
                             )}
                         >
-                            <WorkspaceInput
-                                onRunMany={(text, promptIds) => async () => {
-                                    setError(null);
-                                    await Promise.all(
-                                        promptIds.map(async (promptId) => {
-                                            try {
-                                                await createRun.mutateAsync({
-                                                    text,
-                                                    promptId,
-                                                    systemPrompt:
-                                                        workspace?.systemPrompt,
-                                                    workspaceId: workspace?._id,
-                                                });
-                                            } catch (error) {
-                                                console.error(error);
-                                                setError(error);
-                                            }
-                                        }),
-                                    );
-                                    setActiveTab("output");
-                                }}
-                                onRun={async (text, prompt) => {
-                                    try {
+                            <div className="space-y-4">
+                                <WorkspaceInput
+                                    onRunMany={(text, promptIds, files) =>
+                                        async () => {
+                                            setError(null);
+                                            await Promise.all(
+                                                promptIds.map(
+                                                    async (promptId) => {
+                                                        try {
+                                                            const runParams = {
+                                                                promptId,
+                                                                systemPrompt:
+                                                                    workspace?.systemPrompt,
+                                                                workspaceId:
+                                                                    workspace?._id,
+                                                                text,
+                                                            };
+
+                                                            // Add files if provided
+                                                            if (
+                                                                files &&
+                                                                files.length > 0
+                                                            ) {
+                                                                runParams.files =
+                                                                    files;
+                                                            }
+
+                                                            await createRun.mutateAsync(
+                                                                runParams,
+                                                            );
+                                                        } catch (error) {
+                                                            setError(error);
+                                                        }
+                                                    },
+                                                ),
+                                            );
+                                            setActiveTab("output");
+                                        }}
+                                    onRun={async (text, prompt, files) => {
                                         setError(null);
-                                        await createRun.mutateAsync({
-                                            text,
-                                            promptId: prompt?._id,
-                                            systemPrompt:
-                                                workspace?.systemPrompt,
-                                            workspaceId: workspace?._id,
-                                        });
-                                        setActiveTab("output");
-                                    } catch (error) {
-                                        console.error(error);
-                                        setError(error);
-                                    }
-                                }}
-                            />
+                                        try {
+                                            const runParams = {
+                                                promptId: prompt._id,
+                                                systemPrompt:
+                                                    workspace?.systemPrompt,
+                                                workspaceId: workspace?._id,
+                                                text,
+                                            };
+
+                                            // Add files if provided
+                                            if (files && files.length > 0) {
+                                                runParams.files = files;
+                                            }
+
+                                            await createRun.mutateAsync(
+                                                runParams,
+                                            );
+                                            setActiveTab("output");
+                                        } catch (error) {
+                                            setError(error);
+                                        }
+                                    }}
+                                />
+                            </div>
                         </div>
                         <div
                             className={classNames(

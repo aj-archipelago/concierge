@@ -243,7 +243,7 @@ function EditableTranscriptSelect({
                     setSelectedTab={setSelectedTab}
                 />
                 {isAutoTranscribing && (
-                    <div className="mt-2 flex gap-3 items-center py-2 px-3 rounded-lg border bg-gray-50 w-full max-w-[500px]">
+                    <div className="mt-2 flex gap-3 items-center py-2 px-3 rounded-lg border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 w-full max-w-[500px]">
                         <Loader size="default" />
                         <div className="text-gray-700 text-sm">
                             {t("Transcribing... This may take a few minutes.")}
@@ -265,7 +265,7 @@ function EditableTranscriptSelect({
                     <input
                         autoFocus
                         type="text"
-                        className="w-[300px] text-sm font-medium rounded-md py-1 my-[1px] px-3 border border-gray-300"
+                        className="w-[300px] text-sm font-medium rounded-md py-1 my-[1px] px-3 border border-gray-300 dark:border-gray-600"
                         value={tempName}
                         onChange={(e) => setTempName(e.target.value)}
                         onKeyDown={(e) => {
@@ -317,7 +317,7 @@ function EditableTranscriptSelect({
                                         {transcripts.map(
                                             (transcript, index) => (
                                                 <SelectItem
-                                                    className="w-[500px] border-b last:border-b-0 border-gray-100"
+                                                    className="w-[500px] border-b last:border-b-0 border-gray-100 dark:border-gray-700"
                                                     key={index}
                                                     value={index.toString()}
                                                 >
@@ -624,7 +624,7 @@ function EditableTranscriptSelect({
                                                 </DropdownMenuItem>
                                             )}
                                             <DropdownMenuItem
-                                                className="text-red-600 focus:text-red-600 focus:bg-red-50 text-xs"
+                                                className="text-red-600 focus:text-red-600 focus:bg-red-50 dark:focus:bg-red-900/20 text-xs"
                                                 onClick={() => {
                                                     if (
                                                         window.confirm(
@@ -773,7 +773,7 @@ function VideoPlayer({
                 )}
             >
                 {videoError ? (
-                    <div className="w-full p-6 bg-gray-50">
+                    <div className="w-full p-6 bg-gray-50 dark:bg-gray-800">
                         <div className="text-gray-600 font-medium mb-2 flex items-center gap-2">
                             <AlertTriangle className="h-4 w-4" />
                             {t("Video Unavailable")}
@@ -928,12 +928,12 @@ function VideoInformationBox({
     }, [currentUrl, t]);
 
     return (
-        <div className="p-2 border border-gray-200/50 rounded-lg">
+        <div className="p-3 border border-gray-200 dark:border-gray-600 rounded-lg bg-gray-50/50 dark:bg-gray-800/50">
             <button
                 onClick={() => setIsExpanded(!isExpanded)}
                 className={classNames(
-                    "w-full flex items-center justify-between text-xs font-medium text-gray-500 hover:text-sky-700",
-                    isExpanded ? "mb-4" : "",
+                    "w-full flex items-center justify-between text-xs font-medium text-gray-600 dark:text-gray-300 hover:text-sky-700 dark:hover:text-sky-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded px-2 py-1 transition-colors",
+                    isExpanded ? "mb-3" : "",
                 )}
             >
                 <div className="flex items-center gap-1.5">
@@ -945,28 +945,32 @@ function VideoInformationBox({
                 />
             </button>
             {isExpanded && mediaInfo && (
-                <div className="space-y-2">
-                    <div className="grid grid-cols-[40px_1fr] gap-2 items-center">
-                        <div className="text-xs text-gray-500">{t("Type")}</div>
-                        <div className="flex items-center gap-1 text-xs text-gray-600">
+                <div className="space-y-3">
+                    <div className="grid grid-cols-[50px_1fr] gap-3 items-center">
+                        <div className="text-xs text-gray-500 dark:text-gray-400 font-medium">
+                            {t("Type")}
+                        </div>
+                        <div className="flex items-center gap-2 text-xs text-gray-700 dark:text-gray-300">
                             {mediaInfo.icon}
                             <span>{mediaInfo.label}</span>
                             {mediaInfo.extension && (
-                                <span className="px-1.5 py-0.5 bg-gray-100 rounded text-[10px] font-medium">
+                                <span className="px-2 py-0.5 bg-gray-200 dark:bg-gray-600 rounded text-[10px] font-medium text-gray-700 dark:text-gray-300">
                                     {mediaInfo.extension}
                                 </span>
                             )}
                         </div>
                     </div>
-                    <div className="grid grid-cols-[40px_1fr] gap-2 items-center">
-                        <div className="text-xs text-gray-500">{t("URL")}</div>
-                        <div className="w-full flex gap-2 overflow-hidden items-center py-1 px-2 rounded-md bg-gray-100">
-                            <div className="text-xs text-gray-600 truncate grow">
+                    <div className="grid grid-cols-[50px_1fr] gap-3 items-center">
+                        <div className="text-xs text-gray-500 dark:text-gray-400 font-medium">
+                            {t("URL")}
+                        </div>
+                        <div className="w-full flex gap-2 overflow-hidden items-center py-2 px-3 rounded-md bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600">
+                            <div className="text-xs text-gray-700 dark:text-gray-300 truncate grow">
                                 {currentUrl}
                             </div>
                             <button
                                 onClick={() => handleCopy(currentUrl)}
-                                className="p-1 hover:bg-gray-100 rounded transition-colors flex-shrink-0"
+                                className="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-600 rounded transition-colors flex-shrink-0"
                                 title={t("Copy URL")}
                             >
                                 {copied ? (
@@ -1594,8 +1598,8 @@ function VideoPage() {
                                                     }
 
                                                     return (
-                                                        <div className="border rounded-lg border-gray-200/50 p-3 space-y-3">
-                                                            <div className="text-sm text-sky-600 font-semibold text-gray-500 flex items-center gap-2">
+                                                        <div className="border rounded-lg border-gray-200/50 dark:border-gray-600/50 p-3 space-y-3">
+                                                            <div className="text-sm text-sky-600 font-semibold flex items-center gap-2">
                                                                 <Volume2Icon className="h-4 w-4" />
                                                                 {t(
                                                                     "Audio tracks",
@@ -1738,7 +1742,7 @@ function VideoPage() {
                                                                             }
                                                                             className="flex items-center"
                                                                         >
-                                                                            <div className="flex w-[13rem] rounded-md border border-gray-200 overflow-hidden">
+                                                                            <div className="flex w-[13rem] rounded-md border border-gray-200 dark:border-gray-600 overflow-hidden">
                                                                                 <button
                                                                                     onClick={() => {
                                                                                         setActiveLanguage(
@@ -1746,7 +1750,7 @@ function VideoPage() {
                                                                                         );
                                                                                     }}
                                                                                     className={`grow truncate text-start text-xs px-3 py-1.5 hover:bg-sky-100 active:bg-sky-200 transition-colors
-                                                                            ${activeLanguage === idx ? "bg-sky-50 text-gray-900" : "text-gray-600"}`}
+                                                                            ${activeLanguage === idx ? "bg-sky-50 dark:bg-sky-900/20 text-gray-900 dark:text-gray-100" : "text-gray-600 dark:text-gray-400"}`}
                                                                                 >
                                                                                     {lang.label ||
                                                                                         new Intl.DisplayNames(
@@ -1794,7 +1798,7 @@ function VideoPage() {
                                                                                                         );
                                                                                                     }
                                                                                                 }}
-                                                                                                className="px-2 bg-sky-50 text-gray-500 hover:text-red-500 transition-colors border-gray-200 flex items-center cursor-pointer"
+                                                                                                className="px-2 bg-sky-50 dark:bg-sky-900/20 text-gray-500 dark:text-gray-400 hover:text-red-500 transition-colors border-gray-200 dark:border-gray-600 flex items-center cursor-pointer"
                                                                                                 title={t(
                                                                                                     "Delete language",
                                                                                                 )}
@@ -1809,7 +1813,7 @@ function VideoPage() {
                                                                                             lang.url
                                                                                         }
                                                                                         download={`video-${lang.code}.mp4`}
-                                                                                        className="px-2 hover:bg-sky-50 transition-colors border-l border-gray-200 flex items-center cursor-pointer"
+                                                                                        className="px-2 hover:bg-sky-50 dark:hover:bg-sky-900/20 transition-colors border-l border-gray-200 dark:border-gray-600 flex items-center cursor-pointer"
                                                                                         onClick={(
                                                                                             e,
                                                                                         ) =>

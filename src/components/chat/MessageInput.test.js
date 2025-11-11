@@ -82,11 +82,12 @@ jest.mock("next/dynamic", () => () => {
 });
 
 // Mock the required hooks
+const mockUseGetActiveChatId = jest.fn(() => "test-chat-id");
 jest.mock("../../../app/queries/chats", () => ({
     useGetActiveChat: () => ({
         data: { _id: "test-chat-id", codeRequestId: null },
     }),
-    useGetActiveChatId: () => "test-chat-id",
+    useGetActiveChatId: () => mockUseGetActiveChatId(),
 }));
 
 jest.mock("../../../app/queries/uploadedDocs", () => ({
@@ -102,8 +103,12 @@ jest.mock("lucide-react", () => ({
             Send Icon
         </div>
     ),
-    FilePlus: () => (
-        <div data-testid="file-plus-button" aria-label="file-upload">
+    FilePlus: (props) => (
+        <div
+            data-testid="file-plus-icon"
+            aria-label="file-upload"
+            className={props.className}
+        >
             File Plus Icon
         </div>
     ),
@@ -685,6 +690,7 @@ describe("MessageInput", () => {
             const submitButton = screen.getByTestId("send-button");
 
             fireEvent.change(input, { target: { value: "Test message" } });
+
             fireEvent.click(submitButton);
 
             await waitFor(() => {
@@ -717,6 +723,7 @@ describe("MessageInput", () => {
             const input = screen.getByPlaceholderText("Send a message");
 
             fireEvent.change(input, { target: { value: "Test message" } });
+
             fireEvent.keyDown(input, { key: "Enter", shiftKey: false });
 
             await waitFor(() => {
@@ -782,6 +789,7 @@ describe("MessageInput", () => {
             renderMessageInput();
             const input = screen.getByPlaceholderText("Send a message");
             fireEvent.change(input, { target: { value: "Test message" } });
+
             fireEvent.keyDown(input, { key: "Enter", shiftKey: false });
 
             await waitFor(() => {
@@ -904,7 +912,9 @@ describe("MessageInput", () => {
                 const input = screen.getByPlaceholderText("Send a message");
                 fireEvent.change(input, { target: { value: youtubeUrl } });
                 const submitButton = screen.getByTestId("send-button");
+
                 fireEvent.click(submitButton); // This should call onSend
+
                 expect(input.value).toBe(""); // Input cleared
             }
 
@@ -1121,6 +1131,172 @@ describe("MessageInput", () => {
             fireEvent.keyDown(input, { key: "Enter", shiftKey: false });
 
             expect(mockOnSend).not.toHaveBeenCalled();
+        });
+    });
+
+    describe("File upload with missing activeChatId", () => {
+        beforeEach(() => {
+            // Mock console.warn to verify warning messages
+            jest.spyOn(console, "warn").mockImplementation(() => {});
+        });
+
+        afterEach(() => {
+            // Restore console.warn
+            console.warn.mockRestore();
+            // Reset the mock to return test-chat-id for other tests
+            mockUseGetActiveChatId.mockReturnValue("test-chat-id");
+        });
+
+        it("should disable file upload button when activeChatId is null", () => {
+            mockUseGetActiveChatId.mockReturnValue(null);
+
+            renderMessageInput({ enableRag: true });
+
+            const fileButton = screen.getByTestId("file-plus-button");
+            expect(fileButton).toBeDisabled();
+            expect(fileButton).toHaveClass("cursor-not-allowed", "opacity-50");
+            expect(fileButton).toHaveAttribute(
+                "title",
+                "File upload requires an active chat",
+            );
+        });
+
+        it("should not open file upload when button is clicked without activeChatId", () => {
+            mockUseGetActiveChatId.mockReturnValue(null);
+
+            renderMessageInput({ enableRag: true });
+
+            const fileButton = screen.getByTestId("file-plus-button");
+            fireEvent.click(fileButton);
+
+            expect(
+                screen.queryByTestId("filepond-mock"),
+            ).not.toBeInTheDocument();
+        });
+
+        it("should prevent file paste handling when activeChatId is missing", async () => {
+            mockUseGetActiveChatId.mockReturnValue(null);
+
+            renderMessageInput({ enableRag: true });
+
+            const input = screen.getByPlaceholderText("Send a message");
+            const mockFile = new File(["test-image-data"], "test.png", {
+                type: "image/png",
+            });
+
+            const clipboardData = createMockClipboardData({
+                items: [
+                    {
+                        kind: "file",
+                        type: "image/png",
+                        getAsFile: () => mockFile,
+                    },
+                ],
+            });
+
+            await userEvent.paste(input, "", { clipboardData });
+
+            // File upload should not be shown since activeChatId is missing
+            expect(
+                screen.queryByTestId("filepond-mock"),
+            ).not.toBeInTheDocument();
+        });
+
+        it("should prevent HTML image paste handling when activeChatId is missing", async () => {
+            mockUseGetActiveChatId.mockReturnValue(null);
+
+            renderMessageInput({ enableRag: true });
+
+            const input = screen.getByPlaceholderText("Send a message");
+            const htmlContent = '<img src="data:image/png;base64,test">';
+
+            // Set up fetch mock before the paste event
+            const fetchMock = jest.fn().mockImplementation(() =>
+                Promise.resolve({
+                    ok: true,
+                    blob: () =>
+                        Promise.resolve(
+                            new Blob(["test"], { type: "image/png" }),
+                        ),
+                }),
+            );
+            global.fetch = fetchMock;
+
+            const clipboardData = createMockClipboardData({
+                html: htmlContent,
+                items: [
+                    {
+                        kind: "string",
+                        type: "text/html",
+                        getAsString: (callback) => callback(htmlContent),
+                    },
+                ],
+            });
+
+            await userEvent.paste(input, "", { clipboardData });
+            await act(async () => {
+                await new Promise((resolve) => setTimeout(resolve, 0));
+            });
+
+            // File upload should not be shown since activeChatId is missing
+            expect(
+                screen.queryByTestId("filepond-mock"),
+            ).not.toBeInTheDocument();
+            // Fetch should not be called for data URI processing since file processing was skipped
+            expect(fetchMock).not.toHaveBeenCalledWith(
+                "data:image/png;base64,test",
+            );
+        });
+
+        it("should prevent addUrl processing when activeChatId is missing", async () => {
+            mockUseGetActiveChatId.mockReturnValue(null);
+
+            // Mock isRagFileUrl to return true so addUrl would normally process it
+            jest.spyOn(
+                require("../../utils/mediaUtils"),
+                "isRagFileUrl",
+            ).mockImplementation(() => true);
+
+            const mockQuery = jest.fn().mockResolvedValue({});
+            const mockApolloClient = { query: mockQuery };
+            jest.spyOn(
+                require("@apollo/client"),
+                "useApolloClient",
+            ).mockReturnValue(mockApolloClient);
+
+            renderMessageInput({
+                enableRag: true,
+                initialShowFileUpload: true,
+            });
+
+            expect(screen.getByTestId("filepond-mock")).toBeInTheDocument();
+
+            const addUrlButton = screen.getByTestId("add-url-button");
+            fireEvent.click(addUrlButton);
+
+            await act(async () => {
+                await new Promise((resolve) => setTimeout(resolve, 0));
+            });
+
+            // Should log warning and not call GraphQL query
+            expect(console.warn).toHaveBeenCalledWith(
+                "Cannot upload file: No active chat ID available",
+            );
+            expect(mockQuery).not.toHaveBeenCalled();
+        });
+
+        it("should enable file upload button when activeChatId is available", () => {
+            mockUseGetActiveChatId.mockReturnValue("test-chat-id");
+
+            renderMessageInput({ enableRag: true });
+
+            const fileButton = screen.getByTestId("file-plus-button");
+            expect(fileButton).not.toBeDisabled();
+            expect(fileButton).not.toHaveClass(
+                "cursor-not-allowed",
+                "opacity-50",
+            );
+            expect(fileButton).toHaveAttribute("title", "Upload files");
         });
     });
 });

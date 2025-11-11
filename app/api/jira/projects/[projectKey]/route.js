@@ -10,6 +10,16 @@ export async function GET(request, { params }) {
         const site = searchParams.get("siteId");
         const { projectKey } = params;
 
+        // Validate required parameters
+        if (!token || !site || site === "undefined" || !projectKey) {
+            return Response.json(
+                {
+                    error: "Missing required parameters: token, siteId, or projectKey",
+                },
+                { status: 400 },
+            );
+        }
+
         const url = getJiraRestUrl(site, projectKey);
         const response = await axios.get(url, {
             headers: {

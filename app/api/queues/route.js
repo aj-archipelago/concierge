@@ -28,6 +28,13 @@ const JOB_DATA_WHITELIST = {
             targetLocaleLabel: true,
         },
     },
+    "media-generation": {
+        metadata: {
+            outputType: true,
+            model: true,
+            settings: true,
+        },
+    },
     coding: {
         metadata: {
             codeRequestId: true,

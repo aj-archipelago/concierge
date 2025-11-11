@@ -9,24 +9,13 @@ import { split, HttpLink, from } from "@apollo/client";
 import { onError } from "@apollo/client/link/error";
 import { getMainDefinition } from "@apollo/client/utilities";
 import config from "../config";
+import { triggerAuthRefresh, checkAuthHeaders } from "./utils/auth";
 
 const CORTEX_GRAPHQL_API_URL =
     process.env.CORTEX_GRAPHQL_API_URL || "http://localhost:4000/graphql";
 
-// Add a function to trigger reauth, similar to axios-client.js
-function triggerReauth() {
-    if (typeof window !== "undefined") {
-        if (window.location.search.indexOf("reauth=true") !== -1) {
-            return;
-        }
-
-        window.location.href =
-            window.location.pathname +
-            window.location.search +
-            (window.location.search ? "&" : "?") +
-            "reauth=true";
-    }
-}
+// Track authentication state for GraphQL
+let isGraphQLRefreshing = false;
 
 const getClient = (serverUrl, useBlueGraphQL) => {
     let graphqlEndpoint;
@@ -47,31 +36,61 @@ const getClient = (serverUrl, useBlueGraphQL) => {
     );
 
     // Add error handling link for authentication errors
-    const errorLink = onError(({ networkError, graphQLErrors }) => {
-        // Handle 401 Unauthorized errors
-        if (networkError && networkError.statusCode === 401) {
-            triggerReauth();
-        }
+    const errorLink = onError(
+        ({ networkError, graphQLErrors, operation, forward }) => {
+            // Skip auth error handling for auth-related endpoints
+            if (
+                operation.operationName?.includes("auth") ||
+                operation.operationName?.includes("Auth") ||
+                operation.operationName?.includes("login")
+            ) {
+                return;
+            }
 
-        // Handle GraphQL errors that might indicate auth issues
-        if (graphQLErrors) {
-            graphQLErrors.forEach(({ message, extensions }) => {
-                if (
-                    extensions?.code === "UNAUTHENTICATED" ||
-                    message?.toLowerCase().includes("unauthorized") ||
-                    message?.toLowerCase().includes("authentication")
-                ) {
-                    triggerReauth();
+            // Handle 401 Unauthorized errors
+            if (networkError && networkError.statusCode === 401) {
+                if (!isGraphQLRefreshing) {
+                    isGraphQLRefreshing = true;
+
+                    (async () => {
+                        try {
+                            // Check if we need to refresh auth
+                            const isAuthenticated = await checkAuthHeaders();
+                            if (!isAuthenticated) {
+                                await triggerAuthRefresh();
+                            }
+                        } catch (error) {
+                            console.error("GraphQL auth refresh error:", error);
+                        } finally {
+                            isGraphQLRefreshing = false;
+                        }
+                    })();
                 }
-            });
-        }
-    });
+            }
 
-    // The split function takes three parameters:
-    //
-    // * A function that's called for each operation to execute
-    // * The Link to use for an operation if the function returns a "truthy" value
-    // * The Link to use for an operation if the function returns a "falsy" value
+            // Handle other network errors
+            if (networkError) {
+                console.error("GraphQL network error:", networkError);
+                // Don't retry connection refused errors - they indicate the service is down
+                if (
+                    networkError.statusCode === 0 ||
+                    networkError.message?.includes("ECONNREFUSED")
+                ) {
+                    return;
+                }
+            }
+
+            // Handle GraphQL errors
+            if (graphQLErrors) {
+                graphQLErrors.forEach(({ message, locations, path }) => {
+                    console.error(
+                        `GraphQL error: Message: ${message}, Location: ${locations}, Path: ${path}`,
+                    );
+                });
+            }
+        },
+    );
+
     const splitLink = split(
         ({ query }) => {
             const definition = getMainDefinition(query);
@@ -84,15 +103,18 @@ const getClient = (serverUrl, useBlueGraphQL) => {
         httpLink,
     );
 
-    // Combine the error link with the split link
-    const link = from([errorLink, splitLink]);
-
-    const client = new ApolloClient({
-        link,
+    return new ApolloClient({
+        link: from([errorLink, splitLink]),
         cache: new InMemoryCache(),
+        defaultOptions: {
+            watchQuery: {
+                errorPolicy: "all",
+            },
+            query: {
+                errorPolicy: "all",
+            },
+        },
     });
-
-    return client;
 };
 
 const SUMMARY = gql`
@@ -137,16 +159,24 @@ const VISION = gql`
 `;
 
 const SYS_READ_MEMORY = gql`
-    query SysReadMemory($contextId: String!) {
-        sys_read_memory(contextId: $contextId) {
+    query SysReadMemory($contextId: String!, $contextKey: String) {
+        sys_read_memory(contextId: $contextId, contextKey: $contextKey) {
             result
         }
     }
 `;
 
 const SYS_SAVE_MEMORY = gql`
-    query SysSaveMemory($aiMemory: String!, $contextId: String!) {
-        sys_save_memory(aiMemory: $aiMemory, contextId: $contextId) {
+    query SysSaveMemory(
+        $aiMemory: String!
+        $contextId: String!
+        $contextKey: String
+    ) {
+        sys_save_memory(
+            aiMemory: $aiMemory
+            contextId: $contextId
+            contextKey: $contextKey
+        ) {
             result
         }
     }
@@ -168,6 +198,7 @@ const SYS_ENTITY_AGENT = gql`
     query RagStart(
         $chatHistory: [MultiMessage]!
         $contextId: String
+        $contextKey: String
         $text: String
         $aiName: String
         $aiMemorySelfModify: Boolean
@@ -183,6 +214,7 @@ const SYS_ENTITY_AGENT = gql`
         sys_entity_agent(
             chatHistory: $chatHistory
             contextId: $contextId
+            contextKey: $contextKey
             text: $text
             aiName: $aiName
             aiMemorySelfModify: $aiMemorySelfModify
@@ -292,6 +324,14 @@ const FORMAT_PARAGRAPH_TURBO = gql`
 const GRAMMAR = gql`
     query Grammar($text: String!, $async: Boolean) {
         grammar(text: $text, async: $async) {
+            result
+        }
+    }
+`;
+
+const GRAMMAR_AR = gql`
+    query GrammarAr($text: String!, $async: Boolean) {
+        grammar_ar(text: $text, async: $async) {
             result
         }
     }
@@ -478,8 +518,8 @@ const TRANSLATE_SUBTITLE = gql`
 `;
 
 const TRANSLATE = gql`
-    query Translate($text: String!, $to: String!) {
-        translate(text: $text, to: $to) {
+    query Translate($text: String!, $to: String!, $model: String) {
+        translate(text: $text, to: $to, model: $model) {
             result
         }
     }
@@ -488,38 +528,6 @@ const TRANSLATE = gql`
 const TRANSLATE_CONTEXT = gql`
     query TranslateContext($text: String!, $to: String!) {
         translate_context(text: $text, to: $to) {
-            result
-        }
-    }
-`;
-
-const TRANSLATE_TURBO = gql`
-    query TranslateTurbo($text: String!, $to: String!) {
-        translate_turbo(text: $text, to: $to) {
-            result
-        }
-    }
-`;
-
-const TRANSLATE_GPT4 = gql`
-    query TranslateGpt4($text: String!, $to: String!, $async: Boolean) {
-        translate_gpt4(text: $text, to: $to, async: $async) {
-            result
-        }
-    }
-`;
-
-const TRANSLATE_GPT4_TURBO = gql`
-    query TranslateGpt4Turbo($text: String!, $to: String!) {
-        translate_gpt4_turbo(text: $text, to: $to) {
-            result
-        }
-    }
-`;
-
-const TRANSLATE_GPT4_OMNI = gql`
-    query TranslateGpt4Omni($text: String!, $to: String!) {
-        translate_gpt4_omni(text: $text, to: $to) {
             result
         }
     }
@@ -665,6 +673,121 @@ const IMAGE_FLUX = gql`
     }
 `;
 
+const IMAGE_GEMINI_25 = gql`
+    query ImageGemini25(
+        $text: String!
+        $async: Boolean
+        $input_image: String
+        $input_image_2: String
+        $input_image_3: String
+        $optimizePrompt: Boolean
+    ) {
+        image_gemini_25(
+            text: $text
+            async: $async
+            input_image: $input_image
+            input_image_2: $input_image_2
+            input_image_3: $input_image_3
+            optimizePrompt: $optimizePrompt
+        ) {
+            result
+            resultData
+        }
+    }
+`;
+
+const IMAGE_QWEN = gql`
+    query ImageQwen(
+        $text: String!
+        $model: String!
+        $async: Boolean
+        $negativePrompt: String
+        $width: Int
+        $height: Int
+        $aspectRatio: String
+        $numberResults: Int
+        $output_format: String
+        $output_quality: Int
+        $input_image: String
+        $input_image_2: String
+        $input_image_3: String
+        $go_fast: Boolean
+        $guidance: Float
+        $strength: Float
+        $image_size: String
+        $lora_scale: Float
+        $enhance_prompt: Boolean
+        $num_inference_steps: Int
+        $disable_safety_checker: Boolean
+    ) {
+        image_qwen(
+            text: $text
+            model: $model
+            async: $async
+            negativePrompt: $negativePrompt
+            width: $width
+            height: $height
+            aspectRatio: $aspectRatio
+            numberResults: $numberResults
+            output_format: $output_format
+            output_quality: $output_quality
+            input_image: $input_image
+            input_image_2: $input_image_2
+            input_image_3: $input_image_3
+            go_fast: $go_fast
+            guidance: $guidance
+            strength: $strength
+            image_size: $image_size
+            lora_scale: $lora_scale
+            enhance_prompt: $enhance_prompt
+            num_inference_steps: $num_inference_steps
+            disable_safety_checker: $disable_safety_checker
+        ) {
+            result
+        }
+    }
+`;
+
+const IMAGE_SEEDREAM4 = gql`
+    query ImageSeedream4(
+        $text: String!
+        $model: String!
+        $async: Boolean
+        $size: String
+        $width: Int
+        $height: Int
+        $aspectRatio: String
+        $maxImages: Int
+        $numberResults: Int
+        $input_image: String
+        $input_image_1: String
+        $input_image_2: String
+        $input_image_3: String
+        $sequentialImageGeneration: String
+        $seed: Int
+    ) {
+        image_seedream4(
+            text: $text
+            model: $model
+            async: $async
+            size: $size
+            width: $width
+            height: $height
+            aspectRatio: $aspectRatio
+            maxImages: $maxImages
+            numberResults: $numberResults
+            input_image: $input_image
+            input_image_1: $input_image_1
+            input_image_2: $input_image_2
+            input_image_3: $input_image_3
+            sequentialImageGeneration: $sequentialImageGeneration
+            seed: $seed
+        ) {
+            result
+        }
+    }
+`;
+
 const VIDEO_VEO = gql`
     query VideoVeo(
         $text: String!
@@ -764,16 +887,20 @@ const CODE_HUMAN_INPUT = gql`
 const getWorkspacePromptQuery = (pathwayName) => {
     return gql`
         query ${pathwayName}(
-            $text: String!
+            $text: String
             $systemPrompt: String
-            $prompt: String!
+            $prompt: String
+            $chatHistory: [MultiMessage]
             $async: Boolean
+            $model: String
         ) {
             ${pathwayName}(
                 text: $text
                 systemPrompt: $systemPrompt
                 prompt: $prompt
+                chatHistory: $chatHistory
                 async: $async
+                model: $model
             ) {
                 result
                 tool
@@ -816,12 +943,16 @@ const WORKSPACE_APPLET_EDIT = gql`
         $async: Boolean
         $stream: Boolean
         $promptEndpoint: String
+        $fileEndpoint: String
+        $dataEndpoint: String
         $currentHtml: String
         $promptDetails: String
     ) {
         workspace_applet_edit(
             text: $text
             promptEndpoint: $promptEndpoint
+            dataEndpoint: $dataEndpoint
+            fileEndpoint: $fileEndpoint
             currentHtml: $currentHtml
             async: $async
             stream: $stream
@@ -855,6 +986,7 @@ const QUERIES = {
     HEADLINE,
     GREETING,
     GRAMMAR,
+    GRAMMAR_AR,
     SPELLING,
     PARAPHRASE,
     TOPICS,
@@ -873,10 +1005,6 @@ const QUERIES = {
     TRANSLATE_AZURE,
     TRANSLATE_CONTEXT,
     TIMELINE,
-    TRANSLATE_TURBO,
-    TRANSLATE_GPT4,
-    TRANSLATE_GPT4_TURBO,
-    TRANSLATE_GPT4_OMNI,
     TRANSLATE_SUBTITLE,
     HIGHLIGHTS,
     REMOVE_CONTENT,
@@ -945,6 +1073,9 @@ export {
     HASHTAGS,
     HEADLINE,
     IMAGE_FLUX,
+    IMAGE_GEMINI_25,
+    IMAGE_QWEN,
+    IMAGE_SEEDREAM4,
     VIDEO_VEO,
     VIDEO_SEEDANCE,
     GRAMMAR,
@@ -963,9 +1094,6 @@ export {
     TRANSLATE_AZURE,
     TRANSLATE_CONTEXT,
     TIMELINE,
-    TRANSLATE_TURBO,
-    TRANSLATE_GPT4,
-    TRANSLATE_GPT4_TURBO,
     TRANSLATE_SUBTITLE,
     HIGHLIGHTS,
     REMOVE_CONTENT,

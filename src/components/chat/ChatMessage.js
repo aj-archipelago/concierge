@@ -14,6 +14,7 @@ import "katex/dist/katex.min.css";
 import { visit } from "unist-util-visit";
 import ChatImage from "../images/ChatImage";
 import MermaidDiagram from "../code/MermaidDiagram";
+import MermaidPlaceholder from "../code/MermaidPlaceholder";
 
 function transformToCitation(content) {
     return content
@@ -56,7 +57,7 @@ function customMarkdownDirective() {
     };
 }
 
-function convertMessageToMarkdown(message, finalRender = true) {
+function convertMessageToMarkdown(message, finalRender = true, onLoad = null) {
     const { payload, tool } = message;
     const citations = tool ? JSON.parse(tool).citations : null;
     let componentIndex = 0; // Counter for code blocks
@@ -148,13 +149,23 @@ function convertMessageToMarkdown(message, finalRender = true) {
             const language = match ? match[1] : null;
 
             // Handle Mermaid diagrams
-            if (language === "mermaid" && finalRender) {
-                return (
-                    <MermaidDiagram
-                        key={`mermaid-${++componentIndex}`}
-                        code={children}
-                    />
-                );
+            if (language === "mermaid") {
+                if (finalRender) {
+                    return (
+                        <MermaidDiagram
+                            key={`mermaid-${++componentIndex}`}
+                            code={children}
+                            onLoad={onLoad}
+                        />
+                    );
+                } else {
+                    // During streaming, show placeholder instead of raw code
+                    return (
+                        <MermaidPlaceholder
+                            key={`mermaid-placeholder-${++componentIndex}`}
+                        />
+                    );
+                }
             }
             return match ? (
                 <CodeBlock
@@ -195,12 +206,18 @@ function convertMessageToMarkdown(message, finalRender = true) {
 
     return (
         <Markdown
-            className="chat-message min-h-[1.5rem] overflow-x-auto"
+            className="chat-message min-h-[1.5rem] mobile-overflow-safe"
             components={{
                 ...components,
                 div: ({ node, ...props }) => (
                     <div
-                        style={{ maxWidth: "100%", overflowWrap: "break-word" }}
+                        className="mobile-text-wrap"
+                        style={{
+                            maxWidth: "100%",
+                            overflowWrap: "break-word",
+                            wordWrap: "break-word",
+                            wordBreak: "break-word",
+                        }}
                         {...props}
                     />
                 ),

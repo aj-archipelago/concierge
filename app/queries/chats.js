@@ -7,7 +7,7 @@ import {
 import axios from "../utils/axios-client";
 import { isValidObjectId } from "../../src/utils/helper.js";
 
-export const DEFAULT_PAGE_SIZE = 10;
+export const DEFAULT_PAGE_SIZE = 30;
 
 export function useGetChats() {
     return useInfiniteQuery({
@@ -35,7 +35,9 @@ export function useGetActiveChats() {
         queryFn: async () => {
             const response = await axios.get(`/api/chats/active/detail`);
             const activeChats = response.data;
-            activeChats.forEach((chat) => {
+
+            // Process each chat and ensure isUnused is correctly set
+            const processedChats = activeChats.map((chat) => {
                 const existingChat =
                     queryClient.getQueryData(["chat", chat._id]) || {};
 
@@ -52,23 +54,88 @@ export function useGetActiveChats() {
                     updatedChat.messages = existingChat.messages;
                 }
 
+                // CRITICAL: Always use server's isUnused value, never preserve from cache
+                // This prevents old chats with stale isUnused:true from being reused
+                if (chat.hasOwnProperty("isUnused")) {
+                    updatedChat.isUnused = chat.isUnused;
+                } else {
+                    // If server didn't send isUnused, it's an old chat - mark as used
+                    updatedChat.isUnused = false;
+                }
+
+                // Update individual chat cache
                 queryClient.setQueryData(["chat", chat._id], updatedChat);
+
+                // Return the processed chat with correct isUnused for activeChats array
+                return updatedChat;
             });
-            return activeChats;
+
+            return processedChats;
         },
         staleTime: 1000 * 60 * 5,
         refetchInterval: (data) => {
-            return !data?.state?.data || !data.state.data.length ? 1000 : false;
+            // Only poll if there are active chats
+            return data && data.length > 0 ? 5000 : false;
         },
+    });
+}
+
+// Search chats by title (server side)
+export function useSearchChats(searchQuery, { limit = 20 } = {}) {
+    return useQuery({
+        queryKey: ["searchChats", searchQuery, limit],
+        queryFn: async () => {
+            if (!searchQuery) return [];
+            const response = await axios.get(
+                `/api/chats?search=${encodeURIComponent(searchQuery)}&limit=${limit}`,
+            );
+            return response.data || [];
+        },
+        enabled:
+            typeof searchQuery === "string" && searchQuery.trim().length > 0,
+        staleTime: 1000 * 30,
+    });
+}
+// Server-side content search (CSFLE-safe) scanning recent chats
+export function useSearchContent(searchQuery, { limit = 20 } = {}) {
+    return useQuery({
+        queryKey: ["searchContent", searchQuery, limit],
+        queryFn: async () => {
+            if (!searchQuery) return [];
+            const response = await axios.get(
+                `/api/chats?content=${encodeURIComponent(searchQuery)}&limit=${limit}`,
+            );
+            const data = Array.isArray(response.data) ? response.data : [];
+            return data.slice(0, limit);
+        },
+        enabled:
+            typeof searchQuery === "string" && searchQuery.trim().length > 0,
+        staleTime: 1000 * 30,
+    });
+}
+
+// Total chat count for current user
+export function useTotalChatCount() {
+    return useQuery({
+        queryKey: ["totalChatCount"],
+        queryFn: async () => {
+            const response = await axios.get(`/api/chats/count`);
+            return Number(response.data || 0);
+        },
+        staleTime: 1000 * 60,
     });
 }
 
 function temporaryNewChat({ messages, title }) {
     const tempId = `temp_${Date.now()}_${crypto.randomUUID()}`;
+    const now = new Date().toISOString();
     return {
         _id: tempId,
         messages: messages || [],
         title: title || "",
+        // Ensure optimistic items categorize correctly and display timestamps
+        createdAt: now,
+        updatedAt: now,
         isTemporary: true,
     };
 }
@@ -85,7 +152,19 @@ export function useAddChat() {
             return response.data;
         },
         // Using the standard Tanstack Query pattern for optimistic updates
+        // BUT: Skip optimistic updates for empty chats since server might return existing unused chat
         onMutate: async (newChatData) => {
+            const messages = Array.isArray(newChatData.messages)
+                ? newChatData.messages
+                : newChatData.messages
+                  ? [newChatData.messages]
+                  : [];
+
+            // For empty chats, don't do optimistic updates - server might return existing unused chat
+            if (messages.length === 0) {
+                return { skipOptimistic: true };
+            }
+
             // Cancel related queries to prevent race conditions
             await queryClient.cancelQueries({
                 queryKey: ["activeChats", "userChatInfo", "chats"],
@@ -96,6 +175,7 @@ export function useAddChat() {
                 queryClient.getQueryData(["activeChats"]) || [];
             const previousUserChatInfo =
                 queryClient.getQueryData(["userChatInfo"]) || {};
+            const previousChats = queryClient.getQueryData(["chats"]);
 
             // Create an optimistic chat entry
             const optimisticChat = temporaryNewChat(newChatData);
@@ -122,16 +202,28 @@ export function useAddChat() {
                     : [optimisticChat._id],
             });
 
+            // Optimistically add to chats infinite list (prepend to first page)
+            queryClient.setQueryData(["chats"], (old) => {
+                if (!old || !old.pages) return old;
+                return {
+                    ...old,
+                    pages: old.pages.map((page, idx) =>
+                        idx === 0 ? [optimisticChat, ...page] : page,
+                    ),
+                };
+            });
+
             // Return context for potential rollback
             return {
                 previousActiveChats,
                 previousUserChatInfo,
+                previousChats,
                 optimisticChatId: optimisticChat._id,
             };
         },
         onError: (err, newChat, context) => {
-            // On error, roll back to the previous state
-            if (context) {
+            // On error, roll back to the previous state (only if we did optimistic updates)
+            if (context && !context.skipOptimistic) {
                 queryClient.setQueryData(
                     ["activeChats"],
                     context.previousActiveChats,
@@ -140,13 +232,18 @@ export function useAddChat() {
                     ["userChatInfo"],
                     context.previousUserChatInfo,
                 );
-                queryClient.removeQueries({
-                    queryKey: ["chat", context.optimisticChatId],
-                });
+                if (context.previousChats) {
+                    queryClient.setQueryData(["chats"], context.previousChats);
+                }
+                if (context.optimisticChatId) {
+                    queryClient.removeQueries({
+                        queryKey: ["chat", context.optimisticChatId],
+                    });
+                }
             }
         },
         onSuccess: (serverChat, variables, context) => {
-            // Remove the optimistic entry
+            // Remove the optimistic entry if we created one
             if (context?.optimisticChatId) {
                 queryClient.removeQueries({
                     queryKey: ["chat", context.optimisticChatId],
@@ -156,20 +253,106 @@ export function useAddChat() {
             // Add the confirmed server data
             queryClient.setQueryData(["chat", serverChat._id], serverChat);
 
-            // Update active chats by replacing the optimistic version
-            queryClient.setQueryData(["activeChats"], (oldData = []) => {
-                return [
-                    serverChat,
-                    ...oldData.filter(
-                        (chat) =>
-                            chat._id !== context?.optimisticChatId &&
-                            chat._id !== serverChat._id,
+            // Update active chats
+            // If we skipped optimistic updates, just prepend the server chat
+            // Otherwise, replace the optimistic version
+            if (context?.skipOptimistic) {
+                queryClient.setQueryData(["activeChats"], (oldData = []) => {
+                    return [
+                        serverChat,
+                        ...oldData.filter(
+                            (chat) => chat._id !== serverChat._id,
+                        ),
+                    ];
+                });
+            } else {
+                queryClient.setQueryData(["activeChats"], (oldData = []) => {
+                    return [
+                        serverChat,
+                        ...oldData.filter(
+                            (chat) =>
+                                chat._id !== context?.optimisticChatId &&
+                                chat._id !== serverChat._id,
+                        ),
+                    ];
+                });
+            }
+
+            // Update chats infinite list
+            queryClient.setQueryData(["chats"], (old) => {
+                if (!old || !old.pages) return old;
+
+                // If we skipped optimistic updates, just prepend the server chat
+                if (context?.skipOptimistic) {
+                    return {
+                        ...old,
+                        pages: old.pages.map((page, idx) => {
+                            if (idx === 0) {
+                                const safePage = Array.isArray(page)
+                                    ? page
+                                    : [];
+                                const filtered = safePage.filter(
+                                    (c) => c._id !== serverChat._id,
+                                );
+                                return [serverChat, ...filtered];
+                            }
+                            return page;
+                        }),
+                    };
+                }
+
+                // Otherwise, replace the optimistic version
+                const updateChatsPages = (
+                    pages,
+                    confirmedChat,
+                    optimisticId,
+                ) => {
+                    if (!Array.isArray(pages)) return [];
+                    return pages.map((page, idx) => {
+                        if (idx === 0) {
+                            const safePage = Array.isArray(page) ? page : [];
+                            const filtered = safePage.filter(
+                                (c) =>
+                                    c._id !== optimisticId &&
+                                    c._id !== confirmedChat._id,
+                            );
+                            return [confirmedChat, ...filtered];
+                        }
+                        const safeRest = Array.isArray(page) ? page : [];
+                        return safeRest.map((c) =>
+                            c._id === optimisticId ? confirmedChat : c,
+                        );
+                    });
+                };
+
+                return {
+                    ...old,
+                    pages: updateChatsPages(
+                        old.pages,
+                        serverChat,
+                        context?.optimisticChatId,
                     ),
-                ];
+                };
             });
 
             // Update the userChatInfo with the actual chat ID
             queryClient.setQueryData(["userChatInfo"], (oldData = {}) => {
+                if (context?.skipOptimistic) {
+                    // If we skipped optimistic updates, just update with server chat
+                    return {
+                        ...oldData,
+                        activeChatId: serverChat._id,
+                        recentChatIds: oldData.recentChatIds
+                            ? [
+                                  serverChat._id,
+                                  ...oldData.recentChatIds.filter(
+                                      (id) => id !== serverChat._id,
+                                  ),
+                              ]
+                            : [serverChat._id],
+                    };
+                }
+                // Otherwise, filter out optimistic chat ID
                 return {
                     ...oldData,
                     activeChatId: serverChat._id,
@@ -191,6 +374,11 @@ export function useAddChat() {
             queryClient.invalidateQueries({ queryKey: ["chats"] });
             queryClient.invalidateQueries({ queryKey: ["activeChats"] });
             queryClient.invalidateQueries({ queryKey: ["userChatInfo"] });
+            queryClient.invalidateQueries({ queryKey: ["totalChatCount"] });
+            // Ensure title search results include newly added chats immediately
+            queryClient.invalidateQueries({ queryKey: ["searchChats"] });
+            // Ensure server-side content search includes newly added chats immediately
+            queryClient.invalidateQueries({ queryKey: ["searchContent"] });
         },
     });
 }
@@ -271,6 +459,7 @@ export function useDeleteChat() {
                 queryClient.getQueryData(["activeChats"]) || [];
             const previousUserChatInfo =
                 queryClient.getQueryData(["userChatInfo"]) || {};
+            const previousChats = queryClient.getQueryData(["chats"]);
 
             const updatedActiveChats = previousActiveChats.filter(
                 (chat) => chat._id !== chatId,
@@ -293,7 +482,20 @@ export function useDeleteChat() {
             queryClient.setQueryData(["activeChats"], updatedActiveChats);
             queryClient.setQueryData(["userChatInfo"], updatedUserChatInfo);
 
-            return { previousActiveChats, previousUserChatInfo };
+            // Optimistically remove from chats infinite list
+            queryClient.setQueryData(["chats"], (old) => {
+                if (!old || !old.pages) return old;
+                return {
+                    ...old,
+                    pages: old.pages.map((page) =>
+                        Array.isArray(page)
+                            ? page.filter((chat) => chat._id !== chatId)
+                            : page,
+                    ),
+                };
+            });
+
+            return { previousActiveChats, previousUserChatInfo, previousChats };
         },
         onError: (err, variables, context) => {
             if (context?.previousActiveChats) {
@@ -308,11 +510,83 @@ export function useDeleteChat() {
                     context.previousUserChatInfo,
                 );
             }
+            if (context?.previousChats) {
+                queryClient.setQueryData(["chats"], context.previousChats);
+            }
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ["userChatInfo"] });
             queryClient.invalidateQueries({ queryKey: ["activeChats"] });
             queryClient.invalidateQueries({ queryKey: ["chats"] });
+            queryClient.invalidateQueries({ queryKey: ["totalChatCount"] });
+            queryClient.invalidateQueries({ queryKey: ["searchChats"] });
+            queryClient.invalidateQueries({ queryKey: ["searchContent"] });
+        },
+    });
+}
+
+export function useBulkImportChats() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: async ({ chats }) => {
+            if (!Array.isArray(chats)) {
+                throw new Error("chats must be an array");
+            }
+            const response = await axios.post(`/api/chats/bulk`, { chats });
+            const data = response.data || {};
+            return {
+                createdIds: Array.isArray(data.createdIds)
+                    ? data.createdIds.map((id) => String(id))
+                    : [],
+                createdChats: Array.isArray(data.createdChats)
+                    ? data.createdChats
+                    : [],
+                errors: Array.isArray(data.errors) ? data.errors : [],
+                createdCount: Number.isFinite(data.createdCount)
+                    ? data.createdCount
+                    : 0,
+            };
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ["chats"] });
+            queryClient.invalidateQueries({ queryKey: ["activeChats"] });
+            queryClient.invalidateQueries({ queryKey: ["userChatInfo"] });
+            queryClient.invalidateQueries({ queryKey: ["totalChatCount"] });
+            queryClient.invalidateQueries({ queryKey: ["searchChats"] });
+            queryClient.invalidateQueries({ queryKey: ["searchContent"] });
+        },
+    });
+}
+
+export function useBulkDeleteChats() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: async ({ chatIds }) => {
+            if (!Array.isArray(chatIds)) {
+                throw new Error("chatIds must be an array");
+            }
+            const response = await axios.delete(`/api/chats/bulk`, {
+                data: { chatIds },
+            });
+            const data = response.data || {};
+            return {
+                deletedIds: Array.isArray(data.deletedIds)
+                    ? data.deletedIds.map((id) => String(id))
+                    : [],
+                missingIds: Array.isArray(data.missingIds)
+                    ? data.missingIds.map((id) => String(id))
+                    : [],
+            };
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ["userChatInfo"] });
+            queryClient.invalidateQueries({ queryKey: ["activeChats"] });
+            queryClient.invalidateQueries({ queryKey: ["chats"] });
+            queryClient.invalidateQueries({ queryKey: ["totalChatCount"] });
+            queryClient.invalidateQueries({ queryKey: ["searchChats"] });
+            queryClient.invalidateQueries({ queryKey: ["searchContent"] });
         },
     });
 }

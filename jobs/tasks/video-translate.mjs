@@ -211,7 +211,7 @@ class VideoTranslateHandler extends BaseTask {
         }
     }
 
-    async handleCompletion(taskId, dataObject, metadata, client) {
+    async handleCompletion(taskId, dataObject, infoObject, metadata, client) {
         const { userId, targetLocaleLabel } = metadata;
         if (userId) {
             await this.handleVideoTranslationCompletion(

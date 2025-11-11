@@ -17,6 +17,8 @@ export async function POST(req, { params }) {
         const chat = await Chat.findOne({ _id: id, userId: currentUser._id });
         if (chat) {
             chat.messages = [...chat.messages, message];
+            // One-way gate: if chat has messages, mark it as used
+            chat.isUnused = false;
             await chat.save();
         }
 
@@ -119,6 +121,9 @@ export async function PUT(req, { params }) {
                     const timeB = new Date(b.sentTime).getTime();
                     return timeA - timeB;
                 });
+
+                // One-way gate: if chat has messages, mark it as used
+                body.isUnused = false;
             }
             // If body.messages is empty, we don't add server messages back
             // This allows clearing all messages including server-generated ones

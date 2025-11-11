@@ -169,7 +169,7 @@ function Name({ workspace, user }) {
                         <input
                             autoFocus
                             type="text"
-                            className="border-0 ring-1 w-full bg-gray-50 p-0 font-medium text-xl "
+                            className="border-0 ring-1 w-full bg-gray-50 dark:bg-gray-800 p-0 font-medium text-xl "
                             value={name}
                             onChange={(e) => {
                                 setName(e.target.value);
@@ -185,13 +185,13 @@ function Name({ workspace, user }) {
                         />
                     </div>
                     <div className=" flex items-center" dir="ltr">
-                        <div className=" flex gap-2 text-xs sm:text-sm items-center text-gray-500">
+                        <div className=" flex gap-2 text-xs sm:text-sm items-center text-gray-500 dark:text-gray-400">
                             <Link />
                             {serverContext?.serverUrl}/workspaces/
                         </div>
                         <input
                             type="text"
-                            className="border-0 ring-1 text-xs sm:text-sm bg-gray-50 p-0"
+                            className="border-0 ring-1 text-xs sm:text-sm bg-gray-50 dark:bg-gray-800 p-0"
                             value={slug}
                             onChange={(e) => {
                                 setSlug(e.target.value);
@@ -268,7 +268,9 @@ function Name({ workspace, user }) {
                         {!showCopiedMessage && (
                             <span dir="ltr">
                                 {serverContext?.serverUrl}/workspaces/
-                                <span className="text-gray-900">{slug}</span>
+                                <span className="text-gray-900 dark:text-gray-100">
+                                    {slug}
+                                </span>
                             </span>
                         )}
                     </div>
@@ -338,7 +340,7 @@ function Actions({ user, workspace }) {
                 <div className="text-sm">
                     {workspace.published && (
                         <div
-                            className="text-sm text-gray-600 font-mono bg-gray-100 p-2 rounded-md overflow-x-auto cursor-pointer"
+                            className="text-sm text-gray-600 dark:text-gray-300 font-mono bg-gray-100 dark:bg-gray-800 p-2 rounded-md overflow-x-auto cursor-pointer"
                             onClick={() => setPublishModalOpen(true)}
                         >
                             <span className="">{t("Published")}</span>{" "}
@@ -489,22 +491,23 @@ function PublishedWorkspace({ workspace }) {
         <div>
             <div className="mb-4">
                 {t("Published as pathway")}{" "}
-                <span className="p-2 font-mono bg-sky-50">
+                <span className="p-2 font-mono bg-sky-50 dark:bg-sky-900/20">
                     {t(pathway?.name)}
                 </span>{" "}
                 {t("at")}{" "}
-                <span className="p-2 font-mono bg-sky-50">
+                <span className="p-2 font-mono bg-sky-50 dark:bg-sky-900/20">
                     {serverContext.graphQLPublicEndpoint}
                 </span>
             </div>
 
-            <div className="mb-4 bg-gray-100 p-2 rounded-md text-sm">
+            <div className="mb-4 bg-gray-100 dark:bg-gray-800 p-2 rounded-md text-sm">
                 <pre>
                     {`
 QUERY:
-query ExecuteWorkspace($pathwayName: String!, $text: String, $userId: String!) {
-  executeWorkspace(pathwayName: $pathwayName, text: $text, userId: $userId) {
+query ExecuteWorkspace($pathwayName: String!, $text: String, $userId: String!, $promptNames: [String]) {
+  executeWorkspace(pathwayName: $pathwayName, text: $text, userId: $userId, promptNames: $promptNames) {
     result
+    errors
   }
 }
 
@@ -512,8 +515,21 @@ VARIABLES:
 {
   "text": "Hello, world",
   "pathwayName": "${pathway?.name}",
-  "userId": "${user.username}"
+  "userId": "${user.username}",
+  "promptNames": null
 }
+
+NOTES:
+• promptNames: Optional array of prompt names to execute specific prompts
+  - If provided, only those prompts will be executed in parallel
+  - Example: "promptNames": ["Grammar Check", "Tone Analysis"]
+  - Use ["*"] to execute all prompts in parallel
+• Default behavior (promptNames omitted): prompts are applied to the input serially and only one result is returned
+• Parallel execution: When promptNames contains specific names or ["*"], all specified prompts execute simultaneously
+• Response format:
+  - Serial execution: Single result string in result field
+  - Parallel execution: JSON.stringify([{result: <string>, promptName: <string>}, ...]) in result field
+    - Returns an array of results (one per executed prompt)
                     `}
                 </pre>
             </div>
@@ -541,7 +557,7 @@ function UnpublishedWorkspace({ workspace }) {
     const publishWorkspace = usePublishWorkspace();
     const { t } = useTranslation();
     const { data: prompts, isLoading: promptsLoading } = usePromptsByIds(
-        workspace.prompts,
+        workspace.prompts?.map((prompt) => prompt._id || prompt) || [],
     );
 
     const pathwayName = stringcase.snakecase(workspace.name);
@@ -602,14 +618,14 @@ function UnpublishedWorkspace({ workspace }) {
             </p>
 
             <div className="space-y-2 mb-4">
-                <div className="bg-white border border-gray-200 rounded-md p-3 shadow-sm">
-                    <div className="text-sm text-gray-600 mb-1">
+                <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-md p-3 shadow-sm">
+                    <div className="text-sm text-gray-600 dark:text-gray-300 mb-1">
                         {t("Model")}
                     </div>
                     <div className="font-medium">{llm.name}</div>
                 </div>
-                <div className="bg-white border border-gray-200 rounded-md p-3 shadow-sm">
-                    <div className="text-sm text-gray-600 mb-1">
+                <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-md p-3 shadow-sm">
+                    <div className="text-sm text-gray-600 dark:text-gray-300 mb-1">
                         {t("Pathway name")}
                     </div>
                     <div className="font-medium">{pathwayName}</div>

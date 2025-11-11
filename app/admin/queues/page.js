@@ -72,7 +72,7 @@ function StatusBadge({ status }) {
     const statusStyles = {
         waiting:
             "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200",
-        active: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200",
+        active: "bg-sky-100 text-sky-800 dark:bg-sky-900 dark:text-sky-200",
         completed:
             "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200",
         failed: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200",
@@ -113,7 +113,7 @@ function DataCell({ data }) {
     return (
         <>
             <div
-                className="bg-gray-50 p-2 rounded-md max-w-[300px] border max-h-[150px] overflow-auto cursor-pointer hover:bg-gray-100"
+                className="bg-gray-50 dark:bg-gray-700 p-2 rounded-md max-w-[300px] border max-h-[150px] overflow-auto cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600"
                 onClick={() => setIsOpen(true)}
             >
                 <pre className="text-xs whitespace-pre-wrap">
@@ -127,7 +127,7 @@ function DataCell({ data }) {
                     <DialogHeader>
                         <DialogTitle>Data Details</DialogTitle>
                     </DialogHeader>
-                    <div className="bg-gray-50 p-4 rounded-md w-full overflow-auto">
+                    <div className="bg-gray-50 dark:bg-gray-700 p-4 rounded-md w-full overflow-auto">
                         <pre className="w-full whitespace-pre-wrap text-sm overflow-auto max-h-[60vh]">
                             {dialogContent}
                         </pre>
@@ -206,7 +206,7 @@ function WorkerStatus({ worker }) {
                 </Button>
 
                 {showDebug && (
-                    <div className="mt-2 bg-gray-50 p-2 rounded-md">
+                    <div className="mt-2 bg-gray-50 dark:bg-gray-700 p-2 rounded-md">
                         <pre className="text-xs whitespace-pre-wrap">
                             {JSON.stringify(worker.debug, null, 2)}
                         </pre>
@@ -693,7 +693,7 @@ export default function QueuesPage() {
                                                                             className={`px-3 py-2 text-sm ${
                                                                                 currentPage ===
                                                                                 page
-                                                                                    ? "bg-neutral-100 font-bold"
+                                                                                    ? "bg-neutral-100 dark:bg-gray-700 font-bold"
                                                                                     : "hover:bg-muted"
                                                                             } rounded-md`}
                                                                         >

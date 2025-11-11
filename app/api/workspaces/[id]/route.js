@@ -3,6 +3,8 @@ import stringcase from "stringcase";
 import Workspace, { workspaceSchema } from "../../models/workspace";
 import WorkspaceState from "../../models/workspace-state";
 import App from "../../models/app";
+import AppletFile from "../../models/applet-file";
+import File from "../../models/file";
 import { getCurrentUser } from "../../utils/auth";
 import { getWorkspace } from "./db";
 import { republishWorkspace, unpublishWorkspace } from "./publish/utils";
@@ -38,6 +40,36 @@ export async function DELETE(req, { params }) {
     }
 
     await unpublishWorkspace(workspace, user);
+
+    // Clean up AppletFile and File documents associated with this workspace
+    if (workspace.applet) {
+        // Find all AppletFile documents for this applet
+        const appletFiles = await AppletFile.find({
+            appletId: workspace.applet,
+        }).populate("files");
+
+        // Collect all file IDs to delete
+        const fileIdsToDelete = [];
+        appletFiles.forEach((appletFile) => {
+            appletFile.files.forEach((file) => {
+                if (file._id) {
+                    fileIdsToDelete.push(file._id);
+                }
+            });
+        });
+
+        // Delete all File documents
+        if (fileIdsToDelete.length > 0) {
+            await File.deleteMany({ _id: { $in: fileIdsToDelete } });
+        }
+
+        // Delete all AppletFile documents for this applet
+        await AppletFile.deleteMany({ appletId: workspace.applet });
+    }
+
+    // Clean up workspace files if any exist
+    await File.deleteMany({ _id: { $in: workspace.files || [] } });
+
     await Workspace.findByIdAndDelete(id);
     await WorkspaceState.deleteMany({ workspace: id });
     return Response.json({ success: true });

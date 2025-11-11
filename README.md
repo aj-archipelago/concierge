@@ -112,7 +112,7 @@ class NewTaskHandler extends BaseTask {
     }
 
     // Optional: Custom completion handler
-    async handleCompletion(taskId, dataObject, metadata, client) {
+    async handleCompletion(taskId, dataObject, infoObject, metadata, client) {
         // Custom logic after task completes
         // For example, update other data, send notifications, etc.
         return dataObject;

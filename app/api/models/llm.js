@@ -23,6 +23,10 @@ const llmSchema = new mongoose.Schema(
             type: Boolean,
             default: false,
         },
+        isAgentic: {
+            type: Boolean,
+            default: false,
+        },
     },
     {
         timestamps: true,

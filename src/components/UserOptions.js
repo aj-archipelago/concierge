@@ -35,7 +35,7 @@ const UserOptions = ({ show, handleClose }) => {
         loading: memoryLoading,
         refetch: refetchMemory,
     } = useQuery(QUERIES.SYS_READ_MEMORY, {
-        variables: { contextId: user.contextId },
+        variables: { contextId: user.contextId, contextKey: user.contextKey },
         skip: !user.contextId,
         fetchPolicy: "network-only", // This ensures we always fetch from the network
     });
@@ -106,6 +106,7 @@ const UserOptions = ({ show, handleClose }) => {
                 mutation: QUERIES.SYS_SAVE_MEMORY,
                 variables: {
                     contextId: user.contextId,
+                    contextKey: user.contextKey,
                     aiMemory: combinedMemory,
                 },
             })
@@ -215,152 +216,177 @@ const UserOptions = ({ show, handleClose }) => {
             show={show}
             onHide={handleClose}
         >
-            <div className="text-sm">
-                <h4 className="text-base font-semibold mb-2">{t("AI Name")}</h4>
-                <input
-                    type="text"
-                    value={aiName}
-                    onChange={(e) => setAiName(e.target.value)}
-                    className="lb-input w-full mb-4"
-                    placeholder={t("Enter AI Name")}
-                />
-
-                <h4 className="text-base font-semibold mb-2">
-                    {t("AI Style")}
-                </h4>
-                <select
-                    value={aiStyle}
-                    onChange={(e) => setAiStyle(e.target.value)}
-                    className="lb-input w-full mb-4"
-                >
-                    <option value="OpenAI">{t("OpenAI")}</option>
-                    <option value="Anthropic">{t("Anthropic")}</option>
-                </select>
-
-                <h4 className="text-base font-semibold mb-2">
-                    {t("AI Memory")}
-                </h4>
-                <p className="text-gray-600">
-                    {t(
-                        "You can customize your interactions with the AI assistant by giving it things to remember. You can enter plain text or something more structured like JSON or XML. If you allow it, the AI will periodically modify its own memory to improve its ability to assist you.",
-                    )}
-                </p>
-                <div className="flex gap-2 items-center mb-4">
-                    <input
-                        type="checkbox"
-                        size="sm"
-                        id="aiMemorySelfModify"
-                        className="accent-sky-500"
-                        checked={aiMemorySelfModify}
-                        onChange={(e) =>
-                            setAiMemorySelfModify(e.target.checked)
-                        }
-                        style={{ margin: "0.5rem 0" }}
-                    />
-                    <label htmlFor="aiMemorySelfModify">
-                        {t("Allow the AI to modify its own memory")}
-                    </label>
-                </div>
-                <div>
-                    <h4 className="text-base font-semibold mb-2">
-                        {t("Currently stored memory")}
+            <div className="flex flex-col max-h-[calc(100vh-200px)]">
+                <div className="flex-1 overflow-y-auto pr-2 text-sm">
+                    <h4 className="text-base font-semibold mb-2 text-gray-900 dark:text-gray-100">
+                        {t("AI Name")}
                     </h4>
-                    {memoryLoading ? (
-                        <p>{t("Loading memory...")}</p>
-                    ) : (
-                        <>
-                            <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-2 space-y-2 md:space-y-0">
-                                <div className="flex flex-wrap gap-2 items-center">
-                                    <button
-                                        className="lb-outline-danger"
-                                        onClick={handleClearMemory}
-                                    >
-                                        {t("Clear Memory")}
-                                    </button>
-                                    <button
-                                        className="lb-outline-secondary"
-                                        onClick={handleDownloadMemory}
-                                        title={t("Download memory backup")}
-                                    >
-                                        <Download className="w-4 h-4" />
-                                    </button>
-                                    <button
-                                        className="lb-outline-secondary"
-                                        onClick={() =>
-                                            fileInputRef.current?.click()
-                                        }
-                                        title={t("Upload memory from backup")}
-                                    >
-                                        <Upload className="w-4 h-4" />
-                                    </button>
-                                    <input
-                                        ref={fileInputRef}
-                                        type="file"
-                                        accept=".json"
-                                        onChange={handleUploadMemory}
-                                        className="hidden"
-                                    />
-                                </div>
-                                <div className="text-sm text-gray-500 flex flex-wrap gap-2 items-center">
-                                    <span>
-                                        {t("Memory size: {{size}} characters", {
-                                            size: JSON.stringify(parsedMemory)
-                                                .length,
-                                        })}
-                                    </span>
-                                    {parsedMemory.memoryVersion && (
-                                        <span className="text-xs text-gray-400">
-                                            (v{parsedMemory.memoryVersion})
-                                        </span>
-                                    )}
-                                </div>
-                            </div>
-                            <div className="border-b border-gray-200">
-                                <nav className="flex -mb-px">
-                                    {memoryTabs.map((tab) => (
+                    <input
+                        type="text"
+                        value={aiName}
+                        onChange={(e) => setAiName(e.target.value)}
+                        className="lb-input w-full mb-4"
+                        placeholder={t("Enter AI Name")}
+                    />
+
+                    <h4 className="text-base font-semibold mb-2 text-gray-900 dark:text-gray-100">
+                        {t("AI Style")}
+                    </h4>
+                    <select
+                        value={aiStyle}
+                        onChange={(e) => setAiStyle(e.target.value)}
+                        className="lb-input w-full mb-4"
+                    >
+                        <option value="OpenAI">{t("OpenAI (GPT)")}</option>
+                        <option value="OpenAI_Legacy">
+                            {t("OpenAI Legacy (GPT-4.1/O3)")}
+                        </option>
+                        <option value="XAI">{t("XAI (Grok)")}</option>
+                        <option value="Anthropic">
+                            {t("Anthropic (Claude)")}
+                        </option>
+                        <option value="Google">{t("Google (Gemini)")}</option>
+                    </select>
+
+                    <h4 className="text-base font-semibold mb-2 text-gray-900 dark:text-gray-100">
+                        {t("AI Memory")}
+                    </h4>
+                    <p className="text-gray-600 dark:text-gray-400 mb-4">
+                        {t(
+                            "You can customize your interactions with the AI assistant by giving it things to remember. You can enter plain text or something more structured like JSON or XML. If you allow it, the AI will periodically modify its own memory to improve its ability to assist you.",
+                        )}
+                    </p>
+                    <div className="flex gap-2 items-center mb-4">
+                        <input
+                            type="checkbox"
+                            size="sm"
+                            id="aiMemorySelfModify"
+                            className="accent-sky-500"
+                            checked={aiMemorySelfModify}
+                            onChange={(e) =>
+                                setAiMemorySelfModify(e.target.checked)
+                            }
+                            style={{ margin: "0.5rem 0" }}
+                        />
+                        <label
+                            htmlFor="aiMemorySelfModify"
+                            className="text-gray-900 dark:text-gray-100"
+                        >
+                            {t("Allow the AI to modify its own memory")}
+                        </label>
+                    </div>
+                    <div>
+                        <h4 className="text-base font-semibold mb-2 text-gray-900 dark:text-gray-100">
+                            {t("Currently stored memory")}
+                        </h4>
+                        {memoryLoading ? (
+                            <p>{t("Loading memory...")}</p>
+                        ) : (
+                            <>
+                                <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-2 space-y-2 md:space-y-0">
+                                    <div className="flex flex-wrap gap-2 items-center">
                                         <button
-                                            key={tab.id}
-                                            className={`mr-2 py-2 px-4 font-medium text-sm border-b-2 ${
-                                                activeMemoryTab === tab.id
-                                                    ? "border-sky-500 text-sky-600"
-                                                    : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
-                                            }`}
-                                            onClick={() =>
-                                                setActiveMemoryTab(tab.id)
-                                            }
+                                            className="lb-outline-danger"
+                                            onClick={handleClearMemory}
                                         >
-                                            {t(tab.label)}
+                                            {t("Clear Memory")}
                                         </button>
-                                    ))}
-                                </nav>
-                            </div>
-                            <textarea
-                                value={getMemoryValueForTab(activeMemoryTab)}
-                                onChange={(e) =>
-                                    handleMemoryChange(
-                                        e.target.value,
-                                        activeMemoryTab,
-                                    )
-                                }
-                                className="lb-input font-mono w-full mt-4"
-                                rows={10}
-                            />
-                            {uploadError && (
-                                <div className="text-red-500 text-sm mt-2">
-                                    {uploadError}
+                                        <button
+                                            className="lb-outline-secondary"
+                                            onClick={handleDownloadMemory}
+                                            title={t("Download memory backup")}
+                                        >
+                                            <Download className="w-4 h-4" />
+                                        </button>
+                                        <button
+                                            className="lb-outline-secondary"
+                                            onClick={() =>
+                                                fileInputRef.current?.click()
+                                            }
+                                            title={t(
+                                                "Upload memory from backup",
+                                            )}
+                                        >
+                                            <Upload className="w-4 h-4" />
+                                        </button>
+                                        <input
+                                            ref={fileInputRef}
+                                            type="file"
+                                            accept=".json"
+                                            onChange={handleUploadMemory}
+                                            className="hidden"
+                                        />
+                                    </div>
+                                    <div className="text-sm text-gray-500 dark:text-gray-400 flex flex-wrap gap-2 items-center">
+                                        <span>
+                                            {t(
+                                                "Memory size: {{size}} characters",
+                                                {
+                                                    size: JSON.stringify(
+                                                        parsedMemory,
+                                                    ).length,
+                                                },
+                                            )}
+                                        </span>
+                                        {parsedMemory.memoryVersion && (
+                                            <span className="text-xs text-gray-400 dark:text-gray-500">
+                                                (v{parsedMemory.memoryVersion})
+                                            </span>
+                                        )}
+                                    </div>
                                 </div>
-                            )}
-                        </>
-                    )}
+                                <div className="border-b border-gray-200 dark:border-gray-700">
+                                    <nav className="flex -mb-px">
+                                        {memoryTabs.map((tab) => (
+                                            <button
+                                                key={tab.id}
+                                                className={`mr-2 py-2 px-4 font-medium text-sm border-b-2 ${
+                                                    activeMemoryTab === tab.id
+                                                        ? "border-sky-500 text-sky-600 dark:text-sky-400"
+                                                        : "border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300 dark:hover:border-gray-600"
+                                                }`}
+                                                onClick={() =>
+                                                    setActiveMemoryTab(tab.id)
+                                                }
+                                            >
+                                                {t(tab.label)}
+                                            </button>
+                                        ))}
+                                    </nav>
+                                </div>
+                                <textarea
+                                    value={getMemoryValueForTab(
+                                        activeMemoryTab,
+                                    )}
+                                    onChange={(e) =>
+                                        handleMemoryChange(
+                                            e.target.value,
+                                            activeMemoryTab,
+                                        )
+                                    }
+                                    className="lb-input font-mono w-full mt-4"
+                                    rows={10}
+                                />
+                                {uploadError && (
+                                    <div className="text-red-500 text-sm mt-2">
+                                        {uploadError}
+                                    </div>
+                                )}
+                            </>
+                        )}
+                    </div>
                 </div>
-            </div>
-            <div className="justify-end flex gap-2 mt-4">
-                <button className="lb-outline-secondary" onClick={handleClose}>
-                    {t("Close")}
-                </button>
-                <button className="lb-primary" onClick={handleSave}>
-                    {t("Save changes")}
-                </button>
+                <div className="flex-shrink-0 justify-end flex gap-2 pt-4 mt-4 border-t border-gray-200 dark:border-gray-700">
+                    <button
+                        className="lb-outline-secondary"
+                        onClick={handleClose}
+                    >
+                        {t("Close")}
+                    </button>
+                    <button className="lb-primary" onClick={handleSave}>
+                        {t("Save changes")}
+                    </button>
+                </div>
             </div>
         </Modal>
     );

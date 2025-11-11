@@ -4,21 +4,14 @@ import { LanguageContext } from "@/src/contexts/LanguageProvider";
 import {
     ArrowLeftIcon,
     ArrowRightIcon,
-    TrashIcon,
-    CheckIcon,
     CopyIcon,
+    TrashIcon,
 } from "lucide-react";
 import { useContext } from "react";
-import {
-    Tooltip,
-    TooltipTrigger,
-    TooltipContent,
-} from "@/components/ui/tooltip";
-import { Link2Icon } from "lucide-react";
-import { ServerContext } from "../../../../src/App";
+// Tooltip and Link2Icon no longer needed - functionality moved to PublishedAppletManageDialog
+// ServerContext no longer needed in VersionNavigator - moved to PublishedAppletManageDialog
 import { useState } from "react";
-import { useParams } from "next/navigation";
-import { useTranslation } from "react-i18next";
+// useParams no longer needed in VersionNavigator - moved to PublishedAppletManageDialog
 import {
     AlertDialog,
     AlertDialogAction,
@@ -29,64 +22,12 @@ import {
     AlertDialogHeader,
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { useTranslation } from "react-i18next";
 import PublishConfirmDialog from "./PublishConfirmDialog";
+import PublishedAppletManageDialog from "./PublishedAppletManageDialog";
+// useWorkspaceApp no longer needed in VersionNavigator - moved to PublishedAppletManageDialog
 
-function CopyPublishedLinkButton() {
-    const { t } = useTranslation();
-    const [copied, setCopied] = useState(false);
-    const serverContext = useContext(ServerContext);
-    const { id } = useParams();
-    const placeholderLink = `${serverContext.serverUrl}/published/workspaces/${id}/applet`;
-
-    const handleCopy = async (e) => {
-        e.stopPropagation();
-        await navigator.clipboard.writeText(placeholderLink);
-        setCopied(true);
-        setTimeout(() => setCopied(false), 1200);
-    };
-
-    const handleOpen = (e) => {
-        e.stopPropagation();
-        window.open(placeholderLink, "_blank", "noopener,noreferrer");
-    };
-
-    return (
-        <Tooltip>
-            <TooltipTrigger asChild>
-                <span className="inline-flex">
-                    <button
-                        className={`flex items-center px-2 py-0.5 rounded-full border border-emerald-200 bg-white hover:bg-emerald-50 transition shadow-sm ${copied ? "border-emerald-400 bg-emerald-50" : ""}`}
-                        type="button"
-                        aria-label={t("Copy or open published link")}
-                        tabIndex={0}
-                    >
-                        <span
-                            className={`p-1 rounded-full transition cursor-pointer ${copied ? "bg-emerald-100" : "hover:bg-emerald-100"}`}
-                            onClick={handleCopy}
-                            title={t("Copy link")}
-                        >
-                            {copied ? (
-                                <CheckIcon className="w-4 h-4 text-emerald-700" />
-                            ) : (
-                                <Link2Icon className="w-4 h-4 text-emerald-700" />
-                            )}
-                        </span>
-                        <span
-                            className="px-1 py-1 rounded-full text-xs font-bold text-emerald-700 underline hover:text-emerald-900 transition cursor-pointer"
-                            onClick={handleOpen}
-                            title={t("Open link")}
-                        >
-                            {copied ? t("Copied!") : t("Open")}
-                        </span>
-                    </button>
-                </span>
-            </TooltipTrigger>
-            <TooltipContent side="bottom" sideOffset={10}>
-                {copied ? t("Copied!") : placeholderLink}
-            </TooltipContent>
-        </Tooltip>
-    );
-}
+// CopyPublishedLinkButton functionality is now integrated into PublishedAppletManageDialog
 
 export default function VersionNavigator({
     activeVersionIndex,
@@ -104,8 +45,15 @@ export default function VersionNavigator({
     const { t } = useTranslation();
     const { direction } = useContext(LanguageContext);
     const [showPublishDialog, setShowPublishDialog] = useState(false);
+    const [showManageDialog, setShowManageDialog] = useState(false);
     const [deleteVersionDialogOpen, setDeleteVersionDialogOpen] =
         useState(false);
+
+    // Handle unpublish and close dialog
+    const handleUnpublishAndClose = () => {
+        onUnpublish();
+        setShowManageDialog(false);
+    };
 
     // Note: Version validation is handled in WorkspaceApplet.js to avoid duplicate validation
     const handleDuplicateVersion = () => {
@@ -184,7 +132,13 @@ export default function VersionNavigator({
         setShowPublishDialog(true);
     };
 
-    const handlePublishConfirm = (publishToAppStore, appName, selectedIcon) => {
+    const handlePublishConfirm = async (
+        publishToAppStore,
+        appName,
+        selectedIcon,
+        appSlug,
+        appDescription,
+    ) => {
         // Validate that we're publishing a valid version
         if (
             activeVersionIndex < 0 ||
@@ -200,13 +154,22 @@ export default function VersionNavigator({
             `VersionNavigator: Publishing version ${activeVersionIndex + 1} (index ${activeVersionIndex})`,
         );
 
-        onPublishVersion(
-            activeVersionIndex,
-            publishToAppStore,
-            appName,
-            selectedIcon,
-        );
-        setShowPublishDialog(false);
+        try {
+            await onPublishVersion(
+                activeVersionIndex,
+                publishToAppStore,
+                appName,
+                selectedIcon,
+                appSlug,
+                appDescription,
+            );
+            // Close publish dialog and open manage dialog to show the link
+            setShowPublishDialog(false);
+            setShowManageDialog(true);
+        } catch (error) {
+            // Don't close dialog on error - let PublishConfirmDialog handle it
+            throw error;
+        }
     };
 
     const handlePublishCancel = () => {
@@ -222,7 +185,7 @@ export default function VersionNavigator({
                 )}
             >
                 <button
-                    className={cn("lb-outline-secondary", "bg-white")}
+                    className="border rounded-md border-gray-300 dark:border-gray-600 px-2 py-1.5 text-sm font-medium text-gray-700 dark:text-gray-200 shadow-sm enabled:hover:bg-gray-100 dark:enabled:hover:bg-gray-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-600 dark:focus-visible:outline-gray-400 disabled:opacity-50 enabled:active:bg-gray-200 dark:enabled:active:bg-gray-600 bg-white dark:bg-gray-800"
                     onClick={() =>
                         setActiveVersionIndex((prev) => Math.max(0, prev - 1))
                     }
@@ -235,7 +198,7 @@ export default function VersionNavigator({
                     )}
                 </button>
                 <button
-                    className={cn("lb-outline-secondary ", "bg-white")}
+                    className="border rounded-md border-gray-300 dark:border-gray-600 px-2 py-1.5 text-sm font-medium text-gray-700 dark:text-gray-200 shadow-sm enabled:hover:bg-gray-100 dark:enabled:hover:bg-gray-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-600 dark:focus-visible:outline-gray-400 disabled:opacity-50 enabled:active:bg-gray-200 dark:enabled:active:bg-gray-600 bg-white dark:bg-gray-800"
                     onClick={() =>
                         setActiveVersionIndex((prev) =>
                             Math.min(htmlVersions.length - 1, prev + 1),
@@ -249,7 +212,7 @@ export default function VersionNavigator({
                         <ArrowRightIcon className="w-4 h-4" />
                     )}
                 </button>
-                <span className="text-sm text-gray-600 whitespace-nowrap">
+                <span className="text-sm text-gray-700 dark:text-gray-200 whitespace-nowrap">
                     {t("Version")}{" "}
                     {Math.max(
                         1,
@@ -261,38 +224,29 @@ export default function VersionNavigator({
                     {publishedVersionIndex !== null &&
                         (activeVersionIndex === publishedVersionIndex ? (
                             <>
-                                <span
-                                    className=" px-3 py-1 rounded-full text-xs font-bold bg-emerald-500 text-white shadow-sm border border-emerald-600"
+                                <button
+                                    className="px-3 py-1 rounded-full text-xs font-bold bg-emerald-500 text-white shadow-sm border border-emerald-600 hover:bg-emerald-600 transition cursor-pointer"
                                     style={{
                                         letterSpacing: "0.03em",
                                     }}
+                                    onClick={() => setShowManageDialog(true)}
+                                    type="button"
                                 >
                                     {t("Published")}
-                                </span>
-                                <CopyPublishedLinkButton />
+                                </button>
                                 {isOwner && (
-                                    <>
-                                        <button
-                                            className=" px-3 py-1 rounded-full text-xs font-bold border border-red-300 text-red-600 bg-white hover:bg-red-50 hover:border-red-400 transition focus:ring-2 focus:ring-red-200 focus:outline-none shadow-sm"
-                                            onClick={onUnpublish}
-                                            disabled={updateApplet.isPending}
-                                            type="button"
-                                        >
-                                            {t("Unpublish")}
-                                        </button>
-                                        <button
-                                            className="px-3 py-1 rounded-full text-xs font-bold border lb-outline-secondary bg-white"
-                                            onClick={handleDuplicateVersion}
-                                            title={t("Duplicate this version")}
-                                        >
-                                            <CopyIcon className="w-4 h-4" />
-                                        </button>
-                                    </>
+                                    <button
+                                        className="px-3 py-1 rounded-full text-xs font-bold border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition shadow-sm"
+                                        onClick={handleDuplicateVersion}
+                                        title={t("Duplicate this version")}
+                                    >
+                                        <CopyIcon className="w-4 h-4" />
+                                    </button>
                                 )}
                             </>
                         ) : (
                             <button
-                                className="px-3 py-1 rounded-full text-xs font-bold border border-gray-300 bg-gray-100 text-gray-600 hover:bg-gray-200 transition shadow-sm whitespace-nowrap"
+                                className="px-3 py-1 rounded-full text-xs font-bold border border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 transition shadow-sm whitespace-nowrap"
                                 onClick={() =>
                                     setActiveVersionIndex(publishedVersionIndex)
                                 }
@@ -321,14 +275,14 @@ export default function VersionNavigator({
                                         : t("Publish this version")}
                                 </button>
                                 <button
-                                    className="px-3 py-1 rounded-full text-xs font-bold border lb-outline-secondary bg-white"
+                                    className="px-3 py-1 rounded-full text-xs font-bold border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition shadow-sm"
                                     onClick={handleDuplicateVersion}
                                     title={t("Duplicate this version")}
                                 >
                                     <CopyIcon className="w-4 h-4" />
                                 </button>
                                 <button
-                                    className="px-3 py-1 rounded-full text-xs font-bold border lb-outline-secondary bg-white"
+                                    className="px-3 py-1 rounded-full text-xs font-bold border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition shadow-sm"
                                     onClick={handleDeleteVersion}
                                 >
                                     <TrashIcon className="w-4 h-4" />
@@ -344,6 +298,14 @@ export default function VersionNavigator({
                 isPending={updateApplet.isPending}
                 versionNumber={activeVersionIndex + 1}
                 workspaceId={workspaceId}
+            />
+
+            <PublishedAppletManageDialog
+                isOpen={showManageDialog}
+                onClose={() => setShowManageDialog(false)}
+                onUnpublish={handleUnpublishAndClose}
+                workspaceId={workspaceId}
+                isPending={updateApplet.isPending}
             />
 
             <AlertDialog

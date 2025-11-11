@@ -19,7 +19,7 @@ const LLM_IDENTIFIERS = {
     o3mini: "o3mini",
 };
 
-module.exports = {
+const config = {
     global: {
         siteTitle: "Labeeb",
         getLogo: (language) =>
@@ -36,21 +36,21 @@ module.exports = {
             {
                 identifier: LLM_IDENTIFIERS.gpt4o,
                 name: "GPT 4o",
-                cortexPathwayName: "run_gpt4_o",
+                cortexPathwayName: "run_workspace_prompt",
                 cortexModelName: "oai-gpt4o",
                 isDefault: true,
             },
             {
                 name: "GPT-3.5 Turbo",
                 cortexModelName: "azure-turbo-chat",
-                cortexPathwayName: "run_gpt35turbo",
+                cortexPathwayName: "run_workspace_prompt",
                 identifier: LLM_IDENTIFIERS.gpt35turbo,
                 isDefault: false,
             },
             {
                 name: "GPT-4",
                 cortexModelName: "azure-gpt4",
-                cortexPathwayName: "run_gpt4",
+                cortexPathwayName: "run_workspace_prompt",
                 identifier: LLM_IDENTIFIERS.gpt4,
                 isDefault: false,
             },
@@ -66,8 +66,12 @@ module.exports = {
     endpoints: {
         mediaHelper: (serverUrl) => `${serverUrl}/media-helper`,
         graphql: (serverUrl) => `${serverUrl}/graphql`,
+        mediaHelperDirect: () =>
+            process.env.CORTEX_MEDIA_API_URL || "http://localhost:3001",
     },
     auth: {
         provider: "entra",
     },
 };
+
+export default config;

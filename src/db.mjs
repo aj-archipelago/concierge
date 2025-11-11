@@ -97,7 +97,13 @@ export async function connectToDatabase() {
         [`${dbName}.users`]: {
             bsonType: "object",
             properties: {
-                aiMemory: {
+                contextKey: {
+                    encrypt: {
+                        bsonType: "string",
+                        algorithm: "AEAD_AES_256_CBC_HMAC_SHA_512-Random",
+                    },
+                },
+                previousContextKey: {
                     encrypt: {
                         bsonType: "string",
                         algorithm: "AEAD_AES_256_CBC_HMAC_SHA_512-Random",
@@ -258,6 +264,56 @@ export async function connectToDatabase() {
                 metadata: {
                     encrypt: {
                         bsonType: "object",
+                        algorithm: "AEAD_AES_256_CBC_HMAC_SHA_512-Random",
+                    },
+                },
+            },
+            encryptMetadata: {
+                keyId: [_key],
+            },
+        },
+        [`${dbName}.mediaitems`]: {
+            bsonType: "object",
+            properties: {
+                prompt: {
+                    encrypt: {
+                        bsonType: "string",
+                        algorithm: "AEAD_AES_256_CBC_HMAC_SHA_512-Random",
+                    },
+                },
+                url: {
+                    encrypt: {
+                        bsonType: "string",
+                        algorithm: "AEAD_AES_256_CBC_HMAC_SHA_512-Random",
+                    },
+                },
+                azureUrl: {
+                    encrypt: {
+                        bsonType: "string",
+                        algorithm: "AEAD_AES_256_CBC_HMAC_SHA_512-Random",
+                    },
+                },
+                gcsUrl: {
+                    encrypt: {
+                        bsonType: "string",
+                        algorithm: "AEAD_AES_256_CBC_HMAC_SHA_512-Random",
+                    },
+                },
+                inputImageUrl: {
+                    encrypt: {
+                        bsonType: "string",
+                        algorithm: "AEAD_AES_256_CBC_HMAC_SHA_512-Random",
+                    },
+                },
+                inputImageUrl2: {
+                    encrypt: {
+                        bsonType: "string",
+                        algorithm: "AEAD_AES_256_CBC_HMAC_SHA_512-Random",
+                    },
+                },
+                inputImageUrl3: {
+                    encrypt: {
+                        bsonType: "string",
                         algorithm: "AEAD_AES_256_CBC_HMAC_SHA_512-Random",
                     },
                 },

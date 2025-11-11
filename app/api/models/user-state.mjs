@@ -12,6 +12,7 @@ const userStateSchema = new mongoose.Schema(
     },
     {
         timestamps: true,
+        optimisticConcurrency: true, // Enable optimistic concurrency control
     },
 );
 

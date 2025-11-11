@@ -14,7 +14,6 @@ export default function ConnectJiraButton({ clientSecret, onTokenChange }) {
 
     const clientId = process.env.NEXT_PUBLIC_ATLASSIAN_CLIENT_ID;
 
-    const tokenUrl = "https://auth.atlassian.com/oauth/token";
     const [token, setToken] = useState(null);
     const [refreshToken, setRefreshToken] = useState(null);
     const [error, setError] = useState(null);
@@ -41,12 +40,7 @@ export default function ConnectJiraButton({ clientSecret, onTokenChange }) {
         while (attemptCount < retryCount) {
             try {
                 await axios.get(
-                    "https://api.atlassian.com/oauth/token/accessible-resources",
-                    {
-                        headers: {
-                            Authorization: `Bearer ${token}`,
-                        },
-                    },
+                    `/api/jira/auth/accessible-resources?token=${encodeURIComponent(token)}`,
                 );
                 break;
             } catch (error) {
@@ -65,7 +59,7 @@ export default function ConnectJiraButton({ clientSecret, onTokenChange }) {
     const renewToken = useCallback(
         async (refreshToken) => {
             try {
-                const response = await axios.post(tokenUrl, {
+                const response = await axios.post("/api/jira/auth/token", {
                     grant_type: "refresh_token",
                     client_id: clientId,
                     client_secret: clientSecret,
@@ -130,7 +124,7 @@ export default function ConnectJiraButton({ clientSecret, onTokenChange }) {
             // if code is present, this is a callback from Jira, exchange the
             // code for a token
             axios
-                .post(tokenUrl, {
+                .post("/api/jira/auth/token", {
                     grant_type: "authorization_code",
                     client_id: clientId,
                     client_secret: clientSecret,

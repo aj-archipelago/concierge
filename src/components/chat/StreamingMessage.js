@@ -46,7 +46,7 @@ const StreamingContent = React.memo(function StreamingContent({
     return (
         <div
             ref={contentRef}
-            className="chat-message-bot relative break-words text-gray-800"
+            className="chat-message-bot relative break-words text-gray-800 dark:text-gray-100"
         >
             {markdownContent}
         </div>
@@ -253,7 +253,7 @@ const StreamingMessage = React.memo(function StreamingMessage({
     ]);
 
     return (
-        <div className="flex bg-sky-50 ps-1 pt-1 relative group">
+        <div className="flex bg-sky-50 dark:bg-gray-700 ps-1 pt-1 relative group">
             <div
                 className={classNames(
                     basis,
@@ -269,7 +269,7 @@ const StreamingMessage = React.memo(function StreamingMessage({
                 )}
             >
                 <div className="flex flex-col">
-                    <div className="font-semibold text-gray-900">
+                    <div className="font-semibold text-gray-900 dark:text-gray-100">
                         {t(botName)}
                     </div>
                     <div className="relative" ref={relativeContainerRef}>

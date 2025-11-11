@@ -3,6 +3,7 @@ import Workspace from "@/app/api/models/workspace";
 import Applet from "@/app/api/models/applet";
 import { getWorkspace } from "../db.js";
 import App, { APP_TYPES, APP_STATUS } from "@/app/api/models/app";
+// Removed unused import
 
 // GET: fetch or create applet (already implemented)
 export async function GET(request, { params }) {
@@ -131,7 +132,9 @@ export async function PUT(request, { params }) {
         if (body.publishToAppStore !== undefined) {
             if (
                 body.publishToAppStore &&
-                body.publishedVersionIndex !== undefined
+                (body.publishedVersionIndex !== undefined ||
+                    body.appName ||
+                    body.appSlug)
             ) {
                 // Applet is being published to app store - upsert an App
                 const appName =
@@ -143,7 +146,7 @@ export async function PUT(request, { params }) {
                 // Check if app name conflicts with built-in native apps
                 const nativeAppNames = [
                     "Translate",
-                    "Video",
+                    "Transcribe",
                     "Write",
                     "Workspaces",
                     "Images",
@@ -158,15 +161,42 @@ export async function PUT(request, { params }) {
                     );
                 }
 
+                // Use provided slug or existing app slug
+                let appSlug = body.appSlug;
+                if (!appSlug) {
+                    const existingApp = await App.findOne({
+                        workspaceId: workspace._id,
+                    });
+                    appSlug = existingApp?.slug || workspace.slug;
+                }
+
+                // Check for slug collision with other apps
+                const existingAppWithSlug = await App.findOne({
+                    slug: appSlug,
+                    workspaceId: { $ne: workspace._id }, // Exclude current workspace's app
+                    status: APP_STATUS.ACTIVE,
+                });
+
+                if (existingAppWithSlug) {
+                    return NextResponse.json(
+                        {
+                            error: `The slug "${appSlug}" is already in use by another app. Please choose a different slug.`,
+                        },
+                        { status: 400 },
+                    );
+                }
+
                 await App.findOneAndUpdate(
                     { workspaceId: workspace._id },
                     {
                         name: appName,
+                        slug: appSlug,
                         author: workspace.owner,
                         type: APP_TYPES.APPLET,
                         status: APP_STATUS.ACTIVE,
                         workspaceId: workspace._id,
                         icon: body.appIcon || null,
+                        description: body.appDescription || null,
                     },
                     {
                         new: true,

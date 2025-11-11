@@ -6,9 +6,12 @@ import dynamic from "next/dynamic";
 import {
     useUpdateActiveChat,
     useGetActiveChat,
+    useGetChatById,
+    useSetActiveChatId,
 } from "../../../app/queries/chats";
-import { useContext, useState, useEffect } from "react";
+import { useContext, useState, useEffect, useRef, useMemo } from "react";
 import { AuthContext } from "../../App";
+import { useParams } from "next/navigation";
 import {
     Select,
     SelectContent,
@@ -17,7 +20,7 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 import EntityIcon from "./EntityIcon";
-import { Share, Trash2, Check } from "lucide-react";
+import { Share, Trash2, Check, Download } from "lucide-react";
 import { useEntities } from "../../hooks/useEntities";
 import {
     AlertDialog,
@@ -34,14 +37,80 @@ const ChatTopMenuDynamic = dynamic(() => import("./ChatTopMenu"), {
     loading: () => <div style={{ width: "80px", height: "20px" }}></div>,
 });
 
+/**
+ * Determines which chat to use based on URL and viewing state.
+ * Matches the logic in ChatContent.js for consistency:
+ * 1. If viewing a read-only chat, use viewingChat
+ * 2. Otherwise, if URL chat is available, use urlChat
+ * 3. Otherwise, fall back to active chat
+ */
+function getChatToUse(urlChatId, urlChat, viewingChat, activeChat) {
+    // If viewing a read-only chat, use it directly
+    if (viewingChat && viewingChat.readOnly) {
+        return viewingChat;
+    }
+
+    // Otherwise, use URL chat if available
+    if (urlChatId && urlChat) {
+        return urlChat;
+    }
+
+    // Fall back to active chat
+    return activeChat;
+}
+
 function Chat({ viewingChat = null }) {
     const { t } = useTranslation();
+    const params = useParams();
+    const urlChatId = params?.id;
     const updateActiveChat = useUpdateActiveChat();
-    const { data: chat } = useGetActiveChat();
-    const activeChatId = chat?._id;
+    const setActiveChatId = useSetActiveChatId();
+    const { data: activeChat } = useGetActiveChat();
+    const { data: urlChat } = useGetChatById(urlChatId);
+
+    // Memoize chat determination to avoid recalculation on every render
+    const chat = useMemo(
+        () => getChatToUse(urlChatId, urlChat, viewingChat, activeChat),
+        [urlChatId, urlChat, viewingChat, activeChat],
+    );
+    const activeChatId = useMemo(() => chat?._id, [chat?._id]);
     const { user } = useContext(AuthContext);
     const { readOnly } = viewingChat || {};
     const publicChatOwner = viewingChat?.owner;
+
+    // Track the last URL chat ID we've updated to prevent duplicate calls
+    const lastUpdatedUrlChatId = useRef(null);
+
+    // Update active chat ID asynchronously in the background after reading from URL
+    // This is non-blocking and only used for ChatBox fallback purposes
+    useEffect(() => {
+        // Skip if no URL chat ID or already updated this ID
+        if (!urlChatId || urlChatId === lastUpdatedUrlChatId.current) {
+            return;
+        }
+
+        // Skip if viewing a read-only chat or chat doesn't exist
+        if (viewingChat || !urlChat || urlChat.readOnly) {
+            return;
+        }
+
+        // Skip if already matches active chat (no update needed)
+        if (urlChatId === activeChat?._id) {
+            lastUpdatedUrlChatId.current = urlChatId;
+            return;
+        }
+
+        // Update active chat ID asynchronously in the background (non-blocking)
+        // This is only for ChatBox fallback, not for navigation
+        lastUpdatedUrlChatId.current = urlChatId;
+        setActiveChatId.mutate(urlChatId, {
+            onError: (error) => {
+                console.error("Error updating active chat ID:", error);
+                // Reset on error so we can retry
+                lastUpdatedUrlChatId.current = null;
+            },
+        });
+    }, [urlChatId, activeChat?._id, viewingChat, urlChat, setActiveChatId]);
     const [selectedEntityId, setSelectedEntityId] = useState(
         chat?.selectedEntityId || "",
     );
@@ -103,6 +172,29 @@ function Chat({ viewingChat = null }) {
         }
     };
 
+    const handleExportActiveChat = () => {
+        try {
+            const chatToExport = viewingChat || chat;
+            if (!chatToExport?._id || !chatToExport?.messages?.length) return;
+
+            const now = new Date();
+            const stamp = now.toISOString().replace(/[:T]/g, "-").split(".")[0];
+            const fileName = `chat-${String(chatToExport._id)}-${stamp}.json`;
+            const blob = new Blob([JSON.stringify(chatToExport, null, 2)], {
+                type: "application/json",
+            });
+            const a = document.createElement("a");
+            a.href = URL.createObjectURL(blob);
+            a.download = fileName;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(a.href);
+        } catch (error) {
+            console.error("Error exporting chat:", error);
+        }
+    };
+
     const handleDelete = async () => {
         try {
             if (activeChatId) {
@@ -122,9 +214,9 @@ function Chat({ viewingChat = null }) {
             <div className="flex justify-between items-center">
                 <ChatTopMenuDynamic />
                 {publicChatOwner && (
-                    <div className="text-sm font-medium text-gray-600 bg-gray-100 px-3 py-1 rounded shadow-sm">
+                    <div className="text-sm font-medium text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-800 px-3 py-1 rounded shadow-sm">
                         {t("Shared by")}{" "}
-                        <span className="font-bold text-blue-600">
+                        <span className="font-bold text-sky-600">
                             {publicChatOwner.name || publicChatOwner.username}
                         </span>
                     </div>
@@ -169,7 +261,7 @@ function Chat({ viewingChat = null }) {
                         <SelectContent>
                             {entities.map((entity) => (
                                 <SelectItem
-                                    className="text-sm focus:bg-gray-100 dark:focus:bg-gray-100 dark:focus:text-gray-800"
+                                    className="text-sm focus:bg-gray-100 dark:focus:bg-gray-700 dark:focus:text-gray-100"
                                     key={entity.id}
                                     value={entity.id}
                                 >
@@ -182,8 +274,21 @@ function Chat({ viewingChat = null }) {
                         </SelectContent>
                     </Select>
                     <button
+                        disabled={!chat?.messages?.length}
+                        className="flex items-center gap-1 px-3 py-1.5 rounded-md transition-colors border bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 border-gray-200 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-600 text-xs disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-white dark:disabled:hover:bg-gray-700"
+                        onClick={handleExportActiveChat}
+                        title={
+                            chat?.messages?.length
+                                ? t("Export")
+                                : `${t("Export")} - ${t("Empty chat")}`
+                        }
+                    >
+                        <Download className="w-4 h-4" />
+                        <span className="hidden sm:inline">{t("Export")}</span>
+                    </button>
+                    <button
                         disabled={readOnly}
-                        className="flex items-center gap-1 px-3 py-1.5 rounded-md transition-colors border bg-white text-gray-700 border-gray-200 hover:bg-gray-100 text-xs"
+                        className="flex items-center gap-1 px-3 py-1.5 rounded-md transition-colors border bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 border-gray-200 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-600 text-xs"
                         onClick={handleShareOrCopy}
                         title={
                             chat?.isPublic ? t("Copy Share URL") : t("Share")
@@ -200,7 +305,7 @@ function Chat({ viewingChat = null }) {
                     </button>
                     <button
                         disabled={readOnly}
-                        className="flex items-center gap-1 px-3 py-1.5 rounded-md transition-colors border bg-white text-gray-700 border-gray-200 hover:bg-gray-100 text-xs"
+                        className="flex items-center gap-1 px-3 py-1.5 rounded-md transition-colors border bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 border-gray-200 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-600 text-xs"
                         onClick={() => {
                             setShowDeleteConfirm(true);
                         }}

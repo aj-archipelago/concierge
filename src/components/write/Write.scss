@@ -1,47 +1,136 @@
 .refresh-button {
     background-color: transparent;
     border: 0;
+    transition: all 0.2s ease;
+
+    &:hover:not(:disabled) {
+        transform: scale(1.05);
+    }
+
+    &:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
 }
 
 .headline-input {
     font-family: $font-family-serif;
-    border: 0;
+    border: 1px solid #d1d5db;
+    border-radius: 0.375rem;
     font-weight: 700;
     font-size: 1.5rem;
+    padding: 0.5rem 0.75rem;
+    background-color: white;
+    color: #111827;
+    transition: all 0.2s ease;
+
     &::placeholder {
-        color: #ccc;
+        color: #9ca3af;
     }
+
+    &:focus {
+        outline: none;
+        border-color: #0ea5e9;
+        box-shadow: 0 0 0 2px rgba(14, 165, 233, 0.2);
+    }
+
     resize: none;
-    padding-inline-start: 10px;
     outline: 0;
+
+    // Dark mode styles
+    body.dark & {
+        border-color: #4b5563;
+        background-color: #1f2937;
+        color: #f9fafb;
+
+        &::placeholder {
+            color: #6b7280;
+        }
+
+        &:focus {
+            border-color: #0ea5e9;
+            box-shadow: 0 0 0 2px rgba(14, 165, 233, 0.3);
+        }
+    }
 }
 
 .subhead-input {
     font-family: $font-family-serif;
-    border: 0;
+    border: 1px solid #d1d5db;
+    border-radius: 0.375rem;
     font-weight: 400;
     font-size: 1.2rem;
+    padding: 0.5rem 0.75rem;
+    background-color: white;
+    color: #4b5563;
+    transition: all 0.2s ease;
+
     &::placeholder {
-        color: #ccc;
+        color: #9ca3af;
     }
-    color: #666;
+
+    &:focus {
+        outline: none;
+        border-color: #0ea5e9;
+        box-shadow: 0 0 0 2px rgba(14, 165, 233, 0.2);
+    }
+
     resize: none;
-    padding-inline-start: 10px;
     outline: 0;
+
+    // Dark mode styles
+    body.dark & {
+        border-color: #4b5563;
+        background-color: #1f2937;
+        color: #d1d5db;
+
+        &::placeholder {
+            color: #6b7280;
+        }
+
+        &:focus {
+            border-color: #0ea5e9;
+            box-shadow: 0 0 0 2px rgba(14, 165, 233, 0.3);
+        }
+    }
 }
 
 .story-input {
     font-family: $font-family-serif;
-    border: 0;
+    border: 1px solid #d1d5db;
+    border-radius: 0.375rem;
     font-size: 1rem;
     height: calc(100% - 140px);
     resize: none;
-    padding-top: 0;
-    padding-bottom: 0;
-    padding-inline-end: 20px;
-    padding-inline-start: 10px;
+    padding: 0.75rem 1rem;
+    background-color: white;
+    color: #111827;
+    transition: all 0.2s ease;
+
     &::placeholder {
-        color: #ccc;
+        color: #9ca3af;
+    }
+
+    &:focus {
+        outline: none;
+        border-color: #0ea5e9;
+        box-shadow: 0 0 0 2px rgba(14, 165, 233, 0.2);
+    }
+
+    // Dark mode styles
+    body.dark & {
+        border-color: #4b5563;
+        background-color: #1f2937;
+        color: #f9fafb;
+
+        &::placeholder {
+            color: #6b7280;
+        }
+
+        &:focus {
+            border-color: #0ea5e9;
+            box-shadow: 0 0 0 2px rgba(14, 165, 233, 0.3);
+        }
     }
 }
 
@@ -51,10 +140,45 @@
 
 .loading-container {
     font-size: 0.9rem;
-    color: #ccc;
+    color: #9ca3af;
+
+    // Dark mode styles
+    body.dark & {
+        color: #6b7280;
+    }
 }
 
-.story-angles {
-    max-height: 110px;
-    overflow-y: auto;
+// Additional styling for better visual hierarchy
+.write-container {
+    .editor-section {
+        background-color: white;
+        border-radius: 0.5rem;
+        box-shadow:
+            0 1px 3px 0 rgba(0, 0, 0, 0.1),
+            0 1px 2px 0 rgba(0, 0, 0, 0.06);
+        padding: 1.5rem;
+        margin-bottom: 1rem;
+
+        // Dark mode styles
+        body.dark & {
+            background-color: #1f2937;
+            box-shadow:
+                0 1px 3px 0 rgba(0, 0, 0, 0.3),
+                0 1px 2px 0 rgba(0, 0, 0, 0.2);
+        }
+    }
+
+    .field-label {
+        font-weight: 600;
+        color: #374151;
+        margin-bottom: 0.5rem;
+        font-size: 0.875rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+
+        // Dark mode styles
+        body.dark & {
+            color: #d1d5db;
+        }
+    }
 }

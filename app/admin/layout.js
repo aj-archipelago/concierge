@@ -11,8 +11,8 @@ export default async function AdminLayout({ children }) {
     }
 
     return (
-        <div className="min-h-screen bg-gray-100">
-            <nav className="bg-white shadow-sm">
+        <div className="min-h-screen bg-gray-100 dark:bg-gray-900">
+            <nav className="bg-white dark:bg-gray-800 shadow-sm">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                     <div className="flex justify-between h-16">
                         <div className="flex">
@@ -22,7 +22,7 @@ export default async function AdminLayout({ children }) {
                 </div>
             </nav>
 
-            <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8 overflow-auto">
+            <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8 overflow-auto bg-white dark:bg-gray-800 rounded-lg shadow-sm">
                 {children}
             </main>
         </div>
