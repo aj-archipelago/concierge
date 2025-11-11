@@ -6,17 +6,41 @@ export function cn(...inputs) {
 }
 
 /**
- * Filters out duplicate Lucide icons by removing aliases
+ * Filters out duplicate Lucide icons by removing aliases and non-icon exports
  * @param {Object} icons - The Icons object from lucide-react
- * @returns {string[]} Array of unique icon names without aliases
+ * @returns {string[]} Array of unique valid icon component names
  */
 export function getUniqueLucideIcons(icons) {
     const iconNames = Object.keys(icons);
     const uniqueIcons = new Set();
     const seenIcons = new Map(); // Map to track which icons are aliases
 
+    // Known non-icon exports to exclude
+    const nonIconExports = new Set(["createLucideIcon", "icons"]);
+
+    // Helper to check if an export is a valid React component
+    const isValidIconComponent = (iconName, iconValue) => {
+        // Skip non-icon exports
+        if (nonIconExports.has(iconName)) return false;
+
+        // Must be a function or an object with a render function (forwardRef component)
+        return (
+            typeof iconValue === "function" ||
+            (typeof iconValue === "object" &&
+                iconValue !== null &&
+                typeof iconValue.render === "function")
+        );
+    };
+
     // First pass: identify the primary names (without common alias suffixes)
     iconNames.forEach((iconName) => {
+        const iconValue = icons[iconName];
+
+        // Skip if not a valid icon component
+        if (!isValidIconComponent(iconName, iconValue)) {
+            return;
+        }
+
         // Remove common alias suffixes
         const baseName = iconName
             .replace(/Icon$/, "") // Remove "Icon" suffix
