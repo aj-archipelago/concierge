@@ -1,5 +1,6 @@
 import { clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
+import { isValidElementType } from "react-is";
 
 export function cn(...inputs) {
     return twMerge(clsx(inputs));
@@ -23,13 +24,9 @@ export function getUniqueLucideIcons(icons) {
         // Skip non-icon exports
         if (nonIconExports.has(iconName)) return false;
 
-        // Must be a function or an object with a render function (forwardRef component)
-        return (
-            typeof iconValue === "function" ||
-            (typeof iconValue === "object" &&
-                iconValue !== null &&
-                typeof iconValue.render === "function")
-        );
+        // Use React's official API to validate component types
+        // This handles function components, forwardRef components, memo components, etc.
+        return isValidElementType(iconValue);
     };
 
     // First pass: identify the primary names (without common alias suffixes)
