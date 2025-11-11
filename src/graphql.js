@@ -27,10 +27,6 @@ const getClient = (serverUrl, useBlueGraphQL) => {
 
     const httpLink = new HttpLink({
         uri: graphqlEndpoint,
-        fetchOptions: {
-            // Set timeout to 600 seconds (10 minutes) for long-running requests
-            signal: AbortSignal.timeout(600000),
-        },
     });
 
     const wsLink = new GraphQLWsLink(
