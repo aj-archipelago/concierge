@@ -1,7 +1,11 @@
 import { NextResponse } from "next/server";
 import Chat from "../../models/chat.mjs";
 import { getCurrentUser, handleError } from "../../utils/auth";
-import { deleteChatIdFromRecentList, getChatById } from "../_lib";
+import {
+    deleteChatIdFromRecentList,
+    getChatById,
+    sanitizeMessage,
+} from "../_lib";
 
 // Handle POST request to add a message to an existing chat for the current user
 export async function POST(req, { params }) {
@@ -26,7 +30,14 @@ export async function POST(req, { params }) {
             throw new Error("Chat not found");
         }
 
-        return NextResponse.json(chat);
+        // Sanitize messages in response to remove Mongoose metadata
+        const chatObj = chat.toObject ? chat.toObject() : chat;
+        const sanitizedMessages = (chatObj.messages || []).map(sanitizeMessage);
+
+        return NextResponse.json({
+            ...chatObj,
+            messages: sanitizedMessages,
+        });
     } catch (error) {
         return handleError(error);
     }
@@ -81,6 +92,11 @@ export async function PUT(req, { params }) {
         const currentUser = await getCurrentUser(false);
         const body = await req.json();
 
+        // Remove chatId from body if present (it's not part of the schema, just used for routing)
+        if (body.chatId) {
+            delete body.chatId;
+        }
+
         // First, get the existing chat to preserve server-generated messages
         const existingChat = await Chat.findOne({
             _id: id,
@@ -96,6 +112,14 @@ export async function PUT(req, { params }) {
             // Only preserve server messages if we're not clearing the chat
             // (when messages array is empty, we're clearing the chat)
             if (body.messages.length > 0) {
+                // Sanitize messages to remove Mongoose metadata fields (defense in depth)
+                const sanitizedMessages = body.messages.map((msg) => {
+                    if (!msg || typeof msg !== "object") return msg;
+                    // Remove Mongoose metadata fields that shouldn't be in updates
+                    const { createdAt, updatedAt, ...cleanMsg } = msg;
+                    return cleanMsg;
+                });
+
                 // Find all server-generated messages in the existing chat
                 const serverGeneratedMessages = existingChat.messages.filter(
                     (msg) => msg.isServerGenerated === true,
@@ -103,24 +127,25 @@ export async function PUT(req, { params }) {
 
                 // Create a Map of message IDs from incoming messages for quick lookup
                 const incomingMessagesMap = new Map(
-                    body.messages.map((msg) => [msg._id?.toString(), msg]),
+                    sanitizedMessages.map((msg) => [msg._id?.toString(), msg]),
                 );
 
                 // Add server-generated messages that aren't in the incoming messages
                 for (const serverMsg of serverGeneratedMessages) {
                     const msgId = serverMsg._id?.toString();
-                    if (!incomingMessagesMap.has(msgId)) {
-                        // Add to the body.messages array
-                        body.messages.push(serverMsg);
+                    if (msgId && !incomingMessagesMap.has(msgId)) {
+                        sanitizedMessages.push(sanitizeMessage(serverMsg));
                     }
                 }
 
                 // Sort messages by sentTime to maintain chronological order
-                body.messages.sort((a, b) => {
+                sanitizedMessages.sort((a, b) => {
                     const timeA = new Date(a.sentTime).getTime();
                     const timeB = new Date(b.sentTime).getTime();
                     return timeA - timeB;
                 });
+
+                body.messages = sanitizedMessages;
 
                 // One-way gate: if chat has messages, mark it as used
                 body.isUnused = false;
@@ -138,8 +163,25 @@ export async function PUT(req, { params }) {
             { new: true },
         );
 
-        return NextResponse.json(chat);
+        if (!chat) {
+            throw new Error("Failed to update chat");
+        }
+
+        // Sanitize messages in response to remove Mongoose metadata
+        const chatObj = chat.toObject ? chat.toObject() : chat;
+        const sanitizedMessages = (chatObj.messages || []).map(sanitizeMessage);
+
+        return NextResponse.json({
+            ...chatObj,
+            messages: sanitizedMessages,
+        });
     } catch (error) {
+        console.error("Error in PUT /api/chats/[id]:", error);
+        console.error("Error details:", {
+            message: error.message,
+            stack: error.stack,
+            name: error.name,
+        });
         return handleError(error);
     }
 }
