@@ -198,7 +198,7 @@ function CreatingAppletDialog({ isVisible, containerRef: parentContainerRef }) {
 
     return (
         <div
-            className="fixed bg-white/5 dark:bg-black/20 backdrop-blur-sm flex items-center justify-center z-10 pointer-events-none"
+            className="fixed bg-white/5 dark:bg-black/20 backdrop-blur-sm flex items-center justify-center z-50 pointer-events-none"
             style={{
                 top: `${position.top}px`,
                 left: `${position.left}px`,
@@ -912,14 +912,14 @@ export default function PreviewTabs({
                 <TabsTrigger value="files">{t("Files")}</TabsTrigger>
             </TabsList>
 
+            <CreatingAppletDialog
+                isVisible={showCreatingDialog}
+                containerRef={scrollableContainerRef}
+            />
             <div
                 ref={scrollableContainerRef}
                 className="border rounded-md shadow-md bg-white dark:bg-gray-800 dark:border-gray-600 flex-1 min-w-0 overflow-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent hover:scrollbar-thumb-gray-400 relative"
             >
-                <CreatingAppletDialog
-                    isVisible={showCreatingDialog}
-                    containerRef={scrollableContainerRef}
-                />
                 <div className="flex flex-col h-full">
                     <div className="flex-1 p-4">
                         <TabsContent

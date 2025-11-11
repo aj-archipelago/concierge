@@ -79,7 +79,7 @@ function RemoteUrlInputUI({
                 <X />
             </button>
             <input
-                className="lb-input flex-grow flex focus:outline-none mx-2 p-2 border-2 border-gray-300 rounded-md shadow-lg text-xs"
+                className="flex-grow flex focus:outline-none mx-2 p-2 border-2 border-gray-300 rounded-md shadow-lg text-base md:text-xs"
                 type="text"
                 value={inputUrl}
                 onChange={(e) => setInputUrl(e.target.value)}

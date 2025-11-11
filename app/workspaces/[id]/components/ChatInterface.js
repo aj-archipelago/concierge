@@ -328,7 +328,7 @@ export default function ChatInterface({
                         <div className="flex items-center">
                             <TextareaAutosize
                                 className={cn(
-                                    "w-full border-0 outline-none focus:shadow-none text-sm focus:ring-0 py-3 resize-none dark:bg-transparent px-3 rounded-s max-h-24 overflow-y-auto dark:text-gray-100",
+                                    "w-full border-0 outline-none focus:shadow-none text-base md:text-sm focus:ring-0 py-3 resize-none dark:bg-transparent px-3 rounded-s max-h-24 overflow-y-auto dark:text-gray-100",
                                     direction === "rtl"
                                         ? "direction-rtl"
                                         : "direction-ltr",

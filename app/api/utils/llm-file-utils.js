@@ -110,3 +110,129 @@ export async function getAnyAgenticLLM(LLM) {
     }
     return llm;
 }
+
+/**
+ * Build variables for workspace prompt query
+ * Always returns chatHistory format with system message and user message
+ * @param {Object} params
+ * @param {string} params.systemPrompt - Workspace system prompt (workspace context)
+ * @param {string} params.prompt - Prompt text
+ * @param {string} params.text - User input text
+ * @param {Array} params.files - Array of files (optional)
+ * @param {Array} params.chatHistory - Existing chat history (optional)
+ * @returns {Promise<Object>} Variables object with chatHistory for GraphQL query
+ */
+export async function buildWorkspacePromptVariables({
+    systemPrompt,
+    prompt,
+    text,
+    files = [],
+    chatHistory = null,
+}) {
+    // Combine prompt + text for user message
+    const combinedUserText = prompt
+        ? text
+            ? `${prompt}\n\n${text}`
+            : prompt
+        : text || "";
+
+    const fileContent =
+        files && files.length > 0 ? await prepareFileContentForLLM(files) : [];
+
+    let finalChatHistory = [];
+
+    if (chatHistory && Array.isArray(chatHistory) && chatHistory.length > 0) {
+        // Use provided chatHistory, but add files to last user message if present
+        finalChatHistory = [...chatHistory];
+
+        if (fileContent.length > 0) {
+            // Find last user message and add files
+            let foundUserMessage = false;
+            for (let i = finalChatHistory.length - 1; i >= 0; i--) {
+                if (finalChatHistory[i].role === "user") {
+                    // Ensure content is an array
+                    if (!Array.isArray(finalChatHistory[i].content)) {
+                        finalChatHistory[i].content = [
+                            JSON.stringify({
+                                type: "text",
+                                text: finalChatHistory[i].content || "",
+                            }),
+                        ];
+                    }
+                    // Add file content
+                    finalChatHistory[i].content = [
+                        ...finalChatHistory[i].content,
+                        ...fileContent,
+                    ];
+                    foundUserMessage = true;
+                    break;
+                }
+            }
+            // If no user message found, append a new user message with just the files
+            if (!foundUserMessage) {
+                finalChatHistory.push({
+                    role: "user",
+                    content: fileContent,
+                });
+            }
+        }
+    } else {
+        // Build new chatHistory
+        finalChatHistory = [];
+
+        // Add system message if systemPrompt exists
+        if (systemPrompt) {
+            finalChatHistory.push({
+                role: "system",
+                content: [
+                    JSON.stringify({
+                        type: "text",
+                        text: systemPrompt,
+                    }),
+                ],
+            });
+        }
+
+        // Add user message with combined prompt+text and files
+        const userContent = [];
+        if (combinedUserText) {
+            // If both prompt and text exist, separate them explicitly
+            if (prompt && text) {
+                // Add instructions/prompt as first content item
+                userContent.push(
+                    JSON.stringify({
+                        type: "text",
+                        text: prompt,
+                    }),
+                );
+                // Add user input explicitly marked
+                userContent.push(
+                    JSON.stringify({
+                        type: "text",
+                        text: `\n\n--- USER INPUT ---\n${text}\n--- END USER INPUT ---`,
+                    }),
+                );
+            } else {
+                // Single combined text (backward compatible)
+                userContent.push(
+                    JSON.stringify({
+                        type: "text",
+                        text: combinedUserText,
+                    }),
+                );
+            }
+        }
+        userContent.push(...fileContent);
+
+        if (userContent.length > 0) {
+            finalChatHistory.push({
+                role: "user",
+                content: userContent,
+            });
+        }
+    }
+
+    return {
+        chatHistory: finalChatHistory,
+    };
+}

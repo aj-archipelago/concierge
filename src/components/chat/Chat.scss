@@ -181,7 +181,10 @@ html[dir="ltr"] {
     }
 
     .message-input {
-        font-size: 13px;
+        font-size: 1rem; // 16px - prevent iOS auto-zoom
+        @media (min-width: 768px) {
+            font-size: 13px;
+        }
 
         &-icon {
             padding: 10px;
@@ -193,13 +196,19 @@ html[dir="ltr"] {
         &-textarea {
             padding: 10px;
             padding-inline-end: 0;
-            font-size: 13px;
+            font-size: 1rem; // 16px - prevent iOS auto-zoom
+            @media (min-width: 768px) {
+                font-size: 13px;
+            }
         }
 
         &-send {
             padding: 0;
             width: 36px;
-            font-size: 13px;
+            font-size: 1rem; // 16px - prevent iOS auto-zoom
+            @media (min-width: 768px) {
+                font-size: 13px;
+            }
         }
     }
 
@@ -587,7 +596,10 @@ html[dir="ltr"] {
         font-size: 0.7rem;
     }
     .url-input {
-        font-size: 0.7rem;
+        font-size: 1rem; // 16px - prevent iOS auto-zoom
+        @media (min-width: 768px) {
+            font-size: 0.7rem;
+        }
     }
 }
 

@@ -265,7 +265,7 @@ function ClipboardPaste({ onAdd }) {
     return (
         <div className="flex flex-col gap-4">
             <textarea
-                className="lb-input text-sm"
+                className="lb-input"
                 placeholder={t("Paste text here...")}
                 value={text}
                 rows={6}

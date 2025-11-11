@@ -309,7 +309,7 @@ function Translation({
                                 return (
                                     <textarea
                                         readOnly
-                                        className="w-full h-full lb-input p-2 border border-gray-300 dark:border-gray-600 rounded-md resize-none bg-gray-100 dark:bg-gray-800 text-base sm:text-sm"
+                                        className="w-full h-full lb-input p-2 border border-gray-300 dark:border-gray-600 rounded-md resize-none bg-gray-100 dark:bg-gray-800"
                                         dir={languageStyles.direction}
                                         style={{
                                             fontFamily:

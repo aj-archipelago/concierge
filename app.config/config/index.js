@@ -37,12 +37,19 @@ const LLM_IDENTIFIERS = {
     grok4fastreasoningazure: "grok4fastreasoningazure",
     grok4fastnonreasoningazure: "grok4fastnonreasoningazure",
     labeebagent: "labeebagent",
+    labeebresearchagent: "labeebresearchagent",
 };
+
+// Model names used in Cortex
+const CORTEX_AGENTIC_MODEL = "labeeb-agent";
 
 // The entire Labeeb application can be configured here
 // Note that all assets and locales are copied to the public/app and src/locales directories respectively
 // by the prebuild.js script
 const config = {
+    cortex: {
+        AGENTIC_MODEL: CORTEX_AGENTIC_MODEL,
+    },
     global: {
         siteTitle: "Labeeb",
         getLogo: (language) =>
@@ -190,7 +197,14 @@ const config = {
                 identifier: LLM_IDENTIFIERS.labeebagent,
                 name: "Labeeb Agent",
                 cortexPathwayName: "run_labeeb_agent",
-                cortexModelName: "labeeb-agent",
+                cortexModelName: CORTEX_AGENTIC_MODEL,
+                isAgentic: true,
+            },
+            {
+                identifier: LLM_IDENTIFIERS.labeebresearchagent,
+                name: "Labeeb Research Agent",
+                cortexPathwayName: "run_labeeb_research_agent",
+                cortexModelName: CORTEX_AGENTIC_MODEL,
                 isAgentic: true,
             },
         ],
