@@ -1,7 +1,11 @@
 import { NextResponse } from "next/server";
 import Chat from "../../models/chat.mjs";
 import { getCurrentUser, handleError } from "../../utils/auth";
-import { deleteChatIdFromRecentList, getChatById, sanitizeMessage } from "../_lib";
+import {
+    deleteChatIdFromRecentList,
+    getChatById,
+    sanitizeMessage,
+} from "../_lib";
 
 // Handle POST request to add a message to an existing chat for the current user
 export async function POST(req, { params }) {

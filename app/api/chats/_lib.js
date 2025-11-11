@@ -194,11 +194,11 @@ export async function getChatById(chatId) {
         selectedEntityId,
         researchMode,
     } = chat;
-    
+
     // Sanitize messages to remove Mongoose metadata fields (createdAt, updatedAt)
     // that shouldn't be sent to the client
     const sanitizedMessages = (messages || []).map(sanitizeMessage);
-    
+
     const result = {
         _id,
         title,
