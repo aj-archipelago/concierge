@@ -6,8 +6,63 @@ import { Types } from "mongoose";
 import { parseSearchQuery, matchesAllTerms } from "../utils/search-parser";
 
 /**
+ * Removes artifacts from the tool field of a message to prevent storing large base64 data
+ * Artifacts should not be stored in messages as they make requests too large
+ */
+function removeArtifactsFromTool(tool) {
+    if (!tool) return tool;
+
+    try {
+        // Parse tool if it's a string
+        const toolObj = typeof tool === "string" ? JSON.parse(tool) : tool;
+
+        // If it's not an object, return as-is
+        if (typeof toolObj !== "object" || toolObj === null) {
+            return tool;
+        }
+
+        // Remove artifacts field if present
+        if ("artifacts" in toolObj) {
+            const { artifacts, ...toolWithoutArtifacts } = toolObj;
+            // Stringify back if original was a string
+            return typeof tool === "string"
+                ? JSON.stringify(toolWithoutArtifacts)
+                : toolWithoutArtifacts;
+        }
+
+        return tool;
+    } catch (e) {
+        // If parsing fails, return original tool
+        console.warn("Failed to parse tool field for artifact removal:", e);
+        return tool;
+    }
+}
+
+/**
+ * Removes artifacts from all messages to prevent storing large base64 data
+ */
+export function removeArtifactsFromMessages(messages) {
+    if (!Array.isArray(messages)) return messages;
+
+    return messages.map((msg) => {
+        if (!msg || typeof msg !== "object") return msg;
+
+        // Remove artifacts from tool field
+        if (msg.tool) {
+            return {
+                ...msg,
+                tool: removeArtifactsFromTool(msg.tool),
+            };
+        }
+
+        return msg;
+    });
+}
+
+/**
  * Sanitizes a message object to remove Mongoose metadata fields (createdAt, updatedAt)
- * that shouldn't be sent to the client or included in updates
+ * that shouldn't be sent to the client or included in updates.
+ * Also removes artifacts from tool field to prevent sending large base64 data.
  */
 export function sanitizeMessage(msg) {
     if (!msg) return null;
@@ -15,7 +70,7 @@ export function sanitizeMessage(msg) {
     return {
         payload: msgObj.payload,
         sender: msgObj.sender,
-        tool: msgObj.tool || null,
+        tool: removeArtifactsFromTool(msgObj.tool) || null,
         sentTime: msgObj.sentTime,
         direction: msgObj.direction,
         position: msgObj.position,
@@ -122,8 +177,12 @@ export async function createNewChat(data) {
           ? [messages]
           : [];
 
+    // Remove artifacts from messages before saving to prevent storing large base64 data
+    const messagesWithoutArtifacts =
+        removeArtifactsFromMessages(normalizedMessages);
+
     // Only look for existing unused chat if we're creating a new empty chat
-    if (normalizedMessages.length === 0) {
+    if (messagesWithoutArtifacts.length === 0) {
         // Find the latest unused chat (one-way gate: once used, never unused again)
         const unusedChat = await Chat.findOne({
             userId: currentUser._id,
@@ -138,9 +197,9 @@ export async function createNewChat(data) {
 
     const chat = new Chat({
         userId,
-        messages: normalizedMessages,
-        isUnused: normalizedMessages.length === 0,
-        title: title || getSimpleTitle(normalizedMessages[0] || ""),
+        messages: messagesWithoutArtifacts,
+        isUnused: messagesWithoutArtifacts.length === 0,
+        title: title || getSimpleTitle(messagesWithoutArtifacts[0] || ""),
     });
 
     await chat.save();
