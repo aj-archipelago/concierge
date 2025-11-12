@@ -116,15 +116,19 @@ export async function PUT(req, { params }) {
             // (when messages array is empty, we're clearing the chat)
             if (body.messages.length > 0) {
                 // Remove artifacts from messages before saving to prevent storing large base64 data
-                const messagesWithoutArtifacts = removeArtifactsFromMessages(body.messages);
-                
+                const messagesWithoutArtifacts = removeArtifactsFromMessages(
+                    body.messages,
+                );
+
                 // Sanitize messages to remove Mongoose metadata fields (defense in depth)
-                const sanitizedMessages = messagesWithoutArtifacts.map((msg) => {
-                    if (!msg || typeof msg !== "object") return msg;
-                    // Remove Mongoose metadata fields that shouldn't be in updates
-                    const { createdAt, updatedAt, ...cleanMsg } = msg;
-                    return cleanMsg;
-                });
+                const sanitizedMessages = messagesWithoutArtifacts.map(
+                    (msg) => {
+                        if (!msg || typeof msg !== "object") return msg;
+                        // Remove Mongoose metadata fields that shouldn't be in updates
+                        const { createdAt, updatedAt, ...cleanMsg } = msg;
+                        return cleanMsg;
+                    },
+                );
 
                 // Find all server-generated messages in the existing chat
                 const serverGeneratedMessages = existingChat.messages.filter(

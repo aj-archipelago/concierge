@@ -11,25 +11,25 @@ import { parseSearchQuery, matchesAllTerms } from "../utils/search-parser";
  */
 function removeArtifactsFromTool(tool) {
     if (!tool) return tool;
-    
+
     try {
         // Parse tool if it's a string
         const toolObj = typeof tool === "string" ? JSON.parse(tool) : tool;
-        
+
         // If it's not an object, return as-is
         if (typeof toolObj !== "object" || toolObj === null) {
             return tool;
         }
-        
+
         // Remove artifacts field if present
         if ("artifacts" in toolObj) {
             const { artifacts, ...toolWithoutArtifacts } = toolObj;
             // Stringify back if original was a string
-            return typeof tool === "string" 
-                ? JSON.stringify(toolWithoutArtifacts) 
+            return typeof tool === "string"
+                ? JSON.stringify(toolWithoutArtifacts)
                 : toolWithoutArtifacts;
         }
-        
+
         return tool;
     } catch (e) {
         // If parsing fails, return original tool
@@ -43,10 +43,10 @@ function removeArtifactsFromTool(tool) {
  */
 export function removeArtifactsFromMessages(messages) {
     if (!Array.isArray(messages)) return messages;
-    
+
     return messages.map((msg) => {
         if (!msg || typeof msg !== "object") return msg;
-        
+
         // Remove artifacts from tool field
         if (msg.tool) {
             return {
@@ -54,7 +54,7 @@ export function removeArtifactsFromMessages(messages) {
                 tool: removeArtifactsFromTool(msg.tool),
             };
         }
-        
+
         return msg;
     });
 }
@@ -178,7 +178,8 @@ export async function createNewChat(data) {
           : [];
 
     // Remove artifacts from messages before saving to prevent storing large base64 data
-    const messagesWithoutArtifacts = removeArtifactsFromMessages(normalizedMessages);
+    const messagesWithoutArtifacts =
+        removeArtifactsFromMessages(normalizedMessages);
 
     // Only look for existing unused chat if we're creating a new empty chat
     if (messagesWithoutArtifacts.length === 0) {
