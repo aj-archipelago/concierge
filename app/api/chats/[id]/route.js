@@ -5,6 +5,7 @@ import {
     deleteChatIdFromRecentList,
     getChatById,
     sanitizeMessage,
+    removeArtifactsFromMessages,
 } from "../_lib";
 
 // Handle POST request to add a message to an existing chat for the current user
@@ -18,17 +19,19 @@ export async function POST(req, { params }) {
         const currentUser = await getCurrentUser(false);
         const { message } = await req.json();
 
-        const chat = await Chat.findOne({ _id: id, userId: currentUser._id });
-        if (chat) {
-            chat.messages = [...chat.messages, message];
-            // One-way gate: if chat has messages, mark it as used
-            chat.isUnused = false;
-            await chat.save();
-        }
+        // Remove artifacts from message before saving to prevent storing large base64 data
+        const messagesWithoutArtifacts = removeArtifactsFromMessages([message]);
+        const messageWithoutArtifacts = messagesWithoutArtifacts[0] || message;
 
+        const chat = await Chat.findOne({ _id: id, userId: currentUser._id });
         if (!chat) {
             throw new Error("Chat not found");
         }
+
+        chat.messages = [...chat.messages, messageWithoutArtifacts];
+        // One-way gate: if chat has messages, mark it as used
+        chat.isUnused = false;
+        await chat.save();
 
         // Sanitize messages in response to remove Mongoose metadata
         const chatObj = chat.toObject ? chat.toObject() : chat;
@@ -112,8 +115,11 @@ export async function PUT(req, { params }) {
             // Only preserve server messages if we're not clearing the chat
             // (when messages array is empty, we're clearing the chat)
             if (body.messages.length > 0) {
+                // Remove artifacts from messages before saving to prevent storing large base64 data
+                const messagesWithoutArtifacts = removeArtifactsFromMessages(body.messages);
+                
                 // Sanitize messages to remove Mongoose metadata fields (defense in depth)
-                const sanitizedMessages = body.messages.map((msg) => {
+                const sanitizedMessages = messagesWithoutArtifacts.map((msg) => {
                     if (!msg || typeof msg !== "object") return msg;
                     // Remove Mongoose metadata fields that shouldn't be in updates
                     const { createdAt, updatedAt, ...cleanMsg } = msg;
