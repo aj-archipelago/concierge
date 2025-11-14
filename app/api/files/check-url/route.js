@@ -5,7 +5,7 @@ import { getCurrentUser } from "../../utils/auth.js";
  * GET /api/files/check-url
  * Check if a file URL exists by making a server-side request
  * This avoids CORS issues and doesn't rely on hash database
- * 
+ *
  * Query parameters:
  * - url: File URL to check (required)
  */
@@ -102,7 +102,10 @@ export async function GET(request) {
             if (error.name === "AbortError") {
                 console.warn(`Timeout checking file URL: ${fileUrl}`);
             } else {
-                console.warn(`Error checking file URL ${fileUrl}:`, error.message);
+                console.warn(
+                    `Error checking file URL ${fileUrl}:`,
+                    error.message,
+                );
             }
             return NextResponse.json({ exists: false });
         }
@@ -117,4 +120,3 @@ export async function GET(request) {
         );
     }
 }
-

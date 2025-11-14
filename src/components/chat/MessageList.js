@@ -29,8 +29,7 @@ import ScrollToBottom from "./ScrollToBottom";
 import StreamingMessage from "./StreamingMessage";
 import { useUpdateChat } from "../../../app/queries/chats";
 import { useApolloClient } from "@apollo/client";
-import { removeFileFromMemory } from "../../../app/workspaces/[id]/components/memoryFilesUtils";
-import { deleteFileFromChatPayload } from "../../../app/workspaces/[id]/components/chatFileUtils";
+import { purgeFile } from "../../../app/workspaces/[id]/components/chatFileUtils";
 import {
     AlertDialog,
     AlertDialogContent,
@@ -145,15 +144,22 @@ const MessageListContent = React.memo(function MessageListContent({
                 .map((t, index2) => {
                     try {
                         const obj = JSON.parse(t);
-                        
+
                         // Show deleted file indicator if it's a deleted file placeholder
-                        if (obj.hideFromClient === true && obj.isDeletedFile === true) {
-                            const deletedFilename = obj.deletedFilename || "file";
+                        if (
+                            obj.hideFromClient === true &&
+                            obj.isDeletedFile === true
+                        ) {
+                            const deletedFilename =
+                                obj.deletedFilename || "file";
                             const messageText =
                                 typeof t === "function"
-                                    ? t("File no longer available: {{filename}}", {
-                                          filename: deletedFilename,
-                                      })
+                                    ? t(
+                                          "File no longer available: {{filename}}",
+                                          {
+                                              filename: deletedFilename,
+                                          },
+                                      )
                                     : `File no longer available: ${deletedFilename}`;
                             return (
                                 <div
@@ -169,7 +175,7 @@ const MessageListContent = React.memo(function MessageListContent({
                                 </div>
                             );
                         }
-                        
+
                         // Skip other items marked to be hidden from client
                         if (obj.hideFromClient === true) {
                             return null;
@@ -467,7 +473,10 @@ const MessageList = React.memo(
                 let filename = null;
                 try {
                     fileObj = JSON.parse(message.payload[fileIndex]);
-                    if (fileObj.type === "image_url" || fileObj.type === "file") {
+                    if (
+                        fileObj.type === "image_url" ||
+                        fileObj.type === "file"
+                    ) {
                         filename =
                             fileObj.originalFilename ||
                             decodeURIComponent(
@@ -483,62 +492,29 @@ const MessageList = React.memo(
                     console.error("Error parsing file object:", e);
                 }
 
-                // Delete from cloud and get replacement payload item
-                const updatedPayloadItem = fileObj
-                    ? await deleteFileFromChatPayload(fileObj, t, filename)
-                    : null;
-
-                // Replace or remove the file
-                const updatedPayload = [...message.payload];
-                if (updatedPayloadItem) {
-                    updatedPayload[fileIndex] = updatedPayloadItem;
-                } else {
-                    updatedPayload.splice(fileIndex, 1);
+                if (!fileObj) {
+                    console.error("Could not parse file object");
+                    return;
                 }
 
-                const updatedMessage = {
-                    ...message,
-                    payload: updatedPayload,
-                };
-
-                // Create updated messages array
-                const updatedMessages = [...messages];
-                updatedMessages[messageIndex] = updatedMessage;
-
+                // Use unified purgeFile function to handle all deletion scenarios
                 try {
-                    // Update the chat with the modified messages
-                    // Note: This function is designed to be extended with server-side DELETE later
-                    await updateChatHook.mutateAsync({
-                        chatId: String(chatId),
-                        messages: updatedMessages,
+                    await purgeFile({
+                        fileObj,
+                        apolloClient,
+                        contextId,
+                        contextKey,
+                        chatId,
+                        messages,
+                        updateChatHook,
+                        t,
+                        filename,
+                        skipCloudDelete: false,
                     });
-
-                    // Also remove from memoryFiles if contextId is available
-                    if (
-                        contextId &&
-                        fileObj &&
-                        (fileObj.type === "image_url" ||
-                            fileObj.type === "file")
-                    ) {
-                        try {
-                            await removeFileFromMemory(
-                                apolloClient,
-                                contextId,
-                                contextKey,
-                                fileObj,
-                            );
-                        } catch (error) {
-                            console.error(
-                                "Failed to remove file from memoryFiles:",
-                                error,
-                            );
-                            // Don't fail the whole operation if memoryFiles update fails
-                        }
-                    }
 
                     setFileToDelete(null);
                 } catch (error) {
-                    console.error("Failed to delete file from chat:", error);
+                    console.error("Failed to purge file:", error);
                     // TODO: Show user-friendly error message
                 }
             },

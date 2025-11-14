@@ -5,7 +5,7 @@ import config from "../../../../config/index.js";
 /**
  * DELETE /api/files/delete
  * Delete a file from cloud storage using CFH (cortex-file-handler)
- * 
+ *
  * Query parameters:
  * - hash: File hash to delete (required)
  * - container: Container name (optional, defaults to CORTEX_MEDIA_PERMANENT_STORE_NAME)
@@ -23,7 +23,9 @@ export async function DELETE(request) {
 
         const { searchParams } = new URL(request.url);
         const hash = searchParams.get("hash");
-        const container = searchParams.get("container") || process.env.CORTEX_MEDIA_PERMANENT_STORE_NAME;
+        const container =
+            searchParams.get("container") ||
+            process.env.CORTEX_MEDIA_PERMANENT_STORE_NAME;
 
         if (!hash) {
             return NextResponse.json(
@@ -96,4 +98,3 @@ export async function DELETE(request) {
         );
     }
 }
-

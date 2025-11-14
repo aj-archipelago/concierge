@@ -18,7 +18,7 @@ import {
 } from "../../../app/queries/chats";
 import {
     checkFileUrlExists,
-    createFilePlaceholder,
+    purgeFile,
 } from "../../../app/workspaces/[id]/components/chatFileUtils";
 import { useStreamingMessages } from "../../hooks/useStreamingMessages";
 import { useQueryClient } from "@tanstack/react-query";
@@ -135,7 +135,8 @@ function ChatContent({
                 try {
                     const fileObj = JSON.parse(payloadItem);
                     if (
-                        (fileObj.type === "image_url" || fileObj.type === "file") &&
+                        (fileObj.type === "image_url" ||
+                            fileObj.type === "file") &&
                         !fileObj.hideFromClient
                     ) {
                         const fileUrl =
@@ -172,57 +173,58 @@ function ChatContent({
             const filesToReplace = [];
 
             await Promise.all(
-                filesToCheck.map(async ({ fileUrl, fileKey, fileObj, messageIndex, payloadIndex, messageId }) => {
-                    // Mark as checked immediately to avoid duplicate checks
-                    checkedFilesRef.current.checked.add(fileKey);
+                filesToCheck.map(
+                    async ({
+                        fileUrl,
+                        fileKey,
+                        fileObj,
+                        messageIndex,
+                        payloadIndex,
+                        messageId,
+                    }) => {
+                        // Mark as checked immediately to avoid duplicate checks
+                        checkedFilesRef.current.checked.add(fileKey);
 
-                    // Use server-side URL check (doesn't rely on hash database)
-                    const exists = await checkFileUrlExists(fileUrl);
+                        // Use server-side URL check (doesn't rely on hash database)
+                        const exists = await checkFileUrlExists(fileUrl);
 
-                    if (!exists) {
-                        filesToReplace.push({
-                            messageIndex,
-                            payloadIndex,
-                            messageId,
-                            fileObj,
-                        });
-                    }
-                }),
+                        if (!exists) {
+                            filesToReplace.push({
+                                messageIndex,
+                                payloadIndex,
+                                messageId,
+                                fileObj,
+                            });
+                        }
+                    },
+                ),
             );
 
             if (filesToReplace.length === 0) return;
 
-            // Create updated messages with placeholders
-            const updatedMessages = [...memoizedMessages];
-            let hasChanges = false;
-
-            filesToReplace.forEach(({ messageIndex, payloadIndex, fileObj }) => {
-                const message = updatedMessages[messageIndex];
-                if (!message || !Array.isArray(message.payload)) return;
-
-                const updatedPayload = [...message.payload];
-                const filename =
-                    fileObj.originalFilename ||
-                    fileObj.filename ||
-                    "file";
-                updatedPayload[payloadIndex] = createFilePlaceholder(fileObj, t, filename);
-                updatedMessages[messageIndex] = {
-                    ...message,
-                    payload: updatedPayload,
-                };
-                hasChanges = true;
-            });
-
-            if (hasChanges) {
-                try {
-                    await updateChatHook.mutateAsync({
-                        chatId: String(chatId),
-                        messages: updatedMessages,
-                    });
-                } catch (error) {
-                    console.error("Failed to update chat with missing file placeholders:", error);
-                }
-            }
+            // Use unified purgeFile function for each missing file
+            // Skip cloud deletion since file is already gone
+            await Promise.allSettled(
+                filesToReplace.map(({ fileObj }) =>
+                    purgeFile({
+                        fileObj,
+                        apolloClient: client,
+                        contextId: user?.contextId,
+                        contextKey: user?.contextKey,
+                        chatId,
+                        messages: memoizedMessages,
+                        updateChatHook,
+                        t,
+                        filename:
+                            fileObj.originalFilename ||
+                            fileObj.filename ||
+                            "file",
+                        skipCloudDelete: true, // File already gone from cloud
+                    }).catch((error) => {
+                        console.warn("Failed to purge missing file:", error);
+                    }),
+                ),
+            );
         };
 
         // Run check in background (don't block UI)

@@ -14,11 +14,10 @@ import { QUERIES } from "@/src/graphql";
 import { getFileIcon } from "@/src/utils/mediaUtils";
 import {
     saveMemoryFiles as saveMemoryFilesUtil,
-    matchesFile,
     getFileUrl,
     getFilename as getFilenameUtil,
 } from "./memoryFilesUtils";
-import { deleteFileFromChatPayload, deleteFileFromCloud } from "./chatFileUtils";
+import { purgeFiles } from "./chatFileUtils";
 import {
     AlertDialog,
     AlertDialogContent,
@@ -246,84 +245,45 @@ export default function MemoryFiles({
     };
 
     const handleRemoveFiles = async (filesToRemove) => {
+        // Filter to only valid file objects
+        const validFiles = filesToRemove.filter(
+            (file) =>
+                typeof file === "object" &&
+                (file.type === "image_url" || file.type === "file"),
+        );
+
+        if (validFiles.length === 0) {
+            clearSelection();
+            return;
+        }
+
+        // Remove from memory files in bulk first (to avoid race conditions)
         const fileIds = new Set(filesToRemove.map((file) => getFileId(file)));
         const newFiles = memoryFiles.filter(
             (file) => !fileIds.has(getFileId(file)),
         );
-
-        // Track which files are in chat messages (to avoid double cloud deletion)
-        const filesInChat = new Set();
-        if (chatId && messages.length > 0) {
-            messages.forEach((message) => {
-                if (!Array.isArray(message.payload)) return;
-                message.payload.forEach((payloadItem) => {
-                    try {
-                        const fileObj = JSON.parse(payloadItem);
-                        filesToRemove.forEach((memFile) => {
-                            if (matchesFile(memFile, fileObj) && fileObj.hash) {
-                                filesInChat.add(fileObj.hash);
-                            }
-                        });
-                    } catch (e) {
-                        // Not a JSON object
-                    }
-                });
-            });
-        }
-
-        // Delete from cloud: files NOT in chat (chat files will be deleted via deleteFileFromChatPayload)
-        await Promise.allSettled(
-            filesToRemove
-                .filter(
-                    (file) =>
-                        typeof file === "object" && file.hash && !filesInChat.has(file.hash),
-                )
-                .map((file) => deleteFileFromCloud(file.hash)),
-        );
-
-        // Remove from chat messages if chatId and updateChatHook are provided
-        if (chatId && updateChatHook && filesToRemove.length > 0 && messages.length > 0) {
-            try {
-                const updatedMessages = await Promise.all(
-                    messages.map(async (message) => {
-                        if (!Array.isArray(message.payload)) return message;
-
-                        const updatedPayload = await Promise.all(
-                            message.payload.map(async (payloadItem) => {
-                                try {
-                                    const fileObj = JSON.parse(payloadItem);
-                                    const matchesAnyFile = filesToRemove.some((memFile) =>
-                                        matchesFile(memFile, fileObj),
-                                    );
-
-                                    if (matchesAnyFile) {
-                                        return await deleteFileFromChatPayload(
-                                            fileObj,
-                                            t,
-                                            fileObj.originalFilename || fileObj.filename,
-                                        );
-                                    }
-                                } catch (e) {
-                                    // Not a JSON object, keep as is
-                                }
-                                return payloadItem;
-                            }),
-                        );
-
-                        return { ...message, payload: updatedPayload };
-                    }),
-                );
-
-                await updateChatHook.mutateAsync({
-                    chatId: String(chatId),
-                    messages: updatedMessages,
-                });
-            } catch (error) {
-                console.error("Failed to remove files from messages:", error);
-            }
-        }
-
         await saveMemoryFiles(newFiles);
+
+        // Use bulk purgeFiles function to handle all files in a single chat update
+        // This avoids race conditions when multiple files are in the same message
+        try {
+            await purgeFiles({
+                fileObjs: validFiles,
+                apolloClient,
+                contextId,
+                contextKey,
+                chatId,
+                messages,
+                updateChatHook,
+                t,
+                getFilename: getFilenameUtil,
+                skipCloudDelete: false,
+                skipMemoryFiles: true, // Already handled in bulk above
+            });
+        } catch (error) {
+            console.error("Failed to purge files:", error);
+        }
+
         clearSelection();
     };
 
