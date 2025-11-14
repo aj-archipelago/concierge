@@ -270,9 +270,10 @@ export default function Layout({ children }) {
                                 </div>
                                 {showChatbox && (
                                     <div
-                                        className="hidden sm:block basis-[302px] h-[calc(100vh-105px)]"
+                                        className="hidden sm:block h-[calc(100vh-105px)]"
                                         style={{
                                             height: "calc((var(--vh, 1vh) * 100) - 105px)",
+                                            flexShrink: 0,
                                         }}
                                     >
                                         <ChatBox />

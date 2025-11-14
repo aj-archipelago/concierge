@@ -51,7 +51,7 @@ const ChatMessages = React.memo(function ChatMessages({
 
     return (
         <div className="flex flex-col h-full">
-            <div className="hidden justify-between items-center px-3 pb-2 text-xs [.docked_&]:flex">
+            <div className="hidden justify-between items-center px-3 pb-2 text-xs [.docked_&]:hidden">
                 <ChatTopMenuDynamic
                     displayState={displayState}
                     publicChatOwner={publicChatOwner}
