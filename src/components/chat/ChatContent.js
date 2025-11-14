@@ -16,6 +16,10 @@ import {
     useUpdateChat,
     useGetChatById,
 } from "../../../app/queries/chats";
+import {
+    checkFileUrlExists,
+    createFilePlaceholder,
+} from "../../../app/workspaces/[id]/components/chatFileUtils";
 import { useStreamingMessages } from "../../hooks/useStreamingMessages";
 import { useQueryClient } from "@tanstack/react-query";
 import { useRunTask } from "../../../app/queries/notifications";
@@ -109,6 +113,122 @@ function ChatContent({
     );
     const publicChatOwner = viewingChat?.owner;
     const isChatLoading = chat?.isChatLoading;
+
+    // Check file URLs in the background and replace missing files with placeholders
+    const checkedFilesRef = useRef({ checked: new Set(), chatId: null });
+    useEffect(() => {
+        if (!chatId || !memoizedMessages.length || viewingReadOnlyChat) {
+            return;
+        }
+
+        // Reset checked files when chat changes
+        if (chatId !== checkedFilesRef.current.chatId) {
+            checkedFilesRef.current = { checked: new Set(), chatId };
+        }
+
+        // Extract all file URLs from messages
+        const filesToCheck = [];
+        memoizedMessages.forEach((message, messageIndex) => {
+            if (!Array.isArray(message.payload)) return;
+
+            message.payload.forEach((payloadItem, payloadIndex) => {
+                try {
+                    const fileObj = JSON.parse(payloadItem);
+                    if (
+                        (fileObj.type === "image_url" || fileObj.type === "file") &&
+                        !fileObj.hideFromClient
+                    ) {
+                        const fileUrl =
+                            fileObj.url ||
+                            fileObj.image_url?.url ||
+                            fileObj.gcs ||
+                            fileObj.file;
+                        const fileKey = `${message.id || message._id}-${payloadIndex}-${fileUrl}`;
+
+                        // Skip if we've already checked this file
+                        if (checkedFilesRef.current.checked.has(fileKey)) {
+                            return;
+                        }
+
+                        filesToCheck.push({
+                            messageIndex,
+                            payloadIndex,
+                            messageId: message.id || message._id,
+                            fileObj,
+                            fileUrl,
+                            fileKey,
+                        });
+                    }
+                } catch (e) {
+                    // Not a JSON object, skip
+                }
+            });
+        });
+
+        if (filesToCheck.length === 0) return;
+
+        // Check files in the background
+        const checkFiles = async () => {
+            const filesToReplace = [];
+
+            await Promise.all(
+                filesToCheck.map(async ({ fileUrl, fileKey, fileObj, messageIndex, payloadIndex, messageId }) => {
+                    // Mark as checked immediately to avoid duplicate checks
+                    checkedFilesRef.current.checked.add(fileKey);
+
+                    // Use server-side URL check (doesn't rely on hash database)
+                    const exists = await checkFileUrlExists(fileUrl);
+
+                    if (!exists) {
+                        filesToReplace.push({
+                            messageIndex,
+                            payloadIndex,
+                            messageId,
+                            fileObj,
+                        });
+                    }
+                }),
+            );
+
+            if (filesToReplace.length === 0) return;
+
+            // Create updated messages with placeholders
+            const updatedMessages = [...memoizedMessages];
+            let hasChanges = false;
+
+            filesToReplace.forEach(({ messageIndex, payloadIndex, fileObj }) => {
+                const message = updatedMessages[messageIndex];
+                if (!message || !Array.isArray(message.payload)) return;
+
+                const updatedPayload = [...message.payload];
+                const filename =
+                    fileObj.originalFilename ||
+                    fileObj.filename ||
+                    "file";
+                updatedPayload[payloadIndex] = createFilePlaceholder(fileObj, t, filename);
+                updatedMessages[messageIndex] = {
+                    ...message,
+                    payload: updatedPayload,
+                };
+                hasChanges = true;
+            });
+
+            if (hasChanges) {
+                try {
+                    await updateChatHook.mutateAsync({
+                        chatId: String(chatId),
+                        messages: updatedMessages,
+                    });
+                } catch (error) {
+                    console.error("Failed to update chat with missing file placeholders:", error);
+                }
+            }
+        };
+
+        // Run check in background (don't block UI)
+        checkFiles();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [memoizedMessages, chatId, viewingReadOnlyChat, t, updateChatHook]);
 
     const {
         isStreaming,

@@ -233,5 +233,6 @@
     "No files indexed": "No files indexed",
     "No files match": "No files match",
     "No files match your search. Try a different filter.": "No files match your search. Try a different filter.",
-    "Filter files...": "Filter files..."
+    "Filter files...": "Filter files...",
+    "File no longer available: {{filename}}": "File no longer available: {{filename}}"
 }

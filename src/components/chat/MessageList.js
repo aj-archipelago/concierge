@@ -8,7 +8,7 @@ import React, {
     useState,
 } from "react";
 import { useTranslation } from "react-i18next";
-import { UserCircle, X } from "lucide-react";
+import { UserCircle, X, FileX } from "lucide-react";
 import Loader from "../../../app/components/loader";
 import classNames from "../../../app/utils/class-names";
 import config from "../../../config";
@@ -145,7 +145,32 @@ const MessageListContent = React.memo(function MessageListContent({
                 .map((t, index2) => {
                     try {
                         const obj = JSON.parse(t);
-                        // Skip items marked to be hidden from client
+                        
+                        // Show deleted file indicator if it's a deleted file placeholder
+                        if (obj.hideFromClient === true && obj.isDeletedFile === true) {
+                            const deletedFilename = obj.deletedFilename || "file";
+                            const messageText =
+                                typeof t === "function"
+                                    ? t("File no longer available: {{filename}}", {
+                                          filename: deletedFilename,
+                                      })
+                                    : `File no longer available: ${deletedFilename}`;
+                            return (
+                                <div
+                                    key={`deleted-file-${index}-${index2}`}
+                                    className="bg-neutral-100 dark:bg-gray-700 py-2 ps-2 pe-2 m-2 shadow-md rounded-lg border dark:border-gray-600 flex gap-2 items-center opacity-60"
+                                    title={messageText}
+                                    dir="auto"
+                                >
+                                    <FileX className="w-6 h-6 text-gray-500 dark:text-gray-400 flex-shrink-0 rtl:scale-x-[-1]" />
+                                    <span className="truncate text-gray-500 dark:text-gray-400 italic">
+                                        {messageText}
+                                    </span>
+                                </div>
+                            );
+                        }
+                        
+                        // Skip other items marked to be hidden from client
                         if (obj.hideFromClient === true) {
                             return null;
                         }
