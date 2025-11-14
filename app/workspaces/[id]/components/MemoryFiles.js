@@ -18,6 +18,7 @@ import {
     getFileUrl,
     getFilename as getFilenameUtil,
 } from "./memoryFilesUtils";
+import { deleteFileFromChatPayload, deleteFileFromCloud } from "./chatFileUtils";
 import {
     AlertDialog,
     AlertDialogContent,
@@ -250,54 +251,68 @@ export default function MemoryFiles({
             (file) => !fileIds.has(getFileId(file)),
         );
 
-        // Also remove from chat messages if chatId and updateChatHook are provided
-        if (
-            chatId &&
-            updateChatHook &&
-            filesToRemove.length > 0 &&
-            messages.length > 0
-        ) {
-            try {
-                const updatedMessages = messages.map((message) => {
-                    if (!Array.isArray(message.payload)) return message;
-
-                    const updatedPayload = message.payload.map(
-                        (payloadItem) => {
-                            try {
-                                const fileObj = JSON.parse(payloadItem);
-                                // Check if this file matches any of the files to remove
-                                const matchesAnyFile = filesToRemove.some(
-                                    (memFile) => matchesFile(memFile, fileObj),
-                                );
-
-                                if (matchesAnyFile) {
-                                    // Replace with placeholder
-                                    return JSON.stringify({
-                                        type: "text",
-                                        text: t(
-                                            "File deleted by user: {{filename}}",
-                                            {
-                                                filename:
-                                                    fileObj.originalFilename ||
-                                                    fileObj.filename ||
-                                                    "file",
-                                            },
-                                        ),
-                                        hideFromClient: true,
-                                    });
-                                }
-                            } catch (e) {
-                                // Not a JSON object, keep as is
+        // Track which files are in chat messages (to avoid double cloud deletion)
+        const filesInChat = new Set();
+        if (chatId && messages.length > 0) {
+            messages.forEach((message) => {
+                if (!Array.isArray(message.payload)) return;
+                message.payload.forEach((payloadItem) => {
+                    try {
+                        const fileObj = JSON.parse(payloadItem);
+                        filesToRemove.forEach((memFile) => {
+                            if (matchesFile(memFile, fileObj) && fileObj.hash) {
+                                filesInChat.add(fileObj.hash);
                             }
-                            return payloadItem;
-                        },
-                    );
-
-                    return {
-                        ...message,
-                        payload: updatedPayload,
-                    };
+                        });
+                    } catch (e) {
+                        // Not a JSON object
+                    }
                 });
+            });
+        }
+
+        // Delete from cloud: files NOT in chat (chat files will be deleted via deleteFileFromChatPayload)
+        await Promise.allSettled(
+            filesToRemove
+                .filter(
+                    (file) =>
+                        typeof file === "object" && file.hash && !filesInChat.has(file.hash),
+                )
+                .map((file) => deleteFileFromCloud(file.hash)),
+        );
+
+        // Remove from chat messages if chatId and updateChatHook are provided
+        if (chatId && updateChatHook && filesToRemove.length > 0 && messages.length > 0) {
+            try {
+                const updatedMessages = await Promise.all(
+                    messages.map(async (message) => {
+                        if (!Array.isArray(message.payload)) return message;
+
+                        const updatedPayload = await Promise.all(
+                            message.payload.map(async (payloadItem) => {
+                                try {
+                                    const fileObj = JSON.parse(payloadItem);
+                                    const matchesAnyFile = filesToRemove.some((memFile) =>
+                                        matchesFile(memFile, fileObj),
+                                    );
+
+                                    if (matchesAnyFile) {
+                                        return await deleteFileFromChatPayload(
+                                            fileObj,
+                                            t,
+                                            fileObj.originalFilename || fileObj.filename,
+                                        );
+                                    }
+                                } catch (e) {
+                                    // Not a JSON object, keep as is
+                                }
+                                return payloadItem;
+                            }),
+                        );
+
+                        return { ...message, payload: updatedPayload };
+                    }),
+                );
 
                 await updateChatHook.mutateAsync({
                     chatId: String(chatId),

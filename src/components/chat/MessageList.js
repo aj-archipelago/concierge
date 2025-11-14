@@ -30,6 +30,7 @@ import StreamingMessage from "./StreamingMessage";
 import { useUpdateChat } from "../../../app/queries/chats";
 import { useApolloClient } from "@apollo/client";
 import { removeFileFromMemory } from "../../../app/workspaces/[id]/components/memoryFilesUtils";
+import { deleteFileFromChatPayload } from "../../../app/workspaces/[id]/components/chatFileUtils";
 import {
     AlertDialog,
     AlertDialogContent,
@@ -436,16 +437,13 @@ const MessageList = React.memo(
                     return;
                 }
 
-                // Get the file info before deleting it
-                let deletedFileInfo = null;
+                // Parse file object and extract filename
                 let fileObj = null;
+                let filename = null;
                 try {
                     fileObj = JSON.parse(message.payload[fileIndex]);
-                    if (
-                        fileObj.type === "image_url" ||
-                        fileObj.type === "file"
-                    ) {
-                        const filename =
+                    if (fileObj.type === "image_url" || fileObj.type === "file") {
+                        filename =
                             fileObj.originalFilename ||
                             decodeURIComponent(
                                 getFilename(
@@ -455,25 +453,21 @@ const MessageList = React.memo(
                                         fileObj?.file,
                                 ),
                             );
-                        deletedFileInfo = filename;
                     }
                 } catch (e) {
                     console.error("Error parsing file object:", e);
                 }
 
-                // Replace the deleted file with a hidden text message explaining the deletion
+                // Delete from cloud and get replacement payload item
+                const updatedPayloadItem = fileObj
+                    ? await deleteFileFromChatPayload(fileObj, t, filename)
+                    : null;
+
+                // Replace or remove the file
                 const updatedPayload = [...message.payload];
-                if (deletedFileInfo) {
-                    // Replace the file with a hidden text message
-                    updatedPayload[fileIndex] = JSON.stringify({
-                        type: "text",
-                        text: t("File deleted by user: {{filename}}", {
-                            filename: deletedFileInfo,
-                        }),
-                        hideFromClient: true,
-                    });
+                if (updatedPayloadItem) {
+                    updatedPayload[fileIndex] = updatedPayloadItem;
                 } else {
-                    // If we couldn't get file info, just remove it
                     updatedPayload.splice(fileIndex, 1);
                 }
 
