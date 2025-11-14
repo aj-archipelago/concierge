@@ -1,8 +1,9 @@
 "use client";
 import { useQuery, useApolloClient } from "@apollo/client";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import { useTranslation } from "react-i18next";
-import { X, Trash2, FileText, ExternalLink } from "lucide-react";
+import i18next from "i18next";
+import { Check, ExternalLink, ArrowUpDown, ChevronUp, ChevronDown } from "lucide-react";
 import { QUERIES } from "@/src/graphql";
 import { getFileIcon } from "@/src/utils/mediaUtils";
 import {
@@ -21,6 +22,52 @@ import {
     AlertDialogAction,
     AlertDialogCancel,
 } from "@/components/ui/alert-dialog";
+import {
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
+} from "@/components/ui/table";
+import {
+    Tooltip,
+    TooltipProvider,
+    TooltipTrigger,
+    TooltipContent,
+} from "@/components/ui/tooltip";
+import { useItemSelection } from "@/src/components/images/hooks/useItemSelection";
+import BulkActionsBar from "@/src/components/common/BulkActionsBar";
+import FilterInput from "@/src/components/common/FilterInput";
+import EmptyState from "@/src/components/common/EmptyState";
+import { FileText } from "lucide-react";
+
+// Sortable column header component
+function SortableHeader({ 
+    children, 
+    sortKey, 
+    currentSort, 
+    currentDirection, 
+    onSort 
+}) {
+    const isRtl = i18next.language === "ar";
+    const isActive = currentSort === sortKey;
+    const Icon = isActive 
+        ? (currentDirection === "asc" ? ChevronUp : ChevronDown)
+        : ArrowUpDown;
+    
+    return (
+        <TableHead className={`h-9 px-3 ${isRtl ? "text-right" : "text-left"}`}>
+            <button
+                onClick={() => onSort(sortKey)}
+                className={`flex items-center gap-1.5 hover:text-gray-900 dark:hover:text-gray-100 transition-colors text-gray-600 dark:text-gray-400 ${isRtl ? "flex-row-reverse" : ""}`}
+            >
+                {children}
+                <Icon className={`h-3.5 w-3.5 ${isActive ? "text-sky-600 dark:text-sky-400" : ""}`} />
+            </button>
+        </TableHead>
+    );
+}
 
 export default function MemoryFiles({
     contextId,
@@ -31,9 +78,13 @@ export default function MemoryFiles({
 }) {
     const { t } = useTranslation();
     const apolloClient = useApolloClient();
+    const isRtl = i18next.language === "ar";
     const [memoryFiles, setMemoryFiles] = useState([]);
-    const [showRemoveAllConfirm, setShowRemoveAllConfirm] = useState(false);
-    const [removingFile, setRemovingFile] = useState(null);
+    const [filterText, setFilterText] = useState("");
+    const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
+    const [sortKey, setSortKey] = useState("date");
+    const [sortDirection, setSortDirection] = useState("desc");
+    const containerRef = useRef(null);
 
     const {
         data: memoryData,
@@ -44,6 +95,40 @@ export default function MemoryFiles({
         skip: !contextId,
         fetchPolicy: "network-only",
     });
+
+    // Get file ID helper - creates a stable ID for each file
+    const getFileId = useCallback((file) => {
+        if (typeof file === "object" && file.id) return `id-${file.id}`;
+        if (typeof file === "object" && file.url) return `url-${file.url}`;
+        if (typeof file === "object" && file.gcs) return `gcs-${file.gcs}`;
+        if (typeof file === "object" && file.hash) return `hash-${file.hash}`;
+        // Fallback: use filename + index from original array
+        const filename = getFilenameUtil(file);
+        const originalIndex = memoryFiles.findIndex((f) => {
+            if (typeof f === "object" && typeof file === "object") {
+                return (
+                    (f.url && file.url && f.url === file.url) ||
+                    (f.gcs && file.gcs && f.gcs === file.gcs) ||
+                    (f.hash && file.hash && f.hash === file.hash)
+                );
+            }
+            return f === file;
+        });
+        return `file-${filename}-${originalIndex}`;
+    }, [memoryFiles]);
+
+    // Selection hook
+    const {
+        selectedIds,
+        selectedObjects,
+        clearSelection,
+        toggleSelection,
+        selectRange,
+        setSelectedIds,
+        setSelectedObjects,
+        lastSelectedId,
+        setLastSelectedId,
+    } = useItemSelection((file) => getFileId(file));
 
     useEffect(() => {
         if (memoryData?.sys_read_memory?.result) {
@@ -59,6 +144,74 @@ export default function MemoryFiles({
         }
     }, [memoryData]);
 
+    // Filter files - search filename, tags, and notes
+    const filteredFiles = useMemo(() => {
+        if (!filterText.trim()) return memoryFiles;
+        const searchLower = filterText.toLowerCase();
+        return memoryFiles.filter((file) => {
+            const filename = getFilenameUtil(file).toLowerCase();
+            const tags = Array.isArray(file?.tags) 
+                ? file.tags.join(" ").toLowerCase() 
+                : "";
+            const notes = (file?.notes || "").toLowerCase();
+            return (
+                filename.includes(searchLower) ||
+                tags.includes(searchLower) ||
+                notes.includes(searchLower)
+            );
+        });
+    }, [memoryFiles, filterText]);
+
+    // Helper to get date for sorting/display
+    const getFileDate = useCallback((file) => {
+        if (typeof file !== "object") return null;
+        // Prefer modifiedDate, then lastAccessed, then addedDate
+        const dateStr = file.modifiedDate || file.lastAccessed || file.addedDate;
+        if (!dateStr) return null;
+        try {
+            return new Date(dateStr);
+        } catch (e) {
+            return null;
+        }
+    }, []);
+
+    // Sort files
+    const sortedFiles = useMemo(() => {
+        const files = [...filteredFiles];
+
+        files.sort((a, b) => {
+            if (sortKey === "filename") {
+                const nameA = getFilenameUtil(a).toLowerCase();
+                const nameB = getFilenameUtil(b).toLowerCase();
+                const comparison = nameA.localeCompare(nameB);
+                return sortDirection === "asc" ? comparison : -comparison;
+            } else {
+                // Sort by date
+                const dateA = getFileDate(a);
+                const dateB = getFileDate(b);
+                
+                // Files without dates go to the end
+                if (!dateA && !dateB) return 0;
+                if (!dateA) return 1;
+                if (!dateB) return -1;
+                
+                const comparison = dateB.getTime() - dateA.getTime();
+                return sortDirection === "asc" ? -comparison : comparison;
+            }
+        });
+
+        return files;
+    }, [filteredFiles, sortKey, sortDirection, getFileDate]);
+
+    const handleSort = useCallback((key) => {
+        if (sortKey === key) {
+            setSortDirection(sortDirection === "asc" ? "desc" : "asc");
+        } else {
+            setSortKey(key);
+            setSortDirection(key === "date" ? "desc" : "asc");
+        }
+    }, [sortKey, sortDirection]);
+
     const saveMemoryFiles = async (files) => {
         try {
             await saveMemoryFilesUtil(
@@ -67,20 +220,20 @@ export default function MemoryFiles({
                 contextKey,
                 files,
             );
-            // Refetch to update UI
             refetchMemory();
         } catch (error) {
             console.error("Failed to save memory files:", error);
         }
     };
 
-    const handleRemoveFile = async (fileIndex) => {
-        const fileToRemove = memoryFiles[fileIndex];
-        const newFiles = memoryFiles.filter((_, index) => index !== fileIndex);
-        setRemovingFile(null);
+    const handleRemoveFiles = async (filesToRemove) => {
+        const fileIds = new Set(filesToRemove.map((file) => getFileId(file)));
+        const newFiles = memoryFiles.filter(
+            (file) => !fileIds.has(getFileId(file)),
+        );
 
         // Also remove from chat messages if chatId and updateChatHook are provided
-        if (chatId && updateChatHook && fileToRemove && messages.length > 0) {
+        if (chatId && updateChatHook && filesToRemove.length > 0 && messages.length > 0) {
             try {
                 const updatedMessages = messages.map((message) => {
                     if (!Array.isArray(message.payload)) return message;
@@ -89,66 +242,8 @@ export default function MemoryFiles({
                         (payloadItem) => {
                             try {
                                 const fileObj = JSON.parse(payloadItem);
-                                if (matchesFile(fileToRemove, fileObj)) {
-                                    // Replace with placeholder
-                                    return JSON.stringify({
-                                        type: "text",
-                                        text: t(
-                                            "File deleted by user: {{filename}}",
-                                            {
-                                                filename:
-                                                    fileToRemove.filename ||
-                                                    "file",
-                                            },
-                                        ),
-                                        hideFromClient: true,
-                                    });
-                                }
-                            } catch (e) {
-                                // Not a JSON object, keep as is
-                            }
-                            return payloadItem;
-                        },
-                    );
-
-                    return {
-                        ...message,
-                        payload: updatedPayload,
-                    };
-                });
-
-                await updateChatHook.mutateAsync({
-                    chatId: String(chatId),
-                    messages: updatedMessages,
-                });
-            } catch (error) {
-                console.error("Failed to remove file from messages:", error);
-            }
-        }
-
-        await saveMemoryFiles(newFiles);
-    };
-
-    const handleRemoveAll = async () => {
-        setShowRemoveAllConfirm(false);
-
-        // Also remove all files from chat messages if chatId and updateChatHook are provided
-        if (
-            chatId &&
-            updateChatHook &&
-            memoryFiles.length > 0 &&
-            messages.length > 0
-        ) {
-            try {
-                const updatedMessages = messages.map((message) => {
-                    if (!Array.isArray(message.payload)) return message;
-
-                    const updatedPayload = message.payload.map(
-                        (payloadItem) => {
-                            try {
-                                const fileObj = JSON.parse(payloadItem);
-                                // Check if this file matches any of the memoryFiles
-                                const matchesAnyFile = memoryFiles.some(
+                                // Check if this file matches any of the files to remove
+                                const matchesAnyFile = filesToRemove.some(
                                     (memFile) => matchesFile(memFile, fileObj),
                                 );
 
@@ -161,6 +256,7 @@ export default function MemoryFiles({
                                             {
                                                 filename:
                                                     fileObj.originalFilename ||
+                                                    fileObj.filename ||
                                                     "file",
                                             },
                                         ),
@@ -189,158 +285,325 @@ export default function MemoryFiles({
             }
         }
 
-        await saveMemoryFiles([]);
+        await saveMemoryFiles(newFiles);
+        clearSelection();
     };
 
-    // Show loading state
-    if (memoryLoading) {
-        return (
-            <div className="text-sm text-gray-500 dark:text-gray-400 text-center py-4">
-                {t("Loading chat files...")}
-            </div>
-        );
-    }
+    const handleBulkDelete = () => {
+        setShowBulkDeleteConfirm(false);
+        handleRemoveFiles(selectedObjects);
+    };
 
-    // Show message if no files
-    if (memoryFiles.length === 0) {
-        return (
-            <div className="text-sm text-gray-500 dark:text-gray-400 text-center py-4">
-                {t("No files indexed in this conversation yet.")}
-            </div>
-        );
-    }
+    const handleSelectFile = useCallback(
+        (file, index, e) => {
+            const fileId = getFileId(file);
+            if (e.shiftKey && lastSelectedId !== null) {
+                const lastIndex = sortedFiles.findIndex(
+                    (f) => getFileId(f) === lastSelectedId,
+                );
+                const currentIndex = index;
+                if (lastIndex !== -1 && currentIndex !== -1) {
+                    const start = Math.min(lastIndex, currentIndex);
+                    const end = Math.max(lastIndex, currentIndex);
+                    selectRange(sortedFiles, start, end);
+                    setLastSelectedId(fileId);
+                    return;
+                }
+            }
+            toggleSelection(file);
+            setLastSelectedId(fileId);
+        },
+        [sortedFiles, lastSelectedId, toggleSelection, selectRange, getFileId, setLastSelectedId],
+    );
 
-    // Helper to handle file open/view
-    const handleOpenFile = (file, e) => {
+    const handleOpenFile = useCallback((file, e) => {
         e.stopPropagation();
         const url = getFileUrl(file);
         if (url) {
             window.open(url, "_blank", "noopener,noreferrer");
         }
-    };
+    }, []);
+
+    const allSelected = selectedIds.size === sortedFiles.length && sortedFiles.length > 0;
+
+    const handleSelectAll = useCallback(() => {
+        if (allSelected) {
+            clearSelection();
+        } else {
+            const newSelectedIds = new Set(
+                sortedFiles.map((file) => getFileId(file)),
+            );
+            setSelectedIds(newSelectedIds);
+            setSelectedObjects([...sortedFiles]);
+        }
+    }, [allSelected, sortedFiles, clearSelection, getFileId, setSelectedIds, setSelectedObjects]);
+
+    // Show loading state
+    if (memoryLoading) {
+        return (
+            <div className="text-sm text-gray-500 dark:text-gray-400 text-center py-8">
+                {t("Loading chat files...")}
+            </div>
+        );
+    }
+
+    // Show empty state if no files
+    if (memoryFiles.length === 0) {
+        return (
+            <EmptyState
+                icon={<FileText className="w-12 h-12 text-gray-400" />}
+                title={t("No files indexed")}
+                description={t(
+                    "No files have been indexed in this conversation yet.",
+                )}
+            />
+        );
+    }
+
+    // Show filtered empty state
+    if (sortedFiles.length === 0) {
+        return (
+            <>
+                <div className="mb-4">
+                    <FilterInput
+                        value={filterText}
+                        onChange={setFilterText}
+                        onClear={() => setFilterText("")}
+                        placeholder={t("Filter files...")}
+                    />
+                </div>
+                <EmptyState
+                    icon={<FileText className="w-12 h-12 text-gray-400" />}
+                    title={t("No files match")}
+                    description={t(
+                        "No files match your search. Try a different filter.",
+                    )}
+                />
+            </>
+        );
+    }
 
     return (
         <>
-            <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                        <FileText className="w-5 h-5 text-gray-600 dark:text-gray-400" />
-                        <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100">
-                            {t("Files indexed in this conversation")}
-                        </h3>
-                        <span className="text-sm text-gray-500 dark:text-gray-400">
-                            ({memoryFiles.length})
-                        </span>
+            <div className="flex flex-col gap-3" ref={containerRef}>
+                {/* Header with filter */}
+                <div className="flex flex-col gap-2">
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                            <FileText className="w-5 h-5 text-gray-600 dark:text-gray-400" />
+                            <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+                                {t("Files indexed in this conversation")}
+                            </h3>
+                            <span className="text-xs text-gray-500 dark:text-gray-400">
+                                ({sortedFiles.length}
+                                {sortedFiles.length !== memoryFiles.length &&
+                                    ` / ${memoryFiles.length}`}
+                                )
+                            </span>
+                        </div>
                     </div>
-                    {memoryFiles.length > 0 && (
-                        <button
-                            onClick={() => setShowRemoveAllConfirm(true)}
-                            className="text-sm text-gray-600 hover:text-red-600 dark:text-gray-400 dark:hover:text-red-400 flex items-center gap-1.5 px-3 py-1.5 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-                            title={t("Remove all files")}
-                        >
-                            <Trash2 className="w-4 h-4" />
-                            {t("Remove All")}
-                        </button>
-                    )}
+                    <FilterInput
+                        value={filterText}
+                        onChange={setFilterText}
+                        onClear={() => setFilterText("")}
+                        placeholder={t("Filter files...")}
+                    />
                 </div>
-                <div className="space-y-2 max-h-[60vh] overflow-y-auto">
-                    {memoryFiles.map((file, index) => {
-                        const filename = getFilenameUtil(file);
-                        const fileId =
-                            typeof file === "object" ? file.id : null;
-                        const fileUrl = getFileUrl(file);
-                        const Icon = getFileIcon(filename);
 
-                        return (
-                            <div
-                                key={fileId || index}
-                                className="flex items-center justify-between group p-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
-                            >
-                                <div className="flex items-center gap-3 flex-1 min-w-0">
-                                    <Icon className="w-5 h-5 text-sky-600 dark:text-sky-400 flex-shrink-0" />
-                                    <span
-                                        className="text-sm text-gray-700 dark:text-gray-300 truncate flex-1"
-                                        title={fileUrl || filename}
+                {/* File list table */}
+                <div className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden max-h-[60vh] overflow-y-auto">
+                    <Table>
+                        <TableHeader className="sticky top-0 bg-gray-50 dark:bg-gray-900 z-10">
+                            <TableRow className="border-b border-gray-200 dark:border-gray-700">
+                                <TableHead className="h-9 w-10 px-2">
+                                    <div
+                                        className={`w-4 h-4 rounded border-2 flex items-center justify-center cursor-pointer transition-all ${
+                                            allSelected
+                                                ? "bg-sky-600 dark:bg-sky-500 border-sky-600 dark:border-sky-500"
+                                                : "border-gray-300 dark:border-gray-600 hover:border-sky-500 dark:hover:border-sky-400"
+                                        }`}
+                                        onClick={handleSelectAll}
                                     >
-                                        {filename}
-                                    </span>
-                                </div>
-                                <div className="flex items-center gap-1 flex-shrink-0">
-                                    {fileUrl && (
-                                        <button
-                                            onClick={(e) =>
-                                                handleOpenFile(file, e)
-                                            }
-                                            className="opacity-0 group-hover:opacity-100 transition-opacity text-gray-500 hover:text-sky-600 dark:text-gray-400 dark:hover:text-sky-400 p-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-600"
-                                            title={t("Open file")}
-                                        >
-                                            <ExternalLink className="w-4 h-4" />
-                                        </button>
-                                    )}
-                                    <button
-                                        onClick={() => setRemovingFile(index)}
-                                        className="opacity-0 group-hover:opacity-100 transition-opacity text-gray-500 hover:text-red-600 dark:text-gray-400 dark:hover:text-red-400 p-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-600"
-                                        title={t("Remove file")}
+                                        <Check
+                                            className={`w-3 h-3 text-white ${
+                                                allSelected ? "opacity-100" : "opacity-0"
+                                            }`}
+                                        />
+                                    </div>
+                                </TableHead>
+                                <TableHead className="h-9 w-10 px-2"></TableHead>
+                                <SortableHeader
+                                    sortKey="filename"
+                                    currentSort={sortKey}
+                                    currentDirection={sortDirection}
+                                    onSort={handleSort}
+                                >
+                                    {t("Filename")}
+                                </SortableHeader>
+                                <SortableHeader
+                                    sortKey="date"
+                                    currentSort={sortKey}
+                                    currentDirection={sortDirection}
+                                    onSort={handleSort}
+                                >
+                                    {t("Date")}
+                                </SortableHeader>
+                                <TableHead className="h-9 w-12 px-2"></TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {sortedFiles.map((file, index) => {
+                                const fileId = getFileId(file);
+                                const isSelected = selectedIds.has(fileId);
+                                const filename = getFilenameUtil(file);
+                                const fileUrl = getFileUrl(file);
+                                const Icon = getFileIcon(filename);
+
+                                return (
+                                    <TableRow
+                                        key={fileId}
+                                        className={`cursor-pointer ${
+                                            isSelected
+                                                ? "bg-sky-50 dark:bg-sky-900/20"
+                                                : ""
+                                        }`}
+                                        onClick={(e) => handleSelectFile(file, index, e)}
                                     >
-                                        <X className="w-4 h-4" />
-                                    </button>
-                                </div>
-                            </div>
-                        );
-                    })}
+                                        <TableCell className="px-2 py-1.5">
+                                            <div
+                                                className={`w-4 h-4 rounded border-2 flex items-center justify-center transition-all ${
+                                                    isSelected
+                                                        ? "bg-sky-600 dark:bg-sky-500 border-sky-600 dark:border-sky-500"
+                                                        : "border-gray-300 dark:border-gray-600"
+                                                }`}
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    handleSelectFile(file, index, e);
+                                                }}
+                                            >
+                                                <Check
+                                                    className={`w-3 h-3 text-white ${
+                                                        isSelected ? "opacity-100" : "opacity-0"
+                                                    }`}
+                                                />
+                                            </div>
+                                        </TableCell>
+                                        <TableCell className="px-2 py-1.5">
+                                            <Icon className="w-4 h-4 text-sky-600 dark:text-sky-400" />
+                                        </TableCell>
+                                        <TableCell className="px-3 py-1.5">
+                                            {file?.notes ? (
+                                                <TooltipProvider>
+                                                    <Tooltip>
+                                                        <TooltipTrigger asChild>
+                                                            <span
+                                                                className="text-sm text-gray-700 dark:text-gray-300 truncate block cursor-help"
+                                                                title={filename}
+                                                            >
+                                                                {filename}
+                                                            </span>
+                                                        </TooltipTrigger>
+                                                        <TooltipContent className="max-w-xs">
+                                                            <div className="font-medium mb-1">{filename}</div>
+                                                            <div className="text-xs text-gray-600 dark:text-gray-300 whitespace-pre-wrap">
+                                                                {file.notes}
+                                                            </div>
+                                                            {Array.isArray(file?.tags) && file.tags.length > 0 && (
+                                                                <div className="mt-2 flex flex-wrap gap-1">
+                                                                    {file.tags.map((tag, tagIdx) => (
+                                                                        <span
+                                                                            key={tagIdx}
+                                                                            className="text-xs px-1.5 py-0.5 bg-sky-100 dark:bg-sky-900/30 text-sky-700 dark:text-sky-300 rounded"
+                                                                        >
+                                                                            {tag}
+                                                                        </span>
+                                                                    ))}
+                                                                </div>
+                                                            )}
+                                                        </TooltipContent>
+                                                    </Tooltip>
+                                                </TooltipProvider>
+                                            ) : (
+                                                <span
+                                                    className="text-sm text-gray-700 dark:text-gray-300 truncate block"
+                                                    title={filename}
+                                                >
+                                                    {filename}
+                                                </span>
+                                            )}
+                                        </TableCell>
+                                        <TableCell className="px-3 py-1.5">
+                                            <span className="text-xs text-gray-500 dark:text-gray-400">
+                                                {(() => {
+                                                    const fileDate = getFileDate(file);
+                                                    if (!fileDate) return "—";
+                                                    return fileDate.toLocaleDateString(undefined, {
+                                                        year: "numeric",
+                                                        month: "short",
+                                                        day: "numeric",
+                                                    });
+                                                })()}
+                                            </span>
+                                        </TableCell>
+                                        <TableCell className="px-2 py-1.5">
+                                            {fileUrl && (
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        handleOpenFile(file, e);
+                                                    }}
+                                                    className="text-gray-500 hover:text-sky-600 dark:text-gray-400 dark:hover:text-sky-400 p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700"
+                                                    title={t("Open file")}
+                                                >
+                                                    <ExternalLink className="w-3.5 h-3.5" />
+                                                </button>
+                                            )}
+                                        </TableCell>
+                                    </TableRow>
+                                );
+                            })}
+                        </TableBody>
+                    </Table>
                 </div>
             </div>
 
-            {/* Remove single file confirmation */}
-            <AlertDialog
-                open={removingFile !== null}
-                onOpenChange={(open) => !open && setRemovingFile(null)}
-            >
-                <AlertDialogContent>
-                    <AlertDialogHeader>
-                        <AlertDialogTitle>{t("Remove File?")}</AlertDialogTitle>
-                        <AlertDialogDescription>
-                            {t(
-                                "Are you sure you want to remove this file from memory? This action cannot be undone.",
-                            )}
-                        </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    {removingFile !== null && (
-                        <div className="mt-2 p-2 bg-gray-100 dark:bg-gray-700 rounded text-xs font-mono">
-                            {getFilenameUtil(memoryFiles[removingFile])}
-                        </div>
-                    )}
-                    <AlertDialogFooter>
-                        <AlertDialogCancel>{t("Cancel")}</AlertDialogCancel>
-                        <AlertDialogAction
-                            onClick={() => handleRemoveFile(removingFile)}
-                        >
-                            {t("Remove")}
-                        </AlertDialogAction>
-                    </AlertDialogFooter>
-                </AlertDialogContent>
-            </AlertDialog>
+            {/* Bulk actions bar */}
+            <BulkActionsBar
+                selectedCount={selectedIds.size}
+                allSelected={allSelected}
+                onSelectAll={handleSelectAll}
+                onClearSelection={clearSelection}
+                actions={{
+                    delete: {
+                        onClick: () => setShowBulkDeleteConfirm(true),
+                        disabled: false,
+                        label: t("Delete"),
+                        ariaLabel: `${t("Delete")} (${selectedIds.size})`,
+                    },
+                }}
+            />
 
-            {/* Remove all files confirmation */}
+            {/* Bulk delete confirmation */}
             <AlertDialog
-                open={showRemoveAllConfirm}
-                onOpenChange={setShowRemoveAllConfirm}
+                open={showBulkDeleteConfirm}
+                onOpenChange={setShowBulkDeleteConfirm}
             >
                 <AlertDialogContent>
-                    <AlertDialogHeader>
+                    <AlertDialogHeader className={isRtl ? "text-right" : ""}>
                         <AlertDialogTitle>
-                            {t("Remove All Files?")}
+                            {t("Delete Selected Files?")}
                         </AlertDialogTitle>
                         <AlertDialogDescription>
                             {t(
-                                "Are you sure you want to remove all files from memory? This action cannot be undone.",
+                                "Are you sure you want to delete {{count}} file(s)? This action cannot be undone.",
+                                { count: selectedIds.size },
                             )}
                         </AlertDialogDescription>
                     </AlertDialogHeader>
-                    <AlertDialogFooter>
+                    <AlertDialogFooter className={isRtl ? "flex-row-reverse sm:flex-row-reverse" : ""}>
                         <AlertDialogCancel>{t("Cancel")}</AlertDialogCancel>
-                        <AlertDialogAction onClick={handleRemoveAll}>
-                            {t("Remove All")}
+                        <AlertDialogAction onClick={handleBulkDelete}>
+                            {t("Delete")}
                         </AlertDialogAction>
                     </AlertDialogFooter>
                 </AlertDialogContent>
