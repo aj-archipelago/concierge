@@ -28,6 +28,8 @@ import BotMessage from "./BotMessage";
 import ScrollToBottom from "./ScrollToBottom";
 import StreamingMessage from "./StreamingMessage";
 import { useUpdateChat } from "../../../app/queries/chats";
+import { useApolloClient } from "@apollo/client";
+import { removeFileFromMemory } from "../../../app/workspaces/[id]/components/memoryFilesUtils";
 import {
     AlertDialog,
     AlertDialogContent,
@@ -315,6 +317,8 @@ const MessageList = React.memo(
             selectedEntityId,
             entities,
             entityIconSize,
+            contextId,
+            contextKey,
         },
         ref,
     ) {
@@ -390,6 +394,7 @@ const MessageList = React.memo(
         }, [messages]);
 
         const updateChatHook = useUpdateChat();
+        const apolloClient = useApolloClient();
 
         const rowHeight = "h-12 [.docked_&]:h-10";
         const basis =
@@ -433,16 +438,21 @@ const MessageList = React.memo(
 
                 // Get the file info before deleting it
                 let deletedFileInfo = null;
+                let fileObj = null;
                 try {
-                    const fileObj = JSON.parse(message.payload[fileIndex]);
-                    if (fileObj.type === "image_url") {
+                    fileObj = JSON.parse(message.payload[fileIndex]);
+                    if (
+                        fileObj.type === "image_url" ||
+                        fileObj.type === "file"
+                    ) {
                         const filename =
                             fileObj.originalFilename ||
                             decodeURIComponent(
                                 getFilename(
                                     fileObj?.url ||
                                         fileObj?.image_url?.url ||
-                                        fileObj?.gcs,
+                                        fileObj?.gcs ||
+                                        fileObj?.file,
                                 ),
                             );
                         deletedFileInfo = filename;
@@ -483,13 +493,45 @@ const MessageList = React.memo(
                         chatId: String(chatId),
                         messages: updatedMessages,
                     });
+
+                    // Also remove from memoryFiles if contextId is available
+                    if (
+                        contextId &&
+                        fileObj &&
+                        (fileObj.type === "image_url" ||
+                            fileObj.type === "file")
+                    ) {
+                        try {
+                            await removeFileFromMemory(
+                                apolloClient,
+                                contextId,
+                                contextKey,
+                                fileObj,
+                            );
+                        } catch (error) {
+                            console.error(
+                                "Failed to remove file from memoryFiles:",
+                                error,
+                            );
+                            // Don't fail the whole operation if memoryFiles update fails
+                        }
+                    }
+
                     setFileToDelete(null);
                 } catch (error) {
                     console.error("Failed to delete file from chat:", error);
                     // TODO: Show user-friendly error message
                 }
             },
-            [chatId, messages, updateChatHook, t],
+            [
+                chatId,
+                messages,
+                updateChatHook,
+                t,
+                contextId,
+                contextKey,
+                apolloClient,
+            ],
         );
 
         const handleMessageLoad = useCallback((messageId) => {

@@ -25,6 +25,8 @@ const ChatMessages = React.memo(function ChatMessages({
     selectedEntityId,
     entities,
     entityIconSize,
+    contextId,
+    contextKey,
 }) {
     const { user } = useContext(AuthContext);
     const { t } = useTranslation();
@@ -72,9 +74,11 @@ const ChatMessages = React.memo(function ChatMessages({
                     entities={entities}
                     entityIconSize={entityIconSize}
                     onSend={onSend}
+                    contextId={contextId}
+                    contextKey={contextKey}
                 />
             </div>
-            <div>
+            <div className="flex-shrink-0">
                 <MessageInput
                     viewingReadOnlyChat={viewingReadOnlyChat}
                     loading={loading}

@@ -87,7 +87,7 @@ function MessageInput({
         return [
             JSON.stringify({ type: "text", text: inputText }),
             ...(urlsData || [])?.map(
-                ({ url, gcs, converted, originalFilename }) => {
+                ({ url, gcs, converted, originalFilename, hash }) => {
                     const obj = {
                         type: "image_url",
                     };
@@ -99,6 +99,11 @@ function MessageInput({
                     // Include original filename if available
                     if (originalFilename) {
                         obj.originalFilename = originalFilename;
+                    }
+
+                    // Include hash if available
+                    if (hash) {
+                        obj.hash = hash;
                     }
 
                     return JSON.stringify(obj);

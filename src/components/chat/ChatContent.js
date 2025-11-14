@@ -432,6 +432,8 @@ function ChatContent({
             selectedEntityId={selectedEntityIdFromProp}
             entities={entities}
             entityIconSize={entityIconSize}
+            contextId={user?.contextId}
+            contextKey={user?.contextKey}
         />
     );
 }

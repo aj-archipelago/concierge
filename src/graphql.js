@@ -159,8 +159,16 @@ const VISION = gql`
 `;
 
 const SYS_READ_MEMORY = gql`
-    query SysReadMemory($contextId: String!, $contextKey: String) {
-        sys_read_memory(contextId: $contextId, contextKey: $contextKey) {
+    query SysReadMemory(
+        $contextId: String!
+        $contextKey: String
+        $section: String
+    ) {
+        sys_read_memory(
+            contextId: $contextId
+            contextKey: $contextKey
+            section: $section
+        ) {
             result
         }
     }
@@ -171,11 +179,13 @@ const SYS_SAVE_MEMORY = gql`
         $aiMemory: String!
         $contextId: String!
         $contextKey: String
+        $section: String
     ) {
         sys_save_memory(
             aiMemory: $aiMemory
             contextId: $contextId
             contextKey: $contextKey
+            section: $section
         ) {
             result
         }

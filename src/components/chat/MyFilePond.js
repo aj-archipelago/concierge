@@ -687,10 +687,12 @@ function MyFilePond({
                                                 return;
                                             }
                                         }
-                                        // Include original filename in the response data
+                                        // Include original filename and hash in the response data
                                         const responseWithFilename = {
                                             ...response.data,
                                             originalFilename: file.name,
+                                            hash:
+                                                response.data.hash || fileHash,
                                         };
                                         // Check if file was removed before adding to urlsData
                                         // Check both filename and URLs from response
@@ -859,10 +861,14 @@ function MyFilePond({
                                                 return;
                                             }
                                         }
-                                        // Include original filename in the response data
+                                        // Include original filename and hash in the response data
                                         const responseWithFilename = {
                                             ...responseData,
                                             originalFilename: file.name,
+                                            hash:
+                                                responseData.hash ||
+                                                responseData.file?.hash ||
+                                                fileHash,
                                         };
                                         // Check if file was removed before adding to urlsData
                                         // Check both filename and URLs from response
