@@ -18,7 +18,6 @@ import { useTranslation } from "react-i18next";
 import {
     hashMediaFile,
     ACCEPTED_FILE_TYPES,
-    RAG_MIME_TYPES,
     isSupportedFileUrl,
     getFilename,
     getVideoDuration,
@@ -956,23 +955,8 @@ function MyFilePond({
                                 console.error("Error:", error);
                                 setIsUploadingMedia(false);
                             } else {
-                                const filetype = file.file.type;
-                                // For document files, wait 10 seconds for indexing
-                                if (RAG_MIME_TYPES.includes(filetype)) {
-                                    // Remove the file from FilePond after processing
-                                    setFiles((oldFiles) =>
-                                        oldFiles.filter(
-                                            (f) => f.serverId !== file.serverId,
-                                        ),
-                                    );
-                                    // Wait 10 seconds for indexing
-                                    setTimeout(() => {
-                                        setIsUploadingMedia(false);
-                                    }, 10000);
-                                } else {
-                                    // For non-document files, set isUploadingMedia to false immediately
-                                    setIsUploadingMedia(false);
-                                }
+                                // Set isUploadingMedia to false immediately after processing
+                                setIsUploadingMedia(false);
                             }
                         }}
                         name="files" /* sets the file input name, it's filepond by default */

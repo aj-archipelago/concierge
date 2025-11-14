@@ -3,7 +3,13 @@ import { useQuery, useApolloClient } from "@apollo/client";
 import { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import i18next from "i18next";
-import { Check, ExternalLink, ArrowUpDown, ChevronUp, ChevronDown } from "lucide-react";
+import {
+    Check,
+    ExternalLink,
+    ArrowUpDown,
+    ChevronUp,
+    ChevronDown,
+} from "lucide-react";
 import { QUERIES } from "@/src/graphql";
 import { getFileIcon } from "@/src/utils/mediaUtils";
 import {
@@ -43,19 +49,21 @@ import EmptyState from "@/src/components/common/EmptyState";
 import { FileText } from "lucide-react";
 
 // Sortable column header component
-function SortableHeader({ 
-    children, 
-    sortKey, 
-    currentSort, 
-    currentDirection, 
-    onSort 
+function SortableHeader({
+    children,
+    sortKey,
+    currentSort,
+    currentDirection,
+    onSort,
 }) {
     const isRtl = i18next.language === "ar";
     const isActive = currentSort === sortKey;
-    const Icon = isActive 
-        ? (currentDirection === "asc" ? ChevronUp : ChevronDown)
+    const Icon = isActive
+        ? currentDirection === "asc"
+            ? ChevronUp
+            : ChevronDown
         : ArrowUpDown;
-    
+
     return (
         <TableHead className={`h-9 px-3 ${isRtl ? "text-right" : "text-left"}`}>
             <button
@@ -63,7 +71,9 @@ function SortableHeader({
                 className={`flex items-center gap-1.5 hover:text-gray-900 dark:hover:text-gray-100 transition-colors text-gray-600 dark:text-gray-400 ${isRtl ? "flex-row-reverse" : ""}`}
             >
                 {children}
-                <Icon className={`h-3.5 w-3.5 ${isActive ? "text-sky-600 dark:text-sky-400" : ""}`} />
+                <Icon
+                    className={`h-3.5 w-3.5 ${isActive ? "text-sky-600 dark:text-sky-400" : ""}`}
+                />
             </button>
         </TableHead>
     );
@@ -97,25 +107,29 @@ export default function MemoryFiles({
     });
 
     // Get file ID helper - creates a stable ID for each file
-    const getFileId = useCallback((file) => {
-        if (typeof file === "object" && file.id) return `id-${file.id}`;
-        if (typeof file === "object" && file.url) return `url-${file.url}`;
-        if (typeof file === "object" && file.gcs) return `gcs-${file.gcs}`;
-        if (typeof file === "object" && file.hash) return `hash-${file.hash}`;
-        // Fallback: use filename + index from original array
-        const filename = getFilenameUtil(file);
-        const originalIndex = memoryFiles.findIndex((f) => {
-            if (typeof f === "object" && typeof file === "object") {
-                return (
-                    (f.url && file.url && f.url === file.url) ||
-                    (f.gcs && file.gcs && f.gcs === file.gcs) ||
-                    (f.hash && file.hash && f.hash === file.hash)
-                );
-            }
-            return f === file;
-        });
-        return `file-${filename}-${originalIndex}`;
-    }, [memoryFiles]);
+    const getFileId = useCallback(
+        (file) => {
+            if (typeof file === "object" && file.id) return `id-${file.id}`;
+            if (typeof file === "object" && file.url) return `url-${file.url}`;
+            if (typeof file === "object" && file.gcs) return `gcs-${file.gcs}`;
+            if (typeof file === "object" && file.hash)
+                return `hash-${file.hash}`;
+            // Fallback: use filename + index from original array
+            const filename = getFilenameUtil(file);
+            const originalIndex = memoryFiles.findIndex((f) => {
+                if (typeof f === "object" && typeof file === "object") {
+                    return (
+                        (f.url && file.url && f.url === file.url) ||
+                        (f.gcs && file.gcs && f.gcs === file.gcs) ||
+                        (f.hash && file.hash && f.hash === file.hash)
+                    );
+                }
+                return f === file;
+            });
+            return `file-${filename}-${originalIndex}`;
+        },
+        [memoryFiles],
+    );
 
     // Selection hook
     const {
@@ -150,8 +164,8 @@ export default function MemoryFiles({
         const searchLower = filterText.toLowerCase();
         return memoryFiles.filter((file) => {
             const filename = getFilenameUtil(file).toLowerCase();
-            const tags = Array.isArray(file?.tags) 
-                ? file.tags.join(" ").toLowerCase() 
+            const tags = Array.isArray(file?.tags)
+                ? file.tags.join(" ").toLowerCase()
                 : "";
             const notes = (file?.notes || "").toLowerCase();
             return (
@@ -166,7 +180,8 @@ export default function MemoryFiles({
     const getFileDate = useCallback((file) => {
         if (typeof file !== "object") return null;
         // Prefer modifiedDate, then lastAccessed, then addedDate
-        const dateStr = file.modifiedDate || file.lastAccessed || file.addedDate;
+        const dateStr =
+            file.modifiedDate || file.lastAccessed || file.addedDate;
         if (!dateStr) return null;
         try {
             return new Date(dateStr);
@@ -189,12 +204,12 @@ export default function MemoryFiles({
                 // Sort by date
                 const dateA = getFileDate(a);
                 const dateB = getFileDate(b);
-                
+
                 // Files without dates go to the end
                 if (!dateA && !dateB) return 0;
                 if (!dateA) return 1;
                 if (!dateB) return -1;
-                
+
                 const comparison = dateB.getTime() - dateA.getTime();
                 return sortDirection === "asc" ? -comparison : comparison;
             }
@@ -203,14 +218,17 @@ export default function MemoryFiles({
         return files;
     }, [filteredFiles, sortKey, sortDirection, getFileDate]);
 
-    const handleSort = useCallback((key) => {
-        if (sortKey === key) {
-            setSortDirection(sortDirection === "asc" ? "desc" : "asc");
-        } else {
-            setSortKey(key);
-            setSortDirection(key === "date" ? "desc" : "asc");
-        }
-    }, [sortKey, sortDirection]);
+    const handleSort = useCallback(
+        (key) => {
+            if (sortKey === key) {
+                setSortDirection(sortDirection === "asc" ? "desc" : "asc");
+            } else {
+                setSortKey(key);
+                setSortDirection(key === "date" ? "desc" : "asc");
+            }
+        },
+        [sortKey, sortDirection],
+    );
 
     const saveMemoryFiles = async (files) => {
         try {
@@ -233,7 +251,12 @@ export default function MemoryFiles({
         );
 
         // Also remove from chat messages if chatId and updateChatHook are provided
-        if (chatId && updateChatHook && filesToRemove.length > 0 && messages.length > 0) {
+        if (
+            chatId &&
+            updateChatHook &&
+            filesToRemove.length > 0 &&
+            messages.length > 0
+        ) {
             try {
                 const updatedMessages = messages.map((message) => {
                     if (!Array.isArray(message.payload)) return message;
@@ -313,7 +336,14 @@ export default function MemoryFiles({
             toggleSelection(file);
             setLastSelectedId(fileId);
         },
-        [sortedFiles, lastSelectedId, toggleSelection, selectRange, getFileId, setLastSelectedId],
+        [
+            sortedFiles,
+            lastSelectedId,
+            toggleSelection,
+            selectRange,
+            getFileId,
+            setLastSelectedId,
+        ],
     );
 
     const handleOpenFile = useCallback((file, e) => {
@@ -324,7 +354,8 @@ export default function MemoryFiles({
         }
     }, []);
 
-    const allSelected = selectedIds.size === sortedFiles.length && sortedFiles.length > 0;
+    const allSelected =
+        selectedIds.size === sortedFiles.length && sortedFiles.length > 0;
 
     const handleSelectAll = useCallback(() => {
         if (allSelected) {
@@ -336,7 +367,14 @@ export default function MemoryFiles({
             setSelectedIds(newSelectedIds);
             setSelectedObjects([...sortedFiles]);
         }
-    }, [allSelected, sortedFiles, clearSelection, getFileId, setSelectedIds, setSelectedObjects]);
+    }, [
+        allSelected,
+        sortedFiles,
+        clearSelection,
+        getFileId,
+        setSelectedIds,
+        setSelectedObjects,
+    ]);
 
     // Show loading state
     if (memoryLoading) {
@@ -426,7 +464,9 @@ export default function MemoryFiles({
                                     >
                                         <Check
                                             className={`w-3 h-3 text-white ${
-                                                allSelected ? "opacity-100" : "opacity-0"
+                                                allSelected
+                                                    ? "opacity-100"
+                                                    : "opacity-0"
                                             }`}
                                         />
                                     </div>
@@ -467,7 +507,9 @@ export default function MemoryFiles({
                                                 ? "bg-sky-50 dark:bg-sky-900/20"
                                                 : ""
                                         }`}
-                                        onClick={(e) => handleSelectFile(file, index, e)}
+                                        onClick={(e) =>
+                                            handleSelectFile(file, index, e)
+                                        }
                                     >
                                         <TableCell className="px-2 py-1.5">
                                             <div
@@ -478,12 +520,18 @@ export default function MemoryFiles({
                                                 }`}
                                                 onClick={(e) => {
                                                     e.stopPropagation();
-                                                    handleSelectFile(file, index, e);
+                                                    handleSelectFile(
+                                                        file,
+                                                        index,
+                                                        e,
+                                                    );
                                                 }}
                                             >
                                                 <Check
                                                     className={`w-3 h-3 text-white ${
-                                                        isSelected ? "opacity-100" : "opacity-0"
+                                                        isSelected
+                                                            ? "opacity-100"
+                                                            : "opacity-0"
                                                     }`}
                                                 />
                                             </div>
@@ -504,22 +552,38 @@ export default function MemoryFiles({
                                                             </span>
                                                         </TooltipTrigger>
                                                         <TooltipContent className="max-w-xs">
-                                                            <div className="font-medium mb-1">{filename}</div>
+                                                            <div className="font-medium mb-1">
+                                                                {filename}
+                                                            </div>
                                                             <div className="text-xs text-gray-600 dark:text-gray-300 whitespace-pre-wrap">
                                                                 {file.notes}
                                                             </div>
-                                                            {Array.isArray(file?.tags) && file.tags.length > 0 && (
-                                                                <div className="mt-2 flex flex-wrap gap-1">
-                                                                    {file.tags.map((tag, tagIdx) => (
-                                                                        <span
-                                                                            key={tagIdx}
-                                                                            className="text-xs px-1.5 py-0.5 bg-sky-100 dark:bg-sky-900/30 text-sky-700 dark:text-sky-300 rounded"
-                                                                        >
-                                                                            {tag}
-                                                                        </span>
-                                                                    ))}
-                                                                </div>
-                                                            )}
+                                                            {Array.isArray(
+                                                                file?.tags,
+                                                            ) &&
+                                                                file.tags
+                                                                    .length >
+                                                                    0 && (
+                                                                    <div className="mt-2 flex flex-wrap gap-1">
+                                                                        {file.tags.map(
+                                                                            (
+                                                                                tag,
+                                                                                tagIdx,
+                                                                            ) => (
+                                                                                <span
+                                                                                    key={
+                                                                                        tagIdx
+                                                                                    }
+                                                                                    className="text-xs px-1.5 py-0.5 bg-sky-100 dark:bg-sky-900/30 text-sky-700 dark:text-sky-300 rounded"
+                                                                                >
+                                                                                    {
+                                                                                        tag
+                                                                                    }
+                                                                                </span>
+                                                                            ),
+                                                                        )}
+                                                                    </div>
+                                                                )}
                                                         </TooltipContent>
                                                     </Tooltip>
                                                 </TooltipProvider>
@@ -535,13 +599,17 @@ export default function MemoryFiles({
                                         <TableCell className="px-3 py-1.5">
                                             <span className="text-xs text-gray-500 dark:text-gray-400">
                                                 {(() => {
-                                                    const fileDate = getFileDate(file);
+                                                    const fileDate =
+                                                        getFileDate(file);
                                                     if (!fileDate) return "—";
-                                                    return fileDate.toLocaleDateString(undefined, {
-                                                        year: "numeric",
-                                                        month: "short",
-                                                        day: "numeric",
-                                                    });
+                                                    return fileDate.toLocaleDateString(
+                                                        undefined,
+                                                        {
+                                                            year: "numeric",
+                                                            month: "short",
+                                                            day: "numeric",
+                                                        },
+                                                    );
                                                 })()}
                                             </span>
                                         </TableCell>
@@ -600,7 +668,11 @@ export default function MemoryFiles({
                             )}
                         </AlertDialogDescription>
                     </AlertDialogHeader>
-                    <AlertDialogFooter className={isRtl ? "flex-row-reverse sm:flex-row-reverse" : ""}>
+                    <AlertDialogFooter
+                        className={
+                            isRtl ? "flex-row-reverse sm:flex-row-reverse" : ""
+                        }
+                    >
                         <AlertDialogCancel>{t("Cancel")}</AlertDialogCancel>
                         <AlertDialogAction onClick={handleBulkDelete}>
                             {t("Delete")}
