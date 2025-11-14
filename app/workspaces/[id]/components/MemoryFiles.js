@@ -245,12 +245,25 @@ export default function MemoryFiles({
     };
 
     const handleRemoveFiles = async (filesToRemove) => {
-        // Filter to only valid file objects
-        const validFiles = filesToRemove.filter(
-            (file) =>
-                typeof file === "object" &&
-                (file.type === "image_url" || file.type === "file"),
-        );
+        // Filter to only valid file objects and normalize them
+        // Files from memoryFiles may not have a 'type' property, so we need to add it
+        const validFiles = filesToRemove
+            .filter((file) => typeof file === "object")
+            .map((file) => {
+                // Normalize file object: add type property if missing
+                // If it has image_url property, it's an image_url type, otherwise it's a file
+                if (!file.type) {
+                    return {
+                        ...file,
+                        type: file.image_url ? "image_url" : "file",
+                    };
+                }
+                return file;
+            })
+            .filter(
+                (file) =>
+                    file.type === "image_url" || file.type === "file",
+            );
 
         if (validFiles.length === 0) {
             clearSelection();
