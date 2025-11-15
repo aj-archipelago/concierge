@@ -73,7 +73,10 @@ export async function GET(request) {
                 const getResponse = await fetch(url.toString(), {
                     method: "GET",
                     headers: {
-                        Range: "bytes=0-0", // Just request first byte to check existence
+                        // Request only first byte to check existence
+                        // Note: Some servers may ignore Range header and return full file (200 OK)
+                        // instead of partial content (206). The 5-second timeout limits impact.
+                        Range: "bytes=0-0",
                     },
                     redirect: "follow",
                     signal: getController.signal,

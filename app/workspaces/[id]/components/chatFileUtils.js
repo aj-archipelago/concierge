@@ -176,7 +176,7 @@ export async function purgeFiles({
 
     // 2. Remove from memory files collection (in parallel)
     if (!skipMemoryFiles && apolloClient && contextId && contextKey) {
-        await Promise.allSettled(
+        const memoryRemovalResults = await Promise.allSettled(
             files.map((fileObj) =>
                 removeFileFromMemory(
                     apolloClient,
@@ -188,10 +188,14 @@ export async function purgeFiles({
                         "Failed to remove file from memory files:",
                         error,
                     );
+                    throw error; // Re-throw so Promise.allSettled marks it as rejected
                 }),
             ),
         );
-        results.memoryFileRemoved = true;
+        // Only set to true if at least one removal succeeded
+        results.memoryFileRemoved = memoryRemovalResults.some(
+            (result) => result.status === "fulfilled",
+        );
     }
 
     // 3. Replace in chat messages with placeholders (single update for all files)

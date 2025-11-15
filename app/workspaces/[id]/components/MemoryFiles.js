@@ -199,11 +199,11 @@ export default function MemoryFiles({
         const dateStr =
             file.modifiedDate || file.lastAccessed || file.addedDate;
         if (!dateStr) return null;
-        try {
-            return new Date(dateStr);
-        } catch (e) {
-            return null;
-        }
+        const date = new Date(dateStr);
+        // new Date() doesn't throw for invalid strings, it returns Invalid Date
+        // Check if the date is valid
+        if (isNaN(date.getTime())) return null;
+        return date;
     }, []);
 
     // Sort files
