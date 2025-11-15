@@ -401,25 +401,49 @@ export default function MemoryFiles({
         );
     }
 
-    // Show filtered empty state
+    // Show filtered empty state - use same structure to prevent layout jumps
     if (sortedFiles.length === 0) {
         return (
             <>
-                <div className="mb-4">
-                    <FilterInput
-                        value={filterText}
-                        onChange={setFilterText}
-                        onClear={() => setFilterText("")}
-                        placeholder={t("Filter files...")}
-                    />
+                <div className="flex flex-col gap-3" ref={containerRef}>
+                    {/* Header with filter */}
+                    <div className="flex flex-col gap-2">
+                        <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                                <FileText className="w-5 h-5 text-gray-600 dark:text-gray-400" />
+                                <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+                                    {t("Files indexed in this conversation")}
+                                </h3>
+                                <span className="text-xs text-gray-500 dark:text-gray-400">
+                                    ({sortedFiles.length}
+                                    {sortedFiles.length !==
+                                        memoryFiles.length &&
+                                        ` / ${memoryFiles.length}`}
+                                    )
+                                </span>
+                            </div>
+                        </div>
+                        <FilterInput
+                            value={filterText}
+                            onChange={setFilterText}
+                            onClear={() => setFilterText("")}
+                            placeholder={t("Filter files...")}
+                        />
+                    </div>
+
+                    {/* Empty state in same height container */}
+                    <div className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden h-[60vh] flex items-center justify-center">
+                        <EmptyState
+                            icon={
+                                <FileText className="w-12 h-12 text-gray-400" />
+                            }
+                            title={t("No files match")}
+                            description={t(
+                                "No files match your search. Try a different filter.",
+                            )}
+                        />
+                    </div>
                 </div>
-                <EmptyState
-                    icon={<FileText className="w-12 h-12 text-gray-400" />}
-                    title={t("No files match")}
-                    description={t(
-                        "No files match your search. Try a different filter.",
-                    )}
-                />
             </>
         );
     }
@@ -452,7 +476,7 @@ export default function MemoryFiles({
                 </div>
 
                 {/* File list table */}
-                <div className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden max-h-[60vh] overflow-y-auto">
+                <div className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden h-[60vh] overflow-y-auto">
                     <Table>
                         <TableHeader className="sticky top-0 bg-gray-50 dark:bg-gray-900 z-10">
                             <TableRow className="border-b border-gray-200 dark:border-gray-700">
