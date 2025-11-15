@@ -37,10 +37,23 @@ export async function readMemoryFiles(apolloClient, contextId, contextKey) {
 
         if (memoryData.data?.sys_read_memory?.result) {
             try {
-                const files = JSON.parse(
+                const parsed = JSON.parse(
                     memoryData.data.sys_read_memory.result,
                 );
-                return Array.isArray(files) ? files : [];
+                // Handle new format: { version, files }
+                if (
+                    parsed &&
+                    typeof parsed === "object" &&
+                    !Array.isArray(parsed) &&
+                    parsed.files
+                ) {
+                    return Array.isArray(parsed.files) ? parsed.files : [];
+                }
+                // Handle old format: just an array (backward compatibility)
+                if (Array.isArray(parsed)) {
+                    return parsed;
+                }
+                return [];
             } catch (e) {
                 console.error("Error parsing memoryFiles:", e);
                 return [];
@@ -67,13 +80,20 @@ export async function saveMemoryFiles(
     }
 
     try {
+        // Save in new format: { version, files }
+        // Generate a new version timestamp for optimistic locking
+        const collectionData = {
+            version: new Date().toISOString(),
+            files: Array.isArray(files) ? files : [],
+        };
+
         await apolloClient.mutate({
             mutation: QUERIES.SYS_SAVE_MEMORY,
             variables: {
                 contextId,
                 contextKey,
                 section: "memoryFiles",
-                aiMemory: JSON.stringify(files),
+                aiMemory: JSON.stringify(collectionData),
             },
         });
     } catch (error) {

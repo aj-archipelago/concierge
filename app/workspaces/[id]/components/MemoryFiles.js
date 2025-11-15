@@ -147,8 +147,24 @@ export default function MemoryFiles({
     useEffect(() => {
         if (memoryData?.sys_read_memory?.result) {
             try {
-                const files = JSON.parse(memoryData.sys_read_memory.result);
-                setMemoryFiles(Array.isArray(files) ? files : []);
+                const parsed = JSON.parse(memoryData.sys_read_memory.result);
+                // Handle new format: { version, files }
+                if (
+                    parsed &&
+                    typeof parsed === "object" &&
+                    !Array.isArray(parsed) &&
+                    parsed.files
+                ) {
+                    setMemoryFiles(
+                        Array.isArray(parsed.files) ? parsed.files : [],
+                    );
+                }
+                // Handle old format: just an array (backward compatibility)
+                else if (Array.isArray(parsed)) {
+                    setMemoryFiles(parsed);
+                } else {
+                    setMemoryFiles([]);
+                }
             } catch (e) {
                 console.error("[MemoryFiles] Error parsing memory:", e);
                 setMemoryFiles([]);
@@ -261,8 +277,7 @@ export default function MemoryFiles({
                 return file;
             })
             .filter(
-                (file) =>
-                    file.type === "image_url" || file.type === "file",
+                (file) => file.type === "image_url" || file.type === "file",
             );
 
         if (validFiles.length === 0) {
