@@ -25,6 +25,8 @@ const ChatMessages = React.memo(function ChatMessages({
     selectedEntityId,
     entities,
     entityIconSize,
+    contextId,
+    contextKey,
 }) {
     const { user } = useContext(AuthContext);
     const { t } = useTranslation();
@@ -49,7 +51,7 @@ const ChatMessages = React.memo(function ChatMessages({
 
     return (
         <div className="flex flex-col h-full">
-            <div className="hidden justify-between items-center px-3 pb-2 text-xs [.docked_&]:flex">
+            <div className="hidden justify-between items-center px-3 pb-2 text-xs [.docked_&]:hidden">
                 <ChatTopMenuDynamic
                     displayState={displayState}
                     publicChatOwner={publicChatOwner}
@@ -72,9 +74,11 @@ const ChatMessages = React.memo(function ChatMessages({
                     entities={entities}
                     entityIconSize={entityIconSize}
                     onSend={onSend}
+                    contextId={contextId}
+                    contextKey={contextKey}
                 />
             </div>
-            <div>
+            <div className="flex-shrink-0">
                 <MessageInput
                     viewingReadOnlyChat={viewingReadOnlyChat}
                     loading={loading}

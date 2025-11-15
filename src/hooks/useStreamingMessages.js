@@ -1,7 +1,6 @@
 import { useCallback, useRef, useState, useEffect } from "react";
 import { useSubscription } from "@apollo/client";
 import { SUBSCRIPTIONS } from "../graphql";
-import { processImageUrls } from "../utils/imageUtils.mjs";
 import { toast } from "react-toastify";
 
 // Add utility function for chunking text
@@ -140,11 +139,7 @@ export function useStreamingMessages({
             finalContent = ephemeralContentRef.current;
         }
 
-        // Process any image URLs in the final content
-        const processedContent = await processImageUrls(
-            finalContent,
-            window.location.origin,
-        );
+        const processedContent = finalContent;
 
         const toolString = JSON.stringify({
             ...accumulatedInfoRef.current,

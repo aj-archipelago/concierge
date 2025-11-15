@@ -8,7 +8,7 @@ import React, {
     useState,
 } from "react";
 import { useTranslation } from "react-i18next";
-import { UserCircle, X } from "lucide-react";
+import { UserCircle, X, FileX } from "lucide-react";
 import Loader from "../../../app/components/loader";
 import classNames from "../../../app/utils/class-names";
 import config from "../../../config";
@@ -28,6 +28,8 @@ import BotMessage from "./BotMessage";
 import ScrollToBottom from "./ScrollToBottom";
 import StreamingMessage from "./StreamingMessage";
 import { useUpdateChat } from "../../../app/queries/chats";
+import { useApolloClient } from "@apollo/client";
+import { purgeFile } from "../../../app/workspaces/[id]/components/chatFileUtils";
 import {
     AlertDialog,
     AlertDialogContent,
@@ -142,7 +144,39 @@ const MessageListContent = React.memo(function MessageListContent({
                 .map((t, index2) => {
                     try {
                         const obj = JSON.parse(t);
-                        // Skip items marked to be hidden from client
+
+                        // Show deleted file indicator if it's a deleted file placeholder
+                        if (
+                            obj.hideFromClient === true &&
+                            obj.isDeletedFile === true
+                        ) {
+                            const deletedFilename =
+                                obj.deletedFilename || "file";
+                            const messageText =
+                                typeof t === "function"
+                                    ? t(
+                                          "File no longer available: {{filename}}",
+                                          {
+                                              filename: deletedFilename,
+                                          },
+                                      )
+                                    : `File no longer available: ${deletedFilename}`;
+                            return (
+                                <div
+                                    key={`deleted-file-${index}-${index2}`}
+                                    className="bg-neutral-100 dark:bg-gray-700 py-2 ps-2 pe-2 m-2 shadow-md rounded-lg border dark:border-gray-600 flex gap-2 items-center opacity-60"
+                                    title={messageText}
+                                    dir="auto"
+                                >
+                                    <FileX className="w-6 h-6 text-gray-500 dark:text-gray-400 flex-shrink-0 rtl:scale-x-[-1]" />
+                                    <span className="truncate text-gray-500 dark:text-gray-400 italic">
+                                        {messageText}
+                                    </span>
+                                </div>
+                            );
+                        }
+
+                        // Skip other items marked to be hidden from client
                         if (obj.hideFromClient === true) {
                             return null;
                         }
@@ -315,6 +349,8 @@ const MessageList = React.memo(
             selectedEntityId,
             entities,
             entityIconSize,
+            contextId,
+            contextKey,
         },
         ref,
     ) {
@@ -390,6 +426,7 @@ const MessageList = React.memo(
         }, [messages]);
 
         const updateChatHook = useUpdateChat();
+        const apolloClient = useApolloClient();
 
         const rowHeight = "h-12 [.docked_&]:h-10";
         const basis =
@@ -431,65 +468,65 @@ const MessageList = React.memo(
                     return;
                 }
 
-                // Get the file info before deleting it
-                let deletedFileInfo = null;
+                // Parse file object and extract filename
+                let fileObj = null;
+                let filename = null;
                 try {
-                    const fileObj = JSON.parse(message.payload[fileIndex]);
-                    if (fileObj.type === "image_url") {
-                        const filename =
+                    fileObj = JSON.parse(message.payload[fileIndex]);
+                    if (
+                        fileObj.type === "image_url" ||
+                        fileObj.type === "file"
+                    ) {
+                        filename =
                             fileObj.originalFilename ||
                             decodeURIComponent(
                                 getFilename(
                                     fileObj?.url ||
                                         fileObj?.image_url?.url ||
-                                        fileObj?.gcs,
+                                        fileObj?.gcs ||
+                                        fileObj?.file,
                                 ),
                             );
-                        deletedFileInfo = filename;
                     }
                 } catch (e) {
                     console.error("Error parsing file object:", e);
                 }
 
-                // Replace the deleted file with a hidden text message explaining the deletion
-                const updatedPayload = [...message.payload];
-                if (deletedFileInfo) {
-                    // Replace the file with a hidden text message
-                    updatedPayload[fileIndex] = JSON.stringify({
-                        type: "text",
-                        text: t("File deleted by user: {{filename}}", {
-                            filename: deletedFileInfo,
-                        }),
-                        hideFromClient: true,
-                    });
-                } else {
-                    // If we couldn't get file info, just remove it
-                    updatedPayload.splice(fileIndex, 1);
+                if (!fileObj) {
+                    console.error("Could not parse file object");
+                    return;
                 }
 
-                const updatedMessage = {
-                    ...message,
-                    payload: updatedPayload,
-                };
-
-                // Create updated messages array
-                const updatedMessages = [...messages];
-                updatedMessages[messageIndex] = updatedMessage;
-
+                // Use unified purgeFile function to handle all deletion scenarios
                 try {
-                    // Update the chat with the modified messages
-                    // Note: This function is designed to be extended with server-side DELETE later
-                    await updateChatHook.mutateAsync({
-                        chatId: String(chatId),
-                        messages: updatedMessages,
+                    await purgeFile({
+                        fileObj,
+                        apolloClient,
+                        contextId,
+                        contextKey,
+                        chatId,
+                        messages,
+                        updateChatHook,
+                        t,
+                        filename,
+                        skipCloudDelete: false,
                     });
+
                     setFileToDelete(null);
                 } catch (error) {
-                    console.error("Failed to delete file from chat:", error);
+                    console.error("Failed to purge file:", error);
                     // TODO: Show user-friendly error message
                 }
             },
-            [chatId, messages, updateChatHook, t],
+            [
+                chatId,
+                messages,
+                updateChatHook,
+                t,
+                contextId,
+                contextKey,
+                apolloClient,
+            ],
         );
 
         const handleMessageLoad = useCallback((messageId) => {

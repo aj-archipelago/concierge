@@ -76,6 +76,11 @@ export async function prepareFileContentForLLM(files) {
             obj.originalFilename = file.originalName || file.originalFilename;
         }
 
+        // Include hash if available
+        if (file.hash) {
+            obj.hash = file.hash;
+        }
+
         return JSON.stringify(obj);
     });
 
