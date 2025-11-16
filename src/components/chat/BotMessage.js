@@ -1,5 +1,5 @@
-import { Bot, CheckCircle, XCircle } from "lucide-react";
-import React, { useEffect, useState } from "react";
+import { Bot, CheckCircle, XCircle, Loader2, Check } from "lucide-react";
+import React, { useEffect, useState, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { useCancelTask, useTask } from "../../../app/queries/notifications";
 import classNames from "../../../app/utils/class-names";
@@ -306,10 +306,50 @@ const TaskPlaceholder = ({ message }) => {
     );
 };
 
+// Helper function to decode HTML entities
+const decodeHtmlEntities = (text) => {
+    if (!text || typeof document === 'undefined') return text;
+    const textarea = document.createElement('textarea');
+    textarea.innerHTML = text;
+    return textarea.value;
+};
+
 export const EphemeralContent = React.memo(
-    ({ content, duration, isThinking }) => {
+    ({ content, lineStatuses = [], duration, isThinking }) => {
         const [expanded, setExpanded] = useState(true);
+        const scrollContainerRef = useRef(null);
         const { t } = useTranslation();
+        
+        // Split content into lines and match with statuses
+        const linesWithStatus = React.useMemo(() => {
+            if (!content) return [];
+            const lines = content.split('\n');
+            // Filter to only non-empty lines for status matching
+            const nonEmptyLines = lines.filter(line => line.trim() !== '');
+            
+            return nonEmptyLines.map((line, index) => {
+                // Match line with status (lineStatuses array corresponds to non-empty lines)
+                const status = lineStatuses[index] !== undefined 
+                    ? lineStatuses[index] 
+                    : (isThinking ? 'thinking' : 'completed');
+                // Decode HTML entities like &nbsp;
+                const decodedLine = decodeHtmlEntities(line);
+                return { line: decodedLine, status };
+            });
+        }, [content, lineStatuses, isThinking]);
+        
+        // Auto-scroll to bottom when content changes
+        useEffect(() => {
+            if (scrollContainerRef.current && expanded) {
+                // Use requestAnimationFrame to ensure DOM has updated
+                requestAnimationFrame(() => {
+                    if (scrollContainerRef.current) {
+                        scrollContainerRef.current.scrollTop = scrollContainerRef.current.scrollHeight;
+                    }
+                });
+            }
+        }, [linesWithStatus.length, expanded]);
+        
         return (
             <div className="mb-2 ephemeral-content-wrapper">
                 <div
@@ -338,11 +378,33 @@ export const EphemeralContent = React.memo(
                     </svg>
                 </div>
                 {expanded && (
-                    <div className="text-gray-600 dark:text-gray-300 mt-1 ps-3 border-s-2 border-gray-400 dark:border-gray-600 bg-gray-100 dark:bg-gray-800 py-2 px-3 rounded-r-md text-[12px]">
-                        {convertMessageToMarkdown({
-                            payload: content,
-                            sender: "labeeb",
-                        })}
+                    <div 
+                        ref={scrollContainerRef}
+                        className="text-gray-600 dark:text-gray-300 mt-1 ps-3 border-s-2 border-gray-400 dark:border-gray-600 bg-gray-100 dark:bg-gray-800 py-2 px-3 rounded-r-md text-[12px] overflow-y-auto max-h-[7.5rem] scroll-smooth"
+                        style={{ scrollBehavior: 'smooth' }}
+                    >
+                        {linesWithStatus.length > 0 ? (
+                            linesWithStatus.map(({ line, status }, index) => (
+                                <div key={index} className="flex items-start gap-2 mb-1 last:mb-0">
+                                    <div className="flex-shrink-0 mt-0.5">
+                                        {status === 'thinking' ? (
+                                            <Loader2 className="h-3 w-3 text-gray-500 dark:text-gray-400 animate-spin" />
+                                        ) : status === 'completed' ? (
+                                            <Check className="h-3 w-3 text-green-600 dark:text-green-400" />
+                                        ) : null}
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                        {line}
+                                    </div>
+                                </div>
+                            ))
+                        ) : (
+                            // Fallback to markdown rendering if no line statuses
+                            convertMessageToMarkdown({
+                                payload: content,
+                                sender: "labeeb",
+                            })
+                        )}
                     </div>
                 )}
             </div>

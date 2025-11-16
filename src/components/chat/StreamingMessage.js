@@ -56,6 +56,7 @@ const StreamingContent = React.memo(function StreamingContent({
 const StreamingMessage = React.memo(function StreamingMessage({
     content,
     ephemeralContent,
+    ephemeralLineStatuses,
     bot,
     thinkingDuration,
     isThinking,
@@ -276,6 +277,7 @@ const StreamingMessage = React.memo(function StreamingMessage({
                         {ephemeralContent && (
                             <EphemeralContent
                                 content={ephemeralContent}
+                                lineStatuses={ephemeralLineStatuses}
                                 duration={thinkingDuration}
                                 isThinking={isThinking}
                             />
