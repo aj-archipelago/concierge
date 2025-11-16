@@ -59,7 +59,8 @@ export function useStreamingMessages({
     const chunkQueueRef = useRef([]);
     const lastChunkTimeRef = useRef(0);
     const CHUNK_INTERVAL = 4; // ~225fps for 3x faster rendering (was 13ms)
-    const startTimeRef = useRef(null); // Track when streaming started
+    const startTimeRef = useRef(null); // Track when current thinking period started
+    const accumulatedThinkingTimeRef = useRef(0); // Track cumulative thinking time across all periods
 
     // Cleanup function for timeouts
     useEffect(() => {
@@ -80,17 +81,19 @@ export function useStreamingMessages({
     useEffect(() => {
         if (isStreaming && startTimeRef.current === null) {
             startTimeRef.current = Date.now();
+            accumulatedThinkingTimeRef.current = 0; // Reset accumulated time when streaming starts
             setThinkingDuration(0);
             setIsThinking(true);
         }
     }, [isStreaming]);
 
-    // Update thinking duration while streaming
+    // Update thinking duration while streaming (cumulative)
     useEffect(() => {
         if (isStreaming && startTimeRef.current && isThinking) {
             const interval = setInterval(() => {
+                const currentPeriodTime = Math.floor((Date.now() - startTimeRef.current) / 1000);
                 setThinkingDuration(
-                    Math.floor((Date.now() - startTimeRef.current) / 1000),
+                    accumulatedThinkingTimeRef.current + currentPeriodTime,
                 );
             }, 1000);
             return () => clearInterval(interval);
@@ -121,6 +124,7 @@ export function useStreamingMessages({
         processingRef.current = false;
         chunkQueueRef.current = [];
         startTimeRef.current = null; // Reset start time
+        accumulatedThinkingTimeRef.current = 0; // Reset accumulated thinking time
     }, []);
 
     const completeMessage = useCallback(async () => {
@@ -150,6 +154,13 @@ export function useStreamingMessages({
 
         const finalEphemeralContent = ephemeralContentRef.current;
 
+        // Capture final thinking duration before clearing state
+        let finalThinkingDuration = thinkingDuration;
+        if (isThinking && startTimeRef.current !== null) {
+            const elapsed = Math.floor((Date.now() - startTimeRef.current) / 1000);
+            finalThinkingDuration = accumulatedThinkingTimeRef.current + elapsed;
+        }
+
         // Clear streaming state first
         clearStreamingState();
 
@@ -172,7 +183,7 @@ export function useStreamingMessages({
                 entityId: currentEntityId,
                 isStreaming: false,
                 ephemeralContent: finalEphemeralContent || "",
-                thinkingDuration: thinkingDuration,
+                thinkingDuration: finalThinkingDuration,
             };
 
             if (lastStreamingIndex !== -1) {
@@ -206,6 +217,7 @@ export function useStreamingMessages({
         updateChatHook,
         clearStreamingState,
         thinkingDuration,
+        isThinking,
         currentEntityId,
     ]);
 
@@ -247,15 +259,34 @@ export function useStreamingMessages({
                 // For ephemeral content, update the ephemeral content state
                 ephemeralContentRef.current = newContent;
                 setEphemeralContent(newContent);
+                
+                // If we're not currently thinking (e.g., we received persistent content before),
+                // restart the thinking counter to capture interstitial time between tool calls
+                if (!isThinking && isStreaming) {
+                    // Accumulate the previous thinking period if there was one
+                    if (startTimeRef.current !== null) {
+                        const elapsed = Math.floor((Date.now() - startTimeRef.current) / 1000);
+                        accumulatedThinkingTimeRef.current += elapsed;
+                    }
+                    // Start a new thinking period
+                    startTimeRef.current = Date.now();
+                    setIsThinking(true);
+                }
             } else {
                 // This is persistent content - save it and mark that we've received some
+                // If we were thinking, accumulate the elapsed time before stopping
+                if (isThinking && startTimeRef.current !== null) {
+                    const elapsed = Math.floor((Date.now() - startTimeRef.current) / 1000);
+                    accumulatedThinkingTimeRef.current += elapsed;
+                    startTimeRef.current = null;
+                }
                 setIsThinking(false);
                 streamingMessageRef.current = newContent;
                 hasReceivedPersistentRef.current = true;
                 setStreamingContent(newContent);
             }
         },
-        [],
+        [isThinking, isStreaming],
     );
 
     const processChunkQueue = useCallback(async () => {

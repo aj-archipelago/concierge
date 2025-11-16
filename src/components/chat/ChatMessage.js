@@ -57,6 +57,24 @@ function customMarkdownDirective() {
     };
 }
 
+// Simple hash function for creating stable keys
+// Uses first 50 chars (or all if shorter) to create a stable identifier
+// that remains consistent as content streams in
+function simpleHash(str) {
+    if (!str || str.length === 0) return "empty";
+    // Normalize: take first 50 chars, remove leading/trailing whitespace
+    const normalized = str.trim().substring(0, 50);
+    if (normalized.length === 0) return "empty";
+    
+    let hash = 0;
+    for (let i = 0; i < normalized.length; i++) {
+        const char = normalized.charCodeAt(i);
+        hash = (hash << 5) - hash + char;
+        hash = hash & hash; // Convert to 32-bit integer
+    }
+    return Math.abs(hash).toString(36);
+}
+
 function convertMessageToMarkdown(message, finalRender = true, onLoad = null) {
     const { payload, tool } = message;
     const citations = tool ? JSON.parse(tool).citations : null;
@@ -150,19 +168,25 @@ function convertMessageToMarkdown(message, finalRender = true, onLoad = null) {
 
             // Handle Mermaid diagrams
             if (language === "mermaid") {
+                // Normalize code to string (children can be array or string)
+                const codeString = Array.isArray(children) ? children.join("") : String(children);
+                const stableKey = `mermaid-${simpleHash(codeString)}`;
+                
                 if (finalRender) {
                     return (
                         <MermaidDiagram
-                            key={`mermaid-${++componentIndex}`}
-                            code={children}
+                            key={stableKey}
+                            code={codeString}
                             onLoad={onLoad}
                         />
                     );
                 } else {
                     // During streaming, show placeholder instead of raw code
+                    // Pass the stable key as a prop to preserve animation state across remounts
                     return (
                         <MermaidPlaceholder
-                            key={`mermaid-placeholder-${++componentIndex}`}
+                            key={stableKey}
+                            spinnerKey={stableKey}
                         />
                     );
                 }

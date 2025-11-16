@@ -38,15 +38,23 @@ const MermaidDiagram = ({ code, onLoad }) => {
 
     useEffect(() => {
         let isMounted = true;
+        let renderingInProgress = false;
 
         const renderDiagram = async () => {
             if (!containerRef.current || !code) return;
 
-            // Only set isRendering if we're actually going to render
-            if (isRendering) return;
+            // Prevent concurrent renders
+            if (renderingInProgress) return;
+            renderingInProgress = true;
 
             try {
                 setIsRendering(true);
+                
+                // Clear container before rendering to avoid showing stale content
+                if (containerRef.current) {
+                    containerRef.current.innerHTML = "";
+                }
+
                 const id = `mermaid-${Math.random().toString(36).substr(2, 9)}`;
 
                 // Update mermaid theme configuration
@@ -104,6 +112,7 @@ const MermaidDiagram = ({ code, onLoad }) => {
                         </div>`;
                 }
             } finally {
+                renderingInProgress = false;
                 if (isMounted) {
                     setIsRendering(false);
                 }
@@ -114,10 +123,11 @@ const MermaidDiagram = ({ code, onLoad }) => {
 
         return () => {
             isMounted = false;
-            setIsRendering(false); // Reset rendering state on cleanup
+            renderingInProgress = false;
+            setIsRendering(false);
         };
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [code, themeConfig, theme]); // Remove isRendering from dependencies
+    }, [code, themeConfig, theme]);
 
     return (
         <div
