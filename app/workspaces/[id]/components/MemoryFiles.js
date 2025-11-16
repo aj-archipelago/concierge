@@ -55,6 +55,7 @@ function SortableHeader({
     currentSort,
     currentDirection,
     onSort,
+    className = "",
 }) {
     const isRtl = i18next.language === "ar";
     const isActive = currentSort === sortKey;
@@ -65,7 +66,9 @@ function SortableHeader({
         : ArrowUpDown;
 
     return (
-        <TableHead className={`h-9 px-3 ${isRtl ? "text-right" : "text-left"}`}>
+        <TableHead
+            className={`h-9 px-2 sm:px-3 ${isRtl ? "text-right" : "text-left"} ${className}`}
+        >
             <button
                 onClick={() => onSort(sortKey)}
                 className={`flex items-center gap-1.5 hover:text-gray-900 dark:hover:text-gray-100 transition-colors text-gray-600 dark:text-gray-400 ${isRtl ? "flex-row-reverse" : ""}`}
@@ -409,12 +412,12 @@ export default function MemoryFiles({
                     {/* Header with filter */}
                     <div className="flex flex-col gap-2">
                         <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                                <FileText className="w-5 h-5 text-gray-600 dark:text-gray-400" />
-                                <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+                            <div className="flex items-center gap-1 sm:gap-2 min-w-0">
+                                <FileText className="w-4 h-4 sm:w-5 sm:h-5 text-gray-600 dark:text-gray-400 flex-shrink-0" />
+                                <h3 className="text-xs sm:text-sm font-semibold text-gray-900 dark:text-gray-100 truncate">
                                     {t("Files indexed in this conversation")}
                                 </h3>
-                                <span className="text-xs text-gray-500 dark:text-gray-400">
+                                <span className="text-xs text-gray-500 dark:text-gray-400 flex-shrink-0">
                                     ({sortedFiles.length}
                                     {sortedFiles.length !==
                                         memoryFiles.length &&
@@ -454,12 +457,12 @@ export default function MemoryFiles({
                 {/* Header with filter */}
                 <div className="flex flex-col gap-2">
                     <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                            <FileText className="w-5 h-5 text-gray-600 dark:text-gray-400" />
-                            <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+                        <div className="flex items-center gap-1 sm:gap-2 min-w-0">
+                            <FileText className="w-4 h-4 sm:w-5 sm:h-5 text-gray-600 dark:text-gray-400 flex-shrink-0" />
+                            <h3 className="text-xs sm:text-sm font-semibold text-gray-900 dark:text-gray-100 truncate">
                                 {t("Files indexed in this conversation")}
                             </h3>
-                            <span className="text-xs text-gray-500 dark:text-gray-400">
+                            <span className="text-xs text-gray-500 dark:text-gray-400 flex-shrink-0">
                                 ({sortedFiles.length}
                                 {sortedFiles.length !== memoryFiles.length &&
                                     ` / ${memoryFiles.length}`}
@@ -476,11 +479,11 @@ export default function MemoryFiles({
                 </div>
 
                 {/* File list table */}
-                <div className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden h-[60vh] overflow-y-auto">
+                <div className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden h-[60vh] overflow-y-auto overflow-x-auto">
                     <Table>
                         <TableHeader className="sticky top-0 bg-gray-50 dark:bg-gray-900 z-10">
                             <TableRow className="border-b border-gray-200 dark:border-gray-700">
-                                <TableHead className="h-9 w-10 px-2">
+                                <TableHead className="h-9 w-10 px-1 sm:px-2">
                                     <div
                                         className={`w-4 h-4 rounded border-2 flex items-center justify-center cursor-pointer transition-all ${
                                             allSelected
@@ -498,7 +501,7 @@ export default function MemoryFiles({
                                         />
                                     </div>
                                 </TableHead>
-                                <TableHead className="h-9 w-10 px-2"></TableHead>
+                                <TableHead className="h-9 w-8 sm:w-10 px-1 sm:px-2"></TableHead>
                                 <SortableHeader
                                     sortKey="filename"
                                     currentSort={sortKey}
@@ -512,10 +515,11 @@ export default function MemoryFiles({
                                     currentSort={sortKey}
                                     currentDirection={sortDirection}
                                     onSort={handleSort}
+                                    className="hidden sm:table-cell"
                                 >
                                     {t("Date")}
                                 </SortableHeader>
-                                <TableHead className="h-9 w-12 px-2"></TableHead>
+                                <TableHead className="h-9 w-10 sm:w-12 px-1 sm:px-2"></TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -538,7 +542,9 @@ export default function MemoryFiles({
                                             handleSelectFile(file, index, e)
                                         }
                                     >
-                                        <TableCell className="px-2 py-1.5">
+                                        <TableCell
+                                            className={`px-1 sm:px-2 py-1.5 ${isRtl ? "text-right" : "text-left"}`}
+                                        >
                                             <div
                                                 className={`w-4 h-4 rounded border-2 flex items-center justify-center transition-all ${
                                                     isSelected
@@ -563,10 +569,14 @@ export default function MemoryFiles({
                                                 />
                                             </div>
                                         </TableCell>
-                                        <TableCell className="px-2 py-1.5">
+                                        <TableCell
+                                            className={`px-1 sm:px-2 py-1.5 ${isRtl ? "text-right" : "text-left"}`}
+                                        >
                                             <Icon className="w-4 h-4 text-sky-600 dark:text-sky-400" />
                                         </TableCell>
-                                        <TableCell className="px-3 py-1.5">
+                                        <TableCell
+                                            className={`px-2 sm:px-3 py-1.5 min-w-0 max-w-[200px] sm:max-w-none ${isRtl ? "text-right" : "text-left"}`}
+                                        >
                                             {file?.notes ? (
                                                 <TooltipProvider>
                                                     <Tooltip>
@@ -623,8 +633,10 @@ export default function MemoryFiles({
                                                 </span>
                                             )}
                                         </TableCell>
-                                        <TableCell className="px-3 py-1.5">
-                                            <span className="text-xs text-gray-500 dark:text-gray-400">
+                                        <TableCell
+                                            className={`px-2 sm:px-3 py-1.5 hidden sm:table-cell ${isRtl ? "text-right" : "text-left"}`}
+                                        >
+                                            <span className="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">
                                                 {(() => {
                                                     const fileDate =
                                                         getFileDate(file);
@@ -640,7 +652,9 @@ export default function MemoryFiles({
                                                 })()}
                                             </span>
                                         </TableCell>
-                                        <TableCell className="px-2 py-1.5">
+                                        <TableCell
+                                            className={`px-1 sm:px-2 py-1.5 ${isRtl ? "text-right" : "text-left"}`}
+                                        >
                                             {fileUrl && (
                                                 <button
                                                     onClick={(e) => {

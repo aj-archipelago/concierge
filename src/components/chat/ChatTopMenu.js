@@ -68,7 +68,7 @@ function ChatTopMenu({ displayState = "full" }) {
                 open={showMemoryFilesDialog}
                 onOpenChange={setShowMemoryFilesDialog}
             >
-                <DialogContent className="max-w-2xl overflow-hidden">
+                <DialogContent className="max-w-2xl w-[calc(100vw-2rem)] sm:w-full overflow-hidden">
                     <DialogHeader>
                         <DialogTitle>{t("Chat Files")}</DialogTitle>
                         <DialogDescription>
