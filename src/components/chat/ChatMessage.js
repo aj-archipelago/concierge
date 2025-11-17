@@ -65,7 +65,7 @@ function simpleHash(str) {
     // Normalize: take first 50 chars, remove leading/trailing whitespace
     const normalized = str.trim().substring(0, 50);
     if (normalized.length === 0) return "empty";
-    
+
     let hash = 0;
     for (let i = 0; i < normalized.length; i++) {
         const char = normalized.charCodeAt(i);
@@ -169,9 +169,11 @@ function convertMessageToMarkdown(message, finalRender = true, onLoad = null) {
             // Handle Mermaid diagrams
             if (language === "mermaid") {
                 // Normalize code to string (children can be array or string)
-                const codeString = Array.isArray(children) ? children.join("") : String(children);
+                const codeString = Array.isArray(children)
+                    ? children.join("")
+                    : String(children);
                 const stableKey = `mermaid-${simpleHash(codeString)}`;
-                
+
                 if (finalRender) {
                     return (
                         <MermaidDiagram

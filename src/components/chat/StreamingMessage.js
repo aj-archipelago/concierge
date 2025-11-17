@@ -274,7 +274,10 @@ const StreamingMessage = React.memo(function StreamingMessage({
                         {t(botName)}
                     </div>
                     <div className="flex flex-col">
-                        {shouldShowEphemeralContent(ephemeralContent, toolCalls) && (
+                        {shouldShowEphemeralContent(
+                            ephemeralContent,
+                            toolCalls,
+                        ) && (
                             <EphemeralContent
                                 content={ephemeralContent}
                                 toolCalls={toolCalls || []}

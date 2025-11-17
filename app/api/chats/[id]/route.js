@@ -170,7 +170,7 @@ export async function PUT(req, { params }) {
                 userId: currentUser._id,
             },
             body,
-            { 
+            {
                 new: true,
                 runValidators: true,
             },

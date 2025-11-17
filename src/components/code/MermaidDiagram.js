@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useContext, useMemo, useState } from "react";
+import React, { useEffect, useRef, useContext, useMemo } from "react";
 import mermaid from "mermaid";
 import { ThemeContext } from "../../contexts/ThemeProvider";
 
@@ -25,7 +25,6 @@ const darkThemeVars = {
 const MermaidDiagram = ({ code, onLoad }) => {
     const { theme } = useContext(ThemeContext);
     const containerRef = useRef(null);
-    const [isRendering, setIsRendering] = useState(false);
 
     // Memoize the theme configuration
     const themeConfig = useMemo(
@@ -48,8 +47,6 @@ const MermaidDiagram = ({ code, onLoad }) => {
             renderingInProgress = true;
 
             try {
-                setIsRendering(true);
-                
                 // Clear container before rendering to avoid showing stale content
                 if (containerRef.current) {
                     containerRef.current.innerHTML = "";
@@ -113,9 +110,6 @@ const MermaidDiagram = ({ code, onLoad }) => {
                 }
             } finally {
                 renderingInProgress = false;
-                if (isMounted) {
-                    setIsRendering(false);
-                }
             }
         };
 
@@ -124,7 +118,6 @@ const MermaidDiagram = ({ code, onLoad }) => {
         return () => {
             isMounted = false;
             renderingInProgress = false;
-            setIsRendering(false);
         };
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [code, themeConfig, theme]);

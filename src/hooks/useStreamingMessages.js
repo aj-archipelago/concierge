@@ -95,7 +95,9 @@ export function useStreamingMessages({
     useEffect(() => {
         if (isStreaming && startTimeRef.current && isThinking) {
             const interval = setInterval(() => {
-                const currentPeriodTime = Math.floor((Date.now() - startTimeRef.current) / 1000);
+                const currentPeriodTime = Math.floor(
+                    (Date.now() - startTimeRef.current) / 1000,
+                );
                 setThinkingDuration(
                     accumulatedThinkingTimeRef.current + currentPeriodTime,
                 );
@@ -136,16 +138,12 @@ export function useStreamingMessages({
 
     const completeMessage = useCallback(async () => {
         // Check if we have any content to save (persistent, ephemeral, or tool calls)
-        const hasContent = streamingMessageRef.current || 
-                          ephemeralContentRef.current || 
-                          toolCallsMapRef.current.size > 0;
-        
-        if (
-            !chat?._id ||
-            !hasContent ||
-            completingMessageRef.current
-        )
-            return;
+        const hasContent =
+            streamingMessageRef.current ||
+            ephemeralContentRef.current ||
+            toolCallsMapRef.current.size > 0;
+
+        if (!chat?._id || !hasContent || completingMessageRef.current) return;
 
         completingMessageRef.current = true;
 
@@ -169,15 +167,18 @@ export function useStreamingMessages({
         // Capture final thinking duration before clearing state
         let finalThinkingDuration = thinkingDuration;
         if (isThinking && startTimeRef.current !== null) {
-            const elapsed = Math.floor((Date.now() - startTimeRef.current) / 1000);
-            finalThinkingDuration = accumulatedThinkingTimeRef.current + elapsed;
+            const elapsed = Math.floor(
+                (Date.now() - startTimeRef.current) / 1000,
+            );
+            finalThinkingDuration =
+                accumulatedThinkingTimeRef.current + elapsed;
         }
 
         // Capture final tool calls before clearing state
         const finalToolCalls = Array.from(toolCallsMapRef.current.values());
         const hasToolCalls = finalToolCalls.length > 0;
-        
-        // If we have tool calls but no traditional ephemeral content, 
+
+        // If we have tool calls but no traditional ephemeral content,
         // we should still mark that we had ephemeral content (tool calls are ephemeral)
         const hasEphemeralContent = finalEphemeralContent || hasToolCalls;
 
@@ -203,7 +204,9 @@ export function useStreamingMessages({
                 entityId: currentEntityId,
                 isStreaming: false,
                 // Save ephemeral content if we have any (traditional or tool calls)
-                ephemeralContent: hasEphemeralContent ? (finalEphemeralContent || "") : undefined,
+                ephemeralContent: hasEphemeralContent
+                    ? finalEphemeralContent || ""
+                    : undefined,
                 thinkingDuration: finalThinkingDuration,
                 // Always save toolCalls explicitly - use array if we have any, otherwise null (not undefined)
                 // This ensures Mongoose saves the field and it's preserved when retrieved
@@ -279,21 +282,21 @@ export function useStreamingMessages({
         if (!toolMessage || !toolMessage.callId) return;
 
         const { type, callId, icon, userMessage, success, error } = toolMessage;
-        
-        if (type === 'start') {
+
+        if (type === "start") {
             // Add or update tool call as active
             toolCallsMapRef.current.set(callId, {
-                icon: icon || '🛠️',
-                userMessage: userMessage || 'Running tool...',
-                status: 'thinking',
+                icon: icon || "🛠️",
+                userMessage: userMessage || "Running tool...",
+                status: "thinking",
             });
-        } else if (type === 'finish') {
+        } else if (type === "finish") {
             // Update tool call as completed
             const existing = toolCallsMapRef.current.get(callId);
             if (existing) {
                 toolCallsMapRef.current.set(callId, {
                     ...existing,
-                    status: success ? 'completed' : 'failed',
+                    status: success ? "completed" : "failed",
                     error: error || null,
                 });
             }
@@ -313,15 +316,17 @@ export function useStreamingMessages({
                 // For ephemeral content, update the ephemeral content state
                 ephemeralContentRef.current = newContent;
                 setEphemeralContent(newContent);
-                
+
                 // If we're receiving ephemeral content while streaming, we should be thinking
                 // Use ref for reliable synchronous access to thinking state
                 const currentlyThinking = isThinkingRef.current || isThinking;
-                
+
                 // Helper to accumulate elapsed time and reset start time
                 const accumulateThinkingTime = () => {
                     if (startTimeRef.current !== null) {
-                        const elapsed = Math.floor((Date.now() - startTimeRef.current) / 1000);
+                        const elapsed = Math.floor(
+                            (Date.now() - startTimeRef.current) / 1000,
+                        );
                         accumulatedThinkingTimeRef.current += elapsed;
                         startTimeRef.current = null;
                     }
@@ -346,13 +351,14 @@ export function useStreamingMessages({
                     // Initial case: streaming just started, set up thinking
                     startThinkingPeriod();
                 }
-                
             } else {
                 // This is persistent content - save it and mark that we've received some
                 // If we were thinking, accumulate the elapsed time before stopping
                 const wasThinking = isThinkingRef.current || isThinking;
                 if (wasThinking && startTimeRef.current !== null) {
-                    const elapsed = Math.floor((Date.now() - startTimeRef.current) / 1000);
+                    const elapsed = Math.floor(
+                        (Date.now() - startTimeRef.current) / 1000,
+                    );
                     accumulatedThinkingTimeRef.current += elapsed;
                     startTimeRef.current = null;
                 }
@@ -426,9 +432,12 @@ export function useStreamingMessages({
                     // Handle structured tool messages
                     if (parsedInfo.toolMessage) {
                         updateToolCalls(parsedInfo.toolMessage);
-                        
+
                         // If we receive a tool start message, we should be thinking
-                        if (parsedInfo.toolMessage.type === 'start' && isStreaming) {
+                        if (
+                            parsedInfo.toolMessage.type === "start" &&
+                            isStreaming
+                        ) {
                             if (!isThinkingRef.current && !isThinking) {
                                 // Start thinking period if not already thinking
                                 if (startTimeRef.current === null) {
@@ -439,7 +448,7 @@ export function useStreamingMessages({
                                 isThinkingRef.current = true;
                             }
                         }
-                        
+
                         // Tool messages should trigger processing even without result content
                         // The tool call update above will cause a re-render
                     }

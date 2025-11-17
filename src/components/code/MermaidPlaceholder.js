@@ -11,32 +11,32 @@ const MermaidPlaceholder = React.memo(({ spinnerKey }) => {
 
     useLayoutEffect(() => {
         if (!spinnerRef.current || !spinnerKey) return;
-        
+
         const spinner = spinnerRef.current;
         const now = performance.now();
-        
+
         // Get or create the start time for this spinner key
         if (!spinnerStartTimes.has(spinnerKey)) {
             // First time we see this spinner - record the start time
             spinnerStartTimes.set(spinnerKey, now);
         }
-        
+
         const startTime = spinnerStartTimes.get(spinnerKey);
         const animationDuration = 1000; // 1s for spin animation
-        
+
         // Calculate how much time has elapsed since the spinner started
         const elapsed = (now - startTime) % animationDuration;
-        
+
         // Use negative animation-delay to start the animation at the correct point
         // This makes it appear to continue seamlessly from where it left off
         const delay = -elapsed;
         spinner.style.animationDelay = `${delay}ms`;
-        
+
         // Clean up old entries (older than 10 seconds) to prevent memory leaks
         // But only clean up entries that aren't the current one
         const cleanupThreshold = 10000;
         for (const [key, time] of spinnerStartTimes.entries()) {
-            if (key !== spinnerKey && (now - time) > cleanupThreshold) {
+            if (key !== spinnerKey && now - time > cleanupThreshold) {
                 spinnerStartTimes.delete(key);
             }
         }

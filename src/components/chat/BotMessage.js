@@ -9,11 +9,12 @@ import { convertMessageToMarkdown } from "./ChatMessage";
 import EntityIcon from "./EntityIcon";
 
 // Helper functions for ephemeral content
-const hasToolCalls = (toolCalls) => Array.isArray(toolCalls) && toolCalls.length > 0;
+const hasToolCalls = (toolCalls) =>
+    Array.isArray(toolCalls) && toolCalls.length > 0;
 const hasEphemeralContent = (content) => content && content.trim();
 // Only show ephemeral content when we have actual content to display
 // Don't show empty box just because isThinking is true
-const shouldShowEphemeralContent = (content, toolCalls) => 
+const shouldShowEphemeralContent = (content, toolCalls) =>
     hasEphemeralContent(content) || hasToolCalls(toolCalls);
 
 const MemoizedMarkdownMessage = React.memo(
@@ -126,7 +127,8 @@ const TaskPlaceholder = ({ message, onTaskStatusUpdate }) => {
             // Use requestAnimationFrame to ensure DOM has updated
             requestAnimationFrame(() => {
                 if (statusTextScrollRef.current) {
-                    statusTextScrollRef.current.scrollTop = statusTextScrollRef.current.scrollHeight;
+                    statusTextScrollRef.current.scrollTop =
+                        statusTextScrollRef.current.scrollHeight;
                 }
             });
         }
@@ -279,10 +281,10 @@ const TaskPlaceholder = ({ message, onTaskStatusUpdate }) => {
                             <div className="text-gray-600 dark:text-gray-300 text-sm font-semibold">
                                 Output
                             </div>
-                            <pre 
+                            <pre
                                 ref={statusTextScrollRef}
                                 className="my-1 p-2 text-xs border bg-gray-50 dark:bg-gray-700 rounded-md relative whitespace-pre-wrap font-sans max-h-[140px] overflow-y-auto scroll-smooth"
-                                style={{ scrollBehavior: 'smooth' }}
+                                style={{ scrollBehavior: "smooth" }}
                             >
                                 {showFullOutput || statusText.length <= 150 ? (
                                     statusText?.trim()
@@ -346,25 +348,25 @@ const TaskPlaceholder = ({ message, onTaskStatusUpdate }) => {
     );
 };
 
-
 export const EphemeralContent = React.memo(
     ({ content, toolCalls = [], duration, isThinking }) => {
         const [expanded, setExpanded] = useState(true);
         const scrollContainerRef = useRef(null);
         const { t } = useTranslation();
-        
+
         // Auto-scroll to bottom when tool calls change
         useEffect(() => {
             if (scrollContainerRef.current && expanded) {
                 // Use requestAnimationFrame to ensure DOM has updated
                 requestAnimationFrame(() => {
                     if (scrollContainerRef.current) {
-                        scrollContainerRef.current.scrollTop = scrollContainerRef.current.scrollHeight;
+                        scrollContainerRef.current.scrollTop =
+                            scrollContainerRef.current.scrollHeight;
                     }
                 });
             }
         }, [toolCalls.length, expanded]);
-        
+
         // Don't render if we have nothing to show
         if (!shouldShowEphemeralContent(content, toolCalls)) {
             return null;
@@ -398,37 +400,47 @@ export const EphemeralContent = React.memo(
                     </svg>
                 </div>
                 {expanded && (
-                    <div 
+                    <div
                         ref={scrollContainerRef}
                         className="text-gray-600 dark:text-gray-300 mt-1 ps-3 rtl:ps-0 rtl:pe-3 border-s-2 rtl:border-s-0 rtl:border-e-2 border-gray-400 dark:border-gray-600 bg-gray-100 dark:bg-gray-800 py-2 px-3 rounded-r-md rtl:rounded-r-none rtl:rounded-l-md text-[12px] overflow-y-auto max-h-[7.5rem] scroll-smooth"
-                        style={{ scrollBehavior: 'smooth' }}
+                        style={{ scrollBehavior: "smooth" }}
                     >
-                        {hasToolCalls(toolCalls) && toolCalls.map((toolCall, index) => (
-                            <div key={index} className="flex items-start gap-2 mb-1 last:mb-0 rtl:flex-row-reverse">
-                                <div className="flex-shrink-0 mt-0.5 rtl:order-2">
-                                    {toolCall.status === 'thinking' && (
-                                        <Loader2 className="h-3 w-3 text-gray-500 dark:text-gray-400 animate-spin" />
-                                    )}
-                                    {toolCall.status === 'completed' && (
-                                        <Check className="h-3 w-3 text-green-600 dark:text-green-400" />
-                                    )}
-                                    {toolCall.status === 'failed' && (
-                                        <XCircle className="h-3 w-3 text-red-600 dark:text-red-400" />
-                                    )}
-                                </div>
-                                <div className="flex-1 min-w-0 rtl:order-1 rtl:text-right">
-                                    <span className="mr-1 rtl:mr-0 rtl:ml-1">{toolCall.icon}</span>
-                                    {toolCall.userMessage}
-                                    {toolCall.error && (
-                                        <span className="text-red-600 dark:text-red-400 ml-1 rtl:ml-0 rtl:mr-1">
-                                            ({toolCall.error})
+                        {hasToolCalls(toolCalls) &&
+                            toolCalls.map((toolCall, index) => (
+                                <div
+                                    key={index}
+                                    className="flex items-start gap-2 mb-1 last:mb-0 rtl:flex-row-reverse"
+                                >
+                                    <div className="flex-shrink-0 mt-0.5 rtl:order-2">
+                                        {toolCall.status === "thinking" && (
+                                            <Loader2 className="h-3 w-3 text-gray-500 dark:text-gray-400 animate-spin" />
+                                        )}
+                                        {toolCall.status === "completed" && (
+                                            <Check className="h-3 w-3 text-green-600 dark:text-green-400" />
+                                        )}
+                                        {toolCall.status === "failed" && (
+                                            <XCircle className="h-3 w-3 text-red-600 dark:text-red-400" />
+                                        )}
+                                    </div>
+                                    <div className="flex-1 min-w-0 rtl:order-1 rtl:text-right">
+                                        <span className="mr-1 rtl:mr-0 rtl:ml-1">
+                                            {toolCall.icon}
                                         </span>
-                                    )}
+                                        {toolCall.userMessage}
+                                        {toolCall.error && (
+                                            <span className="text-red-600 dark:text-red-400 ml-1 rtl:ml-0 rtl:mr-1">
+                                                ({toolCall.error})
+                                            </span>
+                                        )}
+                                    </div>
                                 </div>
-                            </div>
-                        ))}
+                            ))}
                         {hasEphemeralContent(content) && (
-                            <div className={hasToolCalls(toolCalls) ? "mt-2" : ""}>
+                            <div
+                                className={
+                                    hasToolCalls(toolCalls) ? "mt-2" : ""
+                                }
+                            >
                                 {convertMessageToMarkdown({
                                     payload: content,
                                     sender: "labeeb",
@@ -594,7 +606,10 @@ const BotMessage = ({
             >
                 <div className="flex flex-col">
                     <div className="font-semibold">{t(entityDisplayName)}</div>
-                    {shouldShowEphemeralContent(message.ephemeralContent, message.toolCalls) && (
+                    {shouldShowEphemeralContent(
+                        message.ephemeralContent,
+                        message.toolCalls,
+                    ) && (
                         <EphemeralContent
                             content={message.ephemeralContent}
                             toolCalls={message.toolCalls || []}
@@ -608,8 +623,8 @@ const BotMessage = ({
                     >
                         <React.Fragment key={`md-${message.id}`}>
                             {message.taskId && task ? (
-                                <TaskPlaceholder 
-                                    message={message} 
+                                <TaskPlaceholder
+                                    message={message}
                                     onTaskStatusUpdate={onTaskStatusUpdate}
                                 />
                             ) : (
