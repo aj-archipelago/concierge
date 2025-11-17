@@ -14,6 +14,7 @@ import { QUERIES } from "@/src/graphql";
 import { getFileIcon } from "@/src/utils/mediaUtils";
 import {
     saveMemoryFiles as saveMemoryFilesUtil,
+    modifyMemoryFilesWithLock,
     getFileUrl,
     getFilename as getFilenameUtil,
 } from "./memoryFilesUtils";
@@ -291,12 +292,24 @@ export default function MemoryFiles({
             return;
         }
 
-        // Remove from memory files in bulk first (to avoid race conditions)
+        // Remove from memory files in bulk using optimistic locking
         const fileIds = new Set(filesToRemove.map((file) => getFileId(file)));
-        const newFiles = memoryFiles.filter(
-            (file) => !fileIds.has(getFileId(file)),
-        );
-        await saveMemoryFiles(newFiles);
+        try {
+            const newFiles = await modifyMemoryFilesWithLock(
+                apolloClient,
+                contextId,
+                contextKey,
+                (files) => {
+                    return files.filter((file) => !fileIds.has(getFileId(file)));
+                },
+            );
+            setMemoryFiles(newFiles);
+            refetchMemory();
+        } catch (error) {
+            console.error("Failed to remove files from memory:", error);
+            clearSelection();
+            return;
+        }
 
         // Use bulk purgeFiles function to handle all files in a single chat update
         // This avoids race conditions when multiple files are in the same message
@@ -388,31 +401,43 @@ export default function MemoryFiles({
             return;
         }
 
-        // Update the file in memoryFiles
-        const updatedFiles = memoryFiles.map((f) => {
-            if (getFileId(f) === fileId) {
-                // Create a new object with updated filename
-                const updated = { ...f };
-                // Update filename property (could be filename, name, or path)
-                if (typeof f === "object") {
-                    updated.filename = editingFilename.trim();
-                    // Also update name if it exists (for consistency)
-                    if (f.name) {
-                        updated.name = editingFilename.trim();
-                    }
-                }
-                return updated;
-            }
-            return f;
-        });
+        try {
+            // Use optimistic locking to update the filename
+            const updatedFiles = await modifyMemoryFilesWithLock(
+                apolloClient,
+                contextId,
+                contextKey,
+                (files) => {
+                    return files.map((f) => {
+                        if (getFileId(f) === fileId) {
+                            // Create a new object with updated filename
+                            const updated = { ...f };
+                            // Update filename property (could be filename, name, or path)
+                            if (typeof f === "object") {
+                                updated.filename = editingFilename.trim();
+                                // Also update name if it exists (for consistency)
+                                if (f.name) {
+                                    updated.name = editingFilename.trim();
+                                }
+                            }
+                            return updated;
+                        }
+                        return f;
+                    });
+                },
+            );
 
-        setMemoryFiles(updatedFiles);
-        setEditingFileId(null);
-        setEditingFilename("");
-
-        // Save to memory
-        await saveMemoryFiles(updatedFiles);
-    }, [editingFilename, memoryFiles, getFileId]);
+            setMemoryFiles(updatedFiles);
+            setEditingFileId(null);
+            setEditingFilename("");
+            refetchMemory();
+        } catch (error) {
+            console.error("Failed to save filename:", error);
+            // On error, cancel editing
+            setEditingFileId(null);
+            setEditingFilename("");
+        }
+    }, [editingFilename, apolloClient, contextId, contextKey, getFileId, refetchMemory]);
 
     const handleCancelEdit = useCallback(() => {
         setEditingFileId(null);
