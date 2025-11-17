@@ -13,7 +13,6 @@ import {
 import { QUERIES } from "@/src/graphql";
 import { getFileIcon } from "@/src/utils/mediaUtils";
 import {
-    saveMemoryFiles as saveMemoryFilesUtil,
     modifyMemoryFilesWithLock,
     getFileUrl,
     getFilename as getFilenameUtil,
@@ -253,20 +252,6 @@ export default function MemoryFiles({
         [sortKey, sortDirection],
     );
 
-    const saveMemoryFiles = async (files) => {
-        try {
-            await saveMemoryFilesUtil(
-                apolloClient,
-                contextId,
-                contextKey,
-                files,
-            );
-            refetchMemory();
-        } catch (error) {
-            console.error("Failed to save memory files:", error);
-        }
-    };
-
     const handleRemoveFiles = async (filesToRemove) => {
         // Filter to only valid file objects and normalize them
         // Files from memoryFiles may not have a 'type' property, so we need to add it
@@ -300,7 +285,9 @@ export default function MemoryFiles({
                 contextId,
                 contextKey,
                 (files) => {
-                    return files.filter((file) => !fileIds.has(getFileId(file)));
+                    return files.filter(
+                        (file) => !fileIds.has(getFileId(file)),
+                    );
                 },
             );
             setMemoryFiles(newFiles);
@@ -384,77 +371,93 @@ export default function MemoryFiles({
         }
     }, [editingFileId]);
 
-    const handleStartEdit = useCallback((file, e) => {
-        e.stopPropagation();
-        const fileId = getFileId(file);
-        const currentFilename = getFilenameUtil(file);
-        setEditingFileId(fileId);
-        setEditingFilename(currentFilename);
-    }, [getFileId]);
+    const handleStartEdit = useCallback(
+        (file, e) => {
+            e.stopPropagation();
+            const fileId = getFileId(file);
+            const currentFilename = getFilenameUtil(file);
+            setEditingFileId(fileId);
+            setEditingFilename(currentFilename);
+        },
+        [getFileId],
+    );
 
-    const handleSaveFilename = useCallback(async (file) => {
-        const fileId = getFileId(file);
-        if (!editingFilename.trim()) {
-            // Don't save empty filenames, cancel instead
-            setEditingFileId(null);
-            setEditingFilename("");
-            return;
-        }
+    const handleSaveFilename = useCallback(
+        async (file) => {
+            const fileId = getFileId(file);
+            if (!editingFilename.trim()) {
+                // Don't save empty filenames, cancel instead
+                setEditingFileId(null);
+                setEditingFilename("");
+                return;
+            }
 
-        try {
-            // Use optimistic locking to update the filename
-            const updatedFiles = await modifyMemoryFilesWithLock(
-                apolloClient,
-                contextId,
-                contextKey,
-                (files) => {
-                    return files.map((f) => {
-                        if (getFileId(f) === fileId) {
-                            // Create a new object with updated filename
-                            const updated = { ...f };
-                            // Update filename property (could be filename, name, or path)
-                            if (typeof f === "object") {
-                                updated.filename = editingFilename.trim();
-                                // Also update name if it exists (for consistency)
-                                if (f.name) {
-                                    updated.name = editingFilename.trim();
+            try {
+                // Use optimistic locking to update the filename
+                const updatedFiles = await modifyMemoryFilesWithLock(
+                    apolloClient,
+                    contextId,
+                    contextKey,
+                    (files) => {
+                        return files.map((f) => {
+                            if (getFileId(f) === fileId) {
+                                // Create a new object with updated filename
+                                const updated = { ...f };
+                                // Update filename property (could be filename, name, or path)
+                                if (typeof f === "object") {
+                                    updated.filename = editingFilename.trim();
+                                    // Also update name if it exists (for consistency)
+                                    if (f.name) {
+                                        updated.name = editingFilename.trim();
+                                    }
                                 }
+                                return updated;
                             }
-                            return updated;
-                        }
-                        return f;
-                    });
-                },
-            );
+                            return f;
+                        });
+                    },
+                );
 
-            setMemoryFiles(updatedFiles);
-            setEditingFileId(null);
-            setEditingFilename("");
-            refetchMemory();
-        } catch (error) {
-            console.error("Failed to save filename:", error);
-            // On error, cancel editing
-            setEditingFileId(null);
-            setEditingFilename("");
-        }
-    }, [editingFilename, apolloClient, contextId, contextKey, getFileId, refetchMemory]);
+                setMemoryFiles(updatedFiles);
+                setEditingFileId(null);
+                setEditingFilename("");
+                refetchMemory();
+            } catch (error) {
+                console.error("Failed to save filename:", error);
+                // On error, cancel editing
+                setEditingFileId(null);
+                setEditingFilename("");
+            }
+        },
+        [
+            editingFilename,
+            apolloClient,
+            contextId,
+            contextKey,
+            getFileId,
+            refetchMemory,
+        ],
+    );
 
     const handleCancelEdit = useCallback(() => {
         setEditingFileId(null);
         setEditingFilename("");
     }, []);
 
-    const handleFilenameKeyDown = useCallback((e, file) => {
-        if (e.key === "Enter") {
-            e.preventDefault();
-            e.stopPropagation();
-            handleSaveFilename(file);
-        } else if (e.key === "Escape") {
-            e.preventDefault();
-            e.stopPropagation();
-            handleCancelEdit();
-        }
-    }, [handleSaveFilename, handleCancelEdit]);
+    const handleFilenameKeyDown = useCallback(
+        (e, file) => {
+            if (e.key === "Enter") {
+                e.preventDefault();
+                e.stopPropagation();
+                handleSaveFilename(file);
+            } else if (e.key === "Escape") {
+                e.preventDefault();
+                e.stopPropagation();
+                handleCancelEdit();
+            }
+        },
+        [handleSaveFilename, handleCancelEdit],
+    );
 
     const allSelected =
         selectedIds.size === sortedFiles.length && sortedFiles.length > 0;
@@ -703,11 +706,17 @@ export default function MemoryFiles({
                                                 ) : file?.notes ? (
                                                     <TooltipProvider>
                                                         <Tooltip>
-                                                            <TooltipTrigger asChild>
+                                                            <TooltipTrigger
+                                                                asChild
+                                                            >
                                                                 <span
                                                                     className="text-sm text-gray-700 dark:text-gray-300 truncate block cursor-help hover:text-sky-600 dark:hover:text-sky-400"
-                                                                    title={filename}
-                                                                    onClick={(e) =>
+                                                                    title={
+                                                                        filename
+                                                                    }
+                                                                    onClick={(
+                                                                        e,
+                                                                    ) =>
                                                                         handleStartEdit(
                                                                             file,
                                                                             e,
