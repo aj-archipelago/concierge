@@ -81,7 +81,7 @@ const MemoizedMarkdownMessage = React.memo(
     },
 );
 
-const TaskPlaceholder = ({ message }) => {
+const TaskPlaceholder = ({ message, onTaskStatusUpdate }) => {
     const { data: serverTask } = useTask(message.taskId);
     const task = message.task || serverTask;
 
@@ -90,6 +90,8 @@ const TaskPlaceholder = ({ message }) => {
     const [showFullOutput, setShowFullOutput] = useState(false);
     const cancelRequest = useCancelTask();
     const { t } = useTranslation();
+    const statusTextScrollRef = useRef(null);
+    const prevStatusTextRef = useRef(null);
 
     useEffect(() => {
         if (!task) {
@@ -109,6 +111,32 @@ const TaskPlaceholder = ({ message }) => {
             setExpanded(false);
         }
     }, [task]);
+
+    // Auto-scroll status text to bottom when content changes
+    useEffect(() => {
+        if (statusTextScrollRef.current && expanded && task?.statusText) {
+            // Use requestAnimationFrame to ensure DOM has updated
+            requestAnimationFrame(() => {
+                if (statusTextScrollRef.current) {
+                    statusTextScrollRef.current.scrollTop = statusTextScrollRef.current.scrollHeight;
+                }
+            });
+        }
+    }, [task?.statusText, expanded]);
+
+    // Trigger messages list scroll when task status text changes
+    useEffect(() => {
+        if (task?.statusText && task.statusText !== prevStatusTextRef.current) {
+            prevStatusTextRef.current = task.statusText;
+            // Only trigger scroll if statusText actually changed and we have content
+            if (task.statusText.trim() && onTaskStatusUpdate) {
+                // Use a small delay to ensure DOM has updated
+                requestAnimationFrame(() => {
+                    onTaskStatusUpdate();
+                });
+            }
+        }
+    }, [task?.statusText, onTaskStatusUpdate]);
 
     if (!task) {
         return null;
@@ -243,7 +271,11 @@ const TaskPlaceholder = ({ message }) => {
                             <div className="text-gray-600 dark:text-gray-300 text-sm font-semibold">
                                 Output
                             </div>
-                            <pre className="my-1 p-2 text-xs border bg-gray-50 dark:bg-gray-700 rounded-md relative whitespace-pre-wrap font-sans max-h-[140px] overflow-y-auto">
+                            <pre 
+                                ref={statusTextScrollRef}
+                                className="my-1 p-2 text-xs border bg-gray-50 dark:bg-gray-700 rounded-md relative whitespace-pre-wrap font-sans max-h-[140px] overflow-y-auto scroll-smooth"
+                                style={{ scrollBehavior: 'smooth' }}
+                            >
                                 {showFullOutput || statusText.length <= 150 ? (
                                     statusText?.trim()
                                 ) : (
@@ -427,6 +459,7 @@ const BotMessage = ({
     entities = [],
     entityIconSize,
     onLoad,
+    onTaskStatusUpdate,
 }) => {
     const { t } = useTranslation();
     const { data: serverTask } = useTask(message.taskId);
@@ -573,7 +606,10 @@ const BotMessage = ({
                     >
                         <React.Fragment key={`md-${message.id}`}>
                             {message.taskId && task ? (
-                                <TaskPlaceholder message={message} />
+                                <TaskPlaceholder 
+                                    message={message} 
+                                    onTaskStatusUpdate={onTaskStatusUpdate}
+                                />
                             ) : (
                                 <MemoizedMarkdownMessage
                                     message={message}
