@@ -236,7 +236,7 @@ function ChatContent({
         isStreaming,
         streamingContent,
         ephemeralContent,
-        ephemeralLineStatuses,
+        toolCalls,
         stopStreaming,
         setIsStreaming,
         setSubscriptionId,
@@ -549,7 +549,7 @@ function ChatContent({
             isStreaming={isStreaming}
             streamingContent={streamingContent}
             ephemeralContent={ephemeralContent}
-            ephemeralLineStatuses={ephemeralLineStatuses}
+            toolCalls={toolCalls}
             onStopStreaming={stopStreaming}
             thinkingDuration={thinkingDuration}
             isThinking={isThinking}

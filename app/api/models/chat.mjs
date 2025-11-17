@@ -62,6 +62,10 @@ const messageSchema = new mongoose.Schema(
             type: Number,
             default: 0,
         },
+        toolCalls: {
+            type: mongoose.Schema.Types.Mixed,
+            default: null,
+        },
     },
     {
         timestamps: true,

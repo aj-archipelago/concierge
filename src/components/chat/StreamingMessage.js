@@ -4,6 +4,7 @@ import React, {
     useState,
     useCallback,
     useMemo,
+    useContext,
 } from "react";
 import { convertMessageToMarkdown } from "./ChatMessage";
 import classNames from "../../../app/utils/class-names";
@@ -11,10 +12,9 @@ import config from "../../../config";
 import { useTranslation } from "react-i18next";
 import i18next from "i18next";
 import Loader from "../../../app/components/loader";
-import { EphemeralContent } from "./BotMessage";
+import { EphemeralContent, shouldShowEphemeralContent } from "./BotMessage";
 import EntityIcon from "./EntityIcon";
 import { AuthContext } from "../../App";
-import { useContext } from "react";
 import { Bot } from "lucide-react";
 
 // Memoize the content component to prevent re-renders when only the loader position changes
@@ -56,7 +56,7 @@ const StreamingContent = React.memo(function StreamingContent({
 const StreamingMessage = React.memo(function StreamingMessage({
     content,
     ephemeralContent,
-    ephemeralLineStatuses,
+    toolCalls,
     bot,
     thinkingDuration,
     isThinking,
@@ -64,7 +64,7 @@ const StreamingMessage = React.memo(function StreamingMessage({
     entities,
     entityIconSize,
 }) {
-    const relativeContainerRef = useRef(null);
+    const contentContainerRef = useRef(null); // Ref for the non-ephemeral content container
     const [loaderPosition, setLoaderPosition] = useState({ x: 0, y: 0 });
     const [showLoader, setShowLoader] = useState(true);
     const lastUpdateRef = useRef(Date.now());
@@ -86,10 +86,10 @@ const StreamingMessage = React.memo(function StreamingMessage({
         // Constants for loader positioning
         const LOADER_BASELINE_OFFSET = 6; // Offset needed to align loader with text baseline
 
-        const containerNode = relativeContainerRef.current;
+        const containerNode = contentContainerRef.current;
         if (!containerNode) return;
 
-        // Determine the last element with content
+        // Determine the last element with content within the non-ephemeral content area
         const targetNode = containerNode.querySelector(".chat-message-bot");
 
         if (!targetNode) {
@@ -155,7 +155,7 @@ const StreamingMessage = React.memo(function StreamingMessage({
     const handleContentUpdate = useCallback(
         (contentNode) => {
             // contentNode here is the StreamingContent's div
-            if (!contentNode || !relativeContainerRef.current) return;
+            if (!contentNode || !contentContainerRef.current) return;
 
             if (contentNode.textContent?.trim() === "") return;
 
@@ -273,31 +273,33 @@ const StreamingMessage = React.memo(function StreamingMessage({
                     <div className="font-semibold text-gray-900 dark:text-gray-100">
                         {t(botName)}
                     </div>
-                    <div className="relative" ref={relativeContainerRef}>
-                        {ephemeralContent && (
+                    <div className="flex flex-col">
+                        {shouldShowEphemeralContent(ephemeralContent, toolCalls) && (
                             <EphemeralContent
                                 content={ephemeralContent}
-                                lineStatuses={ephemeralLineStatuses}
+                                toolCalls={toolCalls || []}
                                 duration={thinkingDuration}
                                 isThinking={isThinking}
                             />
                         )}
-                        <StreamingContent
-                            content={content}
-                            onContentUpdate={handleContentUpdate}
-                        />
-                        {showLoader && (
-                            <div className="pointer-events-none absolute top-0 left-0 w-full h-full">
-                                <div
-                                    className="absolute transition-transform duration-100 ease-out"
-                                    style={{
-                                        transform: `translate(${loaderPosition.x}px, ${loaderPosition.y}px)`,
-                                    }}
-                                >
-                                    <Loader size="small" delay={0} />
+                        <div className="relative" ref={contentContainerRef}>
+                            <StreamingContent
+                                content={content}
+                                onContentUpdate={handleContentUpdate}
+                            />
+                            {showLoader && (
+                                <div className="pointer-events-none absolute top-0 left-0 w-full h-full">
+                                    <div
+                                        className="absolute transition-transform duration-100 ease-out"
+                                        style={{
+                                            transform: `translate(${loaderPosition.x}px, ${loaderPosition.y}px)`,
+                                        }}
+                                    >
+                                        <Loader size="small" delay={0} />
+                                    </div>
                                 </div>
-                            </div>
-                        )}
+                            )}
+                        </div>
                     </div>
                 </div>
             </div>

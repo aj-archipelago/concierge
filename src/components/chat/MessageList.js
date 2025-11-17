@@ -344,7 +344,7 @@ const MessageList = React.memo(
             isStreaming,
             onSend,
             ephemeralContent,
-            ephemeralLineStatuses,
+            toolCalls,
             thinkingDuration,
             isThinking,
             selectedEntityId,
@@ -740,7 +740,7 @@ const MessageList = React.memo(
                             <StreamingMessage
                                 content={streamingContent}
                                 ephemeralContent={ephemeralContent}
-                                ephemeralLineStatuses={ephemeralLineStatuses}
+                                toolCalls={toolCalls}
                                 bot={bot}
                                 thinkingDuration={thinkingDuration}
                                 isThinking={isThinking}
