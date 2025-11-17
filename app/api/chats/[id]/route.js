@@ -170,7 +170,10 @@ export async function PUT(req, { params }) {
                 userId: currentUser._id,
             },
             body,
-            { new: true },
+            {
+                new: true,
+                runValidators: true,
+            },
         );
 
         if (!chat) {

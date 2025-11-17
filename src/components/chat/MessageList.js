@@ -344,6 +344,7 @@ const MessageList = React.memo(
             isStreaming,
             onSend,
             ephemeralContent,
+            toolCalls,
             thinkingDuration,
             isThinking,
             selectedEntityId,
@@ -608,6 +609,12 @@ const MessageList = React.memo(
             [messages, onSend],
         );
 
+        // Callback to trigger scroll when task status updates
+        const handleTaskStatusUpdate = useCallback(() => {
+            // Scroll messages list to bottom when task status changes
+            scrollBottomRef.current?.resetScrollState();
+        }, []);
+
         const renderMessage = useCallback(
             (message) => {
                 const toolData = parseToolData(message.tool);
@@ -630,6 +637,7 @@ const MessageList = React.memo(
                             entityIconSize={entityIconSize}
                             entityIconClasses={classNames(basis)}
                             onLoad={() => handleMessageLoad(message.id)}
+                            onTaskStatusUpdate={handleTaskStatusUpdate}
                         />
                     );
                 }
@@ -699,6 +707,7 @@ const MessageList = React.memo(
                 selectedEntityId,
                 entities,
                 entityIconSize,
+                handleTaskStatusUpdate,
                 messages,
                 handleMessageLoad,
             ],
@@ -731,6 +740,7 @@ const MessageList = React.memo(
                             <StreamingMessage
                                 content={streamingContent}
                                 ephemeralContent={ephemeralContent}
+                                toolCalls={toolCalls}
                                 bot={bot}
                                 thinkingDuration={thinkingDuration}
                                 isThinking={isThinking}

@@ -18,6 +18,7 @@ const ChatMessages = React.memo(function ChatMessages({
     chatId,
     streamingContent,
     ephemeralContent,
+    toolCalls,
     isStreaming,
     onStopStreaming,
     thinkingDuration,
@@ -68,6 +69,7 @@ const ChatMessages = React.memo(function ChatMessages({
                     isStreaming={isStreaming}
                     aiName={aiName}
                     ephemeralContent={ephemeralContent}
+                    toolCalls={toolCalls}
                     thinkingDuration={thinkingDuration}
                     isThinking={isThinking}
                     selectedEntityId={selectedEntityId}
