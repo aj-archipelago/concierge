@@ -347,9 +347,6 @@ export function useStreamingMessages({
                 } else if (currentlyThinking && startTimeRef.current === null) {
                     // If we're thinking but don't have a start time, set it now
                     startTimeRef.current = Date.now();
-                } else if (isStreaming && startTimeRef.current === null) {
-                    // Initial case: streaming just started, set up thinking
-                    startThinkingPeriod();
                 }
             } else {
                 // This is persistent content - save it and mark that we've received some
@@ -369,7 +366,8 @@ export function useStreamingMessages({
                 setStreamingContent(newContent);
             }
         },
-        [isThinking, isStreaming],
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- isStreaming and isThinking are intentionally omitted - refs (isThinkingRef) are used for synchronous access, and the callback should not recreate on every state change
+        [],
     );
 
     const processChunkQueue = useCallback(async () => {

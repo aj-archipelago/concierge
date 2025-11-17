@@ -136,17 +136,17 @@ const TaskPlaceholder = ({ message, onTaskStatusUpdate }) => {
 
     // Trigger messages list scroll when task status text changes
     useEffect(() => {
-        if (task?.statusText && task.statusText !== prevStatusTextRef.current) {
-            prevStatusTextRef.current = task.statusText;
-            // Only trigger scroll if statusText actually changed and we have content
-            if (task.statusText.trim() && onTaskStatusUpdate) {
-                // Use a small delay to ensure DOM has updated
-                requestAnimationFrame(() => {
-                    onTaskStatusUpdate();
-                });
-            }
+        if (!task?.statusText) return;
+        if (prevStatusTextRef.current === task.statusText) return;
+        prevStatusTextRef.current = task.statusText;
+        // Only trigger scroll if statusText actually changed and we have content
+        if (task.statusText.trim() && onTaskStatusUpdate) {
+            // Use a small delay to ensure DOM has updated
+            requestAnimationFrame(() => {
+                onTaskStatusUpdate();
+            });
         }
-    }, [task?.statusText, onTaskStatusUpdate]);
+    }, [task, onTaskStatusUpdate]);
 
     if (!task) {
         return null;
@@ -284,7 +284,6 @@ const TaskPlaceholder = ({ message, onTaskStatusUpdate }) => {
                             <pre
                                 ref={statusTextScrollRef}
                                 className="my-1 p-2 text-xs border bg-gray-50 dark:bg-gray-700 rounded-md relative whitespace-pre-wrap font-sans max-h-[140px] overflow-y-auto scroll-smooth"
-                                style={{ scrollBehavior: "smooth" }}
                             >
                                 {showFullOutput || statusText.length <= 150 ? (
                                     statusText?.trim()
@@ -403,7 +402,6 @@ export const EphemeralContent = React.memo(
                     <div
                         ref={scrollContainerRef}
                         className="text-gray-600 dark:text-gray-300 mt-1 ps-3 rtl:ps-0 rtl:pe-3 border-s-2 rtl:border-s-0 rtl:border-e-2 border-gray-400 dark:border-gray-600 bg-gray-100 dark:bg-gray-800 py-2 px-3 rounded-r-md rtl:rounded-r-none rtl:rounded-l-md text-[12px] overflow-y-auto max-h-[7.5rem] scroll-smooth"
-                        style={{ scrollBehavior: "smooth" }}
                     >
                         {hasToolCalls(toolCalls) &&
                             toolCalls.map((toolCall, index) => (

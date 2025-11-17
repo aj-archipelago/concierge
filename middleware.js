@@ -7,9 +7,7 @@ if (!authConfig) {
 const { auth } = authConfig;
 
 export const config = {
-    // Exclude graphql, favicon, and static assets from middleware
-    // Keep it minimal to avoid interfering with proxying and other routes
-    matcher: "/((?!graphql|favicon\\.ico|app/assets).*)",
+    matcher: "/((?!graphql).*)",
 };
 
 const isAuthorized = (request) => {
