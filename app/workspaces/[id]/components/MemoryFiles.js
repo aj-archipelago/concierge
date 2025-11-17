@@ -97,7 +97,10 @@ export default function MemoryFiles({
     const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
     const [sortKey, setSortKey] = useState("date");
     const [sortDirection, setSortDirection] = useState("desc");
+    const [editingFileId, setEditingFileId] = useState(null);
+    const [editingFilename, setEditingFilename] = useState("");
     const containerRef = useRef(null);
+    const filenameInputRef = useRef(null);
 
     const {
         data: memoryData,
@@ -360,6 +363,74 @@ export default function MemoryFiles({
         }
     }, []);
 
+    // Focus input when entering edit mode
+    useEffect(() => {
+        if (editingFileId && filenameInputRef.current) {
+            filenameInputRef.current.focus();
+            filenameInputRef.current.select();
+        }
+    }, [editingFileId]);
+
+    const handleStartEdit = useCallback((file, e) => {
+        e.stopPropagation();
+        const fileId = getFileId(file);
+        const currentFilename = getFilenameUtil(file);
+        setEditingFileId(fileId);
+        setEditingFilename(currentFilename);
+    }, [getFileId]);
+
+    const handleSaveFilename = useCallback(async (file) => {
+        const fileId = getFileId(file);
+        if (!editingFilename.trim()) {
+            // Don't save empty filenames, cancel instead
+            setEditingFileId(null);
+            setEditingFilename("");
+            return;
+        }
+
+        // Update the file in memoryFiles
+        const updatedFiles = memoryFiles.map((f) => {
+            if (getFileId(f) === fileId) {
+                // Create a new object with updated filename
+                const updated = { ...f };
+                // Update filename property (could be filename, name, or path)
+                if (typeof f === "object") {
+                    updated.filename = editingFilename.trim();
+                    // Also update name if it exists (for consistency)
+                    if (f.name) {
+                        updated.name = editingFilename.trim();
+                    }
+                }
+                return updated;
+            }
+            return f;
+        });
+
+        setMemoryFiles(updatedFiles);
+        setEditingFileId(null);
+        setEditingFilename("");
+
+        // Save to memory
+        await saveMemoryFiles(updatedFiles);
+    }, [editingFilename, memoryFiles, getFileId]);
+
+    const handleCancelEdit = useCallback(() => {
+        setEditingFileId(null);
+        setEditingFilename("");
+    }, []);
+
+    const handleFilenameKeyDown = useCallback((e, file) => {
+        if (e.key === "Enter") {
+            e.preventDefault();
+            e.stopPropagation();
+            handleSaveFilename(file);
+        } else if (e.key === "Escape") {
+            e.preventDefault();
+            e.stopPropagation();
+            handleCancelEdit();
+        }
+    }, [handleSaveFilename, handleCancelEdit]);
+
     const allSelected =
         selectedIds.size === sortedFiles.length && sortedFiles.length > 0;
 
@@ -575,63 +646,103 @@ export default function MemoryFiles({
                                             <Icon className="w-4 h-4 text-sky-600 dark:text-sky-400" />
                                         </TableCell>
                                         <TableCell
-                                            className={`px-2 sm:px-3 py-1.5 min-w-0 max-w-[200px] sm:max-w-none ${isRtl ? "text-right" : "text-left"}`}
+                                            className={`px-2 sm:px-3 py-1.5 min-w-0 max-w-[200px] sm:max-w-[300px] ${isRtl ? "text-right" : "text-left"}`}
                                         >
-                                            {file?.notes ? (
-                                                <TooltipProvider>
-                                                    <Tooltip>
-                                                        <TooltipTrigger asChild>
-                                                            <span
-                                                                className="text-sm text-gray-700 dark:text-gray-300 truncate block cursor-help"
-                                                                title={filename}
-                                                            >
-                                                                {filename}
-                                                            </span>
-                                                        </TooltipTrigger>
-                                                        <TooltipContent className="max-w-xs">
-                                                            <div className="font-medium mb-1">
-                                                                {filename}
-                                                            </div>
-                                                            <div className="text-xs text-gray-600 dark:text-gray-300 whitespace-pre-wrap">
-                                                                {file.notes}
-                                                            </div>
-                                                            {Array.isArray(
-                                                                file?.tags,
-                                                            ) &&
-                                                                file.tags
-                                                                    .length >
-                                                                    0 && (
-                                                                    <div className="mt-2 flex flex-wrap gap-1">
-                                                                        {file.tags.map(
-                                                                            (
-                                                                                tag,
-                                                                                tagIdx,
-                                                                            ) => (
-                                                                                <span
-                                                                                    key={
-                                                                                        tagIdx
-                                                                                    }
-                                                                                    className="text-xs px-1.5 py-0.5 bg-sky-100 dark:bg-sky-900/30 text-sky-700 dark:text-sky-300 rounded"
-                                                                                >
-                                                                                    {
-                                                                                        tag
-                                                                                    }
-                                                                                </span>
-                                                                            ),
-                                                                        )}
-                                                                    </div>
-                                                                )}
-                                                        </TooltipContent>
-                                                    </Tooltip>
-                                                </TooltipProvider>
-                                            ) : (
-                                                <span
-                                                    className="text-sm text-gray-700 dark:text-gray-300 truncate block"
-                                                    title={filename}
-                                                >
-                                                    {filename}
-                                                </span>
-                                            )}
+                                            <div className="min-w-0 overflow-hidden">
+                                                {editingFileId === fileId ? (
+                                                    <input
+                                                        ref={filenameInputRef}
+                                                        type="text"
+                                                        value={editingFilename}
+                                                        onChange={(e) =>
+                                                            setEditingFilename(
+                                                                e.target.value,
+                                                            )
+                                                        }
+                                                        onKeyDown={(e) =>
+                                                            handleFilenameKeyDown(
+                                                                e,
+                                                                file,
+                                                            )
+                                                        }
+                                                        onBlur={() =>
+                                                            handleSaveFilename(
+                                                                file,
+                                                            )
+                                                        }
+                                                        onClick={(e) =>
+                                                            e.stopPropagation()
+                                                        }
+                                                        className="w-full text-sm text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-sky-500 dark:border-sky-400 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-sky-500 dark:focus:ring-sky-400"
+                                                    />
+                                                ) : file?.notes ? (
+                                                    <TooltipProvider>
+                                                        <Tooltip>
+                                                            <TooltipTrigger asChild>
+                                                                <span
+                                                                    className="text-sm text-gray-700 dark:text-gray-300 truncate block cursor-help hover:text-sky-600 dark:hover:text-sky-400"
+                                                                    title={filename}
+                                                                    onClick={(e) =>
+                                                                        handleStartEdit(
+                                                                            file,
+                                                                            e,
+                                                                        )
+                                                                    }
+                                                                >
+                                                                    {filename}
+                                                                </span>
+                                                            </TooltipTrigger>
+                                                            <TooltipContent className="max-w-xs">
+                                                                <div className="font-medium mb-1">
+                                                                    {filename}
+                                                                </div>
+                                                                <div className="text-xs text-gray-600 dark:text-gray-300 whitespace-pre-wrap">
+                                                                    {file.notes}
+                                                                </div>
+                                                                {Array.isArray(
+                                                                    file?.tags,
+                                                                ) &&
+                                                                    file.tags
+                                                                        .length >
+                                                                        0 && (
+                                                                        <div className="mt-2 flex flex-wrap gap-1">
+                                                                            {file.tags.map(
+                                                                                (
+                                                                                    tag,
+                                                                                    tagIdx,
+                                                                                ) => (
+                                                                                    <span
+                                                                                        key={
+                                                                                            tagIdx
+                                                                                        }
+                                                                                        className="text-xs px-1.5 py-0.5 bg-sky-100 dark:bg-sky-900/30 text-sky-700 dark:text-sky-300 rounded"
+                                                                                    >
+                                                                                        {
+                                                                                            tag
+                                                                                        }
+                                                                                    </span>
+                                                                                ),
+                                                                            )}
+                                                                        </div>
+                                                                    )}
+                                                            </TooltipContent>
+                                                        </Tooltip>
+                                                    </TooltipProvider>
+                                                ) : (
+                                                    <span
+                                                        className="text-sm text-gray-700 dark:text-gray-300 truncate block cursor-pointer hover:text-sky-600 dark:hover:text-sky-400"
+                                                        title={filename}
+                                                        onClick={(e) =>
+                                                            handleStartEdit(
+                                                                file,
+                                                                e,
+                                                            )
+                                                        }
+                                                    >
+                                                        {filename}
+                                                    </span>
+                                                )}
+                                            </div>
                                         </TableCell>
                                         <TableCell
                                             className={`px-2 sm:px-3 py-1.5 hidden sm:table-cell ${isRtl ? "text-right" : "text-left"}`}
