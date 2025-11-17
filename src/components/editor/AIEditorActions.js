@@ -10,6 +10,7 @@ import {
     List,
     FileText as Summarize,
     Tag,
+    Plus,
 } from "lucide-react";
 import config from "../../../config";
 import CopyButton from "../CopyButton";
@@ -19,6 +20,7 @@ import { getTextSuggestionsComponent } from "./TextSuggestions";
 import TranslateModalContent from "./TranslateModalContent";
 import HeadlineModal from "./headline/HeadlineModal";
 import { getGrammarEndpoint } from "../../utils/languageDetection";
+import NewStyleGuideModal from "./NewStyleGuideModal";
 
 const ListRenderer = ({ value }) => {
     value.sort();
@@ -95,6 +97,14 @@ const actions = {
         }),
         commitLabel: "Use Corrected Text",
     },
+    // new_styleguide: {
+    //     Icon: Plus,
+    //     title: "New style guide",
+    //     dialogClassName: "modal-wide",
+    //     type: "always-available",
+    //     SuggestionsComponent: NewStyleGuideModal,
+    //     commitLabel: "Close",
+    // },
     summarize: {
         Icon: Summarize,
         title: "Summarize",

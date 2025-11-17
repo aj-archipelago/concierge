@@ -21,6 +21,8 @@ import Sidebar from "./Sidebar";
 import { cn } from "@/lib/utils";
 import { shouldForceCollapse } from "./Sidebar";
 
+const ROUTES_WITHOUT_SIDEBAR = ["/wp-editor"];
+
 export default function Layout({ children }) {
     const [showOptions, setShowOptions] = useState(false);
     const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -69,6 +71,10 @@ export default function Layout({ children }) {
     };
 
     const isCollapsed = shouldForceCollapse(pathname) || sidebarCollapsed;
+
+    if (ROUTES_WITHOUT_SIDEBAR.includes(pathname)) {
+        return <>{children}</>;
+    }
 
     return (
         <>
