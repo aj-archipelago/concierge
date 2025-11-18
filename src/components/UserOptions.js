@@ -237,7 +237,10 @@ const UserOptions = ({ show, handleClose }) => {
                         onChange={(e) => setAiStyle(e.target.value)}
                         className="lb-input w-full mb-4"
                     >
-                        <option value="OpenAI">{t("OpenAI (GPT)")}</option>
+                        <option value="OpenAI_Preview">
+                            {t("OpenAI Preview (GPT-5.1)")}
+                        </option>
+                        <option value="OpenAI">{t("OpenAI (GPT-5)")}</option>
                         <option value="OpenAI_Legacy">
                             {t("OpenAI Legacy (GPT-4.1/O3)")}
                         </option>
