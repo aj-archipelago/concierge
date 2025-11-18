@@ -2,6 +2,7 @@
 import { useQuery, useApolloClient } from "@apollo/client";
 import { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import { useTranslation } from "react-i18next";
+import { toast } from "react-toastify";
 import i18next from "i18next";
 import {
     Check,
@@ -100,6 +101,8 @@ export default function MemoryFiles({
     const [editingFileId, setEditingFileId] = useState(null);
     const [editingFilename, setEditingFilename] = useState("");
     const containerRef = useRef(null);
+    // Only one file can be edited at a time, so this ref is intentionally shared
+    // and only attached to the currently editing input.
     const filenameInputRef = useRef(null);
 
     const {
@@ -280,7 +283,7 @@ export default function MemoryFiles({
         // Remove from memory files in bulk using optimistic locking
         const fileIds = new Set(filesToRemove.map((file) => getFileId(file)));
         try {
-            const newFiles = await modifyMemoryFilesWithLock(
+            await modifyMemoryFilesWithLock(
                 apolloClient,
                 contextId,
                 contextKey,
@@ -290,7 +293,6 @@ export default function MemoryFiles({
                     );
                 },
             );
-            setMemoryFiles(newFiles);
             refetchMemory();
         } catch (error) {
             console.error("Failed to remove files from memory:", error);
@@ -371,6 +373,19 @@ export default function MemoryFiles({
         }
     }, [editingFileId]);
 
+    // Cancel editing if the file being edited no longer exists after refresh
+    useEffect(() => {
+        if (editingFileId) {
+            const fileStillExists = memoryFiles.some(
+                (file) => getFileId(file) === editingFileId,
+            );
+            if (!fileStillExists) {
+                setEditingFileId(null);
+                setEditingFilename("");
+            }
+        }
+    }, [memoryFiles, editingFileId, getFileId]);
+
     const handleStartEdit = useCallback(
         (file, e) => {
             e.stopPropagation();
@@ -385,16 +400,40 @@ export default function MemoryFiles({
     const handleSaveFilename = useCallback(
         async (file) => {
             const fileId = getFileId(file);
-            if (!editingFilename.trim()) {
+
+            // Validate filename
+            const trimmedFilename = editingFilename.trim();
+            if (!trimmedFilename) {
                 // Don't save empty filenames, cancel instead
                 setEditingFileId(null);
                 setEditingFilename("");
                 return;
             }
 
+            // Validate filename for invalid characters
+            // Prevent path separators, null bytes, and control characters
+            // eslint-disable-next-line no-control-regex
+            const invalidChars = /[<>:"|?*\x00-\x1f]/;
+            if (invalidChars.test(trimmedFilename)) {
+                toast.error(
+                    t(
+                        "Filename contains invalid characters. Please use a different name.",
+                    ),
+                );
+                return;
+            }
+
+            // Limit filename length (reasonable limit)
+            if (trimmedFilename.length > 255) {
+                toast.error(
+                    t("Filename is too long. Please use a shorter name."),
+                );
+                return;
+            }
+
             try {
                 // Use optimistic locking to update the filename
-                const updatedFiles = await modifyMemoryFilesWithLock(
+                await modifyMemoryFilesWithLock(
                     apolloClient,
                     contextId,
                     contextKey,
@@ -405,10 +444,10 @@ export default function MemoryFiles({
                                 const updated = { ...f };
                                 // Update filename property (could be filename, name, or path)
                                 if (typeof f === "object") {
-                                    updated.filename = editingFilename.trim();
+                                    updated.filename = trimmedFilename;
                                     // Also update name if it exists (for consistency)
                                     if (f.name) {
-                                        updated.name = editingFilename.trim();
+                                        updated.name = trimmedFilename;
                                     }
                                 }
                                 return updated;
@@ -418,12 +457,12 @@ export default function MemoryFiles({
                     },
                 );
 
-                setMemoryFiles(updatedFiles);
                 setEditingFileId(null);
                 setEditingFilename("");
                 refetchMemory();
             } catch (error) {
                 console.error("Failed to save filename:", error);
+                toast.error(t("Failed to save filename. Please try again."));
                 // On error, cancel editing
                 setEditingFileId(null);
                 setEditingFilename("");
@@ -436,6 +475,7 @@ export default function MemoryFiles({
             contextKey,
             getFileId,
             refetchMemory,
+            t,
         ],
     );
 
@@ -701,6 +741,9 @@ export default function MemoryFiles({
                                                         onClick={(e) =>
                                                             e.stopPropagation()
                                                         }
+                                                        aria-label={t(
+                                                            "Edit filename",
+                                                        )}
                                                         className="w-full text-sm text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-sky-500 dark:border-sky-400 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-sky-500 dark:focus:ring-sky-400"
                                                     />
                                                 ) : file?.notes ? (

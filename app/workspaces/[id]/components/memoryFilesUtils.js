@@ -78,6 +78,40 @@ function generateVersion() {
 }
 
 /**
+ * Parse memory files data from JSON string or parsed object
+ * Handles both new format ({ version, files }) and old format (array)
+ * @param {any} parsed - Parsed JSON object or array
+ * @returns {{ files: Array, version: string }} - Parsed files and version
+ */
+function parseMemoryFilesData(parsed) {
+    let files = [];
+    let version = generateVersion();
+
+    // Handle new format: { version, files }
+    if (
+        parsed &&
+        typeof parsed === "object" &&
+        !Array.isArray(parsed) &&
+        parsed.files
+    ) {
+        files = Array.isArray(parsed.files) ? parsed.files : [];
+        version = parsed.version || generateVersion();
+    }
+    // Handle old format: just an array (backward compatibility)
+    else if (Array.isArray(parsed)) {
+        files = parsed;
+        version = generateVersion(); // Assign new version for migration
+    }
+    // Invalid format
+    else {
+        files = [];
+        version = generateVersion();
+    }
+
+    return { files, version };
+}
+
+/**
  * Load memoryFiles with version for optimistic locking
  * Returns both files and version
  */
@@ -105,26 +139,9 @@ export async function loadMemoryFilesWithVersion(
                 const parsed = JSON.parse(
                     memoryData.data.sys_read_memory.result,
                 );
-                // Handle new format: { version, files }
-                if (
-                    parsed &&
-                    typeof parsed === "object" &&
-                    !Array.isArray(parsed) &&
-                    parsed.files
-                ) {
-                    files = Array.isArray(parsed.files) ? parsed.files : [];
-                    version = parsed.version || generateVersion();
-                }
-                // Handle old format: just an array (backward compatibility)
-                else if (Array.isArray(parsed)) {
-                    files = parsed;
-                    version = generateVersion(); // Assign new version for migration
-                }
-                // Invalid format
-                else {
-                    files = [];
-                    version = generateVersion();
-                }
+                const parsedData = parseMemoryFilesData(parsed);
+                files = parsedData.files;
+                version = parsedData.version;
             } catch (e) {
                 console.error("Error parsing memoryFiles:", e);
                 files = [];
@@ -294,6 +311,9 @@ export async function modifyMemoryFilesWithLock(
         throw new Error("modifierCallback must be a function");
     }
 
+    let versionMismatchCount = 0;
+    let otherErrorCount = 0;
+
     for (let attempt = 0; attempt < maxRetries; attempt++) {
         try {
             // Load collection with version (skip cache to get latest version)
@@ -329,16 +349,35 @@ export async function modifyMemoryFilesWithLock(
             }
 
             // Version mismatch - will retry on next iteration
+            versionMismatchCount++;
             // Add a small delay to reduce contention (exponential backoff)
             if (attempt < maxRetries - 1) {
                 const delay = Math.min(10 * Math.pow(2, attempt), 100); // Max 100ms
                 await new Promise((resolve) => setTimeout(resolve, delay));
             }
         } catch (error) {
+            // Track non-version-mismatch errors
+            otherErrorCount++;
             // For non-version-mismatch errors, we might want to retry or fail immediately
             // For now, we'll retry a few times then throw
             if (attempt === maxRetries - 1) {
-                throw error;
+                // Build informative error message
+                const errorParts = [];
+                if (versionMismatchCount > 0) {
+                    errorParts.push(
+                        `${versionMismatchCount} version mismatch(es)`,
+                    );
+                }
+                if (otherErrorCount > 0) {
+                    errorParts.push(
+                        `${otherErrorCount} other error(s) (${error.message || "unknown error"})`,
+                    );
+                }
+                const errorDetails =
+                    errorParts.length > 0 ? `: ${errorParts.join(", ")}` : "";
+                throw new Error(
+                    `Failed to modify memory files collection after ${maxRetries} attempts${errorDetails}`,
+                );
             }
             // Small delay before retry
             const delay = Math.min(10 * Math.pow(2, attempt), 100);
@@ -348,7 +387,7 @@ export async function modifyMemoryFilesWithLock(
 
     // If we get here, all retries failed due to version mismatches
     throw new Error(
-        `Failed to modify memory files collection after ${maxRetries} attempts due to concurrent modifications`,
+        `Failed to modify memory files collection after ${maxRetries} attempts due to concurrent modifications (${versionMismatchCount} version mismatch(es))`,
     );
 }
 
