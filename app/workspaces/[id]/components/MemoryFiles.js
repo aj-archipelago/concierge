@@ -18,6 +18,7 @@ import {
     getFileUrl,
     getFilename as getFilenameUtil,
 } from "./memoryFilesUtils";
+import { IMAGE_EXTENSIONS } from "@/src/utils/mediaUtils";
 import { purgeFiles } from "./chatFileUtils";
 import {
     AlertDialog,
@@ -669,6 +670,10 @@ export default function MemoryFiles({
                                 const fileUrl = getFileUrl(file);
                                 const Icon = getFileIcon(filename);
 
+                                const isImage = IMAGE_EXTENSIONS.includes(
+                                    `.${filename.split(".").pop()?.toLowerCase()}`,
+                                );
+
                                 return (
                                     <TableRow
                                         key={fileId}
@@ -709,9 +714,34 @@ export default function MemoryFiles({
                                             </div>
                                         </TableCell>
                                         <TableCell
-                                            className={`px-1 sm:px-2 py-1.5 ${isRtl ? "text-right" : "text-left"}`}
+                                            className={`px-1 sm:px-2 py-1.5 relative group ${isRtl ? "text-right" : "text-left"}`}
                                         >
-                                            <Icon className="w-4 h-4 text-sky-600 dark:text-sky-400" />
+                                            {isImage && fileUrl ? (
+                                                <>
+                                                    <img
+                                                        src={fileUrl}
+                                                        alt={filename}
+                                                        className="w-6 h-6 rounded object-cover bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 cursor-pointer"
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            handleOpenFile(
+                                                                file,
+                                                                e,
+                                                            );
+                                                        }}
+                                                    />
+                                                    {/* Hover preview - hidden on mobile, visible on hover for larger screens */}
+                                                    <div className="hidden sm:block fixed z-[100] top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity duration-200 w-[400px] h-[400px] bg-white dark:bg-gray-800 rounded-lg shadow-2xl border border-gray-200 dark:border-gray-700 overflow-hidden flex items-center justify-center p-2">
+                                                        <img
+                                                            src={fileUrl}
+                                                            alt={filename}
+                                                            className="max-w-full max-h-full object-contain rounded"
+                                                        />
+                                                    </div>
+                                                </>
+                                            ) : (
+                                                <Icon className="w-4 h-4 text-sky-600 dark:text-sky-400" />
+                                            )}
                                         </TableCell>
                                         <TableCell
                                             className={`px-2 sm:px-3 py-1.5 min-w-0 max-w-[200px] sm:max-w-[300px] ${isRtl ? "text-right" : "text-left"}`}
