@@ -447,3 +447,24 @@ export function getFilename(file) {
     if (typeof file === "string") return file;
     return file.filename || file.name || file.path || "Unnamed file";
 }
+
+/**
+ * Get file extension from a filename (handles edge cases like hidden files, multiple dots)
+ * @param {string} filename - The filename to extract extension from
+ * @returns {string} - The extension without the dot, or empty string if no extension
+ */
+export function getFileExtension(filename) {
+    if (!filename || typeof filename !== "string") return "";
+    
+    // Handle paths by getting just the basename
+    const basename = filename.split("/").pop() || filename;
+    
+    // Find the last dot
+    const lastDotIndex = basename.lastIndexOf(".");
+    
+    // If no dot, or dot is at position 0 (hidden file like .gitignore), no extension
+    if (lastDotIndex <= 0) return "";
+    
+    // Return extension without the dot
+    return basename.slice(lastDotIndex + 1).toLowerCase();
+}

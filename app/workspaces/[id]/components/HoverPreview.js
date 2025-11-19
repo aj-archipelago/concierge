@@ -6,27 +6,39 @@ import {
     AUDIO_EXTENSIONS,
     DOC_EXTENSIONS,
 } from "@/src/utils/mediaUtils";
-import { getFileUrl, getFilename } from "./memoryFilesUtils";
+import {
+    getFileUrl,
+    getFilename,
+    getFileExtension,
+} from "./memoryFilesUtils";
 
 export default function HoverPreview({ file }) {
     if (!file) return null;
 
     const url = getFileUrl(file);
     const filename = getFilename(file);
-    const extension = filename.split(".").pop()?.toLowerCase();
+    const extension = getFileExtension(filename);
 
     if (!url) return null;
 
-    const isImage = IMAGE_EXTENSIONS.includes(`.${extension}`);
-    const isVideo = VIDEO_EXTENSIONS.includes(`.${extension}`);
-    const isAudio = AUDIO_EXTENSIONS.includes(`.${extension}`);
-    const isDoc = DOC_EXTENSIONS.includes(`.${extension}`);
+    const isImage = extension
+        ? IMAGE_EXTENSIONS.includes(`.${extension}`)
+        : false;
+    const isVideo = extension
+        ? VIDEO_EXTENSIONS.includes(`.${extension}`)
+        : false;
+    const isAudio = extension
+        ? AUDIO_EXTENSIONS.includes(`.${extension}`)
+        : false;
+    const isDoc = extension
+        ? DOC_EXTENSIONS.includes(`.${extension}`)
+        : false;
 
     // PDF is a special case of doc that browsers render well
     const isPdf = extension === "pdf";
 
     return (
-        <div className="hidden sm:block fixed z-[100] top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[400px] h-[400px] bg-white dark:bg-gray-800 rounded-lg shadow-2xl border border-gray-200 dark:border-gray-700 overflow-hidden flex items-center justify-center p-2">
+        <div className="hidden sm:flex fixed z-[100] top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[400px] h-[400px] bg-white dark:bg-gray-800 rounded-lg shadow-2xl border border-gray-200 dark:border-gray-700 overflow-hidden items-center justify-center p-2">
             {isImage && (
                 <img
                     src={url}

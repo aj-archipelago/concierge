@@ -17,6 +17,7 @@ import {
     modifyMemoryFilesWithLock,
     getFileUrl,
     getFilename as getFilenameUtil,
+    getFileExtension,
 } from "./memoryFilesUtils";
 import { IMAGE_EXTENSIONS } from "@/src/utils/mediaUtils";
 import { purgeFiles } from "./chatFileUtils";
@@ -120,6 +121,15 @@ export default function MemoryFiles({
             clearTimeout(hoverTimeoutRef.current);
         }
         setHoveredFile(null);
+    }, []);
+
+    // Cleanup timeout on unmount to prevent memory leaks
+    useEffect(() => {
+        return () => {
+            if (hoverTimeoutRef.current) {
+                clearTimeout(hoverTimeoutRef.current);
+            }
+        };
     }, []);
     // Only one file can be edited at a time, so this ref is intentionally shared
     // and only attached to the currently editing input.
@@ -689,9 +699,10 @@ export default function MemoryFiles({
                                 const fileUrl = getFileUrl(file);
                                 const Icon = getFileIcon(filename);
 
-                                const isImage = IMAGE_EXTENSIONS.includes(
-                                    `.${filename.split(".").pop()?.toLowerCase()}`,
-                                );
+                                const extension = getFileExtension(filename);
+                                const isImage = extension
+                                    ? IMAGE_EXTENSIONS.includes(`.${extension}`)
+                                    : false;
 
                                 return (
                                     <TableRow
