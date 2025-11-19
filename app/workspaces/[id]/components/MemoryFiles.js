@@ -18,8 +18,14 @@ import {
     getFileUrl,
     getFilename as getFilenameUtil,
 } from "./memoryFilesUtils";
-import { IMAGE_EXTENSIONS } from "@/src/utils/mediaUtils";
+import {
+    IMAGE_EXTENSIONS,
+    VIDEO_EXTENSIONS,
+    AUDIO_EXTENSIONS,
+    DOC_EXTENSIONS,
+} from "@/src/utils/mediaUtils";
 import { purgeFiles } from "./chatFileUtils";
+import HoverPreview from "./HoverPreview";
 import {
     AlertDialog,
     AlertDialogContent,
@@ -101,7 +107,25 @@ export default function MemoryFiles({
     const [sortDirection, setSortDirection] = useState("desc");
     const [editingFileId, setEditingFileId] = useState(null);
     const [editingFilename, setEditingFilename] = useState("");
+    const [hoveredFile, setHoveredFile] = useState(null);
     const containerRef = useRef(null);
+    const hoverTimeoutRef = useRef(null);
+
+    const handleMouseEnter = useCallback((file) => {
+        if (hoverTimeoutRef.current) {
+            clearTimeout(hoverTimeoutRef.current);
+        }
+        hoverTimeoutRef.current = setTimeout(() => {
+            setHoveredFile(file);
+        }, 300);
+    }, []);
+
+    const handleMouseLeave = useCallback(() => {
+        if (hoverTimeoutRef.current) {
+            clearTimeout(hoverTimeoutRef.current);
+        }
+        setHoveredFile(null);
+    }, []);
     // Only one file can be edited at a time, so this ref is intentionally shared
     // and only attached to the currently editing input.
     const filenameInputRef = useRef(null);
@@ -715,32 +739,25 @@ export default function MemoryFiles({
                                         </TableCell>
                                         <TableCell
                                             className={`px-1 sm:px-2 py-1.5 relative group ${isRtl ? "text-right" : "text-left"}`}
+                                            onMouseEnter={() =>
+                                                handleMouseEnter(file)
+                                            }
+                                            onMouseLeave={handleMouseLeave}
                                         >
                                             {isImage && fileUrl ? (
-                                                <>
-                                                    <img
-                                                        src={fileUrl}
-                                                        alt={filename}
-                                                        className="w-6 h-6 rounded object-cover bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 cursor-pointer"
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            handleOpenFile(
-                                                                file,
-                                                                e,
-                                                            );
-                                                        }}
-                                                    />
-                                                    {/* Hover preview - hidden on mobile, visible on hover for larger screens */}
-                                                    <div className="hidden sm:block fixed z-[100] top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity duration-200 w-[400px] h-[400px] bg-white dark:bg-gray-800 rounded-lg shadow-2xl border border-gray-200 dark:border-gray-700 overflow-hidden flex items-center justify-center p-2">
-                                                        <img
-                                                            src={fileUrl}
-                                                            alt={filename}
-                                                            className="max-w-full max-h-full object-contain rounded"
-                                                        />
-                                                    </div>
-                                                </>
+                                                <img
+                                                    src={fileUrl}
+                                                    alt={filename}
+                                                    className="w-6 h-6 rounded object-cover bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 cursor-pointer"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        handleOpenFile(file, e);
+                                                    }}
+                                                />
                                             ) : (
-                                                <Icon className="w-4 h-4 text-sky-600 dark:text-sky-400" />
+                                                <div className="w-6 h-6 flex items-center justify-center bg-gray-100 dark:bg-gray-800 rounded border border-gray-200 dark:border-gray-700">
+                                                    <Icon className="w-4 h-4 text-sky-600 dark:text-sky-400" />
+                                                </div>
                                             )}
                                         </TableCell>
                                         <TableCell
@@ -893,6 +910,9 @@ export default function MemoryFiles({
                     </Table>
                 </div>
             </div>
+
+            {/* Hover Preview Component */}
+            <HoverPreview file={hoveredFile} />
 
             {/* Bulk actions bar */}
             <BulkActionsBar
