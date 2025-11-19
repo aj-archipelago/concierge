@@ -2,6 +2,7 @@
 import { useQuery, useApolloClient } from "@apollo/client";
 import { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import { useTranslation } from "react-i18next";
+import { toast } from "react-toastify";
 import i18next from "i18next";
 import {
     Check,
@@ -13,7 +14,7 @@ import {
 import { QUERIES } from "@/src/graphql";
 import { getFileIcon } from "@/src/utils/mediaUtils";
 import {
-    saveMemoryFiles as saveMemoryFilesUtil,
+    modifyMemoryFilesWithLock,
     getFileUrl,
     getFilename as getFilenameUtil,
 } from "./memoryFilesUtils";
@@ -97,7 +98,12 @@ export default function MemoryFiles({
     const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
     const [sortKey, setSortKey] = useState("date");
     const [sortDirection, setSortDirection] = useState("desc");
+    const [editingFileId, setEditingFileId] = useState(null);
+    const [editingFilename, setEditingFilename] = useState("");
     const containerRef = useRef(null);
+    // Only one file can be edited at a time, so this ref is intentionally shared
+    // and only attached to the currently editing input.
+    const filenameInputRef = useRef(null);
 
     const {
         data: memoryData,
@@ -249,20 +255,6 @@ export default function MemoryFiles({
         [sortKey, sortDirection],
     );
 
-    const saveMemoryFiles = async (files) => {
-        try {
-            await saveMemoryFilesUtil(
-                apolloClient,
-                contextId,
-                contextKey,
-                files,
-            );
-            refetchMemory();
-        } catch (error) {
-            console.error("Failed to save memory files:", error);
-        }
-    };
-
     const handleRemoveFiles = async (filesToRemove) => {
         // Filter to only valid file objects and normalize them
         // Files from memoryFiles may not have a 'type' property, so we need to add it
@@ -288,12 +280,25 @@ export default function MemoryFiles({
             return;
         }
 
-        // Remove from memory files in bulk first (to avoid race conditions)
+        // Remove from memory files in bulk using optimistic locking
         const fileIds = new Set(filesToRemove.map((file) => getFileId(file)));
-        const newFiles = memoryFiles.filter(
-            (file) => !fileIds.has(getFileId(file)),
-        );
-        await saveMemoryFiles(newFiles);
+        try {
+            await modifyMemoryFilesWithLock(
+                apolloClient,
+                contextId,
+                contextKey,
+                (files) => {
+                    return files.filter(
+                        (file) => !fileIds.has(getFileId(file)),
+                    );
+                },
+            );
+            refetchMemory();
+        } catch (error) {
+            console.error("Failed to remove files from memory:", error);
+            clearSelection();
+            return;
+        }
 
         // Use bulk purgeFiles function to handle all files in a single chat update
         // This avoids race conditions when multiple files are in the same message
@@ -359,6 +364,140 @@ export default function MemoryFiles({
             window.open(url, "_blank", "noopener,noreferrer");
         }
     }, []);
+
+    // Focus input when entering edit mode
+    useEffect(() => {
+        if (editingFileId && filenameInputRef.current) {
+            filenameInputRef.current.focus();
+            filenameInputRef.current.select();
+        }
+    }, [editingFileId]);
+
+    // Cancel editing if the file being edited no longer exists after refresh
+    useEffect(() => {
+        if (editingFileId) {
+            const fileStillExists = memoryFiles.some(
+                (file) => getFileId(file) === editingFileId,
+            );
+            if (!fileStillExists) {
+                setEditingFileId(null);
+                setEditingFilename("");
+            }
+        }
+    }, [memoryFiles, editingFileId, getFileId]);
+
+    const handleStartEdit = useCallback(
+        (file, e) => {
+            e.stopPropagation();
+            const fileId = getFileId(file);
+            const currentFilename = getFilenameUtil(file);
+            setEditingFileId(fileId);
+            setEditingFilename(currentFilename);
+        },
+        [getFileId],
+    );
+
+    const handleSaveFilename = useCallback(
+        async (file) => {
+            const fileId = getFileId(file);
+
+            // Validate filename
+            const trimmedFilename = editingFilename.trim();
+            if (!trimmedFilename) {
+                // Don't save empty filenames, cancel instead
+                setEditingFileId(null);
+                setEditingFilename("");
+                return;
+            }
+
+            // Validate filename for invalid characters
+            // Prevent path separators, null bytes, and control characters
+            // eslint-disable-next-line no-control-regex
+            const invalidChars = /[<>:"|?*\x00-\x1f]/;
+            if (invalidChars.test(trimmedFilename)) {
+                toast.error(
+                    t(
+                        "Filename contains invalid characters. Please use a different name.",
+                    ),
+                );
+                return;
+            }
+
+            // Limit filename length (reasonable limit)
+            if (trimmedFilename.length > 255) {
+                toast.error(
+                    t("Filename is too long. Please use a shorter name."),
+                );
+                return;
+            }
+
+            try {
+                // Use optimistic locking to update the filename
+                await modifyMemoryFilesWithLock(
+                    apolloClient,
+                    contextId,
+                    contextKey,
+                    (files) => {
+                        return files.map((f) => {
+                            if (getFileId(f) === fileId) {
+                                // Create a new object with updated filename
+                                const updated = { ...f };
+                                // Update filename property (could be filename, name, or path)
+                                if (typeof f === "object") {
+                                    updated.filename = trimmedFilename;
+                                    // Also update name if it exists (for consistency)
+                                    if (f.name) {
+                                        updated.name = trimmedFilename;
+                                    }
+                                }
+                                return updated;
+                            }
+                            return f;
+                        });
+                    },
+                );
+
+                setEditingFileId(null);
+                setEditingFilename("");
+                refetchMemory();
+            } catch (error) {
+                console.error("Failed to save filename:", error);
+                toast.error(t("Failed to save filename. Please try again."));
+                // On error, cancel editing
+                setEditingFileId(null);
+                setEditingFilename("");
+            }
+        },
+        [
+            editingFilename,
+            apolloClient,
+            contextId,
+            contextKey,
+            getFileId,
+            refetchMemory,
+            t,
+        ],
+    );
+
+    const handleCancelEdit = useCallback(() => {
+        setEditingFileId(null);
+        setEditingFilename("");
+    }, []);
+
+    const handleFilenameKeyDown = useCallback(
+        (e, file) => {
+            if (e.key === "Enter") {
+                e.preventDefault();
+                e.stopPropagation();
+                handleSaveFilename(file);
+            } else if (e.key === "Escape") {
+                e.preventDefault();
+                e.stopPropagation();
+                handleCancelEdit();
+            }
+        },
+        [handleSaveFilename, handleCancelEdit],
+    );
 
     const allSelected =
         selectedIds.size === sortedFiles.length && sortedFiles.length > 0;
@@ -575,63 +714,112 @@ export default function MemoryFiles({
                                             <Icon className="w-4 h-4 text-sky-600 dark:text-sky-400" />
                                         </TableCell>
                                         <TableCell
-                                            className={`px-2 sm:px-3 py-1.5 min-w-0 max-w-[200px] sm:max-w-none ${isRtl ? "text-right" : "text-left"}`}
+                                            className={`px-2 sm:px-3 py-1.5 min-w-0 max-w-[200px] sm:max-w-[300px] ${isRtl ? "text-right" : "text-left"}`}
                                         >
-                                            {file?.notes ? (
-                                                <TooltipProvider>
-                                                    <Tooltip>
-                                                        <TooltipTrigger asChild>
-                                                            <span
-                                                                className="text-sm text-gray-700 dark:text-gray-300 truncate block cursor-help"
-                                                                title={filename}
+                                            <div className="min-w-0 overflow-hidden">
+                                                {editingFileId === fileId ? (
+                                                    <input
+                                                        ref={filenameInputRef}
+                                                        type="text"
+                                                        value={editingFilename}
+                                                        onChange={(e) =>
+                                                            setEditingFilename(
+                                                                e.target.value,
+                                                            )
+                                                        }
+                                                        onKeyDown={(e) =>
+                                                            handleFilenameKeyDown(
+                                                                e,
+                                                                file,
+                                                            )
+                                                        }
+                                                        onBlur={() =>
+                                                            handleSaveFilename(
+                                                                file,
+                                                            )
+                                                        }
+                                                        onClick={(e) =>
+                                                            e.stopPropagation()
+                                                        }
+                                                        aria-label={t(
+                                                            "Edit filename",
+                                                        )}
+                                                        className="w-full text-sm text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-sky-500 dark:border-sky-400 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-sky-500 dark:focus:ring-sky-400"
+                                                    />
+                                                ) : file?.notes ? (
+                                                    <TooltipProvider>
+                                                        <Tooltip>
+                                                            <TooltipTrigger
+                                                                asChild
                                                             >
-                                                                {filename}
-                                                            </span>
-                                                        </TooltipTrigger>
-                                                        <TooltipContent className="max-w-xs">
-                                                            <div className="font-medium mb-1">
-                                                                {filename}
-                                                            </div>
-                                                            <div className="text-xs text-gray-600 dark:text-gray-300 whitespace-pre-wrap">
-                                                                {file.notes}
-                                                            </div>
-                                                            {Array.isArray(
-                                                                file?.tags,
-                                                            ) &&
-                                                                file.tags
-                                                                    .length >
-                                                                    0 && (
-                                                                    <div className="mt-2 flex flex-wrap gap-1">
-                                                                        {file.tags.map(
-                                                                            (
-                                                                                tag,
-                                                                                tagIdx,
-                                                                            ) => (
-                                                                                <span
-                                                                                    key={
-                                                                                        tagIdx
-                                                                                    }
-                                                                                    className="text-xs px-1.5 py-0.5 bg-sky-100 dark:bg-sky-900/30 text-sky-700 dark:text-sky-300 rounded"
-                                                                                >
-                                                                                    {
-                                                                                        tag
-                                                                                    }
-                                                                                </span>
-                                                                            ),
-                                                                        )}
-                                                                    </div>
-                                                                )}
-                                                        </TooltipContent>
-                                                    </Tooltip>
-                                                </TooltipProvider>
-                                            ) : (
-                                                <span
-                                                    className="text-sm text-gray-700 dark:text-gray-300 truncate block"
-                                                    title={filename}
-                                                >
-                                                    {filename}
-                                                </span>
-                                            )}
+                                                                <span
+                                                                    className="text-sm text-gray-700 dark:text-gray-300 truncate block cursor-help hover:text-sky-600 dark:hover:text-sky-400"
+                                                                    title={
+                                                                        filename
+                                                                    }
+                                                                    onClick={(
+                                                                        e,
+                                                                    ) =>
+                                                                        handleStartEdit(
+                                                                            file,
+                                                                            e,
+                                                                        )
+                                                                    }
+                                                                >
+                                                                    {filename}
+                                                                </span>
+                                                            </TooltipTrigger>
+                                                            <TooltipContent className="max-w-xs">
+                                                                <div className="font-medium mb-1">
+                                                                    {filename}
+                                                                </div>
+                                                                <div className="text-xs text-gray-600 dark:text-gray-300 whitespace-pre-wrap">
+                                                                    {file.notes}
+                                                                </div>
+                                                                {Array.isArray(
+                                                                    file?.tags,
+                                                                ) &&
+                                                                    file.tags
+                                                                        .length >
+                                                                        0 && (
+                                                                        <div className="mt-2 flex flex-wrap gap-1">
+                                                                            {file.tags.map(
+                                                                                (
+                                                                                    tag,
+                                                                                    tagIdx,
+                                                                                ) => (
+                                                                                    <span
+                                                                                        key={
+                                                                                            tagIdx
+                                                                                        }
+                                                                                        className="text-xs px-1.5 py-0.5 bg-sky-100 dark:bg-sky-900/30 text-sky-700 dark:text-sky-300 rounded"
+                                                                                    >
+                                                                                        {
+                                                                                            tag
+                                                                                        }
+                                                                                    </span>
+                                                                                ),
+                                                                            )}
+                                                                        </div>
+                                                                    )}
+                                                            </TooltipContent>
+                                                        </Tooltip>
+                                                    </TooltipProvider>
+                                                ) : (
+                                                    <span
+                                                        className="text-sm text-gray-700 dark:text-gray-300 truncate block cursor-pointer hover:text-sky-600 dark:hover:text-sky-400"
+                                                        title={filename}
+                                                        onClick={(e) =>
+                                                            handleStartEdit(
+                                                                file,
+                                                                e,
+                                                            )
+                                                        }
+                                                    >
+                                                        {filename}
+                                                    </span>
+                                                )}
+                                            </div>
                                         </TableCell>
                                         <TableCell
                                             className={`px-2 sm:px-3 py-1.5 hidden sm:table-cell ${isRtl ? "text-right" : "text-left"}`}

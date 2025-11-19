@@ -24,6 +24,7 @@ import { useStreamingMessages } from "../../hooks/useStreamingMessages";
 import { useQueryClient } from "@tanstack/react-query";
 import { useRunTask } from "../../../app/queries/notifications";
 import { useParams } from "next/navigation";
+import { composeUserDateTimeInfo } from "../../utils/datetimeUtils";
 
 const contextMessageCount = 50;
 
@@ -350,6 +351,9 @@ function ChatContent({
                 // Use entity ID directly from the prop
                 const currentSelectedEntityId = selectedEntityIdFromProp || "";
 
+                // Collect datetime and timezone information
+                const userInfo = composeUserDateTimeInfo();
+
                 const variables = {
                     chatHistory: conversation,
                     contextId,
@@ -366,6 +370,7 @@ function ChatContent({
                     entityId: currentSelectedEntityId,
                     researchMode: chat?.researchMode ? true : false,
                     model: chat?.researchMode ? "oai-o3" : "oai-gpt41",
+                    userInfo,
                 };
 
                 // Make parallel title update call
