@@ -220,6 +220,7 @@ const SYS_ENTITY_AGENT = gql`
         $chatId: String
         $researchMode: Boolean
         $model: String
+        $userInfo: String
     ) {
         sys_entity_agent(
             chatHistory: $chatHistory
@@ -236,6 +237,7 @@ const SYS_ENTITY_AGENT = gql`
             chatId: $chatId
             researchMode: $researchMode
             model: $model
+            userInfo: $userInfo
         ) {
             result
             contextId
