@@ -18,12 +18,7 @@ import {
     getFileUrl,
     getFilename as getFilenameUtil,
 } from "./memoryFilesUtils";
-import {
-    IMAGE_EXTENSIONS,
-    VIDEO_EXTENSIONS,
-    AUDIO_EXTENSIONS,
-    DOC_EXTENSIONS,
-} from "@/src/utils/mediaUtils";
+import { IMAGE_EXTENSIONS } from "@/src/utils/mediaUtils";
 import { purgeFiles } from "./chatFileUtils";
 import HoverPreview from "./HoverPreview";
 import {

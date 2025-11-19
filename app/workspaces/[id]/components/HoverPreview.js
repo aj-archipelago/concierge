@@ -1,5 +1,5 @@
 "use client";
-import React, { useMemo } from "react";
+import React from "react";
 import {
     IMAGE_EXTENSIONS,
     VIDEO_EXTENSIONS,
@@ -93,4 +93,3 @@ export default function HoverPreview({ file }) {
         </div>
     );
 }
-

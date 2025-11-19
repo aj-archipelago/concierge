@@ -4,9 +4,6 @@ import Run from "../models/run";
 import { getCurrentUser } from "../utils/auth";
 
 export async function POST(req, res) {
-    const startedAt = Date.now();
-    const requestId = Math.random().toString(36).slice(2, 10);
-
     const body = await req.json();
     const { text, llmId, workspaceId, files } = body;
 
