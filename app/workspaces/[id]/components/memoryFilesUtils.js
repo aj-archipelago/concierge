@@ -455,16 +455,16 @@ export function getFilename(file) {
  */
 export function getFileExtension(filename) {
     if (!filename || typeof filename !== "string") return "";
-    
+
     // Handle paths by getting just the basename
     const basename = filename.split("/").pop() || filename;
-    
+
     // Find the last dot
     const lastDotIndex = basename.lastIndexOf(".");
-    
+
     // If no dot, or dot is at position 0 (hidden file like .gitignore), no extension
     if (lastDotIndex <= 0) return "";
-    
+
     // Return extension without the dot
     return basename.slice(lastDotIndex + 1).toLowerCase();
 }

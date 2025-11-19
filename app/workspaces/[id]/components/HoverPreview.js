@@ -6,11 +6,7 @@ import {
     AUDIO_EXTENSIONS,
     DOC_EXTENSIONS,
 } from "@/src/utils/mediaUtils";
-import {
-    getFileUrl,
-    getFilename,
-    getFileExtension,
-} from "./memoryFilesUtils";
+import { getFileUrl, getFilename, getFileExtension } from "./memoryFilesUtils";
 
 export default function HoverPreview({ file }) {
     if (!file) return null;
@@ -30,9 +26,7 @@ export default function HoverPreview({ file }) {
     const isAudio = extension
         ? AUDIO_EXTENSIONS.includes(`.${extension}`)
         : false;
-    const isDoc = extension
-        ? DOC_EXTENSIONS.includes(`.${extension}`)
-        : false;
+    const isDoc = extension ? DOC_EXTENSIONS.includes(`.${extension}`) : false;
 
     // PDF is a special case of doc that browsers render well
     const isPdf = extension === "pdf";
