@@ -52,6 +52,11 @@ const userSchema = new mongoose.Schema(
             required: true,
             default: "OpenAI",
         },
+        useCustomEntities: {
+            type: Boolean,
+            required: false,
+            default: false,
+        },
         uploadedDocs: {
             type: [uploadedDocsSchema],
             required: false,

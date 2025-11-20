@@ -60,13 +60,15 @@ function getChatToUse(urlChatId, urlChat, viewingChat, activeChat) {
 }
 
 function Chat({ viewingChat = null }) {
-    const { t } = useTranslation();
+    const { t, i18n } = useTranslation();
     const params = useParams();
     const urlChatId = params?.id;
     const updateActiveChat = useUpdateActiveChat();
     const setActiveChatId = useSetActiveChatId();
     const { data: activeChat } = useGetActiveChat();
     const { data: urlChat } = useGetChatById(urlChatId);
+
+    const isRTL = i18n.dir() === "rtl";
 
     // Memoize chat determination to avoid recalculation on every render
     const chat = useMemo(
@@ -222,57 +224,64 @@ function Chat({ viewingChat = null }) {
                     </div>
                 )}
                 <div className="flex gap-2 items-center">
-                    <Select
-                        value={selectedEntityId || defaultAiName}
-                        onValueChange={handleEntityChange}
-                        disabled={readOnly}
-                    >
-                        <SelectTrigger
-                            className={`w-auto text-sm h-7 lb-outline ${readOnly ? "cursor-not-allowed opacity-50" : ""}`}
-                            aria-label={t("Select entity")}
+                    {user?.useCustomEntities && (
+                        <Select
+                            value={selectedEntityId || defaultAiName}
+                            onValueChange={handleEntityChange}
+                            disabled={readOnly}
+                            dir={isRTL ? "rtl" : "ltr"}
                         >
-                            <div className="flex items-center gap-2 pr-1">
-                                {selectedEntityId ? (
-                                    <>
-                                        <EntityIcon
-                                            entity={entities.find(
-                                                (e) =>
-                                                    e.id === selectedEntityId,
-                                            )}
-                                            size="xs"
-                                        />
-                                        <span className="hidden sm:inline">
-                                            {t(
-                                                entities.find(
+                            <SelectTrigger
+                                className={`w-auto text-sm h-7 lb-outline ${readOnly ? "cursor-not-allowed opacity-50" : ""}`}
+                                aria-label={t("Select entity")}
+                            >
+                                <div className="flex items-center gap-2 pe-1">
+                                    {selectedEntityId ? (
+                                        <>
+                                            <EntityIcon
+                                                entity={entities.find(
                                                     (e) =>
                                                         e.id ===
                                                         selectedEntityId,
-                                                )?.name,
-                                            )}
-                                        </span>
-                                    </>
-                                ) : (
-                                    <SelectValue
-                                        placeholder={t("Select entity")}
-                                    />
-                                )}
-                            </div>
-                        </SelectTrigger>
-                        <SelectContent>
-                            {entities.map((entity) => (
-                                <SelectItem
-                                    className="text-sm focus:bg-gray-100 dark:focus:bg-gray-700 dark:focus:text-gray-100"
-                                    key={entity.id}
-                                    value={entity.id}
-                                >
-                                    <div className="flex items-center gap-2">
-                                        <EntityIcon entity={entity} size="xs" />
-                                        {t(entity.name)}
-                                    </div>
-                                </SelectItem>
-                            ))}
-                        </SelectContent>
-                    </Select>
+                                                )}
+                                                size="xs"
+                                            />
+                                            <span className="hidden sm:inline">
+                                                {t(
+                                                    entities.find(
+                                                        (e) =>
+                                                            e.id ===
+                                                            selectedEntityId,
+                                                    )?.name,
+                                                )}
+                                            </span>
+                                        </>
+                                    ) : (
+                                        <SelectValue
+                                            placeholder={t("Select entity")}
+                                        />
+                                    )}
+                                </div>
+                            </SelectTrigger>
+                            <SelectContent>
+                                {entities.map((entity) => (
+                                    <SelectItem
+                                        className="text-sm focus:bg-gray-100 dark:focus:bg-gray-700 dark:focus:text-gray-100"
+                                        key={entity.id}
+                                        value={entity.id}
+                                    >
+                                        <div className="flex items-center gap-2">
+                                            <EntityIcon
+                                                entity={entity}
+                                                size="xs"
+                                            />
+                                            {t(entity.name)}
+                                        </div>
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    )}
                     <button
                         disabled={!chat?.messages?.length}
                         className="flex items-center gap-1 px-3 py-1.5 rounded-md transition-colors border bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 border-gray-200 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-600 text-xs disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-white dark:disabled:hover:bg-gray-700"
