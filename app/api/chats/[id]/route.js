@@ -110,8 +110,24 @@ export async function PUT(req, { params }) {
             throw new Error("Chat not found");
         }
 
-        // If the request contains messages, handle server-generated messages
+        // If the request contains messages, check if server has newer data
         if (body.messages) {
+            // If server has more messages than incoming, it likely has server-persisted ones
+            // Reject the update to preserve server state
+            const serverMessageCount = existingChat.messages?.length || 0;
+            const incomingMessageCount = body.messages.length;
+            
+            if (serverMessageCount > incomingMessageCount && body.messages.length > 0) {
+                console.log(`[PUT /api/chats/${id}] Server has ${serverMessageCount} messages, incoming has ${incomingMessageCount}. Rejecting message update to preserve server-persisted messages.`);
+                // Return current server state instead of updating
+                const chatObj = existingChat.toObject ? existingChat.toObject() : existingChat;
+                const sanitizedMessages = (chatObj.messages || []).map(sanitizeMessage);
+                return NextResponse.json({
+                    ...chatObj,
+                    messages: sanitizedMessages,
+                });
+            }
+            
             // Only preserve server messages if we're not clearing the chat
             // (when messages array is empty, we're clearing the chat)
             if (body.messages.length > 0) {

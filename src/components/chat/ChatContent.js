@@ -95,17 +95,18 @@ function ChatContent({
     );
     const chatId = useMemo(() => String(chat?._id), [chat?._id]);
 
-    // Simple approach - if we have a chat ID but no messages, refetch once
+    // Refetch chat when navigating to it to ensure we have latest server state
+    // This is important because server may have persisted messages while user was away
     useEffect(() => {
-        if (
-            chat &&
-            chat._id &&
-            (!chat.messages || chat.messages.length === 0)
-        ) {
-            queryClient.refetchQueries({ queryKey: ["chat", chat._id] });
+        if (chat && chat._id) {
+            // Refetch to get latest state from server (especially important after stream completion)
+            queryClient.refetchQueries({ 
+                queryKey: ["chat", chat._id],
+                type: "active", // Only refetch if query is currently active/mounted
+            });
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [chat?._id]); // Only run when the chat ID changes
+    }, [chat?._id]); // Only run when the chat ID changes (i.e., on navigation)
 
     // Only recalculate when messages array actually changes, not when other chat properties change
     const memoizedMessages = useMemo(
@@ -354,25 +355,6 @@ function ChatContent({
                 // Collect datetime and timezone information
                 const userInfo = composeUserDateTimeInfo();
 
-                const variables = {
-                    chatHistory: conversation,
-                    contextId,
-                    contextKey,
-                    // Use entity name if available, else fallback to default
-                    aiName:
-                        entities?.find((e) => e.id === currentSelectedEntityId)
-                            ?.name || aiName,
-                    aiMemorySelfModify,
-                    aiStyle,
-                    title: chat?.title,
-                    chatId,
-                    stream: true,
-                    entityId: currentSelectedEntityId,
-                    researchMode: chat?.researchMode ? true : false,
-                    model: chat?.researchMode ? "oai-o3" : "oai-gpt41",
-                    userInfo,
-                };
-
                 // Make parallel title update call
                 if (chat && !chat.titleSetByUser) {
                     client
@@ -406,21 +388,42 @@ function ChatContent({
                         });
                 }
 
-                // Call agent
-                const result = await client.query({
-                    query: QUERIES.SYS_ENTITY_AGENT,
-                    variables,
-                    fetchPolicy: "network-only",
+                // Call agent via Next.js proxy (SSE streaming)
+                setIsStreaming(true);
+                
+                // POST to stream endpoint with conversation data
+                const response = await fetch(`/api/chats/${chatId}/stream`, {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify({
+                        conversation,
+                        contextId,
+                        contextKey,
+                        aiName:
+                            entities?.find((e) => e.id === currentSelectedEntityId)
+                                ?.name || aiName,
+                        aiMemorySelfModify,
+                        aiStyle,
+                        title: chat?.title,
+                        entityId: currentSelectedEntityId,
+                        researchMode: chat?.researchMode ? true : false,
+                        model: chat?.researchMode ? "oai-o3" : "oai-gpt41",
+                        userInfo,
+                    }),
                 });
 
-                const subscriptionId = result.data?.sys_entity_agent?.result;
-                if (subscriptionId) {
-                    // Set streaming state BEFORE setting subscription ID
-                    setIsStreaming(true);
-                    // Finally set the subscription ID which will trigger the subscription
-                    setSubscriptionId(subscriptionId);
+                if (!response.ok) {
+                    throw new Error(
+                        `Stream request failed: ${response.statusText}`,
+                    );
                 }
 
+                // Clone the response so the body can be read (Response body can only be read once)
+                // Set the cloned response stream - useStreamingMessages will handle it
+                setSubscriptionId(response.clone()); // Clone to allow reading the stream
+                
                 return;
             } catch (error) {
                 setIsStreaming(false);

@@ -771,6 +771,38 @@ export function useUpdateChat() {
                 requestTimestamp,
             );
 
+            // If updating messages, don't do optimistic update - let server handle it
+            // This prevents overwriting server-persisted messages
+            if (updateData.messages) {
+                console.log(`[useUpdateChat] Message update detected for ${chatId}, skipping optimistic update to preserve server state`);
+                // Remove messages from optimistic update - server will handle persistence
+                const { messages, ...otherUpdates } = updateData;
+                const previousChat = queryClient.getQueryData(["chat", chatId]);
+                const expectedChatData = { ...previousChat, ...otherUpdates };
+                
+                queryClient.setQueryData(["chat", chatId], expectedChatData);
+                queryClient.setQueryData(["chats"], (old) => {
+                    if (!old || !old.pages) return old;
+                    return {
+                        ...old,
+                        pages: old.pages.map((page) =>
+                            page.map((chat) =>
+                                chat._id === chatId ? expectedChatData : chat,
+                            ),
+                        ),
+                    };
+                });
+                queryClient.setQueryData(
+                    ["activeChats"],
+                    (old) =>
+                        old?.map((chat) =>
+                            chat._id === chatId ? expectedChatData : chat,
+                        ) || [],
+                );
+                
+                return { previousChat, timestamp: requestTimestamp, skipMessages: true };
+            }
+
             const previousChat = queryClient.getQueryData(["chat", chatId]);
             const expectedChatData = { ...previousChat, ...updateData };
 
@@ -806,7 +838,7 @@ export function useUpdateChat() {
                 );
             }
         },
-        onSuccess: (result, { chatId }) => {
+        onSuccess: (result, { chatId }, context) => {
             const { data: updatedChat, timestamp } = result;
 
             // Check if this response is still the most recent one
@@ -820,6 +852,7 @@ export function useUpdateChat() {
                 return;
             }
 
+            // Always use server response - it has the latest state including server-persisted messages
             queryClient.setQueryData(["chat", chatId], updatedChat);
             queryClient.invalidateQueries({ queryKey: ["chats"] });
             queryClient.invalidateQueries({ queryKey: ["activeChats"] });
