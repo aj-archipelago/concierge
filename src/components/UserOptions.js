@@ -289,6 +289,8 @@ const UserOptions = ({ show, handleClose }) => {
                                 </option>
                             </select>
 
+                            <div className="border-t border-gray-200 dark:border-gray-700 my-4"></div>
+
                             <div
                                 className={`flex gap-2 items-center mb-4 ${isRTL ? "flex-row-reverse" : ""}`}
                             >
