@@ -35,7 +35,6 @@ const NewStyleGuideModal = ({ text, onCommit, workspaceId = null }) => {
     // System style guides
     const [systemStyleGuides, setSystemStyleGuides] = useState([]);
     const [selectedStyleGuide, setSelectedStyleGuide] = useState("");
-    const [loadingStyleGuides, setLoadingStyleGuides] = useState(false);
 
     // Refs for keyboard handling
     const diffReviewRef = useRef(null);
@@ -52,7 +51,6 @@ const NewStyleGuideModal = ({ text, onCommit, workspaceId = null }) => {
     React.useEffect(() => {
         const fetchSystemStyleGuides = async () => {
             try {
-                setLoadingStyleGuides(true);
                 const response = await fetch("/api/style-guides");
                 if (response.ok) {
                     const data = await response.json();
@@ -60,8 +58,6 @@ const NewStyleGuideModal = ({ text, onCommit, workspaceId = null }) => {
                 }
             } catch (error) {
                 console.error("Error fetching system style guides:", error);
-            } finally {
-                setLoadingStyleGuides(false);
             }
         };
 
@@ -432,6 +428,8 @@ const NewStyleGuideModal = ({ text, onCommit, workspaceId = null }) => {
                 case "C":
                     e.preventDefault();
                     setShowContextView((prev) => !prev);
+                    break;
+                default:
                     break;
             }
         },

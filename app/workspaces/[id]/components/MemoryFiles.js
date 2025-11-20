@@ -17,8 +17,11 @@ import {
     modifyMemoryFilesWithLock,
     getFileUrl,
     getFilename as getFilenameUtil,
+    getFileExtension,
 } from "./memoryFilesUtils";
+import { IMAGE_EXTENSIONS } from "@/src/utils/mediaUtils";
 import { purgeFiles } from "./chatFileUtils";
+import HoverPreview from "./HoverPreview";
 import {
     AlertDialog,
     AlertDialogContent,
@@ -100,7 +103,34 @@ export default function MemoryFiles({
     const [sortDirection, setSortDirection] = useState("desc");
     const [editingFileId, setEditingFileId] = useState(null);
     const [editingFilename, setEditingFilename] = useState("");
+    const [hoveredFile, setHoveredFile] = useState(null);
     const containerRef = useRef(null);
+    const hoverTimeoutRef = useRef(null);
+
+    const handleMouseEnter = useCallback((file) => {
+        if (hoverTimeoutRef.current) {
+            clearTimeout(hoverTimeoutRef.current);
+        }
+        hoverTimeoutRef.current = setTimeout(() => {
+            setHoveredFile(file);
+        }, 300);
+    }, []);
+
+    const handleMouseLeave = useCallback(() => {
+        if (hoverTimeoutRef.current) {
+            clearTimeout(hoverTimeoutRef.current);
+        }
+        setHoveredFile(null);
+    }, []);
+
+    // Cleanup timeout on unmount to prevent memory leaks
+    useEffect(() => {
+        return () => {
+            if (hoverTimeoutRef.current) {
+                clearTimeout(hoverTimeoutRef.current);
+            }
+        };
+    }, []);
     // Only one file can be edited at a time, so this ref is intentionally shared
     // and only attached to the currently editing input.
     const filenameInputRef = useRef(null);
@@ -669,6 +699,11 @@ export default function MemoryFiles({
                                 const fileUrl = getFileUrl(file);
                                 const Icon = getFileIcon(filename);
 
+                                const extension = getFileExtension(filename);
+                                const isImage = extension
+                                    ? IMAGE_EXTENSIONS.includes(`.${extension}`)
+                                    : false;
+
                                 return (
                                     <TableRow
                                         key={fileId}
@@ -709,9 +744,27 @@ export default function MemoryFiles({
                                             </div>
                                         </TableCell>
                                         <TableCell
-                                            className={`px-1 sm:px-2 py-1.5 ${isRtl ? "text-right" : "text-left"}`}
+                                            className={`px-1 sm:px-2 py-1.5 relative group ${isRtl ? "text-right" : "text-left"}`}
+                                            onMouseEnter={() =>
+                                                handleMouseEnter(file)
+                                            }
+                                            onMouseLeave={handleMouseLeave}
                                         >
-                                            <Icon className="w-4 h-4 text-sky-600 dark:text-sky-400" />
+                                            {isImage && fileUrl ? (
+                                                <img
+                                                    src={fileUrl}
+                                                    alt={filename}
+                                                    className="w-6 h-6 rounded object-cover bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 cursor-pointer"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        handleOpenFile(file, e);
+                                                    }}
+                                                />
+                                            ) : (
+                                                <div className="w-6 h-6 flex items-center justify-center bg-gray-100 dark:bg-gray-800 rounded border border-gray-200 dark:border-gray-700">
+                                                    <Icon className="w-4 h-4 text-sky-600 dark:text-sky-400" />
+                                                </div>
+                                            )}
                                         </TableCell>
                                         <TableCell
                                             className={`px-2 sm:px-3 py-1.5 min-w-0 max-w-[200px] sm:max-w-[300px] ${isRtl ? "text-right" : "text-left"}`}
@@ -863,6 +916,9 @@ export default function MemoryFiles({
                     </Table>
                 </div>
             </div>
+
+            {/* Hover Preview Component */}
+            <HoverPreview file={hoveredFile} />
 
             {/* Bulk actions bar */}
             <BulkActionsBar
