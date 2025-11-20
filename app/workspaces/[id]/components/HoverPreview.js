@@ -13,23 +13,32 @@ export default function HoverPreview({ file }) {
 
     const url = getFileUrl(file);
     const filename = getFilename(file);
+    const mimeType = file?.mimeType;
     const extension = getFileExtension(filename);
 
     if (!url) return null;
 
-    const isImage = extension
-        ? IMAGE_EXTENSIONS.includes(`.${extension}`)
-        : false;
-    const isVideo = extension
-        ? VIDEO_EXTENSIONS.includes(`.${extension}`)
-        : false;
-    const isAudio = extension
-        ? AUDIO_EXTENSIONS.includes(`.${extension}`)
-        : false;
-    const isDoc = extension ? DOC_EXTENSIONS.includes(`.${extension}`) : false;
+    // Use mimeType if available (from Cortex indexing), otherwise fall back to extension
+    const isImage =
+        (mimeType && mimeType.startsWith("image/")) ||
+        (extension ? IMAGE_EXTENSIONS.includes(`.${extension}`) : false);
+    const isVideo =
+        (mimeType && mimeType.startsWith("video/")) ||
+        (extension ? VIDEO_EXTENSIONS.includes(`.${extension}`) : false);
+    const isAudio =
+        (mimeType && mimeType.startsWith("audio/")) ||
+        (extension ? AUDIO_EXTENSIONS.includes(`.${extension}`) : false);
+    const isDoc =
+        (mimeType &&
+            (mimeType.startsWith("text/") ||
+                mimeType === "application/pdf" ||
+                mimeType.startsWith("application/vnd.") ||
+                mimeType.startsWith("application/msword") ||
+                mimeType.startsWith("application/vnd.ms-"))) ||
+        (extension ? DOC_EXTENSIONS.includes(`.${extension}`) : false);
 
     // PDF is a special case of doc that browsers render well
-    const isPdf = extension === "pdf";
+    const isPdf = mimeType === "application/pdf" || extension === "pdf";
 
     return (
         <div className="hidden sm:flex fixed z-[100] top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[400px] h-[400px] bg-white dark:bg-gray-800 rounded-lg shadow-2xl border border-gray-200 dark:border-gray-700 overflow-hidden items-center justify-center p-2">
