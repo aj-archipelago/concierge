@@ -68,28 +68,14 @@ export default function HoverPreview({ file }) {
                     <audio src={url} controls className="w-full" />
                 </div>
             )}
-            {/* For PDFs use specific object tag or embed which often works better than iframe for PDFs */}
+            {/* For PDFs use iframe which allows permissions policy control */}
             {isPdf && (
-                <object
-                    data={url}
-                    type="application/pdf"
-                    className="w-full h-full rounded"
-                >
-                    <div className="flex flex-col items-center justify-center h-full text-gray-500 gap-2">
-                        <div className="text-4xl">📄</div>
-                        <div className="text-center text-sm">
-                            PDF Preview not available
-                        </div>
-                        <a
-                            href={url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-xs text-sky-600 hover:underline"
-                        >
-                            Open PDF
-                        </a>
-                    </div>
-                </object>
+                <iframe
+                    src={url}
+                    title={filename}
+                    className="w-full h-full rounded border-none"
+                    allow="fullscreen"
+                />
             )}
             {/* For text files, use iframe */}
             {isDoc && !isPdf && (
@@ -98,6 +84,7 @@ export default function HoverPreview({ file }) {
                     title={filename}
                     className="w-full h-full rounded border-none"
                     sandbox="allow-scripts allow-same-origin" // allow-scripts needed for some PDF viewers
+                    allow="fullscreen"
                 />
             )}
             {!isImage && !isVideo && !isAudio && !isDoc && (
