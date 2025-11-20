@@ -98,7 +98,7 @@ SelectContent.displayName = SelectPrimitive.Content.displayName;
 const SelectLabel = React.forwardRef(({ className, ...props }, ref) => (
     <SelectPrimitive.Label
         ref={ref}
-        className={cn("py-1.5 pl-8 pr-2 text-sm font-semibold", className)}
+        className={cn("py-1.5 ps-8 pe-2 text-sm font-semibold", className)}
         {...props}
     />
 ));
@@ -109,12 +109,12 @@ const SelectItem = React.forwardRef(
         <SelectPrimitive.Item
             ref={ref}
             className={cn(
-                "relative flex w-full cursor-default select-none items-center rounded-sm text-gray-600 dark:text-gray-300 py-1.5 pl-8 pr-2 text-sm outline-none hover:bg-gray-100 hover:text-gray-900 focus:bg-gray-100 focus:text-gray-900 data-[disabled]:pointer-events-none data-[disabled]:opacity-50 dark:hover:bg-gray-700 dark:hover:text-gray-100 dark:focus:bg-gray-700 dark:focus:text-gray-100",
+                "relative flex w-full cursor-default select-none items-center rounded-sm text-gray-600 dark:text-gray-300 py-1.5 ps-8 pe-2 text-sm outline-none hover:bg-gray-100 hover:text-gray-900 focus:bg-gray-100 focus:text-gray-900 data-[disabled]:pointer-events-none data-[disabled]:opacity-50 dark:hover:bg-gray-700 dark:hover:text-gray-100 dark:focus:bg-gray-700 dark:focus:text-gray-100",
                 className,
             )}
             {...props}
         >
-            <span className="absolute left-2 flex h-3.5 w-3.5 items-center justify-center">
+            <span className="absolute start-2 flex h-3.5 w-3.5 items-center justify-center">
                 <SelectPrimitive.ItemIndicator>
                     <Check className="h-4 w-4" />
                 </SelectPrimitive.ItemIndicator>
