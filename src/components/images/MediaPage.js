@@ -452,12 +452,9 @@ function MediaPage() {
         // Only consider images for modify mode, not videos
         const imageCount = getImageCount();
         // For gemini-3-pro-image-preview, support up to 14 images in modify mode
-        const isGemini3Pro =
-            selectedModel === "gemini-3-pro-image-preview";
+        const isGemini3Pro = selectedModel === "gemini-3-pro-image-preview";
         const maxModifyImages = isGemini3Pro ? 14 : 2;
-        setIsModifyMode(
-            imageCount >= 1 && imageCount <= maxModifyImages,
-        );
+        setIsModifyMode(imageCount >= 1 && imageCount <= maxModifyImages);
     }, [selectedImagesObjects, getImageCount, selectedModel]);
 
     // Wrapper functions to pass required parameters to hooks
