@@ -26,6 +26,7 @@ export const useModelSelection = ({
         const hasInputImage = imageCount === 1;
         const hasTwoInputImages = imageCount === 2;
         const hasThreeInputImages = imageCount === 3;
+        const hasManyInputImages = imageCount >= 4 && imageCount <= 14;
 
         const allModels = Object.keys(settings.models || {});
         const availableModels = allModels.filter((modelName) => {
@@ -34,10 +35,19 @@ export const useModelSelection = ({
 
             // Apply input condition restrictions
             if (modelType === "image") {
-                if (hasThreeInputImages) {
+                // Gemini 3 Pro supports 1-14 input images
+                if (modelName === "gemini-3-pro-image-preview") {
+                    return imageCount >= 1 && imageCount <= 14;
+                }
+
+                if (hasManyInputImages) {
+                    // Only gemini-3-pro-image-preview supports 4+ images
+                    return modelName === "gemini-3-pro-image-preview";
+                } else if (hasThreeInputImages) {
                     // Models that support 3 input images
                     return [
                         "gemini-25-flash-image-preview",
+                        "gemini-3-pro-image-preview",
                         "replicate-qwen-image-edit-plus",
                         "replicate-seedream-4",
                     ].includes(modelName);
@@ -46,6 +56,7 @@ export const useModelSelection = ({
                     return [
                         "replicate-multi-image-kontext-max",
                         "gemini-25-flash-image-preview",
+                        "gemini-3-pro-image-preview",
                         "replicate-qwen-image-edit-plus",
                         "replicate-seedream-4",
                     ].includes(modelName);
@@ -54,6 +65,7 @@ export const useModelSelection = ({
                     return [
                         "replicate-flux-kontext-max",
                         "gemini-25-flash-image-preview",
+                        "gemini-3-pro-image-preview",
                         "replicate-qwen-image-edit-plus",
                         "replicate-seedream-4",
                     ].includes(modelName);
@@ -62,6 +74,7 @@ export const useModelSelection = ({
                     return [
                         "replicate-flux-11-pro",
                         "gemini-25-flash-image-preview",
+                        "gemini-3-pro-image-preview",
                         "replicate-qwen-image",
                         "replicate-seedream-4",
                     ].includes(modelName);

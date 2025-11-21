@@ -3,7 +3,8 @@ export const MODEL_DISPLAY_NAMES = {
     "replicate-flux-11-pro": "Flux Pro",
     "replicate-flux-kontext-max": "Flux Kontext Max",
     "replicate-multi-image-kontext-max": "Multi-Image Kontext Max",
-    "gemini-25-flash-image-preview": "Gemini Flash Image",
+    "gemini-25-flash-image-preview": "Gemini 2.5 Flash Image",
+    "gemini-3-pro-image-preview": "Gemini 3 Pro Image",
     "replicate-qwen-image": "Qwen Image",
     "replicate-qwen-image-edit-plus": "Qwen Image Edit Plus",
     "replicate-seedream-4": "Seedream 4.0",
@@ -17,6 +18,7 @@ export const SUPPORTED_MODELS = [
     "replicate-flux-kontext-max",
     "replicate-multi-image-kontext-max",
     "gemini-25-flash-image-preview",
+    "gemini-3-pro-image-preview",
     "replicate-qwen-image",
     "replicate-qwen-image-edit-plus",
     "replicate-seedream-4",
@@ -48,6 +50,13 @@ export const DEFAULT_MODEL_SETTINGS = {
         type: "image",
         quality: "high",
         aspectRatio: "1:1",
+        optimizePrompt: true,
+    },
+    "gemini-3-pro-image-preview": {
+        type: "image",
+        quality: "high",
+        aspectRatio: "1:1",
+        image_size: "2K",
         optimizePrompt: true,
     },
     "replicate-qwen-image": {
@@ -144,6 +153,13 @@ export const NEW_MODELS = {
         aspectRatio: "1:1",
         optimizePrompt: true,
     },
+    "gemini-3-pro-image-preview": {
+        type: "image",
+        quality: "high",
+        aspectRatio: "1:1",
+        image_size: "2K",
+        optimizePrompt: true,
+    },
     "replicate-qwen-image": {
         type: "image",
         quality: "high",
@@ -189,6 +205,7 @@ export const getModelSettings = (settings, modelName) => {
     return (
         settings.models?.[modelName] ||
         DEFAULT_MODEL_SETTINGS[modelName] ||
+        NEW_MODELS[modelName] ||
         DEFAULT_MODEL_SETTINGS["replicate-flux-11-pro"]
     );
 };
@@ -252,9 +269,20 @@ export const getAvailableAspectRatios = (modelName) => {
             ];
         }
     } else {
-        // Gemini doesn't support aspect ratio control
+        // Gemini 25 doesn't support aspect ratio control
         if (modelName === "gemini-25-flash-image-preview") {
             return [];
+        }
+
+        // Gemini 3 Pro supports aspect ratio control
+        if (modelName === "gemini-3-pro-image-preview") {
+            return [
+                { value: "1:1", label: "1:1" },
+                { value: "16:9", label: "16:9" },
+                { value: "9:16", label: "9:16" },
+                { value: "4:3", label: "4:3" },
+                { value: "3:4", label: "3:4" },
+            ];
         }
 
         // Qwen models have specific aspect ratio support
@@ -385,6 +413,13 @@ export const migrateSettings = (oldSettings) => {
                 type: "image",
                 quality: "high",
                 aspectRatio: "1:1",
+                optimizePrompt: true,
+            },
+            "gemini-3-pro-image-preview": {
+                type: "image",
+                quality: "high",
+                aspectRatio: "1:1",
+                image_size: "2K",
                 optimizePrompt: true,
             },
             "replicate-qwen-image": {
