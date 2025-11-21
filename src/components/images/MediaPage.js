@@ -451,8 +451,14 @@ function MediaPage() {
     useEffect(() => {
         // Only consider images for modify mode, not videos
         const imageCount = getImageCount();
-        setIsModifyMode(imageCount === 1 || imageCount === 2);
-    }, [selectedImagesObjects, getImageCount]);
+        // For gemini-3-pro-image-preview, support up to 14 images in modify mode
+        const isGemini3Pro =
+            selectedModel === "gemini-3-pro-image-preview";
+        const maxModifyImages = isGemini3Pro ? 14 : 2;
+        setIsModifyMode(
+            imageCount >= 1 && imageCount <= maxModifyImages,
+        );
+    }, [selectedImagesObjects, getImageCount, selectedModel]);
 
     // Wrapper functions to pass required parameters to hooks
     const handleModifySelectedWrapper = useCallback(async () => {
@@ -754,9 +760,15 @@ function MediaPage() {
                             setLoading(true);
                             setGenerationPrompt(prompt);
                             if (isModifyMode) {
+                                // For gemini-3-pro-image-preview, support up to 14 images
+                                const isGemini3Pro =
+                                    selectedModel ===
+                                    "gemini-3-pro-image-preview";
+                                const maxCombineImages = isGemini3Pro ? 14 : 3;
+
                                 if (
                                     selectedImages.size >= 2 &&
-                                    selectedImages.size <= 3
+                                    selectedImages.size <= maxCombineImages
                                 ) {
                                     handleCombineSelected();
                                 } else if (selectedImages.size === 1) {
