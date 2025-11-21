@@ -35,11 +35,6 @@ export const useModelSelection = ({
 
             // Apply input condition restrictions
             if (modelType === "image") {
-                // Gemini 3 Pro supports 1-14 input images
-                if (modelName === "gemini-3-pro-image-preview") {
-                    return imageCount >= 1 && imageCount <= 14;
-                }
-
                 if (hasManyInputImages) {
                     // Only gemini-3-pro-image-preview supports 4+ images
                     return modelName === "gemini-3-pro-image-preview";
