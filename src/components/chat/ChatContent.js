@@ -495,6 +495,112 @@ function ChatContent({
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
+    // Connect to active stream when navigating into a chat with isChatLoading: true
+    // Use refs to track previous state to detect navigation vs message send
+    const previousChatIdRef = useRef(null);
+    const hasReconnectedRef = useRef(false);
+    const previousIsStreamingRef = useRef(isStreaming);
+    
+    useEffect(() => {
+        const currentChatId = chat?._id;
+        const previousChatId = previousChatIdRef.current;
+        const navigatedToDifferentChat = currentChatId && previousChatId && currentChatId !== previousChatId;
+        const isFirstLoad = previousChatId === null && currentChatId !== null;
+        const wasStreaming = previousIsStreamingRef.current;
+        
+        // Reset reconnection flag if:
+        // 1. We navigated to a different chat
+        // 2. We stopped streaming (disconnected)
+        if (navigatedToDifferentChat || (wasStreaming && !isStreaming)) {
+            hasReconnectedRef.current = false;
+        }
+        
+        // Update refs for next render
+        previousChatIdRef.current = currentChatId;
+        previousIsStreamingRef.current = isStreaming;
+        
+        // Only connect if:
+        // - Chat exists and is loading (active stream on server)
+        // - We're not already streaming (client not connected)
+        if (
+            !currentChatId ||
+            !isChatLoading ||
+            isStreaming
+        ) {
+            return;
+        }
+        
+        // Reconnect if:
+        // 1. We navigated to a different chat that has isChatLoading: true
+        // 2. This is the first time we're loading this chat and it has isChatLoading: true
+        // Don't reconnect if:
+        // - We're on the same chat and isChatLoading just became true (we just sent a message)
+        // - We've already reconnected for this chat (but reset on navigation or disconnect)
+        const shouldReconnect = 
+            (navigatedToDifferentChat || isFirstLoad) && 
+            !hasReconnectedRef.current;
+        
+        if (!shouldReconnect) {
+            return;
+        }
+
+        const connectToStream = async () => {
+            try {
+                console.log(`[ChatContent] Connecting to active stream for chat ${currentChatId}${navigatedToDifferentChat ? ` (navigated from ${previousChatId})` : ' (first load)'}`);
+
+                // Mark that we've attempted reconnection for this chat
+                hasReconnectedRef.current = true;
+
+                // Set streaming state before connecting
+                setIsStreaming(true);
+                
+                // POST to stream endpoint without conversation - server will detect reconnection
+                // and replay all stored events from existing stream
+                const response = await fetch(`/api/chats/${chatId}/stream`, {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify({
+                        // No conversation - server already has everything from existing stream
+                    }),
+                });
+
+                if (!response.ok) {
+                    // If stream has completed (404), refetch chat to get the persisted message
+                    if (response.status === 404) {
+                        console.log(`[ChatContent] Stream completed for chat ${currentChatId}, refetching chat to get persisted message`);
+                        // Clear loading state and refetch chat
+                        await updateChatHook.mutateAsync({
+                            chatId: String(currentChatId),
+                            isChatLoading: false,
+                        });
+                        // Refetch chat to get the persisted message
+                        await queryClient.refetchQueries({
+                            queryKey: ["chat", String(currentChatId)],
+                            type: "active",
+                        });
+                        return;
+                    }
+                    throw new Error(
+                        `Stream connection failed: ${response.statusText}`,
+                    );
+                }
+
+                // Set the response stream - server will replay all stored events
+                setSubscriptionId(response.clone());
+            } catch (error) {
+                console.error("[ChatContent] Error connecting to stream:", error);
+                setIsStreaming(false);
+                // Reset flag on error so we can retry
+                hasReconnectedRef.current = false;
+            }
+        };
+
+        connectToStream();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [chat?._id, isChatLoading, isStreaming, updateChatHook, queryClient]);
+
     // Update the streaming effect with guardrails
     useEffect(() => {
         const checkForCodeRequestInLatestMessage = async () => {
