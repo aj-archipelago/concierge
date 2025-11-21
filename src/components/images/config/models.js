@@ -52,6 +52,13 @@ export const DEFAULT_MODEL_SETTINGS = {
         aspectRatio: "1:1",
         optimizePrompt: true,
     },
+    "gemini-3-pro-image-preview": {
+        type: "image",
+        quality: "high",
+        aspectRatio: "1:1",
+        image_size: "2K",
+        optimizePrompt: true,
+    },
     "replicate-qwen-image": {
         type: "image",
         quality: "high",
@@ -198,6 +205,7 @@ export const getModelSettings = (settings, modelName) => {
     return (
         settings.models?.[modelName] ||
         DEFAULT_MODEL_SETTINGS[modelName] ||
+        NEW_MODELS[modelName] ||
         DEFAULT_MODEL_SETTINGS["replicate-flux-11-pro"]
     );
 };
