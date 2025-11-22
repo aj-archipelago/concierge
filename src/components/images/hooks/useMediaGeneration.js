@@ -178,42 +178,38 @@ export const useMediaGeneration = ({
             createMediaItem,
             promptRef,
         }) => {
-            if (
-                !prompt.trim() ||
-                selectedImagesObjects.length < 2 ||
-                selectedImagesObjects.length > 3
-            )
-                return;
-
             // Use the selectedImagesObjects array directly
             const selectedImageObjects = selectedImagesObjects.filter(
                 (img) => img.url && img.type === "image",
             );
 
+            // Check if this is gemini-3-pro-image-preview which supports up to 14 images
+            const isGemini3Pro = selectedModel === "gemini-3-pro-image-preview";
+            const maxImages = isGemini3Pro ? 14 : 3;
+            const minImages = 2;
+
             if (
-                selectedImageObjects.length < 2 ||
-                selectedImageObjects.length > 3
+                !prompt.trim() ||
+                selectedImageObjects.length < minImages ||
+                selectedImageObjects.length > maxImages
             )
                 return;
-
-            const [image1, image2, image3] = selectedImageObjects;
 
             try {
                 const combinedPrompt = prompt;
 
-                // For Veo models, use GCS URL; for others, use Azure URL
+                // For Veo and Gemini models, use GCS URL; for others, use Azure URL
                 const isVeoModel = selectedModel.includes("veo");
-                const inputImageUrl1 = isVeoModel
-                    ? image1.gcsUrl || image1.azureUrl || image1.url
-                    : image1.azureUrl || image1.gcsUrl || image1.url;
-                const inputImageUrl2 = isVeoModel
-                    ? image2.gcsUrl || image2.azureUrl || image2.url
-                    : image2.azureUrl || image2.gcsUrl || image2.url;
-                const inputImageUrl3 = image3
-                    ? isVeoModel
-                        ? image3.gcsUrl || image3.azureUrl || image3.url
-                        : image3.azureUrl || image3.gcsUrl || image3.url
-                    : "";
+                const isGeminiModel = selectedModel.includes("gemini");
+                const useGcsUrl = isVeoModel || isGeminiModel;
+
+                // Helper function to get the appropriate URL
+                const getImageUrl = (image) => {
+                    if (useGcsUrl) {
+                        return image.gcsUrl || image.azureUrl || image.url;
+                    }
+                    return image.azureUrl || image.gcsUrl || image.url;
+                };
 
                 // Collect tags from all input images
                 const allInputTags = new Set();
@@ -223,21 +219,92 @@ export const useMediaGeneration = ({
                     }
                 });
 
+                // Build task data with all input images
                 const taskData = {
                     type: "media-generation",
                     prompt: combinedPrompt,
                     outputType,
                     model: selectedModel,
-                    inputImageUrl: inputImageUrl1,
-                    inputImageUrl2:
-                        outputType === "image" ? inputImageUrl2 : "",
-                    inputImageUrl3:
-                        outputType === "image" ? inputImageUrl3 : "",
                     settings,
                     source: "media_page",
                     // Pass tags from all input images for inheritance
                     inputTags: Array.from(allInputTags),
                 };
+
+                // Add input images (up to 14 for gemini-3-pro-image-preview)
+                if (selectedImageObjects[0]) {
+                    taskData.inputImageUrl = getImageUrl(
+                        selectedImageObjects[0],
+                    );
+                }
+                if (selectedImageObjects[1]) {
+                    taskData.inputImageUrl2 = getImageUrl(
+                        selectedImageObjects[1],
+                    );
+                }
+                if (selectedImageObjects[2]) {
+                    taskData.inputImageUrl3 = getImageUrl(
+                        selectedImageObjects[2],
+                    );
+                }
+                // Only add additional images if this is gemini-3-pro-image-preview
+                if (isGemini3Pro) {
+                    if (selectedImageObjects[3]) {
+                        taskData.inputImageUrl4 = getImageUrl(
+                            selectedImageObjects[3],
+                        );
+                    }
+                    if (selectedImageObjects[4]) {
+                        taskData.inputImageUrl5 = getImageUrl(
+                            selectedImageObjects[4],
+                        );
+                    }
+                    if (selectedImageObjects[5]) {
+                        taskData.inputImageUrl6 = getImageUrl(
+                            selectedImageObjects[5],
+                        );
+                    }
+                    if (selectedImageObjects[6]) {
+                        taskData.inputImageUrl7 = getImageUrl(
+                            selectedImageObjects[6],
+                        );
+                    }
+                    if (selectedImageObjects[7]) {
+                        taskData.inputImageUrl8 = getImageUrl(
+                            selectedImageObjects[7],
+                        );
+                    }
+                    if (selectedImageObjects[8]) {
+                        taskData.inputImageUrl9 = getImageUrl(
+                            selectedImageObjects[8],
+                        );
+                    }
+                    if (selectedImageObjects[9]) {
+                        taskData.inputImageUrl10 = getImageUrl(
+                            selectedImageObjects[9],
+                        );
+                    }
+                    if (selectedImageObjects[10]) {
+                        taskData.inputImageUrl11 = getImageUrl(
+                            selectedImageObjects[10],
+                        );
+                    }
+                    if (selectedImageObjects[11]) {
+                        taskData.inputImageUrl12 = getImageUrl(
+                            selectedImageObjects[11],
+                        );
+                    }
+                    if (selectedImageObjects[12]) {
+                        taskData.inputImageUrl13 = getImageUrl(
+                            selectedImageObjects[12],
+                        );
+                    }
+                    if (selectedImageObjects[13]) {
+                        taskData.inputImageUrl14 = getImageUrl(
+                            selectedImageObjects[13],
+                        );
+                    }
+                }
 
                 const result = await runTask.mutateAsync(taskData);
 
@@ -258,14 +325,18 @@ export const useMediaGeneration = ({
                         tags: Array.from(allInputTags),
                     };
 
-                    // Only add inputImageUrl if it exists
-                    if (image1.url) {
-                        mediaItemData.inputImageUrl = image1.url;
+                    // Add input image URLs to media item data
+                    if (selectedImageObjects[0]?.url) {
+                        mediaItemData.inputImageUrl =
+                            selectedImageObjects[0].url;
                     }
-
-                    // Only add inputImageUrl2 if it exists
-                    if (image2.url) {
-                        mediaItemData.inputImageUrl2 = image2.url;
+                    if (selectedImageObjects[1]?.url) {
+                        mediaItemData.inputImageUrl2 =
+                            selectedImageObjects[1].url;
+                    }
+                    if (selectedImageObjects[2]?.url) {
+                        mediaItemData.inputImageUrl3 =
+                            selectedImageObjects[2].url;
                     }
 
                     await createMediaItem.mutateAsync(mediaItemData);

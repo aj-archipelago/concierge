@@ -56,13 +56,18 @@ const StyleGuideDiff = ({ styleGuideResult = "", setSelectedText }) => {
         const suggestion = resultSuggestions[i];
         const nextSuggestion = resultSuggestions[i + 1];
 
-        // remove overlapping suggestions
-        if (
-            nextSuggestion &&
-            suggestion.index + suggestion.suspect.length >= nextSuggestion.index
-        ) {
-            resultSuggestions.splice(i + 1, 1);
-            i--;
+        // remove overlapping suggestions or duplicates at the same position
+        if (nextSuggestion) {
+            const currentEnd =
+                suggestion.index + (suggestion.suspect?.length || 0);
+            const nextStart = nextSuggestion.index;
+
+            // Remove if overlapping or at exact same position
+            if (currentEnd >= nextStart) {
+                resultSuggestions.splice(i + 1, 1);
+                i--;
+                continue;
+            }
         }
 
         // remove empty suggestions

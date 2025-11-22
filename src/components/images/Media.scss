@@ -134,8 +134,8 @@ $image-container-height: 200px;
         pointer-events: auto;
 
         &.selected {
-            background: #3b82f6;
-            border-color: #3b82f6;
+            background: #00a6f4;
+            border-color: #00a6f4;
 
             svg {
                 color: white;
@@ -270,8 +270,8 @@ $image-container-height: 200px;
         pointer-events: auto;
 
         &.selected {
-            background: #3b82f6;
-            border-color: #3b82f6;
+            background: #00a6f4;
+            border-color: #00a6f4;
 
             svg {
                 color: white;
@@ -396,7 +396,7 @@ $image-container-height: 200px;
     }
 
     &:focus {
-        outline: 2px solid #3b82f6;
+        outline: 2px solid #00a6f4;
         outline-offset: 2px;
     }
 
@@ -524,8 +524,8 @@ $image-container-height: 200px;
     }
 
     .selection-checkbox.selected {
-        background: #3b82f6;
-        border-color: #3b82f6;
+        background: #00a6f4;
+        border-color: #00a6f4;
 
         svg {
             color: white;

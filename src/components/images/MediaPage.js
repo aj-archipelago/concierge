@@ -451,8 +451,11 @@ function MediaPage() {
     useEffect(() => {
         // Only consider images for modify mode, not videos
         const imageCount = getImageCount();
-        setIsModifyMode(imageCount === 1 || imageCount === 2);
-    }, [selectedImagesObjects, getImageCount]);
+        // For gemini-3-pro-image-preview, support up to 14 images in modify mode
+        const isGemini3Pro = selectedModel === "gemini-3-pro-image-preview";
+        const maxModifyImages = isGemini3Pro ? 14 : 2;
+        setIsModifyMode(imageCount >= 1 && imageCount <= maxModifyImages);
+    }, [selectedImagesObjects, getImageCount, selectedModel]);
 
     // Wrapper functions to pass required parameters to hooks
     const handleModifySelectedWrapper = useCallback(async () => {
@@ -750,13 +753,19 @@ function MediaPage() {
                         className="flex flex-col gap-2"
                         onSubmit={(e) => {
                             e.preventDefault();
-                            if (!prompt.trim()) return;
+                            if (!prompt.trim() || loading) return;
                             setLoading(true);
                             setGenerationPrompt(prompt);
                             if (isModifyMode) {
+                                // For gemini-3-pro-image-preview, support up to 14 images
+                                const isGemini3Pro =
+                                    selectedModel ===
+                                    "gemini-3-pro-image-preview";
+                                const maxCombineImages = isGemini3Pro ? 14 : 3;
+
                                 if (
                                     selectedImages.size >= 2 &&
-                                    selectedImages.size <= 3
+                                    selectedImages.size <= maxCombineImages
                                 ) {
                                     handleCombineSelected();
                                 } else if (selectedImages.size === 1) {
@@ -797,7 +806,9 @@ function MediaPage() {
                                                 !e.shiftKey
                                             ) {
                                                 e.preventDefault();
-                                                formRef.current?.requestSubmit();
+                                                if (!loading && prompt.trim()) {
+                                                    formRef.current?.requestSubmit();
+                                                }
                                             }
                                         }}
                                         ref={promptRef}
@@ -852,8 +863,7 @@ function MediaPage() {
                                 <div className="flex items-start flex-shrink-0">
                                     <button
                                         type="submit"
-                                        className="border-none outline-none enabled:hover:bg-sky-700 enabled:active:bg-sky-800 dark:bg-sky-700 dark:enabled:hover:bg-sky-200 p-1.5 cursor-pointer focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1 bg-sky-600 dark:enabled:hover:bg-sky-800 text-white rounded-lg px-3 py-2 dark:enabled:hover:text-white dark:enabled:active:bg-sky-900
-                                                    text-sm justify-center"
+                                        className="border-none outline-none enabled:hover:bg-sky-700 enabled:active:bg-sky-800 dark:bg-sky-700 p-1.5 cursor-pointer focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1 bg-sky-600 dark:enabled:hover:bg-sky-800 text-white rounded-lg px-3 py-2 dark:enabled:hover:text-white dark:enabled:active:bg-sky-900 text-sm justify-center"
                                         disabled={!prompt.trim() || loading}
                                     >
                                         {loading ? (
@@ -883,8 +893,11 @@ function MediaPage() {
                                         "replicate-multi-image-kontext-max": t(
                                             "Multi-Image Kontext Max",
                                         ),
-                                        "gemini-25-flash-image-preview":
-                                            t("Gemini Flash Image"),
+                                        "gemini-25-flash-image-preview": t(
+                                            "Gemini 2.5 Flash Image",
+                                        ),
+                                        "gemini-3-pro-image-preview":
+                                            t("Gemini 3 Pro Image"),
                                         "replicate-qwen-image": t("Qwen Image"),
                                         "replicate-qwen-image-edit-plus": t(
                                             "Qwen Image Edit Plus",
@@ -1116,8 +1129,10 @@ function MediaPage() {
                                                     )}
                                             </>
                                         )}
-                                        {selectedModel ===
-                                            "gemini-25-flash-image-preview" &&
+                                        {(selectedModel ===
+                                            "gemini-25-flash-image-preview" ||
+                                            selectedModel ===
+                                                "gemini-3-pro-image-preview") &&
                                             currentModelSettings.optimizePrompt && (
                                                 <span className="px-1.5 py-0.5">
                                                     {t("Optimized")}
@@ -1666,7 +1681,7 @@ function SettingsDialog({
             "replicate-flux-11-pro": t("Flux Pro"),
             "replicate-flux-kontext-max": t("Flux Kontext Max"),
             "replicate-multi-image-kontext-max": t("Multi-Image Kontext Max"),
-            "gemini-25-flash-image-preview": t("Gemini Flash Image"),
+            "gemini-25-flash-image-preview": t("Gemini 2.5 Flash Image"),
             "replicate-qwen-image": t("Qwen Image"),
             "replicate-qwen-image-edit-plus": t("Qwen Image Edit Plus"),
             "replicate-seedream-4": t("Seedream 4.0"),
@@ -1703,9 +1718,20 @@ function SettingsDialog({
                 ];
             }
         } else {
-            // Gemini doesn't support aspect ratio control
+            // Gemini 25 doesn't support aspect ratio control
             if (modelName === "gemini-25-flash-image-preview") {
                 return [];
+            }
+
+            // Gemini 3 Pro supports aspect ratio control
+            if (modelName === "gemini-3-pro-image-preview") {
+                return [
+                    { value: "1:1", label: "1:1" },
+                    { value: "16:9", label: "16:9" },
+                    { value: "9:16", label: "9:16" },
+                    { value: "4:3", label: "4:3" },
+                    { value: "3:4", label: "3:4" },
+                ];
             }
 
             // Qwen models have specific aspect ratio support
@@ -1994,7 +2020,8 @@ function SettingsDialog({
                         )}
 
                         {/* Optimize Prompt (for Gemini) */}
-                        {selectedModel === "gemini-25-flash-image-preview" && (
+                        {(selectedModel === "gemini-25-flash-image-preview" ||
+                            selectedModel === "gemini-3-pro-image-preview") && (
                             <div>
                                 <label className="flex items-center space-x-2">
                                     <input
@@ -2019,6 +2046,35 @@ function SettingsDialog({
                                     {t(
                                         "Use AI to rewrite your prompt for better results",
                                     )}
+                                </p>
+                            </div>
+                        )}
+
+                        {/* Image Size (for Gemini 3 Pro) */}
+                        {selectedModel === "gemini-3-pro-image-preview" && (
+                            <div>
+                                <label className="block text-sm font-medium mb-1">
+                                    {t("Image Size")}
+                                </label>
+                                <select
+                                    className="lb-input w-full"
+                                    value={
+                                        currentModelSettings.image_size || "2K"
+                                    }
+                                    dir={direction}
+                                    onChange={(e) =>
+                                        updateModelSetting(
+                                            selectedModel,
+                                            "image_size",
+                                            e.target.value,
+                                        )
+                                    }
+                                >
+                                    <option value="2K">2K</option>
+                                    <option value="4K">4K</option>
+                                </select>
+                                <p className="text-xs text-gray-500 mt-1">
+                                    {t("Select the output image size")}
                                 </p>
                             </div>
                         )}
@@ -2155,7 +2211,7 @@ function ImageModal({ show, image, onHide }) {
                         <div className="flex gap-2">
                             <input
                                 type="text"
-                                className="flex-1 text-sm px-2 py-1 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                                className="flex-1 text-base md:text-sm px-2 py-1 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
                                 placeholder={t("Add tag...")}
                                 value={newTag}
                                 onChange={(e) => setNewTag(e.target.value)}
@@ -2185,7 +2241,7 @@ function ImageModal({ show, image, onHide }) {
                             {t("Prompt")}
                         </div>
                         <textarea
-                            className="w-full p-2 rounded-md bg-gray-50 dark:bg-gray-700 sm:text-sm resize-none focus:outline-none focus:ring-0 focus:border-0"
+                            className="w-full p-2 rounded-md bg-gray-50 dark:bg-gray-700 text-base md:text-sm resize-none focus:outline-none focus:ring-0 focus:border-0"
                             value={image?.prompt}
                             readOnly
                             rows={8}
@@ -2211,7 +2267,8 @@ function ImageInfo({ data, type }) {
             "replicate-flux-11-pro": t("Flux Pro"),
             "replicate-flux-kontext-max": t("Flux Kontext Max"),
             "replicate-multi-image-kontext-max": t("Multi-Image Kontext Max"),
-            "gemini-25-flash-image-preview": t("Gemini Flash Image"),
+            "gemini-25-flash-image-preview": t("Gemini 2.5 Flash Image"),
+            "gemini-3-pro-image-preview": t("Gemini 3 Pro Image"),
             "replicate-qwen-image": t("Qwen Image"),
             "replicate-qwen-image-edit-plus": t("Qwen Image Edit Plus"),
             "replicate-seedream-4": t("Seedream 4.0"),

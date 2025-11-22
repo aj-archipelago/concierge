@@ -265,7 +265,7 @@ function EditableTranscriptSelect({
                     <input
                         autoFocus
                         type="text"
-                        className="w-[300px] text-sm font-medium rounded-md py-1 my-[1px] px-3 border border-gray-300 dark:border-gray-600"
+                        className="w-[300px] text-base md:text-sm font-medium rounded-md py-1 my-[1px] px-3 border border-gray-300 dark:border-gray-600"
                         value={tempName}
                         onChange={(e) => setTempName(e.target.value)}
                         onKeyDown={(e) => {

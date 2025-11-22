@@ -62,6 +62,10 @@ const messageSchema = new mongoose.Schema(
             type: Number,
             default: 0,
         },
+        toolCalls: {
+            type: mongoose.Schema.Types.Mixed,
+            default: null,
+        },
     },
     {
         timestamps: true,
@@ -76,7 +80,7 @@ const chatSchema = new mongoose.Schema(
             type: mongoose.Schema.Types.ObjectId,
             auto: true,
         },
-        isEmpty: {
+        isUnused: {
             type: Boolean,
             default: true,
         },

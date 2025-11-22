@@ -28,7 +28,6 @@ import { useTranslation } from "react-i18next";
 import TimeAgo from "react-time-ago";
 import stringcase from "stringcase";
 import Loader from "../../../app/components/loader";
-import { useSetActiveChatId } from "../../../app/queries/chats";
 import { useJob } from "../../../app/queries/jobs";
 import {
     useCancelTask,
@@ -91,7 +90,6 @@ const NotificationItem = ({
     handlerDisplayNames,
     isRetryable,
     language,
-    setActiveChatId,
     router,
     setIsNotificationOpen,
     handleCancelRequest,
@@ -121,22 +119,12 @@ const NotificationItem = ({
                         className={`font-semibold text-gray-800 dark:text-gray-200 ${notification.invokedFrom?.source ? "cursor-pointer hover:text-sky-600" : ""}`}
                         onClick={() => {
                             if (notification.invokedFrom?.source === "chat") {
-                                setActiveChatId
-                                    .mutateAsync(
-                                        notification.invokedFrom.chatId,
-                                    )
-                                    .then(() => {
-                                        router.push(
-                                            `/chat/${notification.invokedFrom.chatId}`,
-                                        );
-                                        setIsNotificationOpen(false);
-                                    })
-                                    .catch((error) => {
-                                        console.error(
-                                            "Error setting active chat ID:",
-                                            error,
-                                        );
-                                    });
+                                // Navigate immediately for snappy UX
+                                router.push(
+                                    `/chat/${notification.invokedFrom.chatId}`,
+                                );
+                                setIsNotificationOpen(false);
+                                // Active chat ID will be updated asynchronously by Chat.js component
                             } else if (
                                 notification.invokedFrom?.source ===
                                 "video_page"
@@ -309,7 +297,6 @@ export default function NotificationButton() {
     const { language } = useContext(LanguageContext);
     const router = useRouter();
     const cancelRequest = useCancelTask();
-    const setActiveChatId = useSetActiveChatId();
     const retryTask = useRetryTask();
 
     const handleDismiss = (_id) => {
@@ -399,7 +386,6 @@ export default function NotificationButton() {
                                                     ?.isRetryable
                                             }
                                             language={language}
-                                            setActiveChatId={setActiveChatId}
                                             router={router}
                                             setIsNotificationOpen={
                                                 setIsNotificationOpen

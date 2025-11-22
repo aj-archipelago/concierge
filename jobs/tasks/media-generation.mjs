@@ -2,6 +2,7 @@ import { BaseTask } from "./base-task.mjs";
 import {
     IMAGE_FLUX,
     IMAGE_GEMINI_25,
+    IMAGE_GEMINI_3,
     IMAGE_QWEN,
     IMAGE_SEEDREAM4,
     VIDEO_VEO,
@@ -34,6 +35,77 @@ const MODEL_CONFIG = {
                 variables.input_image_2 = inputImages[1];
             }
             // Gemini supports up to 3 input images, but we're not using the third one
+
+            return variables;
+        },
+    },
+    "gemini-3-pro-image-preview": {
+        query: IMAGE_GEMINI_3,
+        resultKey: "image_gemini_3",
+        type: "image",
+        buildVariables: (prompt, settings, inputImages) => {
+            const modelSettings =
+                settings?.models?.["gemini-3-pro-image-preview"] || {};
+            const variables = {
+                text: prompt,
+                async: true,
+                optimizePrompt: modelSettings.optimizePrompt !== false, // Default to true if not specified
+            };
+
+            // Add aspectRatio if specified
+            if (modelSettings.aspectRatio) {
+                variables.aspectRatio = modelSettings.aspectRatio;
+            }
+
+            // Add image_size if specified
+            if (modelSettings.image_size) {
+                variables.image_size = modelSettings.image_size;
+            }
+
+            // Add up to 14 input images
+            // Note: The UI should already be passing GCS URLs for Gemini models
+            if (inputImages[0]) {
+                variables.input_image = inputImages[0];
+            }
+            if (inputImages[1]) {
+                variables.input_image_2 = inputImages[1];
+            }
+            if (inputImages[2]) {
+                variables.input_image_3 = inputImages[2];
+            }
+            if (inputImages[3]) {
+                variables.input_image_4 = inputImages[3];
+            }
+            if (inputImages[4]) {
+                variables.input_image_5 = inputImages[4];
+            }
+            if (inputImages[5]) {
+                variables.input_image_6 = inputImages[5];
+            }
+            if (inputImages[6]) {
+                variables.input_image_7 = inputImages[6];
+            }
+            if (inputImages[7]) {
+                variables.input_image_8 = inputImages[7];
+            }
+            if (inputImages[8]) {
+                variables.input_image_9 = inputImages[8];
+            }
+            if (inputImages[9]) {
+                variables.input_image_10 = inputImages[9];
+            }
+            if (inputImages[10]) {
+                variables.input_image_11 = inputImages[10];
+            }
+            if (inputImages[11]) {
+                variables.input_image_12 = inputImages[11];
+            }
+            if (inputImages[12]) {
+                variables.input_image_13 = inputImages[12];
+            }
+            if (inputImages[13]) {
+                variables.input_image_14 = inputImages[13];
+            }
 
             return variables;
         },
@@ -412,6 +484,17 @@ class MediaGenerationHandler extends BaseTask {
             inputImageUrl,
             inputImageUrl2,
             inputImageUrl3,
+            inputImageUrl4,
+            inputImageUrl5,
+            inputImageUrl6,
+            inputImageUrl7,
+            inputImageUrl8,
+            inputImageUrl9,
+            inputImageUrl10,
+            inputImageUrl11,
+            inputImageUrl12,
+            inputImageUrl13,
+            inputImageUrl14,
             settings,
         } = metadata;
 
@@ -439,6 +522,17 @@ class MediaGenerationHandler extends BaseTask {
             inputImageUrl,
             inputImageUrl2,
             inputImageUrl3,
+            inputImageUrl4,
+            inputImageUrl5,
+            inputImageUrl6,
+            inputImageUrl7,
+            inputImageUrl8,
+            inputImageUrl9,
+            inputImageUrl10,
+            inputImageUrl11,
+            inputImageUrl12,
+            inputImageUrl13,
+            inputImageUrl14,
         ].filter(Boolean);
 
         const variables = config.buildVariables(prompt, settings, inputImages);
@@ -581,6 +675,17 @@ class MediaGenerationHandler extends BaseTask {
             inputImageUrl,
             inputImageUrl2,
             inputImageUrl3,
+            inputImageUrl4,
+            inputImageUrl5,
+            inputImageUrl6,
+            inputImageUrl7,
+            inputImageUrl8,
+            inputImageUrl9,
+            inputImageUrl10,
+            inputImageUrl11,
+            inputImageUrl12,
+            inputImageUrl13,
+            inputImageUrl14,
             settings,
         } = metadata;
 
@@ -595,6 +700,17 @@ class MediaGenerationHandler extends BaseTask {
             inputImageUrl,
             inputImageUrl2,
             inputImageUrl3,
+            inputImageUrl4,
+            inputImageUrl5,
+            inputImageUrl6,
+            inputImageUrl7,
+            inputImageUrl8,
+            inputImageUrl9,
+            inputImageUrl10,
+            inputImageUrl11,
+            inputImageUrl12,
+            inputImageUrl13,
+            inputImageUrl14,
         ].filter(Boolean);
         const variables = config.buildVariables(prompt, settings, inputImages);
 
@@ -630,7 +746,8 @@ class MediaGenerationHandler extends BaseTask {
 
         // Check if this is a Gemini model that needs retry due to missing artifacts
         if (
-            metadata.model === "gemini-25-flash-image-preview" &&
+            (metadata.model === "gemini-25-flash-image-preview" ||
+                metadata.model === "gemini-3-pro-image-preview") &&
             !infoObject?.artifacts
         ) {
             const retryCount = metadata.geminiRetryCount || 0;
@@ -847,7 +964,8 @@ class MediaGenerationHandler extends BaseTask {
 
             // Handle Gemini special case first
             if (
-                metadata.model === "gemini-25-flash-image-preview" &&
+                (metadata.model === "gemini-25-flash-image-preview" ||
+                    metadata.model === "gemini-3-pro-image-preview") &&
                 infoObject?.artifacts
             ) {
                 mediaUrl = await this.processGeminiArtifacts(
@@ -1116,6 +1234,17 @@ class MediaGenerationHandler extends BaseTask {
                 metadata.inputImageUrl,
                 metadata.inputImageUrl2,
                 metadata.inputImageUrl3,
+                metadata.inputImageUrl4,
+                metadata.inputImageUrl5,
+                metadata.inputImageUrl6,
+                metadata.inputImageUrl7,
+                metadata.inputImageUrl8,
+                metadata.inputImageUrl9,
+                metadata.inputImageUrl10,
+                metadata.inputImageUrl11,
+                metadata.inputImageUrl12,
+                metadata.inputImageUrl13,
+                metadata.inputImageUrl14,
             ].filter(Boolean);
 
             const inheritedTags = await this.getInheritedTags(

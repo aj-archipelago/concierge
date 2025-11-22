@@ -1,26 +1,14 @@
 import React from "react";
-import { useApolloClient } from "@apollo/client";
 import "highlight.js/styles/github.css";
 import dynamic from "next/dynamic";
 import { useContext, useEffect, useState } from "react";
 import { FilePlus, XCircle, StopCircle, Send } from "lucide-react";
-import { useDispatch } from "react-redux";
 import TextareaAutosize from "react-textarea-autosize";
-import { v4 as uuidv4 } from "uuid";
 import { useGetActiveChatId } from "../../../app/queries/chats";
-import { useAddDocument } from "../../../app/queries/uploadedDocs";
 import classNames from "../../../app/utils/class-names";
 import { AuthContext } from "../../App";
-import { COGNITIVE_INSERT } from "../../graphql";
-import {
-    clearFileLoading,
-    loadingError,
-    setFileLoading,
-} from "../../stores/fileUploadSlice";
 import {
     ACCEPTED_FILE_TYPES,
-    getFilename,
-    isRagFileUrl,
     isSupportedFileUrl,
 } from "../../utils/mediaUtils";
 import {
@@ -50,13 +38,8 @@ function MessageInput({
 }) {
     const activeChatId = useGetActiveChatId();
 
-    const { user, userState, debouncedUpdateUserState } =
-        useContext(AuthContext);
-    const contextId = user?.contextId;
-    const dispatch = useDispatch();
-    const client = useApolloClient();
+    const { userState, debouncedUpdateUserState } = useContext(AuthContext);
     const [isUploadingMedia, setIsUploadingMedia] = useState(false);
-    const addDocument = useAddDocument();
     const MAX_INPUT_LENGTH = 100000;
     const [lengthLimitAlert, setLengthLimitAlert] = useState({
         show: false,
@@ -87,7 +70,7 @@ function MessageInput({
         return [
             JSON.stringify({ type: "text", text: inputText }),
             ...(urlsData || [])?.map(
-                ({ url, gcs, converted, originalFilename }) => {
+                ({ url, gcs, converted, originalFilename, hash }) => {
                     const obj = {
                         type: "image_url",
                     };
@@ -99,6 +82,11 @@ function MessageInput({
                     // Include original filename if available
                     if (originalFilename) {
                         obj.originalFilename = originalFilename;
+                    }
+
+                    // Include hash if available
+                    if (hash) {
+                        obj.hash = hash;
                     }
 
                     return JSON.stringify(obj);
@@ -160,74 +148,20 @@ function MessageInput({
     const addUrl = (urlData) => {
         const { url } = urlData;
 
-        // Check if activeChatId is available
-        if (!activeChatId) {
-            console.warn("Cannot upload file: No active chat ID available");
-            return;
-        }
-
-        const fetchData = async (url) => {
-            if (!url) return;
-
-            try {
-                const docId = uuidv4();
-                const filename = getFilename(url);
-
-                dispatch(setFileLoading());
-
-                client
-                    .query({
-                        query: COGNITIVE_INSERT,
-                        variables: {
-                            file: url,
-                            privateData: true,
-                            contextId,
-                            docId,
-                            chatId: activeChatId,
-                        },
-                        fetchPolicy: "network-only",
-                    })
-                    .then(() => {
-                        // completed successfully
-                        addDocument.mutateAsync({
-                            docId,
-                            filename,
-                            chatId: activeChatId,
-                        });
-                        dispatch(clearFileLoading());
-                    })
-                    .catch((err) => {
-                        console.error(err);
-                        dispatch(loadingError(err.toString()));
-                    });
-            } catch (err) {
-                console.warn("Error in file upload", err);
-                dispatch(loadingError(err.toString()));
-            }
-        };
-
-        //check if url is rag type and process accordingly
-        if (isRagFileUrl(url)) {
-            fetchData(url);
-        } else {
-            //media urls, will be sent with active message
-            if (isSupportedFileUrl(url)) {
-                const currentUrlsData = urlsData;
-                const isDuplicate = currentUrlsData.some(
-                    (existingUrl) => existingUrl.hash === urlData.hash,
-                );
-                if (!isDuplicate) {
-                    console.log("Adding new URL data:", urlData);
-                    setUrlsData((prevUrlsData) => [...prevUrlsData, urlData]);
-                } else {
-                    console.log(
-                        "Skipping duplicate URL with hash:",
-                        urlData.hash,
-                    );
-                }
+        // Media urls, will be sent with active message
+        if (isSupportedFileUrl(url)) {
+            const currentUrlsData = urlsData;
+            const isDuplicate = currentUrlsData.some(
+                (existingUrl) => existingUrl.hash === urlData.hash,
+            );
+            if (!isDuplicate) {
+                console.log("Adding new URL data:", urlData);
+                setUrlsData((prevUrlsData) => [...prevUrlsData, urlData]);
             } else {
-                console.log("URL is not supported:", url);
+                console.log("Skipping duplicate URL with hash:", urlData.hash);
             }
+        } else {
+            console.log("URL is not supported:", url);
         }
     };
 
@@ -291,7 +225,7 @@ function MessageInput({
                         <TextareaAutosize
                             typeahead="none"
                             className={classNames(
-                                `w-full border-0 outline-none focus:shadow-none [.docked_&]:text-sm focus:ring-0 pt-2 resize-none bg-transparent dark:bg-transparent`,
+                                `w-full border-0 outline-none focus:shadow-none text-base md:text-sm [.docked_&]:md:text-sm focus:ring-0 pt-2 resize-none bg-transparent dark:bg-transparent`,
                                 enableRag ? "px-1" : "px-3 rounded-s",
                             )}
                             rows={1}

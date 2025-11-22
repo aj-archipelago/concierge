@@ -198,7 +198,7 @@ function CreatingAppletDialog({ isVisible, containerRef: parentContainerRef }) {
 
     return (
         <div
-            className="fixed bg-white/5 dark:bg-black/20 backdrop-blur-sm flex items-center justify-center z-10 pointer-events-none"
+            className="fixed bg-white/5 dark:bg-black/20 backdrop-blur-sm flex items-center justify-center z-50 pointer-events-none"
             style={{
                 top: `${position.top}px`,
                 left: `${position.left}px`,
@@ -466,7 +466,7 @@ function FilesTab({ workspaceId, isOwner }) {
 
     return (
         <div className="h-full flex flex-col">
-            <div className="mb-3 p-2 bg-sky-50 dark:bg-sky-900/20 border border-blue-200 dark:border-sky-800 rounded-md">
+            <div className="mb-3 p-2 bg-sky-50 dark:bg-sky-900/20 border border-sky-200 dark:border-sky-800 rounded-md">
                 <div className="flex items-center gap-2 text-sky-800 dark:text-sky-300 text-sm">
                     <span className="text-sky-600 dark:text-sky-400">📁</span>
                     <span>
@@ -775,7 +775,7 @@ function DataTab({ workspaceId, isOwner }) {
 
     return (
         <div className="h-full flex flex-col">
-            <div className="mb-3 p-2 bg-sky-50 dark:bg-sky-900/20 border border-blue-200 dark:border-sky-800 rounded-md">
+            <div className="mb-3 p-2 bg-sky-50 dark:bg-sky-900/20 border border-sky-200 dark:border-sky-800 rounded-md">
                 <div className="flex items-center justify-between text-sky-800 dark:text-sky-300 text-sm">
                     <div className="flex items-center gap-2">
                         <span className="text-sky-600 dark:text-sky-400">
@@ -789,7 +789,7 @@ function DataTab({ workspaceId, isOwner }) {
                     </div>
                     {isSaving && (
                         <div className="flex items-center gap-1 text-sky-600 dark:text-sky-400">
-                            <div className="w-3 h-3 border border-blue-600 dark:border-sky-400 border-t-transparent rounded-full animate-spin" />
+                            <div className="w-3 h-3 border border-sky-600 dark:border-sky-400 border-t-transparent rounded-full animate-spin" />
                             <span className="text-xs">{t("Saving...")}</span>
                         </div>
                     )}
@@ -912,14 +912,14 @@ export default function PreviewTabs({
                 <TabsTrigger value="files">{t("Files")}</TabsTrigger>
             </TabsList>
 
+            <CreatingAppletDialog
+                isVisible={showCreatingDialog}
+                containerRef={scrollableContainerRef}
+            />
             <div
                 ref={scrollableContainerRef}
                 className="border rounded-md shadow-md bg-white dark:bg-gray-800 dark:border-gray-600 flex-1 min-w-0 overflow-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent hover:scrollbar-thumb-gray-400 relative"
             >
-                <CreatingAppletDialog
-                    isVisible={showCreatingDialog}
-                    containerRef={scrollableContainerRef}
-                />
                 <div className="flex flex-col h-full">
                     <div className="flex-1 p-4">
                         <TabsContent

@@ -2,11 +2,13 @@ import { getClient, QUERIES } from "../../../src/graphql";
 import LLM from "../models/llm";
 import Prompt from "../models/prompt";
 import Run from "../models/run";
+import Workspace from "../models/workspace";
 import { getCurrentUser } from "../utils/auth";
 import {
-    prepareFileContentForLLM,
     getLLMWithFallback,
+    buildWorkspacePromptVariables,
 } from "../utils/llm-file-utils";
+import config from "../../../config";
 
 export async function POST(req, res) {
     const startedAt = Date.now();
@@ -27,73 +29,40 @@ export async function POST(req, res) {
         const llmId = prompt.llm;
         const llm = await getLLMWithFallback(LLM, llmId);
 
-        const promptToSend = prompt.text;
         const pathwayName = llm.cortexPathwayName;
         const model = llm.cortexModelName;
 
-        const query = getWorkspacePromptQuery(pathwayName);
-
-        // Build chatHistory from text, files, prompt, and promptToSend
-        const contentArray = [];
-
-        // Add text content if provided
-        if (text && text.trim()) {
-            contentArray.push(JSON.stringify({ type: "text", text: text }));
+        // Fetch workspace to get systemPrompt (workspace context)
+        let workspaceSystemPrompt = systemPrompt;
+        if (workspaceId) {
+            const workspace = await Workspace.findById(workspaceId);
+            if (workspace && workspace.systemPrompt) {
+                workspaceSystemPrompt = workspace.systemPrompt;
+            }
         }
 
-        // Add prompt text if provided
-        if (promptToSend && promptToSend.trim()) {
-            const textContent =
-                contentArray.length > 0
-                    ? contentArray[0]
-                    : JSON.stringify({ type: "text", text: "" });
-
-            // Parse existing text content and append prompt
-            const existingContent = JSON.parse(textContent);
-            const combinedText = existingContent.text
-                ? `${existingContent.text}\n\n${promptToSend}`
-                : promptToSend;
-
-            contentArray[0] = JSON.stringify({
-                type: "text",
-                text: combinedText,
-            });
-        }
-
-        // Add client-provided files
+        // Collect all files (client files + prompt files)
+        const allFiles = [];
         if (files && files.length > 0) {
-            const clientFileContent = await prepareFileContentForLLM(files);
-            contentArray.push(...clientFileContent);
+            allFiles.push(...files);
         }
-
-        // Add prompt files
         if (prompt.files && prompt.files.length > 0) {
-            const promptFileContent = await prepareFileContentForLLM(
-                prompt.files,
-            );
-            contentArray.push(...promptFileContent);
+            allFiles.push(...prompt.files);
         }
 
-        // Prepare variables
-        const variables = {
-            systemPrompt,
-        };
+        // Build variables: systemPrompt (workspace context), prompt (prompt text), text (user input)
+        const variables = await buildWorkspacePromptVariables({
+            systemPrompt: workspaceSystemPrompt,
+            prompt: prompt.text,
+            text: text,
+            files: allFiles,
+        });
 
-        if (contentArray.length > 0) {
-            // Use multimodal format
-            variables.chatHistory = [
-                {
-                    role: "user",
-                    content: contentArray,
-                },
-            ];
-        } else {
-            // Fallback to legacy format (should rarely happen)
-            variables.text = text || "";
-            variables.prompt = promptToSend || "";
+        if (model !== config.cortex?.AGENTIC_MODEL) {
+            variables.model = model;
         }
 
-        variables.model = model;
+        const query = getWorkspacePromptQuery(pathwayName);
 
         const response = await getClient().query({
             query,

@@ -1,7 +1,6 @@
 import { useCallback, useRef, useState, useEffect } from "react";
 import { useSubscription } from "@apollo/client";
 import { SUBSCRIPTIONS } from "../graphql";
-import { processImageUrls } from "../utils/imageUtils.mjs";
 import { toast } from "react-toastify";
 
 // Add utility function for chunking text
@@ -53,6 +52,7 @@ export function useStreamingMessages({
     const [isStreaming, setIsStreaming] = useState(false);
     const [streamingContent, setStreamingContent] = useState("");
     const [ephemeralContent, setEphemeralContent] = useState(""); // Add state for ephemeral content
+    const [toolCalls, setToolCalls] = useState([]); // Track tool calls with their status
     const [streamingTool, setStreamingTool] = useState(null);
     const [thinkingDuration, setThinkingDuration] = useState(0); // Add thinking duration state
     const [isThinking, setIsThinking] = useState(false);
@@ -60,7 +60,10 @@ export function useStreamingMessages({
     const chunkQueueRef = useRef([]);
     const lastChunkTimeRef = useRef(0);
     const CHUNK_INTERVAL = 4; // ~225fps for 3x faster rendering (was 13ms)
-    const startTimeRef = useRef(null); // Track when streaming started
+    const startTimeRef = useRef(null); // Track when current thinking period started
+    const accumulatedThinkingTimeRef = useRef(0); // Track cumulative thinking time across all periods
+    const isThinkingRef = useRef(false); // Track thinking state with ref for synchronous access
+    const toolCallsMapRef = useRef(new Map()); // Map<callId, { icon, userMessage, status }>
 
     // Cleanup function for timeouts
     useEffect(() => {
@@ -81,17 +84,22 @@ export function useStreamingMessages({
     useEffect(() => {
         if (isStreaming && startTimeRef.current === null) {
             startTimeRef.current = Date.now();
+            accumulatedThinkingTimeRef.current = 0; // Reset accumulated time when streaming starts
             setThinkingDuration(0);
             setIsThinking(true);
+            isThinkingRef.current = true; // Update ref synchronously
         }
     }, [isStreaming]);
 
-    // Update thinking duration while streaming
+    // Update thinking duration while streaming (cumulative)
     useEffect(() => {
         if (isStreaming && startTimeRef.current && isThinking) {
             const interval = setInterval(() => {
+                const currentPeriodTime = Math.floor(
+                    (Date.now() - startTimeRef.current) / 1000,
+                );
                 setThinkingDuration(
-                    Math.floor((Date.now() - startTimeRef.current) / 1000),
+                    accumulatedThinkingTimeRef.current + currentPeriodTime,
                 );
             }, 1000);
             return () => clearInterval(interval);
@@ -113,24 +121,29 @@ export function useStreamingMessages({
         completingMessageRef.current = false;
         setStreamingContent("");
         setEphemeralContent("");
+        setToolCalls([]);
         setSubscriptionId(null);
         setIsStreaming(false);
         setStreamingTool(null);
         setThinkingDuration(0); // Reset thinking duration
         setIsThinking(false);
+        isThinkingRef.current = false; // Update ref
         messageQueueRef.current = [];
         processingRef.current = false;
         chunkQueueRef.current = [];
         startTimeRef.current = null; // Reset start time
+        accumulatedThinkingTimeRef.current = 0; // Reset accumulated thinking time
+        toolCallsMapRef.current.clear(); // Clear tool calls map
     }, []);
 
     const completeMessage = useCallback(async () => {
-        if (
-            !chat?._id ||
-            (!streamingMessageRef.current && !ephemeralContentRef.current) ||
-            completingMessageRef.current
-        )
-            return;
+        // Check if we have any content to save (persistent, ephemeral, or tool calls)
+        const hasContent =
+            streamingMessageRef.current ||
+            ephemeralContentRef.current ||
+            toolCallsMapRef.current.size > 0;
+
+        if (!chat?._id || !hasContent || completingMessageRef.current) return;
 
         completingMessageRef.current = true;
 
@@ -140,11 +153,7 @@ export function useStreamingMessages({
             finalContent = ephemeralContentRef.current;
         }
 
-        // Process any image URLs in the final content
-        const processedContent = await processImageUrls(
-            finalContent,
-            window.location.origin,
-        );
+        const processedContent = finalContent;
 
         const toolString = JSON.stringify({
             ...accumulatedInfoRef.current,
@@ -154,6 +163,24 @@ export function useStreamingMessages({
         const codeRequestId = accumulatedInfoRef.current.codeRequestId;
 
         const finalEphemeralContent = ephemeralContentRef.current;
+
+        // Capture final thinking duration before clearing state
+        let finalThinkingDuration = thinkingDuration;
+        if (isThinking && startTimeRef.current !== null) {
+            const elapsed = Math.floor(
+                (Date.now() - startTimeRef.current) / 1000,
+            );
+            finalThinkingDuration =
+                accumulatedThinkingTimeRef.current + elapsed;
+        }
+
+        // Capture final tool calls before clearing state
+        const finalToolCalls = Array.from(toolCallsMapRef.current.values());
+        const hasToolCalls = finalToolCalls.length > 0;
+
+        // If we have tool calls but no traditional ephemeral content,
+        // we should still mark that we had ephemeral content (tool calls are ephemeral)
+        const hasEphemeralContent = finalEphemeralContent || hasToolCalls;
 
         // Clear streaming state first
         clearStreamingState();
@@ -176,8 +203,14 @@ export function useStreamingMessages({
                 sender: "labeeb",
                 entityId: currentEntityId,
                 isStreaming: false,
-                ephemeralContent: finalEphemeralContent || "",
-                thinkingDuration: thinkingDuration,
+                // Save ephemeral content if we have any (traditional or tool calls)
+                ephemeralContent: hasEphemeralContent
+                    ? finalEphemeralContent || ""
+                    : undefined,
+                thinkingDuration: finalThinkingDuration,
+                // Always save toolCalls explicitly - use array if we have any, otherwise null (not undefined)
+                // This ensures Mongoose saves the field and it's preserved when retrieved
+                toolCalls: hasToolCalls ? finalToolCalls : null,
             };
 
             if (lastStreamingIndex !== -1) {
@@ -211,6 +244,7 @@ export function useStreamingMessages({
         updateChatHook,
         clearStreamingState,
         thinkingDuration,
+        isThinking,
         currentEntityId,
     ]);
 
@@ -243,6 +277,36 @@ export function useStreamingMessages({
         setSubscriptionId,
     ]);
 
+    // Track tool calls by callId
+    const updateToolCalls = useCallback((toolMessage) => {
+        if (!toolMessage || !toolMessage.callId) return;
+
+        const { type, callId, icon, userMessage, success, error } = toolMessage;
+
+        if (type === "start") {
+            // Add or update tool call as active
+            toolCallsMapRef.current.set(callId, {
+                icon: icon || "🛠️",
+                userMessage: userMessage || "Running tool...",
+                status: "thinking",
+            });
+        } else if (type === "finish") {
+            // Update tool call as completed
+            const existing = toolCallsMapRef.current.get(callId);
+            if (existing) {
+                toolCallsMapRef.current.set(callId, {
+                    ...existing,
+                    status: success ? "completed" : "failed",
+                    error: error || null,
+                });
+            }
+        }
+
+        // Convert map to array for state
+        const toolCallsArray = Array.from(toolCallsMapRef.current.values());
+        setToolCalls(toolCallsArray);
+    }, []);
+
     const updateStreamingContent = useCallback(
         async (newContent, isEphemeral = false) => {
             if (completingMessageRef.current) return;
@@ -252,14 +316,57 @@ export function useStreamingMessages({
                 // For ephemeral content, update the ephemeral content state
                 ephemeralContentRef.current = newContent;
                 setEphemeralContent(newContent);
+
+                // If we're receiving ephemeral content while streaming, we should be thinking
+                // Use ref for reliable synchronous access to thinking state
+                const currentlyThinking = isThinkingRef.current || isThinking;
+
+                // Helper to accumulate elapsed time and reset start time
+                const accumulateThinkingTime = () => {
+                    if (startTimeRef.current !== null) {
+                        const elapsed = Math.floor(
+                            (Date.now() - startTimeRef.current) / 1000,
+                        );
+                        accumulatedThinkingTimeRef.current += elapsed;
+                        startTimeRef.current = null;
+                    }
+                };
+
+                // Helper to start a new thinking period
+                const startThinkingPeriod = () => {
+                    startTimeRef.current = Date.now();
+                    setIsThinking(true);
+                    isThinkingRef.current = true;
+                };
+
+                // If we're not currently thinking (e.g., we received persistent content before),
+                // restart the thinking counter to capture interstitial time between tool calls
+                if (!currentlyThinking && isStreaming) {
+                    accumulateThinkingTime();
+                    startThinkingPeriod();
+                } else if (currentlyThinking && startTimeRef.current === null) {
+                    // If we're thinking but don't have a start time, set it now
+                    startTimeRef.current = Date.now();
+                }
             } else {
                 // This is persistent content - save it and mark that we've received some
+                // If we were thinking, accumulate the elapsed time before stopping
+                const wasThinking = isThinkingRef.current || isThinking;
+                if (wasThinking && startTimeRef.current !== null) {
+                    const elapsed = Math.floor(
+                        (Date.now() - startTimeRef.current) / 1000,
+                    );
+                    accumulatedThinkingTimeRef.current += elapsed;
+                    startTimeRef.current = null;
+                }
                 setIsThinking(false);
+                isThinkingRef.current = false;
                 streamingMessageRef.current = newContent;
                 hasReceivedPersistentRef.current = true;
                 setStreamingContent(newContent);
             }
         },
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- isStreaming and isThinking are intentionally omitted - refs (isThinkingRef) are used for synchronous access, and the callback should not recreate on every state change
         [],
     );
 
@@ -319,6 +426,30 @@ export function useStreamingMessages({
 
                     // Check if the content is ephemeral
                     isEphemeral = !!parsedInfo.ephemeral;
+
+                    // Handle structured tool messages
+                    if (parsedInfo.toolMessage) {
+                        updateToolCalls(parsedInfo.toolMessage);
+
+                        // If we receive a tool start message, we should be thinking
+                        if (
+                            parsedInfo.toolMessage.type === "start" &&
+                            isStreaming
+                        ) {
+                            if (!isThinkingRef.current && !isThinking) {
+                                // Start thinking period if not already thinking
+                                if (startTimeRef.current === null) {
+                                    startTimeRef.current = Date.now();
+                                    accumulatedThinkingTimeRef.current = 0;
+                                }
+                                setIsThinking(true);
+                                isThinkingRef.current = true;
+                            }
+                        }
+
+                        // Tool messages should trigger processing even without result content
+                        // The tool call update above will cause a re-render
+                    }
 
                     // Store accumulated info
                     accumulatedInfoRef.current = {
@@ -411,6 +542,9 @@ export function useStreamingMessages({
         updateChatHook,
         processChunkQueue,
         clearStreamingState,
+        updateToolCalls,
+        isStreaming,
+        isThinking,
     ]);
 
     useSubscription(SUBSCRIPTIONS.REQUEST_PROGRESS, {
@@ -454,6 +588,7 @@ export function useStreamingMessages({
         isStreaming,
         streamingContent,
         ephemeralContent,
+        toolCalls,
         stopStreaming,
         setIsStreaming,
         setSubscriptionId,

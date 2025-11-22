@@ -873,7 +873,7 @@ function FileList({
                             isPickerMode
                                 ? `p-2 border rounded cursor-pointer transition-colors ${
                                       isSelected
-                                          ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20"
+                                          ? "border-sky-500 bg-sky-50 dark:bg-sky-900/20"
                                           : "border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700"
                                   }`
                                 : "justify-between p-2 border border-gray-200 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700"

@@ -204,6 +204,10 @@ export function generateFilteredSandboxHtml(content, theme) {
                         font-family: system-ui, -apple-system, sans-serif;
                         min-height: auto;
                         height: auto;
+                        background-color: #ffffff;
+                    }
+                    html[data-theme="dark"] body {
+                        background-color: #1f2937; /* gray-800 - matches layout content container */
                     }
                     /* Ensure images don't overflow */
                     img { max-width: 100%; height: auto; }

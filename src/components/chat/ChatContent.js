@@ -11,12 +11,44 @@ import { toast } from "react-toastify";
 import { AuthContext } from "../../App.js";
 import ChatMessages from "./ChatMessages";
 import { QUERIES } from "../../graphql";
-import { useGetActiveChat, useUpdateChat } from "../../../app/queries/chats";
+import {
+    useGetActiveChat,
+    useUpdateChat,
+    useGetChatById,
+} from "../../../app/queries/chats";
+import {
+    checkFileUrlExists,
+    purgeFile,
+} from "../../../app/workspaces/[id]/components/chatFileUtils";
 import { useStreamingMessages } from "../../hooks/useStreamingMessages";
 import { useQueryClient } from "@tanstack/react-query";
 import { useRunTask } from "../../../app/queries/notifications";
+import { useParams } from "next/navigation";
+import { composeUserDateTimeInfo } from "../../utils/datetimeUtils";
 
 const contextMessageCount = 50;
+
+/**
+ * Determines which chat to use based on viewing state and URL parameters.
+ * Priority: read-only viewing chat > URL chat > active chat
+ */
+function determineActiveChat(
+    viewingReadOnlyChat,
+    viewingChat,
+    urlChatId,
+    urlChat,
+    activeChatHookData,
+) {
+    if (viewingReadOnlyChat) {
+        return viewingChat;
+    }
+
+    if (urlChatId && urlChat) {
+        return urlChat;
+    }
+
+    return activeChatHookData?.data;
+}
 
 function ChatContent({
     displayState = "full",
@@ -29,7 +61,10 @@ function ChatContent({
     const { t } = useTranslation();
     const client = useApolloClient();
     const { user } = useContext(AuthContext);
+    const params = useParams();
+    const urlChatId = params?.id;
     const activeChatHookData = useGetActiveChat();
+    const { data: urlChat } = useGetChatById(urlChatId);
     const updateChatHook = useUpdateChat();
     const queryClient = useQueryClient();
     const runTask = useRunTask();
@@ -38,8 +73,27 @@ function ChatContent({
         [displayState, viewingChat],
     );
 
-    const chat = viewingReadOnlyChat ? viewingChat : activeChatHookData?.data;
-    const chatId = String(chat?._id);
+    // Use URL chat if available (and not viewing a read-only chat),
+    // otherwise fall back to active chat
+    // Memoize chat determination to avoid recalculation on every render
+    const chat = useMemo(
+        () =>
+            determineActiveChat(
+                viewingReadOnlyChat,
+                viewingChat,
+                urlChatId,
+                urlChat,
+                activeChatHookData,
+            ),
+        [
+            viewingReadOnlyChat,
+            viewingChat,
+            urlChatId,
+            urlChat,
+            activeChatHookData,
+        ],
+    );
+    const chatId = useMemo(() => String(chat?._id), [chat?._id]);
 
     // Simple approach - if we have a chat ID but no messages, refetch once
     useEffect(() => {
@@ -53,14 +107,137 @@ function ChatContent({
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [chat?._id]); // Only run when the chat ID changes
 
-    const memoizedMessages = useMemo(() => chat?.messages || [], [chat]);
+    // Only recalculate when messages array actually changes, not when other chat properties change
+    const memoizedMessages = useMemo(
+        () => chat?.messages || [],
+        [chat?.messages],
+    );
     const publicChatOwner = viewingChat?.owner;
     const isChatLoading = chat?.isChatLoading;
+
+    // Check file URLs in the background and replace missing files with placeholders
+    const checkedFilesRef = useRef({ checked: new Set(), chatId: null });
+    useEffect(() => {
+        if (!chatId || !memoizedMessages.length || viewingReadOnlyChat) {
+            return;
+        }
+
+        // Reset checked files when chat changes
+        if (chatId !== checkedFilesRef.current.chatId) {
+            checkedFilesRef.current = { checked: new Set(), chatId };
+        }
+
+        // Extract all file URLs from messages
+        const filesToCheck = [];
+        memoizedMessages.forEach((message, messageIndex) => {
+            if (!Array.isArray(message.payload)) return;
+
+            message.payload.forEach((payloadItem, payloadIndex) => {
+                try {
+                    const fileObj = JSON.parse(payloadItem);
+                    if (
+                        (fileObj.type === "image_url" ||
+                            fileObj.type === "file") &&
+                        !fileObj.hideFromClient
+                    ) {
+                        const fileUrl =
+                            fileObj.url ||
+                            fileObj.image_url?.url ||
+                            fileObj.gcs ||
+                            fileObj.file;
+                        const fileKey = `${message.id || message._id}-${payloadIndex}-${fileUrl}`;
+
+                        // Skip if we've already checked this file
+                        if (checkedFilesRef.current.checked.has(fileKey)) {
+                            return;
+                        }
+
+                        filesToCheck.push({
+                            messageIndex,
+                            payloadIndex,
+                            messageId: message.id || message._id,
+                            fileObj,
+                            fileUrl,
+                            fileKey,
+                        });
+                    }
+                } catch (e) {
+                    // Not a JSON object, skip
+                }
+            });
+        });
+
+        if (filesToCheck.length === 0) return;
+
+        // Check files in the background
+        const checkFiles = async () => {
+            const filesToReplace = [];
+
+            await Promise.all(
+                filesToCheck.map(
+                    async ({
+                        fileUrl,
+                        fileKey,
+                        fileObj,
+                        messageIndex,
+                        payloadIndex,
+                        messageId,
+                    }) => {
+                        // Mark as checked immediately to avoid duplicate checks
+                        checkedFilesRef.current.checked.add(fileKey);
+
+                        // Use server-side URL check (doesn't rely on hash database)
+                        const exists = await checkFileUrlExists(fileUrl);
+
+                        if (!exists) {
+                            filesToReplace.push({
+                                messageIndex,
+                                payloadIndex,
+                                messageId,
+                                fileObj,
+                            });
+                        }
+                    },
+                ),
+            );
+
+            if (filesToReplace.length === 0) return;
+
+            // Use unified purgeFile function for each missing file
+            // Skip cloud deletion since file is already gone
+            await Promise.allSettled(
+                filesToReplace.map(({ fileObj }) =>
+                    purgeFile({
+                        fileObj,
+                        apolloClient: client,
+                        contextId: user?.contextId,
+                        contextKey: user?.contextKey,
+                        chatId,
+                        messages: memoizedMessages,
+                        updateChatHook,
+                        t,
+                        filename:
+                            fileObj.originalFilename ||
+                            fileObj.filename ||
+                            "file",
+                        skipCloudDelete: true, // File already gone from cloud
+                    }).catch((error) => {
+                        console.warn("Failed to purge missing file:", error);
+                    }),
+                ),
+            );
+        };
+
+        // Run check in background (don't block UI)
+        checkFiles();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [memoizedMessages, chatId, viewingReadOnlyChat, t, updateChatHook]);
 
     const {
         isStreaming,
         streamingContent,
         ephemeralContent,
+        toolCalls,
         stopStreaming,
         setIsStreaming,
         setSubscriptionId,
@@ -174,6 +351,9 @@ function ChatContent({
                 // Use entity ID directly from the prop
                 const currentSelectedEntityId = selectedEntityIdFromProp || "";
 
+                // Collect datetime and timezone information
+                const userInfo = composeUserDateTimeInfo();
+
                 const variables = {
                     chatHistory: conversation,
                     contextId,
@@ -190,6 +370,7 @@ function ChatContent({
                     entityId: currentSelectedEntityId,
                     researchMode: chat?.researchMode ? true : false,
                     model: chat?.researchMode ? "oai-o3" : "oai-gpt41",
+                    userInfo,
                 };
 
                 // Make parallel title update call
@@ -373,12 +554,15 @@ function ChatContent({
             isStreaming={isStreaming}
             streamingContent={streamingContent}
             ephemeralContent={ephemeralContent}
+            toolCalls={toolCalls}
             onStopStreaming={stopStreaming}
             thinkingDuration={thinkingDuration}
             isThinking={isThinking}
             selectedEntityId={selectedEntityIdFromProp}
             entities={entities}
             entityIconSize={entityIconSize}
+            contextId={user?.contextId}
+            contextKey={user?.contextKey}
         />
     );
 }

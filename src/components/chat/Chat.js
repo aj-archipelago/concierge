@@ -6,9 +6,12 @@ import dynamic from "next/dynamic";
 import {
     useUpdateActiveChat,
     useGetActiveChat,
+    useGetChatById,
+    useSetActiveChatId,
 } from "../../../app/queries/chats";
-import { useContext, useState, useEffect } from "react";
+import { useContext, useState, useEffect, useRef, useMemo } from "react";
 import { AuthContext } from "../../App";
+import { useParams } from "next/navigation";
 import {
     Select,
     SelectContent,
@@ -34,14 +37,82 @@ const ChatTopMenuDynamic = dynamic(() => import("./ChatTopMenu"), {
     loading: () => <div style={{ width: "80px", height: "20px" }}></div>,
 });
 
+/**
+ * Determines which chat to use based on URL and viewing state.
+ * Matches the logic in ChatContent.js for consistency:
+ * 1. If viewing a read-only chat, use viewingChat
+ * 2. Otherwise, if URL chat is available, use urlChat
+ * 3. Otherwise, fall back to active chat
+ */
+function getChatToUse(urlChatId, urlChat, viewingChat, activeChat) {
+    // If viewing a read-only chat, use it directly
+    if (viewingChat && viewingChat.readOnly) {
+        return viewingChat;
+    }
+
+    // Otherwise, use URL chat if available
+    if (urlChatId && urlChat) {
+        return urlChat;
+    }
+
+    // Fall back to active chat
+    return activeChat;
+}
+
 function Chat({ viewingChat = null }) {
-    const { t } = useTranslation();
+    const { t, i18n } = useTranslation();
+    const params = useParams();
+    const urlChatId = params?.id;
     const updateActiveChat = useUpdateActiveChat();
-    const { data: chat } = useGetActiveChat();
-    const activeChatId = chat?._id;
+    const setActiveChatId = useSetActiveChatId();
+    const { data: activeChat } = useGetActiveChat();
+    const { data: urlChat } = useGetChatById(urlChatId);
+
+    const isRTL = i18n.dir() === "rtl";
+
+    // Memoize chat determination to avoid recalculation on every render
+    const chat = useMemo(
+        () => getChatToUse(urlChatId, urlChat, viewingChat, activeChat),
+        [urlChatId, urlChat, viewingChat, activeChat],
+    );
+    const activeChatId = useMemo(() => chat?._id, [chat?._id]);
     const { user } = useContext(AuthContext);
     const { readOnly } = viewingChat || {};
     const publicChatOwner = viewingChat?.owner;
+
+    // Track the last URL chat ID we've updated to prevent duplicate calls
+    const lastUpdatedUrlChatId = useRef(null);
+
+    // Update active chat ID asynchronously in the background after reading from URL
+    // This is non-blocking and only used for ChatBox fallback purposes
+    useEffect(() => {
+        // Skip if no URL chat ID or already updated this ID
+        if (!urlChatId || urlChatId === lastUpdatedUrlChatId.current) {
+            return;
+        }
+
+        // Skip if viewing a read-only chat or chat doesn't exist
+        if (viewingChat || !urlChat || urlChat.readOnly) {
+            return;
+        }
+
+        // Skip if already matches active chat (no update needed)
+        if (urlChatId === activeChat?._id) {
+            lastUpdatedUrlChatId.current = urlChatId;
+            return;
+        }
+
+        // Update active chat ID asynchronously in the background (non-blocking)
+        // This is only for ChatBox fallback, not for navigation
+        lastUpdatedUrlChatId.current = urlChatId;
+        setActiveChatId.mutate(urlChatId, {
+            onError: (error) => {
+                console.error("Error updating active chat ID:", error);
+                // Reset on error so we can retry
+                lastUpdatedUrlChatId.current = null;
+            },
+        });
+    }, [urlChatId, activeChat?._id, viewingChat, urlChat, setActiveChatId]);
     const [selectedEntityId, setSelectedEntityId] = useState(
         chat?.selectedEntityId || "",
     );
@@ -165,57 +236,64 @@ function Chat({ viewingChat = null }) {
                     )}
                 </div>
                 <div className="flex gap-2 items-center">
-                    <Select
-                        value={selectedEntityId || defaultAiName}
-                        onValueChange={handleEntityChange}
-                        disabled={readOnly}
-                    >
-                        <SelectTrigger
-                            className={`w-auto text-sm h-7 lb-outline ${readOnly ? "cursor-not-allowed opacity-50" : ""}`}
-                            aria-label={t("Select entity")}
+                    {user?.useCustomEntities && (
+                        <Select
+                            value={selectedEntityId || defaultAiName}
+                            onValueChange={handleEntityChange}
+                            disabled={readOnly}
+                            dir={isRTL ? "rtl" : "ltr"}
                         >
-                            <div className="flex items-center gap-2 pr-1">
-                                {selectedEntityId ? (
-                                    <>
-                                        <EntityIcon
-                                            entity={entities.find(
-                                                (e) =>
-                                                    e.id === selectedEntityId,
-                                            )}
-                                            size="xs"
-                                        />
-                                        <span className="hidden sm:inline">
-                                            {t(
-                                                entities.find(
+                            <SelectTrigger
+                                className={`w-auto text-sm h-7 lb-outline ${readOnly ? "cursor-not-allowed opacity-50" : ""}`}
+                                aria-label={t("Select entity")}
+                            >
+                                <div className="flex items-center gap-2 pe-1">
+                                    {selectedEntityId ? (
+                                        <>
+                                            <EntityIcon
+                                                entity={entities.find(
                                                     (e) =>
                                                         e.id ===
                                                         selectedEntityId,
-                                                )?.name,
-                                            )}
-                                        </span>
-                                    </>
-                                ) : (
-                                    <SelectValue
-                                        placeholder={t("Select entity")}
-                                    />
-                                )}
-                            </div>
-                        </SelectTrigger>
-                        <SelectContent>
-                            {entities.map((entity) => (
-                                <SelectItem
-                                    className="text-sm focus:bg-gray-100 dark:focus:bg-gray-700 dark:focus:text-gray-100"
-                                    key={entity.id}
-                                    value={entity.id}
-                                >
-                                    <div className="flex items-center gap-2">
-                                        <EntityIcon entity={entity} size="xs" />
-                                        {t(entity.name)}
-                                    </div>
-                                </SelectItem>
-                            ))}
-                        </SelectContent>
-                    </Select>
+                                                )}
+                                                size="xs"
+                                            />
+                                            <span className="hidden sm:inline">
+                                                {t(
+                                                    entities.find(
+                                                        (e) =>
+                                                            e.id ===
+                                                            selectedEntityId,
+                                                    )?.name,
+                                                )}
+                                            </span>
+                                        </>
+                                    ) : (
+                                        <SelectValue
+                                            placeholder={t("Select entity")}
+                                        />
+                                    )}
+                                </div>
+                            </SelectTrigger>
+                            <SelectContent>
+                                {entities.map((entity) => (
+                                    <SelectItem
+                                        className="text-sm focus:bg-gray-100 dark:focus:bg-gray-700 dark:focus:text-gray-100"
+                                        key={entity.id}
+                                        value={entity.id}
+                                    >
+                                        <div className="flex items-center gap-2">
+                                            <EntityIcon
+                                                entity={entity}
+                                                size="xs"
+                                            />
+                                            {t(entity.name)}
+                                        </div>
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    )}
                     <button
                         disabled={!chat?.messages?.length}
                         className="flex items-center gap-1 px-3 py-1.5 rounded-md transition-colors border bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 border-gray-200 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-600 text-xs disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-white dark:disabled:hover:bg-gray-700"

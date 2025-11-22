@@ -8,7 +8,7 @@ import React, {
     useState,
 } from "react";
 import { useTranslation } from "react-i18next";
-import { UserCircle } from "lucide-react";
+import { UserCircle, X, FileX } from "lucide-react";
 import Loader from "../../../app/components/loader";
 import classNames from "../../../app/utils/class-names";
 import config from "../../../config";
@@ -27,6 +27,9 @@ import { AuthContext } from "../../App";
 import BotMessage from "./BotMessage";
 import ScrollToBottom from "./ScrollToBottom";
 import StreamingMessage from "./StreamingMessage";
+import { useUpdateChat } from "../../../app/queries/chats";
+import { useApolloClient } from "@apollo/client";
+import { purgeFile } from "../../../app/workspaces/[id]/components/chatFileUtils";
 import {
     AlertDialog,
     AlertDialogContent,
@@ -127,6 +130,8 @@ const MessageListContent = React.memo(function MessageListContent({
     getExtension,
     getFilename,
     getYoutubeEmbedUrl,
+    onDeleteFile,
+    t,
 }) {
     return messages.map((message, index) => {
         const newMessage = { ...message };
@@ -135,100 +140,185 @@ const MessageListContent = React.memo(function MessageListContent({
         }
         let display;
         if (Array.isArray(newMessage.payload)) {
-            const arr = newMessage.payload.map((t, index2) => {
-                try {
-                    const obj = JSON.parse(t);
-                    if (obj.type === "text") {
-                        return obj.text;
-                    } else if (obj.type === "image_url") {
-                        const src = obj?.url || obj?.image_url?.url || obj?.gcs;
-                        const originalFilename = obj?.originalFilename;
-                        if (isVideoUrl(src)) {
-                            const youtubeEmbedUrl = getYoutubeEmbedUrl(src);
-                            if (youtubeEmbedUrl) {
+            const arr = newMessage.payload
+                .map((t, index2) => {
+                    try {
+                        const obj = JSON.parse(t);
+
+                        // Show deleted file indicator if it's a deleted file placeholder
+                        if (
+                            obj.hideFromClient === true &&
+                            obj.isDeletedFile === true
+                        ) {
+                            const deletedFilename =
+                                obj.deletedFilename || "file";
+                            const messageText =
+                                typeof t === "function"
+                                    ? t(
+                                          "File no longer available: {{filename}}",
+                                          {
+                                              filename: deletedFilename,
+                                          },
+                                      )
+                                    : `File no longer available: ${deletedFilename}`;
+                            return (
+                                <div
+                                    key={`deleted-file-${index}-${index2}`}
+                                    className="bg-neutral-100 dark:bg-gray-700 py-2 ps-2 pe-2 m-2 shadow-md rounded-lg border dark:border-gray-600 flex gap-2 items-center opacity-60"
+                                    title={messageText}
+                                    dir="auto"
+                                >
+                                    <FileX className="w-6 h-6 text-gray-500 dark:text-gray-400 flex-shrink-0 rtl:scale-x-[-1]" />
+                                    <span className="truncate text-gray-500 dark:text-gray-400 italic">
+                                        {messageText}
+                                    </span>
+                                </div>
+                            );
+                        }
+
+                        // Skip other items marked to be hidden from client
+                        if (obj.hideFromClient === true) {
+                            return null;
+                        }
+                        if (obj.type === "text") {
+                            return obj.text;
+                        } else if (obj.type === "image_url") {
+                            const src =
+                                obj?.url || obj?.image_url?.url || obj?.gcs;
+                            const originalFilename = obj?.originalFilename;
+                            if (isVideoUrl(src)) {
+                                const youtubeEmbedUrl = getYoutubeEmbedUrl(src);
+                                if (youtubeEmbedUrl) {
+                                    return (
+                                        <MemoizedYouTubeEmbed
+                                            key={youtubeEmbedUrl}
+                                            url={youtubeEmbedUrl}
+                                            onLoad={() =>
+                                                handleMessageLoad(newMessage.id)
+                                            }
+                                        />
+                                    );
+                                }
                                 return (
-                                    <MemoizedYouTubeEmbed
-                                        key={youtubeEmbedUrl}
-                                        url={youtubeEmbedUrl}
+                                    <video
+                                        onLoadedData={() =>
+                                            handleMessageLoad(newMessage.id)
+                                        }
+                                        key={`video-${index}-${index2}`}
+                                        src={src}
+                                        className="max-h-[20%] max-w-[60%] [.docked_&]:max-w-[90%] rounded border-0 my-2 shadow-lg dark:shadow-black/30"
+                                        style={{
+                                            backgroundColor: "transparent",
+                                        }}
+                                        controls
+                                        preload="metadata"
+                                        playsInline
+                                    />
+                                );
+                            } else if (isAudioUrl(src)) {
+                                return (
+                                    <audio
+                                        onLoadedData={() =>
+                                            handleMessageLoad(newMessage.id)
+                                        }
+                                        key={`audio-${index}-${index2}`}
+                                        src={src}
+                                        className="max-h-[20%] max-w-[100%] [.docked_&]:max-w-[80%] rounded-md border bg-white p-1 my-2 dark:border-neutral-700 dark:bg-neutral-800 shadow-lg dark:shadow-black/30"
+                                        controls
+                                    />
+                                );
+                            }
+
+                            // Use original filename if available, otherwise extract from URL
+                            if (!src) {
+                                return null;
+                            }
+
+                            let filename;
+                            let ext;
+                            try {
+                                filename =
+                                    originalFilename ||
+                                    decodeURIComponent(getFilename(src));
+                                ext = getExtension(src);
+                            } catch (e) {
+                                console.error(
+                                    "Error extracting filename/extension:",
+                                    e,
+                                );
+                                return null;
+                            }
+
+                            if (DOC_EXTENSIONS.includes(ext)) {
+                                const Icon = getFileIcon(filename);
+                                return (
+                                    <div
+                                        key={`file-${index}-${index2}`}
+                                        className="bg-neutral-100 dark:bg-gray-700 py-2 ps-2 pe-2 m-2 shadow-md rounded-lg border dark:border-gray-600 flex gap-2 items-center group relative"
+                                    >
+                                        <a
+                                            href={src}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="flex gap-2 items-center flex-1 min-w-0"
+                                        >
+                                            <Icon className="w-6 h-6 text-red-500 flex-shrink-0" />
+                                            <span className="truncate">
+                                                {filename}
+                                            </span>
+                                        </a>
+                                        {onDeleteFile && t && (
+                                            <button
+                                                onClick={(e) => {
+                                                    e.preventDefault();
+                                                    e.stopPropagation();
+                                                    onDeleteFile(
+                                                        newMessage.id,
+                                                        index2,
+                                                    );
+                                                }}
+                                                className="opacity-0 group-hover:opacity-100 hover:bg-gray-200 dark:hover:bg-gray-600 rounded p-1 transition-opacity flex-shrink-0 order-last rtl:order-first"
+                                                title={
+                                                    typeof t === "function"
+                                                        ? t(
+                                                              "Remove file from chat",
+                                                          )
+                                                        : "Remove file from chat"
+                                                }
+                                                aria-label={
+                                                    typeof t === "function"
+                                                        ? t(
+                                                              "Remove file from chat",
+                                                          )
+                                                        : "Remove file from chat"
+                                                }
+                                            >
+                                                <X className="w-4 h-4 text-gray-600 dark:text-gray-300" />
+                                            </button>
+                                        )}
+                                    </div>
+                                );
+                            }
+
+                            return (
+                                <div key={src}>
+                                    <ChatImage
+                                        src={src}
+                                        alt="uploadedimage"
                                         onLoad={() =>
                                             handleMessageLoad(newMessage.id)
                                         }
                                     />
-                                );
-                            }
-                            return (
-                                <video
-                                    onLoadedData={() =>
-                                        handleMessageLoad(newMessage.id)
-                                    }
-                                    key={`video-${index}-${index2}`}
-                                    src={src}
-                                    className="max-h-[20%] max-w-[60%] [.docked_&]:max-w-[90%] rounded border-0 my-2 shadow-lg dark:shadow-black/30"
-                                    style={{
-                                        backgroundColor: "transparent",
-                                    }}
-                                    controls
-                                    preload="metadata"
-                                    playsInline
-                                />
-                            );
-                        } else if (isAudioUrl(src)) {
-                            return (
-                                <audio
-                                    onLoadedData={() =>
-                                        handleMessageLoad(newMessage.id)
-                                    }
-                                    key={`audio-${index}-${index2}`}
-                                    src={src}
-                                    className="max-h-[20%] max-w-[100%] [.docked_&]:max-w-[80%] rounded-md border bg-white p-1 my-2 dark:border-neutral-700 dark:bg-neutral-800 shadow-lg dark:shadow-black/30"
-                                    controls
-                                />
+                                </div>
                             );
                         }
-
-                        // Use original filename if available, otherwise extract from URL
-                        const filename =
-                            originalFilename ||
-                            decodeURIComponent(getFilename(src));
-                        const ext = getExtension(src);
-
-                        if (DOC_EXTENSIONS.includes(ext)) {
-                            const Icon = getFileIcon(filename);
-                            return (
-                                <a
-                                    key={`file-${index}-${index2}`}
-                                    className="bg-neutral-100 dark:bg-gray-700 py-2 ps-2 pe-4 m-2 shadow-md rounded-lg border dark:border-gray-600 flex gap-2 items-center"
-                                    onLoad={() =>
-                                        handleMessageLoad(newMessage.id)
-                                    }
-                                    href={src}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                >
-                                    <Icon className="w-6 h-6 text-red-500" />
-                                    {filename}
-                                </a>
-                            );
-                        }
-
-                        return (
-                            <div key={src}>
-                                <ChatImage
-                                    src={src}
-                                    alt="uploadedimage"
-                                    onLoad={() =>
-                                        handleMessageLoad(newMessage.id)
-                                    }
-                                />
-                            </div>
-                        );
+                        return null;
+                    } catch (e) {
+                        console.error("Invalid JSON:", t);
+                        return t;
                     }
-                    return null;
-                } catch (e) {
-                    console.error("Invalid JSON:", t);
-                    return t;
-                }
-            });
+                })
+                .filter((item) => item !== null); // Remove null items (hidden from client)
             display = <>{arr}</>;
         } else {
             display = newMessage.payload;
@@ -254,11 +344,14 @@ const MessageList = React.memo(
             isStreaming,
             onSend,
             ephemeralContent,
+            toolCalls,
             thinkingDuration,
             isThinking,
             selectedEntityId,
             entities,
             entityIconSize,
+            contextId,
+            contextKey,
         },
         ref,
     ) {
@@ -269,6 +362,7 @@ const MessageList = React.memo(
         const { user } = useContext(AuthContext);
         const defaultAiName = user?.aiName;
         const [replayIndex, setReplayIndex] = useState(null);
+        const [fileToDelete, setFileToDelete] = useState(null);
 
         // Forward scrollBottomRef to parent
         useImperativeHandle(
@@ -332,6 +426,9 @@ const MessageList = React.memo(
             setMessageLoadState(newMessageLoadState);
         }, [messages]);
 
+        const updateChatHook = useUpdateChat();
+        const apolloClient = useApolloClient();
+
         const rowHeight = "h-12 [.docked_&]:h-10";
         const basis =
             "min-w-[3rem] basis-12 [.docked_&]:basis-10 [.docked_&]:min-w-[2.5rem]";
@@ -340,6 +437,98 @@ const MessageList = React.memo(
             bot === "code"
                 ? config?.code?.botName
                 : defaultAiName || config?.chat?.botName;
+
+        const confirmDeleteFile = useCallback((messageId, fileIndex) => {
+            setFileToDelete({ messageId, fileIndex });
+        }, []);
+
+        const deleteFileFromMessage = useCallback(
+            async (messageId, fileIndex) => {
+                if (!chatId) {
+                    console.error("Cannot delete file: chatId is required");
+                    return;
+                }
+
+                // Find the message containing the file
+                const messageIndex = messages.findIndex(
+                    (m) => m.id === messageId || m._id === messageId,
+                );
+
+                if (messageIndex === -1) {
+                    console.error("Message not found:", messageId);
+                    return;
+                }
+
+                const message = messages[messageIndex];
+
+                // Check if message has an array payload
+                if (!Array.isArray(message.payload)) {
+                    console.error(
+                        "Cannot delete file: message payload is not an array",
+                    );
+                    return;
+                }
+
+                // Parse file object and extract filename
+                let fileObj = null;
+                let filename = null;
+                try {
+                    fileObj = JSON.parse(message.payload[fileIndex]);
+                    if (
+                        fileObj.type === "image_url" ||
+                        fileObj.type === "file"
+                    ) {
+                        filename =
+                            fileObj.originalFilename ||
+                            decodeURIComponent(
+                                getFilename(
+                                    fileObj?.url ||
+                                        fileObj?.image_url?.url ||
+                                        fileObj?.gcs ||
+                                        fileObj?.file,
+                                ),
+                            );
+                    }
+                } catch (e) {
+                    console.error("Error parsing file object:", e);
+                }
+
+                if (!fileObj) {
+                    console.error("Could not parse file object");
+                    return;
+                }
+
+                // Use unified purgeFile function to handle all deletion scenarios
+                try {
+                    await purgeFile({
+                        fileObj,
+                        apolloClient,
+                        contextId,
+                        contextKey,
+                        chatId,
+                        messages,
+                        updateChatHook,
+                        t,
+                        filename,
+                        skipCloudDelete: false,
+                    });
+
+                    setFileToDelete(null);
+                } catch (error) {
+                    console.error("Failed to purge file:", error);
+                    // TODO: Show user-friendly error message
+                }
+            },
+            [
+                chatId,
+                messages,
+                updateChatHook,
+                t,
+                contextId,
+                contextKey,
+                apolloClient,
+            ],
+        );
 
         const handleMessageLoad = useCallback((messageId) => {
             setMessageLoadState((prev) =>
@@ -420,6 +609,12 @@ const MessageList = React.memo(
             [messages, onSend],
         );
 
+        // Callback to trigger scroll when task status updates
+        const handleTaskStatusUpdate = useCallback(() => {
+            // Scroll messages list to bottom when task status changes
+            scrollBottomRef.current?.resetScrollState();
+        }, []);
+
         const renderMessage = useCallback(
             (message) => {
                 const toolData = parseToolData(message.tool);
@@ -442,6 +637,7 @@ const MessageList = React.memo(
                             entityIconSize={entityIconSize}
                             entityIconClasses={classNames(basis)}
                             onLoad={() => handleMessageLoad(message.id)}
+                            onTaskStatusUpdate={handleTaskStatusUpdate}
                         />
                     );
                 }
@@ -511,6 +707,7 @@ const MessageList = React.memo(
                 selectedEntityId,
                 entities,
                 entityIconSize,
+                handleTaskStatusUpdate,
                 messages,
                 handleMessageLoad,
             ],
@@ -536,11 +733,14 @@ const MessageList = React.memo(
                             getExtension={getExtension}
                             getFilename={getFilename}
                             getYoutubeEmbedUrl={getYoutubeEmbedUrl}
+                            onDeleteFile={confirmDeleteFile}
+                            t={t}
                         />
                         {isStreaming && (
                             <StreamingMessage
                                 content={streamingContent}
                                 ephemeralContent={ephemeralContent}
+                                toolCalls={toolCalls}
                                 bot={bot}
                                 thinkingDuration={thinkingDuration}
                                 isThinking={isThinking}
@@ -591,6 +791,42 @@ const MessageList = React.memo(
                                 }}
                             >
                                 {t("Continue")}
+                            </AlertDialogAction>
+                        </AlertDialogFooter>
+                    </AlertDialogContent>
+                </AlertDialog>
+
+                <AlertDialog
+                    open={fileToDelete !== null}
+                    onOpenChange={(open) => {
+                        if (!open) setFileToDelete(null);
+                    }}
+                >
+                    <AlertDialogContent>
+                        <AlertDialogHeader>
+                            <AlertDialogTitle>
+                                {t("Remove file from chat?")}
+                            </AlertDialogTitle>
+                            <AlertDialogDescription>
+                                {t(
+                                    "Are you sure you want to remove this file from the chat? This action cannot be undone.",
+                                )}
+                            </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                            <AlertDialogCancel>{t("Cancel")}</AlertDialogCancel>
+                            <AlertDialogAction
+                                autoFocus
+                                onClick={() => {
+                                    if (fileToDelete) {
+                                        deleteFileFromMessage(
+                                            fileToDelete.messageId,
+                                            fileToDelete.fileIndex,
+                                        );
+                                    }
+                                }}
+                            >
+                                {t("Remove")}
                             </AlertDialogAction>
                         </AlertDialogFooter>
                     </AlertDialogContent>

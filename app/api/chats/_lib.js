@@ -5,6 +5,87 @@ import mongoose from "mongoose";
 import { Types } from "mongoose";
 import { parseSearchQuery, matchesAllTerms } from "../utils/search-parser";
 
+/**
+ * Removes artifacts from the tool field of a message to prevent storing large base64 data
+ * Artifacts should not be stored in messages as they make requests too large
+ */
+function removeArtifactsFromTool(tool) {
+    if (!tool) return tool;
+
+    try {
+        // Parse tool if it's a string
+        const toolObj = typeof tool === "string" ? JSON.parse(tool) : tool;
+
+        // If it's not an object, return as-is
+        if (typeof toolObj !== "object" || toolObj === null) {
+            return tool;
+        }
+
+        // Remove artifacts field if present
+        if ("artifacts" in toolObj) {
+            const { artifacts, ...toolWithoutArtifacts } = toolObj;
+            // Stringify back if original was a string
+            return typeof tool === "string"
+                ? JSON.stringify(toolWithoutArtifacts)
+                : toolWithoutArtifacts;
+        }
+
+        return tool;
+    } catch (e) {
+        // If parsing fails, return original tool
+        console.warn("Failed to parse tool field for artifact removal:", e);
+        return tool;
+    }
+}
+
+/**
+ * Removes artifacts from all messages to prevent storing large base64 data
+ */
+export function removeArtifactsFromMessages(messages) {
+    if (!Array.isArray(messages)) return messages;
+
+    return messages.map((msg) => {
+        if (!msg || typeof msg !== "object") return msg;
+
+        // Remove artifacts from tool field
+        if (msg.tool) {
+            return {
+                ...msg,
+                tool: removeArtifactsFromTool(msg.tool),
+            };
+        }
+
+        return msg;
+    });
+}
+
+/**
+ * Sanitizes a message object to remove Mongoose metadata fields (createdAt, updatedAt)
+ * that shouldn't be sent to the client or included in updates.
+ * Also removes artifacts from tool field to prevent sending large base64 data.
+ */
+export function sanitizeMessage(msg) {
+    if (!msg) return null;
+    const msgObj = msg.toObject ? msg.toObject() : msg;
+    return {
+        payload: msgObj.payload,
+        sender: msgObj.sender,
+        tool: removeArtifactsFromTool(msgObj.tool) || null,
+        sentTime: msgObj.sentTime,
+        direction: msgObj.direction,
+        position: msgObj.position,
+        entityId: msgObj.entityId || null,
+        taskId: msgObj.taskId || null,
+        isServerGenerated: msgObj.isServerGenerated || false,
+        ephemeralContent: msgObj.ephemeralContent || null,
+        thinkingDuration: msgObj.thinkingDuration || 0,
+        // Preserve toolCalls if it's an array, otherwise set to null (never undefined)
+        toolCalls: Array.isArray(msgObj.toolCalls) ? msgObj.toolCalls : null,
+        task: msgObj.task || null,
+        _id: msgObj._id, // Keep _id for client-side reference
+    };
+}
+
 // Search limits for title search
 const DEFAULT_TITLE_SEARCH_LIMIT = 20;
 const DEFAULT_TITLE_SEARCH_SCAN_LIMIT = 500;
@@ -22,13 +103,22 @@ export async function getRecentChatsOfCurrentUser() {
             _id: { $in: recentChatIds },
             userId: currentUser._id,
         },
-        { _id: 1, title: 1, titleSetByUser: 1 },
+        { _id: 1, title: 1, titleSetByUser: 1, isUnused: 1 },
     );
 
     // For chats without a custom title, fetch the first message separately
     // This approach avoids truncating the messages array in the main cache
+    const firstChatId =
+        recentChatIds.length > 0 ? String(recentChatIds[0]) : null;
     for (const chat of recentChatsUnordered) {
-        if (!chat.title || chat.title === "New Chat" || chat.title === "") {
+        const isFirstChat = firstChatId && String(chat._id) === firstChatId;
+        const needsFirstMessage =
+            isFirstChat ||
+            !chat.title ||
+            chat.title === "New Chat" ||
+            chat.title === "";
+
+        if (needsFirstMessage) {
             const chatWithFirstMessage = await Chat.findOne(
                 { _id: chat._id },
                 { messages: { $slice: 1 } },
@@ -89,68 +179,33 @@ export async function createNewChat(data) {
           ? [messages]
           : [];
 
-    // Only look for existing empty chat if we're creating a new empty chat
-    if (normalizedMessages.length === 0) {
-        // First find chats marked as empty
-        const emptyChats = await Chat.find({
-            userId: currentUser._id,
-            isEmpty: true,
-        });
+    // Remove artifacts from messages before saving to prevent storing large base64 data
+    const messagesWithoutArtifacts =
+        removeArtifactsFromMessages(normalizedMessages);
 
-        // Then verify they are actually empty by checking messages
-        for (const chat of emptyChats) {
-            if (!chat.messages || chat.messages.length === 0) {
-                await setActiveChatId(chat._id);
-                return chat;
-            }
-            // If we find a chat marked as empty but with messages, fix it
-            if (chat.messages && chat.messages.length > 0) {
-                chat.isEmpty = false;
-                await chat.save();
-            }
+    // Only look for existing unused chat if we're creating a new empty chat
+    if (messagesWithoutArtifacts.length === 0) {
+        // Find the latest unused chat (one-way gate: once used, never unused again)
+        const unusedChat = await Chat.findOne({
+            userId: currentUser._id,
+            isUnused: true,
+        }).sort({ createdAt: -1 });
+
+        if (unusedChat) {
+            await setActiveChatId(unusedChat._id);
+            return unusedChat;
         }
     }
 
     const chat = new Chat({
         userId,
-        messages: normalizedMessages,
-        isEmpty: normalizedMessages.length === 0,
-        title: title || getSimpleTitle(normalizedMessages[0] || ""),
+        messages: messagesWithoutArtifacts,
+        isUnused: messagesWithoutArtifacts.length === 0,
+        title: title || getSimpleTitle(messagesWithoutArtifacts[0] || ""),
     });
 
     await chat.save();
     await setActiveChatId(chat._id);
-    return chat;
-}
-
-export async function updateChat(data) {
-    const { chatId, newMessageContent } = data;
-    const currentUser = await getCurrentUser(false);
-
-    const messageArray = Array.isArray(newMessageContent)
-        ? newMessageContent
-        : [];
-    const hasMessages = messageArray.length > 0;
-
-    const chat = await Chat.findOneAndUpdate(
-        { _id: chatId, userId: currentUser._id },
-        {
-            $set: {
-                messages: messageArray,
-                isEmpty: !hasMessages,
-            },
-        },
-        { new: true, useFindAndModify: false },
-    );
-
-    if (!chat) throw new Error("Chat not found");
-
-    // Double check the isEmpty state matches reality
-    if (chat.isEmpty !== !hasMessages) {
-        chat.isEmpty = !hasMessages;
-        await chat.save();
-    }
-
     return chat;
 }
 
@@ -201,10 +256,15 @@ export async function getChatById(chatId) {
         selectedEntityId,
         researchMode,
     } = chat;
+
+    // Sanitize messages to remove Mongoose metadata fields (createdAt, updatedAt)
+    // that shouldn't be sent to the client
+    const sanitizedMessages = (messages || []).map(sanitizeMessage);
+
     const result = {
         _id,
         title,
-        messages,
+        messages: sanitizedMessages,
         isPublic,
         readOnly: isReadOnly,
         isChatLoading,
@@ -291,13 +351,14 @@ export async function getUserChatInfo() {
     }
 
     if (!activeChatId) {
-        const existingEmptyChat = await Chat.findOne({
+        // Find the latest unused chat, or create a new one
+        const existingUnusedChat = await Chat.findOne({
             userId: currentUser._id,
-            isEmpty: true,
-        });
+            isUnused: true,
+        }).sort({ createdAt: -1 });
 
-        if (existingEmptyChat) {
-            activeChatId = existingEmptyChat._id;
+        if (existingUnusedChat) {
+            activeChatId = existingUnusedChat._id;
         } else {
             const emptyChat = await createNewChat({
                 messages: [],

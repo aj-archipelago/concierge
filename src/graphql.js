@@ -159,8 +159,16 @@ const VISION = gql`
 `;
 
 const SYS_READ_MEMORY = gql`
-    query SysReadMemory($contextId: String!, $contextKey: String) {
-        sys_read_memory(contextId: $contextId, contextKey: $contextKey) {
+    query SysReadMemory(
+        $contextId: String!
+        $contextKey: String
+        $section: String
+    ) {
+        sys_read_memory(
+            contextId: $contextId
+            contextKey: $contextKey
+            section: $section
+        ) {
             result
         }
     }
@@ -171,11 +179,13 @@ const SYS_SAVE_MEMORY = gql`
         $aiMemory: String!
         $contextId: String!
         $contextKey: String
+        $section: String
     ) {
         sys_save_memory(
             aiMemory: $aiMemory
             contextId: $contextId
             contextKey: $contextKey
+            section: $section
         ) {
             result
         }
@@ -210,6 +220,7 @@ const SYS_ENTITY_AGENT = gql`
         $chatId: String
         $researchMode: Boolean
         $model: String
+        $userInfo: String
     ) {
         sys_entity_agent(
             chatHistory: $chatHistory
@@ -226,6 +237,7 @@ const SYS_ENTITY_AGENT = gql`
             chatId: $chatId
             researchMode: $researchMode
             model: $model
+            userInfo: $userInfo
         ) {
             result
             contextId
@@ -518,8 +530,8 @@ const TRANSLATE_SUBTITLE = gql`
 `;
 
 const TRANSLATE = gql`
-    query Translate($text: String!, $to: String!) {
-        translate(text: $text, to: $to) {
+    query Translate($text: String!, $to: String!, $model: String) {
+        translate(text: $text, to: $to, model: $model) {
             result
         }
     }
@@ -528,38 +540,6 @@ const TRANSLATE = gql`
 const TRANSLATE_CONTEXT = gql`
     query TranslateContext($text: String!, $to: String!) {
         translate_context(text: $text, to: $to) {
-            result
-        }
-    }
-`;
-
-const TRANSLATE_TURBO = gql`
-    query TranslateTurbo($text: String!, $to: String!) {
-        translate_turbo(text: $text, to: $to) {
-            result
-        }
-    }
-`;
-
-const TRANSLATE_GPT4 = gql`
-    query TranslateGpt4($text: String!, $to: String!, $async: Boolean) {
-        translate_gpt4(text: $text, to: $to, async: $async) {
-            result
-        }
-    }
-`;
-
-const TRANSLATE_GPT4_TURBO = gql`
-    query TranslateGpt4Turbo($text: String!, $to: String!) {
-        translate_gpt4_turbo(text: $text, to: $to) {
-            result
-        }
-    }
-`;
-
-const TRANSLATE_GPT4_OMNI = gql`
-    query TranslateGpt4Omni($text: String!, $to: String!) {
-        translate_gpt4_omni(text: $text, to: $to) {
             result
         }
     }
@@ -721,6 +701,55 @@ const IMAGE_GEMINI_25 = gql`
             input_image_2: $input_image_2
             input_image_3: $input_image_3
             optimizePrompt: $optimizePrompt
+        ) {
+            result
+            resultData
+        }
+    }
+`;
+
+const IMAGE_GEMINI_3 = gql`
+    query ImageGemini3(
+        $text: String!
+        $async: Boolean
+        $input_image: String
+        $input_image_2: String
+        $input_image_3: String
+        $input_image_4: String
+        $input_image_5: String
+        $input_image_6: String
+        $input_image_7: String
+        $input_image_8: String
+        $input_image_9: String
+        $input_image_10: String
+        $input_image_11: String
+        $input_image_12: String
+        $input_image_13: String
+        $input_image_14: String
+        $optimizePrompt: Boolean
+        $aspectRatio: String
+        $image_size: String
+    ) {
+        image_gemini_3(
+            text: $text
+            async: $async
+            input_image: $input_image
+            input_image_2: $input_image_2
+            input_image_3: $input_image_3
+            input_image_4: $input_image_4
+            input_image_5: $input_image_5
+            input_image_6: $input_image_6
+            input_image_7: $input_image_7
+            input_image_8: $input_image_8
+            input_image_9: $input_image_9
+            input_image_10: $input_image_10
+            input_image_11: $input_image_11
+            input_image_12: $input_image_12
+            input_image_13: $input_image_13
+            input_image_14: $input_image_14
+            optimizePrompt: $optimizePrompt
+            aspectRatio: $aspectRatio
+            image_size: $image_size
         ) {
             result
             resultData
@@ -919,17 +948,11 @@ const CODE_HUMAN_INPUT = gql`
 const getWorkspacePromptQuery = (pathwayName) => {
     return gql`
         query ${pathwayName}(
-            $text: String
-            $systemPrompt: String
-            $prompt: String
             $chatHistory: [MultiMessage]
             $async: Boolean
             $model: String
         ) {
             ${pathwayName}(
-                text: $text
-                systemPrompt: $systemPrompt
-                prompt: $prompt
                 chatHistory: $chatHistory
                 async: $async
                 model: $model
@@ -1003,6 +1026,8 @@ const QUERIES = {
     COGNITIVE_INSERT,
     IMAGE,
     IMAGE_FLUX,
+    IMAGE_GEMINI_25,
+    IMAGE_GEMINI_3,
     VIDEO_VEO,
     VIDEO_SEEDANCE,
     SYS_READ_MEMORY,
@@ -1037,10 +1062,6 @@ const QUERIES = {
     TRANSLATE_AZURE,
     TRANSLATE_CONTEXT,
     TIMELINE,
-    TRANSLATE_TURBO,
-    TRANSLATE_GPT4,
-    TRANSLATE_GPT4_TURBO,
-    TRANSLATE_GPT4_OMNI,
     TRANSLATE_SUBTITLE,
     HIGHLIGHTS,
     REMOVE_CONTENT,
@@ -1110,6 +1131,7 @@ export {
     HEADLINE,
     IMAGE_FLUX,
     IMAGE_GEMINI_25,
+    IMAGE_GEMINI_3,
     IMAGE_QWEN,
     IMAGE_SEEDREAM4,
     VIDEO_VEO,
@@ -1130,9 +1152,6 @@ export {
     TRANSLATE_AZURE,
     TRANSLATE_CONTEXT,
     TIMELINE,
-    TRANSLATE_TURBO,
-    TRANSLATE_GPT4,
-    TRANSLATE_GPT4_TURBO,
     TRANSLATE_SUBTITLE,
     HIGHLIGHTS,
     REMOVE_CONTENT,

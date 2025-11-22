@@ -90,12 +90,6 @@ jest.mock("../../../app/queries/chats", () => ({
     useGetActiveChatId: () => mockUseGetActiveChatId(),
 }));
 
-jest.mock("../../../app/queries/uploadedDocs", () => ({
-    useAddDocument: () => ({
-        mutateAsync: jest.fn(),
-    }),
-}));
-
 // Mock the required icons
 jest.mock("lucide-react", () => ({
     Send: () => (
@@ -126,7 +120,6 @@ jest.mock("lucide-react", () => ({
 
 // Mock the graphql queries
 jest.mock("../../graphql", () => ({
-    COGNITIVE_INSERT: "COGNITIVE_INSERT",
     CODE_HUMAN_INPUT: "CODE_HUMAN_INPUT",
     QUERIES: {
         SYS_ENTITY_AGENT: "SYS_ENTITY_AGENT",
@@ -136,7 +129,6 @@ jest.mock("../../graphql", () => ({
 // Mock the mediaUtils
 jest.mock("../../utils/mediaUtils", () => ({
     getFilename: jest.fn(),
-    isRagFileUrl: jest.fn(),
     isSupportedFileUrl: jest.fn(),
     ACCEPTED_FILE_TYPES: ["image/png", "image/jpeg", "image/gif"],
 }));
@@ -927,57 +919,11 @@ describe("MessageInput", () => {
             jest.spyOn(React, "useState").mockImplementation(originalUseState); // Restore
         });
 
-        it("should handle document URLs", async () => {
-            jest.spyOn(
-                require("../../utils/mediaUtils"),
-                "isRagFileUrl",
-            ).mockImplementation(() => true);
-            const mockQuery = jest.fn().mockResolvedValue({});
-            const mockApolloClient = { query: mockQuery };
-            jest.spyOn(
-                require("@apollo/client"),
-                "useApolloClient",
-            ).mockReturnValue(mockApolloClient);
-            jest.spyOn(
-                require("../../utils/mediaUtils"),
-                "getFilename",
-            ).mockImplementation(() => "doc.pdf");
-
-            renderMessageInput({
-                enableRag: true,
-                initialShowFileUpload: true,
-            });
-            expect(screen.getByTestId("filepond-mock")).toBeInTheDocument();
-
-            const addUrlButton = screen.getByTestId("add-url-button"); // From MyFilePond mock
-            fireEvent.click(addUrlButton);
-
-            // Wait for async operations in addUrl
-            await act(async () => {
-                await new Promise((resolve) => setTimeout(resolve, 0));
-            });
-
-            expect(mockQuery).toHaveBeenCalledWith(
-                expect.objectContaining({
-                    query: "COGNITIVE_INSERT",
-                    variables: expect.objectContaining({
-                        file: "https://example.com/doc.pdf", // This comes from the mock MyFilePond
-                        contextId: "test-context-id",
-                        chatId: "test-chat-id",
-                    }),
-                }),
-            );
-        });
-
         it("should handle media URLs by adding to urlsData and enabling send", async () => {
             jest.spyOn(
                 require("../../utils/mediaUtils"),
                 "isSupportedFileUrl",
             ).mockImplementation(() => true);
-            jest.spyOn(
-                require("../../utils/mediaUtils"),
-                "isRagFileUrl",
-            ).mockImplementation(() => false); // Ensure it's not treated as doc
 
             const setUrlsDataMock = jest.fn();
             const originalUseState = React.useState;
@@ -1246,43 +1192,6 @@ describe("MessageInput", () => {
             expect(fetchMock).not.toHaveBeenCalledWith(
                 "data:image/png;base64,test",
             );
-        });
-
-        it("should prevent addUrl processing when activeChatId is missing", async () => {
-            mockUseGetActiveChatId.mockReturnValue(null);
-
-            // Mock isRagFileUrl to return true so addUrl would normally process it
-            jest.spyOn(
-                require("../../utils/mediaUtils"),
-                "isRagFileUrl",
-            ).mockImplementation(() => true);
-
-            const mockQuery = jest.fn().mockResolvedValue({});
-            const mockApolloClient = { query: mockQuery };
-            jest.spyOn(
-                require("@apollo/client"),
-                "useApolloClient",
-            ).mockReturnValue(mockApolloClient);
-
-            renderMessageInput({
-                enableRag: true,
-                initialShowFileUpload: true,
-            });
-
-            expect(screen.getByTestId("filepond-mock")).toBeInTheDocument();
-
-            const addUrlButton = screen.getByTestId("add-url-button");
-            fireEvent.click(addUrlButton);
-
-            await act(async () => {
-                await new Promise((resolve) => setTimeout(resolve, 0));
-            });
-
-            // Should log warning and not call GraphQL query
-            expect(console.warn).toHaveBeenCalledWith(
-                "Cannot upload file: No active chat ID available",
-            );
-            expect(mockQuery).not.toHaveBeenCalled();
         });
 
         it("should enable file upload button when activeChatId is available", () => {

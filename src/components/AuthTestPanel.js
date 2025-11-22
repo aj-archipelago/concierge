@@ -174,7 +174,7 @@ export const AuthTestPanel = () => {
                 </div>
 
                 {message && (
-                    <div className="flex items-center gap-2 p-3 bg-sky-50 dark:bg-sky-950/50 border border-blue-200 dark:border-blue-800 rounded">
+                    <div className="flex items-center gap-2 p-3 bg-sky-50 dark:bg-sky-950/50 border border-sky-200 dark:border-sky-800 rounded">
                         <AlertCircle className="h-4 w-4 text-sky-500 dark:text-sky-400" />
                         <span className="text-sm text-sky-700 dark:text-sky-300">
                             {message}

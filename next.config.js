@@ -80,7 +80,7 @@ const config = {
         return rewrites;
     },
     experimental: {
-        proxyTimeout: 1000 * 60 * 5, // 5 minutes
+        proxyTimeout: 1000 * 60 * 10, // 10 minutes (600 seconds)
         instrumentationHook: true,
     },
     redirects: async () => {

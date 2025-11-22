@@ -9,9 +9,6 @@ const generateDigestBlockContent = async (
     logger,
     onProgressUpdate,
 ) => {
-    let imageUtils = await import("../../src/utils/imageUtils.mjs");
-    const { processImageUrls } = imageUtils;
-
     const { prompt } = block;
 
     const variables = {
@@ -46,10 +43,7 @@ const generateDigestBlockContent = async (
 
         try {
             content = JSON.stringify({
-                payload: await processImageUrls(
-                    result.data.sys_entity_agent.result,
-                    process.env.SERVER_URL,
-                ),
+                payload: result.data.sys_entity_agent.result,
                 tool,
             });
         } catch (e) {

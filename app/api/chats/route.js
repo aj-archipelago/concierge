@@ -3,7 +3,6 @@ import { handleError } from "../utils/auth";
 import {
     getChatsOfCurrentUser,
     createNewChat,
-    updateChat,
     searchChatTitles,
     searchChatContent,
 } from "./_lib";
@@ -48,17 +47,6 @@ export async function POST(req) {
         return NextResponse.json(newChat);
     } catch (error) {
         return handleError(error); // Handle errors appropriately
-    }
-}
-
-// Handle PUT request to edit existing saved messages for the current user
-export async function PUT(req) {
-    try {
-        const data = await req.json();
-        const updatedChat = await updateChat(data);
-        return NextResponse.json(updatedChat);
-    } catch (error) {
-        return handleError(error);
     }
 }
 

@@ -20,9 +20,6 @@ async function getXXHashInstance() {
     return xxhashInstance;
 }
 
-// RAG File Type Extensions
-export const RAG_EXTENSIONS = [];
-
 // File type definitions
 export const DOC_EXTENSIONS = [
     ".pdf",
@@ -76,7 +73,6 @@ export const AUDIO_EXTENSIONS = [
     ".flac",
 ];
 
-export const RAG_MIME_TYPES = RAG_EXTENSIONS.map((ext) => mime.lookup(ext));
 export const DOC_MIME_TYPES = DOC_EXTENSIONS.map((ext) => mime.lookup(ext));
 export const IMAGE_MIME_TYPES = IMAGE_EXTENSIONS.map((ext) => mime.lookup(ext));
 export const VIDEO_MIME_TYPES = VIDEO_EXTENSIONS.map((ext) => mime.lookup(ext));
@@ -98,11 +94,6 @@ export function getExtension(url) {
     const filename = url.split("?")[0].split("#")[0];
     const lastDotIndex = filename.lastIndexOf(".");
     return lastDotIndex > 0 ? filename.slice(lastDotIndex).toLowerCase() : "";
-}
-
-export function isRagFileUrl(url) {
-    const urlExt = getExtension(url);
-    return RAG_EXTENSIONS.includes(urlExt);
 }
 
 export function isDocumentUrl(url) {

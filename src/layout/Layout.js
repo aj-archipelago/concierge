@@ -21,6 +21,8 @@ import Sidebar from "./Sidebar";
 import { cn } from "@/lib/utils";
 import { shouldForceCollapse } from "./Sidebar";
 
+const ROUTES_WITHOUT_SIDEBAR = ["/wp-editor"];
+
 export default function Layout({ children }) {
     const [showOptions, setShowOptions] = useState(false);
     const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -69,6 +71,10 @@ export default function Layout({ children }) {
     };
 
     const isCollapsed = shouldForceCollapse(pathname) || sidebarCollapsed;
+
+    if (ROUTES_WITHOUT_SIDEBAR.includes(pathname)) {
+        return <>{children}</>;
+    }
 
     return (
         <>
@@ -270,9 +276,10 @@ export default function Layout({ children }) {
                                 </div>
                                 {showChatbox && (
                                     <div
-                                        className="hidden sm:block basis-[302px] h-[calc(100vh-105px)]"
+                                        className="hidden sm:block h-[calc(100vh-105px)]"
                                         style={{
                                             height: "calc((var(--vh, 1vh) * 100) - 105px)",
+                                            flexShrink: 0,
                                         }}
                                     >
                                         <ChatBox />
