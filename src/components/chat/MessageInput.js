@@ -4,6 +4,7 @@ import dynamic from "next/dynamic";
 import { useContext, useEffect, useState } from "react";
 import { FilePlus, XCircle, StopCircle, Send } from "lucide-react";
 import TextareaAutosize from "react-textarea-autosize";
+import { useTranslation } from "react-i18next";
 import { useGetActiveChatId } from "../../../app/queries/chats";
 import classNames from "../../../app/utils/class-names";
 import { AuthContext } from "../../App";
@@ -36,6 +37,7 @@ function MessageInput({
     onStopStreaming,
     initialShowFileUpload = false,
 }) {
+    const { t } = useTranslation();
     const activeChatId = useGetActiveChatId();
 
     const { userState, debouncedUpdateUserState } = useContext(AuthContext);
@@ -187,25 +189,38 @@ function MessageInput({
                                 <button
                                     type="button"
                                     data-testid="file-plus-button"
-                                    disabled={!activeChatId}
+                                    disabled={
+                                        !activeChatId || viewingReadOnlyChat
+                                    }
                                     onClick={() => {
-                                        if (activeChatId) {
+                                        if (
+                                            activeChatId &&
+                                            !viewingReadOnlyChat
+                                        ) {
                                             setShowFileUpload(true);
                                         }
                                     }}
                                     className={`rounded-full flex items-center justify-center ${
-                                        activeChatId
+                                        activeChatId && !viewingReadOnlyChat
                                             ? "hover:bg-gray-100 dark:hover:bg-gray-700"
                                             : "cursor-not-allowed opacity-50"
                                     }`}
                                     title={
-                                        !activeChatId
-                                            ? "File upload requires an active chat"
-                                            : "Upload files"
+                                        viewingReadOnlyChat
+                                            ? t("Read-only mode")
+                                            : !activeChatId
+                                              ? t(
+                                                    "File upload requires an active chat",
+                                                )
+                                              : t("Upload files")
                                     }
                                 >
                                     <FilePlus
-                                        className={`w-5 h-5 ${activeChatId ? "text-gray-500" : "text-gray-300"}`}
+                                        className={`w-5 h-5 ${
+                                            activeChatId && !viewingReadOnlyChat
+                                                ? "text-gray-500"
+                                                : "text-gray-400"
+                                        }`}
                                     />
                                 </button>
                             ) : (
@@ -227,6 +242,9 @@ function MessageInput({
                             className={classNames(
                                 `w-full border-0 outline-none focus:shadow-none text-base md:text-sm [.docked_&]:md:text-sm focus:ring-0 pt-2 resize-none bg-transparent dark:bg-transparent`,
                                 enableRag ? "px-1" : "px-3 rounded-s",
+                                viewingReadOnlyChat
+                                    ? "text-gray-400 dark:text-gray-400 cursor-not-allowed placeholder:text-gray-400 dark:placeholder:text-gray-400"
+                                    : "",
                             )}
                             rows={1}
                             disabled={viewingReadOnlyChat}
@@ -518,14 +536,22 @@ function MessageInput({
                                     viewingReadOnlyChat)
                             }
                             className={classNames(
-                                "ml-2 px-3 pb-2.5 text-base text-emerald-600 hover:text-emerald-600 disabled:text-gray-300 dark:disabled:text-gray-600 active:text-gray-800 flex items-end",
+                                "ml-2 px-3 pb-2.5 text-base text-emerald-600 hover:text-emerald-600 disabled:text-gray-400 dark:disabled:text-gray-400 active:text-gray-800 flex items-end disabled:cursor-not-allowed",
                             )}
                         >
                             {isStreaming || loading ? (
                                 <StopCircle className="w-5 h-5 text-red-500" />
                             ) : (
                                 <span className="rtl:scale-x-[-1]">
-                                    <Send className="w-5 h-5 text-gray-400" />
+                                    <Send
+                                        className={`w-5 h-5 ${
+                                            inputValue === "" ||
+                                            isUploadingMedia ||
+                                            viewingReadOnlyChat
+                                                ? "text-gray-400"
+                                                : "text-emerald-600"
+                                        }`}
+                                    />
                                 </span>
                             )}
                         </button>
