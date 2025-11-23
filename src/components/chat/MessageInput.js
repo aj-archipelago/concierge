@@ -4,6 +4,7 @@ import dynamic from "next/dynamic";
 import { useContext, useEffect, useState } from "react";
 import { FilePlus, XCircle, StopCircle, Send } from "lucide-react";
 import TextareaAutosize from "react-textarea-autosize";
+import { useTranslation } from "react-i18next";
 import { useGetActiveChatId } from "../../../app/queries/chats";
 import classNames from "../../../app/utils/class-names";
 import { AuthContext } from "../../App";
@@ -36,6 +37,7 @@ function MessageInput({
     onStopStreaming,
     initialShowFileUpload = false,
 }) {
+    const { t } = useTranslation();
     const activeChatId = useGetActiveChatId();
 
     const { userState, debouncedUpdateUserState } = useContext(AuthContext);
@@ -205,10 +207,12 @@ function MessageInput({
                                     }`}
                                     title={
                                         viewingReadOnlyChat
-                                            ? "Read-only mode"
+                                            ? t("Read-only mode")
                                             : !activeChatId
-                                              ? "File upload requires an active chat"
-                                              : "Upload files"
+                                              ? t(
+                                                    "File upload requires an active chat",
+                                                )
+                                              : t("Upload files")
                                     }
                                 >
                                     <FilePlus

@@ -866,5 +866,8 @@
     "Unshare": "إلغاء المشاركة",
     "Unshare this chat?": "إلغاء مشاركة هذه الدردشة؟",
     "This will make this chat private. People with the link will no longer be able to access it.": "سيجعل هذا الدردشة خاصة. لن يتمكن الأشخاص الذين لديهم الرابط من الوصول إليها بعد الآن.",
+    "Unknown": "غير معروف",
+    "File upload requires an active chat": "يتطلب تحميل الملف وجود دردشة نشطة",
+    "Upload files": "تحميل الملفات",
     "File no longer available: {{filename}}": "الملف لم يعد متاحًا: {{filename}}"
 }

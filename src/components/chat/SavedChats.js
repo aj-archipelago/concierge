@@ -1031,22 +1031,11 @@ function SavedChats({ displayState }) {
 
     // Calculate the count of visible chats for display
     const visibleChatCount = useMemo(() => {
-        if (searchQuery) {
+        if (searchQuery || showSharedOnly) {
             return visibleChats.length;
         }
-        if (showSharedOnly) {
-            // Count shared chats when filter is active
-            return filterSharedChats(allChats).length;
-        }
         return totalChatCount;
-    }, [
-        searchQuery,
-        showSharedOnly,
-        visibleChats.length,
-        allChats,
-        totalChatCount,
-        filterSharedChats,
-    ]);
+    }, [searchQuery, showSharedOnly, visibleChats.length, totalChatCount]);
 
     const allVisibleSelected = useMemo(
         () =>
