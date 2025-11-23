@@ -15,6 +15,29 @@ import fileUploadReducer from "../../stores/fileUploadSlice";
 import { ApolloClient, InMemoryCache, ApolloProvider } from "@apollo/client";
 import userEvent from "@testing-library/user-event";
 
+// Mock i18n.js first to avoid initialization issues
+jest.mock("../../i18n", () => ({
+    __esModule: true,
+    default: {
+        language: "en",
+        changeLanguage: jest.fn(),
+    },
+}));
+
+// Mock react-i18next
+jest.mock("react-i18next", () => ({
+    useTranslation: () => ({
+        t: (key) => key,
+        i18n: {
+            language: "en",
+        },
+    }),
+    initReactI18next: {
+        type: "3rdParty",
+        init: () => {},
+    },
+}));
+
 // Mock the @uidotdev/usehooks module
 jest.mock("@uidotdev/usehooks", () => ({
     useDebounce: (value) => value,
@@ -39,6 +62,15 @@ jest.mock("../../components/Tos", () => ({
 jest.mock("../../layout/Layout", () => ({
     __esModule: true,
     default: ({ children }) => <div>{children}</div>,
+}));
+
+// Mock i18next-browser-languagedetector
+jest.mock("i18next-browser-languagedetector", () => ({
+    __esModule: true,
+    default: {
+        type: "languageDetector",
+        init: () => {},
+    },
 }));
 
 // Mock the DynamicFilePond component
