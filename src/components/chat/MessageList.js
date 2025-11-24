@@ -736,8 +736,8 @@ const MessageList = React.memo(
                                 className="opacity-0 group-hover:opacity-60 hover:opacity-100 transition-opacity"
                             />
                         </div>
-                        <div className="absolute top-3 start-3 flex items-center justify-center w-5 h-5 rounded-full bg-sky-200 dark:bg-sky-900/30">
-                            <User className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400" />
+                        <div className="absolute top-[10px] start-3 flex items-center justify-center w-6 h-6 rounded-full bg-sky-200 dark:bg-sky-900/30">
+                            <User className="w-4 h-4 text-sky-600 dark:text-sky-400" />
                         </div>
                         <div
                             className={classNames(
