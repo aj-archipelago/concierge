@@ -1,7 +1,6 @@
 "use client";
 
 import { useMemo } from "react";
-import { useTranslation } from "react-i18next";
 import {
     IMAGE_EXTENSIONS,
     VIDEO_EXTENSIONS,
@@ -57,8 +56,7 @@ export function useFilePreview(src, filename, mimeType = null) {
             (extension ? DOC_EXTENSIONS.includes(extension) : false);
 
         // PDF is a special case of doc that browsers render well
-        const isPdf =
-            mimeType === "application/pdf" || extension === ".pdf";
+        const isPdf = mimeType === "application/pdf" || extension === ".pdf";
 
         return {
             isImage,
@@ -126,41 +124,74 @@ export function renderFilePreview({
 
     if (isAudio) {
         return (
-            <div className={`flex flex-col items-center justify-center gap-2 p-4 bg-gray-100 dark:bg-gray-800 ${className}`}>
+            <div
+                className={`flex flex-col items-center justify-center gap-2 p-4 bg-gray-100 dark:bg-gray-800 ${className}`}
+            >
                 <div className="text-3xl">🎵</div>
                 <div className="text-center text-xs font-medium truncate w-full">
                     {filename}
                 </div>
-                <audio src={src} controls className="w-full" onLoadedData={onLoad} />
+                <audio
+                    src={src}
+                    controls
+                    className="w-full"
+                    onLoadedData={onLoad}
+                />
             </div>
         );
     }
 
     if (isPdf) {
         return (
-            <iframe
-                src={src}
-                title={filename || translationFn("PDF")}
-                className={className}
-                allow="fullscreen"
-                onLoad={onLoad}
-            />
+            <div className={`${className} bg-white dark:bg-gray-900`}>
+                <iframe
+                    src={src}
+                    title={filename || translationFn("PDF")}
+                    className="w-full h-full"
+                    allow="fullscreen"
+                    onLoad={onLoad}
+                />
+            </div>
         );
     }
 
     if (isDoc) {
+        // CSV files don't render well in iframes - show icon instead
+        if (
+            fileType.extension === ".csv" ||
+            filename?.toLowerCase().endsWith(".csv")
+        ) {
+            return null;
+        }
+
+        // For text files, invert in light mode to make white text visible
+        // Dark mode works fine without inversion
+        const isTextFile =
+            fileType.extension &&
+            (fileType.extension === ".txt" ||
+                fileType.extension === ".md" ||
+                fileType.extension === ".json" ||
+                fileType.extension === ".js" ||
+                fileType.extension === ".ts" ||
+                fileType.extension === ".jsx" ||
+                fileType.extension === ".tsx" ||
+                fileType.extension === ".css" ||
+                fileType.extension === ".html" ||
+                fileType.extension === ".xml");
+
         return (
-            <iframe
-                src={src}
-                title={filename || translationFn("Document")}
-                className={className}
-                sandbox="allow-scripts allow-same-origin"
-                allow="fullscreen"
-                onLoad={onLoad}
-            />
+            <div className={`${className} bg-white dark:bg-gray-900`}>
+                <iframe
+                    src={src}
+                    title={filename || translationFn("Document")}
+                    className={`w-full h-full ${isTextFile ? "invert dark:invert-0" : ""}`}
+                    sandbox="allow-scripts allow-same-origin"
+                    allow="fullscreen"
+                    onLoad={onLoad}
+                />
+            </div>
         );
     }
 
     return null;
 }
-

@@ -47,9 +47,7 @@ export default function Footer() {
                             }}
                             className="cursor-pointer"
                         >
-                            {language === "en"
-                                ? "عربي"
-                                : "Switch to English"}
+                            {language === "en" ? "عربي" : "Switch to English"}
                         </DropdownMenuItem>
                         <DropdownMenuItem
                             onClick={() => {

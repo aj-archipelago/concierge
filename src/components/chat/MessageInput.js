@@ -169,19 +169,27 @@ function MessageInput({
 
     return (
         <div>
-            {showFileUpload && (
-                <DynamicFileUploader
-                    addUrl={addUrl}
-                    files={files}
-                    setFiles={setFiles}
-                    setIsUploadingMedia={setIsUploadingMedia}
-                    setUrlsData={setUrlsData}
-                />
-            )}
-            <div className="rounded-md border border-gray-200 dark:border-gray-600 mt-1">
+            <div
+                className={classNames(
+                    "rounded-md border border-gray-200 dark:border-gray-600 mt-1",
+                    "bg-white dark:bg-gray-800",
+                    showFileUpload && "overflow-hidden",
+                )}
+            >
+                {showFileUpload && (
+                    <div className="border-b border-gray-200 dark:border-gray-600">
+                        <DynamicFileUploader
+                            addUrl={addUrl}
+                            files={files}
+                            setFiles={setFiles}
+                            setIsUploadingMedia={setIsUploadingMedia}
+                            setUrlsData={setUrlsData}
+                        />
+                    </div>
+                )}
                 <form
                     onSubmit={handleFormSubmit}
-                    className="flex items-end rounded-md bg-white dark:bg-gray-800"
+                    className="flex items-end rounded-md"
                 >
                     {enableRag && (
                         <div className="flex items-end px-3 pb-2.5">

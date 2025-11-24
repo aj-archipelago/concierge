@@ -14,7 +14,15 @@ import { useContext, useState, useEffect, useRef, useMemo } from "react";
 import { AuthContext } from "../../App";
 import { useParams, useRouter } from "next/navigation";
 import EntityIcon from "./EntityIcon";
-import { Trash2, Check, Download, Users, Copy, Info, ChevronDown } from "lucide-react";
+import {
+    Trash2,
+    Check,
+    Download,
+    Users,
+    Copy,
+    Info,
+    ChevronDown,
+} from "lucide-react";
 import { useEntities } from "../../hooks/useEntities";
 import {
     AlertDialog,
@@ -320,13 +328,12 @@ function Chat({ viewingChat = null }) {
                                 {entities.map((entity) => (
                                     <DropdownMenuItem
                                         key={entity.id}
-                                        onClick={() => handleEntityChange(entity.id)}
+                                        onClick={() =>
+                                            handleEntityChange(entity.id)
+                                        }
                                         className="flex items-center gap-2 text-sm focus:bg-gray-100 dark:focus:bg-gray-700 dark:focus:text-gray-100"
                                     >
-                                        <EntityIcon
-                                            entity={entity}
-                                            size="xs"
-                                        />
+                                        <EntityIcon entity={entity} size="xs" />
                                         {t(entity.name)}
                                     </DropdownMenuItem>
                                 ))}
@@ -363,8 +370,7 @@ function Chat({ viewingChat = null }) {
                                         <EntityIcon
                                             entity={entities.find(
                                                 (e) =>
-                                                    e.id ===
-                                                    selectedEntityId,
+                                                    e.id === selectedEntityId,
                                             )}
                                             size="xs"
                                         />
@@ -375,7 +381,9 @@ function Chat({ viewingChat = null }) {
                             </div>
                         </button>
                     )}
-                <ChatTopMenuDynamic readOnly={readOnly || !!publicChatOwner} />
+                    <ChatTopMenuDynamic
+                        readOnly={readOnly || !!publicChatOwner}
+                    />
                 </div>
                 {publicChatOwner && (
                     <button

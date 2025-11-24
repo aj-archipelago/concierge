@@ -80,7 +80,7 @@ function convertMessageToMarkdown(message, finalRender = true, onLoad = null) {
     const { payload, tool } = message;
     const citations = tool ? JSON.parse(tool).citations : null;
     let componentIndex = 0; // Counter for code blocks
-    
+
     // Get translation function for use in components
     // Use i18next directly since we can't use hooks in the component mapping
     const t = i18next.t.bind(i18next);
@@ -136,7 +136,7 @@ function convertMessageToMarkdown(message, finalRender = true, onLoad = null) {
                 // If URL parsing fails, use alt or default
                 filename = alt || "Image";
             }
-            
+
             return (
                 <MediaCard
                     type="image"

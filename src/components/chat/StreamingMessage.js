@@ -7,7 +7,6 @@ import React, {
 } from "react";
 import { convertMessageToMarkdown } from "./ChatMessage";
 import classNames from "../../../app/utils/class-names";
-import { useTranslation } from "react-i18next";
 import Loader from "../../../app/components/loader";
 import { EphemeralContent, shouldShowEphemeralContent } from "./BotMessage";
 
@@ -63,7 +62,6 @@ const StreamingMessage = React.memo(function StreamingMessage({
     const [showLoader, setShowLoader] = useState(true);
     const lastUpdateRef = useRef(Date.now());
     const loaderTimeoutRef = useRef(null);
-    const { t } = useTranslation();
 
     // Track if we've ever shown ephemeral content
     useEffect(() => {
@@ -197,35 +195,35 @@ const StreamingMessage = React.memo(function StreamingMessage({
                     "px-1 pb-3 pt-2 [.docked_&]:px-0 [.docked_&]:py-3 w-full",
                 )}
             >
-                    <div className="flex flex-col">
-                        {shouldShowEphemeralContent(
-                            ephemeralContent,
-                            toolCalls,
-                        ) && (
-                            <EphemeralContent
-                                content={ephemeralContent}
-                                toolCalls={toolCalls || []}
-                                duration={thinkingDuration}
-                                isThinking={isThinking}
-                            />
-                        )}
-                        <div className="relative" ref={contentContainerRef}>
-                            <StreamingContent
-                                content={content}
-                                onContentUpdate={handleContentUpdate}
-                            />
-                            {showLoader && (
-                                <div className="pointer-events-none absolute top-0 left-0 w-full h-full">
-                                    <div
-                                        className="absolute transition-transform duration-100 ease-out"
-                                        style={{
-                                            transform: `translate(${loaderPosition.x}px, ${loaderPosition.y}px)`,
-                                        }}
-                                    >
-                                        <Loader size="small" delay={0} />
-                                    </div>
+                <div className="flex flex-col">
+                    {shouldShowEphemeralContent(
+                        ephemeralContent,
+                        toolCalls,
+                    ) && (
+                        <EphemeralContent
+                            content={ephemeralContent}
+                            toolCalls={toolCalls || []}
+                            duration={thinkingDuration}
+                            isThinking={isThinking}
+                        />
+                    )}
+                    <div className="relative" ref={contentContainerRef}>
+                        <StreamingContent
+                            content={content}
+                            onContentUpdate={handleContentUpdate}
+                        />
+                        {showLoader && (
+                            <div className="pointer-events-none absolute top-0 left-0 w-full h-full">
+                                <div
+                                    className="absolute transition-transform duration-100 ease-out"
+                                    style={{
+                                        transform: `translate(${loaderPosition.x}px, ${loaderPosition.y}px)`,
+                                    }}
+                                >
+                                    <Loader size="small" delay={0} />
                                 </div>
-                            )}
+                            </div>
+                        )}
                     </div>
                 </div>
             </div>

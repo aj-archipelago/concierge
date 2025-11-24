@@ -1,4 +1,11 @@
-import React, { useEffect, useRef, useContext, useMemo, useState, useCallback } from "react";
+import React, {
+    useEffect,
+    useRef,
+    useContext,
+    useMemo,
+    useState,
+    useCallback,
+} from "react";
 import mermaid from "mermaid";
 import { ThemeContext } from "../../contexts/ThemeProvider";
 import { AlertCircle, Plus, Minus, Copy } from "lucide-react";
@@ -57,7 +64,7 @@ const MermaidDiagram = ({ code, onLoad }) => {
             // Prevent concurrent renders
             if (renderingInProgress) return;
             renderingInProgress = true;
-            
+
             // Reset state for new render
             if (isMounted) {
                 setIsLoading(true);
@@ -100,7 +107,7 @@ const MermaidDiagram = ({ code, onLoad }) => {
                     setRenderedSvg(svg);
                     setError(null); // Clear any previous errors
                     setIsLoading(false);
-                    
+
                     // Reset zoom and pan when new diagram loads
                     setZoom(1);
                     setPan({ x: 0, y: 0 });
@@ -134,16 +141,17 @@ const MermaidDiagram = ({ code, onLoad }) => {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [code, themeConfig, theme]);
 
-
     // Render SVG in wrapper (only once when renderedSvg changes)
     useEffect(() => {
         if (svgWrapperRef.current && renderedSvg) {
             // Only inject SVG if it hasn't been injected yet
             if (!svgElementRef.current) {
                 svgWrapperRef.current.innerHTML = renderedSvg;
-                svgElementRef.current = svgWrapperRef.current.querySelector('svg');
+                svgElementRef.current =
+                    svgWrapperRef.current.querySelector("svg");
                 if (svgElementRef.current) {
-                    svgElementRef.current.style.transformOrigin = 'center center';
+                    svgElementRef.current.style.transformOrigin =
+                        "center center";
                 }
             }
         } else {
@@ -156,43 +164,51 @@ const MermaidDiagram = ({ code, onLoad }) => {
         if (svgElementRef.current) {
             // Disable transition during dragging for smooth panning
             if (isDragging) {
-                svgElementRef.current.style.transition = 'none';
+                svgElementRef.current.style.transition = "none";
             } else {
-                svgElementRef.current.style.transition = 'transform 0.1s ease-out';
+                svgElementRef.current.style.transition =
+                    "transform 0.1s ease-out";
             }
             svgElementRef.current.style.transform = `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`;
         }
     }, [zoom, pan, isDragging]);
 
     // Handle mouse drag
-    const handleMouseDown = useCallback((e) => {
-        if (e.button !== 0) return; // Only left mouse button
-        e.preventDefault();
-        const rect = svgWrapperRef.current?.getBoundingClientRect();
-        if (!rect) return;
-        
-        setIsDragging(true);
-        // Calculate drag start relative to the wrapper element
-        setDragStart({
-            x: e.clientX - rect.left - pan.x,
-            y: e.clientY - rect.top - pan.y,
-        });
-    }, [pan]);
+    const handleMouseDown = useCallback(
+        (e) => {
+            if (e.button !== 0) return; // Only left mouse button
+            e.preventDefault();
+            const rect = svgWrapperRef.current?.getBoundingClientRect();
+            if (!rect) return;
 
-    const handleMouseMove = useCallback((e) => {
-        if (!isDragging || !svgWrapperRef.current || !svgElementRef.current) return;
-        e.preventDefault();
-        const rect = svgWrapperRef.current.getBoundingClientRect();
-        // Calculate pan relative to the wrapper element
-        const newPan = {
-            x: e.clientX - rect.left - dragStart.x,
-            y: e.clientY - rect.top - dragStart.y,
-        };
-        // Update state for persistence
-        setPan(newPan);
-        // Direct DOM update for immediate feedback (no React render delay)
-        svgElementRef.current.style.transform = `translate(${newPan.x}px, ${newPan.y}px) scale(${zoom})`;
-    }, [isDragging, dragStart, zoom]);
+            setIsDragging(true);
+            // Calculate drag start relative to the wrapper element
+            setDragStart({
+                x: e.clientX - rect.left - pan.x,
+                y: e.clientY - rect.top - pan.y,
+            });
+        },
+        [pan],
+    );
+
+    const handleMouseMove = useCallback(
+        (e) => {
+            if (!isDragging || !svgWrapperRef.current || !svgElementRef.current)
+                return;
+            e.preventDefault();
+            const rect = svgWrapperRef.current.getBoundingClientRect();
+            // Calculate pan relative to the wrapper element
+            const newPan = {
+                x: e.clientX - rect.left - dragStart.x,
+                y: e.clientY - rect.top - dragStart.y,
+            };
+            // Update state for persistence
+            setPan(newPan);
+            // Direct DOM update for immediate feedback (no React render delay)
+            svgElementRef.current.style.transform = `translate(${newPan.x}px, ${newPan.y}px) scale(${zoom})`;
+        },
+        [isDragging, dragStart, zoom],
+    );
 
     const handleMouseUp = useCallback(() => {
         setIsDragging(false);
@@ -204,54 +220,53 @@ const MermaidDiagram = ({ code, onLoad }) => {
             const handleGlobalMouseUp = () => {
                 setIsDragging(false);
             };
-            document.addEventListener('mouseup', handleGlobalMouseUp);
+            document.addEventListener("mouseup", handleGlobalMouseUp);
             return () => {
-                document.removeEventListener('mouseup', handleGlobalMouseUp);
+                document.removeEventListener("mouseup", handleGlobalMouseUp);
             };
         }
     }, [isDragging]);
 
     // Handle touch drag for mobile
-    const handleTouchStart = useCallback((e) => {
-        if (e.touches.length !== 1 || !svgWrapperRef.current) return;
-        e.preventDefault();
-        const rect = svgWrapperRef.current.getBoundingClientRect();
-        setIsDragging(true);
-        setDragStart({
-            x: e.touches[0].clientX - rect.left - pan.x,
-            y: e.touches[0].clientY - rect.top - pan.y,
-        });
-    }, [pan]);
+    const handleTouchStart = useCallback(
+        (e) => {
+            if (e.touches.length !== 1 || !svgWrapperRef.current) return;
+            e.preventDefault();
+            const rect = svgWrapperRef.current.getBoundingClientRect();
+            setIsDragging(true);
+            setDragStart({
+                x: e.touches[0].clientX - rect.left - pan.x,
+                y: e.touches[0].clientY - rect.top - pan.y,
+            });
+        },
+        [pan],
+    );
 
-    const handleTouchMove = useCallback((e) => {
-        if (!isDragging || e.touches.length !== 1 || !svgWrapperRef.current || !svgElementRef.current) return;
-        e.preventDefault();
-        const rect = svgWrapperRef.current.getBoundingClientRect();
-        const newPan = {
-            x: e.touches[0].clientX - rect.left - dragStart.x,
-            y: e.touches[0].clientY - rect.top - dragStart.y,
-        };
-        // Update state for persistence
-        setPan(newPan);
-        // Direct DOM update for immediate feedback (no React render delay)
-        svgElementRef.current.style.transform = `translate(${newPan.x}px, ${newPan.y}px) scale(${zoom})`;
-    }, [isDragging, dragStart, zoom]);
+    const handleTouchMove = useCallback(
+        (e) => {
+            if (
+                !isDragging ||
+                e.touches.length !== 1 ||
+                !svgWrapperRef.current ||
+                !svgElementRef.current
+            )
+                return;
+            e.preventDefault();
+            const rect = svgWrapperRef.current.getBoundingClientRect();
+            const newPan = {
+                x: e.touches[0].clientX - rect.left - dragStart.x,
+                y: e.touches[0].clientY - rect.top - dragStart.y,
+            };
+            // Update state for persistence
+            setPan(newPan);
+            // Direct DOM update for immediate feedback (no React render delay)
+            svgElementRef.current.style.transform = `translate(${newPan.x}px, ${newPan.y}px) scale(${zoom})`;
+        },
+        [isDragging, dragStart, zoom],
+    );
 
     const handleTouchEnd = useCallback(() => {
         setIsDragging(false);
-    }, []);
-
-    // Zoom functions
-    const handleZoomIn = useCallback((e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        setZoom(prev => Math.min(prev + 0.25, 8));
-    }, []);
-
-    const handleZoomOut = useCallback((e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        setZoom(prev => Math.max(prev - 0.25, 0.25));
     }, []);
 
     // Continuous zoom on button hold
@@ -259,10 +274,10 @@ const MermaidDiagram = ({ code, onLoad }) => {
         e.preventDefault();
         e.stopPropagation();
         // Immediate zoom
-        setZoom(prev => Math.min(prev + 0.25, 8));
+        setZoom((prev) => Math.min(prev + 0.25, 8));
         // Start continuous zoom
         zoomIntervalRef.current = setInterval(() => {
-            setZoom(prev => {
+            setZoom((prev) => {
                 const newZoom = Math.min(prev + 0.25, 8);
                 if (newZoom >= 8) {
                     if (zoomIntervalRef.current) {
@@ -279,10 +294,10 @@ const MermaidDiagram = ({ code, onLoad }) => {
         e.preventDefault();
         e.stopPropagation();
         // Immediate zoom
-        setZoom(prev => Math.max(prev - 0.25, 0.25));
+        setZoom((prev) => Math.max(prev - 0.25, 0.25));
         // Start continuous zoom
         zoomIntervalRef.current = setInterval(() => {
-            setZoom(prev => {
+            setZoom((prev) => {
                 const newZoom = Math.max(prev - 0.25, 0.25);
                 if (newZoom <= 0.25) {
                     if (zoomIntervalRef.current) {
@@ -325,7 +340,11 @@ const MermaidDiagram = ({ code, onLoad }) => {
 
     // Show loading state
     if (isLoading && !error) {
-        return <MermaidPlaceholder spinnerKey={`mermaid-loading-${code?.substring(0, 20)}`} />;
+        return (
+            <MermaidPlaceholder
+                spinnerKey={`mermaid-loading-${code?.substring(0, 20)}`}
+            />
+        );
     }
 
     return (
@@ -335,7 +354,9 @@ const MermaidDiagram = ({ code, onLoad }) => {
                     <div className="w-4 h-4 text-red-500 dark:text-red-400 flex-shrink-0">
                         <AlertCircle className="w-4 h-4" />
                     </div>
-                    <span className="font-medium flex-1">Mermaid diagram failed to render</span>
+                    <span className="font-medium flex-1">
+                        Mermaid diagram failed to render
+                    </span>
                     <CopyButton
                         item={errorText}
                         className="absolute top-1 end-1 opacity-0 group-hover:opacity-60 hover:opacity-100 transition-opacity pointer-events-auto"
@@ -356,12 +377,12 @@ const MermaidDiagram = ({ code, onLoad }) => {
                                 ref={svgWrapperRef}
                                 className="mermaid-svg-wrapper relative overflow-auto flex items-center justify-center select-none"
                                 style={{
-                                    width: '100%',
-                                    minHeight: '400px',
-                                    maxHeight: '600px',
-                                    cursor: isDragging ? 'grabbing' : 'grab',
-                                    userSelect: 'none',
-                                    WebkitUserSelect: 'none',
+                                    width: "100%",
+                                    minHeight: "400px",
+                                    maxHeight: "600px",
+                                    cursor: isDragging ? "grabbing" : "grab",
+                                    userSelect: "none",
+                                    WebkitUserSelect: "none",
                                 }}
                                 onMouseDown={handleMouseDown}
                                 onMouseMove={handleMouseMove}
@@ -407,7 +428,9 @@ const MermaidDiagram = ({ code, onLoad }) => {
                                     type="button"
                                     onClick={() => {
                                         if (renderedSvg) {
-                                            navigator.clipboard.writeText(renderedSvg);
+                                            navigator.clipboard.writeText(
+                                                renderedSvg,
+                                            );
                                         }
                                     }}
                                     className="p-2 bg-white dark:bg-gray-800 rounded-full shadow-lg hover:bg-gray-100 dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-700"

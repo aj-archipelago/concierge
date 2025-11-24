@@ -8,7 +8,7 @@ import React, {
     useState,
 } from "react";
 import { useTranslation } from "react-i18next";
-import { X, FileX, User } from "lucide-react";
+import { User } from "lucide-react";
 import Loader from "../../../app/components/loader";
 import classNames from "../../../app/utils/class-names";
 import config from "../../../config";
@@ -20,7 +20,6 @@ import {
     DOC_EXTENSIONS,
     IMAGE_EXTENSIONS,
     VIDEO_EXTENSIONS,
-    getFileIcon,
 } from "../../utils/mediaUtils";
 import CopyButton from "../CopyButton";
 import ReplayButton from "../ReplayButton";
@@ -142,12 +141,15 @@ const MessageListContent = React.memo(function MessageListContent({
                             // Determine file type from extension for ghost card
                             const deletedExt = getExtension(deletedFilename);
                             let deletedType = "file";
-                            if (isVideoUrl(deletedFilename) || VIDEO_EXTENSIONS.includes(deletedExt)) {
+                            if (
+                                isVideoUrl(deletedFilename) ||
+                                VIDEO_EXTENSIONS.includes(deletedExt)
+                            ) {
                                 deletedType = "video";
                             } else if (IMAGE_EXTENSIONS.includes(deletedExt)) {
                                 deletedType = "image";
                             }
-                            
+
                             return (
                                 <MediaCard
                                     key={`deleted-file-${index}-${index2}`}
@@ -308,43 +310,50 @@ const MessageListContent = React.memo(function MessageListContent({
                     }
                 })
                 .filter((item) => item !== null); // Remove null items (hidden from client)
-            
+
             // Group consecutive MediaCard components together so they can be on the same line
             const grouped = [];
             let currentGroup = [];
-            
+
             arr.forEach((item, idx) => {
                 // Check if item is a MediaCard component (all media types: image, video, youtube, file)
-                const isMediaCard = React.isValidElement(item) && 
-                    (item.key?.includes('image-') || 
-                     item.key?.includes('video-') || 
-                     item.key?.includes('youtube-') || 
-                     item.key?.includes('file-'));
-                
+                const isMediaCard =
+                    React.isValidElement(item) &&
+                    (item.key?.includes("image-") ||
+                        item.key?.includes("video-") ||
+                        item.key?.includes("youtube-") ||
+                        item.key?.includes("file-"));
+
                 if (isMediaCard) {
                     currentGroup.push(item);
                 } else {
                     if (currentGroup.length > 0) {
                         grouped.push(
-                            <div key={`media-group-${idx}`} className="flex flex-wrap gap-2 my-2">
+                            <div
+                                key={`media-group-${idx}`}
+                                className="flex flex-wrap gap-2 my-2"
+                            >
                                 {currentGroup}
-                            </div>
+                            </div>,
                         );
                         currentGroup = [];
                     }
                     grouped.push(item);
                 }
             });
-            
+
             // Add any remaining media group
             if (currentGroup.length > 0) {
                 grouped.push(
-                    <div key={`media-group-end`} className="flex flex-wrap gap-2 my-2">
+                    <div
+                        key={`media-group-end`}
+                        className="flex flex-wrap gap-2 my-2"
+                    >
                         {currentGroup}
-                    </div>
+                    </div>,
                 );
             }
-            
+
             display = <>{grouped}</>;
         } else {
             display = newMessage.payload;
@@ -352,20 +361,28 @@ const MessageListContent = React.memo(function MessageListContent({
 
         // Check if this is a coding agent message (has taskId) following an assistant message
         const prevMessage = index > 0 ? messages[index - 1] : null;
-        const nextMessage = index < messages.length - 1 ? messages[index + 1] : null;
+        const nextMessage =
+            index < messages.length - 1 ? messages[index + 1] : null;
         const isCodingAgentMessage = !!newMessage.taskId;
         const prevIsAssistant = prevMessage?.sender === "labeeb";
         const nextIsCodingAgent = nextMessage && !!nextMessage.taskId;
-        const shouldClusterWithPrevious = isCodingAgentMessage && prevIsAssistant;
-        const shouldReduceBottomMargin = newMessage.sender === "labeeb" && nextIsCodingAgent;
+        const shouldClusterWithPrevious =
+            isCodingAgentMessage && prevIsAssistant;
+        const shouldReduceBottomMargin =
+            newMessage.sender === "labeeb" && nextIsCodingAgent;
 
         return (
-            <div 
-                key={newMessage.id} 
+            <div
+                key={newMessage.id}
                 id={`message-${newMessage.id}`}
                 className={shouldClusterWithPrevious ? "mt-0" : ""}
             >
-                {renderMessage({ ...newMessage, payload: display, shouldClusterWithPrevious, shouldReduceBottomMargin })}
+                {renderMessage({
+                    ...newMessage,
+                    payload: display,
+                    shouldClusterWithPrevious,
+                    shouldReduceBottomMargin,
+                })}
             </div>
         );
     });
@@ -537,13 +554,27 @@ const MessageList = React.memo(
                     return;
                 }
 
+                // Normalize file object for memory files matching
+                // matchesFile expects url at top level, not in image_url.url
+                const normalizedFileObj = {
+                    ...fileObj,
+                    url: fileObj.url || fileObj.image_url?.url || null,
+                };
+
                 // Update UI immediately by replacing file with placeholder
                 // Then do cloud/memory deletion in background
                 try {
                     // First, update chat message immediately for fast UI response
-                    const placeholder = createFilePlaceholder(fileObj, t, filename);
+                    const placeholder = createFilePlaceholder(
+                        fileObj,
+                        t,
+                        filename,
+                    );
                     const updatedMessages = messages.map((msg, idx) => {
-                        if (idx === messageIndex && Array.isArray(msg.payload)) {
+                        if (
+                            idx === messageIndex &&
+                            Array.isArray(msg.payload)
+                        ) {
                             const updatedPayload = [...msg.payload];
                             updatedPayload[fileIndex] = placeholder;
                             return { ...msg, payload: updatedPayload };
@@ -562,7 +593,7 @@ const MessageList = React.memo(
 
                     // Then do cloud and memory deletion in background (fire and forget)
                     purgeFile({
-                        fileObj,
+                        fileObj: normalizedFileObj,
                         apolloClient,
                         contextId,
                         contextKey,
@@ -572,8 +603,12 @@ const MessageList = React.memo(
                         t,
                         filename,
                         skipCloudDelete: false,
+                        skipMemoryFiles: false, // Ensure memory files are removed
                     }).catch((error) => {
-                        console.error("Background file deletion failed:", error);
+                        console.error(
+                            "Background file deletion failed:",
+                            error,
+                        );
                         // Errors are logged but don't affect UX
                     });
                 } catch (error) {
@@ -701,12 +736,16 @@ const MessageList = React.memo(
                             entityIconClasses={classNames(basis)}
                             onLoad={() => handleMessageLoad(message.id)}
                             onTaskStatusUpdate={handleTaskStatusUpdate}
-                            shouldClusterWithPrevious={message.shouldClusterWithPrevious}
-                            shouldReduceBottomMargin={message.shouldReduceBottomMargin}
+                            shouldClusterWithPrevious={
+                                message.shouldClusterWithPrevious
+                            }
+                            shouldReduceBottomMargin={
+                                message.shouldReduceBottomMargin
+                            }
                         />
                     );
                 }
-                
+
                 return (
                     <div
                         key={message.id}
@@ -759,7 +798,6 @@ const MessageList = React.memo(
                 language,
                 messageRef,
                 rowHeight,
-                t,
                 botName,
                 selectedEntityId,
                 entities,

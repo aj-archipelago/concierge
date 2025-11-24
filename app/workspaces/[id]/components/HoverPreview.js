@@ -2,30 +2,34 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
 import { getFileUrl, getFilename } from "./memoryFilesUtils";
-import { useFilePreview, renderFilePreview } from "@/src/components/chat/useFilePreview";
+import {
+    useFilePreview,
+    renderFilePreview,
+} from "@/src/components/chat/useFilePreview";
 
 export default function HoverPreview({ file }) {
-    if (!file) return null;
+    // Hooks must be called unconditionally before any early returns
+    const { t } = useTranslation();
 
-    const url = getFileUrl(file);
-    const filename = getFilename(file);
+    const url = file ? getFileUrl(file) : null;
+    const filename = file ? getFilename(file) : null;
     const mimeType = file?.mimeType;
 
-    if (!url) return null;
-
-    // Use shared file preview logic
+    // Use shared file preview logic (hooks must be called unconditionally)
     const fileType = useFilePreview(url, filename, mimeType);
 
-    const { t } = useTranslation();
-    
+    if (!file) return null;
+    if (!url) return null;
+
     // Render preview using shared logic (with autoplay for videos in hover preview)
     const preview = renderFilePreview({
         src: url,
         filename,
         fileType,
-        className: fileType.isPdf || fileType.isDoc
-            ? "w-full h-full rounded border-none"
-            : "max-w-full max-h-full object-contain rounded",
+        className:
+            fileType.isPdf || fileType.isDoc
+                ? "w-full h-full rounded border-none"
+                : "max-w-full max-h-full object-contain rounded",
         autoPlay: fileType.isVideo, // Autoplay videos in hover preview
         t,
     });

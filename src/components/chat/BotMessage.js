@@ -473,7 +473,6 @@ const BotMessage = ({
     shouldClusterWithPrevious = false,
     shouldReduceBottomMargin = false,
 }) => {
-    const { t } = useTranslation();
     const { data: serverTask } = useTask(message.taskId);
     const task = message.task || serverTask;
 
@@ -493,7 +492,7 @@ const BotMessage = ({
             key={message.id}
             className={classNames(
                 "flex bg-white dark:bg-gray-800 ps-1 pt-1 relative group rounded-lg border border-gray-300 dark:border-gray-600",
-                marginClass
+                marginClass,
             )}
         >
             <div className="flex items-center gap-2 absolute top-3 end-3 z-10">

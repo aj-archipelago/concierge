@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState, useContext } from "react";
 import { useTranslation } from "react-i18next";
 import axios from "../../../app/utils/axios-client";
-import mime from "mime-types";
 import {
     X,
     Link as LinkIcon,
@@ -32,7 +31,7 @@ function FileThumbnail({ file, onRemove, onRetry }) {
     const { t } = useTranslation();
     const { direction } = useContext(LanguageContext);
     const isRTL = direction === "rtl";
-    
+
     const displayName =
         file.filename ||
         file.originalFilename ||
@@ -41,16 +40,19 @@ function FileThumbnail({ file, onRemove, onRetry }) {
         t("Unknown file");
 
     // Determine file source URL for preview (use existing preview if available)
-    const previewSrc = file.preview || 
+    const previewSrc =
+        file.preview ||
         (typeof file.source === "string" ? file.source : null) ||
         (file.source?.url ? file.source.url : null) ||
         (file.serverId ? file.serverId : null);
-    
+
     // Handle YouTube URLs
     const isYouTube = isYoutubeUrl(previewSrc);
     let youtubeThumbnail = null;
     if (isYouTube && previewSrc) {
-        const videoIdMatch = previewSrc.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([^?&]+)/);
+        const videoIdMatch = previewSrc.match(
+            /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([^?&]+)/,
+        );
         const videoId = videoIdMatch ? videoIdMatch[1] : null;
         if (videoId) {
             youtubeThumbnail = `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`;
@@ -58,13 +60,18 @@ function FileThumbnail({ file, onRemove, onRetry }) {
     }
 
     // Use the same file preview logic as MediaCard
-    const fileType = useFilePreview(
-        previewSrc,
-        displayName,
-        file.type
-    );
+    const fileType = useFilePreview(previewSrc, displayName, file.type);
 
-    const hasPreview = fileType.isImage || fileType.isVideo || fileType.isPdf || fileType.isDoc;
+    // CSV files don't render well in iframes, exclude them from preview
+    const isCsv =
+        fileType.extension === ".csv" ||
+        displayName?.toLowerCase().endsWith(".csv");
+
+    const hasPreview =
+        fileType.isImage ||
+        fileType.isVideo ||
+        fileType.isPdf ||
+        (fileType.isDoc && !isCsv);
     const Icon = getFileIcon(displayName);
 
     const getStatusIcon = () => {
@@ -106,7 +113,8 @@ function FileThumbnail({ file, onRemove, onRetry }) {
                         className="w-full h-full object-cover"
                         onError={(e) => {
                             if (youtubeThumbnail.includes("maxresdefault")) {
-                                const videoId = youtubeThumbnail.match(/vi\/([^/]+)/)?.[1];
+                                const videoId =
+                                    youtubeThumbnail.match(/vi\/([^/]+)/)?.[1];
                                 if (videoId) {
                                     e.target.src = `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`;
                                 }
@@ -114,7 +122,10 @@ function FileThumbnail({ file, onRemove, onRetry }) {
                         }}
                     />
                     <div className="absolute inset-0 flex items-center justify-center bg-black/30 pointer-events-none">
-                        <Play className="w-6 h-6 text-white opacity-90" fill="white" />
+                        <Play
+                            className="w-6 h-6 text-white opacity-90"
+                            fill="white"
+                        />
                     </div>
                 </div>
             ) : hasPreview && previewSrc ? (
@@ -128,14 +139,17 @@ function FileThumbnail({ file, onRemove, onRetry }) {
                     })}
                     {fileType.isVideo && (
                         <div className="absolute inset-0 flex items-center justify-center bg-black/30 pointer-events-none">
-                            <Play className="w-6 h-6 text-white opacity-80" fill="white" />
+                            <Play
+                                className="w-6 h-6 text-white opacity-80"
+                                fill="white"
+                            />
                         </div>
                     )}
                 </div>
             ) : (
                 <div className="w-full h-full flex flex-col items-center justify-center p-2 bg-gray-100 dark:bg-gray-700">
                     <Icon className="w-8 h-8 text-gray-500 dark:text-gray-400 mb-1" />
-                    <p 
+                    <p
                         className="text-[10px] text-gray-600 dark:text-gray-400 text-center truncate w-full"
                         dir="auto"
                     >
@@ -155,9 +169,21 @@ function FileThumbnail({ file, onRemove, onRetry }) {
                 </div>
             )}
 
+            {/* Filename overlay on hover */}
+            {displayName && (
+                <div className="absolute bottom-0 left-0 right-0 px-2 py-1 bg-gradient-to-t from-black/80 to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-20">
+                    <span
+                        className="text-[10px] text-white truncate block text-start"
+                        dir="auto"
+                    >
+                        {displayName}
+                    </span>
+                </div>
+            )}
+
             {/* Progress bar */}
             {(file.status === "uploading" || file.status === "processing") && (
-                <div className="absolute bottom-0 left-0 right-0 h-1 bg-gray-200 dark:bg-gray-700">
+                <div className="absolute bottom-0 left-0 right-0 h-1 bg-gray-200 dark:bg-gray-700 z-10">
                     <div
                         className="h-full bg-sky-500 dark:bg-sky-400 transition-all"
                         style={{ width: `${file.progress || 0}%` }}
@@ -171,7 +197,7 @@ function FileThumbnail({ file, onRemove, onRetry }) {
                 onClick={() => onRemove(file)}
                 className={cn(
                     "absolute top-1 w-5 h-5 rounded-full bg-black/60 hover:bg-black/80 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity z-10",
-                    isRTL ? "left-1" : "right-1"
+                    isRTL ? "left-1" : "right-1",
                 )}
                 title={t("Remove")}
                 aria-label={t("Remove")}
@@ -202,7 +228,7 @@ export default function FileUploader({
     setIsUploadingMedia,
     setUrlsData,
 }) {
-    const { t, i18n } = useTranslation();
+    const { t } = useTranslation();
     const { direction } = useContext(LanguageContext);
     const isRTL = direction === "rtl";
     const serverUrl = "/media-helper";
@@ -228,12 +254,16 @@ export default function FileUploader({
                             (f.source === file.source &&
                                 !(file.source instanceof File)),
                     );
-                    return existing || {
-                        id: file.id || `file-${Date.now()}-${Math.random()}`,
-                        ...file,
-                        status: "pending",
-                        progress: 0,
-                    };
+                    return (
+                        existing || {
+                            id:
+                                file.id ||
+                                `file-${Date.now()}-${Math.random()}`,
+                            ...file,
+                            status: "pending",
+                            progress: 0,
+                        }
+                    );
                 });
                 return newFiles;
             });
@@ -274,10 +304,106 @@ export default function FileUploader({
         );
     }, []);
 
+    const processUrlFile = useCallback(
+        async (file) => {
+            const fileId = file.id;
+            const url =
+                typeof file.source === "string"
+                    ? file.source
+                    : file.source?.url;
+
+            if (!url) return;
+
+            if (isYoutubeUrl(url)) {
+                const youtubeResponse = {
+                    url: url,
+                    gcs: url,
+                    type: "video/youtube",
+                    filename: getFilename(url),
+                    originalFilename: getFilename(url),
+                    payload: JSON.stringify([
+                        JSON.stringify({
+                            type: "image_url",
+                            url: url,
+                            gcs: url,
+                            originalFilename: getFilename(url),
+                        }),
+                    ]),
+                };
+
+                addUrl(youtubeResponse);
+                processingFilesRef.current.delete(fileId);
+                updateFileStatus(fileId, {
+                    status: "completed",
+                    progress: 100,
+                    serverId: url,
+                });
+                setIsUploadingMedia(false);
+                return;
+            }
+
+            updateFileStatus(fileId, {
+                status: "processing",
+                progress: 0,
+            });
+            setIsUploadingMedia(true);
+
+            try {
+                const response = await axios.get(
+                    `${serverUrl}&fetch=${encodeURIComponent(url)}`,
+                );
+                if (response.data && response.data.url) {
+                    const urlFilename = url.split("/").pop().split("?")[0];
+                    if (isFileRemoved(url) || isFileRemoved(urlFilename)) {
+                        processingFilesRef.current.delete(fileId);
+                        updateFileStatus(fileId, {
+                            status: "error",
+                            error: t(
+                                "File was removed before processing could complete.",
+                            ),
+                        });
+                        setIsUploadingMedia(false);
+                        return;
+                    }
+
+                    const responseWithFilename = {
+                        ...response.data,
+                        originalFilename: urlFilename,
+                    };
+                    addUrl(responseWithFilename);
+                    processingFilesRef.current.delete(fileId);
+                    updateFileStatus(fileId, {
+                        status: "completed",
+                        progress: 100,
+                        serverId: responseWithFilename.url,
+                    });
+                    setIsUploadingMedia(false);
+                }
+            } catch (err) {
+                console.error("Error fetching URL:", err);
+                processingFilesRef.current.delete(fileId);
+                updateFileStatus(fileId, {
+                    status: "error",
+                    error: t("Could not load file from URL"),
+                });
+                setIsUploadingMedia(false);
+            }
+        },
+        [
+            t,
+            serverUrl,
+            isFileRemoved,
+            updateFileStatus,
+            addUrl,
+            setIsUploadingMedia,
+        ],
+    );
+
     const processFile = useCallback(
         async (file) => {
             const fileId = file.id;
-            const fileObj = file.source instanceof File ? file.source : file.file;
+            const fileObj =
+                file.source instanceof File ? file.source : file.file;
 
             if (!fileObj) {
                 if (typeof file.source === "string" || file.source?.url) {
@@ -349,7 +475,9 @@ export default function FileUploader({
 
                             if (!hasAzureUrl || !hasGcsUrl) {
                                 throw new Error(
-                                    t("Media file upload failed: Missing required storage URLs"),
+                                    t(
+                                        "Media file upload failed: Missing required storage URLs",
+                                    ),
                                 );
                             }
                         }
@@ -362,13 +490,17 @@ export default function FileUploader({
 
                         if (
                             isFileRemoved(fileObj.name) ||
-                            isFileRemoved(responseWithFilename.originalFilename) ||
+                            isFileRemoved(
+                                responseWithFilename.originalFilename,
+                            ) ||
                             isFileRemoved(responseWithFilename.url) ||
                             isFileRemoved(responseWithFilename.gcs)
                         ) {
                             processingFilesRef.current.delete(fileId);
                             throw new Error(
-                                t("File was removed before processing could complete."),
+                                t(
+                                    "File was removed before processing could complete.",
+                                ),
                             );
                         }
 
@@ -521,12 +653,22 @@ export default function FileUploader({
                         addUrl(responseWithFilename);
                         setIsUploadingMedia(false);
                     } else {
-                        const errorMessage =
-                            typeof responseData === "string"
-                                ? responseData
-                                : responseData?.error ||
-                                  responseData?.message ||
-                                  t("Error while uploading");
+                        let errorMessage = t("Error while uploading");
+                        try {
+                            const errorResponseData = JSON.parse(
+                                xhr.responseText,
+                            );
+                            if (typeof errorResponseData === "string") {
+                                errorMessage = errorResponseData;
+                            } else if (errorResponseData?.error) {
+                                errorMessage = errorResponseData.error;
+                            } else if (errorResponseData?.message) {
+                                errorMessage = errorResponseData.message;
+                            }
+                        } catch (err) {
+                            // If parsing fails, use default error message
+                            console.error("Error parsing error response:", err);
+                        }
                         processingFilesRef.current.delete(fileId);
                         updateFileStatus(fileId, {
                             status: "error",
@@ -563,99 +705,7 @@ export default function FileUploader({
             updateFileStatus,
             addUrl,
             setIsUploadingMedia,
-        ],
-    );
-
-    const processUrlFile = useCallback(
-        async (file) => {
-            const fileId = file.id;
-            const url =
-                typeof file.source === "string" ? file.source : file.source?.url;
-
-            if (!url) return;
-
-            if (isYoutubeUrl(url)) {
-                const youtubeResponse = {
-                    url: url,
-                    gcs: url,
-                    type: "video/youtube",
-                    filename: getFilename(url),
-                    originalFilename: getFilename(url),
-                    payload: JSON.stringify([
-                        JSON.stringify({
-                            type: "image_url",
-                            url: url,
-                            gcs: url,
-                            originalFilename: getFilename(url),
-                        }),
-                    ]),
-                };
-
-                addUrl(youtubeResponse);
-                processingFilesRef.current.delete(fileId);
-                updateFileStatus(fileId, {
-                    status: "completed",
-                    progress: 100,
-                    serverId: url,
-                });
-                setIsUploadingMedia(false);
-                return;
-            }
-
-            updateFileStatus(fileId, {
-                status: "processing",
-                progress: 0,
-            });
-            setIsUploadingMedia(true);
-
-            try {
-                const response = await axios.get(
-                    `${serverUrl}&fetch=${encodeURIComponent(url)}`,
-                );
-                if (response.data && response.data.url) {
-                    const urlFilename = url.split("/").pop().split("?")[0];
-                    if (isFileRemoved(url) || isFileRemoved(urlFilename)) {
-                        processingFilesRef.current.delete(fileId);
-                        updateFileStatus(fileId, {
-                            status: "error",
-                            error: t(
-                                "File was removed before processing could complete.",
-                            ),
-                        });
-                        setIsUploadingMedia(false);
-                        return;
-                    }
-
-                    const responseWithFilename = {
-                        ...response.data,
-                        originalFilename: urlFilename,
-                    };
-                    addUrl(responseWithFilename);
-                    processingFilesRef.current.delete(fileId);
-                    updateFileStatus(fileId, {
-                        status: "completed",
-                        progress: 100,
-                        serverId: responseWithFilename.url,
-                    });
-                    setIsUploadingMedia(false);
-                }
-            } catch (err) {
-                console.error("Error fetching URL:", err);
-                processingFilesRef.current.delete(fileId);
-                updateFileStatus(fileId, {
-                    status: "error",
-                    error: t("Could not load file from URL"),
-                });
-                setIsUploadingMedia(false);
-            }
-        },
-        [
-            t,
-            serverUrl,
-            isFileRemoved,
-            updateFileStatus,
-            addUrl,
-            setIsUploadingMedia,
+            processUrlFile,
         ],
     );
 
@@ -832,7 +882,10 @@ export default function FileUploader({
     );
 
     return (
-        <div className="space-y-1.5 pb-1" dir={direction}>
+        <div
+            className={cn("space-y-1.5 p-3", "bg-gray-50 dark:bg-gray-900/50")}
+            dir={direction}
+        >
             {/* File thumbnails */}
             {internalFiles.length > 0 && (
                 <div className="flex gap-2 flex-wrap">
@@ -848,17 +901,19 @@ export default function FileUploader({
             )}
 
             {/* Add files controls */}
-            <div className={cn(
-                "flex items-center gap-2 min-h-[40px]",
-                "flex-col sm:flex-row"
-            )}>
+            <div
+                className={cn(
+                    "flex items-center gap-2 min-h-[40px]",
+                    "flex-col sm:flex-row",
+                )}
+            >
                 <button
                     type="button"
                     onClick={() => fileInputRef.current?.click()}
                     className={cn(
                         "flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md transition-colors h-9",
                         "w-full sm:w-auto",
-                        isRTL && "flex-row-reverse"
+                        isRTL && "flex-row-reverse",
                     )}
                     aria-label={t("Attach files")}
                 >
@@ -874,7 +929,7 @@ export default function FileUploader({
                             className={cn(
                                 "flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md transition-colors h-9",
                                 "w-full sm:w-auto",
-                                isRTL && "flex-row-reverse"
+                                isRTL && "flex-row-reverse",
                             )}
                             aria-label={t("Add URL")}
                         >
@@ -890,7 +945,7 @@ export default function FileUploader({
                                 placeholder={t("Enter file URL...")}
                                 className={cn(
                                     "flex-1 px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-sky-500 h-9",
-                                    "min-w-0"
+                                    "min-w-0",
                                 )}
                                 dir="ltr"
                                 onKeyDown={(e) => {
