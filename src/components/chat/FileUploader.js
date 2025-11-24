@@ -939,10 +939,12 @@ export default function FileUploader({
                                 "w-full sm:w-auto",
                                 isRTL && "flex-row-reverse",
                             )}
-                            aria-label={t("Add URL")}
+                            aria-label={t("Add File URL")}
                         >
                             <LinkIcon className="w-4 h-4 flex-shrink-0" />
-                            <span className="truncate">{t("Add URL")}</span>
+                            <span className="truncate">
+                                {t("Add File URL")}
+                            </span>
                         </button>
                     ) : (
                         <>

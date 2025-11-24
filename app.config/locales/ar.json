@@ -843,7 +843,7 @@
     "File deleted by user: {{filename}}": "تم حذف الملف بواسطة المستخدم: {{filename}}",
     "Attach": "إرفاق",
     "Attach files": "إرفاق الملفات",
-    "Add URL": "إضافة رابط",
+    "Add File URL": "إضافة رابط الملف",
     "Enter file URL...": "أدخل رابط الملف...",
     "Unknown file": "ملف غير معروف",
     "Please enter a valid URL": "يرجى إدخال رابط صالح",

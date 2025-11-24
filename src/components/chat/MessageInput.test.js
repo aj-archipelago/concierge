@@ -88,7 +88,7 @@ jest.mock(
                         })
                     }
                 >
-                    Add URL
+                    Add File URL
                 </button>
                 {files &&
                     files.map((file, index) => (
