@@ -42,11 +42,11 @@ function ChatTopMenu({ displayState = "full", readOnly = false }) {
                 <button
                     onClick={toggleResearchMode}
                     disabled={readOnly}
-                    className={`flex items-center gap-1 px-3 py-1.5 rounded-md transition-colors border ${
+                    className={`flex items-center justify-center px-3 py-1.5 rounded-md transition-colors border ${
                         isResearchMode
-                            ? "bg-sky-600 text-white border-sky-700 hover:bg-sky-700 dark:hover:bg-sky-500 dark:hover:text-white"
+                            ? "bg-sky-500 text-white border-sky-600 hover:bg-sky-600 dark:bg-sky-600 dark:hover:bg-sky-500 dark:hover:text-white dark:border-sky-500"
                             : "bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 border-gray-200 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-600"
-                    } [.docked_&]:px-2 [.docked_&]:gap-0 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-white dark:disabled:hover:bg-gray-700`}
+                    } disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-white dark:disabled:hover:bg-gray-700`}
                     title={
                         readOnly
                             ? t("Read-only mode")
@@ -54,21 +54,17 @@ function ChatTopMenu({ displayState = "full", readOnly = false }) {
                     }
                 >
                     <Microscope className="w-4 h-4" />
-                    <span className="hidden md:inline [.docked_&]:hidden">
-                        {t("Research Mode")}
-                    </span>
                 </button>
 
                 <button
                     onClick={() => setShowMemoryFilesDialog(true)}
                     disabled={readOnly}
-                    className="flex items-center gap-1 px-3 py-1.5 rounded-md transition-colors border bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 border-gray-200 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-600 [.docked_&]:hidden disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-white dark:disabled:hover:bg-gray-700"
+                    className="flex items-center justify-center px-3 py-1.5 rounded-md transition-colors border bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 border-gray-200 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-white dark:disabled:hover:bg-gray-700"
                     title={
                         readOnly ? t("Read-only mode") : t("View Chat Files")
                     }
                 >
                     <FileText className="w-4 h-4" />
-                    <span className="hidden md:inline">{t("Chat Files")}</span>
                 </button>
             </div>
 

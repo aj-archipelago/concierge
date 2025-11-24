@@ -1,4 +1,4 @@
-import { Bot, CheckCircle, XCircle, Loader2, Check } from "lucide-react";
+import { CheckCircle, XCircle, Loader2, Check } from "lucide-react";
 import React, { useEffect, useState, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { useCancelTask, useTask } from "../../../app/queries/notifications";
@@ -6,7 +6,6 @@ import classNames from "../../../app/utils/class-names";
 import { TASK_INFO } from "../../utils/task-info";
 import CopyButton from "../CopyButton";
 import { convertMessageToMarkdown } from "./ChatMessage";
-import EntityIcon from "./EntityIcon";
 
 // Helper functions for ephemeral content
 const hasToolCalls = (toolCalls) =>
@@ -401,7 +400,7 @@ export const EphemeralContent = React.memo(
                 {expanded && (
                     <div
                         ref={scrollContainerRef}
-                        className="text-gray-600 dark:text-gray-300 mt-1 ps-3 rtl:ps-0 rtl:pe-3 border-s-2 rtl:border-s-0 rtl:border-e-2 border-gray-400 dark:border-gray-600 bg-gray-100 dark:bg-gray-800 py-2 px-3 rounded-r-md rtl:rounded-r-none rtl:rounded-l-md text-[12px] overflow-y-auto max-h-[7.5rem] scroll-smooth"
+                        className="text-gray-600 dark:text-gray-300 mt-1 ps-3 rtl:ps-0 rtl:pe-3 border-s-2 rtl:border-s-0 rtl:border-e-2 border-gray-400 dark:border-gray-600 bg-gray-200 dark:bg-gray-700 py-2 px-3 rounded-r-md rtl:rounded-r-none rtl:rounded-l-md text-[12px] overflow-y-auto max-h-[7.5rem] scroll-smooth"
                     >
                         {hasToolCalls(toolCalls) &&
                             toolCalls.map((toolCall, index) => (
@@ -476,134 +475,29 @@ const BotMessage = ({
     const { data: serverTask } = useTask(message.taskId);
     const task = message.task || serverTask;
 
-    // Determine the entity ID to use
-    const isLoader = message.id === "loading";
-    // For the loader, use the selectedEntityId from props.
-    // For actual messages, strictly use the entityId stored on the message.
-    // Default to empty string if neither is present.
-    const entityIdToUse = isLoader
-        ? selectedEntityId || ""
-        : message.entityId || "";
-
-    const currentEntity = entityIdToUse
-        ? entities.find((e) => e.id === entityIdToUse)
-        : entities.find((e) => e.isDefault === true);
-
-    const entityDisplaySuffix = message.taskId ? t("'s Agent") : "";
-
-    const entityDisplayName = `${currentEntity ? currentEntity.name : botName}${entityDisplaySuffix}`;
-
-    // Avatar rendering
-    const avatar = currentEntity ? (
-        <EntityIcon entity={currentEntity} size={entityIconSize} />
-    ) : toolData?.avatarImage ? (
-        <img
-            src={toolData.avatarImage}
-            alt="Tool Avatar"
-            className={classNames(
-                buttonWidthClass,
-                rowHeight,
-                "rounded-full object-cover",
-            )}
-            style={{
-                width:
-                    entityIconSize === "lg"
-                        ? 32
-                        : entityIconSize === "sm"
-                          ? 20
-                          : 16,
-                height:
-                    entityIconSize === "lg"
-                        ? 32
-                        : entityIconSize === "sm"
-                          ? 20
-                          : 16,
-            }}
-        />
-    ) : bot === "code" ? (
-        <Bot
-            className={classNames(
-                rowHeight,
-                buttonWidthClass,
-                "px-3",
-                "text-gray-400",
-            )}
-            style={{
-                width:
-                    entityIconSize === "lg"
-                        ? 32
-                        : entityIconSize === "sm"
-                          ? 20
-                          : 16,
-                height:
-                    entityIconSize === "lg"
-                        ? 32
-                        : entityIconSize === "sm"
-                          ? 20
-                          : 16,
-            }}
-        />
-    ) : (
-        <img
-            src={getLogo(language)}
-            alt="Logo"
-            className={classNames(
-                buttonWidthClass,
-                rowHeight,
-                "p-2 rounded-full object-cover",
-            )}
-            style={{
-                width:
-                    entityIconSize === "lg"
-                        ? 32
-                        : entityIconSize === "sm"
-                          ? 20
-                          : 16,
-                height:
-                    entityIconSize === "lg"
-                        ? 32
-                        : entityIconSize === "sm"
-                          ? 20
-                          : 16,
-            }}
-        />
-    );
-
-    // Determine top padding based on entityIconSize
-    const avatarTopPadding = entityIconSize === "sm" ? "pt-3" : "pt-1";
 
     return (
         <div
             key={message.id}
-            className="flex bg-sky-50 dark:bg-gray-700 ps-1 pt-1 relative group"
+            className="flex bg-white dark:bg-gray-800 ps-1 pt-1 relative group rounded-lg mb-6 border border-gray-300 dark:border-gray-600"
         >
-            <div className="flex items-center gap-2 absolute top-3 end-3">
+            <div className="flex items-center gap-2 absolute top-3 end-3 z-10">
                 <CopyButton
                     item={
                         typeof message.payload === "string"
                             ? message.payload
                             : message.text
                     }
-                    className="copy-button opacity-0 group-hover:opacity-60 hover:opacity-100 transition-opacity"
+                    className="copy-button opacity-0 group-hover:opacity-60 hover:opacity-100 transition-opacity pointer-events-auto"
                 />
             </div>
 
-            <div
-                className={classNames(
-                    basis,
-                    avatarTopPadding,
-                    "flex justify-center",
-                )}
-            >
-                {avatar}
-            </div>
             <div
                 className={classNames(
                     "px-1 pb-3 pt-2 [.docked_&]:px-0 [.docked_&]:py-3 w-full",
                 )}
             >
                 <div className="flex flex-col">
-                    <div className="font-semibold">{t(entityDisplayName)}</div>
                     {shouldShowEphemeralContent(
                         message.ephemeralContent,
                         message.toolCalls,

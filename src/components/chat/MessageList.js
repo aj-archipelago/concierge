@@ -8,7 +8,7 @@ import React, {
     useState,
 } from "react";
 import { useTranslation } from "react-i18next";
-import { UserCircle, X, FileX } from "lucide-react";
+import { X, FileX, User } from "lucide-react";
 import Loader from "../../../app/components/loader";
 import classNames from "../../../app/utils/class-names";
 import config from "../../../config";
@@ -18,18 +18,23 @@ import {
     isAudioUrl,
     isVideoUrl,
     DOC_EXTENSIONS,
+    IMAGE_EXTENSIONS,
+    VIDEO_EXTENSIONS,
     getFileIcon,
 } from "../../utils/mediaUtils";
 import CopyButton from "../CopyButton";
 import ReplayButton from "../ReplayButton";
-import ChatImage from "../images/ChatImage";
+import MediaCard from "./MediaCard";
 import { AuthContext } from "../../App";
 import BotMessage from "./BotMessage";
 import ScrollToBottom from "./ScrollToBottom";
 import StreamingMessage from "./StreamingMessage";
 import { useUpdateChat } from "../../../app/queries/chats";
 import { useApolloClient } from "@apollo/client";
-import { purgeFile } from "../../../app/workspaces/[id]/components/chatFileUtils";
+import {
+    purgeFile,
+    createFilePlaceholder,
+} from "../../../app/workspaces/[id]/components/chatFileUtils";
 import {
     AlertDialog,
     AlertDialogContent,
@@ -100,25 +105,7 @@ const getYoutubeEmbedUrl = (url) => {
     return null;
 };
 
-// Add memoized YouTube component
-const MemoizedYouTubeEmbed = React.memo(({ url, onLoad }) => {
-    return (
-        <iframe
-            title={`YouTube video ${url.split("/").pop()}`}
-            onLoad={onLoad}
-            src={url}
-            className="w-full rounded border-0 my-2 shadow-lg dark:shadow-black/30"
-            style={{
-                width: "100%",
-                maxWidth: "640px",
-                aspectRatio: "16/9",
-                backgroundColor: "transparent",
-            }}
-            allowFullScreen
-            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-        />
-    );
-});
+// Removed MemoizedYouTubeEmbed - now using MediaCard
 
 // Create a memoized component for the static message list content
 const MessageListContent = React.memo(function MessageListContent({
@@ -152,27 +139,24 @@ const MessageListContent = React.memo(function MessageListContent({
                         ) {
                             const deletedFilename =
                                 obj.deletedFilename || "file";
-                            const messageText =
-                                typeof t === "function"
-                                    ? t(
-                                          "File no longer available: {{filename}}",
-                                          {
-                                              filename: deletedFilename,
-                                          },
-                                      )
-                                    : `File no longer available: ${deletedFilename}`;
+                            // Determine file type from extension for ghost card
+                            const deletedExt = getExtension(deletedFilename);
+                            let deletedType = "file";
+                            if (isVideoUrl(deletedFilename) || VIDEO_EXTENSIONS.includes(deletedExt)) {
+                                deletedType = "video";
+                            } else if (IMAGE_EXTENSIONS.includes(deletedExt)) {
+                                deletedType = "image";
+                            }
+                            
                             return (
-                                <div
+                                <MediaCard
                                     key={`deleted-file-${index}-${index2}`}
-                                    className="bg-neutral-100 dark:bg-gray-700 py-2 ps-2 pe-2 m-2 shadow-md rounded-lg border dark:border-gray-600 flex gap-2 items-center opacity-60"
-                                    title={messageText}
-                                    dir="auto"
-                                >
-                                    <FileX className="w-6 h-6 text-gray-500 dark:text-gray-400 flex-shrink-0 rtl:scale-x-[-1]" />
-                                    <span className="truncate text-gray-500 dark:text-gray-400 italic">
-                                        {messageText}
-                                    </span>
-                                </div>
+                                    type={deletedType}
+                                    src={null}
+                                    filename={deletedFilename}
+                                    isDeleted={true}
+                                    t={t}
+                                />
                             );
                         }
 
@@ -186,48 +170,6 @@ const MessageListContent = React.memo(function MessageListContent({
                             const src =
                                 obj?.url || obj?.image_url?.url || obj?.gcs;
                             const originalFilename = obj?.originalFilename;
-                            if (isVideoUrl(src)) {
-                                const youtubeEmbedUrl = getYoutubeEmbedUrl(src);
-                                if (youtubeEmbedUrl) {
-                                    return (
-                                        <MemoizedYouTubeEmbed
-                                            key={youtubeEmbedUrl}
-                                            url={youtubeEmbedUrl}
-                                            onLoad={() =>
-                                                handleMessageLoad(newMessage.id)
-                                            }
-                                        />
-                                    );
-                                }
-                                return (
-                                    <video
-                                        onLoadedData={() =>
-                                            handleMessageLoad(newMessage.id)
-                                        }
-                                        key={`video-${index}-${index2}`}
-                                        src={src}
-                                        className="max-h-[20%] max-w-[60%] [.docked_&]:max-w-[90%] rounded border-0 my-2 shadow-lg dark:shadow-black/30"
-                                        style={{
-                                            backgroundColor: "transparent",
-                                        }}
-                                        controls
-                                        preload="metadata"
-                                        playsInline
-                                    />
-                                );
-                            } else if (isAudioUrl(src)) {
-                                return (
-                                    <audio
-                                        onLoadedData={() =>
-                                            handleMessageLoad(newMessage.id)
-                                        }
-                                        key={`audio-${index}-${index2}`}
-                                        src={src}
-                                        className="max-h-[20%] max-w-[100%] [.docked_&]:max-w-[80%] rounded-md border bg-white p-1 my-2 dark:border-neutral-700 dark:bg-neutral-800 shadow-lg dark:shadow-black/30"
-                                        controls
-                                    />
-                                );
-                            }
 
                             // Use original filename if available, otherwise extract from URL
                             if (!src) {
@@ -249,67 +191,114 @@ const MessageListContent = React.memo(function MessageListContent({
                                 return null;
                             }
 
-                            if (DOC_EXTENSIONS.includes(ext)) {
-                                const Icon = getFileIcon(filename);
+                            // Handle audio files separately (keep existing audio player)
+                            if (isAudioUrl(src)) {
                                 return (
-                                    <div
-                                        key={`file-${index}-${index2}`}
-                                        className="bg-neutral-100 dark:bg-gray-700 py-2 ps-2 pe-2 m-2 shadow-md rounded-lg border dark:border-gray-600 flex gap-2 items-center group relative"
-                                    >
-                                        <a
-                                            href={src}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            className="flex gap-2 items-center flex-1 min-w-0"
-                                        >
-                                            <Icon className="w-6 h-6 text-red-500 flex-shrink-0" />
-                                            <span className="truncate">
-                                                {filename}
-                                            </span>
-                                        </a>
-                                        {onDeleteFile && t && (
-                                            <button
-                                                onClick={(e) => {
-                                                    e.preventDefault();
-                                                    e.stopPropagation();
-                                                    onDeleteFile(
-                                                        newMessage.id,
-                                                        index2,
-                                                    );
-                                                }}
-                                                className="opacity-0 group-hover:opacity-100 hover:bg-gray-200 dark:hover:bg-gray-600 rounded p-1 transition-opacity flex-shrink-0 order-last rtl:order-first"
-                                                title={
-                                                    typeof t === "function"
-                                                        ? t(
-                                                              "Remove file from chat",
-                                                          )
-                                                        : "Remove file from chat"
-                                                }
-                                                aria-label={
-                                                    typeof t === "function"
-                                                        ? t(
-                                                              "Remove file from chat",
-                                                          )
-                                                        : "Remove file from chat"
-                                                }
-                                            >
-                                                <X className="w-4 h-4 text-gray-600 dark:text-gray-300" />
-                                            </button>
-                                        )}
-                                    </div>
+                                    <audio
+                                        onLoadedData={() =>
+                                            handleMessageLoad(newMessage.id)
+                                        }
+                                        key={`audio-${index}-${index2}`}
+                                        src={src}
+                                        className="max-h-[20%] max-w-[100%] [.docked_&]:max-w-[80%] rounded-md border bg-white p-1 my-2 dark:border-neutral-700 dark:bg-neutral-800 shadow-lg dark:shadow-black/30"
+                                        controls
+                                    />
                                 );
                             }
 
-                            return (
-                                <div key={src}>
-                                    <ChatImage
+                            // Handle document files with MediaCard
+                            if (DOC_EXTENSIONS.includes(ext)) {
+                                return (
+                                    <MediaCard
+                                        key={`file-${index}-${index2}`}
+                                        type="file"
                                         src={src}
-                                        alt="uploadedimage"
+                                        filename={filename}
+                                        onDeleteFile={
+                                            onDeleteFile && t
+                                                ? () =>
+                                                      onDeleteFile(
+                                                          newMessage.id,
+                                                          index2,
+                                                      )
+                                                : undefined
+                                        }
+                                        t={t}
+                                    />
+                                );
+                            }
+
+                            // Handle videos (including YouTube)
+                            if (isVideoUrl(src)) {
+                                const youtubeEmbedUrl = getYoutubeEmbedUrl(src);
+                                if (youtubeEmbedUrl) {
+                                    return (
+                                        <MediaCard
+                                            key={`youtube-${index}-${index2}`}
+                                            type="youtube"
+                                            src={src}
+                                            filename={filename}
+                                            youtubeEmbedUrl={youtubeEmbedUrl}
+                                            onLoad={() =>
+                                                handleMessageLoad(newMessage.id)
+                                            }
+                                            onDeleteFile={
+                                                onDeleteFile && t
+                                                    ? () =>
+                                                          onDeleteFile(
+                                                              newMessage.id,
+                                                              index2,
+                                                          )
+                                                    : undefined
+                                            }
+                                            t={t}
+                                        />
+                                    );
+                                }
+                                return (
+                                    <MediaCard
+                                        key={`video-${index}-${index2}`}
+                                        type="video"
+                                        src={src}
+                                        filename={filename}
                                         onLoad={() =>
                                             handleMessageLoad(newMessage.id)
                                         }
+                                        onDeleteFile={
+                                            onDeleteFile && t
+                                                ? () =>
+                                                      onDeleteFile(
+                                                          newMessage.id,
+                                                          index2,
+                                                      )
+                                                : undefined
+                                        }
+                                        t={t}
                                     />
-                                </div>
+                                );
+                            }
+
+                            // Handle images
+                            return (
+                                <MediaCard
+                                    key={`image-${index}-${index2}`}
+                                    type="image"
+                                    src={src}
+                                    filename={filename}
+                                    onLoad={() =>
+                                        handleMessageLoad(newMessage.id)
+                                    }
+                                    onDeleteFile={
+                                        onDeleteFile && t
+                                            ? () =>
+                                                  onDeleteFile(
+                                                      newMessage.id,
+                                                      index2,
+                                                  )
+                                            : undefined
+                                    }
+                                    t={t}
+                                />
                             );
                         }
                         return null;
@@ -319,7 +308,44 @@ const MessageListContent = React.memo(function MessageListContent({
                     }
                 })
                 .filter((item) => item !== null); // Remove null items (hidden from client)
-            display = <>{arr}</>;
+            
+            // Group consecutive MediaCard components together so they can be on the same line
+            const grouped = [];
+            let currentGroup = [];
+            
+            arr.forEach((item, idx) => {
+                // Check if item is a MediaCard component (all media types: image, video, youtube, file)
+                const isMediaCard = React.isValidElement(item) && 
+                    (item.key?.includes('image-') || 
+                     item.key?.includes('video-') || 
+                     item.key?.includes('youtube-') || 
+                     item.key?.includes('file-'));
+                
+                if (isMediaCard) {
+                    currentGroup.push(item);
+                } else {
+                    if (currentGroup.length > 0) {
+                        grouped.push(
+                            <div key={`media-group-${idx}`} className="flex flex-wrap gap-2 my-2">
+                                {currentGroup}
+                            </div>
+                        );
+                        currentGroup = [];
+                    }
+                    grouped.push(item);
+                }
+            });
+            
+            // Add any remaining media group
+            if (currentGroup.length > 0) {
+                grouped.push(
+                    <div key={`media-group-end`} className="flex flex-wrap gap-2 my-2">
+                        {currentGroup}
+                    </div>
+                );
+            }
+            
+            display = <>{grouped}</>;
         } else {
             display = newMessage.payload;
         }
@@ -498,24 +524,48 @@ const MessageList = React.memo(
                     return;
                 }
 
-                // Use unified purgeFile function to handle all deletion scenarios
+                // Update UI immediately by replacing file with placeholder
+                // Then do cloud/memory deletion in background
                 try {
-                    await purgeFile({
+                    // First, update chat message immediately for fast UI response
+                    const placeholder = createFilePlaceholder(fileObj, t, filename);
+                    const updatedMessages = messages.map((msg, idx) => {
+                        if (idx === messageIndex && Array.isArray(msg.payload)) {
+                            const updatedPayload = [...msg.payload];
+                            updatedPayload[fileIndex] = placeholder;
+                            return { ...msg, payload: updatedPayload };
+                        }
+                        return msg;
+                    });
+
+                    // Update chat immediately
+                    await updateChatHook.mutateAsync({
+                        chatId: String(chatId),
+                        messages: updatedMessages,
+                    });
+
+                    // Close dialog immediately
+                    setFileToDelete(null);
+
+                    // Then do cloud and memory deletion in background (fire and forget)
+                    purgeFile({
                         fileObj,
                         apolloClient,
                         contextId,
                         contextKey,
-                        chatId,
-                        messages,
-                        updateChatHook,
+                        chatId: null, // Skip chat update since we already did it
+                        messages: null,
+                        updateChatHook: null,
                         t,
                         filename,
                         skipCloudDelete: false,
+                    }).catch((error) => {
+                        console.error("Background file deletion failed:", error);
+                        // Errors are logged but don't affect UX
                     });
-
-                    setFileToDelete(null);
                 } catch (error) {
-                    console.error("Failed to purge file:", error);
+                    console.error("Failed to delete file:", error);
+                    setFileToDelete(null);
                     // TODO: Show user-friendly error message
                 }
             },
@@ -641,20 +691,11 @@ const MessageList = React.memo(
                         />
                     );
                 }
-                const avatar = (
-                    <UserCircle
-                        className={classNames(
-                            rowHeight,
-                            buttonWidthClass,
-                            "p-2",
-                            "text-gray-300",
-                        )}
-                    />
-                );
+                
                 return (
                     <div
                         key={message.id}
-                        className="flex ps-1 pt-1 relative group"
+                        className="flex bg-sky-100 dark:bg-gray-600 ps-1 pt-1 relative group rounded-t-lg rounded-br-lg rtl:rounded-br-none rtl:rounded-bl-lg mb-1"
                     >
                         <div className="flex items-center gap-2 absolute top-3 end-3">
                             <ReplayButton
@@ -680,13 +721,14 @@ const MessageList = React.memo(
                                 className="opacity-0 group-hover:opacity-60 hover:opacity-100 transition-opacity"
                             />
                         </div>
-                        <div className={classNames(basis)}>{avatar}</div>
+                        <div className="absolute top-3 start-3 flex items-center justify-center w-5 h-5 rounded-full bg-sky-200 dark:bg-sky-900/30">
+                            <User className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400" />
+                        </div>
                         <div
                             className={classNames(
-                                "px-1 pb-3 pt-2 [.docked_&]:px-0 [.docked_&]:py-3",
+                                "px-1 pb-3 pt-2 ps-10 [.docked_&]:px-0 [.docked_&]:py-3 w-full",
                             )}
                         >
-                            <div className="font-semibold">{t("You")}</div>
                             <pre className="chat-message-user">
                                 {message.payload}
                             </pre>

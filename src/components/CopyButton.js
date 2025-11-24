@@ -1,16 +1,14 @@
 import { useEffect, useState } from "react";
-import { useTranslation } from "react-i18next";
-import { Copy } from "lucide-react";
+import { Copy, Check } from "lucide-react";
 import classNames from "../../app/utils/class-names";
 import { marked } from "marked";
 
 function CopyButton({ item, className = "absolute top-1 end-1 " }) {
     const [copied, setCopied] = useState(false);
-    const { t } = useTranslation();
 
     useEffect(() => {
         if (copied) {
-            setTimeout(() => setCopied(false), 3000);
+            setTimeout(() => setCopied(false), 2000);
         }
     }, [copied]);
 
@@ -43,18 +41,11 @@ function CopyButton({ item, className = "absolute top-1 end-1 " }) {
             className={classNames(className, "text-gray-500")}
             onClick={() => copyFormattedText(item)}
         >
-            <div className="relative">
-                {copied && (
-                    <div
-                        className={
-                            "copy-notification text-xs whitespace-nowrap absolute top-0 end-0 bg-gray-800/90 dark:bg-gray-700/90 text-white px-2 py-1.5 rounded"
-                        }
-                    >
-                        {t("Copied to clipboard")}
-                    </div>
-                )}
-                <Copy />
-            </div>
+            {copied ? (
+                <Check className="w-3.5 h-3.5 text-green-600 dark:text-green-400" />
+            ) : (
+                <Copy className="w-3.5 h-3.5" />
+            )}
         </button>
     );
 }

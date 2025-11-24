@@ -659,6 +659,7 @@
     "Delete this chat?": "حذف هذه الدردشة؟",
     "This will permanently delete this chat and all its messages. This action cannot be undone. Continue?": "سيتم حذف هذه الدردشة وجميع رسائلها بشكل دائم. لا يمكن التراجع عن هذا الإجراء. هل تريد المتابعة؟",
     "Select entity": "اختيار الكيان",
+    "Chatting with": "الدردشة مع",
     "Agent": "الوكيل",
     "Coding task": "مهمة ترميز",
     "Thinking...": "يتم التفكير...",
@@ -904,5 +905,10 @@
     "Copying...": "جاري النسخ...",
     "Copy of": "نسخة من",
     "Copy of chat": "نسخة من الدردشة",
-    "File no longer available: {{filename}}": "الملف لم يعد متاحًا: {{filename}}"
+    "File no longer available: {{filename}}": "الملف لم يعد متاحًا: {{filename}}",
+    "File deleted": "تم حذف الملف",
+    "File deleted: {{filename}}": "تم حذف الملف: {{filename}}",
+    "Image": "صورة",
+    "PDF": "PDF",
+    "Document": "مستند"
 }

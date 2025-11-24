@@ -253,11 +253,11 @@ export default function Layout({ children }) {
                     <div className="relative flex-col">
                         <ProgressProvider>
                             <main
-                                className="p-2 bg-slate-50 dark:bg-gray-900 flex gap-2"
+                                className={`p-2 bg-slate-50 dark:bg-gray-900 flex ${showChatbox ? 'gap-2' : ''}`}
                                 ref={contentRef}
                             >
                                 <div
-                                    className={`grow bg-white dark:bg-gray-800 dark:border-gray-700 rounded-md border p-3 lg:p-4 lg:pb-3 overflow-auto`}
+                                    className={`${showChatbox ? 'grow' : 'w-full'} bg-white dark:bg-gray-800 dark:border-gray-700 rounded-md border p-3 lg:p-4 lg:pb-3 overflow-auto`}
                                     style={{
                                         height: "calc((var(--vh, 1vh) * 100) - 105px)",
                                     }}

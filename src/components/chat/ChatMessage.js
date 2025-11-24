@@ -2,6 +2,7 @@
 
 import CodeBlock from "../code/CodeBlock";
 import React from "react";
+import i18next from "i18next";
 import TextWithCitations from "./TextWithCitations";
 import InlineEmotionDisplay from "./InlineEmotionDisplay";
 import Markdown from "react-markdown";
@@ -12,7 +13,7 @@ import rehypeRaw from "rehype-raw";
 import remarkMath from "remark-math";
 import "katex/dist/katex.min.css";
 import { visit } from "unist-util-visit";
-import ChatImage from "../images/ChatImage";
+import MediaCard from "./MediaCard";
 import MermaidDiagram from "../code/MermaidDiagram";
 import MermaidPlaceholder from "../code/MermaidPlaceholder";
 
@@ -79,6 +80,10 @@ function convertMessageToMarkdown(message, finalRender = true, onLoad = null) {
     const { payload, tool } = message;
     const citations = tool ? JSON.parse(tool).citations : null;
     let componentIndex = 0; // Counter for code blocks
+    
+    // Get translation function for use in components
+    // Use i18next directly since we can't use hooks in the component mapping
+    const t = i18next.t.bind(i18next);
 
     if (typeof payload !== "string") {
         return payload;
@@ -112,7 +117,36 @@ function convertMessageToMarkdown(message, finalRender = true, onLoad = null) {
         p({ node, ...rest }) {
             return <div className="mb-1" {...rest} />;
         },
-        img: ChatImage,
+        img: ({ src, alt, ...props }) => {
+            // Extract filename from src or use alt text
+            let filename = alt || "Image";
+            try {
+                if (src && !filename.includes("Image")) {
+                    // Try to extract filename from URL
+                    const url = new URL(src);
+                    const pathname = url.pathname;
+                    const urlFilename = pathname.split("/").pop();
+                    if (urlFilename && urlFilename.includes(".")) {
+                        filename = decodeURIComponent(urlFilename);
+                    } else if (alt) {
+                        filename = alt;
+                    }
+                }
+            } catch (e) {
+                // If URL parsing fails, use alt or default
+                filename = alt || "Image";
+            }
+            
+            return (
+                <MediaCard
+                    type="image"
+                    src={src}
+                    filename={filename}
+                    className="my-2"
+                    t={t}
+                />
+            );
+        },
         cd_inline_emotion({ children, emotion }) {
             return (
                 <InlineEmotionDisplay emotion={emotion}>

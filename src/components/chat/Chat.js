@@ -13,15 +13,8 @@ import {
 import { useContext, useState, useEffect, useRef, useMemo } from "react";
 import { AuthContext } from "../../App";
 import { useParams, useRouter } from "next/navigation";
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from "@/components/ui/select";
 import EntityIcon from "./EntityIcon";
-import { Trash2, Check, Download, Users, Copy, Info } from "lucide-react";
+import { Trash2, Check, Download, Users, Copy, Info, ChevronDown } from "lucide-react";
 import { useEntities } from "../../hooks/useEntities";
 import {
     AlertDialog,
@@ -274,7 +267,116 @@ function Chat({ viewingChat = null }) {
     return (
         <div className="flex flex-col gap-3 h-full">
             <div className="flex justify-between items-center flex-wrap gap-2">
+                <div className="flex gap-2 items-center flex-wrap">
+                    {user?.useCustomEntities ? (
+                        <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                                <button
+                                    disabled={readOnly}
+                                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md transition-colors border bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 border-gray-200 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-white dark:disabled:hover:bg-gray-700 text-xs`}
+                                    aria-label={t("Select entity")}
+                                >
+                                    <div className="flex items-center gap-2">
+                                        {selectedEntityId ? (
+                                            <>
+                                                <span className="hidden sm:inline">
+                                                    {t("Chatting with")}{" "}
+                                                    {t(
+                                                        entities.find(
+                                                            (e) =>
+                                                                e.id ===
+                                                                selectedEntityId,
+                                                        )?.name,
+                                                    )}
+                                                </span>
+                                                <span className="sm:hidden">
+                                                    {t(
+                                                        entities.find(
+                                                            (e) =>
+                                                                e.id ===
+                                                                selectedEntityId,
+                                                        )?.name,
+                                                    )}
+                                                </span>
+                                                <EntityIcon
+                                                    entity={entities.find(
+                                                        (e) =>
+                                                            e.id ===
+                                                            selectedEntityId,
+                                                    )}
+                                                    size="xs"
+                                                />
+                                            </>
+                                        ) : (
+                                            <span>{t("Select entity")}</span>
+                                        )}
+                                    </div>
+                                    <ChevronDown className="w-3.5 h-3.5" />
+                                </button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent
+                                align={isRTL ? "start" : "end"}
+                            >
+                                {entities.map((entity) => (
+                                    <DropdownMenuItem
+                                        key={entity.id}
+                                        onClick={() => handleEntityChange(entity.id)}
+                                        className="flex items-center gap-2 text-sm focus:bg-gray-100 dark:focus:bg-gray-700 dark:focus:text-gray-100"
+                                    >
+                                        <EntityIcon
+                                            entity={entity}
+                                            size="xs"
+                                        />
+                                        {t(entity.name)}
+                                    </DropdownMenuItem>
+                                ))}
+                            </DropdownMenuContent>
+                        </DropdownMenu>
+                    ) : (
+                        <button
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-md transition-colors border bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 border-gray-200 dark:border-gray-600 text-xs cursor-default"
+                            aria-label={t("Select entity")}
+                            tabIndex={-1}
+                        >
+                            <div className="flex items-center gap-2">
+                                {selectedEntityId ? (
+                                    <>
+                                        <span className="hidden sm:inline">
+                                            {t("Chatting with")}{" "}
+                                            {t(
+                                                entities.find(
+                                                    (e) =>
+                                                        e.id ===
+                                                        selectedEntityId,
+                                                )?.name,
+                                            )}
+                                        </span>
+                                        <span className="sm:hidden">
+                                            {t(
+                                                entities.find(
+                                                    (e) =>
+                                                        e.id ===
+                                                        selectedEntityId,
+                                                )?.name,
+                                            )}
+                                        </span>
+                                        <EntityIcon
+                                            entity={entities.find(
+                                                (e) =>
+                                                    e.id ===
+                                                    selectedEntityId,
+                                            )}
+                                            size="xs"
+                                        />
+                                    </>
+                                ) : (
+                                    <span>{t("Select entity")}</span>
+                                )}
+                            </div>
+                        </button>
+                    )}
                 <ChatTopMenuDynamic readOnly={readOnly || !!publicChatOwner} />
+                </div>
                 {publicChatOwner && (
                     <button
                         onClick={() => setShowSharedByDialog(true)}
@@ -286,64 +388,6 @@ function Chat({ viewingChat = null }) {
                     </button>
                 )}
                 <div className="flex gap-2 items-center flex-wrap">
-                    {user?.useCustomEntities && (
-                        <Select
-                            value={selectedEntityId || defaultAiName}
-                            onValueChange={handleEntityChange}
-                            disabled={readOnly}
-                            dir={isRTL ? "rtl" : "ltr"}
-                        >
-                            <SelectTrigger
-                                className={`w-auto text-sm h-7 lb-outline ${readOnly ? "cursor-not-allowed opacity-50" : ""}`}
-                                aria-label={t("Select entity")}
-                            >
-                                <div className="flex items-center gap-2 pe-1">
-                                    {selectedEntityId ? (
-                                        <>
-                                            <EntityIcon
-                                                entity={entities.find(
-                                                    (e) =>
-                                                        e.id ===
-                                                        selectedEntityId,
-                                                )}
-                                                size="xs"
-                                            />
-                                            <span className="hidden sm:inline">
-                                                {t(
-                                                    entities.find(
-                                                        (e) =>
-                                                            e.id ===
-                                                            selectedEntityId,
-                                                    )?.name,
-                                                )}
-                                            </span>
-                                        </>
-                                    ) : (
-                                        <SelectValue
-                                            placeholder={t("Select entity")}
-                                        />
-                                    )}
-                                </div>
-                            </SelectTrigger>
-                            <SelectContent>
-                                {entities.map((entity) => (
-                                    <SelectItem
-                                        className="text-sm focus:bg-gray-100 dark:focus:bg-gray-700 dark:focus:text-gray-100"
-                                        key={entity.id}
-                                        value={entity.id}
-                                    >
-                                        <div className="flex items-center gap-2">
-                                            <EntityIcon
-                                                entity={entity}
-                                                size="xs"
-                                            />
-                                            {t(entity.name)}
-                                        </div>
-                                    </SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                    )}
                     <button
                         disabled={!chat?.messages?.length}
                         className="flex items-center gap-1 px-3 py-1.5 rounded-md transition-colors border bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 border-gray-200 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-600 text-xs disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-white dark:disabled:hover:bg-gray-700"
@@ -367,7 +411,7 @@ function Chat({ viewingChat = null }) {
                                         <TooltipTrigger asChild>
                                             <DropdownMenuTrigger asChild>
                                                 <button
-                                                    className={`flex items-center justify-center px-3 py-1.5 rounded-md transition-colors border text-xs w-20 ${
+                                                    className={`flex items-center justify-center px-3 py-1.5 rounded-md transition-colors border text-xs sm:w-20 ${
                                                         copyStatus
                                                             ? "bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800 text-green-700 dark:text-green-400"
                                                             : "gap-1 bg-sky-50 dark:bg-sky-900/20 border-sky-200 dark:border-sky-800 text-sky-600 dark:text-sky-400 hover:bg-sky-100 dark:hover:bg-sky-900/30"

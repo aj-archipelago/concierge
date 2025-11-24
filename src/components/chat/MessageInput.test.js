@@ -129,13 +129,13 @@ jest.mock("lucide-react", () => ({
             Send Icon
         </div>
     ),
-    FilePlus: (props) => (
+    Paperclip: (props) => (
         <div
             data-testid="file-plus-icon"
             aria-label="file-upload"
             className={props.className}
         >
-            File Plus Icon
+            Paperclip Icon
         </div>
     ),
     XCircle: () => (

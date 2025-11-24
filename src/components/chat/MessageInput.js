@@ -2,7 +2,7 @@ import React from "react";
 import "highlight.js/styles/github.css";
 import dynamic from "next/dynamic";
 import { useContext, useEffect, useState } from "react";
-import { FilePlus, XCircle, StopCircle, Send } from "lucide-react";
+import { Paperclip, XCircle, StopCircle, Send } from "lucide-react";
 import TextareaAutosize from "react-textarea-autosize";
 import { useTranslation } from "react-i18next";
 import { useGetActiveChatId } from "../../../app/queries/chats";
@@ -215,7 +215,7 @@ function MessageInput({
                                               : t("Upload files")
                                     }
                                 >
-                                    <FilePlus
+                                    <Paperclip
                                         className={`w-5 h-5 ${
                                             activeChatId && !viewingReadOnlyChat
                                                 ? "text-gray-500"
