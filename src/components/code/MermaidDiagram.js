@@ -42,6 +42,9 @@ const MermaidDiagram = ({ code, onLoad }) => {
     const [pan, setPan] = useState({ x: 0, y: 0 });
     const [isDragging, setIsDragging] = useState(false);
     const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+    const [isPanning, setIsPanning] = useState(false);
+    const touchStartPosRef = useRef({ x: 0, y: 0 });
+    const pinchStartRef = useRef({ distance: 0, center: { x: 0, y: 0 } });
     const zoomIntervalRef = useRef(null);
     const svgElementRef = useRef(null);
 
@@ -227,46 +230,135 @@ const MermaidDiagram = ({ code, onLoad }) => {
         }
     }, [isDragging]);
 
-    // Handle touch drag for mobile
+    // Calculate distance between two touches
+    const getTouchDistance = (touch1, touch2) => {
+        const dx = touch2.clientX - touch1.clientX;
+        const dy = touch2.clientY - touch1.clientY;
+        return Math.sqrt(dx * dx + dy * dy);
+    };
+
+    // Calculate center point between two touches
+    const getTouchCenter = (touch1, touch2) => {
+        return {
+            x: (touch1.clientX + touch2.clientX) / 2,
+            y: (touch1.clientY + touch2.clientY) / 2,
+        };
+    };
+
+    // Handle touch for mobile - pinch to zoom and natural panning
     const handleTouchStart = useCallback(
         (e) => {
-            if (e.touches.length !== 1 || !svgWrapperRef.current) return;
-            e.preventDefault();
-            const rect = svgWrapperRef.current.getBoundingClientRect();
-            setIsDragging(true);
-            setDragStart({
-                x: e.touches[0].clientX - rect.left - pan.x,
-                y: e.touches[0].clientY - rect.top - pan.y,
-            });
+            if (!svgWrapperRef.current || !svgElementRef.current) return;
+
+            if (e.touches.length === 2) {
+                // Pinch to zoom
+                e.preventDefault();
+                const touch1 = e.touches[0];
+                const touch2 = e.touches[1];
+                const distance = getTouchDistance(touch1, touch2);
+                const center = getTouchCenter(touch1, touch2);
+                const rect = svgWrapperRef.current.getBoundingClientRect();
+
+                pinchStartRef.current = {
+                    distance,
+                    center: {
+                        x: center.x - rect.left,
+                        y: center.y - rect.top,
+                    },
+                    initialZoom: zoom,
+                    initialPan: { ...pan },
+                };
+            } else if (e.touches.length === 1 && zoom > 1) {
+                // Single touch panning (only when zoomed in)
+                const rect = svgWrapperRef.current.getBoundingClientRect();
+                const touch = e.touches[0];
+                touchStartPosRef.current = {
+                    x: touch.clientX,
+                    y: touch.clientY,
+                };
+                setIsDragging(true);
+                setIsPanning(false);
+                setDragStart({
+                    x: touch.clientX - rect.left - pan.x,
+                    y: touch.clientY - rect.top - pan.y,
+                });
+            }
+            // At default zoom with single touch, don't interfere - allow normal scroll
         },
-        [pan],
+        [pan, zoom],
     );
 
     const handleTouchMove = useCallback(
         (e) => {
-            if (
-                !isDragging ||
-                e.touches.length !== 1 ||
-                !svgWrapperRef.current ||
-                !svgElementRef.current
-            )
-                return;
-            e.preventDefault();
-            const rect = svgWrapperRef.current.getBoundingClientRect();
-            const newPan = {
-                x: e.touches[0].clientX - rect.left - dragStart.x,
-                y: e.touches[0].clientY - rect.top - dragStart.y,
-            };
-            // Update state for persistence
-            setPan(newPan);
-            // Direct DOM update for immediate feedback (no React render delay)
-            svgElementRef.current.style.transform = `translate(${newPan.x}px, ${newPan.y}px) scale(${zoom})`;
+            if (!svgWrapperRef.current || !svgElementRef.current) return;
+
+            if (e.touches.length === 2 && pinchStartRef.current.distance > 0) {
+                // Pinch to zoom
+                e.preventDefault();
+                const touch1 = e.touches[0];
+                const touch2 = e.touches[1];
+                const currentDistance = getTouchDistance(touch1, touch2);
+                const scale = currentDistance / pinchStartRef.current.distance;
+                const newZoom = Math.max(
+                    0.25,
+                    Math.min(8, pinchStartRef.current.initialZoom * scale),
+                );
+
+                // Calculate pan to keep pinch center point fixed
+                const rect = svgWrapperRef.current.getBoundingClientRect();
+                const currentCenter = getTouchCenter(touch1, touch2);
+                const centerX = currentCenter.x - rect.left;
+                const centerY = currentCenter.y - rect.top;
+
+                const newPan = {
+                    x:
+                        centerX -
+                        (centerX - pinchStartRef.current.initialPan.x) *
+                            (newZoom / pinchStartRef.current.initialZoom),
+                    y:
+                        centerY -
+                        (centerY - pinchStartRef.current.initialPan.y) *
+                            (newZoom / pinchStartRef.current.initialZoom),
+                };
+
+                setZoom(newZoom);
+                setPan(newPan);
+                svgElementRef.current.style.transform = `translate(${newPan.x}px, ${newPan.y}px) scale(${newZoom})`;
+            } else if (e.touches.length === 1 && isDragging && zoom > 1) {
+                // Single touch panning (only when zoomed in)
+                const touch = e.touches[0];
+                const deltaX = Math.abs(
+                    touch.clientX - touchStartPosRef.current.x,
+                );
+                const deltaY = Math.abs(
+                    touch.clientY - touchStartPosRef.current.y,
+                );
+                const moveThreshold = 10; // pixels
+
+                // If we've moved enough, we're panning - block scroll
+                if (deltaX > moveThreshold || deltaY > moveThreshold) {
+                    e.preventDefault(); // Block scroll when panning
+                    if (!isPanning) {
+                        setIsPanning(true);
+                    }
+
+                    const rect = svgWrapperRef.current.getBoundingClientRect();
+                    const newPan = {
+                        x: touch.clientX - rect.left - dragStart.x,
+                        y: touch.clientY - rect.top - dragStart.y,
+                    };
+                    setPan(newPan);
+                    svgElementRef.current.style.transform = `translate(${newPan.x}px, ${newPan.y}px) scale(${zoom})`;
+                }
+            }
         },
-        [isDragging, dragStart, zoom],
+        [isDragging, dragStart, zoom, isPanning],
     );
 
     const handleTouchEnd = useCallback(() => {
         setIsDragging(false);
+        setIsPanning(false);
+        pinchStartRef.current = { distance: 0, center: { x: 0, y: 0 } };
     }, []);
 
     // Continuous zoom on button hold
@@ -364,11 +456,11 @@ const MermaidDiagram = ({ code, onLoad }) => {
                 </div>
             ) : (
                 <div
-                    className="mermaid-diagram-container relative group my-4 rounded-lg shadow-sm overflow-hidden"
+                    className="mermaid-diagram-container relative group my-3 rounded-lg shadow-sm overflow-hidden"
                     style={{
                         background: theme === "dark" ? "#222" : "#fff",
                         width: "100%",
-                        paddingLeft: "1rem",
+                        paddingLeft: "0.75rem",
                     }}
                 >
                     {renderedSvg && (
@@ -378,11 +470,15 @@ const MermaidDiagram = ({ code, onLoad }) => {
                                 className="mermaid-svg-wrapper relative overflow-auto flex items-center justify-center select-none"
                                 style={{
                                     width: "100%",
-                                    minHeight: "400px",
-                                    maxHeight: "600px",
+                                    minHeight: "300px",
+                                    maxHeight: "500px",
                                     cursor: isDragging ? "grabbing" : "grab",
                                     userSelect: "none",
                                     WebkitUserSelect: "none",
+                                    touchAction:
+                                        zoom > 1
+                                            ? "none"
+                                            : "pan-x pan-y pinch-zoom",
                                 }}
                                 onMouseDown={handleMouseDown}
                                 onMouseMove={handleMouseMove}
@@ -392,33 +488,33 @@ const MermaidDiagram = ({ code, onLoad }) => {
                                 onTouchMove={handleTouchMove}
                                 onTouchEnd={handleTouchEnd}
                             />
-                            <div className="absolute top-2 right-2 flex flex-col gap-2 opacity-0 group-hover:opacity-100 transition-opacity z-10">
+                            <div className="absolute top-1/2 -translate-y-1/2 right-1.5 flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity z-10">
                                 <button
                                     type="button"
                                     onMouseDown={handleZoomInMouseDown}
                                     onMouseUp={handleZoomMouseUp}
                                     onMouseLeave={handleZoomMouseUp}
-                                    className="p-2 bg-white dark:bg-gray-800 rounded-full shadow-lg hover:bg-gray-100 dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-700"
+                                    className="p-1.5 bg-white dark:bg-gray-800 rounded-full shadow-lg hover:bg-gray-100 dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-700"
                                     title="Zoom in (hold to zoom continuously)"
                                     aria-label="Zoom in"
                                 >
-                                    <Plus className="w-4 h-4 text-gray-700 dark:text-gray-300" />
+                                    <Plus className="w-3.5 h-3.5 text-gray-700 dark:text-gray-300" />
                                 </button>
                                 <button
                                     type="button"
                                     onMouseDown={handleZoomOutMouseDown}
                                     onMouseUp={handleZoomMouseUp}
                                     onMouseLeave={handleZoomMouseUp}
-                                    className="p-2 bg-white dark:bg-gray-800 rounded-full shadow-lg hover:bg-gray-100 dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-700"
+                                    className="p-1.5 bg-white dark:bg-gray-800 rounded-full shadow-lg hover:bg-gray-100 dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-700"
                                     title="Zoom out (hold to zoom continuously)"
                                     aria-label="Zoom out"
                                 >
-                                    <Minus className="w-4 h-4 text-gray-700 dark:text-gray-300" />
+                                    <Minus className="w-3.5 h-3.5 text-gray-700 dark:text-gray-300" />
                                 </button>
                                 <button
                                     type="button"
                                     onClick={handleReset}
-                                    className="p-2 bg-white dark:bg-gray-800 rounded-full shadow-lg hover:bg-gray-100 dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-700 text-xs font-medium text-gray-700 dark:text-gray-300"
+                                    className="p-1.5 bg-white dark:bg-gray-800 rounded-full shadow-lg hover:bg-gray-100 dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-700 text-xs font-medium text-gray-700 dark:text-gray-300 leading-none"
                                     title="Reset zoom and pan"
                                     aria-label="Reset"
                                 >
@@ -433,11 +529,11 @@ const MermaidDiagram = ({ code, onLoad }) => {
                                             );
                                         }
                                     }}
-                                    className="p-2 bg-white dark:bg-gray-800 rounded-full shadow-lg hover:bg-gray-100 dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-700"
+                                    className="p-1.5 bg-white dark:bg-gray-800 rounded-full shadow-lg hover:bg-gray-100 dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-700"
                                     title="Copy SVG"
                                     aria-label="Copy SVG"
                                 >
-                                    <Copy className="w-4 h-4 text-gray-700 dark:text-gray-300" />
+                                    <Copy className="w-3.5 h-3.5 text-gray-700 dark:text-gray-300" />
                                 </button>
                             </div>
                         </>
