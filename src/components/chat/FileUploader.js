@@ -53,7 +53,8 @@ function FileThumbnail({ file, onRemove, onRetry }) {
 
     // Handle YouTube URLs using shared utilities
     const isYouTube = isYoutubeUrl(previewSrc);
-    const videoId = isYouTube && previewSrc ? extractYoutubeVideoId(previewSrc) : null;
+    const videoId =
+        isYouTube && previewSrc ? extractYoutubeVideoId(previewSrc) : null;
     const youtubeThumbnail = videoId
         ? getYoutubeThumbnailUrl(videoId, "maxresdefault")
         : null;

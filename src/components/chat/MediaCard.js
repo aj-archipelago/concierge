@@ -1,6 +1,12 @@
 "use client";
 
-import React, { useState, useRef, useEffect, useContext } from "react";
+import React, {
+    useState,
+    useRef,
+    useEffect,
+    useContext,
+    useCallback,
+} from "react";
 import { useTranslation } from "react-i18next";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Play, X, FileX, Download } from "lucide-react";
@@ -36,36 +42,41 @@ const MediaCard = React.memo(function MediaCard({
     const translationFn = typeof t === "function" ? t : tHook;
 
     // Helper function to check truncation for a ref
-    const checkTruncation = (ref, hasButton = false) => {
-        if (!ref.current) return;
-        const element = ref.current;
-        const container = element.parentElement;
-        if (!container) return;
-        
-        // Create a temporary element to measure full width
-        const tempElement = document.createElement("span");
-        tempElement.style.cssText = "position: absolute; visibility: hidden; white-space: nowrap; font-size: 0.75rem;";
-        tempElement.textContent = filename || "";
-        document.body.appendChild(tempElement);
-        const fullWidth = tempElement.offsetWidth;
-        document.body.removeChild(tempElement);
-        
-        // Get available width from container
-        const containerPadding = 24; // px-3 = 12px on each side
-        const buttonWidth = hasButton ? 32 : 0; // Approximate button width
-        const gap = hasButton ? 8 : 0; // gap-2 = 8px
-        const availableWidth = container.clientWidth - containerPadding - buttonWidth - gap;
-        
-        const isTruncated = fullWidth > availableWidth;
-        if (isTruncated) {
-            const distance = fullWidth - availableWidth;
-            setIsFilenameTruncated(true);
-            setScrollDistance(Math.max(0, distance));
-        } else {
-            setIsFilenameTruncated(false);
-            setScrollDistance(0);
-        }
-    };
+    const checkTruncation = useCallback(
+        (ref, hasButton = false) => {
+            if (!ref.current) return;
+            const element = ref.current;
+            const container = element.parentElement;
+            if (!container) return;
+
+            // Create a temporary element to measure full width
+            const tempElement = document.createElement("span");
+            tempElement.style.cssText =
+                "position: absolute; visibility: hidden; white-space: nowrap; font-size: 0.75rem;";
+            tempElement.textContent = filename || "";
+            document.body.appendChild(tempElement);
+            const fullWidth = tempElement.offsetWidth;
+            document.body.removeChild(tempElement);
+
+            // Get available width from container
+            const containerPadding = 24; // px-3 = 12px on each side
+            const buttonWidth = hasButton ? 32 : 0; // Approximate button width
+            const gap = hasButton ? 8 : 0; // gap-2 = 8px
+            const availableWidth =
+                container.clientWidth - containerPadding - buttonWidth - gap;
+
+            const isTruncated = fullWidth > availableWidth;
+            if (isTruncated) {
+                const distance = fullWidth - availableWidth;
+                setIsFilenameTruncated(true);
+                setScrollDistance(Math.max(0, distance));
+            } else {
+                setIsFilenameTruncated(false);
+                setScrollDistance(0);
+            }
+        },
+        [filename],
+    );
 
     // Check truncation for all possible refs
     useEffect(() => {
@@ -84,7 +95,7 @@ const MediaCard = React.memo(function MediaCard({
             }
         });
         return () => cancelAnimationFrame(rafId);
-    }, [filename, isDeleted]);
+    }, [filename, isDeleted, checkTruncation]);
 
     // Use shared file preview logic for file types
     const fileType = useFilePreview(
@@ -94,8 +105,7 @@ const MediaCard = React.memo(function MediaCard({
     );
 
     // Determine if file has a previewable preview (use explicit whitelist)
-    const hasFilePreview =
-        type === "file" && fileType.isPreviewable;
+    const hasFilePreview = type === "file" && fileType.isPreviewable;
 
     // Standard card width - consistent size for all cards
     const cardWidth = "w-[240px] [.docked_&]:w-[200px]";
@@ -399,18 +409,18 @@ const MediaCard = React.memo(function MediaCard({
                                                 ? "whitespace-nowrap inline-block group-hover:animate-scroll-text"
                                                 : "truncate block"
                                         }`}
-                                    style={
-                                        isFilenameTruncated
-                                            ? {
-                                                  "--scroll-distance": isRTL
-                                                      ? `${scrollDistance}px`
-                                                      : `-${scrollDistance}px`,
-                                              }
-                                            : {}
-                                    }
-                                >
-                                    {filename}
-                                </span>
+                                        style={
+                                            isFilenameTruncated
+                                                ? {
+                                                      "--scroll-distance": isRTL
+                                                          ? `${scrollDistance}px`
+                                                          : `-${scrollDistance}px`,
+                                                  }
+                                                : {}
+                                        }
+                                    >
+                                        {filename}
+                                    </span>
                                 </div>
                                 {onDeleteFile && (
                                     <button
@@ -448,18 +458,18 @@ const MediaCard = React.memo(function MediaCard({
                                                 ? "whitespace-nowrap inline-block group-hover:animate-scroll-text"
                                                 : "truncate block"
                                         }`}
-                                    style={
-                                        isFilenameTruncated
-                                            ? {
-                                                  "--scroll-distance": isRTL
-                                                      ? `${scrollDistance}px`
-                                                      : `-${scrollDistance}px`,
-                                              }
-                                            : {}
-                                    }
-                                >
-                                    {filename}
-                                </span>
+                                        style={
+                                            isFilenameTruncated
+                                                ? {
+                                                      "--scroll-distance": isRTL
+                                                          ? `${scrollDistance}px`
+                                                          : `-${scrollDistance}px`,
+                                                  }
+                                                : {}
+                                        }
+                                    >
+                                        {filename}
+                                    </span>
                                 </div>
                                 {onDeleteFile && (
                                     <button

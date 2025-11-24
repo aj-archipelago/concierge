@@ -108,8 +108,7 @@ export function useFilePreview(src, filename, mimeType = null) {
                     )
                   : false);
 
-        const isPreviewable =
-            isImage || isVideo || isPdf || isPreviewableText;
+        const isPreviewable = isImage || isVideo || isPdf || isPreviewableText;
 
         return {
             isImage,

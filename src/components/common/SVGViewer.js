@@ -200,8 +200,7 @@ const SVGViewer = ({
                 const touch1 = e.touches[0];
                 const touch2 = e.touches[1];
                 const currentDistance = getTouchDistance(touch1, touch2);
-                const scale =
-                    currentDistance / pinchStartRef.current.distance;
+                const scale = currentDistance / pinchStartRef.current.distance;
                 const newZoom = Math.max(
                     minZoom,
                     Math.min(
@@ -330,15 +329,12 @@ const SVGViewer = ({
         };
     }, []);
 
-    const handleReset = useCallback(
-        (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            setZoom(1);
-            setPan({ x: 0, y: 0 });
-        },
-        [],
-    );
+    const handleReset = useCallback((e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setZoom(1);
+        setPan({ x: 0, y: 0 });
+    }, []);
 
     const handleCopy = useCallback(() => {
         if (svgContent) {
@@ -365,8 +361,7 @@ const SVGViewer = ({
                     cursor: isDragging ? "grabbing" : "grab",
                     userSelect: "none",
                     WebkitUserSelect: "none",
-                    touchAction:
-                        zoom > 1 ? "none" : "pan-x pan-y pinch-zoom",
+                    touchAction: zoom > 1 ? "none" : "pan-x pan-y pinch-zoom",
                 }}
                 onMouseDown={handleMouseDown}
                 onMouseMove={handleMouseMove}
@@ -427,4 +422,3 @@ const SVGViewer = ({
 };
 
 export default SVGViewer;
-

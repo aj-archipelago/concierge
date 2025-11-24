@@ -107,12 +107,12 @@ const getYoutubeEmbedUrl = (url) => {
 /**
  * Determines if a message should cluster with the previous message.
  * Centralized logic for message grouping.
- * 
+ *
  * Rules:
  * - User messages NEVER cluster (always start a new group)
  * - Assistant messages ALWAYS cluster with preceding user messages
  * - Coding agent messages ALWAYS cluster with whatever precedes them
- * 
+ *
  * @param {Object} message - Current message
  * @param {Object|null} prevMessage - Previous message
  * @param {Object|null} nextMessage - Next message (unused but kept for API consistency)
@@ -412,10 +412,14 @@ const MessageListContent = React.memo(function MessageListContent({
             prevMessage,
             nextMessage,
         );
-        
+
         // Check if next message will cluster with this one (to control spacing)
         const nextWillCluster = nextMessage
-            ? shouldClusterWithPrevious(nextMessage, newMessage, nextNextMessage)
+            ? shouldClusterWithPrevious(
+                  nextMessage,
+                  newMessage,
+                  nextNextMessage,
+              )
             : false;
         // User messages always have reduced bottom margin (assistant/streaming always cluster with them)
         const isUserMessage = newMessage.sender !== "labeeb";
@@ -885,35 +889,45 @@ const MessageList = React.memo(
                             t={t}
                             isStreaming={isStreaming}
                         />
-                        {isStreaming && (() => {
-                            // Streaming messages should always cluster with previous user message
-                            const lastMessage = messages.length > 0 ? messages[messages.length - 1] : null;
-                            const prevIsUser = lastMessage && lastMessage.sender !== "labeeb";
-                            const shouldCluster = prevIsUser;
-                            
-                            // Apply clustering spacing
-                            const streamingClasses = [];
-                            if (shouldCluster) {
-                                streamingClasses.push("mt-0");
-                            }
-                            streamingClasses.push("mb-6"); // Normal bottom margin for streaming
-                            
-                            return (
-                                <div className={classNames(...streamingClasses)}>
-                                    <StreamingMessage
-                                        content={streamingContent}
-                                        ephemeralContent={ephemeralContent}
-                                        toolCalls={toolCalls}
-                                        bot={bot}
-                                        thinkingDuration={thinkingDuration}
-                                        isThinking={isThinking}
-                                        selectedEntityId={selectedEntityId}
-                                        entities={entities}
-                                        entityIconSize={entityIconSize}
-                                    />
-                                </div>
-                            );
-                        })()}
+                        {isStreaming &&
+                            (() => {
+                                // Streaming messages should always cluster with previous user message
+                                const lastMessage =
+                                    messages.length > 0
+                                        ? messages[messages.length - 1]
+                                        : null;
+                                const prevIsUser =
+                                    lastMessage &&
+                                    lastMessage.sender !== "labeeb";
+                                const shouldCluster = prevIsUser;
+
+                                // Apply clustering spacing
+                                const streamingClasses = [];
+                                if (shouldCluster) {
+                                    streamingClasses.push("mt-0");
+                                }
+                                streamingClasses.push("mb-6"); // Normal bottom margin for streaming
+
+                                return (
+                                    <div
+                                        className={classNames(
+                                            ...streamingClasses,
+                                        )}
+                                    >
+                                        <StreamingMessage
+                                            content={streamingContent}
+                                            ephemeralContent={ephemeralContent}
+                                            toolCalls={toolCalls}
+                                            bot={bot}
+                                            thinkingDuration={thinkingDuration}
+                                            isThinking={isThinking}
+                                            selectedEntityId={selectedEntityId}
+                                            entities={entities}
+                                            entityIconSize={entityIconSize}
+                                        />
+                                    </div>
+                                );
+                            })()}
                         {loading &&
                             !isStreaming &&
                             renderMessage({
