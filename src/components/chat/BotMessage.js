@@ -470,16 +470,31 @@ const BotMessage = ({
     entityIconSize,
     onLoad,
     onTaskStatusUpdate,
+    shouldClusterWithPrevious = false,
+    shouldReduceBottomMargin = false,
 }) => {
     const { t } = useTranslation();
     const { data: serverTask } = useTask(message.taskId);
     const task = message.task || serverTask;
 
+    // Check if this is a coding agent message (has taskId)
+    const isCodingAgentMessage = !!message.taskId;
+
+    // Determine margin classes
+    let marginClass = "mb-6";
+    if (isCodingAgentMessage && shouldClusterWithPrevious) {
+        marginClass = "mb-1 mt-0";
+    } else if (shouldReduceBottomMargin) {
+        marginClass = "mb-1";
+    }
 
     return (
         <div
             key={message.id}
-            className="flex bg-white dark:bg-gray-800 ps-1 pt-1 relative group rounded-lg mb-6 border border-gray-300 dark:border-gray-600"
+            className={classNames(
+                "flex bg-white dark:bg-gray-800 ps-1 pt-1 relative group rounded-lg border border-gray-300 dark:border-gray-600",
+                marginClass
+            )}
         >
             <div className="flex items-center gap-2 absolute top-3 end-3 z-10">
                 <CopyButton

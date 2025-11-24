@@ -350,9 +350,22 @@ const MessageListContent = React.memo(function MessageListContent({
             display = newMessage.payload;
         }
 
+        // Check if this is a coding agent message (has taskId) following an assistant message
+        const prevMessage = index > 0 ? messages[index - 1] : null;
+        const nextMessage = index < messages.length - 1 ? messages[index + 1] : null;
+        const isCodingAgentMessage = !!newMessage.taskId;
+        const prevIsAssistant = prevMessage?.sender === "labeeb";
+        const nextIsCodingAgent = nextMessage && !!nextMessage.taskId;
+        const shouldClusterWithPrevious = isCodingAgentMessage && prevIsAssistant;
+        const shouldReduceBottomMargin = newMessage.sender === "labeeb" && nextIsCodingAgent;
+
         return (
-            <div key={newMessage.id} id={`message-${newMessage.id}`}>
-                {renderMessage({ ...newMessage, payload: display })}
+            <div 
+                key={newMessage.id} 
+                id={`message-${newMessage.id}`}
+                className={shouldClusterWithPrevious ? "mt-0" : ""}
+            >
+                {renderMessage({ ...newMessage, payload: display, shouldClusterWithPrevious, shouldReduceBottomMargin })}
             </div>
         );
     });
@@ -688,6 +701,8 @@ const MessageList = React.memo(
                             entityIconClasses={classNames(basis)}
                             onLoad={() => handleMessageLoad(message.id)}
                             onTaskStatusUpdate={handleTaskStatusUpdate}
+                            shouldClusterWithPrevious={message.shouldClusterWithPrevious}
+                            shouldReduceBottomMargin={message.shouldReduceBottomMargin}
                         />
                     );
                 }
