@@ -92,8 +92,9 @@ export function renderFilePreview({
     t = null,
 }) {
     const { isImage, isVideo, isAudio, isDoc, isPdf } = fileType;
-    const { t: tHook } = useTranslation();
-    const translationFn = t || tHook;
+    // Note: t should be passed from the component that calls useTranslation()
+    // This function cannot use hooks directly
+    const translationFn = t || ((key) => key);
 
     if (!src) return null;
 

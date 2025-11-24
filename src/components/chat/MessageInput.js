@@ -22,7 +22,7 @@ import {
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
-const DynamicFilepond = dynamic(() => import("./MyFilePond"), {
+const DynamicFileUploader = dynamic(() => import("./FileUploader"), {
     ssr: false,
 });
 
@@ -170,7 +170,7 @@ function MessageInput({
     return (
         <div>
             {showFileUpload && (
-                <DynamicFilepond
+                <DynamicFileUploader
                     addUrl={addUrl}
                     files={files}
                     setFiles={setFiles}
@@ -178,7 +178,7 @@ function MessageInput({
                     setUrlsData={setUrlsData}
                 />
             )}
-            <div className="rounded-md border border-gray-200 dark:border-gray-600 mt-3">
+            <div className="rounded-md border border-gray-200 dark:border-gray-600 mt-1">
                 <form
                     onSubmit={handleFormSubmit}
                     className="flex items-end rounded-md bg-white dark:bg-gray-800"
@@ -297,7 +297,7 @@ function MessageInput({
                                 }
 
                                 const items = e.clipboardData.items;
-                                let hasActualFileProcessed = false; // True if a file is successfully added to FilePond
+                                let hasActualFileProcessed = false; // True if a file is successfully added to FileUploader
                                 let hasPlainText = false;
                                 let hasHtmlContent = false;
                                 let potentialHtmlImageSrc = null;
@@ -387,16 +387,20 @@ function MessageInput({
                                     if (!showFileUpload) {
                                         setShowFileUpload(true);
                                     }
-                                    const pondFile = {
+                                    const uploadFile = {
+                                        id: `file-${Date.now()}-${Math.random()}`,
                                         source: fileToProcess,
-                                        options: {
-                                            type: "local",
-                                            file: fileToProcess,
-                                        },
+                                        file: fileToProcess,
+                                        filename: fileToProcess.name,
+                                        name: fileToProcess.name,
+                                        type: fileToProcess.type,
+                                        size: fileToProcess.size,
+                                        status: "pending",
+                                        progress: 0,
                                     };
                                     setFiles((prevFiles) => [
                                         ...prevFiles,
-                                        pondFile,
+                                        uploadFile,
                                     ]);
                                     hasActualFileProcessed = true;
                                 }
@@ -425,11 +429,15 @@ function MessageInput({
                                             setFiles((prevFiles) => [
                                                 ...prevFiles,
                                                 {
+                                                    id: `file-${Date.now()}-${Math.random()}`,
                                                     source: file,
-                                                    options: {
-                                                        type: "local",
-                                                        file: file,
-                                                    },
+                                                    file: file,
+                                                    filename: file.name,
+                                                    name: file.name,
+                                                    type: file.type,
+                                                    size: file.size,
+                                                    status: "pending",
+                                                    progress: 0,
                                                 },
                                             ]);
                                             hasActualFileProcessed = true;
@@ -470,11 +478,15 @@ function MessageInput({
                                             setFiles((prevFiles) => [
                                                 ...prevFiles,
                                                 {
+                                                    id: `file-${Date.now()}-${Math.random()}`,
                                                     source: file,
-                                                    options: {
-                                                        type: "local",
-                                                        file: file,
-                                                    },
+                                                    file: file,
+                                                    filename: file.name,
+                                                    name: file.name,
+                                                    type: file.type,
+                                                    size: file.size,
+                                                    status: "pending",
+                                                    progress: 0,
                                                 },
                                             ]);
                                             hasActualFileProcessed = true;
