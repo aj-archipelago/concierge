@@ -17,8 +17,13 @@ import {
     getFilename,
     getVideoDuration,
     getFileIcon,
+    getExtension,
 } from "../../utils/mediaUtils";
-import { isYoutubeUrl } from "../../utils/urlUtils";
+import {
+    isYoutubeUrl,
+    extractYoutubeVideoId,
+    getYoutubeThumbnailUrl,
+} from "../../utils/urlUtils";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useFilePreview, renderFilePreview } from "./useFilePreview";
@@ -46,32 +51,18 @@ function FileThumbnail({ file, onRemove, onRetry }) {
         (file.source?.url ? file.source.url : null) ||
         (file.serverId ? file.serverId : null);
 
-    // Handle YouTube URLs
+    // Handle YouTube URLs using shared utilities
     const isYouTube = isYoutubeUrl(previewSrc);
-    let youtubeThumbnail = null;
-    if (isYouTube && previewSrc) {
-        const videoIdMatch = previewSrc.match(
-            /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([^?&]+)/,
-        );
-        const videoId = videoIdMatch ? videoIdMatch[1] : null;
-        if (videoId) {
-            youtubeThumbnail = `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`;
-        }
-    }
+    const videoId = isYouTube && previewSrc ? extractYoutubeVideoId(previewSrc) : null;
+    const youtubeThumbnail = videoId
+        ? getYoutubeThumbnailUrl(videoId, "maxresdefault")
+        : null;
 
-    // Use the same file preview logic as MediaCard
+    // Use the same file preview logic as MediaCard (uses explicit whitelist)
     const fileType = useFilePreview(previewSrc, displayName, file.type);
 
-    // CSV files don't render well in iframes, exclude them from preview
-    const isCsv =
-        fileType.extension === ".csv" ||
-        displayName?.toLowerCase().endsWith(".csv");
-
-    const hasPreview =
-        fileType.isImage ||
-        fileType.isVideo ||
-        fileType.isPdf ||
-        (fileType.isDoc && !isCsv);
+    // Use explicit previewability flag (CSV and other non-whitelisted types are excluded)
+    const hasPreview = fileType.isPreviewable;
     const Icon = getFileIcon(displayName);
 
     const getStatusIcon = () => {
@@ -112,12 +103,12 @@ function FileThumbnail({ file, onRemove, onRetry }) {
                         alt="YouTube thumbnail"
                         className="w-full h-full object-cover"
                         onError={(e) => {
-                            if (youtubeThumbnail.includes("maxresdefault")) {
-                                const videoId =
-                                    youtubeThumbnail.match(/vi\/([^/]+)/)?.[1];
-                                if (videoId) {
-                                    e.target.src = `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`;
-                                }
+                            // Fallback to lower quality thumbnail if maxresdefault fails
+                            if (videoId) {
+                                e.target.src = getYoutubeThumbnailUrl(
+                                    videoId,
+                                    "hqdefault",
+                                );
                             }
                         }}
                     />
@@ -149,14 +140,30 @@ function FileThumbnail({ file, onRemove, onRetry }) {
             ) : (
                 <div className="w-full h-full flex flex-col items-center justify-center p-2 bg-gray-100 dark:bg-gray-700">
                     <Icon className="w-8 h-8 text-gray-500 dark:text-gray-400 mb-1" />
-                    <p
-                        className="text-[10px] text-gray-600 dark:text-gray-400 text-center truncate w-full"
-                        dir="auto"
-                    >
-                        {displayName.length > 12
-                            ? displayName.substring(0, 10) + ".."
-                            : displayName}
-                    </p>
+                    {(() => {
+                        const extension = getExtension(displayName);
+                        const fileExtension = extension
+                            ? extension.replace(".", "").toUpperCase()
+                            : "";
+                        if (fileExtension) {
+                            return (
+                                <span className="text-[10px] font-medium text-gray-600 dark:text-gray-400 uppercase tracking-wide">
+                                    {fileExtension}
+                                </span>
+                            );
+                        }
+                        // Fallback to filename if no extension
+                        return (
+                            <p
+                                className="text-[10px] text-gray-600 dark:text-gray-400 text-center truncate w-full"
+                                dir="auto"
+                            >
+                                {displayName.length > 12
+                                    ? displayName.substring(0, 10) + ".."
+                                    : displayName}
+                            </p>
+                        );
+                    })()}
                 </div>
             )}
 

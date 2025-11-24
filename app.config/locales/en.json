@@ -291,5 +291,16 @@
     "Self Memory": "Self Memory",
     "Directives": "Directives",
     "Personalize your AI assistant by setting its name, choosing the AI model style, and enabling custom entities for specialized tasks.": "Personalize your AI assistant by setting its name, choosing the AI model style, and enabling custom entities for specialized tasks.",
-    "You can customize your interactions with the AI assistant by giving it things to remember. You can enter plain text or something more structured like JSON or XML. If you allow it, the AI will periodically modify its own memory to improve its ability to assist you.": "You can customize your interactions with the AI assistant by giving it things to remember. You can enter plain text or something more structured like JSON or XML. If you allow it, the AI will periodically modify its own memory to improve its ability to assist you."
+    "You can customize your interactions with the AI assistant by giving it things to remember. You can enter plain text or something more structured like JSON or XML. If you allow it, the AI will periodically modify its own memory to improve its ability to assist you.": "You can customize your interactions with the AI assistant by giving it things to remember. You can enter plain text or something more structured like JSON or XML. If you allow it, the AI will periodically modify its own memory to improve its ability to assist you.",
+    "Mermaid diagram failed to render": "Mermaid diagram failed to render",
+    "Mermaid Diagram Error": "Mermaid Diagram Error",
+    "Source Code": "Source Code",
+    "Zoom in (hold to zoom continuously)": "Zoom in (hold to zoom continuously)",
+    "Zoom in": "Zoom in",
+    "Zoom out (hold to zoom continuously)": "Zoom out (hold to zoom continuously)",
+    "Zoom out": "Zoom out",
+    "Reset zoom and pan": "Reset zoom and pan",
+    "Reset": "Reset",
+    "Copy SVG": "Copy SVG",
+    "Failed to render diagram": "Failed to render diagram"
 }

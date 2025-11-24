@@ -10,11 +10,44 @@ import {
 } from "../../utils/mediaUtils";
 
 /**
+ * Whitelist of file types that can be previewed
+ * - Images: All common image formats
+ * - Videos: Common video formats (excluding some edge cases)
+ * - PDFs: Always previewable
+ * - Text files: Common text/document formats (excluding CSV which doesn't render well)
+ */
+const PREVIEWABLE_TEXT_EXTENSIONS = [
+    ".txt",
+    ".md",
+    ".json",
+    ".xml",
+    ".js",
+    ".ts",
+    ".jsx",
+    ".tsx",
+    ".css",
+    ".html",
+    ".yaml",
+    ".yml",
+];
+
+const PREVIEWABLE_TEXT_MIME_TYPES = [
+    "text/plain",
+    "text/markdown",
+    "text/html",
+    "text/css",
+    "text/javascript",
+    "application/json",
+    "application/xml",
+    "text/xml",
+];
+
+/**
  * Hook to determine file type and preview capabilities
  * @param {string} src - File URL
  * @param {string} filename - File name
  * @param {string} mimeType - Optional MIME type
- * @returns {object} File type information
+ * @returns {object} File type information with explicit previewability flag
  */
 export function useFilePreview(src, filename, mimeType = null) {
     return useMemo(() => {
@@ -25,6 +58,7 @@ export function useFilePreview(src, filename, mimeType = null) {
                 isAudio: false,
                 isDoc: false,
                 isPdf: false,
+                isPreviewable: false,
                 extension: null,
             };
         }
@@ -58,12 +92,32 @@ export function useFilePreview(src, filename, mimeType = null) {
         // PDF is a special case of doc that browsers render well
         const isPdf = mimeType === "application/pdf" || extension === ".pdf";
 
+        // Explicitly whitelist previewable types
+        // Images: all image types
+        // Videos: all video types
+        // PDFs: always previewable
+        // Text files: only specific text formats (exclude CSV, Excel, etc.)
+        const isPreviewableText =
+            isDoc &&
+            !isPdf &&
+            (extension
+                ? PREVIEWABLE_TEXT_EXTENSIONS.includes(extension)
+                : mimeType
+                  ? PREVIEWABLE_TEXT_MIME_TYPES.some((mime) =>
+                        mimeType.startsWith(mime),
+                    )
+                  : false);
+
+        const isPreviewable =
+            isImage || isVideo || isPdf || isPreviewableText;
+
         return {
             isImage,
             isVideo,
             isAudio,
             isDoc,
             isPdf,
+            isPreviewable,
             extension,
         };
     }, [src, filename, mimeType]);
@@ -155,14 +209,9 @@ export function renderFilePreview({
         );
     }
 
-    if (isDoc) {
-        // CSV files don't render well in iframes - show icon instead
-        if (
-            fileType.extension === ".csv" ||
-            filename?.toLowerCase().endsWith(".csv")
-        ) {
-            return null;
-        }
+    if (isDoc && fileType.isPreviewable) {
+        // Only render preview for whitelisted text files
+        // CSV, Excel, Word docs, etc. are excluded from preview
 
         // For text files, invert in light mode to make white text visible
         // Dark mode works fine without inversion

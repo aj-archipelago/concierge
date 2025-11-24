@@ -104,6 +104,47 @@ const getYoutubeEmbedUrl = (url) => {
     return null;
 };
 
+/**
+ * Determines if a message should cluster with the previous message.
+ * Centralized logic for message grouping.
+ * 
+ * Rules:
+ * - User messages NEVER cluster (always start a new group)
+ * - Assistant messages ALWAYS cluster with preceding user messages
+ * - Coding agent messages ALWAYS cluster with whatever precedes them
+ * 
+ * @param {Object} message - Current message
+ * @param {Object|null} prevMessage - Previous message
+ * @param {Object|null} nextMessage - Next message (unused but kept for API consistency)
+ * @returns {boolean} - True if message should cluster with previous
+ */
+const shouldClusterWithPrevious = (message, prevMessage, nextMessage) => {
+    // User messages always start a new group
+    if (message.sender !== "labeeb") {
+        return false;
+    }
+
+    // Need a previous message to cluster with
+    if (!prevMessage) {
+        return false;
+    }
+
+    const isCodingAgentMessage = !!message.taskId;
+    const prevIsUser = prevMessage.sender !== "labeeb";
+
+    // Assistant messages (non-coding agent) cluster with preceding user messages
+    if (!isCodingAgentMessage && prevIsUser) {
+        return true;
+    }
+
+    // Coding agent messages cluster with whatever precedes them (assistant or coding agent)
+    if (isCodingAgentMessage && !prevIsUser) {
+        return true;
+    }
+
+    return false;
+};
+
 // Removed MemoizedYouTubeEmbed - now using MediaCard
 
 // Create a memoized component for the static message list content
@@ -118,6 +159,7 @@ const MessageListContent = React.memo(function MessageListContent({
     getYoutubeEmbedUrl,
     onDeleteFile,
     t,
+    isStreaming = false,
 }) {
     return messages.map((message, index) => {
         const newMessage = { ...message };
@@ -359,29 +401,46 @@ const MessageListContent = React.memo(function MessageListContent({
             display = newMessage.payload;
         }
 
-        // Check if this is a coding agent message (has taskId) following an assistant message
+        // Determine clustering using centralized logic
         const prevMessage = index > 0 ? messages[index - 1] : null;
         const nextMessage =
             index < messages.length - 1 ? messages[index + 1] : null;
-        const isCodingAgentMessage = !!newMessage.taskId;
-        const prevIsAssistant = prevMessage?.sender === "labeeb";
-        const nextIsCodingAgent = nextMessage && !!nextMessage.taskId;
-        const shouldClusterWithPrevious =
-            isCodingAgentMessage && prevIsAssistant;
-        const shouldReduceBottomMargin =
-            newMessage.sender === "labeeb" && nextIsCodingAgent;
+        const nextNextMessage =
+            index < messages.length - 2 ? messages[index + 2] : null;
+        const clusterWithPrevious = shouldClusterWithPrevious(
+            newMessage,
+            prevMessage,
+            nextMessage,
+        );
+        
+        // Check if next message will cluster with this one (to control spacing)
+        const nextWillCluster = nextMessage
+            ? shouldClusterWithPrevious(nextMessage, newMessage, nextNextMessage)
+            : false;
+        // User messages always have reduced bottom margin (assistant/streaming always cluster with them)
+        const isUserMessage = newMessage.sender !== "labeeb";
+        const shouldReduceBottomMargin = nextWillCluster || isUserMessage;
+
+        // Control spacing at the list level based on clustering
+        // Spacing is controlled by bottom margin of each message
+        // If clustering with previous, remove top margin to eliminate gap
+        // Bottom margin: reduced if next message will cluster or if streaming will cluster, normal otherwise
+        const spacingClasses = [];
+        if (clusterWithPrevious) {
+            spacingClasses.push("mt-0");
+        }
+        spacingClasses.push(shouldReduceBottomMargin ? "mb-1" : "mb-6");
+        const className = classNames(...spacingClasses);
 
         return (
             <div
                 key={newMessage.id}
                 id={`message-${newMessage.id}`}
-                className={shouldClusterWithPrevious ? "mt-0" : ""}
+                className={className}
             >
                 {renderMessage({
                     ...newMessage,
                     payload: display,
-                    shouldClusterWithPrevious,
-                    shouldReduceBottomMargin,
                 })}
             </div>
         );
@@ -736,12 +795,6 @@ const MessageList = React.memo(
                             entityIconClasses={classNames(basis)}
                             onLoad={() => handleMessageLoad(message.id)}
                             onTaskStatusUpdate={handleTaskStatusUpdate}
-                            shouldClusterWithPrevious={
-                                message.shouldClusterWithPrevious
-                            }
-                            shouldReduceBottomMargin={
-                                message.shouldReduceBottomMargin
-                            }
                         />
                     );
                 }
@@ -749,7 +802,7 @@ const MessageList = React.memo(
                 return (
                     <div
                         key={message.id}
-                        className="flex bg-sky-100 dark:bg-gray-600 ps-1 pt-1 relative group rounded-t-lg rounded-br-lg rtl:rounded-br-none rtl:rounded-bl-lg mb-1"
+                        className="flex bg-sky-100 dark:bg-gray-600 ps-1 pt-1 relative group rounded-t-lg rounded-br-lg rtl:rounded-br-none rtl:rounded-bl-lg"
                     >
                         <div className="flex items-center gap-2 absolute top-3 end-3">
                             <ReplayButton
@@ -830,20 +883,37 @@ const MessageList = React.memo(
                             getYoutubeEmbedUrl={getYoutubeEmbedUrl}
                             onDeleteFile={confirmDeleteFile}
                             t={t}
+                            isStreaming={isStreaming}
                         />
-                        {isStreaming && (
-                            <StreamingMessage
-                                content={streamingContent}
-                                ephemeralContent={ephemeralContent}
-                                toolCalls={toolCalls}
-                                bot={bot}
-                                thinkingDuration={thinkingDuration}
-                                isThinking={isThinking}
-                                selectedEntityId={selectedEntityId}
-                                entities={entities}
-                                entityIconSize={entityIconSize}
-                            />
-                        )}
+                        {isStreaming && (() => {
+                            // Streaming messages should always cluster with previous user message
+                            const lastMessage = messages.length > 0 ? messages[messages.length - 1] : null;
+                            const prevIsUser = lastMessage && lastMessage.sender !== "labeeb";
+                            const shouldCluster = prevIsUser;
+                            
+                            // Apply clustering spacing
+                            const streamingClasses = [];
+                            if (shouldCluster) {
+                                streamingClasses.push("mt-0");
+                            }
+                            streamingClasses.push("mb-6"); // Normal bottom margin for streaming
+                            
+                            return (
+                                <div className={classNames(...streamingClasses)}>
+                                    <StreamingMessage
+                                        content={streamingContent}
+                                        ephemeralContent={ephemeralContent}
+                                        toolCalls={toolCalls}
+                                        bot={bot}
+                                        thinkingDuration={thinkingDuration}
+                                        isThinking={isThinking}
+                                        selectedEntityId={selectedEntityId}
+                                        entities={entities}
+                                        entityIconSize={entityIconSize}
+                                    />
+                                </div>
+                            );
+                        })()}
                         {loading &&
                             !isStreaming &&
                             renderMessage({

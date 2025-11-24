@@ -884,5 +884,16 @@
     "File deleted: {{filename}}": "تم حذف الملف: {{filename}}",
     "Image": "صورة",
     "PDF": "PDF",
-    "Document": "مستند"
+    "Document": "مستند",
+    "Mermaid diagram failed to render": "فشل في عرض مخطط Mermaid",
+    "Mermaid Diagram Error": "خطأ في مخطط Mermaid",
+    "Source Code": "الكود المصدر",
+    "Zoom in (hold to zoom continuously)": "تكبير (اضغط مع الاستمرار للتكبير المستمر)",
+    "Zoom in": "تكبير",
+    "Zoom out (hold to zoom continuously)": "تصغير (اضغط مع الاستمرار للتصغير المستمر)",
+    "Zoom out": "تصغير",
+    "Reset zoom and pan": "إعادة تعيين التكبير والتمرير",
+    "Reset": "إعادة تعيين",
+    "Copy SVG": "نسخ SVG",
+    "Failed to render diagram": "فشل في عرض المخطط"
 }
