@@ -97,9 +97,7 @@ function FileThumbnail({ file, onRemove, onRetry }) {
                       : "border-gray-300 dark:border-gray-600",
             )}
             title={
-                file.status === "error" && file.error
-                    ? file.error
-                    : displayName
+                file.status === "error" && file.error ? file.error : displayName
             }
         >
             {/* Preview or icon */}
@@ -349,10 +347,7 @@ export default function FileUploader({
                     }
 
                     // For non-File sources (URLs), try to match by source
-                    if (
-                        typeof file.source === "string" ||
-                        file.source?.url
-                    ) {
+                    if (typeof file.source === "string" || file.source?.url) {
                         const sourceKey =
                             typeof file.source === "string"
                                 ? file.source
@@ -362,7 +357,7 @@ export default function FileUploader({
                                 !(f.source instanceof File) &&
                                 ((typeof f.source === "string" &&
                                     f.source === sourceKey) ||
-                                    (f.source?.url === sourceKey)),
+                                    f.source?.url === sourceKey),
                         );
                         if (existing) {
                             return mergeFileState(existing, file);
@@ -418,11 +413,7 @@ export default function FileUploader({
 
     const updateFileStatus = useCallback((fileId, updates) => {
         setInternalFiles((prev) =>
-            prev.map((f) =>
-                f.id === fileId
-                    ? { ...f, ...updates }
-                    : f,
-            ),
+            prev.map((f) => (f.id === fileId ? { ...f, ...updates } : f)),
         );
     }, []);
 
@@ -564,10 +555,7 @@ export default function FileUploader({
                     } catch (err) {
                         console.error("Error checking video duration:", err);
                         // Preserve the original error message if it's a validation error
-                        if (
-                            err.message &&
-                            err.message.includes("60 minutes")
-                        ) {
+                        if (err.message && err.message.includes("60 minutes")) {
                             throw err;
                         }
                         throw new Error(t("Could not verify video duration"));

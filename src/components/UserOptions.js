@@ -128,16 +128,18 @@ const UserOptions = ({ show, handleClose }) => {
         }
 
         try {
-        await updateAiOptionsMutation.mutateAsync({
-            userId: user.userId,
-            contextId: user.contextId,
-                aiMemorySelfModify: updates.aiMemorySelfModify ?? aiMemorySelfModify,
+            await updateAiOptionsMutation.mutateAsync({
+                userId: user.userId,
+                contextId: user.contextId,
+                aiMemorySelfModify:
+                    updates.aiMemorySelfModify ?? aiMemorySelfModify,
                 aiName: updates.aiName ?? aiName,
                 aiStyle: updates.aiStyle ?? aiStyle,
-                useCustomEntities: updates.useCustomEntities ?? useCustomEntities,
+                useCustomEntities:
+                    updates.useCustomEntities ?? useCustomEntities,
             });
             setError("");
-                } catch (error) {
+        } catch (error) {
             console.error("Error saving options:", error);
             setError(
                 error.response?.data?.error ||
@@ -149,18 +151,18 @@ const UserOptions = ({ show, handleClose }) => {
 
     return (
         <>
-        <Modal
-            widthClassName="max-w-2xl"
-            title={t("Options")}
-            show={show}
-            onHide={handleClose}
-        >
+            <Modal
+                widthClassName="max-w-2xl"
+                title={t("Options")}
+                show={show}
+                onHide={handleClose}
+            >
                 <div className="flex flex-col gap-4">
                     {error && (
                         <div
                             className={`text-red-500 text-sm p-2 bg-red-50 dark:bg-red-900/20 rounded ${isRTL ? "text-right" : "text-left"}`}
-                                dir={direction}
-                            >
+                            dir={direction}
+                        >
                             {error}
                         </div>
                     )}
@@ -191,7 +193,9 @@ const UserOptions = ({ show, handleClose }) => {
                                             ref={profilePictureInputRef}
                                             type="file"
                                             accept="image/*"
-                                            onChange={handleProfilePictureSelect}
+                                            onChange={
+                                                handleProfilePictureSelect
+                                            }
                                             className="hidden"
                                         />
                                     </div>
@@ -210,9 +214,13 @@ const UserOptions = ({ show, handleClose }) => {
                                         {profilePicture && (
                                             <button
                                                 type="button"
-                                                onClick={handleRemoveProfilePicture}
+                                                onClick={
+                                                    handleRemoveProfilePicture
+                                                }
                                                 className="absolute -top-0.5 -start-0.5 w-4 h-4 rounded-full bg-red-500 text-white flex items-center justify-center hover:bg-red-600 transition-colors"
-                                                title={t("Remove profile picture")}
+                                                title={t(
+                                                    "Remove profile picture",
+                                                )}
                                             >
                                                 <X className="w-3 h-3" />
                                             </button>
@@ -236,9 +244,13 @@ const UserOptions = ({ show, handleClose }) => {
                                         {profilePicture && (
                                             <button
                                                 type="button"
-                                                onClick={handleRemoveProfilePicture}
+                                                onClick={
+                                                    handleRemoveProfilePicture
+                                                }
                                                 className="absolute -top-0.5 -end-0.5 w-4 h-4 rounded-full bg-red-500 text-white flex items-center justify-center hover:bg-red-600 transition-colors"
-                                                title={t("Remove profile picture")}
+                                                title={t(
+                                                    "Remove profile picture",
+                                                )}
                                             >
                                                 <X className="w-3 h-3" />
                                             </button>
@@ -263,7 +275,9 @@ const UserOptions = ({ show, handleClose }) => {
                                             ref={profilePictureInputRef}
                                             type="file"
                                             accept="image/*"
-                                            onChange={handleProfilePictureSelect}
+                                            onChange={
+                                                handleProfilePictureSelect
+                                            }
                                             className="hidden"
                                         />
                                     </div>
@@ -279,117 +293,125 @@ const UserOptions = ({ show, handleClose }) => {
                                 <label
                                     className={`block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1 ${isRTL ? "text-right" : "text-left"}`}
                                     htmlFor="aiName"
-                            >
-                                {t("AI Name")}
+                                >
+                                    {t("AI Name")}
                                 </label>
-                            <input
+                                <input
                                     id="aiName"
-                                type="text"
-                                value={aiName}
+                                    type="text"
+                                    value={aiName}
                                     onChange={(e) => {
                                         setAiName(e.target.value);
                                         saveOptions({ aiName: e.target.value });
                                     }}
                                     className="lb-input w-full text-sm"
-                                placeholder={t("Enter AI Name")}
-                                dir={direction}
-                            />
+                                    placeholder={t("Enter AI Name")}
+                                    dir={direction}
+                                />
                             </div>
 
                             <div>
                                 <label
                                     className={`block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1 ${isRTL ? "text-right" : "text-left"}`}
                                     htmlFor="aiStyle"
-                            >
-                                {t("AI Style")}
+                                >
+                                    {t("AI Style")}
                                 </label>
-                            <select
+                                <select
                                     id="aiStyle"
-                                value={aiStyle}
+                                    value={aiStyle}
                                     onChange={(e) => {
                                         setAiStyle(e.target.value);
-                                        saveOptions({ aiStyle: e.target.value });
+                                        saveOptions({
+                                            aiStyle: e.target.value,
+                                        });
                                     }}
                                     className="lb-input w-full text-sm"
-                                dir={direction}
-                            >
-                                <option value="OpenAI_Preview">
-                                    {t("OpenAI Preview (GPT-5.1)")}
-                                </option>
-                                <option value="OpenAI">
-                                    {t("OpenAI (GPT-5)")}
-                                </option>
-                                <option value="OpenAI_Legacy">
-                                    {t("OpenAI Legacy (GPT-4.1/O3)")}
-                                </option>
-                                <option value="XAI">{t("XAI (Grok)")}</option>
-                                <option value="Anthropic">
-                                    {t("Anthropic (Claude)")}
-                                </option>
-                                <option value="Google">
-                                    {t("Google (Gemini)")}
-                                </option>
-                            </select>
+                                    dir={direction}
+                                >
+                                    <option value="OpenAI_Preview">
+                                        {t("OpenAI Preview (GPT-5.1)")}
+                                    </option>
+                                    <option value="OpenAI">
+                                        {t("OpenAI (GPT-5)")}
+                                    </option>
+                                    <option value="OpenAI_Legacy">
+                                        {t("OpenAI Legacy (GPT-4.1/O3)")}
+                                    </option>
+                                    <option value="XAI">
+                                        {t("XAI (Grok)")}
+                                    </option>
+                                    <option value="Anthropic">
+                                        {t("Anthropic (Claude)")}
+                                    </option>
+                                    <option value="Google">
+                                        {t("Google (Gemini)")}
+                                    </option>
+                                </select>
                             </div>
                         </div>
 
-                            <div
+                        <div
                             className={`flex gap-2 items-center ${isRTL ? "flex-row-reverse" : ""}`}
-                            >
-                                <input
-                                    type="checkbox"
-                                    id="useCustomEntities"
+                        >
+                            <input
+                                type="checkbox"
+                                id="useCustomEntities"
                                 className="accent-sky-500"
-                                    checked={useCustomEntities}
+                                checked={useCustomEntities}
                                 onChange={(e) => {
                                     setUseCustomEntities(e.target.checked);
-                                    saveOptions({ useCustomEntities: e.target.checked });
+                                    saveOptions({
+                                        useCustomEntities: e.target.checked,
+                                    });
                                 }}
-                                />
-                                <label
-                                    htmlFor="useCustomEntities"
+                            />
+                            <label
+                                htmlFor="useCustomEntities"
                                 className="text-sm text-gray-900 dark:text-gray-100 cursor-pointer"
-                                    dir={direction}
-                                >
-                                    {t("Use other custom entities")}
-                                </label>
-                            </div>
+                                dir={direction}
+                            >
+                                {t("Use other custom entities")}
+                            </label>
+                        </div>
                     </section>
 
                     {/* Memory Section */}
                     <section className="space-y-2">
-                            <div
-                                className={`flex gap-2 items-center ${isRTL ? "flex-row-reverse" : ""}`}
+                        <div
+                            className={`flex gap-2 items-center ${isRTL ? "flex-row-reverse" : ""}`}
+                        >
+                            <input
+                                type="checkbox"
+                                id="aiMemorySelfModify"
+                                className="accent-sky-500"
+                                checked={aiMemorySelfModify}
+                                onChange={(e) => {
+                                    setAiMemorySelfModify(e.target.checked);
+                                    saveOptions({
+                                        aiMemorySelfModify: e.target.checked,
+                                    });
+                                }}
+                            />
+                            <label
+                                htmlFor="aiMemorySelfModify"
+                                className="text-sm text-gray-900 dark:text-gray-100 cursor-pointer"
+                                dir={direction}
                             >
-                                <input
-                                    type="checkbox"
-                                    id="aiMemorySelfModify"
-                                    className="accent-sky-500"
-                                    checked={aiMemorySelfModify}
-                                    onChange={(e) => {
-                                        setAiMemorySelfModify(e.target.checked);
-                                        saveOptions({ aiMemorySelfModify: e.target.checked });
-                                    }}
-                                />
-                                <label
-                                    htmlFor="aiMemorySelfModify"
-                                    className="text-sm text-gray-900 dark:text-gray-100 cursor-pointer"
-                                    dir={direction}
-                                >
-                                    {t("Allow the AI to modify its own memory")}
-                                </label>
-                            </div>
-                                                <button
+                                {t("Allow the AI to modify its own memory")}
+                            </label>
+                        </div>
+                        <button
                             type="button"
                             onClick={() => setShowMemoryEditor(true)}
                             className="lb-outline-secondary text-sm w-full sm:w-auto"
-                                                >
+                        >
                             <Settings className="w-3.5 h-3.5 inline me-1.5" />
                             {t("Edit Memory")}
-                                                </button>
+                        </button>
                     </section>
-            </div>
-        </Modal>
+                </div>
+            </Modal>
 
             <MemoryEditor
                 show={showMemoryEditor}

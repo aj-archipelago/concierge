@@ -142,7 +142,7 @@ function SortableMemoryItem({
                 }
             }, 100);
         }
-    }, [isEditing, item.id]);
+    }, [isEditing, item.id, item.content, item.priority, item.section]);
 
     const handleSave = () => {
         onSaveEdit(item.id, {
@@ -161,7 +161,9 @@ function SortableMemoryItem({
             >
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-3">
                     <div>
-                        <label className={`block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1 ${isRTL ? "text-right" : "text-left"}`}>
+                        <label
+                            className={`block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1 ${isRTL ? "text-right" : "text-left"}`}
+                        >
                             {t("Section")}
                         </label>
                         <select
@@ -178,7 +180,9 @@ function SortableMemoryItem({
                         </select>
                     </div>
                     <div>
-                        <label className={`block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1 ${isRTL ? "text-right" : "text-left"}`}>
+                        <label
+                            className={`block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1 ${isRTL ? "text-right" : "text-left"}`}
+                        >
                             {t("Priority")}
                         </label>
                         <input
@@ -199,8 +203,13 @@ function SortableMemoryItem({
                     rows={3}
                     dir={direction}
                 />
-                <div className={`flex gap-2 ${isRTL ? "flex-row-reverse" : ""}`}>
-                    <button onClick={handleSave} className="lb-primary text-xs px-2 py-1">
+                <div
+                    className={`flex gap-2 ${isRTL ? "flex-row-reverse" : ""}`}
+                >
+                    <button
+                        onClick={handleSave}
+                        className="lb-primary text-xs px-2 py-1"
+                    >
                         {t("Save")}
                     </button>
                     <button
@@ -251,7 +260,9 @@ function SortableMemoryItem({
                     <div className="text-gray-900 dark:text-gray-100 whitespace-pre-wrap break-words mb-1.5">
                         {item.content}
                     </div>
-                    <div className={`flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400 ${isRTL ? "flex-row-reverse" : ""}`}>
+                    <div
+                        className={`flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400 ${isRTL ? "flex-row-reverse" : ""}`}
+                    >
                         <span className="font-medium">{item.sectionLabel}</span>
                         <span className="font-mono bg-gray-200 dark:bg-gray-600 px-1.5 py-0.5 rounded">
                             {item.priority}
@@ -261,7 +272,9 @@ function SortableMemoryItem({
                         </span>
                     </div>
                 </div>
-                <div className={`flex gap-1 flex-shrink-0 ${isRTL ? "flex-row-reverse" : ""}`}>
+                <div
+                    className={`flex gap-1 flex-shrink-0 ${isRTL ? "flex-row-reverse" : ""}`}
+                >
                     <button
                         onClick={() => onEdit(item.id)}
                         className="p-1 hover:bg-gray-200 dark:hover:bg-gray-600 rounded"
@@ -343,10 +356,10 @@ const MemoryEditor = ({ show, onClose, user, aiName }) => {
                     setRawMemory("");
                 } else {
                     // If parsed but no items, check if it's valid structure
-                    const hasAnyMemory = 
-                        parsed.memorySelf || 
-                        parsed.memoryUser || 
-                        parsed.memoryDirectives || 
+                    const hasAnyMemory =
+                        parsed.memorySelf ||
+                        parsed.memoryUser ||
+                        parsed.memoryDirectives ||
                         parsed.memoryTopics;
                     if (hasAnyMemory) {
                         // Valid structure but empty items - still parseable
@@ -386,12 +399,16 @@ const MemoryEditor = ({ show, onClose, user, aiName }) => {
 
         // Filter by section
         if (sectionFilter !== "all") {
-            filtered = filtered.filter((item) => item.section === sectionFilter);
+            filtered = filtered.filter(
+                (item) => item.section === sectionFilter,
+            );
         }
 
         // Filter by priority
         if (priorityFilter !== "all") {
-            filtered = filtered.filter((item) => item.priority === priorityFilter);
+            filtered = filtered.filter(
+                (item) => item.priority === priorityFilter,
+            );
         }
 
         // Sort
@@ -413,9 +430,9 @@ const MemoryEditor = ({ show, onClose, user, aiName }) => {
     };
 
     const filteredItems = getFilteredAndSortedItems();
-    const uniquePriorities = [...new Set(items.map((item) => item.priority))].sort(
-        (a, b) => parseInt(a) - parseInt(b),
-    );
+    const uniquePriorities = [
+        ...new Set(items.map((item) => item.priority)),
+    ].sort((a, b) => parseInt(a) - parseInt(b));
 
     const handleDragStart = (event) => {
         setActiveId(event.active.id);
@@ -451,7 +468,9 @@ const MemoryEditor = ({ show, onClose, user, aiName }) => {
         setPriorityFilter("all");
         setEditingId(newItem.id);
         setTimeout(() => {
-            const element = document.querySelector(`[data-item-id="${newItem.id}"]`);
+            const element = document.querySelector(
+                `[data-item-id="${newItem.id}"]`,
+            );
             if (element) {
                 element.scrollIntoView({ behavior: "smooth", block: "center" });
             }
@@ -469,7 +488,9 @@ const MemoryEditor = ({ show, onClose, user, aiName }) => {
                     ...item,
                     ...updates,
                     timestamp: new Date().toISOString(), // Auto-update timestamp on save
-                    sectionLabel: sections.find((s) => s.key === updates.section)?.label || item.sectionLabel,
+                    sectionLabel:
+                        sections.find((s) => s.key === updates.section)
+                            ?.label || item.sectionLabel,
                 };
             }
             return item;
@@ -648,7 +669,9 @@ const MemoryEditor = ({ show, onClose, user, aiName }) => {
                                         className="lb-outline-secondary text-sm"
                                         onClick={handleAddItem}
                                     >
-                                        <Plus className={`w-4 h-4 inline ${isRTL ? "ms-1.5" : "me-1.5"}`} />
+                                        <Plus
+                                            className={`w-4 h-4 inline ${isRTL ? "ms-1.5" : "me-1.5"}`}
+                                        />
                                         {t("Add Item")}
                                     </button>
                                     {selectedIds.size > 0 && (
@@ -656,8 +679,11 @@ const MemoryEditor = ({ show, onClose, user, aiName }) => {
                                             className="lb-outline-danger text-sm"
                                             onClick={handleDeleteSelected}
                                         >
-                                            <X className={`w-4 h-4 inline ${isRTL ? "ms-1.5" : "me-1.5"}`} />
-                                            {t("Delete Selected")} ({selectedIds.size})
+                                            <X
+                                                className={`w-4 h-4 inline ${isRTL ? "ms-1.5" : "me-1.5"}`}
+                                            />
+                                            {t("Delete Selected")} (
+                                            {selectedIds.size})
                                         </button>
                                     )}
                                     <button
@@ -671,15 +697,21 @@ const MemoryEditor = ({ show, onClose, user, aiName }) => {
                                         onClick={handleDownload}
                                         title={t("Download memory backup")}
                                     >
-                                        <Download className={`w-4 h-4 inline ${isRTL ? "ms-1.5" : "me-1.5"}`} />
+                                        <Download
+                                            className={`w-4 h-4 inline ${isRTL ? "ms-1.5" : "me-1.5"}`}
+                                        />
                                         {t("Download")}
                                     </button>
                                     <button
                                         className="lb-outline-secondary text-sm"
-                                        onClick={() => fileInputRef.current?.click()}
+                                        onClick={() =>
+                                            fileInputRef.current?.click()
+                                        }
                                         title={t("Upload memory from backup")}
                                     >
-                                        <Upload className={`w-4 h-4 inline ${isRTL ? "ms-1.5" : "me-1.5"}`} />
+                                        <Upload
+                                            className={`w-4 h-4 inline ${isRTL ? "ms-1.5" : "me-1.5"}`}
+                                        />
                                         {t("Upload")}
                                     </button>
                                     <input
@@ -693,7 +725,9 @@ const MemoryEditor = ({ show, onClose, user, aiName }) => {
                                 <div
                                     className={`text-sm text-gray-500 dark:text-gray-400 ${isRTL ? "text-right" : "text-left"}`}
                                 >
-                                    {t("Size: {{size}} characters", { size: memorySize })}
+                                    {t("Size: {{size}} characters", {
+                                        size: memorySize,
+                                    })}
                                 </div>
                             </div>
 
@@ -709,7 +743,9 @@ const MemoryEditor = ({ show, onClose, user, aiName }) => {
                                         <input
                                             type="text"
                                             value={searchQuery}
-                                            onChange={(e) => setSearchQuery(e.target.value)}
+                                            onChange={(e) =>
+                                                setSearchQuery(e.target.value)
+                                            }
                                             placeholder={t("Search content...")}
                                             className={`lb-input w-full text-sm ${isRTL ? "pe-8 ps-2" : "ps-9 pe-2"}`}
                                             dir={direction}
@@ -726,13 +762,20 @@ const MemoryEditor = ({ show, onClose, user, aiName }) => {
                                         </label>
                                         <select
                                             value={sectionFilter}
-                                            onChange={(e) => setSectionFilter(e.target.value)}
+                                            onChange={(e) =>
+                                                setSectionFilter(e.target.value)
+                                            }
                                             className="lb-input text-sm py-1 px-2"
                                             dir={direction}
                                         >
-                                            <option value="all">{t("All")}</option>
+                                            <option value="all">
+                                                {t("All")}
+                                            </option>
                                             {sections.map((s) => (
-                                                <option key={s.key} value={s.key}>
+                                                <option
+                                                    key={s.key}
+                                                    value={s.key}
+                                                >
                                                     {s.label}
                                                 </option>
                                             ))}
@@ -748,11 +791,17 @@ const MemoryEditor = ({ show, onClose, user, aiName }) => {
                                         </label>
                                         <select
                                             value={priorityFilter}
-                                            onChange={(e) => setPriorityFilter(e.target.value)}
+                                            onChange={(e) =>
+                                                setPriorityFilter(
+                                                    e.target.value,
+                                                )
+                                            }
                                             className="lb-input text-sm py-1 px-2"
                                             dir={direction}
                                         >
-                                            <option value="all">{t("All")}</option>
+                                            <option value="all">
+                                                {t("All")}
+                                            </option>
                                             {uniquePriorities.map((p) => (
                                                 <option key={p} value={p}>
                                                     {p}
@@ -771,18 +820,32 @@ const MemoryEditor = ({ show, onClose, user, aiName }) => {
                                         </label>
                                         <select
                                             value={sortBy}
-                                            onChange={(e) => setSortBy(e.target.value)}
+                                            onChange={(e) =>
+                                                setSortBy(e.target.value)
+                                            }
                                             className="lb-input text-sm py-1 px-2"
                                             dir={direction}
                                         >
-                                            <option value="timestamp">{t("Timestamp")}</option>
-                                            <option value="section">{t("Section")}</option>
-                                            <option value="priority">{t("Priority")}</option>
-                                            <option value="content">{t("Content")}</option>
+                                            <option value="timestamp">
+                                                {t("Timestamp")}
+                                            </option>
+                                            <option value="section">
+                                                {t("Section")}
+                                            </option>
+                                            <option value="priority">
+                                                {t("Priority")}
+                                            </option>
+                                            <option value="content">
+                                                {t("Content")}
+                                            </option>
                                         </select>
                                         <button
                                             onClick={() =>
-                                                setSortOrder(sortOrder === "asc" ? "desc" : "asc")
+                                                setSortOrder(
+                                                    sortOrder === "asc"
+                                                        ? "desc"
+                                                        : "asc",
+                                                )
                                             }
                                             className="lb-outline-secondary text-xs px-2 py-1"
                                             title={t("Toggle sort order")}
@@ -790,7 +853,9 @@ const MemoryEditor = ({ show, onClose, user, aiName }) => {
                                             {sortOrder === "asc" ? "↑" : "↓"}
                                         </button>
                                     </div>
-                                    {(searchQuery || sectionFilter !== "all" || priorityFilter !== "all") && (
+                                    {(searchQuery ||
+                                        sectionFilter !== "all" ||
+                                        priorityFilter !== "all") && (
                                         <button
                                             onClick={() => {
                                                 setSearchQuery("");
@@ -816,14 +881,22 @@ const MemoryEditor = ({ show, onClose, user, aiName }) => {
                                         dir={direction}
                                     >
                                         {t("Memory (Raw Text Format)")}
-                                        <span className={`${isRTL ? "ms-2" : "ms-2"} text-xs text-gray-500 dark:text-gray-400`}>
-                                            ({t("Not parseable as structured memory")})
+                                        <span
+                                            className={`${isRTL ? "ms-2" : "ms-2"} text-xs text-gray-500 dark:text-gray-400`}
+                                        >
+                                            (
+                                            {t(
+                                                "Not parseable as structured memory",
+                                            )}
+                                            )
                                         </span>
                                     </label>
                                     <textarea
                                         id="raw-memory-editor"
                                         value={rawMemory}
-                                        onChange={(e) => setRawMemory(e.target.value)}
+                                        onChange={(e) =>
+                                            setRawMemory(e.target.value)
+                                        }
                                         className="lb-input font-mono w-full flex-1 resize-none"
                                         placeholder={t(
                                             "Enter memory content. Use format: priority|timestamp|content (one per line) for structured editing, or plain text.",
@@ -833,7 +906,11 @@ const MemoryEditor = ({ show, onClose, user, aiName }) => {
                                 </div>
                             ) : items.length === 0 ? (
                                 <div className="text-center py-12 text-gray-500 dark:text-gray-400">
-                                    <p>{t("No memory items. Click 'Add Item' to create one.")}</p>
+                                    <p>
+                                        {t(
+                                            "No memory items. Click 'Add Item' to create one.",
+                                        )}
+                                    </p>
                                 </div>
                             ) : filteredItems.length === 0 ? (
                                 <div className="text-center py-12 text-gray-500 dark:text-gray-400">
@@ -846,7 +923,8 @@ const MemoryEditor = ({ show, onClose, user, aiName }) => {
                                             onClick={handleSelectAll}
                                             className="text-xs text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 mb-2"
                                         >
-                                            {selectedIds.size === filteredItems.length
+                                            {selectedIds.size ===
+                                            filteredItems.length
                                                 ? t("Deselect All")
                                                 : t("Select All")}
                                         </button>
@@ -857,8 +935,12 @@ const MemoryEditor = ({ show, onClose, user, aiName }) => {
                                         onDragEnd={handleDragEnd}
                                     >
                                         <SortableContext
-                                            items={filteredItems.map((item) => item.id)}
-                                            strategy={verticalListSortingStrategy}
+                                            items={filteredItems.map(
+                                                (item) => item.id,
+                                            )}
+                                            strategy={
+                                                verticalListSortingStrategy
+                                            }
                                         >
                                             {filteredItems.map((item) => (
                                                 <SortableMemoryItem
@@ -866,11 +948,19 @@ const MemoryEditor = ({ show, onClose, user, aiName }) => {
                                                     item={item}
                                                     onEdit={handleEdit}
                                                     onDelete={handleDelete}
-                                                    isEditing={editingId === item.id}
+                                                    isEditing={
+                                                        editingId === item.id
+                                                    }
                                                     onSaveEdit={handleSaveEdit}
-                                                    onCancelEdit={handleCancelEdit}
-                                                    isSelected={selectedIds.has(item.id)}
-                                                    onToggleSelect={handleToggleSelect}
+                                                    onCancelEdit={
+                                                        handleCancelEdit
+                                                    }
+                                                    isSelected={selectedIds.has(
+                                                        item.id,
+                                                    )}
+                                                    onToggleSelect={
+                                                        handleToggleSelect
+                                                    }
                                                     sections={sections}
                                                 />
                                             ))}
@@ -878,7 +968,13 @@ const MemoryEditor = ({ show, onClose, user, aiName }) => {
                                         <DragOverlay>
                                             {activeId ? (
                                                 <div className="bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg p-3 opacity-90 shadow-lg">
-                                                    {filteredItems.find((i) => i.id === activeId)?.content}
+                                                    {
+                                                        filteredItems.find(
+                                                            (i) =>
+                                                                i.id ===
+                                                                activeId,
+                                                        )?.content
+                                                    }
                                                 </div>
                                             ) : null}
                                         </DragOverlay>
