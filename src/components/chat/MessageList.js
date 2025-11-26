@@ -421,9 +421,21 @@ const MessageListContent = React.memo(function MessageListContent({
                   nextNextMessage,
               )
             : false;
+        // Check if this message has a codeRequestId (coding agent message will follow)
+        let hasCodeRequest = false;
+        if (newMessage.tool && newMessage.sender === "labeeb") {
+            try {
+                const tool = JSON.parse(newMessage.tool);
+                hasCodeRequest = !!tool?.codeRequestId;
+            } catch (e) {
+                // Invalid JSON, ignore
+            }
+        }
         // User messages always have reduced bottom margin (assistant/streaming always cluster with them)
+        // Assistant messages with codeRequestId should also have reduced margin (coding agent will follow)
         const isUserMessage = newMessage.sender !== "labeeb";
-        const shouldReduceBottomMargin = nextWillCluster || isUserMessage;
+        const shouldReduceBottomMargin =
+            nextWillCluster || isUserMessage || hasCodeRequest;
 
         // Control spacing at the list level based on clustering
         // Spacing is controlled by bottom margin of each message
@@ -832,8 +844,20 @@ const MessageList = React.memo(
                                 className="opacity-0 group-hover:opacity-60 hover:opacity-100 transition-opacity"
                             />
                         </div>
-                        <div className="absolute top-[10px] start-3 flex items-center justify-center w-6 h-6 rounded-full bg-sky-200 dark:bg-sky-900/30">
-                            <User className="w-4 h-4 text-sky-600 dark:text-sky-400" />
+                        <div className="absolute top-[10px] start-3 flex items-center justify-center w-6 h-6 rounded-full bg-sky-200 dark:bg-sky-900/30 overflow-hidden">
+                            {user?.picture || user?.profilePicture ? (
+                                <img
+                                    src={user.picture || user.profilePicture}
+                                    alt={user?.name || "User"}
+                                    className="w-full h-full object-cover"
+                                />
+                            ) : user?.initials ? (
+                                <span className="text-xs font-medium text-sky-600 dark:text-sky-400 leading-none">
+                                    {user.initials}
+                                </span>
+                            ) : (
+                                <User className="w-4 h-4 text-sky-600 dark:text-sky-400" />
+                            )}
                         </div>
                         <div
                             className={classNames(
@@ -862,6 +886,7 @@ const MessageList = React.memo(
                 handleTaskStatusUpdate,
                 messages,
                 handleMessageLoad,
+                user,
             ],
         );
 

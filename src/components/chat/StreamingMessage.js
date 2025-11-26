@@ -189,7 +189,7 @@ const StreamingMessage = React.memo(function StreamingMessage({
     }, []);
 
     return (
-        <div className="flex bg-white dark:bg-gray-800 ps-1 pt-1 relative group rounded-lg border border-gray-300 dark:border-gray-600">
+        <div className="flex bg-white dark:bg-gray-800 ps-1 pt-1 relative group rounded-b-lg rounded-tl-lg rtl:rounded-tl-none rtl:rounded-tr-lg border border-gray-300 dark:border-gray-600">
             <div
                 className={classNames(
                     "px-2 pb-3 pt-2 [.docked_&]:px-0 [.docked_&]:py-3 w-full",

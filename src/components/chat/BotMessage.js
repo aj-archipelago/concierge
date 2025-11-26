@@ -478,7 +478,7 @@ const BotMessage = ({
         <div
             key={message.id}
             className={classNames(
-                "flex bg-white dark:bg-gray-800 ps-1 pt-1 relative group rounded-lg border border-gray-300 dark:border-gray-600",
+                "flex bg-white dark:bg-gray-800 ps-1 pt-1 relative group rounded-b-lg rounded-tl-lg rtl:rounded-tl-none rtl:rounded-tr-lg border border-gray-300 dark:border-gray-600",
             )}
         >
             <div className="flex items-center gap-2 absolute top-3 end-3 z-10">

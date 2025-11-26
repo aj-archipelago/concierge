@@ -9,6 +9,7 @@ import {
     AlertCircle,
     Loader2,
     Play,
+    RotateCw,
 } from "lucide-react";
 import {
     hashMediaFile,
@@ -95,6 +96,11 @@ function FileThumbnail({ file, onRemove, onRetry }) {
                       ? "border-green-300 dark:border-green-700"
                       : "border-gray-300 dark:border-gray-600",
             )}
+            title={
+                file.status === "error" && file.error
+                    ? file.error
+                    : displayName
+            }
         >
             {/* Preview or icon */}
             {isYouTube && youtubeThumbnail ? (
@@ -218,11 +224,15 @@ function FileThumbnail({ file, onRemove, onRetry }) {
                 <button
                     type="button"
                     onClick={() => onRetry(file)}
-                    className="absolute bottom-1 left-1 right-1 px-2 py-1 text-xs bg-sky-500 hover:bg-sky-600 text-white rounded opacity-0 group-hover:opacity-100 transition-opacity z-10"
+                    className={cn(
+                        "absolute w-6 h-6 rounded-full bg-sky-500 hover:bg-sky-600 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity z-10",
+                        isRTL ? "left-1" : "right-1",
+                        "bottom-1",
+                    )}
                     title={t("Retry")}
                     aria-label={t("Retry")}
                 >
-                    {t("Retry")}
+                    <RotateCw className="w-3.5 h-3.5" />
                 </button>
             )}
         </div>
@@ -254,26 +264,130 @@ export default function FileUploader({
     useEffect(() => {
         if (files && files.length > 0) {
             setInternalFiles((prev) => {
-                const newFiles = files.map((file) => {
-                    const existing = prev.find(
-                        (f) =>
-                            f.id === file.id ||
-                            f.serverId === file.serverId ||
-                            (f.source === file.source &&
-                                !(file.source instanceof File)),
-                    );
+                // Helper to merge existing file state with new file data
+                const mergeFileState = (existing, newFile) => {
+                    const isProcessing =
+                        existing.status === "uploading" ||
+                        existing.status === "processing";
+                    return {
+                        ...existing,
+                        ...newFile,
+                        // Preserve upload state if file is being processed
+                        status: isProcessing
+                            ? existing.status
+                            : newFile.status || existing.status,
+                        progress: existing.progress ?? 0,
+                        preview: existing.preview || newFile.preview,
+                    };
+                };
+
+                // Helper to generate unique ID
+                const generateFileId = (index) =>
+                    `file-${Date.now()}-${index}-${Math.random().toString(36).substring(2, 9)}`;
+
+                // Helper to check if two File objects are the same
+                const isSameFile = (fileA, fileB) => {
+                    if (!(fileA instanceof File) || !(fileB instanceof File)) {
+                        return false;
+                    }
                     return (
-                        existing || {
-                            id:
-                                file.id ||
-                                `file-${Date.now()}-${Math.random()}`,
+                        fileA.name === fileB.name &&
+                        fileA.size === fileB.size &&
+                        fileA.type === fileB.type
+                    );
+                };
+
+                // Create a map of existing files by their ID for quick lookup
+                const existingMap = new Map();
+                prev.forEach((f) => {
+                    if (f.id) existingMap.set(f.id, f);
+                    if (f.serverId) existingMap.set(f.serverId, f);
+                });
+
+                const newFiles = files.map((file, index) => {
+                    const isFileObject = file.source instanceof File;
+
+                    // First try to match by ID (most reliable)
+                    if (file.id) {
+                        const existing = existingMap.get(file.id);
+                        if (existing) {
+                            // For File objects, verify the source File is actually the same
+                            if (
+                                isFileObject &&
+                                existing.source instanceof File &&
+                                !isSameFile(file.source, existing.source)
+                            ) {
+                                // Different File object with same ID - create new entry
+                                return {
+                                    id: generateFileId(index),
+                                    ...file,
+                                    status: "pending",
+                                    progress: 0,
+                                };
+                            }
+                            return mergeFileState(existing, file);
+                        }
+                    }
+
+                    // For File objects, never match by anything other than ID
+                    // Each File selection creates a new unique instance
+                    if (isFileObject) {
+                        return {
+                            id: file.id || generateFileId(index),
                             ...file,
                             status: "pending",
                             progress: 0,
+                        };
+                    }
+
+                    // Try to match by serverId (for files that have been uploaded)
+                    if (file.serverId) {
+                        const existing = existingMap.get(file.serverId);
+                        if (existing) {
+                            return mergeFileState(existing, file);
                         }
-                    );
+                    }
+
+                    // For non-File sources (URLs), try to match by source
+                    if (
+                        typeof file.source === "string" ||
+                        file.source?.url
+                    ) {
+                        const sourceKey =
+                            typeof file.source === "string"
+                                ? file.source
+                                : file.source.url;
+                        const existing = prev.find(
+                            (f) =>
+                                !(f.source instanceof File) &&
+                                ((typeof f.source === "string" &&
+                                    f.source === sourceKey) ||
+                                    (f.source?.url === sourceKey)),
+                        );
+                        if (existing) {
+                            return mergeFileState(existing, file);
+                        }
+                    }
+
+                    // No match found, create new entry
+                    return {
+                        id: file.id || generateFileId(index),
+                        ...file,
+                        status: "pending",
+                        progress: 0,
+                    };
                 });
-                return newFiles;
+
+                // Keep any files in prev that are still processing but not in files prop
+                // (this shouldn't normally happen, but protects against edge cases)
+                const processingFiles = prev.filter(
+                    (f) =>
+                        (f.status === "uploading" ||
+                            f.status === "processing") &&
+                        !newFiles.some((nf) => nf.id === f.id),
+                );
+
+                return [...newFiles, ...processingFiles];
             });
         } else if (files?.length === 0) {
             setInternalFiles([]);
@@ -305,7 +419,7 @@ export default function FileUploader({
     const updateFileStatus = useCallback((fileId, updates) => {
         setInternalFiles((prev) =>
             prev.map((f) =>
-                f.id === fileId || f.serverId === fileId
+                f.id === fileId
                     ? { ...f, ...updates }
                     : f,
             ),
@@ -449,6 +563,13 @@ export default function FileUploader({
                         }
                     } catch (err) {
                         console.error("Error checking video duration:", err);
+                        // Preserve the original error message if it's a validation error
+                        if (
+                            err.message &&
+                            err.message.includes("60 minutes")
+                        ) {
+                            throw err;
+                        }
                         throw new Error(t("Could not verify video duration"));
                     }
                 }
@@ -787,8 +908,8 @@ export default function FileUploader({
                 alert(t("Invalid file type"));
             }
 
-            const newFiles = validFiles.map((file) => ({
-                id: `file-${Date.now()}-${Math.random()}`,
+            const newFiles = validFiles.map((file, index) => ({
+                id: `file-${Date.now()}-${index}-${Math.random().toString(36).substring(2, 9)}`,
                 source: file,
                 file: file,
                 filename: file.name,
@@ -837,15 +958,23 @@ export default function FileUploader({
             }
 
             setFiles((prevFiles) =>
-                prevFiles.filter(
-                    (f) =>
-                        f.id !== file.id &&
-                        f.serverId !== file.serverId &&
-                        (f.source !== file.source ||
-                            (file.source instanceof File &&
-                                f.source instanceof File &&
-                                f.source.name !== file.source.name)),
-                ),
+                prevFiles.filter((f) => {
+                    // Match by ID (most reliable - each file should have unique ID)
+                    if (file.id && f.id === file.id) {
+                        return false; // Remove this file
+                    }
+                    // Match by serverId as fallback (for files that have been uploaded)
+                    if (
+                        file.serverId &&
+                        f.serverId === file.serverId &&
+                        !file.id &&
+                        !f.id
+                    ) {
+                        return false; // Remove this file
+                    }
+                    // Keep all other files
+                    return true;
+                }),
             );
 
             if (file.serverId && setUrlsData) {
@@ -891,7 +1020,10 @@ export default function FileUploader({
 
     return (
         <div
-            className={cn("space-y-1.5 p-3", "bg-gray-50 dark:bg-gray-900/50")}
+            className={cn(
+                "space-y-1.5 px-3 pb-3 pt-2",
+                "bg-white dark:bg-gray-800",
+            )}
             dir={direction}
         >
             {/* File thumbnails */}
