@@ -231,7 +231,9 @@ function MemoryItem({
             }`}
             dir={direction}
         >
-            <div className={`flex items-start gap-1.5 ${isRTL ? "flex-row-reverse" : ""}`}>
+            <div
+                className={`flex items-start gap-1.5 ${isRTL ? "flex-row-reverse" : ""}`}
+            >
                 {isRTL ? (
                     <>
                         <div className="flex gap-0.5 flex-shrink-0">
@@ -261,7 +263,9 @@ function MemoryItem({
                                 <span className="font-mono bg-gray-200 dark:bg-gray-600 px-1 py-0.5 rounded">
                                     {item.priority}
                                 </span>
-                                <span className="font-medium">{item.sectionLabel}</span>
+                                <span className="font-medium">
+                                    {item.sectionLabel}
+                                </span>
                             </div>
                         </div>
                         <button
@@ -292,7 +296,9 @@ function MemoryItem({
                                 {item.content}
                             </div>
                             <div className="flex items-center gap-1.5 text-[10px] text-gray-500 dark:text-gray-400">
-                                <span className="font-medium">{item.sectionLabel}</span>
+                                <span className="font-medium">
+                                    {item.sectionLabel}
+                                </span>
                                 <span className="font-mono bg-gray-200 dark:bg-gray-600 px-1 py-0.5 rounded">
                                     {item.priority}
                                 </span>
@@ -346,12 +352,8 @@ const MemoryEditor = ({ show, onClose, user, aiName }) => {
     const [saving, setSaving] = useState(false);
 
     // Use the common selection hook
-    const {
-        selectedIds,
-        toggleSelection,
-        clearSelection,
-        setSelectedIds,
-    } = useItemSelection((item) => item.id);
+    const { selectedIds, toggleSelection, clearSelection, setSelectedIds } =
+        useItemSelection((item) => item.id);
 
     const sections = [
         { key: "memorySelf", label: t("Self Memory") },
@@ -380,7 +382,7 @@ const MemoryEditor = ({ show, onClose, user, aiName }) => {
     useEffect(() => {
         if (memoryData?.sys_read_memory?.result) {
             const memoryString = memoryData.sys_read_memory.result.trim();
-            
+
             // Empty memory should be parseable
             if (!memoryString) {
                 setItems([]);
@@ -431,7 +433,7 @@ const MemoryEditor = ({ show, onClose, user, aiName }) => {
         }
     }, [memoryData]);
 
-    const getFilteredAndSortedItems = () => {
+    const filteredItems = useMemo(() => {
         let filtered = [...items];
 
         // Filter by search
@@ -472,16 +474,7 @@ const MemoryEditor = ({ show, onClose, user, aiName }) => {
         });
 
         return filtered;
-    };
-
-    const filteredItems = useMemo(() => getFilteredAndSortedItems(), [
-        items,
-        searchQuery,
-        sectionFilter,
-        priorityFilter,
-        sortBy,
-        sortOrder,
-    ]);
+    }, [items, searchQuery, sectionFilter, priorityFilter, sortBy, sortOrder]);
 
     const uniquePriorities = useMemo(
         () =>
@@ -687,9 +680,7 @@ const MemoryEditor = ({ show, onClose, user, aiName }) => {
     };
 
     const hasActiveFilters =
-        searchQuery ||
-        sectionFilter !== "all" ||
-        priorityFilter !== "all";
+        searchQuery || sectionFilter !== "all" || priorityFilter !== "all";
 
     // Common button classes
     const actionButtonClass =
@@ -731,7 +722,9 @@ const MemoryEditor = ({ show, onClose, user, aiName }) => {
                 ) : (
                     <>
                         {/* Filter and Action Controls */}
-                        <div className={`flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-4 ${isRTL ? "items-end sm:items-center" : ""}`}>
+                        <div
+                            className={`flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-4 ${isRTL ? "items-end sm:items-center" : ""}`}
+                        >
                             {/* Search - Full Width */}
                             {isParseable && (
                                 <div className="w-full sm:flex-1 sm:max-w-lg">
@@ -746,16 +739,18 @@ const MemoryEditor = ({ show, onClose, user, aiName }) => {
                             )}
 
                             {/* Action Buttons and Size - Left on mobile, Right on desktop */}
-                            <div className={`flex items-center gap-2 flex-wrap sm:flex-nowrap w-full sm:w-auto ${isRTL ? "ml-auto sm:ml-0" : "justify-start sm:justify-end"}`}>
+                            <div
+                                className={`flex items-center gap-2 flex-wrap sm:flex-nowrap w-full sm:w-auto ${isRTL ? "ml-auto sm:ml-0" : "justify-start sm:justify-end"}`}
+                            >
                                 <TooltipProvider>
                                     <Tooltip>
                                         <TooltipTrigger asChild>
-                                    <button
+                                            <button
                                                 className={actionButtonClass}
                                                 onClick={handleAddItem}
-                                    >
+                                            >
                                                 <Plus className="h-4 w-4" />
-                                    </button>
+                                            </button>
                                         </TooltipTrigger>
                                         <TooltipContent>
                                             {t("Add Item")}
@@ -763,12 +758,12 @@ const MemoryEditor = ({ show, onClose, user, aiName }) => {
                                     </Tooltip>
                                     <Tooltip>
                                         <TooltipTrigger asChild>
-                                    <button
+                                            <button
                                                 className={actionButtonClass}
-                                        onClick={handleDownload}
-                                    >
+                                                onClick={handleDownload}
+                                            >
                                                 <Download className="h-4 w-4" />
-                                    </button>
+                                            </button>
                                         </TooltipTrigger>
                                         <TooltipContent>
                                             {t("Download memory backup")}
@@ -776,14 +771,14 @@ const MemoryEditor = ({ show, onClose, user, aiName }) => {
                                     </Tooltip>
                                     <Tooltip>
                                         <TooltipTrigger asChild>
-                                    <button
+                                            <button
                                                 className={actionButtonClass}
-                                        onClick={() =>
-                                            fileInputRef.current?.click()
-                                        }
-                                    >
+                                                onClick={() =>
+                                                    fileInputRef.current?.click()
+                                                }
+                                            >
                                                 <Upload className="h-4 w-4" />
-                                    </button>
+                                            </button>
                                         </TooltipTrigger>
                                         <TooltipContent>
                                             {t("Upload memory from backup")}
@@ -803,20 +798,22 @@ const MemoryEditor = ({ show, onClose, user, aiName }) => {
                                         </TooltipContent>
                                     </Tooltip>
                                 </TooltipProvider>
-                                <div className={`text-sm text-gray-500 dark:text-gray-400 order-last sm:order-first ${isRTL ? "ms-2" : "me-2"}`}>
+                                <div
+                                    className={`text-sm text-gray-500 dark:text-gray-400 order-last sm:order-first ${isRTL ? "ms-2" : "me-2"}`}
+                                >
                                     {t("Size: {{size}} characters", {
                                         size: memorySize,
                                     })}
                                 </div>
-                                    <input
-                                        ref={fileInputRef}
-                                        type="file"
-                                        accept=".json"
-                                        onChange={handleUpload}
-                                        className="hidden"
-                                    />
-                                </div>
+                                <input
+                                    ref={fileInputRef}
+                                    type="file"
+                                    accept=".json"
+                                    onChange={handleUpload}
+                                    className="hidden"
+                                />
                             </div>
+                        </div>
 
                         {/* Clear All Confirmation Dialog */}
                         <AlertDialog
@@ -873,35 +870,56 @@ const MemoryEditor = ({ show, onClose, user, aiName }) => {
 
                         {/* Filters and Sort Controls - Under Search */}
                         {isParseable && (
-                            <div className={`flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 mb-2 ${isRTL ? "sm:flex-row-reverse" : ""}`}>
+                            <div
+                                className={`flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 mb-2 ${isRTL ? "sm:flex-row-reverse" : ""}`}
+                            >
                                 {/* Filters - Left Side in LTR, Right Side in RTL */}
-                                <div className={`flex items-center gap-2 ${isRTL ? "flex-row-reverse justify-end sm:justify-end" : "justify-start"}`}>
+                                <div
+                                    className={`flex items-center gap-2 ${isRTL ? "flex-row-reverse justify-end sm:justify-end" : "justify-start"}`}
+                                >
                                     <Filter className="h-4 w-4 text-gray-500 dark:text-gray-400" />
                                     <Select
-                                            value={sectionFilter}
+                                        value={sectionFilter}
                                         onValueChange={setSectionFilter}
                                     >
-                                        <SelectTrigger className="w-[120px] h-8 text-xs" dir={direction}>
-                                            <SelectValue placeholder={t("Section")} />
+                                        <SelectTrigger
+                                            className="w-[120px] h-8 text-xs"
+                                            dir={direction}
+                                        >
+                                            <SelectValue
+                                                placeholder={t("Section")}
+                                            />
                                         </SelectTrigger>
                                         <SelectContent>
-                                            <SelectItem value="all">{t("All")}</SelectItem>
+                                            <SelectItem value="all">
+                                                {t("All")}
+                                            </SelectItem>
                                             {sections.map((s) => (
-                                                <SelectItem key={s.key} value={s.key}>
+                                                <SelectItem
+                                                    key={s.key}
+                                                    value={s.key}
+                                                >
                                                     {s.label}
                                                 </SelectItem>
                                             ))}
                                         </SelectContent>
                                     </Select>
                                     <Select
-                                            value={priorityFilter}
+                                        value={priorityFilter}
                                         onValueChange={setPriorityFilter}
                                     >
-                                        <SelectTrigger className="w-[100px] h-8 text-xs" dir={direction}>
-                                            <SelectValue placeholder={t("Priority")} />
+                                        <SelectTrigger
+                                            className="w-[100px] h-8 text-xs"
+                                            dir={direction}
+                                        >
+                                            <SelectValue
+                                                placeholder={t("Priority")}
+                                            />
                                         </SelectTrigger>
                                         <SelectContent>
-                                            <SelectItem value="all">{t("All")}</SelectItem>
+                                            <SelectItem value="all">
+                                                {t("All")}
+                                            </SelectItem>
                                             {uniquePriorities.map((p) => (
                                                 <SelectItem key={p} value={p}>
                                                     {p}
@@ -921,7 +939,9 @@ const MemoryEditor = ({ show, onClose, user, aiName }) => {
                                 </div>
                                 {/* Sort - Right Side in LTR, Left Side in RTL */}
                                 {filteredItems.length > 0 && (
-                                    <div className={`flex items-center gap-2 ${isRTL ? "flex-row-reverse justify-end sm:justify-end" : "justify-start sm:justify-end"}`}>
+                                    <div
+                                        className={`flex items-center gap-2 ${isRTL ? "flex-row-reverse justify-end sm:justify-end" : "justify-start sm:justify-end"}`}
+                                    >
                                         <button
                                             onClick={() =>
                                                 setSortOrder(
@@ -939,24 +959,35 @@ const MemoryEditor = ({ show, onClose, user, aiName }) => {
                                             value={sortBy}
                                             onValueChange={setSortBy}
                                         >
-                                            <SelectTrigger className="w-[140px] h-8 text-xs" dir={direction}>
-                                                <SelectValue placeholder={t("Sort")} />
+                                            <SelectTrigger
+                                                className="w-[140px] h-8 text-xs"
+                                                dir={direction}
+                                            >
+                                                <SelectValue
+                                                    placeholder={t("Sort")}
+                                                />
                                             </SelectTrigger>
                                             <SelectContent>
                                                 {sortOptions.map((option) => (
-                                                    <SelectItem key={option.value} value={option.value}>
+                                                    <SelectItem
+                                                        key={option.value}
+                                                        value={option.value}
+                                                    >
                                                         {option.label}
                                                     </SelectItem>
                                                 ))}
                                             </SelectContent>
                                         </Select>
-                                </div>
-                            )}
-                        </div>
+                                    </div>
+                                )}
+                            </div>
                         )}
 
                         {/* Items List or Raw Text Editor */}
-                        <div className="flex-1 overflow-y-auto min-h-0" ref={containerRef}>
+                        <div
+                            className="flex-1 overflow-y-auto min-h-0"
+                            ref={containerRef}
+                        >
                             {!isParseable ? (
                                 <div className="flex flex-col h-full">
                                     <label
@@ -1008,25 +1039,23 @@ const MemoryEditor = ({ show, onClose, user, aiName }) => {
                                 />
                             ) : (
                                 <div>
-                                            {filteredItems.map((item) => (
+                                    {filteredItems.map((item) => (
                                         <MemoryItem
-                                                    key={item.id}
-                                                    item={item}
-                                                    onEdit={handleEdit}
-                                                    onDelete={handleDelete}
-                                                    isEditing={
-                                                        editingId === item.id
-                                                    }
-                                                    onSaveEdit={handleSaveEdit}
+                                            key={item.id}
+                                            item={item}
+                                            onEdit={handleEdit}
+                                            onDelete={handleDelete}
+                                            isEditing={editingId === item.id}
+                                            onSaveEdit={handleSaveEdit}
                                             onCancelEdit={handleCancelEdit}
-                                                    isSelected={selectedIds.has(
-                                                        item.id,
-                                                    )}
+                                            isSelected={selectedIds.has(
+                                                item.id,
+                                            )}
                                             onToggleSelect={handleToggleSelect}
-                                                    sections={sections}
-                                                />
-                                            ))}
-                                                </div>
+                                            sections={sections}
+                                        />
+                                    ))}
+                                </div>
                             )}
                         </div>
 

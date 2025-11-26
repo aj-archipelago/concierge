@@ -422,5 +422,3 @@ const SVGViewer = ({
 };
 
 export default SVGViewer;
-
-
