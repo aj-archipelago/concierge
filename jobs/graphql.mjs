@@ -611,6 +611,55 @@ const IMAGE_GEMINI_25 = gql`
     }
 `;
 
+const IMAGE_GEMINI_3 = gql`
+    query ImageGemini3(
+        $text: String!
+        $async: Boolean
+        $input_image: String
+        $input_image_2: String
+        $input_image_3: String
+        $input_image_4: String
+        $input_image_5: String
+        $input_image_6: String
+        $input_image_7: String
+        $input_image_8: String
+        $input_image_9: String
+        $input_image_10: String
+        $input_image_11: String
+        $input_image_12: String
+        $input_image_13: String
+        $input_image_14: String
+        $optimizePrompt: Boolean
+        $aspectRatio: String
+        $image_size: String
+    ) {
+        image_gemini_3(
+            text: $text
+            async: $async
+            input_image: $input_image
+            input_image_2: $input_image_2
+            input_image_3: $input_image_3
+            input_image_4: $input_image_4
+            input_image_5: $input_image_5
+            input_image_6: $input_image_6
+            input_image_7: $input_image_7
+            input_image_8: $input_image_8
+            input_image_9: $input_image_9
+            input_image_10: $input_image_10
+            input_image_11: $input_image_11
+            input_image_12: $input_image_12
+            input_image_13: $input_image_13
+            input_image_14: $input_image_14
+            optimizePrompt: $optimizePrompt
+            aspectRatio: $aspectRatio
+            image_size: $image_size
+        ) {
+            result
+            resultData
+        }
+    }
+`;
+
 const IMAGE_QWEN = gql`
     query ImageQwen(
         $text: String!
@@ -839,6 +888,7 @@ const QUERIES = {
     IMAGE,
     IMAGE_FLUX,
     IMAGE_GEMINI_25,
+    IMAGE_GEMINI_3,
     IMAGE_QWEN,
     IMAGE_SEEDREAM4,
     VIDEO_VEO,
@@ -902,6 +952,7 @@ export {
     HEADLINE,
     IMAGE_FLUX,
     IMAGE_GEMINI_25,
+    IMAGE_GEMINI_3,
     IMAGE_QWEN,
     IMAGE_SEEDREAM4,
     VIDEO_VEO,

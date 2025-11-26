@@ -104,6 +104,16 @@ const userSchema = new mongoose.Schema(
             required: false,
             default: [],
         },
+        profilePicture: {
+            type: String,
+            required: false,
+            trim: true,
+        },
+        profilePictureHash: {
+            type: String,
+            required: false,
+            trim: true,
+        },
     },
     {
         timestamps: true,

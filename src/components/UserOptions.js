@@ -1,486 +1,444 @@
 import { Modal } from "@/components/ui/modal";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { useApolloClient, useQuery } from "@apollo/client";
 import { useContext, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Download, Upload } from "lucide-react";
+import { User, X, Settings } from "lucide-react";
 import { useUpdateAiOptions } from "../../app/queries/options";
-import { QUERIES } from "../../src/graphql";
+import { useUpdateCurrentUser } from "../../app/queries/users";
 import { AuthContext } from "../App";
 import { LanguageContext } from "../contexts/LanguageProvider";
+import axios from "../../app/utils/axios-client";
+import MemoryEditor from "./MemoryEditor";
 
 const UserOptions = ({ show, handleClose }) => {
     const { t } = useTranslation();
     const { user } = useContext(AuthContext);
     const { direction } = useContext(LanguageContext);
     const isRTL = direction === "rtl";
-    const fileInputRef = useRef();
-    const [aiMemorySelfModify, setAiMemorySelfModify] = useState(
-        user.aiMemorySelfModify || false,
+    const profilePictureInputRef = useRef();
+
+    const [profilePicture, setProfilePicture] = useState(
+        user?.profilePicture || null,
     );
     const [aiName, setAiName] = useState(user.aiName || "Labeeb");
     const [aiStyle, setAiStyle] = useState(user.aiStyle || "OpenAI");
     const [useCustomEntities, setUseCustomEntities] = useState(
         user.useCustomEntities || false,
     );
-    const [activeMemoryTab, setActiveMemoryTab] = useState("user");
-    const [parsedMemory, setParsedMemory] = useState({
-        memorySelf: "",
-        memoryDirectives: "",
-        memoryUser: "",
-        memoryTopics: "",
-        memoryVersion: "",
-    });
-    const [uploadError, setUploadError] = useState("");
+    const [aiMemorySelfModify, setAiMemorySelfModify] = useState(
+        user.aiMemorySelfModify || false,
+    );
+    const [uploadingProfilePicture, setUploadingProfilePicture] =
+        useState(false);
+    const [error, setError] = useState("");
+    const [showMemoryEditor, setShowMemoryEditor] = useState(false);
 
     const updateAiOptionsMutation = useUpdateAiOptions();
-    const apolloClient = useApolloClient();
+    const updateCurrentUserMutation = useUpdateCurrentUser();
 
-    // Modified query to fetch aiMemory
-    const {
-        data: memoryData,
-        loading: memoryLoading,
-        refetch: refetchMemory,
-    } = useQuery(QUERIES.SYS_READ_MEMORY, {
-        variables: { contextId: user.contextId, contextKey: user.contextKey },
-        skip: !user.contextId,
-        fetchPolicy: "network-only", // This ensures we always fetch from the network
-    });
-
-    // Effect to refetch memory when modal is shown
     useEffect(() => {
-        if (show && user.contextId) {
-            refetchMemory();
+        if (user) {
+            setProfilePicture(user.profilePicture || null);
+            setAiName(user.aiName || "Labeeb");
+            setAiStyle(user.aiStyle || "OpenAI");
+            setUseCustomEntities(user.useCustomEntities || false);
+            setAiMemorySelfModify(user.aiMemorySelfModify || false);
         }
-    }, [show, user.contextId, refetchMemory]);
-
-    useEffect(() => {
-        if (memoryData && memoryData.sys_read_memory.result) {
-            try {
-                const parsed = JSON.parse(memoryData.sys_read_memory.result);
-                setParsedMemory({
-                    memorySelf: parsed.memorySelf || "",
-                    memoryDirectives: parsed.memoryDirectives || "",
-                    memoryUser: parsed.memoryUser || "",
-                    memoryTopics: parsed.memoryTopics || "",
-                    memoryVersion: parsed.memoryVersion || "",
-                });
-            } catch (e) {
-                // If parsing fails, put everything in memoryUser
-                setParsedMemory({
-                    memorySelf: "",
-                    memoryDirectives: "",
-                    memoryUser: memoryData.sys_read_memory.result || "",
-                    memoryTopics: "",
-                    memoryVersion: "",
-                });
-            }
-        }
-    }, [memoryData]);
-
-    useEffect(() => {
-        setAiMemorySelfModify(user.aiMemorySelfModify || false);
-        setUseCustomEntities(user.useCustomEntities || false);
     }, [user]);
 
-    const handleClearMemory = () => {
-        setParsedMemory({
-            memorySelf: "",
-            memoryDirectives: "",
-            memoryUser: "",
-            memoryTopics: "",
-            memoryVersion: "",
-        });
+    const handleProfilePictureSelect = async (event) => {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        if (!file.type.startsWith("image/")) {
+            setError(t("Please select an image file"));
+            if (profilePictureInputRef.current) {
+                profilePictureInputRef.current.value = "";
+            }
+            return;
+        }
+
+        setUploadingProfilePicture(true);
+        setError("");
+
+        try {
+            const previewUrl = URL.createObjectURL(file);
+            setProfilePicture(previewUrl);
+
+            const formData = new FormData();
+            formData.append("file", file);
+
+            const response = await axios.post(
+                "/api/users/me/profile-picture",
+                formData,
+                {
+                    headers: {
+                        "Content-Type": "multipart/form-data",
+                    },
+                },
+            );
+
+            if (response.data?.url) {
+                setProfilePicture(response.data.url);
+                await updateCurrentUserMutation.mutateAsync({
+                    data: { profilePicture: response.data.url },
+                });
+            } else {
+                throw new Error(t("Upload failed: No URL returned"));
+            }
+        } catch (error) {
+            console.error("Error uploading profile picture:", error);
+            setError(
+                error.response?.data?.error ||
+                    error.message ||
+                    t("Failed to upload profile picture"),
+            );
+            setProfilePicture(user?.profilePicture || null);
+            if (profilePictureInputRef.current) {
+                profilePictureInputRef.current.value = "";
+            }
+        } finally {
+            setUploadingProfilePicture(false);
+        }
     };
 
-    const handleSave = async () => {
-        if (!user || !user.userId) {
+    const handleRemoveProfilePicture = async () => {
+        try {
+            await axios.delete("/api/users/me/profile-picture");
+            setProfilePicture(null);
+            await updateCurrentUserMutation.mutateAsync({
+                data: { profilePicture: "" },
+            });
+            if (profilePictureInputRef.current) {
+                profilePictureInputRef.current.value = "";
+            }
+        } catch (error) {
+            console.error("Error removing profile picture:", error);
+            setError(
+                error.response?.data?.error ||
+                    error.message ||
+                    t("Failed to remove profile picture"),
+            );
+        }
+    };
+
+    const saveOptions = async (updates) => {
+        if (!user?.userId) {
             console.error("UserId not found");
             return;
         }
 
-        await updateAiOptionsMutation.mutateAsync({
-            userId: user.userId,
-            contextId: user.contextId,
-            aiMemorySelfModify,
-            aiName,
-            aiStyle,
-            useCustomEntities,
-        });
-
-        const combinedMemory = JSON.stringify(parsedMemory);
-
-        apolloClient
-            .mutate({
-                mutation: QUERIES.SYS_SAVE_MEMORY,
-                variables: {
-                    contextId: user.contextId,
-                    contextKey: user.contextKey,
-                    aiMemory: combinedMemory,
-                },
-            })
-            .then((result) => {
-                console.log("Saved memory to Cortex", result);
-            })
-            .catch((error) => {
-                console.error("Failed to save memory to Cortex", error);
+        try {
+            await updateAiOptionsMutation.mutateAsync({
+                userId: user.userId,
+                contextId: user.contextId,
+                aiMemorySelfModify:
+                    updates.aiMemorySelfModify ?? aiMemorySelfModify,
+                aiName: updates.aiName ?? aiName,
+                aiStyle: updates.aiStyle ?? aiStyle,
+                useCustomEntities:
+                    updates.useCustomEntities ?? useCustomEntities,
             });
-
-        handleClose();
-    };
-
-    const handleDownloadMemory = () => {
-        const blob = new Blob([JSON.stringify(parsedMemory, null, 2)], {
-            type: "application/json",
-        });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        const now = new Date();
-        const date = now.toISOString().split("T")[0];
-        const time = now.toTimeString().split(" ")[0].replace(/:/g, "-");
-        a.download = `${aiName.toLowerCase()}-memory-${date}-${time}.json`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-    };
-
-    const handleUploadMemory = (event) => {
-        const file = event.target.files[0];
-        setUploadError(""); // Clear any previous errors
-        if (file) {
-            const reader = new FileReader();
-            reader.onload = (e) => {
-                try {
-                    const uploaded = JSON.parse(e.target.result);
-                    // Validate the required memory structure
-                    if (!uploaded || typeof uploaded !== "object") {
-                        throw new Error(t("Invalid memory file format"));
-                    }
-                    setParsedMemory({
-                        memorySelf: uploaded.memorySelf || "",
-                        memoryDirectives: uploaded.memoryDirectives || "",
-                        memoryUser: uploaded.memoryUser || "",
-                        memoryTopics: uploaded.memoryTopics || "",
-                        memoryVersion: uploaded.memoryVersion || "",
-                    });
-                } catch (error) {
-                    console.error("Failed to parse memory file:", error);
-                    setUploadError(
-                        t(
-                            "Failed to parse memory file. Please ensure it is a valid JSON file with the correct memory structure.",
-                        ),
-                    );
-                    // Reset the file input so the same file can be selected again
-                    if (fileInputRef.current) {
-                        fileInputRef.current.value = "";
-                    }
-                }
-            };
-            reader.onerror = () => {
-                setUploadError(t("Failed to read the file. Please try again."));
-                if (fileInputRef.current) {
-                    fileInputRef.current.value = "";
-                }
-            };
-            reader.readAsText(file);
+            setError("");
+        } catch (error) {
+            console.error("Error saving options:", error);
+            setError(
+                error.response?.data?.error ||
+                    error.message ||
+                    t("Failed to save options"),
+            );
         }
     };
 
-    const memoryTabs = [
-        { id: "user", label: "User Memory" },
-        { id: "self", label: "Self Memory" },
-        { id: "directives", label: "Directives" },
-        { id: "topics", label: "Topics" },
-    ];
-
-    const getMemoryValueForTab = (tabId) => {
-        const mapping = {
-            user: "memoryUser",
-            self: "memorySelf",
-            directives: "memoryDirectives",
-            topics: "memoryTopics",
-        };
-        return parsedMemory[mapping[tabId]];
-    };
-
-    const handleMemoryChange = (value, tabId) => {
-        const mapping = {
-            user: "memoryUser",
-            self: "memorySelf",
-            directives: "memoryDirectives",
-            topics: "memoryTopics",
-        };
-        setParsedMemory((prev) => ({
-            ...prev,
-            [mapping[tabId]]: value,
-        }));
-    };
-
     return (
-        <Modal
-            widthClassName="max-w-2xl"
-            title={t("Options")}
-            show={show}
-            onHide={handleClose}
-        >
-            <div className="flex flex-col max-h-[calc(100vh-200px)]">
-                <Tabs
-                    defaultValue="customize"
-                    className="flex flex-col flex-1 min-h-0 overflow-hidden"
-                >
-                    <TabsList className="mb-4 flex-shrink-0">
-                        <TabsTrigger value="customize">
-                            {t("Customize")}
-                        </TabsTrigger>
-                        <TabsTrigger value="memory">{t("Memory")}</TabsTrigger>
-                    </TabsList>
-                    <div className="flex-1 overflow-y-auto ps-2 pe-2 text-sm min-h-[70vh]">
-                        <TabsContent value="customize" className="mt-0">
-                            <p
-                                className={`text-gray-600 dark:text-gray-400 mb-4 ${isRTL ? "text-right" : "text-left"}`}
-                                dir={direction}
-                            >
-                                {t(
-                                    "Personalize your AI assistant by setting its name, choosing the AI model style, and enabling custom entities for specialized tasks.",
-                                )}
-                            </p>
-                            <h4
-                                className={`text-base font-semibold mb-2 text-gray-900 dark:text-gray-100 ${isRTL ? "text-right" : "text-left"}`}
-                            >
-                                {t("AI Name")}
-                            </h4>
-                            <input
-                                type="text"
-                                value={aiName}
-                                onChange={(e) => setAiName(e.target.value)}
-                                className="lb-input w-full mb-4"
-                                placeholder={t("Enter AI Name")}
-                                dir={direction}
-                            />
+        <>
+            <Modal
+                widthClassName="max-w-2xl"
+                title={t("Options")}
+                show={show}
+                onHide={handleClose}
+            >
+                <div className="flex flex-col gap-4">
+                    {error && (
+                        <div
+                            className={`text-red-500 text-sm p-2 bg-red-50 dark:bg-red-900/20 rounded ${isRTL ? "text-right" : "text-left"}`}
+                            dir={direction}
+                        >
+                            {error}
+                        </div>
+                    )}
 
-                            <h4
-                                className={`text-base font-semibold mb-2 text-gray-900 dark:text-gray-100 ${isRTL ? "text-right" : "text-left"}`}
-                            >
-                                {t("AI Style")}
-                            </h4>
-                            <select
-                                value={aiStyle}
-                                onChange={(e) => setAiStyle(e.target.value)}
-                                className="lb-input w-full mb-4"
-                                dir={direction}
-                            >
-                                <option value="OpenAI_Preview">
-                                    {t("OpenAI Preview (GPT-5.1)")}
-                                </option>
-                                <option value="OpenAI">
-                                    {t("OpenAI (GPT-5)")}
-                                </option>
-                                <option value="OpenAI_Legacy">
-                                    {t("OpenAI Legacy (GPT-4.1/O3)")}
-                                </option>
-                                <option value="XAI">{t("XAI (Grok)")}</option>
-                                <option value="Anthropic">
-                                    {t("Anthropic (Claude)")}
-                                </option>
-                                <option value="Google">
-                                    {t("Google (Gemini)")}
-                                </option>
-                            </select>
-
-                            <div
-                                className={`flex gap-2 items-center mb-4 ${isRTL ? "flex-row-reverse" : ""}`}
-                            >
-                                <input
-                                    type="checkbox"
-                                    size="sm"
-                                    id="useCustomEntities"
-                                    className="accent-sky-500 my-2"
-                                    checked={useCustomEntities}
-                                    onChange={(e) =>
-                                        setUseCustomEntities(e.target.checked)
-                                    }
-                                />
-                                <label
-                                    htmlFor="useCustomEntities"
-                                    className="text-gray-900 dark:text-gray-100"
-                                    dir={direction}
-                                >
-                                    {t("Use other custom entities")}
-                                </label>
-                            </div>
-                        </TabsContent>
-                        <TabsContent value="memory" className="mt-0">
-                            <p
-                                className={`text-gray-600 dark:text-gray-400 mb-4 ${isRTL ? "text-right" : "text-left"}`}
-                                dir={direction}
-                            >
-                                {t(
-                                    "You can customize your interactions with the AI assistant by giving it things to remember. You can enter plain text or something more structured like JSON or XML. If you allow it, the AI will periodically modify its own memory to improve its ability to assist you.",
-                                )}
-                            </p>
-                            <div
-                                className={`flex gap-2 items-center mb-4 ${isRTL ? "flex-row-reverse" : ""}`}
-                            >
-                                <input
-                                    type="checkbox"
-                                    size="sm"
-                                    id="aiMemorySelfModify"
-                                    className="accent-sky-500 my-2"
-                                    checked={aiMemorySelfModify}
-                                    onChange={(e) =>
-                                        setAiMemorySelfModify(e.target.checked)
-                                    }
-                                />
-                                <label
-                                    htmlFor="aiMemorySelfModify"
-                                    className="text-gray-900 dark:text-gray-100"
-                                    dir={direction}
-                                >
-                                    {t("Allow the AI to modify its own memory")}
-                                </label>
-                            </div>
-                            <div>
-                                <h4
-                                    className={`text-base font-semibold mb-2 text-gray-900 dark:text-gray-100 ${isRTL ? "text-right" : "text-left"}`}
-                                >
-                                    {t("Currently stored memory")}
-                                </h4>
-                                {memoryLoading ? (
-                                    <p>{t("Loading memory...")}</p>
-                                ) : (
-                                    <>
-                                        <div
-                                            className={`flex flex-col md:flex-row justify-between items-start md:items-center mb-2 space-y-2 md:space-y-0 ${isRTL ? "md:flex-row-reverse" : ""}`}
-                                        >
-                                            <div
-                                                className={`flex flex-wrap gap-2 items-center ${isRTL ? "flex-row-reverse" : ""}`}
-                                            >
-                                                <button
-                                                    className="lb-outline-danger"
-                                                    onClick={handleClearMemory}
-                                                >
-                                                    {t("Clear Memory")}
-                                                </button>
-                                                <button
-                                                    className="lb-outline-secondary"
-                                                    onClick={
-                                                        handleDownloadMemory
-                                                    }
-                                                    title={t(
-                                                        "Download memory backup",
-                                                    )}
-                                                >
-                                                    <Download className="w-4 h-4" />
-                                                </button>
-                                                <button
-                                                    className="lb-outline-secondary"
-                                                    onClick={() =>
-                                                        fileInputRef.current?.click()
-                                                    }
-                                                    title={t(
-                                                        "Upload memory from backup",
-                                                    )}
-                                                >
-                                                    <Upload className="w-4 h-4" />
-                                                </button>
-                                                <input
-                                                    ref={fileInputRef}
-                                                    type="file"
-                                                    accept=".json"
-                                                    onChange={
-                                                        handleUploadMemory
-                                                    }
-                                                    className="hidden"
-                                                />
-                                            </div>
-                                            <div
-                                                className={`text-sm text-gray-500 dark:text-gray-400 flex flex-wrap gap-2 items-center ${isRTL ? "flex-row-reverse text-right" : ""}`}
-                                            >
-                                                <span>
-                                                    {t(
-                                                        "Memory size: {{size}} characters",
-                                                        {
-                                                            size: JSON.stringify(
-                                                                parsedMemory,
-                                                            ).length,
-                                                        },
-                                                    )}
-                                                </span>
-                                                {parsedMemory.memoryVersion && (
-                                                    <span className="text-xs text-gray-400 dark:text-gray-500">
-                                                        (v
-                                                        {
-                                                            parsedMemory.memoryVersion
-                                                        }
-                                                        )
-                                                    </span>
-                                                )}
-                                            </div>
-                                        </div>
-                                        <div className="border-b border-gray-200 dark:border-gray-700">
-                                            <nav
-                                                className={`flex -mb-px ${isRTL ? "flex-row-reverse" : ""}`}
-                                            >
-                                                {memoryTabs.map((tab) => (
-                                                    <button
-                                                        key={tab.id}
-                                                        className={`${isRTL ? "ms-2" : "me-2"} py-2 px-4 font-medium text-sm border-b-2 ${
-                                                            activeMemoryTab ===
-                                                            tab.id
-                                                                ? "border-sky-500 text-sky-600 dark:text-sky-400"
-                                                                : "border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300 dark:hover:border-gray-600"
-                                                        }`}
-                                                        onClick={() =>
-                                                            setActiveMemoryTab(
-                                                                tab.id,
-                                                            )
-                                                        }
-                                                    >
-                                                        {t(tab.label)}
-                                                    </button>
-                                                ))}
-                                            </nav>
-                                        </div>
-                                        <textarea
-                                            value={getMemoryValueForTab(
-                                                activeMemoryTab,
-                                            )}
-                                            onChange={(e) =>
-                                                handleMemoryChange(
-                                                    e.target.value,
-                                                    activeMemoryTab,
-                                                )
+                    {/* Profile Picture Section */}
+                    <section>
+                        <div
+                            className={`flex items-center gap-3 ${isRTL ? "flex-row-reverse justify-end" : ""}`}
+                        >
+                            {isRTL ? (
+                                <>
+                                    <div className="flex items-center gap-2 flex-shrink-0">
+                                        <button
+                                            type="button"
+                                            onClick={() =>
+                                                profilePictureInputRef.current?.click()
                                             }
-                                            className="lb-input font-mono w-full mt-4"
-                                            rows={10}
-                                            dir={direction}
+                                            disabled={uploadingProfilePicture}
+                                            className="lb-outline-secondary text-xs px-2 py-1"
+                                        >
+                                            {uploadingProfilePicture
+                                                ? t("Uploading...")
+                                                : profilePicture
+                                                  ? t("Change")
+                                                  : t("Upload")}
+                                        </button>
+                                        <input
+                                            ref={profilePictureInputRef}
+                                            type="file"
+                                            accept="image/*"
+                                            onChange={
+                                                handleProfilePictureSelect
+                                            }
+                                            className="hidden"
                                         />
-                                        {uploadError && (
-                                            <div className="text-red-500 text-sm mt-2">
-                                                {uploadError}
+                                    </div>
+                                    <div className="relative flex-shrink-0">
+                                        {profilePicture ? (
+                                            <img
+                                                src={profilePicture}
+                                                alt={t("Profile picture")}
+                                                className="w-12 h-12 rounded-full object-cover border border-gray-200 dark:border-gray-700"
+                                            />
+                                        ) : (
+                                            <div className="w-12 h-12 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center border border-gray-300 dark:border-gray-600">
+                                                <User className="w-6 h-6 text-gray-400 dark:text-gray-500" />
                                             </div>
                                         )}
-                                    </>
-                                )}
+                                        {profilePicture && (
+                                            <button
+                                                type="button"
+                                                onClick={
+                                                    handleRemoveProfilePicture
+                                                }
+                                                className="absolute -top-0.5 -start-0.5 w-4 h-4 rounded-full bg-red-500 text-white flex items-center justify-center hover:bg-red-600 transition-colors"
+                                                title={t(
+                                                    "Remove profile picture",
+                                                )}
+                                            >
+                                                <X className="w-3 h-3" />
+                                            </button>
+                                        )}
+                                    </div>
+                                </>
+                            ) : (
+                                <>
+                                    <div className="relative flex-shrink-0">
+                                        {profilePicture ? (
+                                            <img
+                                                src={profilePicture}
+                                                alt={t("Profile picture")}
+                                                className="w-12 h-12 rounded-full object-cover border border-gray-200 dark:border-gray-700"
+                                            />
+                                        ) : (
+                                            <div className="w-12 h-12 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center border border-gray-300 dark:border-gray-600">
+                                                <User className="w-6 h-6 text-gray-400 dark:text-gray-500" />
+                                            </div>
+                                        )}
+                                        {profilePicture && (
+                                            <button
+                                                type="button"
+                                                onClick={
+                                                    handleRemoveProfilePicture
+                                                }
+                                                className="absolute -top-0.5 -end-0.5 w-4 h-4 rounded-full bg-red-500 text-white flex items-center justify-center hover:bg-red-600 transition-colors"
+                                                title={t(
+                                                    "Remove profile picture",
+                                                )}
+                                            >
+                                                <X className="w-3 h-3" />
+                                            </button>
+                                        )}
+                                    </div>
+                                    <div className="flex items-center gap-2 flex-shrink-0">
+                                        <button
+                                            type="button"
+                                            onClick={() =>
+                                                profilePictureInputRef.current?.click()
+                                            }
+                                            disabled={uploadingProfilePicture}
+                                            className="lb-outline-secondary text-xs px-2 py-1"
+                                        >
+                                            {uploadingProfilePicture
+                                                ? t("Uploading...")
+                                                : profilePicture
+                                                  ? t("Change")
+                                                  : t("Upload")}
+                                        </button>
+                                        <input
+                                            ref={profilePictureInputRef}
+                                            type="file"
+                                            accept="image/*"
+                                            onChange={
+                                                handleProfilePictureSelect
+                                            }
+                                            className="hidden"
+                                        />
+                                    </div>
+                                </>
+                            )}
+                        </div>
+                    </section>
+
+                    {/* Separator */}
+                    <hr className="border-gray-200 dark:border-gray-700" />
+
+                    {/* AI Settings Section */}
+                    <section className="space-y-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div>
+                                <label
+                                    className={`block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1 ${isRTL ? "text-right" : "text-left"}`}
+                                    htmlFor="aiName"
+                                >
+                                    {t("AI Name")}
+                                </label>
+                                <input
+                                    id="aiName"
+                                    type="text"
+                                    value={aiName}
+                                    onChange={(e) => {
+                                        setAiName(e.target.value);
+                                        saveOptions({ aiName: e.target.value });
+                                    }}
+                                    className="lb-input w-full text-sm"
+                                    placeholder={t("Enter AI Name")}
+                                    dir={direction}
+                                />
                             </div>
-                        </TabsContent>
-                    </div>
-                </Tabs>
-                <div className="flex-shrink-0 justify-end flex gap-2 pt-4 mt-4 border-t border-gray-200 dark:border-gray-700">
-                    <button
-                        className="lb-outline-secondary"
-                        onClick={handleClose}
+
+                            <div>
+                                <label
+                                    className={`block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1 ${isRTL ? "text-right" : "text-left"}`}
+                                    htmlFor="aiStyle"
+                                >
+                                    {t("AI Style")}
+                                </label>
+                                <select
+                                    id="aiStyle"
+                                    value={aiStyle}
+                                    onChange={(e) => {
+                                        setAiStyle(e.target.value);
+                                        saveOptions({
+                                            aiStyle: e.target.value,
+                                        });
+                                    }}
+                                    className="lb-input w-full text-sm"
+                                    dir={direction}
+                                >
+                                    <option value="OpenAI_Preview">
+                                        {t("OpenAI Preview (GPT-5.1)")}
+                                    </option>
+                                    <option value="OpenAI">
+                                        {t("OpenAI (GPT-5)")}
+                                    </option>
+                                    <option value="OpenAI_Legacy">
+                                        {t("OpenAI Legacy (GPT-4.1/O3)")}
+                                    </option>
+                                    <option value="XAI">
+                                        {t("XAI (Grok)")}
+                                    </option>
+                                    <option value="Anthropic">
+                                        {t("Anthropic (Claude)")}
+                                    </option>
+                                    <option value="Google">
+                                        {t("Google (Gemini)")}
+                                    </option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div
+                            className={`flex gap-2 items-center ${isRTL ? "flex-row-reverse justify-end" : ""}`}
+                        >
+                            <input
+                                type="checkbox"
+                                id="useCustomEntities"
+                                className={`accent-sky-500 ${isRTL ? "order-2" : ""}`}
+                                checked={useCustomEntities}
+                                onChange={(e) => {
+                                    setUseCustomEntities(e.target.checked);
+                                    saveOptions({
+                                        useCustomEntities: e.target.checked,
+                                    });
+                                }}
+                            />
+                            <label
+                                htmlFor="useCustomEntities"
+                                className={`text-sm text-gray-900 dark:text-gray-100 cursor-pointer ${isRTL ? "order-1" : ""}`}
+                                dir={direction}
+                            >
+                                {t("Use other custom entities")}
+                            </label>
+                        </div>
+                    </section>
+
+                    {/* Separator */}
+                    <hr className="border-gray-200 dark:border-gray-700" />
+
+                    {/* Memory Section */}
+                    <section className="space-y-2">
+                        <div
+                            className={`flex gap-2 items-center ${isRTL ? "flex-row-reverse justify-end" : ""}`}
+                        >
+                            <input
+                                type="checkbox"
+                                id="aiMemorySelfModify"
+                                className={`accent-sky-500 ${isRTL ? "order-2" : ""}`}
+                                checked={aiMemorySelfModify}
+                                onChange={(e) => {
+                                    setAiMemorySelfModify(e.target.checked);
+                                    saveOptions({
+                                        aiMemorySelfModify: e.target.checked,
+                                    });
+                                }}
+                            />
+                            <label
+                                htmlFor="aiMemorySelfModify"
+                                className={`text-sm text-gray-900 dark:text-gray-100 cursor-pointer ${isRTL ? "order-1" : ""}`}
+                                dir={direction}
+                            >
+                                {t("Allow the AI to modify its own memory")}
+                            </label>
+                        </div>
+                        <button
+                            type="button"
+                            onClick={() => setShowMemoryEditor(true)}
+                            className="lb-outline-secondary text-sm w-full sm:w-auto"
+                        >
+                            <Settings className="w-3.5 h-3.5 inline me-1.5" />
+                            {t("Edit Memory")}
+                        </button>
+                    </section>
+
+                    {/* Footer */}
+                    <div
+                        className={`flex gap-2 pt-3 mt-3 border-t border-gray-200 dark:border-gray-700 ${isRTL ? "flex-row-reverse justify-start" : "justify-end"}`}
                     >
-                        {t("Close")}
-                    </button>
-                    <button className="lb-primary" onClick={handleSave}>
-                        {t("Save changes")}
-                    </button>
+                        <button
+                            type="button"
+                            className="lb-primary text-xs flex-1 sm:flex-initial"
+                            onClick={handleClose}
+                        >
+                            {t("Close")}
+                        </button>
+                    </div>
                 </div>
-            </div>
-        </Modal>
+            </Modal>
+
+            <MemoryEditor
+                show={showMemoryEditor}
+                onClose={() => setShowMemoryEditor(false)}
+                user={user}
+                aiName={aiName}
+            />
+        </>
     );
 };
 

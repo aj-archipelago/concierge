@@ -222,7 +222,7 @@ export async function handleStreamingFileUpload(request, options) {
  * @param {Object} user - Current user for storage validation
  * @returns {Object} Parsed file data or error
  */
-async function parseStreamingMultipart(request, user) {
+export async function parseStreamingMultipart(request, user) {
     return new Promise((resolve, reject) => {
         try {
             const contentType = request.headers.get("content-type");
@@ -460,7 +460,11 @@ async function parseStreamingMultipart(request, user) {
  * @param {string} containerName - Optional container name for storage
  * @returns {Object} Upload result with data or error
  */
-async function uploadBufferToMediaService(fileBuffer, metadata, containerName) {
+export async function uploadBufferToMediaService(
+    fileBuffer,
+    metadata,
+    containerName,
+) {
     try {
         let mediaHelperUrl = config.endpoints.mediaHelperDirect();
         if (!mediaHelperUrl) {

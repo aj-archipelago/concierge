@@ -146,21 +146,34 @@ export async function PUT(req, { params }) {
                     },
                 );
 
-                // Find all server-generated messages in the existing chat
-                const serverGeneratedMessages = existingChat.messages.filter(
-                    (msg) => msg.isServerGenerated === true,
-                );
-
                 // Create a Map of message IDs from incoming messages for quick lookup
                 const incomingMessagesMap = new Map(
                     sanitizedMessages.map((msg) => [msg._id?.toString(), msg]),
                 );
 
-                // Add server-generated messages that aren't in the incoming messages
-                for (const serverMsg of serverGeneratedMessages) {
-                    const msgId = serverMsg._id?.toString();
-                    if (msgId && !incomingMessagesMap.has(msgId)) {
-                        sanitizedMessages.push(sanitizeMessage(serverMsg));
+                // Check if this is a replay/truncation (incoming messages are fewer than original)
+                const isReplay =
+                    sanitizedMessages.length < existingChat.messages.length;
+
+                if (isReplay) {
+                    // During replay, the client explicitly sends the messages it wants to keep
+                    // We should NOT preserve any server-generated messages (including coding agent messages)
+                    // because they may have been intentionally removed by the replay
+                    // The client's message list is the source of truth for what should remain
+                } else {
+                    // For normal updates: preserve all server-generated messages that aren't in incoming
+                    const serverGeneratedMessages =
+                        existingChat.messages.filter(
+                            (msg) =>
+                                msg.isServerGenerated === true ||
+                                msg.taskId != null,
+                        );
+
+                    for (const serverMsg of serverGeneratedMessages) {
+                        const msgId = serverMsg._id?.toString();
+                        if (msgId && !incomingMessagesMap.has(msgId)) {
+                            sanitizedMessages.push(sanitizeMessage(serverMsg));
+                        }
                     }
                 }
 

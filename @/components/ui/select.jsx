@@ -13,21 +13,31 @@ const SelectGroup = SelectPrimitive.Group;
 const SelectValue = SelectPrimitive.Value;
 
 const SelectTrigger = React.forwardRef(
-    ({ className, children, ...props }, ref) => (
-        <SelectPrimitive.Trigger
-            ref={ref}
-            className={cn(
-                "flex h-10 w-full items-center justify-between rounded-md border border-gray-200 dark:border-gray-600 bg-white px-3 py-2 text-sm ring-offset-white placeholder:text-gray-500 focus:outline-none focus:ring-1 focus:ring-gray-950 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 [&>span]:line-clamp-1 dark:bg-gray-800 dark:ring-offset-gray-950 dark:placeholder:text-gray-400 dark:focus:ring-gray-300",
-                className,
-            )}
-            {...props}
-        >
-            {children}
-            <SelectPrimitive.Icon asChild>
-                <ChevronDown className="h-4 w-4 opacity-50" />
-            </SelectPrimitive.Icon>
-        </SelectPrimitive.Trigger>
-    ),
+    ({ className, children, dir, ...props }, ref) => {
+        const isRTL =
+            dir === "rtl" ||
+            (typeof document !== "undefined" &&
+                document.documentElement.dir === "rtl");
+        return (
+            <SelectPrimitive.Trigger
+                ref={ref}
+                dir={dir}
+                className={cn(
+                    "flex h-10 w-full items-center rounded-md border border-gray-200 dark:border-gray-600 bg-white px-3 py-2 text-sm ring-offset-white placeholder:text-gray-500 focus:outline-none focus:ring-1 focus:ring-gray-950 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 [&>span]:line-clamp-1 dark:bg-gray-800 dark:ring-offset-gray-950 dark:placeholder:text-gray-400 dark:focus:ring-gray-300",
+                    isRTL
+                        ? "flex-row-reverse justify-between"
+                        : "justify-between",
+                    className,
+                )}
+                {...props}
+            >
+                {children}
+                <SelectPrimitive.Icon asChild>
+                    <ChevronDown className="h-4 w-4 opacity-50 flex-shrink-0" />
+                </SelectPrimitive.Icon>
+            </SelectPrimitive.Trigger>
+        );
+    },
 );
 SelectTrigger.displayName = SelectPrimitive.Trigger.displayName;
 
