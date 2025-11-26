@@ -1,38 +1,47 @@
 import { Modal } from "@/components/ui/modal";
-import {
-    DndContext,
-    DragOverlay,
-    KeyboardSensor,
-    PointerSensor,
-    useSensor,
-    useSensors,
-} from "@dnd-kit/core";
-import {
-    arrayMove,
-    SortableContext,
-    sortableKeyboardCoordinates,
-    useSortable,
-    verticalListSortingStrategy,
-} from "@dnd-kit/sortable";
-import { CSS } from "@dnd-kit/utilities";
 import { useApolloClient, useQuery } from "@apollo/client";
-import { useContext, useEffect, useRef, useState } from "react";
+import { useContext, useEffect, useRef, useState, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import {
     Download,
     Upload,
-    GripVertical,
     Plus,
     X,
     Edit2,
-    Search,
-    ArrowUpDown,
-    Filter,
     CheckSquare,
     Square,
+    Filter,
 } from "lucide-react";
+import { Spinner } from "@/components/ui/spinner";
+import {
+    Tooltip,
+    TooltipTrigger,
+    TooltipContent,
+    TooltipProvider,
+} from "@/components/ui/tooltip";
 import { QUERIES } from "../graphql";
 import { LanguageContext } from "../contexts/LanguageProvider";
+import FilterInput from "./common/FilterInput";
+import BulkActionsBar from "./common/BulkActionsBar";
+import EmptyState from "./common/EmptyState";
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select";
+import {
+    AlertDialog,
+    AlertDialogContent,
+    AlertDialogHeader,
+    AlertDialogTitle,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogAction,
+    AlertDialogCancel,
+} from "@/components/ui/alert-dialog";
+import { useItemSelection } from "./images/hooks/useItemSelection";
 
 // Parse all memory sections into a flat list with section field
 const parseAllMemory = (parsedMemory) => {
@@ -95,7 +104,7 @@ const serializeMemory = (items) => {
     };
 };
 
-function SortableMemoryItem({
+function MemoryItem({
     item,
     onEdit,
     onDelete,
@@ -106,15 +115,6 @@ function SortableMemoryItem({
     onToggleSelect,
     sections,
 }) {
-    const {
-        attributes,
-        listeners,
-        setNodeRef,
-        transform,
-        transition,
-        isDragging,
-    } = useSortable({ id: item.id });
-
     const { t } = useTranslation();
     const { direction } = useContext(LanguageContext);
     const isRTL = direction === "rtl";
@@ -122,11 +122,6 @@ function SortableMemoryItem({
     const [editPriority, setEditPriority] = useState(item.priority);
     const [editSection, setEditSection] = useState(item.section);
     const textareaRef = useRef(null);
-
-    const style = {
-        transform: CSS.Transform.toString(transform),
-        transition: transition || "transform 200ms ease",
-    };
 
     useEffect(() => {
         if (isEditing) {
@@ -156,20 +151,20 @@ function SortableMemoryItem({
         return (
             <div
                 data-item-id={item.id}
-                className="bg-white dark:bg-gray-800 border-2 border-sky-500 rounded-lg p-3 mb-2"
+                className="bg-white dark:bg-gray-800 border-2 border-sky-500 rounded p-1.5 mb-1"
                 dir={direction}
             >
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-3">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-2">
                     <div>
                         <label
-                            className={`block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1 ${isRTL ? "text-right" : "text-left"}`}
+                            className={`block text-[10px] font-medium text-gray-700 dark:text-gray-300 mb-0.5 ${isRTL ? "text-right" : "text-left"}`}
                         >
                             {t("Section")}
                         </label>
                         <select
                             value={editSection}
                             onChange={(e) => setEditSection(e.target.value)}
-                            className="lb-input w-full text-sm"
+                            className="lb-input w-full text-xs"
                             dir={direction}
                         >
                             {sections.map((s) => (
@@ -181,7 +176,7 @@ function SortableMemoryItem({
                     </div>
                     <div>
                         <label
-                            className={`block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1 ${isRTL ? "text-right" : "text-left"}`}
+                            className={`block text-[10px] font-medium text-gray-700 dark:text-gray-300 mb-0.5 ${isRTL ? "text-right" : "text-left"}`}
                         >
                             {t("Priority")}
                         </label>
@@ -189,7 +184,7 @@ function SortableMemoryItem({
                             type="text"
                             value={editPriority}
                             onChange={(e) => setEditPriority(e.target.value)}
-                            className="lb-input w-full text-sm"
+                            className="lb-input w-full text-xs"
                             placeholder="1"
                             dir={direction}
                         />
@@ -199,16 +194,16 @@ function SortableMemoryItem({
                     ref={textareaRef}
                     value={editContent}
                     onChange={(e) => setEditContent(e.target.value)}
-                    className="lb-input font-mono w-full text-sm mb-2 resize-none"
-                    rows={3}
+                    className="lb-input font-mono w-full text-xs mb-1.5 resize-none"
+                    rows={2}
                     dir={direction}
                 />
                 <div
-                    className={`flex gap-2 ${isRTL ? "flex-row-reverse" : ""}`}
+                    className={`flex gap-1.5 ${isRTL ? "flex-row-reverse" : ""}`}
                 >
                     <button
                         onClick={handleSave}
-                        className="lb-primary text-xs px-2 py-1"
+                        className="lb-primary text-[10px] px-1.5 py-0.5"
                     >
                         {t("Save")}
                     </button>
@@ -219,7 +214,7 @@ function SortableMemoryItem({
                             setEditSection(item.section);
                             onCancelEdit();
                         }}
-                        className="lb-outline-secondary text-xs px-2 py-1"
+                        className="lb-outline-secondary text-[10px] px-1.5 py-0.5"
                     >
                         {t("Cancel")}
                     </button>
@@ -230,66 +225,100 @@ function SortableMemoryItem({
 
     return (
         <div
-            ref={setNodeRef}
-            style={style}
             data-item-id={item.id}
-            className={`bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg p-3 mb-2 ${
-                isDragging ? "opacity-50 shadow-lg" : ""
-            } ${isSelected ? "ring-2 ring-sky-500" : ""}`}
+            className={`bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded p-1.5 mb-1 ${
+                isSelected ? "ring-1 ring-sky-500" : ""
+            }`}
             dir={direction}
         >
-            <div className="flex items-start gap-2">
-                <button
-                    onClick={() => onToggleSelect(item.id)}
-                    className="flex-shrink-0 mt-0.5"
-                >
-                    {isSelected ? (
-                        <CheckSquare className="h-4 w-4 text-sky-600 dark:text-sky-400" />
-                    ) : (
-                        <Square className="h-4 w-4 text-gray-400" />
-                    )}
-                </button>
-                <button
-                    {...attributes}
-                    {...listeners}
-                    className={`cursor-grab active:cursor-grabbing p-1 hover:bg-gray-200 dark:hover:bg-gray-600 rounded flex-shrink-0 mt-0.5 ${isRTL ? "order-last" : ""}`}
-                >
-                    <GripVertical className="h-4 w-4 text-gray-400" />
-                </button>
-                <div className="flex-1 min-w-0">
-                    <div className="text-gray-900 dark:text-gray-100 whitespace-pre-wrap break-words mb-1.5">
-                        {item.content}
-                    </div>
-                    <div
-                        className={`flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400 ${isRTL ? "flex-row-reverse" : ""}`}
-                    >
-                        <span className="font-medium">{item.sectionLabel}</span>
-                        <span className="font-mono bg-gray-200 dark:bg-gray-600 px-1.5 py-0.5 rounded">
-                            {item.priority}
-                        </span>
-                        <span className="font-mono">
-                            {new Date(item.timestamp).toLocaleString()}
-                        </span>
-                    </div>
-                </div>
-                <div
-                    className={`flex gap-1 flex-shrink-0 ${isRTL ? "flex-row-reverse" : ""}`}
-                >
-                    <button
-                        onClick={() => onEdit(item.id)}
-                        className="p-1 hover:bg-gray-200 dark:hover:bg-gray-600 rounded"
-                        title={t("Edit")}
-                    >
-                        <Edit2 className="h-3.5 w-3.5 text-gray-600 dark:text-gray-300" />
-                    </button>
-                    <button
-                        onClick={() => onDelete(item.id)}
-                        className="p-1 hover:bg-red-100 dark:hover:bg-red-900/30 rounded"
-                        title={t("Delete")}
-                    >
-                        <X className="h-3.5 w-3.5 text-red-600 dark:text-red-400" />
-                    </button>
-                </div>
+            <div className={`flex items-start gap-1.5 ${isRTL ? "flex-row-reverse" : ""}`}>
+                {isRTL ? (
+                    <>
+                        <div className="flex gap-0.5 flex-shrink-0">
+                            <button
+                                onClick={() => onEdit(item.id)}
+                                className="p-0.5 hover:bg-gray-200 dark:hover:bg-gray-600 rounded"
+                                title={t("Edit")}
+                            >
+                                <Edit2 className="h-3 w-3 text-gray-600 dark:text-gray-300" />
+                            </button>
+                            <button
+                                onClick={() => onDelete(item.id)}
+                                className="p-0.5 hover:bg-red-100 dark:hover:bg-red-900/30 rounded"
+                                title={t("Delete")}
+                            >
+                                <X className="h-3 w-3 text-red-600 dark:text-red-400" />
+                            </button>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                            <div className="text-xs text-gray-900 dark:text-gray-100 whitespace-pre-wrap break-words mb-1">
+                                {item.content}
+                            </div>
+                            <div className="flex items-center gap-1.5 text-[10px] text-gray-500 dark:text-gray-400 flex-row-reverse">
+                                <span className="font-mono">
+                                    {new Date(item.timestamp).toLocaleString()}
+                                </span>
+                                <span className="font-mono bg-gray-200 dark:bg-gray-600 px-1 py-0.5 rounded">
+                                    {item.priority}
+                                </span>
+                                <span className="font-medium">{item.sectionLabel}</span>
+                            </div>
+                        </div>
+                        <button
+                            onClick={() => onToggleSelect(item)}
+                            className="flex-shrink-0 mt-0.5"
+                        >
+                            {isSelected ? (
+                                <CheckSquare className="h-3 w-3 text-sky-600 dark:text-sky-400" />
+                            ) : (
+                                <Square className="h-3 w-3 text-gray-400" />
+                            )}
+                        </button>
+                    </>
+                ) : (
+                    <>
+                        <button
+                            onClick={() => onToggleSelect(item)}
+                            className="flex-shrink-0 mt-0.5"
+                        >
+                            {isSelected ? (
+                                <CheckSquare className="h-3 w-3 text-sky-600 dark:text-sky-400" />
+                            ) : (
+                                <Square className="h-3 w-3 text-gray-400" />
+                            )}
+                        </button>
+                        <div className="flex-1 min-w-0">
+                            <div className="text-xs text-gray-900 dark:text-gray-100 whitespace-pre-wrap break-words mb-1">
+                                {item.content}
+                            </div>
+                            <div className="flex items-center gap-1.5 text-[10px] text-gray-500 dark:text-gray-400">
+                                <span className="font-medium">{item.sectionLabel}</span>
+                                <span className="font-mono bg-gray-200 dark:bg-gray-600 px-1 py-0.5 rounded">
+                                    {item.priority}
+                                </span>
+                                <span className="font-mono">
+                                    {new Date(item.timestamp).toLocaleString()}
+                                </span>
+                            </div>
+                        </div>
+                        <div className="flex gap-0.5 flex-shrink-0">
+                            <button
+                                onClick={() => onEdit(item.id)}
+                                className="p-0.5 hover:bg-gray-200 dark:hover:bg-gray-600 rounded"
+                                title={t("Edit")}
+                            >
+                                <Edit2 className="h-3 w-3 text-gray-600 dark:text-gray-300" />
+                            </button>
+                            <button
+                                onClick={() => onDelete(item.id)}
+                                className="p-0.5 hover:bg-red-100 dark:hover:bg-red-900/30 rounded"
+                                title={t("Delete")}
+                            >
+                                <X className="h-3 w-3 text-red-600 dark:text-red-400" />
+                            </button>
+                        </div>
+                    </>
+                )}
             </div>
         </div>
     );
@@ -301,11 +330,10 @@ const MemoryEditor = ({ show, onClose, user, aiName }) => {
     const isRTL = direction === "rtl";
     const fileInputRef = useRef();
     const apolloClient = useApolloClient();
+    const containerRef = useRef(null);
 
     const [items, setItems] = useState([]);
     const [editingId, setEditingId] = useState(null);
-    const [activeId, setActiveId] = useState(null);
-    const [selectedIds, setSelectedIds] = useState(new Set());
     const [searchQuery, setSearchQuery] = useState("");
     const [sortBy, setSortBy] = useState("timestamp");
     const [sortOrder, setSortOrder] = useState("desc");
@@ -314,6 +342,16 @@ const MemoryEditor = ({ show, onClose, user, aiName }) => {
     const [error, setError] = useState("");
     const [isParseable, setIsParseable] = useState(true);
     const [rawMemory, setRawMemory] = useState("");
+    const [showClearConfirm, setShowClearConfirm] = useState(false);
+    const [saving, setSaving] = useState(false);
+
+    // Use the common selection hook
+    const {
+        selectedIds,
+        toggleSelection,
+        clearSelection,
+        setSelectedIds,
+    } = useItemSelection((item) => item.id);
 
     const sections = [
         { key: "memorySelf", label: t("Self Memory") },
@@ -321,13 +359,6 @@ const MemoryEditor = ({ show, onClose, user, aiName }) => {
         { key: "memoryDirectives", label: t("Directives") },
         { key: "memoryTopics", label: t("Topics") },
     ];
-
-    const sensors = useSensors(
-        useSensor(PointerSensor),
-        useSensor(KeyboardSensor, {
-            coordinateGetter: sortableKeyboardCoordinates,
-        }),
-    );
 
     const {
         data: memoryData,
@@ -342,13 +373,24 @@ const MemoryEditor = ({ show, onClose, user, aiName }) => {
     useEffect(() => {
         if (show && user?.contextId) {
             refetchMemory();
+            setSaving(false);
         }
     }, [show, user?.contextId, refetchMemory]);
 
     useEffect(() => {
         if (memoryData?.sys_read_memory?.result) {
+            const memoryString = memoryData.sys_read_memory.result.trim();
+            
+            // Empty memory should be parseable
+            if (!memoryString) {
+                setItems([]);
+                setIsParseable(true);
+                setRawMemory("");
+                return;
+            }
+
             try {
-                const parsed = JSON.parse(memoryData.sys_read_memory.result);
+                const parsed = JSON.parse(memoryString);
                 const allItems = parseAllMemory(parsed);
                 if (allItems.length > 0) {
                     setItems(allItems);
@@ -356,12 +398,15 @@ const MemoryEditor = ({ show, onClose, user, aiName }) => {
                     setRawMemory("");
                 } else {
                     // If parsed but no items, check if it's valid structure
-                    const hasAnyMemory =
-                        parsed.memorySelf ||
-                        parsed.memoryUser ||
-                        parsed.memoryDirectives ||
-                        parsed.memoryTopics;
-                    if (hasAnyMemory) {
+                    // Check if the object has the expected memory keys (even if empty)
+                    const hasValidStructure =
+                        typeof parsed === "object" &&
+                        parsed !== null &&
+                        ("memorySelf" in parsed ||
+                            "memoryUser" in parsed ||
+                            "memoryDirectives" in parsed ||
+                            "memoryTopics" in parsed);
+                    if (hasValidStructure) {
                         // Valid structure but empty items - still parseable
                         setItems([]);
                         setIsParseable(true);
@@ -370,14 +415,14 @@ const MemoryEditor = ({ show, onClose, user, aiName }) => {
                         // Not in expected format - show as raw text
                         setItems([]);
                         setIsParseable(false);
-                        setRawMemory(memoryData.sys_read_memory.result);
+                        setRawMemory(memoryString);
                     }
                 }
             } catch (e) {
                 // Failed to parse JSON - show as raw text
                 setItems([]);
                 setIsParseable(false);
-                setRawMemory(memoryData.sys_read_memory.result);
+                setRawMemory(memoryString);
             }
         } else {
             setItems([]);
@@ -429,28 +474,29 @@ const MemoryEditor = ({ show, onClose, user, aiName }) => {
         return filtered;
     };
 
-    const filteredItems = getFilteredAndSortedItems();
-    const uniquePriorities = [
-        ...new Set(items.map((item) => item.priority)),
-    ].sort((a, b) => parseInt(a) - parseInt(b));
+    const filteredItems = useMemo(() => getFilteredAndSortedItems(), [
+        items,
+        searchQuery,
+        sectionFilter,
+        priorityFilter,
+        sortBy,
+        sortOrder,
+    ]);
 
-    const handleDragStart = (event) => {
-        setActiveId(event.active.id);
-    };
+    const uniquePriorities = useMemo(
+        () =>
+            [...new Set(items.map((item) => item.priority))].sort(
+                (a, b) => parseInt(a) - parseInt(b),
+            ),
+        [items],
+    );
 
-    const handleDragEnd = (event) => {
-        const { active, over } = event;
-        if (!over || active.id === over.id) {
-            setActiveId(null);
-            return;
-        }
-
-        const oldIndex = items.findIndex((item) => item.id === active.id);
-        const newIndex = items.findIndex((item) => item.id === over.id);
-        const newItems = arrayMove(items, oldIndex, newIndex);
-        setItems(newItems);
-        setActiveId(null);
-    };
+    const allSelected = useMemo(
+        () =>
+            filteredItems.length > 0 &&
+            filteredItems.every((item) => selectedIds.has(item.id)),
+        [filteredItems, selectedIds],
+    );
 
     const handleAddItem = () => {
         const newItem = {
@@ -467,6 +513,7 @@ const MemoryEditor = ({ show, onClose, user, aiName }) => {
         setSectionFilter("all");
         setPriorityFilter("all");
         setEditingId(newItem.id);
+        // Scroll to new item after a brief delay
         setTimeout(() => {
             const element = document.querySelector(
                 `[data-item-id="${newItem.id}"]`,
@@ -506,43 +553,39 @@ const MemoryEditor = ({ show, onClose, user, aiName }) => {
     const handleDelete = (id) => {
         const filtered = items.filter((item) => item.id !== id);
         setItems(filtered);
-        setSelectedIds((prev) => {
-            const next = new Set(prev);
-            next.delete(id);
-            return next;
-        });
+        const itemToRemove = items.find((item) => item.id === id);
+        if (itemToRemove && selectedIds.has(id)) {
+            toggleSelection(itemToRemove);
+        }
     };
 
     const handleDeleteSelected = () => {
         const filtered = items.filter((item) => !selectedIds.has(item.id));
         setItems(filtered);
-        setSelectedIds(new Set());
+        clearSelection();
     };
 
-    const handleToggleSelect = (id) => {
-        setSelectedIds((prev) => {
-            const next = new Set(prev);
-            if (next.has(id)) {
-                next.delete(id);
-            } else {
-                next.add(id);
-            }
-            return next;
-        });
+    const handleToggleSelect = (item) => {
+        toggleSelection(item);
     };
 
     const handleSelectAll = () => {
-        if (selectedIds.size === filteredItems.length) {
-            setSelectedIds(new Set());
+        if (allSelected) {
+            clearSelection();
         } else {
             setSelectedIds(new Set(filteredItems.map((item) => item.id)));
         }
     };
 
     const handleClear = () => {
+        setShowClearConfirm(true);
+    };
+
+    const handleConfirmClear = () => {
         setItems([]);
-        setSelectedIds(new Set());
+        clearSelection();
         setError("");
+        setShowClearConfirm(false);
     };
 
     const handleSave = async () => {
@@ -550,6 +593,9 @@ const MemoryEditor = ({ show, onClose, user, aiName }) => {
             setError(t("User context not found"));
             return;
         }
+
+        setSaving(true);
+        setError("");
 
         try {
             let combinedMemory;
@@ -574,6 +620,7 @@ const MemoryEditor = ({ show, onClose, user, aiName }) => {
             setError(
                 error.message || t("Failed to save memory. Please try again."),
             );
+            setSaving(false);
         }
     };
 
@@ -632,6 +679,32 @@ const MemoryEditor = ({ show, onClose, user, aiName }) => {
 
     const memorySize = JSON.stringify(serializeMemory(items)).length;
 
+    // Helper to clear all filters
+    const clearAllFilters = () => {
+        setSearchQuery("");
+        setSectionFilter("all");
+        setPriorityFilter("all");
+    };
+
+    const hasActiveFilters =
+        searchQuery ||
+        sectionFilter !== "all" ||
+        priorityFilter !== "all";
+
+    // Common button classes
+    const actionButtonClass =
+        "flex items-center justify-center w-9 h-9 rounded-md border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors";
+    const clearButtonClass =
+        "flex items-center justify-center w-9 h-9 rounded-md border border-red-300 dark:border-red-600 bg-white dark:bg-gray-700 text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors";
+
+    // Sort options for Select dropdown
+    const sortOptions = [
+        { value: "timestamp", label: t("Timestamp") },
+        { value: "section", label: t("Section") },
+        { value: "priority", label: t("Priority") },
+        { value: "content", label: t("Content") },
+    ];
+
     return (
         <Modal
             widthClassName="max-w-6xl"
@@ -642,7 +715,7 @@ const MemoryEditor = ({ show, onClose, user, aiName }) => {
             <div className="flex flex-col h-[calc(100vh-200px)] min-h-[600px]">
                 {error && (
                     <div
-                        className={`text-red-500 text-sm p-3 bg-red-50 dark:bg-red-900/20 rounded-md mb-4 ${isRTL ? "text-right" : "text-left"}`}
+                        className={`text-red-500 text-xs p-2 bg-red-50 dark:bg-red-900/20 rounded mb-3 ${isRTL ? "text-right" : "text-left"}`}
                         dir={direction}
                     >
                         {error}
@@ -651,69 +724,90 @@ const MemoryEditor = ({ show, onClose, user, aiName }) => {
 
                 {memoryLoading ? (
                     <div className="flex-1 flex items-center justify-center">
-                        <p className="text-gray-500 dark:text-gray-400">
+                        <p className="text-xs text-gray-500 dark:text-gray-400">
                             {t("Loading memory...")}
                         </p>
                     </div>
                 ) : (
                     <>
-                        {/* Toolbar */}
-                        <div className="space-y-3 mb-4 pb-4 border-b border-gray-200 dark:border-gray-700">
-                            <div
-                                className={`flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 ${isRTL ? "sm:flex-row-reverse" : ""}`}
-                            >
-                                <div
-                                    className={`flex flex-wrap gap-2 items-center ${isRTL ? "flex-row-reverse" : ""}`}
-                                >
+                        {/* Filter and Action Controls */}
+                        <div className={`flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-4 ${isRTL ? "items-end sm:items-center" : ""}`}>
+                            {/* Search - Full Width */}
+                            {isParseable && (
+                                <div className="w-full sm:flex-1 sm:max-w-lg">
+                                    <FilterInput
+                                        value={searchQuery}
+                                        onChange={setSearchQuery}
+                                        onClear={() => setSearchQuery("")}
+                                        placeholder={t("Search content...")}
+                                        className="w-full"
+                                    />
+                                </div>
+                            )}
+
+                            {/* Action Buttons and Size - Left on mobile, Right on desktop */}
+                            <div className={`flex items-center gap-2 flex-wrap sm:flex-nowrap w-full sm:w-auto ${isRTL ? "ml-auto sm:ml-0" : "justify-start sm:justify-end"}`}>
+                                <TooltipProvider>
+                                    <Tooltip>
+                                        <TooltipTrigger asChild>
                                     <button
-                                        className="lb-outline-secondary text-sm"
-                                        onClick={handleAddItem}
+                                                className={actionButtonClass}
+                                                onClick={handleAddItem}
                                     >
-                                        <Plus
-                                            className={`w-4 h-4 inline ${isRTL ? "ms-1.5" : "me-1.5"}`}
-                                        />
-                                        {t("Add Item")}
+                                                <Plus className="h-4 w-4" />
                                     </button>
-                                    {selectedIds.size > 0 && (
-                                        <button
-                                            className="lb-outline-danger text-sm"
-                                            onClick={handleDeleteSelected}
-                                        >
-                                            <X
-                                                className={`w-4 h-4 inline ${isRTL ? "ms-1.5" : "me-1.5"}`}
-                                            />
-                                            {t("Delete Selected")} (
-                                            {selectedIds.size})
-                                        </button>
-                                    )}
+                                        </TooltipTrigger>
+                                        <TooltipContent>
+                                            {t("Add Item")}
+                                        </TooltipContent>
+                                    </Tooltip>
+                                    <Tooltip>
+                                        <TooltipTrigger asChild>
                                     <button
-                                        className="lb-outline-danger text-sm"
-                                        onClick={handleClear}
-                                    >
-                                        {t("Clear All")}
-                                    </button>
-                                    <button
-                                        className="lb-outline-secondary text-sm"
+                                                className={actionButtonClass}
                                         onClick={handleDownload}
-                                        title={t("Download memory backup")}
                                     >
-                                        <Download
-                                            className={`w-4 h-4 inline ${isRTL ? "ms-1.5" : "me-1.5"}`}
-                                        />
-                                        {t("Download")}
+                                                <Download className="h-4 w-4" />
                                     </button>
+                                        </TooltipTrigger>
+                                        <TooltipContent>
+                                            {t("Download memory backup")}
+                                        </TooltipContent>
+                                    </Tooltip>
+                                    <Tooltip>
+                                        <TooltipTrigger asChild>
                                     <button
-                                        className="lb-outline-secondary text-sm"
+                                                className={actionButtonClass}
                                         onClick={() =>
                                             fileInputRef.current?.click()
                                         }
-                                        title={t("Upload memory from backup")}
                                     >
-                                        <Upload
-                                            className={`w-4 h-4 inline ${isRTL ? "ms-1.5" : "me-1.5"}`}
-                                        />
-                                        {t("Upload")}
+                                                <Upload className="h-4 w-4" />
                                     </button>
+                                        </TooltipTrigger>
+                                        <TooltipContent>
+                                            {t("Upload memory from backup")}
+                                        </TooltipContent>
+                                    </Tooltip>
+                                    <Tooltip>
+                                        <TooltipTrigger asChild>
+                                            <button
+                                                className={clearButtonClass}
+                                                onClick={handleClear}
+                                            >
+                                                <X className="h-4 w-4" />
+                                            </button>
+                                        </TooltipTrigger>
+                                        <TooltipContent>
+                                            {t("Clear All")}
+                                        </TooltipContent>
+                                    </Tooltip>
+                                </TooltipProvider>
+                                <div className={`text-sm text-gray-500 dark:text-gray-400 order-last sm:order-first ${isRTL ? "ms-2" : "me-2"}`}>
+                                    {t("Size: {{size}} characters", {
+                                        size: memorySize,
+                                    })}
+                                </div>
                                     <input
                                         ref={fileInputRef}
                                         type="file"
@@ -722,123 +816,112 @@ const MemoryEditor = ({ show, onClose, user, aiName }) => {
                                         className="hidden"
                                     />
                                 </div>
-                                <div
-                                    className={`text-sm text-gray-500 dark:text-gray-400 ${isRTL ? "text-right" : "text-left"}`}
-                                >
-                                    {t("Size: {{size}} characters", {
-                                        size: memorySize,
-                                    })}
-                                </div>
                             </div>
 
-                            {/* Search and Filter Controls */}
-                            {isParseable && items.length > 0 && (
-                                <div
-                                    className={`flex flex-col sm:flex-row gap-3 items-start sm:items-center ${isRTL ? "sm:flex-row-reverse" : ""}`}
+                        {/* Clear All Confirmation Dialog */}
+                        <AlertDialog
+                            open={showClearConfirm}
+                            onOpenChange={setShowClearConfirm}
+                        >
+                            <AlertDialogContent>
+                                <AlertDialogHeader>
+                                    <AlertDialogTitle>
+                                        {t("Clear All Memory?")}
+                                    </AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                        {t(
+                                            "Are you sure you want to clear all memory items? This action cannot be undone.",
+                                        )}
+                                    </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter
+                                    className={
+                                        isRTL
+                                            ? "flex-row-reverse sm:flex-row-reverse"
+                                            : ""
+                                    }
                                 >
-                                    <div className="relative flex-1 min-w-0 max-w-md">
-                                        <Search
-                                            className={`absolute top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none ${isRTL ? "end-2" : "start-2"}`}
-                                        />
-                                        <input
-                                            type="text"
-                                            value={searchQuery}
-                                            onChange={(e) =>
-                                                setSearchQuery(e.target.value)
-                                            }
-                                            placeholder={t("Search content...")}
-                                            className={`lb-input w-full text-sm ${isRTL ? "pe-8 ps-2" : "ps-9 pe-2"}`}
-                                            dir={direction}
-                                        />
-                                    </div>
-                                    <div
-                                        className={`flex gap-2 items-center ${isRTL ? "flex-row-reverse" : ""}`}
+                                    <AlertDialogCancel>
+                                        {t("Cancel")}
+                                    </AlertDialogCancel>
+                                    <AlertDialogAction
+                                        onClick={handleConfirmClear}
+                                        className="bg-red-600 hover:bg-red-700 focus:ring-red-600"
                                     >
-                                        <label
-                                            className={`text-xs text-gray-600 dark:text-gray-400 flex items-center gap-1 ${isRTL ? "flex-row-reverse" : ""}`}
-                                        >
-                                            <Filter className="h-3.5 w-3.5" />
-                                            {t("Section:")}
-                                        </label>
-                                        <select
+                                        {t("Clear All")}
+                                    </AlertDialogAction>
+                                </AlertDialogFooter>
+                            </AlertDialogContent>
+                        </AlertDialog>
+
+                        {/* Bulk Actions Bar */}
+                        {selectedIds.size > 0 && (
+                            <BulkActionsBar
+                                selectedCount={selectedIds.size}
+                                allSelected={allSelected}
+                                onSelectAll={handleSelectAll}
+                                onClearSelection={clearSelection}
+                                actions={{
+                                    delete: {
+                                        onClick: handleDeleteSelected,
+                                        label: t("Delete Selected"),
+                                        ariaLabel: t("Delete selected items"),
+                                    },
+                                }}
+                            />
+                        )}
+
+                        {/* Filters and Sort Controls - Under Search */}
+                        {isParseable && (
+                            <div className={`flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 mb-2 ${isRTL ? "sm:flex-row-reverse" : ""}`}>
+                                {/* Filters - Left Side in LTR, Right Side in RTL */}
+                                <div className={`flex items-center gap-2 ${isRTL ? "flex-row-reverse justify-end sm:justify-end" : "justify-start"}`}>
+                                    <Filter className="h-4 w-4 text-gray-500 dark:text-gray-400" />
+                                    <Select
                                             value={sectionFilter}
-                                            onChange={(e) =>
-                                                setSectionFilter(e.target.value)
-                                            }
-                                            className="lb-input text-sm py-1 px-2"
-                                            dir={direction}
-                                        >
-                                            <option value="all">
-                                                {t("All")}
-                                            </option>
+                                        onValueChange={setSectionFilter}
+                                    >
+                                        <SelectTrigger className="w-[120px] h-8 text-xs" dir={direction}>
+                                            <SelectValue placeholder={t("Section")} />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="all">{t("All")}</SelectItem>
                                             {sections.map((s) => (
-                                                <option
-                                                    key={s.key}
-                                                    value={s.key}
-                                                >
+                                                <SelectItem key={s.key} value={s.key}>
                                                     {s.label}
-                                                </option>
+                                                </SelectItem>
                                             ))}
-                                        </select>
-                                    </div>
-                                    <div
-                                        className={`flex gap-2 items-center ${isRTL ? "flex-row-reverse" : ""}`}
-                                    >
-                                        <label
-                                            className={`text-xs text-gray-600 dark:text-gray-400 flex items-center gap-1 ${isRTL ? "flex-row-reverse" : ""}`}
-                                        >
-                                            {t("Priority:")}
-                                        </label>
-                                        <select
+                                        </SelectContent>
+                                    </Select>
+                                    <Select
                                             value={priorityFilter}
-                                            onChange={(e) =>
-                                                setPriorityFilter(
-                                                    e.target.value,
-                                                )
-                                            }
-                                            className="lb-input text-sm py-1 px-2"
-                                            dir={direction}
-                                        >
-                                            <option value="all">
-                                                {t("All")}
-                                            </option>
-                                            {uniquePriorities.map((p) => (
-                                                <option key={p} value={p}>
-                                                    {p}
-                                                </option>
-                                            ))}
-                                        </select>
-                                    </div>
-                                    <div
-                                        className={`flex gap-2 items-center ${isRTL ? "flex-row-reverse" : ""}`}
+                                        onValueChange={setPriorityFilter}
                                     >
-                                        <label
-                                            className={`text-xs text-gray-600 dark:text-gray-400 flex items-center gap-1 ${isRTL ? "flex-row-reverse" : ""}`}
+                                        <SelectTrigger className="w-[100px] h-8 text-xs" dir={direction}>
+                                            <SelectValue placeholder={t("Priority")} />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="all">{t("All")}</SelectItem>
+                                            {uniquePriorities.map((p) => (
+                                                <SelectItem key={p} value={p}>
+                                                    {p}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                    {hasActiveFilters && (
+                                        <button
+                                            onClick={clearAllFilters}
+                                            className="flex items-center justify-center w-8 h-8 rounded-md border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors"
+                                            title={t("Clear Filters")}
                                         >
-                                            <ArrowUpDown className="h-3.5 w-3.5" />
-                                            {t("Sort:")}
-                                        </label>
-                                        <select
-                                            value={sortBy}
-                                            onChange={(e) =>
-                                                setSortBy(e.target.value)
-                                            }
-                                            className="lb-input text-sm py-1 px-2"
-                                            dir={direction}
-                                        >
-                                            <option value="timestamp">
-                                                {t("Timestamp")}
-                                            </option>
-                                            <option value="section">
-                                                {t("Section")}
-                                            </option>
-                                            <option value="priority">
-                                                {t("Priority")}
-                                            </option>
-                                            <option value="content">
-                                                {t("Content")}
-                                            </option>
-                                        </select>
+                                            <X className="h-4 w-4" />
+                                        </button>
+                                    )}
+                                </div>
+                                {/* Sort - Right Side in LTR, Left Side in RTL */}
+                                {filteredItems.length > 0 && (
+                                    <div className={`flex items-center gap-2 ${isRTL ? "flex-row-reverse justify-end sm:justify-end" : "justify-start sm:justify-end"}`}>
                                         <button
                                             onClick={() =>
                                                 setSortOrder(
@@ -847,42 +930,43 @@ const MemoryEditor = ({ show, onClose, user, aiName }) => {
                                                         : "asc",
                                                 )
                                             }
-                                            className="lb-outline-secondary text-xs px-2 py-1"
+                                            className="lb-outline-secondary text-xs px-2 py-1 h-8 min-w-[2rem]"
                                             title={t("Toggle sort order")}
                                         >
                                             {sortOrder === "asc" ? "↑" : "↓"}
                                         </button>
-                                    </div>
-                                    {(searchQuery ||
-                                        sectionFilter !== "all" ||
-                                        priorityFilter !== "all") && (
-                                        <button
-                                            onClick={() => {
-                                                setSearchQuery("");
-                                                setSectionFilter("all");
-                                                setPriorityFilter("all");
-                                            }}
-                                            className="lb-outline-secondary text-xs px-2 py-1"
+                                        <Select
+                                            value={sortBy}
+                                            onValueChange={setSortBy}
                                         >
-                                            {t("Clear Filters")}
-                                        </button>
-                                    )}
+                                            <SelectTrigger className="w-[140px] h-8 text-xs" dir={direction}>
+                                                <SelectValue placeholder={t("Sort")} />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                {sortOptions.map((option) => (
+                                                    <SelectItem key={option.value} value={option.value}>
+                                                        {option.label}
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
                                 </div>
                             )}
                         </div>
+                        )}
 
                         {/* Items List or Raw Text Editor */}
-                        <div className="flex-1 overflow-y-auto min-h-0">
+                        <div className="flex-1 overflow-y-auto min-h-0" ref={containerRef}>
                             {!isParseable ? (
                                 <div className="flex flex-col h-full">
                                     <label
-                                        className={`block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 ${isRTL ? "text-right" : "text-left"}`}
+                                        className={`block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1.5 ${isRTL ? "text-right" : "text-left"}`}
                                         htmlFor="raw-memory-editor"
                                         dir={direction}
                                     >
                                         {t("Memory (Raw Text Format)")}
                                         <span
-                                            className={`${isRTL ? "ms-2" : "ms-2"} text-xs text-gray-500 dark:text-gray-400`}
+                                            className={`${isRTL ? "ms-1.5" : "ms-1.5"} text-[10px] text-gray-500 dark:text-gray-400`}
                                         >
                                             (
                                             {t(
@@ -897,7 +981,7 @@ const MemoryEditor = ({ show, onClose, user, aiName }) => {
                                         onChange={(e) =>
                                             setRawMemory(e.target.value)
                                         }
-                                        className="lb-input font-mono w-full flex-1 resize-none"
+                                        className="lb-input font-mono text-xs w-full flex-1 resize-none"
                                         placeholder={t(
                                             "Enter memory content. Use format: priority|timestamp|content (one per line) for structured editing, or plain text.",
                                         )}
@@ -905,45 +989,27 @@ const MemoryEditor = ({ show, onClose, user, aiName }) => {
                                     />
                                 </div>
                             ) : items.length === 0 ? (
-                                <div className="text-center py-12 text-gray-500 dark:text-gray-400">
-                                    <p>
-                                        {t(
-                                            "No memory items. Click 'Add Item' to create one.",
-                                        )}
-                                    </p>
-                                </div>
+                                <EmptyState
+                                    icon="🧠"
+                                    title={t("No memory items")}
+                                    description={t(
+                                        "Click 'Add Item' to create your first memory item.",
+                                    )}
+                                    action={handleAddItem}
+                                    actionLabel={t("Add Item")}
+                                />
                             ) : filteredItems.length === 0 ? (
-                                <div className="text-center py-12 text-gray-500 dark:text-gray-400">
-                                    <p>{t("No items match your filters.")}</p>
-                                </div>
+                                <EmptyState
+                                    icon="🔍"
+                                    title={t("No items match your filters")}
+                                    description={t(
+                                        "Try adjusting your search or filter criteria.",
+                                    )}
+                                />
                             ) : (
-                                <>
-                                    <div className="mb-2">
-                                        <button
-                                            onClick={handleSelectAll}
-                                            className="text-xs text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 mb-2"
-                                        >
-                                            {selectedIds.size ===
-                                            filteredItems.length
-                                                ? t("Deselect All")
-                                                : t("Select All")}
-                                        </button>
-                                    </div>
-                                    <DndContext
-                                        sensors={sensors}
-                                        onDragStart={handleDragStart}
-                                        onDragEnd={handleDragEnd}
-                                    >
-                                        <SortableContext
-                                            items={filteredItems.map(
-                                                (item) => item.id,
-                                            )}
-                                            strategy={
-                                                verticalListSortingStrategy
-                                            }
-                                        >
+                                <div>
                                             {filteredItems.map((item) => (
-                                                <SortableMemoryItem
+                                        <MemoryItem
                                                     key={item.id}
                                                     item={item}
                                                     onEdit={handleEdit}
@@ -952,51 +1018,35 @@ const MemoryEditor = ({ show, onClose, user, aiName }) => {
                                                         editingId === item.id
                                                     }
                                                     onSaveEdit={handleSaveEdit}
-                                                    onCancelEdit={
-                                                        handleCancelEdit
-                                                    }
+                                            onCancelEdit={handleCancelEdit}
                                                     isSelected={selectedIds.has(
                                                         item.id,
                                                     )}
-                                                    onToggleSelect={
-                                                        handleToggleSelect
-                                                    }
+                                            onToggleSelect={handleToggleSelect}
                                                     sections={sections}
                                                 />
                                             ))}
-                                        </SortableContext>
-                                        <DragOverlay>
-                                            {activeId ? (
-                                                <div className="bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg p-3 opacity-90 shadow-lg">
-                                                    {
-                                                        filteredItems.find(
-                                                            (i) =>
-                                                                i.id ===
-                                                                activeId,
-                                                        )?.content
-                                                    }
                                                 </div>
-                                            ) : null}
-                                        </DragOverlay>
-                                    </DndContext>
-                                </>
                             )}
                         </div>
 
                         {/* Footer */}
                         <div
-                            className={`flex gap-3 pt-4 mt-4 border-t border-gray-200 dark:border-gray-700 ${isRTL ? "flex-row-reverse" : ""}`}
+                            className={`flex gap-2 pt-3 mt-3 border-t border-gray-200 dark:border-gray-700 relative z-10 bg-white dark:bg-gray-800 ${isRTL ? "flex-row-reverse justify-start" : "justify-end"}`}
                         >
                             <button
-                                className="lb-outline-secondary flex-1 sm:flex-initial"
+                                className="lb-outline-secondary text-xs flex-1 sm:flex-initial"
                                 onClick={onClose}
+                                disabled={saving}
                             >
                                 {t("Cancel")}
                             </button>
                             <button
-                                className="lb-primary flex-1 sm:flex-initial"
+                                className="lb-primary text-xs flex-1 sm:flex-initial flex items-center justify-center gap-2"
                                 onClick={handleSave}
+                                disabled={saving}
                             >
+                                {saving && <Spinner size="sm" />}
                                 {t("Save")}
                             </button>
                         </div>

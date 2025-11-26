@@ -286,6 +286,9 @@ const UserOptions = ({ show, handleClose }) => {
                         </div>
                     </section>
 
+                    {/* Separator */}
+                    <hr className="border-gray-200 dark:border-gray-700" />
+
                     {/* AI Settings Section */}
                     <section className="space-y-3">
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -352,12 +355,12 @@ const UserOptions = ({ show, handleClose }) => {
                         </div>
 
                         <div
-                            className={`flex gap-2 items-center ${isRTL ? "flex-row-reverse" : ""}`}
+                            className={`flex gap-2 items-center ${isRTL ? "flex-row-reverse justify-end" : ""}`}
                         >
                             <input
                                 type="checkbox"
                                 id="useCustomEntities"
-                                className="accent-sky-500"
+                                className={`accent-sky-500 ${isRTL ? "order-2" : ""}`}
                                 checked={useCustomEntities}
                                 onChange={(e) => {
                                     setUseCustomEntities(e.target.checked);
@@ -368,7 +371,7 @@ const UserOptions = ({ show, handleClose }) => {
                             />
                             <label
                                 htmlFor="useCustomEntities"
-                                className="text-sm text-gray-900 dark:text-gray-100 cursor-pointer"
+                                className={`text-sm text-gray-900 dark:text-gray-100 cursor-pointer ${isRTL ? "order-1" : ""}`}
                                 dir={direction}
                             >
                                 {t("Use other custom entities")}
@@ -376,15 +379,18 @@ const UserOptions = ({ show, handleClose }) => {
                         </div>
                     </section>
 
+                    {/* Separator */}
+                    <hr className="border-gray-200 dark:border-gray-700" />
+
                     {/* Memory Section */}
                     <section className="space-y-2">
                         <div
-                            className={`flex gap-2 items-center ${isRTL ? "flex-row-reverse" : ""}`}
+                            className={`flex gap-2 items-center ${isRTL ? "flex-row-reverse justify-end" : ""}`}
                         >
                             <input
                                 type="checkbox"
                                 id="aiMemorySelfModify"
-                                className="accent-sky-500"
+                                className={`accent-sky-500 ${isRTL ? "order-2" : ""}`}
                                 checked={aiMemorySelfModify}
                                 onChange={(e) => {
                                     setAiMemorySelfModify(e.target.checked);
@@ -395,7 +401,7 @@ const UserOptions = ({ show, handleClose }) => {
                             />
                             <label
                                 htmlFor="aiMemorySelfModify"
-                                className="text-sm text-gray-900 dark:text-gray-100 cursor-pointer"
+                                className={`text-sm text-gray-900 dark:text-gray-100 cursor-pointer ${isRTL ? "order-1" : ""}`}
                                 dir={direction}
                             >
                                 {t("Allow the AI to modify its own memory")}
@@ -410,6 +416,19 @@ const UserOptions = ({ show, handleClose }) => {
                             {t("Edit Memory")}
                         </button>
                     </section>
+
+                    {/* Footer */}
+                    <div
+                        className={`flex gap-2 pt-3 mt-3 border-t border-gray-200 dark:border-gray-700 ${isRTL ? "flex-row-reverse justify-start" : "justify-end"}`}
+                    >
+                        <button
+                            type="button"
+                            className="lb-primary text-xs flex-1 sm:flex-initial"
+                            onClick={handleClose}
+                        >
+                            {t("Close")}
+                        </button>
+                    </div>
                 </div>
             </Modal>
 

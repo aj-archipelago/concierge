@@ -861,7 +861,7 @@ const MessageList = React.memo(
                         </div>
                         <div
                             className={classNames(
-                                "px-1 pb-3 pt-2 ps-10 [.docked_&]:px-0 [.docked_&]:py-3 w-full",
+                                "px-1 pb-3 pt-2 ps-10 [.docked_&]:px-0 [.docked_&]:ps-10 [.docked_&]:py-3 w-full",
                             )}
                         >
                             <pre className="chat-message-user">
