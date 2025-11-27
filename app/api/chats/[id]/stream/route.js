@@ -7,7 +7,26 @@ import {
     SUBSCRIPTIONS,
 } from "../../../../../jobs/graphql.mjs";
 import { StreamAccumulator } from "../../../utils/stream-accumulator.mjs";
-import { removeArtifactsFromMessages } from "../../_lib";
+import {
+    removeArtifactsFromMessages,
+    cleanupStaleStopRequestedIds,
+    isSubscriptionStopped,
+    removeStoppedSubscription,
+} from "../../_lib";
+
+/**
+ * Helper function to clear isChatLoading state
+ */
+async function clearChatLoading(chatId) {
+    await Chat.findOneAndUpdate({ _id: chatId }, { isChatLoading: false }).catch(
+        (error) => {
+            console.error(
+                `[SSE Stream] Error clearing isChatLoading for chat ${chatId}:`,
+                error,
+            );
+        },
+    );
+}
 
 /**
  * POST /api/chats/[id]/stream
@@ -29,6 +48,8 @@ export async function POST(req, { params }) {
             { status: 400 },
         );
     }
+
+    let loadingWasSet = false;
 
     try {
         const currentUser = await getCurrentUser(false);
@@ -105,23 +126,38 @@ export async function POST(req, { params }) {
 
         const subscriptionId = queryResult.data?.sys_entity_agent?.result;
         if (!subscriptionId) {
+            // Clear loading state if it was set (shouldn't be set yet, but be safe)
+            if (loadingWasSet) {
+                await clearChatLoading(id);
+            }
             return NextResponse.json(
                 { error: "Failed to get subscription ID" },
                 { status: 500 },
             );
         }
 
-        // Set isChatLoading: true on server when stream starts
-        // This ensures refetches will show correct loading state
-        await Chat.findOneAndUpdate({ _id: id }, { isChatLoading: true }).catch(
-            (error) => {
-                // Log but don't fail - stream can continue even if this fails
-                console.error(
-                    `[SSE Stream] Error setting isChatLoading for chat ${id}:`,
-                    error,
-                );
-            },
+        // Set isChatLoading: true and store activeSubscriptionId when stream starts
+        // Clean up stale stop requested IDs to prevent accumulation
+        const currentChat = await Chat.findOne({ _id: id });
+        const cleanedStopIds = cleanupStaleStopRequestedIds(
+            currentChat?.stopRequestedSubscriptionIds || [],
         );
+
+        await Chat.findOneAndUpdate(
+            { _id: id },
+            {
+                isChatLoading: true,
+                activeSubscriptionId: subscriptionId,
+                stopRequestedSubscriptionIds: cleanedStopIds,
+            },
+        ).catch((error) => {
+            // Log but don't fail - stream can continue even if this fails
+            console.error(
+                `[SSE Stream] Error setting isChatLoading for chat ${id}:`,
+                error,
+            );
+        });
+        loadingWasSet = true;
 
         // Create SSE stream
         const encoder = new TextEncoder();
@@ -186,6 +222,7 @@ export async function POST(req, { params }) {
                                         chat,
                                         accumulator,
                                         finalEntityId,
+                                        subscriptionId,
                                         true,
                                     ).catch((err) =>
                                         console.error(
@@ -222,6 +259,7 @@ export async function POST(req, { params }) {
                                         chat,
                                         accumulator,
                                         finalEntityId,
+                                        subscriptionId,
                                         false,
                                     ).catch((err) =>
                                         console.error(
@@ -241,6 +279,7 @@ export async function POST(req, { params }) {
                                     chat,
                                     accumulator,
                                     finalEntityId,
+                                    subscriptionId,
                                     true,
                                 ).catch((err) =>
                                     console.error(
@@ -257,6 +296,19 @@ export async function POST(req, { params }) {
                         error: error.message || String(error),
                     });
                     closeStream();
+                    // Clear loading state on subscription setup error
+                    persistMessage(
+                        chat,
+                        accumulator,
+                        finalEntityId,
+                        subscriptionId,
+                        true,
+                    ).catch((err) =>
+                        console.error(
+                            "Error persisting on subscription setup error:",
+                            err,
+                        ),
+                    );
                 }
             },
             cancel() {
@@ -275,6 +327,12 @@ export async function POST(req, { params }) {
         });
     } catch (error) {
         console.error("Error in stream endpoint:", error);
+        // Clear loading state if it was set before the error occurred
+        if (loadingWasSet) {
+            await clearChatLoading(id).catch(() => {
+                // Ignore errors when clearing - we're already in error state
+            });
+        }
         return handleError(error);
     }
 }
@@ -282,7 +340,13 @@ export async function POST(req, { params }) {
 /**
  * Persist the accumulated message to the chat
  */
-async function persistMessage(chat, accumulator, entityId, isError) {
+async function persistMessage(
+    chat,
+    accumulator,
+    entityId,
+    subscriptionId,
+    isError,
+) {
     const clearLoading = () =>
         Chat.findOneAndUpdate({ _id: chat._id }, { isChatLoading: false });
 
@@ -305,6 +369,39 @@ async function persistMessage(chat, accumulator, entityId, isError) {
             return null;
         }
 
+        // Clean up stale stop requested IDs first
+        const cleanedStopIds = cleanupStaleStopRequestedIds(
+            currentChat.stopRequestedSubscriptionIds || [],
+        );
+
+        // Check if stop was requested for THIS specific subscription
+        // This prevents race conditions where a new stream clears stopRequested
+        // before the old stream finishes
+        if (isSubscriptionStopped(cleanedStopIds, subscriptionId)) {
+            // Remove this subscriptionId from the array and clear loading state
+            const updatedStopIds = removeStoppedSubscription(
+                cleanedStopIds,
+                subscriptionId,
+            );
+            await Chat.findOneAndUpdate(
+                { _id: chat._id },
+                {
+                    isChatLoading: false,
+                    stopRequestedSubscriptionIds: updatedStopIds,
+                    activeSubscriptionId: null,
+                },
+            );
+            return null;
+        }
+
+        // Update with cleaned array if it changed
+        if (cleanedStopIds.length !== (currentChat.stopRequestedSubscriptionIds || []).length) {
+            await Chat.findOneAndUpdate(
+                { _id: chat._id },
+                { stopRequestedSubscriptionIds: cleanedStopIds },
+            );
+        }
+
         const messages = [...(currentChat.messages || [])];
         const lastStreamingIndex = messages.findLastIndex((m) => m.isStreaming);
         const messageToSave =
@@ -318,13 +415,19 @@ async function persistMessage(chat, accumulator, entityId, isError) {
 
         const hasCodeRequest = !!accumulator.getAccumulatedInfo().codeRequestId;
 
+        // Clear activeSubscriptionId when stream completes (unless there's a code request)
+        const updateData = {
+            messages,
+            isChatLoading: hasCodeRequest,
+            isUnused: false,
+        };
+        if (!hasCodeRequest) {
+            updateData.activeSubscriptionId = null;
+        }
+
         return await Chat.findOneAndUpdate(
             { _id: chat._id },
-            {
-                messages,
-                isChatLoading: hasCodeRequest,
-                isUnused: false,
-            },
+            updateData,
             { new: true },
         );
     } catch (error) {

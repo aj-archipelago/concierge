@@ -6,6 +6,7 @@ import {
     getChatById,
     sanitizeMessage,
     removeArtifactsFromMessages,
+    addStoppedSubscription,
 } from "../_lib";
 
 // Handle POST request to add a message to an existing chat for the current user
@@ -193,11 +194,26 @@ export async function PUT(req, { params }) {
             // This allows clearing all messages including server-generated ones
         }
 
+        // If stopRequested is being set, add current activeSubscriptionId to stopRequestedSubscriptionIds array
+        // This ensures we only stop the correct stream, not a new one that started after
+        if (body.stopRequested && existingChat?.activeSubscriptionId) {
+            body.stopRequestedSubscriptionIds = addStoppedSubscription(
+                existingChat.stopRequestedSubscriptionIds,
+                existingChat.activeSubscriptionId,
+            );
+        }
+
         // If isChatLoading is being set to false, ensure it's not overwriting an active stream
         // The stream endpoint sets isChatLoading: true when it starts, so preserve that if it exists
-        if (existingChat?.isChatLoading && body.isChatLoading === false) {
+        // Exception: allow it if stopRequested is also being set (user explicitly stopped)
+        if (
+            existingChat?.isChatLoading &&
+            body.isChatLoading === false &&
+            !body.stopRequested
+        ) {
             // Don't allow setting isChatLoading to false if stream is active
             // The stream endpoint will set it to false when it completes
+            // Unless user explicitly stopped (stopRequested is true)
             delete body.isChatLoading;
         }
 

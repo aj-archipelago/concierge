@@ -403,6 +403,101 @@ export async function getActiveChatId() {
     return activeChatId;
 }
 
+// Timeout for stop requested subscription IDs (30 minutes)
+// Streams should complete well before this, so any IDs older than this are orphaned
+export const STOP_REQUESTED_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes
+
+/**
+ * Helper to extract subscriptionId from entry (handles both legacy string and new object format)
+ */
+function getEntrySubscriptionId(entry) {
+    if (typeof entry === "string") return entry;
+    return entry?.subscriptionId;
+}
+
+/**
+ * Helper to check if entry matches subscriptionId (with type coercion)
+ */
+function entryMatchesSubscriptionId(entry, normalizedId) {
+    const entryId = getEntrySubscriptionId(entry);
+    return entryId && String(entryId) === normalizedId;
+}
+
+/**
+ * Clean up stale stop requested subscription IDs
+ * Removes entries older than STOP_REQUESTED_TIMEOUT_MS
+ * Also removes legacy string format entries
+ */
+export function cleanupStaleStopRequestedIds(stopRequestedIds) {
+    if (!Array.isArray(stopRequestedIds)) return [];
+    const now = Date.now();
+    return stopRequestedIds.filter((entry) => {
+        // Handle legacy string format - remove it (no timestamp, can't verify age)
+        if (typeof entry === "string") {
+            return false;
+        }
+        // Handle new format (object with timestamp)
+        if (entry && entry.subscriptionId && entry.timestamp) {
+            const age = now - new Date(entry.timestamp).getTime();
+            return age < STOP_REQUESTED_TIMEOUT_MS;
+        }
+        // Invalid format - remove it
+        return false;
+    });
+}
+
+/**
+ * Check if a subscription ID is in the stop requested array
+ * Handles type coercion for robust comparison
+ */
+export function isSubscriptionStopped(stopRequestedIds, subscriptionId) {
+    if (!Array.isArray(stopRequestedIds) || !subscriptionId) return false;
+    const normalizedId = String(subscriptionId);
+    return stopRequestedIds.some((entry) =>
+        entryMatchesSubscriptionId(entry, normalizedId),
+    );
+}
+
+/**
+ * Remove a subscription ID from the stop requested array
+ * Handles type coercion for robust comparison
+ */
+export function removeStoppedSubscription(stopRequestedIds, subscriptionId) {
+    if (!Array.isArray(stopRequestedIds) || !subscriptionId) return [];
+    const normalizedId = String(subscriptionId);
+    return stopRequestedIds.filter(
+        (entry) => !entryMatchesSubscriptionId(entry, normalizedId),
+    );
+}
+
+/**
+ * Add a subscription ID to the stop requested array (or update timestamp if exists)
+ * Normalizes subscriptionId to string for consistency
+ */
+export function addStoppedSubscription(stopRequestedIds, subscriptionId) {
+    if (!subscriptionId) return stopRequestedIds || [];
+    const normalizedId = String(subscriptionId);
+    const cleaned = cleanupStaleStopRequestedIds(stopRequestedIds || []);
+    const now = new Date();
+
+    // Check if already exists
+    const existingIndex = cleaned.findIndex((entry) =>
+        entryMatchesSubscriptionId(entry, normalizedId),
+    );
+
+    if (existingIndex >= 0) {
+        // Update timestamp
+        return cleaned.map((entry, index) =>
+            index === existingIndex
+                ? { subscriptionId: normalizedId, timestamp: now }
+                : entry,
+        );
+    }
+
+    // Add new entry
+    return [...cleaned, { subscriptionId: normalizedId, timestamp: now }];
+}
+
 export async function getRecentChatIds() {
     const { recentChatIds } = await getUserChatInfo();
     return recentChatIds;
