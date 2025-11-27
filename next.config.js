@@ -93,7 +93,12 @@ const config = {
     basePath: basePath || "",
     webpack: (config) => {
         // Exclude mongodb and mongodb-client-encryption from the bundle to avoid errors, will be required and imported at runtime
-        config.externals.push("mongodb-client-encryption", "mongodb");
+        config.externals.push(
+            "mongodb-client-encryption",
+            "mongodb",
+            "bufferutil",
+            "utf-8-validate",
+        );
 
         // Add @ path alias
         config.resolve.alias["@"] = path.join(__dirname, "@");

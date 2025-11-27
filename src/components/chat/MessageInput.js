@@ -2,7 +2,7 @@ import React from "react";
 import "highlight.js/styles/github.css";
 import dynamic from "next/dynamic";
 import { useContext, useEffect, useState } from "react";
-import { FilePlus, XCircle, StopCircle, Send } from "lucide-react";
+import { Paperclip, XCircle, StopCircle, Send } from "lucide-react";
 import TextareaAutosize from "react-textarea-autosize";
 import { useTranslation } from "react-i18next";
 import { useGetActiveChatId } from "../../../app/queries/chats";
@@ -22,7 +22,7 @@ import {
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
-const DynamicFilepond = dynamic(() => import("./MyFilePond"), {
+const DynamicFileUploader = dynamic(() => import("./FileUploader"), {
     ssr: false,
 });
 
@@ -67,6 +67,7 @@ function MessageInput({
     const [urlsData, setUrlsData] = useState([]);
     const [files, setFiles] = useState([]);
     const [showFileUpload, setShowFileUpload] = useState(initialShowFileUpload);
+    const [isDragging, setIsDragging] = useState(false);
 
     const prepareMessage = (inputText) => {
         return [
@@ -167,21 +168,108 @@ function MessageInput({
         }
     };
 
+    const handleDragOver = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (!viewingReadOnlyChat && activeChatId) {
+            setIsDragging(true);
+        }
+    };
+
+    const handleDragLeave = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        // Only set dragging to false if we're actually leaving the component
+        // Check if we're moving to a child element
+        const rect = e.currentTarget.getBoundingClientRect();
+        const x = e.clientX;
+        const y = e.clientY;
+        if (
+            x < rect.left ||
+            x > rect.right ||
+            y < rect.top ||
+            y > rect.bottom
+        ) {
+            setIsDragging(false);
+        }
+    };
+
+    const handleDrop = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setIsDragging(false);
+
+        if (viewingReadOnlyChat || !activeChatId) {
+            return;
+        }
+
+        const droppedFiles = Array.from(e.dataTransfer.files);
+        if (droppedFiles.length === 0) {
+            return;
+        }
+
+        // Filter to only accepted file types
+        const validFiles = droppedFiles.filter((file) =>
+            ACCEPTED_FILE_TYPES.includes(file.type),
+        );
+
+        if (validFiles.length === 0) {
+            return;
+        }
+
+        // Show file uploader if not already shown
+        if (!showFileUpload) {
+            setShowFileUpload(true);
+        }
+
+        // Add files to the uploader
+        const newFiles = validFiles.map((file) => ({
+            id: `file-${Date.now()}-${Math.random()}`,
+            source: file,
+            file: file,
+            filename: file.name,
+            name: file.name,
+            type: file.type,
+            size: file.size,
+            status: "pending",
+            progress: 0,
+        }));
+
+        setFiles((prevFiles) => [...prevFiles, ...newFiles]);
+    };
+
     return (
         <div>
-            {showFileUpload && (
-                <DynamicFilepond
-                    addUrl={addUrl}
-                    files={files}
-                    setFiles={setFiles}
-                    setIsUploadingMedia={setIsUploadingMedia}
-                    setUrlsData={setUrlsData}
-                />
-            )}
-            <div className="rounded-md border border-gray-200 dark:border-gray-600 mt-3">
+            <div
+                className={classNames(
+                    "rounded-md border-2 mt-1",
+                    isDragging
+                        ? "border-sky-500 border-dashed bg-sky-50 dark:bg-sky-900/20"
+                        : "border-gray-300 dark:border-gray-500",
+                    "bg-white dark:bg-gray-800",
+                    showFileUpload && "overflow-hidden",
+                )}
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
+            >
+                {showFileUpload && (
+                    <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-600 pt-2">
+                        <DynamicFileUploader
+                            addUrl={addUrl}
+                            files={files}
+                            setFiles={setFiles}
+                            setIsUploadingMedia={setIsUploadingMedia}
+                            setUrlsData={setUrlsData}
+                        />
+                    </div>
+                )}
                 <form
                     onSubmit={handleFormSubmit}
-                    className="flex items-end rounded-md bg-white dark:bg-gray-800"
+                    className={classNames(
+                        "flex items-end rounded-md",
+                        showFileUpload && "pt-2",
+                    )}
                 >
                     {enableRag && (
                         <div className="flex items-end px-3 pb-2.5">
@@ -215,7 +303,7 @@ function MessageInput({
                                               : t("Upload files")
                                     }
                                 >
-                                    <FilePlus
+                                    <Paperclip
                                         className={`w-5 h-5 ${
                                             activeChatId && !viewingReadOnlyChat
                                                 ? "text-gray-500"
@@ -283,21 +371,33 @@ function MessageInput({
 
                                 const pastedHtmlContent =
                                     e.clipboardData.getData("text/html");
-                                if (
-                                    pastedHtmlContent &&
-                                    pastedHtmlContent.length > MAX_INPUT_LENGTH
-                                ) {
-                                    setLengthLimitAlert({
-                                        show: true,
-                                        actualLength: pastedHtmlContent.length,
-                                        source: "paste",
-                                    });
-                                    e.preventDefault();
-                                    return; // Stop further paste processing
+                                if (pastedHtmlContent) {
+                                    // Extract actual text content from HTML to check length
+                                    const tempDiv =
+                                        document.createElement("div");
+                                    tempDiv.innerHTML = pastedHtmlContent;
+                                    const htmlTextContent =
+                                        tempDiv.textContent ||
+                                        tempDiv.innerText ||
+                                        "";
+
+                                    if (
+                                        htmlTextContent.length >
+                                        MAX_INPUT_LENGTH
+                                    ) {
+                                        setLengthLimitAlert({
+                                            show: true,
+                                            actualLength:
+                                                htmlTextContent.length,
+                                            source: "paste",
+                                        });
+                                        e.preventDefault();
+                                        return; // Stop further paste processing
+                                    }
                                 }
 
                                 const items = e.clipboardData.items;
-                                let hasActualFileProcessed = false; // True if a file is successfully added to FilePond
+                                let hasActualFileProcessed = false; // True if a file is successfully added to FileUploader
                                 let hasPlainText = false;
                                 let hasHtmlContent = false;
                                 let potentialHtmlImageSrc = null;
@@ -387,16 +487,20 @@ function MessageInput({
                                     if (!showFileUpload) {
                                         setShowFileUpload(true);
                                     }
-                                    const pondFile = {
+                                    const uploadFile = {
+                                        id: `file-${Date.now()}-${Math.random()}`,
                                         source: fileToProcess,
-                                        options: {
-                                            type: "local",
-                                            file: fileToProcess,
-                                        },
+                                        file: fileToProcess,
+                                        filename: fileToProcess.name,
+                                        name: fileToProcess.name,
+                                        type: fileToProcess.type,
+                                        size: fileToProcess.size,
+                                        status: "pending",
+                                        progress: 0,
                                     };
                                     setFiles((prevFiles) => [
                                         ...prevFiles,
-                                        pondFile,
+                                        uploadFile,
                                     ]);
                                     hasActualFileProcessed = true;
                                 }
@@ -425,11 +529,15 @@ function MessageInput({
                                             setFiles((prevFiles) => [
                                                 ...prevFiles,
                                                 {
+                                                    id: `file-${Date.now()}-${Math.random()}`,
                                                     source: file,
-                                                    options: {
-                                                        type: "local",
-                                                        file: file,
-                                                    },
+                                                    file: file,
+                                                    filename: file.name,
+                                                    name: file.name,
+                                                    type: file.type,
+                                                    size: file.size,
+                                                    status: "pending",
+                                                    progress: 0,
                                                 },
                                             ]);
                                             hasActualFileProcessed = true;
@@ -470,11 +578,15 @@ function MessageInput({
                                             setFiles((prevFiles) => [
                                                 ...prevFiles,
                                                 {
+                                                    id: `file-${Date.now()}-${Math.random()}`,
                                                     source: file,
-                                                    options: {
-                                                        type: "local",
-                                                        file: file,
-                                                    },
+                                                    file: file,
+                                                    filename: file.name,
+                                                    name: file.name,
+                                                    type: file.type,
+                                                    size: file.size,
+                                                    status: "pending",
+                                                    progress: 0,
                                                 },
                                             ]);
                                             hasActualFileProcessed = true;

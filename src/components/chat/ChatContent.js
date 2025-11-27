@@ -95,17 +95,9 @@ function ChatContent({
     );
     const chatId = useMemo(() => String(chat?._id), [chat?._id]);
 
-    // Simple approach - if we have a chat ID but no messages, refetch once
-    useEffect(() => {
-        if (
-            chat &&
-            chat._id &&
-            (!chat.messages || chat.messages.length === 0)
-        ) {
-            queryClient.refetchQueries({ queryKey: ["chat", chat._id] });
-        }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [chat?._id]); // Only run when the chat ID changes
+    // Note: useGetChatById has refetchOnMount: "always" and staleTime: 0
+    // This ensures fresh isChatLoading state when navigating to a chat
+    // Cached data shows immediately, then updates when refetch completes
 
     // Only recalculate when messages array actually changes, not when other chat properties change
     const memoizedMessages = useMemo(
@@ -354,25 +346,6 @@ function ChatContent({
                 // Collect datetime and timezone information
                 const userInfo = composeUserDateTimeInfo();
 
-                const variables = {
-                    chatHistory: conversation,
-                    contextId,
-                    contextKey,
-                    // Use entity name if available, else fallback to default
-                    aiName:
-                        entities?.find((e) => e.id === currentSelectedEntityId)
-                            ?.name || aiName,
-                    aiMemorySelfModify,
-                    aiStyle,
-                    title: chat?.title,
-                    chatId,
-                    stream: true,
-                    entityId: currentSelectedEntityId,
-                    researchMode: chat?.researchMode ? true : false,
-                    model: chat?.researchMode ? "oai-o3" : "oai-gpt41",
-                    userInfo,
-                };
-
                 // Make parallel title update call
                 if (chat && !chat.titleSetByUser) {
                     client
@@ -406,20 +379,42 @@ function ChatContent({
                         });
                 }
 
-                // Call agent
-                const result = await client.query({
-                    query: QUERIES.SYS_ENTITY_AGENT,
-                    variables,
-                    fetchPolicy: "network-only",
+                // Call agent via Next.js proxy (SSE streaming)
+                setIsStreaming(true);
+
+                // POST to stream endpoint with conversation data
+                const response = await fetch(`/api/chats/${chatId}/stream`, {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify({
+                        conversation,
+                        contextId,
+                        contextKey,
+                        aiName:
+                            entities?.find(
+                                (e) => e.id === currentSelectedEntityId,
+                            )?.name || aiName,
+                        aiMemorySelfModify,
+                        aiStyle,
+                        title: chat?.title,
+                        entityId: currentSelectedEntityId,
+                        researchMode: chat?.researchMode ? true : false,
+                        model: chat?.researchMode ? "oai-o3" : "oai-gpt41",
+                        userInfo,
+                    }),
                 });
 
-                const subscriptionId = result.data?.sys_entity_agent?.result;
-                if (subscriptionId) {
-                    // Set streaming state BEFORE setting subscription ID
-                    setIsStreaming(true);
-                    // Finally set the subscription ID which will trigger the subscription
-                    setSubscriptionId(subscriptionId);
+                if (!response.ok) {
+                    throw new Error(
+                        `Stream request failed: ${response.statusText}`,
+                    );
                 }
+
+                // Clone the response so the body can be read (Response body can only be read once)
+                // Set the cloned response stream - useStreamingMessages will handle it
+                setSubscriptionId(response.clone()); // Clone to allow reading the stream
 
                 return;
             } catch (error) {
@@ -491,6 +486,31 @@ function ChatContent({
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
+
+    // Connect to active stream when navigating into a chat with isChatLoading: true
+    // Use refs to track previous state to detect navigation vs message send
+    // Poll for stream completion when chat is loading but we're not connected
+    useEffect(() => {
+        if (!chat?._id || !isChatLoading || isStreaming) return;
+
+        const pollInterval = setInterval(async () => {
+            const chatData = await queryClient
+                .refetchQueries({
+                    queryKey: ["chat", String(chat._id)],
+                    type: "active",
+                })
+                .then(() =>
+                    queryClient.getQueryData(["chat", String(chat._id)]),
+                );
+
+            if (chatData && !chatData.isChatLoading) {
+                clearInterval(pollInterval);
+            }
+        }, 2000);
+
+        return () => clearInterval(pollInterval);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [chat?._id, isChatLoading, isStreaming, queryClient]);
 
     // Update the streaming effect with guardrails
     useEffect(() => {

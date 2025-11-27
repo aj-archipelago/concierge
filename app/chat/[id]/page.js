@@ -41,13 +41,14 @@ export default async function ChatPage({ params }) {
         // No need to update it here during navigation
     }
 
-    // Prefetch the chat data
+    // Prefetch the chat data with a short staleTime to allow refetching
+    // This ensures we get fresh data if server persisted messages while user was away
     await queryClient.prefetchQuery({
         queryKey: ["chat", id],
         queryFn: async () => {
             return JSON.parse(JSON.stringify(chat));
         },
-        staleTime: Infinity,
+        staleTime: 0, // Always refetch on navigation to get latest server state
     });
 
     return (

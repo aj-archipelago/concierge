@@ -58,7 +58,7 @@ const ChatMessages = React.memo(function ChatMessages({
                     publicChatOwner={publicChatOwner}
                 />
             </div>
-            <div className="grow overflow-auto chat-message-list flex flex-col">
+            <div className="grow overflow-auto chat-message-list flex flex-col bg-transparent dark:!bg-gray-800">
                 <MessageList
                     ref={messageListRef}
                     messages={messages}
@@ -67,6 +67,7 @@ const ChatMessages = React.memo(function ChatMessages({
                     bot={container === "codebox" ? "code" : "chat"}
                     streamingContent={streamingContent}
                     isStreaming={isStreaming}
+                    isChatLoading={loading}
                     aiName={aiName}
                     ephemeralContent={ephemeralContent}
                     toolCalls={toolCalls}

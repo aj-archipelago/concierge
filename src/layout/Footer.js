@@ -37,37 +37,31 @@ export default function Footer() {
                         <span className="sm:hidden">⚙️</span>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent side="top">
-                        <DropdownMenuItem>
-                            <button
-                                className="w-full"
-                                onClick={() => {
-                                    if (language === "en") {
-                                        changeLanguage("ar");
-                                    } else {
-                                        changeLanguage("en");
-                                    }
-                                }}
-                            >
-                                {language === "en"
-                                    ? "عربي"
-                                    : "Switch to English"}
-                            </button>
+                        <DropdownMenuItem
+                            onClick={() => {
+                                if (language === "en") {
+                                    changeLanguage("ar");
+                                } else {
+                                    changeLanguage("en");
+                                }
+                            }}
+                            className="cursor-pointer"
+                        >
+                            {language === "en" ? "عربي" : "Switch to English"}
                         </DropdownMenuItem>
-                        <DropdownMenuItem>
-                            <button
-                                className="w-full"
-                                onClick={() => {
-                                    if (theme === "light") {
-                                        changeTheme("dark");
-                                    } else {
-                                        changeTheme("light");
-                                    }
-                                }}
-                            >
-                                {theme === "light"
-                                    ? t("Dark mode")
-                                    : t("Light mode")}
-                            </button>
+                        <DropdownMenuItem
+                            onClick={() => {
+                                if (theme === "light") {
+                                    changeTheme("dark");
+                                } else {
+                                    changeTheme("light");
+                                }
+                            }}
+                            className="cursor-pointer"
+                        >
+                            {theme === "light"
+                                ? t("Dark mode")
+                                : t("Light mode")}
                         </DropdownMenuItem>
                     </DropdownMenuContent>
                 </DropdownMenu>
