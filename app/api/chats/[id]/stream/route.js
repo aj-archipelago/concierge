@@ -18,14 +18,15 @@ import {
  * Helper function to clear isChatLoading state
  */
 async function clearChatLoading(chatId) {
-    await Chat.findOneAndUpdate({ _id: chatId }, { isChatLoading: false }).catch(
-        (error) => {
-            console.error(
-                `[SSE Stream] Error clearing isChatLoading for chat ${chatId}:`,
-                error,
-            );
-        },
-    );
+    await Chat.findOneAndUpdate(
+        { _id: chatId },
+        { isChatLoading: false },
+    ).catch((error) => {
+        console.error(
+            `[SSE Stream] Error clearing isChatLoading for chat ${chatId}:`,
+            error,
+        );
+    });
 }
 
 /**
@@ -395,7 +396,10 @@ async function persistMessage(
         }
 
         // Update with cleaned array if it changed
-        if (cleanedStopIds.length !== (currentChat.stopRequestedSubscriptionIds || []).length) {
+        if (
+            cleanedStopIds.length !==
+            (currentChat.stopRequestedSubscriptionIds || []).length
+        ) {
             await Chat.findOneAndUpdate(
                 { _id: chat._id },
                 { stopRequestedSubscriptionIds: cleanedStopIds },
@@ -425,11 +429,9 @@ async function persistMessage(
             updateData.activeSubscriptionId = null;
         }
 
-        return await Chat.findOneAndUpdate(
-            { _id: chat._id },
-            updateData,
-            { new: true },
-        );
+        return await Chat.findOneAndUpdate({ _id: chat._id }, updateData, {
+            new: true,
+        });
     } catch (error) {
         console.error(
             `[persistMessage] Error persisting message for chat ${chat._id}:`,
