@@ -17,8 +17,8 @@ const shouldShowEphemeralContent = (content, toolCalls) =>
     hasEphemeralContent(content) || hasToolCalls(toolCalls);
 
 const MemoizedMarkdownMessage = React.memo(
-    ({ message, onLoad }) => {
-        return convertMessageToMarkdown(message, true, onLoad);
+    ({ message, onLoad, onMermaidFix }) => {
+        return convertMessageToMarkdown(message, true, onLoad, onMermaidFix);
     },
     (prevProps, nextProps) => {
         // If messages are completely identical, no need to re-render
@@ -470,6 +470,7 @@ const BotMessage = ({
     entityIconSize,
     onLoad,
     onTaskStatusUpdate,
+    onMermaidFix,
 }) => {
     const { data: serverTask } = useTask(message.taskId);
     const task = message.task || serverTask;
@@ -523,6 +524,7 @@ const BotMessage = ({
                                 <MemoizedMarkdownMessage
                                     message={message}
                                     onLoad={onLoad}
+                                    onMermaidFix={onMermaidFix}
                                 />
                             )}
                         </React.Fragment>

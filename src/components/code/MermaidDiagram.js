@@ -1,11 +1,13 @@
-import React, { useEffect, useContext, useMemo, useState } from "react";
+import React, { useEffect, useContext, useMemo, useState, useRef } from "react";
 import mermaid from "mermaid";
 import { ThemeContext } from "../../contexts/ThemeProvider";
-import { AlertCircle } from "lucide-react";
+import { AlertCircle, Loader2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { useApolloClient } from "@apollo/client";
 import CopyButton from "../CopyButton";
 import MermaidPlaceholder from "./MermaidPlaceholder";
 import SVGViewer from "../common/SVGViewer";
+import { QUERIES } from "../../graphql";
 
 const lightThemeVars = {
     primaryColor: "#1a73e8",
@@ -27,12 +29,18 @@ const darkThemeVars = {
     background: "#222",
 };
 
-const MermaidDiagram = ({ code, onLoad }) => {
+const MermaidDiagram = ({ code, onLoad, onMermaidFix }) => {
     const { theme } = useContext(ThemeContext);
     const { t } = useTranslation();
+    const apolloClient = useApolloClient();
     const [renderedSvg, setRenderedSvg] = useState(null);
     const [error, setError] = useState(null);
     const [isLoading, setIsLoading] = useState(true);
+    const [isFixing, setIsFixing] = useState(false);
+    const [currentCode, setCurrentCode] = useState(code);
+    const retryAttemptsRef = useRef(0);
+    const maxRetries = 3;
+    const isRetryingRef = useRef(false);
 
     // Memoize the theme configuration
     const themeConfig = useMemo(
@@ -43,12 +51,75 @@ const MermaidDiagram = ({ code, onLoad }) => {
         [theme],
     );
 
+    // Update currentCode when code prop changes
+    useEffect(() => {
+        setCurrentCode(code);
+        retryAttemptsRef.current = 0;
+        isRetryingRef.current = false;
+        setError(null);
+        setIsFixing(false);
+    }, [code]);
+
+    // Function to extract mermaid code from response
+    const extractMermaidFromResponse = (response) => {
+        const responseStr =
+            typeof response === "string" ? response : String(response);
+        const mermaidMatch = responseStr.match(/```mermaid\s*([\s\S]*?)\s*```/);
+        return mermaidMatch ? mermaidMatch[1].trim() : responseStr.trim();
+    };
+
+    // Function to call sys_tool_mermaid to fix the chart
+    const attemptFix = async (errorMessage, brokenCode) => {
+        if (isRetryingRef.current || retryAttemptsRef.current >= maxRetries) {
+            return null;
+        }
+
+        isRetryingRef.current = true;
+        setIsFixing(true);
+        retryAttemptsRef.current += 1;
+
+        try {
+            const detailedInstructions = `Fix this chart. The mermaid chart failed to render with the following error:\n\n${errorMessage}\n\nThe broken mermaid code is:\n\n\`\`\`mermaid\n${brokenCode}\n\`\`\`\n\nPlease fix the syntax errors and return a corrected mermaid chart.`;
+
+            const query = QUERIES.SYS_TOOL_MERMAID;
+            const variables = {
+                chatHistory: [
+                    {
+                        role: "user",
+                        content: detailedInstructions,
+                    },
+                ],
+                async: false,
+            };
+
+            const response = await apolloClient.query({
+                query,
+                variables,
+            });
+
+            const result = response.data?.sys_tool_mermaid?.result;
+            if (result) {
+                const fixedCode = extractMermaidFromResponse(result);
+                if (fixedCode && fixedCode !== brokenCode) {
+                    return fixedCode;
+                }
+            }
+        } catch (error) {
+            console.error("Error calling sys_tool_mermaid:", error);
+        } finally {
+            setIsFixing(false);
+            isRetryingRef.current = false;
+        }
+
+        return null;
+    };
+
     useEffect(() => {
         let isMounted = true;
         let renderingInProgress = false;
 
         const renderDiagram = async () => {
-            if (!code) return;
+            if (!currentCode) return;
 
             // Prevent concurrent renders
             if (renderingInProgress) return;
@@ -88,7 +159,7 @@ const MermaidDiagram = ({ code, onLoad }) => {
                     ...themeConfig,
                 });
 
-                const { svg } = await mermaid.render(id, code);
+                const { svg } = await mermaid.render(id, currentCode);
 
                 if (isMounted) {
                     // Store the SVG string
@@ -106,10 +177,40 @@ const MermaidDiagram = ({ code, onLoad }) => {
                 if (isMounted) {
                     setRenderedSvg(null);
                     setIsLoading(false);
-                    setError({
+                    const errorObj = {
                         message: err.message || t("Failed to render diagram"),
-                        code: code,
-                    });
+                        code: currentCode,
+                    };
+                    setError(errorObj);
+
+                    // Attempt to fix the chart automatically
+                    if (
+                        retryAttemptsRef.current < maxRetries &&
+                        !isRetryingRef.current
+                    ) {
+                        const brokenCode = currentCode; // Capture broken code before fix
+                        attemptFix(errorObj.message, brokenCode).then(
+                            (fixedCode) => {
+                                if (fixedCode && isMounted) {
+                                    // Update code to trigger re-render with fixed code
+                                    setCurrentCode(fixedCode);
+                                    // Reset error state so it will try to render the fixed code
+                                    setError(null);
+
+                                    // Update the saved message with the fixed code
+                                    if (onMermaidFix) {
+                                        onMermaidFix(brokenCode, fixedCode);
+                                    }
+                                } else if (
+                                    isMounted &&
+                                    retryAttemptsRef.current < maxRetries
+                                ) {
+                                    // If fix failed but we have retries left, the error will persist
+                                    // and we can try again on the next render attempt
+                                }
+                            },
+                        );
+                    }
                 }
             } finally {
                 renderingInProgress = false;
@@ -123,7 +224,7 @@ const MermaidDiagram = ({ code, onLoad }) => {
             renderingInProgress = false;
         };
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [code, themeConfig, theme, t]);
+    }, [currentCode, themeConfig, theme, t]);
 
     // Prepare error text for copying
     const errorText = error
@@ -131,10 +232,10 @@ const MermaidDiagram = ({ code, onLoad }) => {
         : "";
 
     // Show loading state
-    if (isLoading && !error) {
+    if ((isLoading || isFixing) && !error) {
         return (
             <MermaidPlaceholder
-                spinnerKey={`mermaid-loading-${code?.substring(0, 20)}`}
+                spinnerKey={`mermaid-loading-${currentCode?.substring(0, 20)}`}
             />
         );
     }
@@ -144,15 +245,23 @@ const MermaidDiagram = ({ code, onLoad }) => {
             {error ? (
                 <div className="mermaid-placeholder my-3 px-2 sm:px-3 py-2 rounded-md border border-red-200 dark:border-red-800/50 bg-red-50/50 dark:bg-red-900/10 flex items-center gap-2 text-xs sm:text-sm text-gray-500 dark:text-gray-400 relative group">
                     <div className="w-4 h-4 text-red-500 dark:text-red-400 flex-shrink-0">
-                        <AlertCircle className="w-4 h-4" />
+                        {isFixing ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                            <AlertCircle className="w-4 h-4" />
+                        )}
                     </div>
                     <span className="font-medium flex-1">
-                        {t("Mermaid diagram failed to render")}
+                        {isFixing
+                            ? t("Attempting to fix chart...")
+                            : t("Mermaid diagram failed to render")}
                     </span>
-                    <CopyButton
-                        item={errorText}
-                        className="absolute top-1 end-1 opacity-0 group-hover:opacity-60 hover:opacity-100 transition-opacity pointer-events-auto"
-                    />
+                    {retryAttemptsRef.current >= maxRetries && !isFixing && (
+                        <CopyButton
+                            item={errorText}
+                            className="absolute top-1 end-1 opacity-0 group-hover:opacity-60 hover:opacity-100 transition-opacity pointer-events-auto"
+                        />
+                    )}
                 </div>
             ) : (
                 <div
