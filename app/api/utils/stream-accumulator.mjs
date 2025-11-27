@@ -233,4 +233,3 @@ export class StreamAccumulator {
         this.isThinking = false;
     }
 }
-

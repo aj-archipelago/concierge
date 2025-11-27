@@ -95,18 +95,9 @@ function ChatContent({
     );
     const chatId = useMemo(() => String(chat?._id), [chat?._id]);
 
-    // Refetch chat when navigating to it to ensure we have latest server state
-    // This is important because server may have persisted messages while user was away
-    useEffect(() => {
-        if (chat && chat._id) {
-            // Refetch to get latest state from server (especially important after stream completion)
-            queryClient.refetchQueries({ 
-                queryKey: ["chat", chat._id],
-                type: "active", // Only refetch if query is currently active/mounted
-            });
-        }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [chat?._id]); // Only run when the chat ID changes (i.e., on navigation)
+    // Note: useGetChatById has refetchOnMount: "always" and staleTime: 0
+    // This ensures fresh isChatLoading state when navigating to a chat
+    // Cached data shows immediately, then updates when refetch completes
 
     // Only recalculate when messages array actually changes, not when other chat properties change
     const memoizedMessages = useMemo(
@@ -390,7 +381,7 @@ function ChatContent({
 
                 // Call agent via Next.js proxy (SSE streaming)
                 setIsStreaming(true);
-                
+
                 // POST to stream endpoint with conversation data
                 const response = await fetch(`/api/chats/${chatId}/stream`, {
                     method: "POST",
@@ -402,8 +393,9 @@ function ChatContent({
                         contextId,
                         contextKey,
                         aiName:
-                            entities?.find((e) => e.id === currentSelectedEntityId)
-                                ?.name || aiName,
+                            entities?.find(
+                                (e) => e.id === currentSelectedEntityId,
+                            )?.name || aiName,
                         aiMemorySelfModify,
                         aiStyle,
                         title: chat?.title,
@@ -423,7 +415,7 @@ function ChatContent({
                 // Clone the response so the body can be read (Response body can only be read once)
                 // Set the cloned response stream - useStreamingMessages will handle it
                 setSubscriptionId(response.clone()); // Clone to allow reading the stream
-                
+
                 return;
             } catch (error) {
                 setIsStreaming(false);
@@ -497,109 +489,28 @@ function ChatContent({
 
     // Connect to active stream when navigating into a chat with isChatLoading: true
     // Use refs to track previous state to detect navigation vs message send
-    const previousChatIdRef = useRef(null);
-    const hasReconnectedRef = useRef(false);
-    const previousIsStreamingRef = useRef(isStreaming);
-    
+    // Poll for stream completion when chat is loading but we're not connected
     useEffect(() => {
-        const currentChatId = chat?._id;
-        const previousChatId = previousChatIdRef.current;
-        const navigatedToDifferentChat = currentChatId && previousChatId && currentChatId !== previousChatId;
-        const isFirstLoad = previousChatId === null && currentChatId !== null;
-        const wasStreaming = previousIsStreamingRef.current;
-        
-        // Reset reconnection flag if:
-        // 1. We navigated to a different chat
-        // 2. We stopped streaming (disconnected)
-        if (navigatedToDifferentChat || (wasStreaming && !isStreaming)) {
-            hasReconnectedRef.current = false;
-        }
-        
-        // Update refs for next render
-        previousChatIdRef.current = currentChatId;
-        previousIsStreamingRef.current = isStreaming;
-        
-        // Only connect if:
-        // - Chat exists and is loading (active stream on server)
-        // - We're not already streaming (client not connected)
-        if (
-            !currentChatId ||
-            !isChatLoading ||
-            isStreaming
-        ) {
-            return;
-        }
-        
-        // Reconnect if:
-        // 1. We navigated to a different chat that has isChatLoading: true
-        // 2. This is the first time we're loading this chat and it has isChatLoading: true
-        // Don't reconnect if:
-        // - We're on the same chat and isChatLoading just became true (we just sent a message)
-        // - We've already reconnected for this chat (but reset on navigation or disconnect)
-        const shouldReconnect = 
-            (navigatedToDifferentChat || isFirstLoad) && 
-            !hasReconnectedRef.current;
-        
-        if (!shouldReconnect) {
-            return;
-        }
+        if (!chat?._id || !isChatLoading || isStreaming) return;
 
-        const connectToStream = async () => {
-            try {
-                console.log(`[ChatContent] Connecting to active stream for chat ${currentChatId}${navigatedToDifferentChat ? ` (navigated from ${previousChatId})` : ' (first load)'}`);
+        const pollInterval = setInterval(async () => {
+            const chatData = await queryClient
+                .refetchQueries({
+                    queryKey: ["chat", String(chat._id)],
+                    type: "active",
+                })
+                .then(() =>
+                    queryClient.getQueryData(["chat", String(chat._id)]),
+                );
 
-                // Mark that we've attempted reconnection for this chat
-                hasReconnectedRef.current = true;
-
-                // Set streaming state before connecting
-                setIsStreaming(true);
-                
-                // POST to stream endpoint without conversation - server will detect reconnection
-                // and replay all stored events from existing stream
-                const response = await fetch(`/api/chats/${chatId}/stream`, {
-                    method: "POST",
-                    headers: {
-                        "Content-Type": "application/json",
-                    },
-                    body: JSON.stringify({
-                        // No conversation - server already has everything from existing stream
-                    }),
-                });
-
-                if (!response.ok) {
-                    // If stream has completed (404), refetch chat to get the persisted message
-                    if (response.status === 404) {
-                        console.log(`[ChatContent] Stream completed for chat ${currentChatId}, refetching chat to get persisted message`);
-                        // Clear loading state and refetch chat
-                        await updateChatHook.mutateAsync({
-                            chatId: String(currentChatId),
-                            isChatLoading: false,
-                        });
-                        // Refetch chat to get the persisted message
-                        await queryClient.refetchQueries({
-                            queryKey: ["chat", String(currentChatId)],
-                            type: "active",
-                        });
-                        return;
-                    }
-                    throw new Error(
-                        `Stream connection failed: ${response.statusText}`,
-                    );
-                }
-
-                // Set the response stream - server will replay all stored events
-                setSubscriptionId(response.clone());
-            } catch (error) {
-                console.error("[ChatContent] Error connecting to stream:", error);
-                setIsStreaming(false);
-                // Reset flag on error so we can retry
-                hasReconnectedRef.current = false;
+            if (chatData && !chatData.isChatLoading) {
+                clearInterval(pollInterval);
             }
-        };
+        }, 2000);
 
-        connectToStream();
+        return () => clearInterval(pollInterval);
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [chat?._id, isChatLoading, isStreaming, updateChatHook, queryClient]);
+    }, [chat?._id, isChatLoading, isStreaming, queryClient]);
 
     // Update the streaming effect with guardrails
     useEffect(() => {

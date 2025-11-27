@@ -112,22 +112,22 @@ export async function PUT(req, { params }) {
 
         // If the request contains messages, check if server has newer data
         if (body.messages) {
-            // If server has more messages than incoming, it likely has server-persisted ones
-            // Reject the update to preserve server state
-            const serverMessageCount = existingChat.messages?.length || 0;
-            const incomingMessageCount = body.messages.length;
-            
-            if (serverMessageCount > incomingMessageCount && body.messages.length > 0) {
-                console.log(`[PUT /api/chats/${id}] Server has ${serverMessageCount} messages, incoming has ${incomingMessageCount}. Rejecting message update to preserve server-persisted messages.`);
-                // Return current server state instead of updating
-                const chatObj = existingChat.toObject ? existingChat.toObject() : existingChat;
-                const sanitizedMessages = (chatObj.messages || []).map(sanitizeMessage);
-                return NextResponse.json({
-                    ...chatObj,
-                    messages: sanitizedMessages,
-                });
-            }
-            
+            // 1. Replay scenario: Client intentionally wants fewer messages (should allow)
+            // 2. Stale client: Client has old data, server has newer persisted messages (should reject)
+            //
+            // We can't easily distinguish these cases here, but the replay logic below (line 158)
+            // will handle replays correctly by not preserving server messages.
+            // For now, we'll be more lenient and allow the update if incoming messages are fewer,
+            // trusting that the replay detection logic will handle it correctly.
+            //
+            // However, if incoming messages are MORE than server, that's definitely a normal update
+            // and we should allow it. The rejection only makes sense if server has more AND
+            // we're confident it's not a replay. Since we can't be confident, we'll skip the rejection
+            // and let the replay logic handle it.
+
+            // Note: The original rejection logic was too aggressive and prevented replays from working.
+            // Removed the rejection check - replay detection below will handle truncation correctly.
+
             // Only preserve server messages if we're not clearing the chat
             // (when messages array is empty, we're clearing the chat)
             if (body.messages.length > 0) {
@@ -191,6 +191,14 @@ export async function PUT(req, { params }) {
             }
             // If body.messages is empty, we don't add server messages back
             // This allows clearing all messages including server-generated ones
+        }
+
+        // If isChatLoading is being set to false, ensure it's not overwriting an active stream
+        // The stream endpoint sets isChatLoading: true when it starts, so preserve that if it exists
+        if (existingChat?.isChatLoading && body.isChatLoading === false) {
+            // Don't allow setting isChatLoading to false if stream is active
+            // The stream endpoint will set it to false when it completes
+            delete body.isChatLoading;
         }
 
         const chat = await Chat.findOneAndUpdate(

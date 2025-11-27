@@ -473,6 +473,7 @@ const MessageList = React.memo(
             chatId,
             streamingContent,
             isStreaming,
+            isChatLoading,
             onSend,
             ephemeralContent,
             toolCalls,
@@ -895,11 +896,13 @@ const MessageList = React.memo(
         return (
             <ScrollToBottom ref={scrollBottomRef} loadComplete={loadComplete}>
                 <div className="flex flex-col">
-                    {messages.length === 0 && !isStreaming && (
-                        <div className="no-message-message text-gray-400 dark:text-gray-500">
-                            {t("Send a message to start a conversation")}
-                        </div>
-                    )}
+                    {messages.length === 0 &&
+                        !isStreaming &&
+                        !isChatLoading && (
+                            <div className="no-message-message text-gray-400 dark:text-gray-500">
+                                {t("Send a message to start a conversation")}
+                            </div>
+                        )}
                     <div className="flex-1 overflow-hidden">
                         <MessageListContent
                             messages={messages}

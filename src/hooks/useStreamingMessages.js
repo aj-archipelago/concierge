@@ -2,37 +2,6 @@ import { useCallback, useRef, useState, useEffect } from "react";
 import { toast } from "react-toastify";
 import { useQueryClient } from "@tanstack/react-query";
 
-// Add utility function for chunking text
-const chunkText = (text, maxChunkSize = 9) => {
-    if (!text || text.length <= maxChunkSize) return [text];
-
-    const chunks = [];
-    let remaining = text;
-
-    while (remaining.length > 0) {
-        // Try to break at natural boundaries like spaces, periods, or commas
-        let chunkSize = Math.min(maxChunkSize, remaining.length);
-        let chunk = remaining.slice(0, chunkSize);
-
-        // If we're in the middle of a word and there's more text, try to break at a space
-        if (
-            remaining.length > chunkSize &&
-            !remaining[chunkSize].match(/[\s.,!?]/)
-        ) {
-            const lastSpace = chunk.lastIndexOf(" ");
-            if (lastSpace > 0) {
-                chunkSize = lastSpace + 1;
-                chunk = remaining.slice(0, chunkSize);
-            }
-        }
-
-        chunks.push(chunk);
-        remaining = remaining.slice(chunkSize);
-    }
-
-    return chunks;
-};
-
 export function useStreamingMessages({
     chat,
     updateChatHook,
@@ -50,12 +19,8 @@ export function useStreamingMessages({
     const [streamingContent, setStreamingContent] = useState("");
     const [ephemeralContent, setEphemeralContent] = useState(""); // Add state for ephemeral content
     const [toolCalls, setToolCalls] = useState([]); // Track tool calls with their status
-    const [streamingTool, setStreamingTool] = useState(null);
     const [thinkingDuration, setThinkingDuration] = useState(0); // Add thinking duration state
     const [isThinking, setIsThinking] = useState(false);
-    const chunkQueueRef = useRef([]);
-    const lastChunkTimeRef = useRef(0);
-    const CHUNK_INTERVAL = 4; // ~225fps for 3x faster rendering (was 13ms)
     const startTimeRef = useRef(null); // Track when current thinking period started
     const accumulatedThinkingTimeRef = useRef(0); // Track cumulative thinking time across all periods
     const isThinkingRef = useRef(false); // Track thinking state with ref for synchronous access
@@ -97,13 +62,11 @@ export function useStreamingMessages({
         setToolCalls([]);
         setSubscriptionId(null);
         setIsStreaming(false);
-        setStreamingTool(null);
         setThinkingDuration(0); // Reset thinking duration
         setIsThinking(false);
         isThinkingRef.current = false; // Update ref
         messageQueueRef.current = [];
         processingRef.current = false;
-        chunkQueueRef.current = [];
         startTimeRef.current = null; // Reset start time
         accumulatedThinkingTimeRef.current = 0; // Reset accumulated thinking time
         toolCallsMapRef.current.clear(); // Clear tool calls map
@@ -121,12 +84,7 @@ export function useStreamingMessages({
             // Reset subscription ID to stop any ongoing requests
             setSubscriptionId(null);
         }
-    }, [
-        chat,
-        updateChatHook,
-        clearStreamingState,
-        setSubscriptionId,
-    ]);
+    }, [chat, updateChatHook, clearStreamingState, setSubscriptionId]);
 
     // Track tool calls by callId
     const updateToolCalls = useCallback((toolMessage) => {
@@ -220,47 +178,15 @@ export function useStreamingMessages({
         [],
     );
 
-    const processChunkQueue = useCallback(async () => {
-        if (chunkQueueRef.current.length === 0) return;
-
-        const now = performance.now();
-        if (now - lastChunkTimeRef.current < CHUNK_INTERVAL) {
-            requestAnimationFrame(processChunkQueue);
-            return;
-        }
-
-        const chunk = chunkQueueRef.current.shift();
-        if (chunk.isEphemeral) {
-            // For ephemeral chunks, accumulate the ephemeral content
-            const newEphemeralContent =
-                ephemeralContentRef.current + chunk.text;
-            await updateStreamingContent(newEphemeralContent, true);
-        } else {
-            // For persistent chunks, update the streaming message
-            const newPersistentContent =
-                streamingMessageRef.current + chunk.text;
-            await updateStreamingContent(newPersistentContent, false);
-        }
-
-        lastChunkTimeRef.current = now;
-
-        if (chunkQueueRef.current.length > 0) {
-            requestAnimationFrame(processChunkQueue);
-        }
-    }, [updateStreamingContent]);
-
     const processMessageQueue = useCallback(async () => {
-        if (
-            processingRef.current ||
-            messageQueueRef.current.length === 0
-        )
+        if (processingRef.current || messageQueueRef.current.length === 0)
             return;
 
         processingRef.current = true;
         const message = messageQueueRef.current.shift();
 
         try {
-            const { progress, result, info } = message;
+            const { result, info } = message;
             let isEphemeral = false;
 
             if (info) {
@@ -333,37 +259,22 @@ export function useStreamingMessages({
                 }
 
                 if (content) {
-                    // Break content into smaller chunks and queue them
-                    const chunks = chunkText(content);
-                    // Add each chunk with its ephemeral flag
-                    chunkQueueRef.current.push(
-                        ...chunks.map((chunk) => ({
-                            text: chunk,
-                            isEphemeral,
-                        })),
-                    );
-
-                    // Start processing chunks if not already processing
-                    if (chunkQueueRef.current.length > 0) {
-                        await processChunkQueue();
+                    // Update content directly - React will batch updates efficiently
+                    if (isEphemeral) {
+                        await updateStreamingContent(
+                            ephemeralContentRef.current + content,
+                            true,
+                        );
+                    } else {
+                        await updateStreamingContent(
+                            streamingMessageRef.current + content,
+                            false,
+                        );
                     }
                 }
             }
 
-            if (progress === 1) {
-                // Server handles persistence - client just needs to wait for chunks
-                // The complete event from SSE will handle final cleanup
-                const waitForChunks = async () => {
-                    if (chunkQueueRef.current.length > 0) {
-                        await new Promise((resolve) => setTimeout(resolve, 10));
-                        await waitForChunks();
-                        return;
-                    }
-                    // Server will persist, just clear local streaming state
-                    // The complete event from SSE will handle final cleanup
-                };
-                await waitForChunks();
-            }
+            // Progress 1 means completion - handled by SSE complete event
         } catch (e) {
             console.error("Failed to process subscription data:", e);
             toast.error("Failed to process response data");
@@ -386,7 +297,7 @@ export function useStreamingMessages({
     }, [
         chat,
         updateChatHook,
-        processChunkQueue,
+        updateStreamingContent,
         clearStreamingState,
         updateToolCalls,
         isStreaming,
@@ -414,7 +325,7 @@ export function useStreamingMessages({
     // Handle SSE stream - subscriptionId must be a Response object (from fetch)
     useEffect(() => {
         if (!subscriptionId) return;
-        
+
         // Check if subscriptionId is a Response object (from fetch)
         if (!(subscriptionId instanceof Response)) return;
 
@@ -427,16 +338,20 @@ export function useStreamingMessages({
             try {
                 while (!cancelled) {
                     const { done, value } = await reader.read();
-                    
+
                     if (done) {
                         // Stream completed - server should have persisted
                         if (!cancelled) {
                             latestClearStreamingStateRef.current();
                             if (latestChatRef.current?._id) {
-                                await latestUpdateChatHookRef.current.mutateAsync({
-                                    chatId: String(latestChatRef.current._id),
-                                    isChatLoading: false,
-                                });
+                                await latestUpdateChatHookRef.current.mutateAsync(
+                                    {
+                                        chatId: String(
+                                            latestChatRef.current._id,
+                                        ),
+                                        isChatLoading: false,
+                                    },
+                                );
                             }
                         }
                         break;
@@ -444,7 +359,7 @@ export function useStreamingMessages({
 
                     // Decode chunk and add to buffer
                     buffer += decoder.decode(value, { stream: true });
-                    
+
                     // Process complete SSE messages (lines ending with \n\n)
                     const lines = buffer.split("\n\n");
                     buffer = lines.pop() || ""; // Keep incomplete line in buffer
@@ -457,12 +372,18 @@ export function useStreamingMessages({
                                 const { event, data: eventData } = data;
 
                                 if (event === "error") {
-                                    toast.error(eventData?.error || "Stream error");
+                                    toast.error(
+                                        eventData?.error || "Stream error",
+                                    );
                                     if (latestChatRef.current?._id) {
-                                        await latestUpdateChatHookRef.current.mutateAsync({
-                                            chatId: String(latestChatRef.current._id),
-                                            isChatLoading: false,
-                                        });
+                                        await latestUpdateChatHookRef.current.mutateAsync(
+                                            {
+                                                chatId: String(
+                                                    latestChatRef.current._id,
+                                                ),
+                                                isChatLoading: false,
+                                            },
+                                        );
                                     }
                                     latestClearStreamingStateRef.current();
                                     return;
@@ -472,109 +393,166 @@ export function useStreamingMessages({
                                     // Server has persisted - add message to cache and clear streaming state atomically
                                     // This prevents duplicate messages (streaming + persisted) from appearing together
                                     if (latestChatRef.current?._id) {
-                                        const chatId = String(latestChatRef.current._id);
-                                        const currentChat = latestChatRef.current;
-                                        
+                                        const chatId = String(
+                                            latestChatRef.current._id,
+                                        );
+                                        const currentChat =
+                                            latestChatRef.current;
+
                                         // Build final message from current streaming state
                                         const hasContent =
                                             streamingMessageRef.current ||
                                             ephemeralContentRef.current ||
                                             toolCallsMapRef.current.size > 0;
-                                        
+
                                         if (hasContent) {
                                             // Determine final content
-                                            let finalContent = streamingMessageRef.current;
-                                            if (!hasReceivedPersistentRef.current && ephemeralContentRef.current) {
-                                                finalContent = ephemeralContentRef.current;
+                                            let finalContent =
+                                                streamingMessageRef.current;
+                                            if (
+                                                !hasReceivedPersistentRef.current &&
+                                                ephemeralContentRef.current
+                                            ) {
+                                                finalContent =
+                                                    ephemeralContentRef.current;
                                             }
-                                            
+
                                             // Build tool string
                                             const toolString = JSON.stringify({
                                                 ...accumulatedInfoRef.current,
-                                                citations: accumulatedInfoRef.current.citations || [],
+                                                citations:
+                                                    accumulatedInfoRef.current
+                                                        .citations || [],
                                             });
-                                            
+
                                             // Calculate final thinking duration
-                                            let finalThinkingDuration = accumulatedThinkingTimeRef.current;
-                                            if (isThinkingRef.current && startTimeRef.current !== null) {
+                                            let finalThinkingDuration =
+                                                accumulatedThinkingTimeRef.current;
+                                            if (
+                                                isThinkingRef.current &&
+                                                startTimeRef.current !== null
+                                            ) {
                                                 const elapsed = Math.floor(
-                                                    (Date.now() - startTimeRef.current) / 1000,
+                                                    (Date.now() -
+                                                        startTimeRef.current) /
+                                                        1000,
                                                 );
-                                                finalThinkingDuration += elapsed;
+                                                finalThinkingDuration +=
+                                                    elapsed;
                                             }
-                                            
+
                                             // Get final tool calls
-                                            const finalToolCalls = Array.from(toolCallsMapRef.current.values());
-                                            const hasToolCalls = finalToolCalls.length > 0;
-                                            const finalEphemeralContent = ephemeralContentRef.current;
-                                            const hasEphemeralContent = finalEphemeralContent || hasToolCalls;
-                                            
+                                            const finalToolCalls = Array.from(
+                                                toolCallsMapRef.current.values(),
+                                            );
+                                            const hasToolCalls =
+                                                finalToolCalls.length > 0;
+                                            const finalEphemeralContent =
+                                                ephemeralContentRef.current;
+                                            const hasEphemeralContent =
+                                                finalEphemeralContent ||
+                                                hasToolCalls;
+
                                             // Build the message object
                                             const newMessage = {
                                                 payload: finalContent,
                                                 tool: toolString,
-                                                sentTime: new Date().toISOString(),
+                                                sentTime:
+                                                    new Date().toISOString(),
                                                 direction: "incoming",
                                                 position: "single",
                                                 sender: "labeeb",
-                                                entityId: latestCurrentEntityIdRef.current,
+                                                entityId:
+                                                    latestCurrentEntityIdRef.current,
                                                 isStreaming: false,
-                                                ephemeralContent: hasEphemeralContent
-                                                    ? finalEphemeralContent || ""
-                                                    : undefined,
-                                                thinkingDuration: finalThinkingDuration,
-                                                toolCalls: hasToolCalls ? finalToolCalls : null,
+                                                ephemeralContent:
+                                                    hasEphemeralContent
+                                                        ? finalEphemeralContent ||
+                                                          ""
+                                                        : undefined,
+                                                thinkingDuration:
+                                                    finalThinkingDuration,
+                                                toolCalls: hasToolCalls
+                                                    ? finalToolCalls
+                                                    : null,
                                             };
-                                            
+
                                             // Add message to local chat copy immediately via query cache
-                                            const messages = currentChat.messages || [];
-                                            const updatedMessages = [...messages, newMessage];
-                                            const updatedChat = { ...currentChat, messages: updatedMessages };
-                                            
+                                            const messages =
+                                                currentChat.messages || [];
+                                            const updatedMessages = [
+                                                ...messages,
+                                                newMessage,
+                                            ];
+                                            const updatedChat = {
+                                                ...currentChat,
+                                                messages: updatedMessages,
+                                            };
+
                                             // Atomically: add message to cache AND clear streaming state
                                             // This ensures message appears in chat at the exact moment streaming disappears
-                                            latestQueryClientRef.current.setQueryData(["chat", chatId], updatedChat);
-                                            latestQueryClientRef.current.setQueryData(["chats"], (old) => {
-                                                if (!old || !old.pages) return old;
-                                                return {
-                                                    ...old,
-                                                    pages: old.pages.map((page) =>
-                                                        page.map((chat) =>
-                                                            chat._id === chatId ? updatedChat : chat,
+                                            latestQueryClientRef.current.setQueryData(
+                                                ["chat", chatId],
+                                                updatedChat,
+                                            );
+                                            latestQueryClientRef.current.setQueryData(
+                                                ["chats"],
+                                                (old) => {
+                                                    if (!old || !old.pages)
+                                                        return old;
+                                                    return {
+                                                        ...old,
+                                                        pages: old.pages.map(
+                                                            (page) =>
+                                                                page.map(
+                                                                    (chat) =>
+                                                                        chat._id ===
+                                                                        chatId
+                                                                            ? updatedChat
+                                                                            : chat,
+                                                                ),
                                                         ),
-                                                    ),
-                                                };
-                                            });
+                                                    };
+                                                },
+                                            );
                                             latestQueryClientRef.current.setQueryData(
                                                 ["activeChats"],
                                                 (old) =>
                                                     old?.map((chat) =>
-                                                        chat._id === chatId ? updatedChat : chat,
+                                                        chat._id === chatId
+                                                            ? updatedChat
+                                                            : chat,
                                                     ) || [],
                                             );
-                                            
+
                                             // Clear streaming state immediately - message is now in chat
                                             latestClearStreamingStateRef.current();
-                                            
+
                                             // Update loading state
-                                            await latestUpdateChatHookRef.current.mutateAsync({
-                                                chatId,
-                                                isChatLoading: false,
-                                            });
-                                            
+                                            await latestUpdateChatHookRef.current.mutateAsync(
+                                                {
+                                                    chatId,
+                                                    isChatLoading: false,
+                                                },
+                                            );
+
                                             // Refetch in background to sync with server (don't wait)
-                                            latestQueryClientRef.current.refetchQueries({ 
-                                                queryKey: ["chat", chatId],
-                                                type: "active",
-                                            }).catch(() => {
-                                                // Ignore refetch errors - local message is already displayed
-                                            });
+                                            latestQueryClientRef.current
+                                                .refetchQueries({
+                                                    queryKey: ["chat", chatId],
+                                                    type: "active",
+                                                })
+                                                .catch(() => {
+                                                    // Ignore refetch errors - local message is already displayed
+                                                });
                                         } else {
                                             // No content, just clear loading state and streaming state
-                                            await latestUpdateChatHookRef.current.mutateAsync({
-                                                chatId,
-                                                isChatLoading: false,
-                                            });
+                                            await latestUpdateChatHookRef.current.mutateAsync(
+                                                {
+                                                    chatId,
+                                                    isChatLoading: false,
+                                                },
+                                            );
                                             latestClearStreamingStateRef.current();
                                         }
                                     } else {
@@ -585,14 +563,26 @@ export function useStreamingMessages({
                                 }
 
                                 // Process data, info, and progress events
-                                if (event === "data" || event === "info" || event === "progress") {
+                                if (
+                                    event === "data" ||
+                                    event === "info" ||
+                                    event === "progress"
+                                ) {
                                     messageQueueRef.current.push({
                                         progress: eventData?.progress,
-                                        result: event === "data" ? eventData?.result : null,
-                                        info: event === "info" ? eventData?.info : null,
+                                        result:
+                                            event === "data"
+                                                ? eventData?.result
+                                                : null,
+                                        info:
+                                            event === "info"
+                                                ? eventData?.info
+                                                : null,
                                     });
                                     if (!processingRef.current) {
-                                        requestAnimationFrame(() => latestProcessMessageQueueRef.current());
+                                        requestAnimationFrame(() =>
+                                            latestProcessMessageQueueRef.current(),
+                                        );
                                     }
                                 }
                             } catch (e) {
@@ -637,7 +627,6 @@ export function useStreamingMessages({
         setSubscriptionId,
         streamingMessageRef,
         clearStreamingState,
-        streamingTool,
         thinkingDuration,
         isThinking,
     };

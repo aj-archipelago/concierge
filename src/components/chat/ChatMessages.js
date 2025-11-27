@@ -67,6 +67,7 @@ const ChatMessages = React.memo(function ChatMessages({
                     bot={container === "codebox" ? "code" : "chat"}
                     streamingContent={streamingContent}
                     isStreaming={isStreaming}
+                    isChatLoading={loading}
                     aiName={aiName}
                     ephemeralContent={ephemeralContent}
                     toolCalls={toolCalls}
