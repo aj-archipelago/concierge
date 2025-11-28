@@ -536,7 +536,7 @@ export function useStreamingMessages({
                                                     ) || [],
                                             );
 
-                                            // Clear streaming state immediately - message is now in chat
+                                            // Clear streaming state - message is now in cache
                                             latestClearStreamingStateRef.current();
 
                                             // Update loading state
@@ -547,15 +547,9 @@ export function useStreamingMessages({
                                                 },
                                             );
 
-                                            // Refetch in background to sync with server (don't wait)
-                                            latestQueryClientRef.current
-                                                .refetchQueries({
-                                                    queryKey: ["chat", chatId],
-                                                    type: "active",
-                                                })
-                                                .catch(() => {
-                                                    // Ignore refetch errors - local message is already displayed
-                                                });
+                                            // Don't refetch immediately - let natural refetches (polling, navigation) handle sync
+                                            // The optimistic message is already in cache and visible, so no stutter
+                                            // Other parts of the app (like useGetActiveChats polling) will eventually sync with server
                                         } else {
                                             // No content, just clear loading state and streaming state
                                             await latestUpdateChatHookRef.current.mutateAsync(
