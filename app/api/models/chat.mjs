@@ -105,6 +105,19 @@ const chatSchema = new mongoose.Schema(
             type: Boolean,
             default: false,
         },
+        stopRequestedSubscriptionIds: {
+            type: [
+                {
+                    subscriptionId: String,
+                    timestamp: Date,
+                },
+            ],
+            default: [],
+        },
+        activeSubscriptionId: {
+            type: String,
+            default: null,
+        },
         selectedEntityId: {
             type: String,
             default: "",

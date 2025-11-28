@@ -958,6 +958,7 @@
     "PDF": "PDF",
     "Document": "مستند",
     "Mermaid diagram failed to render": "فشل في عرض مخطط Mermaid",
+    "Attempting to fix chart...": "جاري محاولة إصلاح المخطط...",
     "Mermaid Diagram Error": "خطأ في مخطط Mermaid",
     "Source Code": "الكود المصدر",
     "Zoom in (hold to zoom continuously)": "تكبير (اضغط مع الاستمرار للتكبير المستمر)",

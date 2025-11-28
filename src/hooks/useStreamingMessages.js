@@ -25,6 +25,7 @@ export function useStreamingMessages({
     const accumulatedThinkingTimeRef = useRef(0); // Track cumulative thinking time across all periods
     const isThinkingRef = useRef(false); // Track thinking state with ref for synchronous access
     const toolCallsMapRef = useRef(new Map()); // Map<callId, { icon, userMessage, status }>
+    const streamReaderRef = useRef(null); // Ref to the stream reader for cancellation
 
     // Record the start time when streaming begins and update thinking duration
     useEffect(() => {
@@ -70,21 +71,30 @@ export function useStreamingMessages({
         startTimeRef.current = null; // Reset start time
         accumulatedThinkingTimeRef.current = 0; // Reset accumulated thinking time
         toolCallsMapRef.current.clear(); // Clear tool calls map
+        streamReaderRef.current = null; // Clear stream reader ref
     }, []);
 
     const stopStreaming = useCallback(async () => {
         if (chat?._id) {
-            // Server handles persistence, just clear loading state and streaming state
+            // Cancel the stream reader immediately if it exists
+            if (streamReaderRef.current) {
+                streamReaderRef.current.cancel().catch(() => {
+                    // Ignore cancellation errors
+                });
+                streamReaderRef.current = null;
+            }
+            // Set stopRequested flag and clear loading state on server
+            // This sets the stop request flag, which will be checked against the subscription ID
+            // on the server to prevent persisting the message
             await updateChatHook.mutateAsync({
                 chatId: String(chat?._id),
                 isChatLoading: false,
+                stopRequested: true,
             });
-            // Clear all streaming state
+            // Clear all streaming state immediately (includes setting subscriptionId to null)
             clearStreamingState();
-            // Reset subscription ID to stop any ongoing requests
-            setSubscriptionId(null);
         }
-    }, [chat, updateChatHook, clearStreamingState, setSubscriptionId]);
+    }, [chat, updateChatHook, clearStreamingState]);
 
     // Track tool calls by callId
     const updateToolCalls = useCallback((toolMessage) => {
@@ -331,6 +341,7 @@ export function useStreamingMessages({
 
         let cancelled = false;
         const reader = subscriptionId.body.getReader();
+        streamReaderRef.current = reader; // Store reader ref for cancellation
         const decoder = new TextDecoder();
         let buffer = "";
 
@@ -611,6 +622,7 @@ export function useStreamingMessages({
         // Cleanup on unmount
         return () => {
             cancelled = true;
+            streamReaderRef.current = null;
             reader.cancel().catch(() => {
                 // Ignore cancellation errors
             });

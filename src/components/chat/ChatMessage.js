@@ -76,7 +76,12 @@ function simpleHash(str) {
     return Math.abs(hash).toString(36);
 }
 
-function convertMessageToMarkdown(message, finalRender = true, onLoad = null) {
+function convertMessageToMarkdown(
+    message,
+    finalRender = true,
+    onLoad = null,
+    onMermaidFix = null,
+) {
     const { payload, tool } = message;
     const citations = tool ? JSON.parse(tool).citations : null;
     let componentIndex = 0; // Counter for code blocks
@@ -214,6 +219,7 @@ function convertMessageToMarkdown(message, finalRender = true, onLoad = null) {
                             key={stableKey}
                             code={codeString}
                             onLoad={onLoad}
+                            onMermaidFix={onMermaidFix || undefined}
                         />
                     );
                 } else {

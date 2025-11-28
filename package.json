@@ -1,6 +1,6 @@
 {
     "name": "labeeb",
-    "version": "3.2.6",
+    "version": "3.5.0",
     "private": true,
     "type": "module",
     "dependencies": {

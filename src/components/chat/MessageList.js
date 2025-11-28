@@ -720,6 +720,108 @@ const MessageList = React.memo(
             );
         }, []);
 
+        // Callback to update mermaid code in a message
+        const handleMermaidFix = useCallback(
+            async (messageId, brokenCode, fixedCode) => {
+                if (!chatId || !messageId || !brokenCode || !fixedCode) {
+                    return;
+                }
+
+                // Find the message
+                const messageIndex = messages.findIndex(
+                    (m) => m.id === messageId || m._id === messageId,
+                );
+
+                if (messageIndex === -1) {
+                    console.error(
+                        "Message not found for mermaid fix:",
+                        messageId,
+                    );
+                    return;
+                }
+
+                const message = messages[messageIndex];
+                let updatedPayload = message.payload;
+
+                // Replace the mermaid code block - we know which block it is, just replace it
+                const replaceMermaidCode = (text) => {
+                    // Find mermaid blocks and replace the one containing brokenCode
+                    const mermaidBlockRegex = /```mermaid\s*([\s\S]*?)\s*```/g;
+                    let replaced = false;
+                    return text.replace(
+                        mermaidBlockRegex,
+                        (fullMatch, codeContent) => {
+                            // If this block matches the broken code exactly, replace it
+                            // Only replace the first match to avoid replacing multiple blocks
+                            if (
+                                !replaced &&
+                                codeContent.trim() === brokenCode.trim()
+                            ) {
+                                replaced = true;
+                                return `\`\`\`mermaid\n${fixedCode}\n\`\`\``;
+                            }
+                            return fullMatch;
+                        },
+                    );
+                };
+
+                if (typeof updatedPayload === "string") {
+                    const before = updatedPayload;
+                    updatedPayload = replaceMermaidCode(updatedPayload);
+                    // Check if anything changed
+                    if (before === updatedPayload) {
+                        console.warn(
+                            "Mermaid code block not found in message payload for replacement",
+                        );
+                        return;
+                    }
+                } else if (Array.isArray(updatedPayload)) {
+                    let changed = false;
+                    updatedPayload = updatedPayload.map((item) => {
+                        if (typeof item === "string") {
+                            const before = item;
+                            const after = replaceMermaidCode(item);
+                            if (before !== after) {
+                                changed = true;
+                            }
+                            return after;
+                        }
+                        return item;
+                    });
+                    if (!changed) {
+                        console.warn(
+                            "Mermaid code block not found in message payload for replacement",
+                        );
+                        return;
+                    }
+                }
+
+                // Create updated messages array
+                const updatedMessages = [...messages];
+                updatedMessages[messageIndex] = {
+                    ...message,
+                    payload: updatedPayload,
+                };
+
+                // Update the chat
+                try {
+                    await updateChatHook.mutateAsync({
+                        chatId: String(chatId),
+                        messages: updatedMessages,
+                    });
+                    console.log(
+                        "Successfully updated message with fixed mermaid code",
+                    );
+                } catch (error) {
+                    console.error(
+                        "Error updating message with fixed mermaid code:",
+                        error,
+                    );
+                }
+            },
+            [chatId, messages, updateChatHook],
+        );
+
         const handleImageLoad = useCallback(
             (messageId) => {
                 handleMessageLoad(messageId);
@@ -812,6 +914,13 @@ const MessageList = React.memo(
                             entityIconClasses={classNames(basis)}
                             onLoad={() => handleMessageLoad(message.id)}
                             onTaskStatusUpdate={handleTaskStatusUpdate}
+                            onMermaidFix={(brokenCode, fixedCode) =>
+                                handleMermaidFix(
+                                    message.id,
+                                    brokenCode,
+                                    fixedCode,
+                                )
+                            }
                         />
                     );
                 }
@@ -885,6 +994,7 @@ const MessageList = React.memo(
                 entities,
                 entityIconSize,
                 handleTaskStatusUpdate,
+                handleMermaidFix,
                 messages,
                 handleMessageLoad,
                 user,

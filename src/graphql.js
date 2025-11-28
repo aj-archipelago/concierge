@@ -992,6 +992,15 @@ const SYS_GET_ENTITIES = gql`
     }
 `;
 
+const SYS_TOOL_MERMAID = gql`
+    query Sys_tool_mermaid($chatHistory: [MultiMessage], $async: Boolean) {
+        sys_tool_mermaid(chatHistory: $chatHistory, async: $async) {
+            result
+            tool
+        }
+    }
+`;
+
 const WORKSPACE_APPLET_EDIT = gql`
     query WorkspaceAppletEdit(
         $text: String!
@@ -1034,6 +1043,7 @@ const QUERIES = {
     SYS_SAVE_MEMORY,
     SYS_ENTITY_AGENT,
     SYS_GET_ENTITIES,
+    SYS_TOOL_MERMAID,
     EXPAND_STORY,
     FORMAT_PARAGRAPH_TURBO,
     SELECT_SERVICES,
@@ -1125,6 +1135,7 @@ export {
     SYS_SAVE_MEMORY,
     SYS_ENTITY_AGENT,
     SYS_GET_ENTITIES,
+    SYS_TOOL_MERMAID,
     SELECT_SERVICES,
     SUMMARY,
     HASHTAGS,
