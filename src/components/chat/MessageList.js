@@ -751,12 +751,11 @@ const MessageList = React.memo(
                     return text.replace(
                         mermaidBlockRegex,
                         (fullMatch, codeContent) => {
-                            // If this block contains the broken code (or vice versa), replace it
+                            // If this block matches the broken code exactly, replace it
                             // Only replace the first match to avoid replacing multiple blocks
                             if (
                                 !replaced &&
-                                (codeContent.includes(brokenCode) ||
-                                    brokenCode.includes(codeContent.trim()))
+                                codeContent.trim() === brokenCode.trim()
                             ) {
                                 replaced = true;
                                 return `\`\`\`mermaid\n${fixedCode}\n\`\`\``;

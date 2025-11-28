@@ -84,7 +84,8 @@ export function useStreamingMessages({
                 streamReaderRef.current = null;
             }
             // Set stopRequested flag and clear loading state on server
-            // This prevents the server from persisting the message
+            // This sets the stop request flag, which will be checked against the subscription ID
+            // on the server to prevent persisting the message
             await updateChatHook.mutateAsync({
                 chatId: String(chat?._id),
                 isChatLoading: false,

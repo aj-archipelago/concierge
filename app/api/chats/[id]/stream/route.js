@@ -12,6 +12,7 @@ import {
     cleanupStaleStopRequestedIds,
     isSubscriptionStopped,
     removeStoppedSubscription,
+    getEntrySubscriptionId,
 } from "../../_lib";
 
 /**
@@ -395,11 +396,18 @@ async function persistMessage(
             return null;
         }
 
-        // Update with cleaned array if it changed
-        if (
-            cleanedStopIds.length !==
-            (currentChat.stopRequestedSubscriptionIds || []).length
-        ) {
+        // Update with cleaned array if it changed (compare actual content, not just length)
+        const originalIds = currentChat.stopRequestedSubscriptionIds || [];
+        const hasChanged =
+            cleanedStopIds.length !== originalIds.length ||
+            cleanedStopIds.some((entry, index) => {
+                const originalEntry = originalIds[index];
+                if (!originalEntry) return true;
+                const entryId = getEntrySubscriptionId(entry);
+                const originalId = getEntrySubscriptionId(originalEntry);
+                return String(entryId) !== String(originalId);
+            });
+        if (hasChanged) {
             await Chat.findOneAndUpdate(
                 { _id: chat._id },
                 { stopRequestedSubscriptionIds: cleanedStopIds },

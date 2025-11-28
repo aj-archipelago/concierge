@@ -410,7 +410,7 @@ export const STOP_REQUESTED_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes
 /**
  * Helper to extract subscriptionId from entry (handles both legacy string and new object format)
  */
-function getEntrySubscriptionId(entry) {
+export function getEntrySubscriptionId(entry) {
     if (typeof entry === "string") return entry;
     return entry?.subscriptionId;
 }

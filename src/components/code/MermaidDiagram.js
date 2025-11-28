@@ -1,4 +1,11 @@
-import React, { useEffect, useContext, useMemo, useState, useRef } from "react";
+import React, {
+    useEffect,
+    useContext,
+    useMemo,
+    useState,
+    useRef,
+    useCallback,
+} from "react";
 import mermaid from "mermaid";
 import { ThemeContext } from "../../contexts/ThemeProvider";
 import { AlertCircle, Loader2 } from "lucide-react";
@@ -69,50 +76,56 @@ const MermaidDiagram = ({ code, onLoad, onMermaidFix }) => {
     };
 
     // Function to call sys_tool_mermaid to fix the chart
-    const attemptFix = async (errorMessage, brokenCode) => {
-        if (isRetryingRef.current || retryAttemptsRef.current >= maxRetries) {
-            return null;
-        }
-
-        isRetryingRef.current = true;
-        setIsFixing(true);
-        retryAttemptsRef.current += 1;
-
-        try {
-            const detailedInstructions = `Fix this chart. The mermaid chart failed to render with the following error:\n\n${errorMessage}\n\nThe broken mermaid code is:\n\n\`\`\`mermaid\n${brokenCode}\n\`\`\`\n\nPlease fix the syntax errors and return a corrected mermaid chart.`;
-
-            const query = QUERIES.SYS_TOOL_MERMAID;
-            const variables = {
-                chatHistory: [
-                    {
-                        role: "user",
-                        content: detailedInstructions,
-                    },
-                ],
-                async: false,
-            };
-
-            const response = await apolloClient.query({
-                query,
-                variables,
-            });
-
-            const result = response.data?.sys_tool_mermaid?.result;
-            if (result) {
-                const fixedCode = extractMermaidFromResponse(result);
-                if (fixedCode && fixedCode !== brokenCode) {
-                    return fixedCode;
-                }
+    const attemptFix = useCallback(
+        async (errorMessage, brokenCode) => {
+            if (
+                isRetryingRef.current ||
+                retryAttemptsRef.current >= maxRetries
+            ) {
+                return null;
             }
-        } catch (error) {
-            console.error("Error calling sys_tool_mermaid:", error);
-        } finally {
-            setIsFixing(false);
-            isRetryingRef.current = false;
-        }
 
-        return null;
-    };
+            isRetryingRef.current = true;
+            setIsFixing(true);
+            retryAttemptsRef.current += 1;
+
+            try {
+                const detailedInstructions = `Fix this chart. The mermaid chart failed to render with the following error:\n\n${errorMessage}\n\nThe broken mermaid code is:\n\n\`\`\`mermaid\n${brokenCode}\n\`\`\`\n\nPlease fix the syntax errors and return a corrected mermaid chart.`;
+
+                const query = QUERIES.SYS_TOOL_MERMAID;
+                const variables = {
+                    chatHistory: [
+                        {
+                            role: "user",
+                            content: detailedInstructions,
+                        },
+                    ],
+                    async: false,
+                };
+
+                const response = await apolloClient.query({
+                    query,
+                    variables,
+                });
+
+                const result = response.data?.sys_tool_mermaid?.result;
+                if (result) {
+                    const fixedCode = extractMermaidFromResponse(result);
+                    if (fixedCode && fixedCode !== brokenCode) {
+                        return fixedCode;
+                    }
+                }
+            } catch (error) {
+                console.error("Error calling sys_tool_mermaid:", error);
+            } finally {
+                setIsFixing(false);
+                isRetryingRef.current = false;
+            }
+
+            return null;
+        },
+        [apolloClient],
+    );
 
     useEffect(() => {
         let isMounted = true;
@@ -223,8 +236,7 @@ const MermaidDiagram = ({ code, onLoad, onMermaidFix }) => {
             isMounted = false;
             renderingInProgress = false;
         };
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [currentCode, themeConfig, theme, t]);
+    }, [currentCode, themeConfig, theme, t, attemptFix, onLoad, onMermaidFix]);
 
     // Prepare error text for copying
     const errorText = error
