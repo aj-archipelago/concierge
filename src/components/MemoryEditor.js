@@ -330,7 +330,8 @@ function MemoryItem({
     );
 }
 
-const MemoryEditor = ({ show, onClose, user, aiName }) => {
+// Export the content component so it can be used without the Modal wrapper
+export const MemoryEditorContent = ({ user, aiName, onClose }) => {
     const { t } = useTranslation();
     const { direction } = useContext(LanguageContext);
     const isRTL = direction === "rtl";
@@ -368,16 +369,16 @@ const MemoryEditor = ({ show, onClose, user, aiName }) => {
         refetch: refetchMemory,
     } = useQuery(QUERIES.SYS_READ_MEMORY, {
         variables: { contextId: user?.contextId, contextKey: user?.contextKey },
-        skip: !user?.contextId || !show,
+        skip: !user?.contextId,
         fetchPolicy: "network-only",
     });
 
     useEffect(() => {
-        if (show && user?.contextId) {
+        if (user?.contextId) {
             refetchMemory();
             setSaving(false);
         }
-    }, [show, user?.contextId, refetchMemory]);
+    }, [user?.contextId, refetchMemory]);
 
     useEffect(() => {
         if (memoryData?.sys_read_memory?.result) {
@@ -697,391 +698,400 @@ const MemoryEditor = ({ show, onClose, user, aiName }) => {
     ];
 
     return (
+        <div className="flex flex-col h-[calc(100vh-200px)] min-h-[600px]">
+            {error && (
+                <div
+                    className={`text-red-500 text-xs p-2 bg-red-50 dark:bg-red-900/20 rounded mb-3 ${isRTL ? "text-right" : "text-left"}`}
+                    dir={direction}
+                >
+                    {error}
+                </div>
+            )}
+
+            {memoryLoading ? (
+                <div className="flex-1 flex items-center justify-center">
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                        {t("Loading memory...")}
+                    </p>
+                </div>
+            ) : (
+                <>
+                    {/* Filter and Action Controls */}
+                    <div
+                        className={`flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-4 ${isRTL ? "items-end sm:items-center" : ""}`}
+                    >
+                        {/* Search - Full Width */}
+                        {isParseable && (
+                            <div className="w-full sm:flex-1 sm:max-w-lg">
+                                <FilterInput
+                                    value={searchQuery}
+                                    onChange={setSearchQuery}
+                                    onClear={() => setSearchQuery("")}
+                                    placeholder={t("Search content...")}
+                                    className="w-full"
+                                />
+                            </div>
+                        )}
+
+                        {/* Action Buttons and Size - Left on mobile, Right on desktop */}
+                        <div
+                            className={`flex items-center gap-2 flex-wrap sm:flex-nowrap w-full sm:w-auto ${isRTL ? "ml-auto sm:ml-0" : "justify-start sm:justify-end"}`}
+                        >
+                            <TooltipProvider>
+                                <Tooltip>
+                                    <TooltipTrigger asChild>
+                                        <button
+                                            className={actionButtonClass}
+                                            onClick={handleAddItem}
+                                        >
+                                            <Plus className="h-4 w-4" />
+                                        </button>
+                                    </TooltipTrigger>
+                                    <TooltipContent>
+                                        {t("Add Item")}
+                                    </TooltipContent>
+                                </Tooltip>
+                                <Tooltip>
+                                    <TooltipTrigger asChild>
+                                        <button
+                                            className={actionButtonClass}
+                                            onClick={handleDownload}
+                                        >
+                                            <Download className="h-4 w-4" />
+                                        </button>
+                                    </TooltipTrigger>
+                                    <TooltipContent>
+                                        {t("Download memory backup")}
+                                    </TooltipContent>
+                                </Tooltip>
+                                <Tooltip>
+                                    <TooltipTrigger asChild>
+                                        <button
+                                            className={actionButtonClass}
+                                            onClick={() =>
+                                                fileInputRef.current?.click()
+                                            }
+                                        >
+                                            <Upload className="h-4 w-4" />
+                                        </button>
+                                    </TooltipTrigger>
+                                    <TooltipContent>
+                                        {t("Upload memory from backup")}
+                                    </TooltipContent>
+                                </Tooltip>
+                                <Tooltip>
+                                    <TooltipTrigger asChild>
+                                        <button
+                                            className={clearButtonClass}
+                                            onClick={handleClear}
+                                        >
+                                            <X className="h-4 w-4" />
+                                        </button>
+                                    </TooltipTrigger>
+                                    <TooltipContent>
+                                        {t("Clear All")}
+                                    </TooltipContent>
+                                </Tooltip>
+                            </TooltipProvider>
+                            <div
+                                className={`text-sm text-gray-500 dark:text-gray-400 order-last sm:order-first ${isRTL ? "ms-2" : "me-2"}`}
+                            >
+                                {t("Size: {{size}} characters", {
+                                    size: memorySize,
+                                })}
+                            </div>
+                            <input
+                                ref={fileInputRef}
+                                type="file"
+                                accept=".json"
+                                onChange={handleUpload}
+                                className="hidden"
+                            />
+                        </div>
+                    </div>
+
+                    {/* Clear All Confirmation Dialog */}
+                    <AlertDialog
+                        open={showClearConfirm}
+                        onOpenChange={setShowClearConfirm}
+                    >
+                        <AlertDialogContent>
+                            <AlertDialogHeader>
+                                <AlertDialogTitle>
+                                    {t("Clear All Memory?")}
+                                </AlertDialogTitle>
+                                <AlertDialogDescription>
+                                    {t(
+                                        "Are you sure you want to clear all memory items? This action cannot be undone.",
+                                    )}
+                                </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter
+                                className={
+                                    isRTL
+                                        ? "flex-row-reverse sm:flex-row-reverse"
+                                        : ""
+                                }
+                            >
+                                <AlertDialogCancel>
+                                    {t("Cancel")}
+                                </AlertDialogCancel>
+                                <AlertDialogAction
+                                    onClick={handleConfirmClear}
+                                    className="bg-red-600 hover:bg-red-700 focus:ring-red-600"
+                                >
+                                    {t("Clear All")}
+                                </AlertDialogAction>
+                            </AlertDialogFooter>
+                        </AlertDialogContent>
+                    </AlertDialog>
+
+                    {/* Bulk Actions Bar */}
+                    {selectedIds.size > 0 && (
+                        <BulkActionsBar
+                            selectedCount={selectedIds.size}
+                            allSelected={allSelected}
+                            onSelectAll={handleSelectAll}
+                            onClearSelection={clearSelection}
+                            actions={{
+                                delete: {
+                                    onClick: handleDeleteSelected,
+                                    label: t("Delete Selected"),
+                                    ariaLabel: t("Delete selected items"),
+                                },
+                            }}
+                        />
+                    )}
+
+                    {/* Filters and Sort Controls - Under Search */}
+                    {isParseable && (
+                        <div
+                            className={`flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 mb-2 ${isRTL ? "sm:flex-row-reverse" : ""}`}
+                        >
+                            {/* Filters - Left Side in LTR, Right Side in RTL */}
+                            <div
+                                className={`flex items-center gap-2 ${isRTL ? "flex-row-reverse justify-end sm:justify-end" : "justify-start"}`}
+                            >
+                                <Filter className="h-4 w-4 text-gray-500 dark:text-gray-400" />
+                                <Select
+                                    value={sectionFilter}
+                                    onValueChange={setSectionFilter}
+                                >
+                                    <SelectTrigger
+                                        className="w-[120px] h-8 text-xs"
+                                        dir={direction}
+                                    >
+                                        <SelectValue
+                                            placeholder={t("Section")}
+                                        />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="all">
+                                            {t("All")}
+                                        </SelectItem>
+                                        {sections.map((s) => (
+                                            <SelectItem
+                                                key={s.key}
+                                                value={s.key}
+                                            >
+                                                {s.label}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                                <Select
+                                    value={priorityFilter}
+                                    onValueChange={setPriorityFilter}
+                                >
+                                    <SelectTrigger
+                                        className="w-[100px] h-8 text-xs"
+                                        dir={direction}
+                                    >
+                                        <SelectValue
+                                            placeholder={t("Priority")}
+                                        />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="all">
+                                            {t("All")}
+                                        </SelectItem>
+                                        {uniquePriorities.map((p) => (
+                                            <SelectItem key={p} value={p}>
+                                                {p}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                                {hasActiveFilters && (
+                                    <button
+                                        onClick={clearAllFilters}
+                                        className="flex items-center justify-center w-8 h-8 rounded-md border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors"
+                                        title={t("Clear Filters")}
+                                    >
+                                        <X className="h-4 w-4" />
+                                    </button>
+                                )}
+                            </div>
+                            {/* Sort - Right Side in LTR, Left Side in RTL */}
+                            {filteredItems.length > 0 && (
+                                <div
+                                    className={`flex items-center gap-2 ${isRTL ? "flex-row-reverse justify-end sm:justify-end" : "justify-start sm:justify-end"}`}
+                                >
+                                    <button
+                                        onClick={() =>
+                                            setSortOrder(
+                                                sortOrder === "asc"
+                                                    ? "desc"
+                                                    : "asc",
+                                            )
+                                        }
+                                        className="lb-outline-secondary text-xs px-2 py-1 h-8 min-w-[2rem]"
+                                        title={t("Toggle sort order")}
+                                    >
+                                        {sortOrder === "asc" ? "↑" : "↓"}
+                                    </button>
+                                    <Select
+                                        value={sortBy}
+                                        onValueChange={setSortBy}
+                                    >
+                                        <SelectTrigger
+                                            className="w-[140px] h-8 text-xs"
+                                            dir={direction}
+                                        >
+                                            <SelectValue
+                                                placeholder={t("Sort")}
+                                            />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {sortOptions.map((option) => (
+                                                <SelectItem
+                                                    key={option.value}
+                                                    value={option.value}
+                                                >
+                                                    {option.label}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                            )}
+                        </div>
+                    )}
+
+                    {/* Items List or Raw Text Editor */}
+                    <div
+                        className="flex-1 overflow-y-auto min-h-0"
+                        ref={containerRef}
+                    >
+                        {!isParseable ? (
+                            <div className="flex flex-col h-full">
+                                <label
+                                    className={`block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1.5 ${isRTL ? "text-right" : "text-left"}`}
+                                    htmlFor="raw-memory-editor"
+                                    dir={direction}
+                                >
+                                    {t("Memory (Raw Text Format)")}
+                                    <span
+                                        className={`${isRTL ? "ms-1.5" : "ms-1.5"} text-[10px] text-gray-500 dark:text-gray-400`}
+                                    >
+                                        (
+                                        {t(
+                                            "Not parseable as structured memory",
+                                        )}
+                                        )
+                                    </span>
+                                </label>
+                                <textarea
+                                    id="raw-memory-editor"
+                                    value={rawMemory}
+                                    onChange={(e) =>
+                                        setRawMemory(e.target.value)
+                                    }
+                                    className="lb-input font-mono text-xs w-full flex-1 resize-none"
+                                    placeholder={t(
+                                        "Enter memory content. Use format: priority|timestamp|content (one per line) for structured editing, or plain text.",
+                                    )}
+                                    dir={direction}
+                                />
+                            </div>
+                        ) : items.length === 0 ? (
+                            <EmptyState
+                                icon="🧠"
+                                title={t("No memory items")}
+                                description={t(
+                                    "Click 'Add Item' to create your first memory item.",
+                                )}
+                                action={handleAddItem}
+                                actionLabel={t("Add Item")}
+                            />
+                        ) : filteredItems.length === 0 ? (
+                            <EmptyState
+                                icon="🔍"
+                                title={t("No items match your filters")}
+                                description={t(
+                                    "Try adjusting your search or filter criteria.",
+                                )}
+                            />
+                        ) : (
+                            <div>
+                                {filteredItems.map((item) => (
+                                    <MemoryItem
+                                        key={item.id}
+                                        item={item}
+                                        onEdit={handleEdit}
+                                        onDelete={handleDelete}
+                                        isEditing={editingId === item.id}
+                                        onSaveEdit={handleSaveEdit}
+                                        onCancelEdit={handleCancelEdit}
+                                        isSelected={selectedIds.has(item.id)}
+                                        onToggleSelect={handleToggleSelect}
+                                        sections={sections}
+                                    />
+                                ))}
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Footer */}
+                    <div
+                        className={`flex gap-2 pt-3 mt-3 border-t border-gray-200 dark:border-gray-700 relative z-10 bg-white dark:bg-gray-800 ${isRTL ? "flex-row-reverse justify-start" : "justify-end"}`}
+                    >
+                        <button
+                            className="lb-outline-secondary text-xs flex-1 sm:flex-initial"
+                            onClick={onClose}
+                            disabled={saving}
+                        >
+                            {t("Cancel")}
+                        </button>
+                        <button
+                            className="lb-primary text-xs flex-1 sm:flex-initial flex items-center justify-center gap-2"
+                            onClick={handleSave}
+                            disabled={saving}
+                        >
+                            {saving && <Spinner size="sm" />}
+                            {t("Save")}
+                        </button>
+                    </div>
+                </>
+            )}
+        </div>
+    );
+};
+
+const MemoryEditor = ({ show, onClose, user, aiName }) => {
+    const { t } = useTranslation();
+    return (
         <Modal
             widthClassName="max-w-6xl"
             title={t("Memory Editor")}
             show={show}
             onHide={onClose}
         >
-            <div className="flex flex-col h-[calc(100vh-200px)] min-h-[600px]">
-                {error && (
-                    <div
-                        className={`text-red-500 text-xs p-2 bg-red-50 dark:bg-red-900/20 rounded mb-3 ${isRTL ? "text-right" : "text-left"}`}
-                        dir={direction}
-                    >
-                        {error}
-                    </div>
-                )}
-
-                {memoryLoading ? (
-                    <div className="flex-1 flex items-center justify-center">
-                        <p className="text-xs text-gray-500 dark:text-gray-400">
-                            {t("Loading memory...")}
-                        </p>
-                    </div>
-                ) : (
-                    <>
-                        {/* Filter and Action Controls */}
-                        <div
-                            className={`flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-4 ${isRTL ? "items-end sm:items-center" : ""}`}
-                        >
-                            {/* Search - Full Width */}
-                            {isParseable && (
-                                <div className="w-full sm:flex-1 sm:max-w-lg">
-                                    <FilterInput
-                                        value={searchQuery}
-                                        onChange={setSearchQuery}
-                                        onClear={() => setSearchQuery("")}
-                                        placeholder={t("Search content...")}
-                                        className="w-full"
-                                    />
-                                </div>
-                            )}
-
-                            {/* Action Buttons and Size - Left on mobile, Right on desktop */}
-                            <div
-                                className={`flex items-center gap-2 flex-wrap sm:flex-nowrap w-full sm:w-auto ${isRTL ? "ml-auto sm:ml-0" : "justify-start sm:justify-end"}`}
-                            >
-                                <TooltipProvider>
-                                    <Tooltip>
-                                        <TooltipTrigger asChild>
-                                            <button
-                                                className={actionButtonClass}
-                                                onClick={handleAddItem}
-                                            >
-                                                <Plus className="h-4 w-4" />
-                                            </button>
-                                        </TooltipTrigger>
-                                        <TooltipContent>
-                                            {t("Add Item")}
-                                        </TooltipContent>
-                                    </Tooltip>
-                                    <Tooltip>
-                                        <TooltipTrigger asChild>
-                                            <button
-                                                className={actionButtonClass}
-                                                onClick={handleDownload}
-                                            >
-                                                <Download className="h-4 w-4" />
-                                            </button>
-                                        </TooltipTrigger>
-                                        <TooltipContent>
-                                            {t("Download memory backup")}
-                                        </TooltipContent>
-                                    </Tooltip>
-                                    <Tooltip>
-                                        <TooltipTrigger asChild>
-                                            <button
-                                                className={actionButtonClass}
-                                                onClick={() =>
-                                                    fileInputRef.current?.click()
-                                                }
-                                            >
-                                                <Upload className="h-4 w-4" />
-                                            </button>
-                                        </TooltipTrigger>
-                                        <TooltipContent>
-                                            {t("Upload memory from backup")}
-                                        </TooltipContent>
-                                    </Tooltip>
-                                    <Tooltip>
-                                        <TooltipTrigger asChild>
-                                            <button
-                                                className={clearButtonClass}
-                                                onClick={handleClear}
-                                            >
-                                                <X className="h-4 w-4" />
-                                            </button>
-                                        </TooltipTrigger>
-                                        <TooltipContent>
-                                            {t("Clear All")}
-                                        </TooltipContent>
-                                    </Tooltip>
-                                </TooltipProvider>
-                                <div
-                                    className={`text-sm text-gray-500 dark:text-gray-400 order-last sm:order-first ${isRTL ? "ms-2" : "me-2"}`}
-                                >
-                                    {t("Size: {{size}} characters", {
-                                        size: memorySize,
-                                    })}
-                                </div>
-                                <input
-                                    ref={fileInputRef}
-                                    type="file"
-                                    accept=".json"
-                                    onChange={handleUpload}
-                                    className="hidden"
-                                />
-                            </div>
-                        </div>
-
-                        {/* Clear All Confirmation Dialog */}
-                        <AlertDialog
-                            open={showClearConfirm}
-                            onOpenChange={setShowClearConfirm}
-                        >
-                            <AlertDialogContent>
-                                <AlertDialogHeader>
-                                    <AlertDialogTitle>
-                                        {t("Clear All Memory?")}
-                                    </AlertDialogTitle>
-                                    <AlertDialogDescription>
-                                        {t(
-                                            "Are you sure you want to clear all memory items? This action cannot be undone.",
-                                        )}
-                                    </AlertDialogDescription>
-                                </AlertDialogHeader>
-                                <AlertDialogFooter
-                                    className={
-                                        isRTL
-                                            ? "flex-row-reverse sm:flex-row-reverse"
-                                            : ""
-                                    }
-                                >
-                                    <AlertDialogCancel>
-                                        {t("Cancel")}
-                                    </AlertDialogCancel>
-                                    <AlertDialogAction
-                                        onClick={handleConfirmClear}
-                                        className="bg-red-600 hover:bg-red-700 focus:ring-red-600"
-                                    >
-                                        {t("Clear All")}
-                                    </AlertDialogAction>
-                                </AlertDialogFooter>
-                            </AlertDialogContent>
-                        </AlertDialog>
-
-                        {/* Bulk Actions Bar */}
-                        {selectedIds.size > 0 && (
-                            <BulkActionsBar
-                                selectedCount={selectedIds.size}
-                                allSelected={allSelected}
-                                onSelectAll={handleSelectAll}
-                                onClearSelection={clearSelection}
-                                actions={{
-                                    delete: {
-                                        onClick: handleDeleteSelected,
-                                        label: t("Delete Selected"),
-                                        ariaLabel: t("Delete selected items"),
-                                    },
-                                }}
-                            />
-                        )}
-
-                        {/* Filters and Sort Controls - Under Search */}
-                        {isParseable && (
-                            <div
-                                className={`flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 mb-2 ${isRTL ? "sm:flex-row-reverse" : ""}`}
-                            >
-                                {/* Filters - Left Side in LTR, Right Side in RTL */}
-                                <div
-                                    className={`flex items-center gap-2 ${isRTL ? "flex-row-reverse justify-end sm:justify-end" : "justify-start"}`}
-                                >
-                                    <Filter className="h-4 w-4 text-gray-500 dark:text-gray-400" />
-                                    <Select
-                                        value={sectionFilter}
-                                        onValueChange={setSectionFilter}
-                                    >
-                                        <SelectTrigger
-                                            className="w-[120px] h-8 text-xs"
-                                            dir={direction}
-                                        >
-                                            <SelectValue
-                                                placeholder={t("Section")}
-                                            />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="all">
-                                                {t("All")}
-                                            </SelectItem>
-                                            {sections.map((s) => (
-                                                <SelectItem
-                                                    key={s.key}
-                                                    value={s.key}
-                                                >
-                                                    {s.label}
-                                                </SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
-                                    <Select
-                                        value={priorityFilter}
-                                        onValueChange={setPriorityFilter}
-                                    >
-                                        <SelectTrigger
-                                            className="w-[100px] h-8 text-xs"
-                                            dir={direction}
-                                        >
-                                            <SelectValue
-                                                placeholder={t("Priority")}
-                                            />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="all">
-                                                {t("All")}
-                                            </SelectItem>
-                                            {uniquePriorities.map((p) => (
-                                                <SelectItem key={p} value={p}>
-                                                    {p}
-                                                </SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
-                                    {hasActiveFilters && (
-                                        <button
-                                            onClick={clearAllFilters}
-                                            className="flex items-center justify-center w-8 h-8 rounded-md border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors"
-                                            title={t("Clear Filters")}
-                                        >
-                                            <X className="h-4 w-4" />
-                                        </button>
-                                    )}
-                                </div>
-                                {/* Sort - Right Side in LTR, Left Side in RTL */}
-                                {filteredItems.length > 0 && (
-                                    <div
-                                        className={`flex items-center gap-2 ${isRTL ? "flex-row-reverse justify-end sm:justify-end" : "justify-start sm:justify-end"}`}
-                                    >
-                                        <button
-                                            onClick={() =>
-                                                setSortOrder(
-                                                    sortOrder === "asc"
-                                                        ? "desc"
-                                                        : "asc",
-                                                )
-                                            }
-                                            className="lb-outline-secondary text-xs px-2 py-1 h-8 min-w-[2rem]"
-                                            title={t("Toggle sort order")}
-                                        >
-                                            {sortOrder === "asc" ? "↑" : "↓"}
-                                        </button>
-                                        <Select
-                                            value={sortBy}
-                                            onValueChange={setSortBy}
-                                        >
-                                            <SelectTrigger
-                                                className="w-[140px] h-8 text-xs"
-                                                dir={direction}
-                                            >
-                                                <SelectValue
-                                                    placeholder={t("Sort")}
-                                                />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                {sortOptions.map((option) => (
-                                                    <SelectItem
-                                                        key={option.value}
-                                                        value={option.value}
-                                                    >
-                                                        {option.label}
-                                                    </SelectItem>
-                                                ))}
-                                            </SelectContent>
-                                        </Select>
-                                    </div>
-                                )}
-                            </div>
-                        )}
-
-                        {/* Items List or Raw Text Editor */}
-                        <div
-                            className="flex-1 overflow-y-auto min-h-0"
-                            ref={containerRef}
-                        >
-                            {!isParseable ? (
-                                <div className="flex flex-col h-full">
-                                    <label
-                                        className={`block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1.5 ${isRTL ? "text-right" : "text-left"}`}
-                                        htmlFor="raw-memory-editor"
-                                        dir={direction}
-                                    >
-                                        {t("Memory (Raw Text Format)")}
-                                        <span
-                                            className={`${isRTL ? "ms-1.5" : "ms-1.5"} text-[10px] text-gray-500 dark:text-gray-400`}
-                                        >
-                                            (
-                                            {t(
-                                                "Not parseable as structured memory",
-                                            )}
-                                            )
-                                        </span>
-                                    </label>
-                                    <textarea
-                                        id="raw-memory-editor"
-                                        value={rawMemory}
-                                        onChange={(e) =>
-                                            setRawMemory(e.target.value)
-                                        }
-                                        className="lb-input font-mono text-xs w-full flex-1 resize-none"
-                                        placeholder={t(
-                                            "Enter memory content. Use format: priority|timestamp|content (one per line) for structured editing, or plain text.",
-                                        )}
-                                        dir={direction}
-                                    />
-                                </div>
-                            ) : items.length === 0 ? (
-                                <EmptyState
-                                    icon="🧠"
-                                    title={t("No memory items")}
-                                    description={t(
-                                        "Click 'Add Item' to create your first memory item.",
-                                    )}
-                                    action={handleAddItem}
-                                    actionLabel={t("Add Item")}
-                                />
-                            ) : filteredItems.length === 0 ? (
-                                <EmptyState
-                                    icon="🔍"
-                                    title={t("No items match your filters")}
-                                    description={t(
-                                        "Try adjusting your search or filter criteria.",
-                                    )}
-                                />
-                            ) : (
-                                <div>
-                                    {filteredItems.map((item) => (
-                                        <MemoryItem
-                                            key={item.id}
-                                            item={item}
-                                            onEdit={handleEdit}
-                                            onDelete={handleDelete}
-                                            isEditing={editingId === item.id}
-                                            onSaveEdit={handleSaveEdit}
-                                            onCancelEdit={handleCancelEdit}
-                                            isSelected={selectedIds.has(
-                                                item.id,
-                                            )}
-                                            onToggleSelect={handleToggleSelect}
-                                            sections={sections}
-                                        />
-                                    ))}
-                                </div>
-                            )}
-                        </div>
-
-                        {/* Footer */}
-                        <div
-                            className={`flex gap-2 pt-3 mt-3 border-t border-gray-200 dark:border-gray-700 relative z-10 bg-white dark:bg-gray-800 ${isRTL ? "flex-row-reverse justify-start" : "justify-end"}`}
-                        >
-                            <button
-                                className="lb-outline-secondary text-xs flex-1 sm:flex-initial"
-                                onClick={onClose}
-                                disabled={saving}
-                            >
-                                {t("Cancel")}
-                            </button>
-                            <button
-                                className="lb-primary text-xs flex-1 sm:flex-initial flex items-center justify-center gap-2"
-                                onClick={handleSave}
-                                disabled={saving}
-                            >
-                                {saving && <Spinner size="sm" />}
-                                {t("Save")}
-                            </button>
-                        </div>
-                    </>
-                )}
-            </div>
+            <MemoryEditorContent
+                user={user}
+                aiName={aiName}
+                onClose={onClose}
+            />
         </Modal>
     );
 };

@@ -7,7 +7,7 @@ import { useUpdateCurrentUser } from "../../app/queries/users";
 import { AuthContext } from "../App";
 import { LanguageContext } from "../contexts/LanguageProvider";
 import axios from "../../app/utils/axios-client";
-import MemoryEditor from "./MemoryEditor";
+import { MemoryEditorContent } from "./MemoryEditor";
 
 const UserOptions = ({ show, handleClose }) => {
     const { t } = useTranslation();
@@ -150,13 +150,19 @@ const UserOptions = ({ show, handleClose }) => {
     };
 
     return (
-        <>
-            <Modal
-                widthClassName="max-w-2xl"
-                title={t("Options")}
-                show={show}
-                onHide={handleClose}
-            >
+        <Modal
+            widthClassName={showMemoryEditor ? "max-w-6xl" : "max-w-2xl"}
+            title={showMemoryEditor ? t("Memory Editor") : t("Options")}
+            show={show}
+            onHide={handleClose}
+        >
+            {showMemoryEditor ? (
+                <MemoryEditorContent
+                    user={user}
+                    aiName={aiName}
+                    onClose={() => setShowMemoryEditor(false)}
+                />
+            ) : (
                 <div className="flex flex-col gap-4">
                     {error && (
                         <div
@@ -430,15 +436,8 @@ const UserOptions = ({ show, handleClose }) => {
                         </button>
                     </div>
                 </div>
-            </Modal>
-
-            <MemoryEditor
-                show={showMemoryEditor}
-                onClose={() => setShowMemoryEditor(false)}
-                user={user}
-                aiName={aiName}
-            />
-        </>
+            )}
+        </Modal>
     );
 };
 
