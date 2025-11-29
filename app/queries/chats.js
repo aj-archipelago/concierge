@@ -772,39 +772,97 @@ export function useUpdateChat() {
                 requestTimestamp,
             );
 
-            // If updating messages, don't do optimistic update - let server handle it
-            // This prevents overwriting server-persisted messages
+            // If updating messages, check if we're adding new messages or updating existing ones
+            // Optimistically add new messages (e.g., user just sent a message)
+            // But skip optimistic update for edits/replacements to avoid overwriting server-persisted messages
             if (updateData.messages) {
-                // Remove messages from optimistic update - server will handle persistence
                 const { messages, ...otherUpdates } = updateData;
                 const previousChat = queryClient.getQueryData(["chat", chatId]);
-                const expectedChatData = { ...previousChat, ...otherUpdates };
+                const previousMessages = previousChat?.messages || [];
+                const newMessages = messages || [];
 
-                queryClient.setQueryData(["chat", chatId], expectedChatData);
-                queryClient.setQueryData(["chats"], (old) => {
-                    if (!old || !old.pages) return old;
-                    return {
-                        ...old,
-                        pages: old.pages.map((page) =>
-                            page.map((chat) =>
-                                chat._id === chatId ? expectedChatData : chat,
-                            ),
-                        ),
+                // Check if we're adding new messages (new array is longer)
+                // This typically happens when a user sends a new message
+                const isAddingNewMessages =
+                    newMessages.length > previousMessages.length;
+
+                if (isAddingNewMessages) {
+                    // Optimistically add new messages for immediate UI feedback
+                    const expectedChatData = {
+                        ...previousChat,
+                        ...otherUpdates,
+                        messages: newMessages,
                     };
-                });
-                queryClient.setQueryData(
-                    ["activeChats"],
-                    (old) =>
-                        old?.map((chat) =>
-                            chat._id === chatId ? expectedChatData : chat,
-                        ) || [],
-                );
 
-                return {
-                    previousChat,
-                    timestamp: requestTimestamp,
-                    skipMessages: true,
-                };
+                    queryClient.setQueryData(
+                        ["chat", chatId],
+                        expectedChatData,
+                    );
+                    queryClient.setQueryData(["chats"], (old) => {
+                        if (!old || !old.pages) return old;
+                        return {
+                            ...old,
+                            pages: old.pages.map((page) =>
+                                page.map((chat) =>
+                                    chat._id === chatId
+                                        ? expectedChatData
+                                        : chat,
+                                ),
+                            ),
+                        };
+                    });
+                    queryClient.setQueryData(
+                        ["activeChats"],
+                        (old) =>
+                            old?.map((chat) =>
+                                chat._id === chatId ? expectedChatData : chat,
+                            ) || [],
+                    );
+
+                    return {
+                        previousChat,
+                        timestamp: requestTimestamp,
+                        skipMessages: false, // Allow server response to update
+                    };
+                } else {
+                    // Updating/replacing existing messages - skip optimistic update
+                    // This prevents overwriting server-persisted messages
+                    const expectedChatData = {
+                        ...previousChat,
+                        ...otherUpdates,
+                    };
+
+                    queryClient.setQueryData(
+                        ["chat", chatId],
+                        expectedChatData,
+                    );
+                    queryClient.setQueryData(["chats"], (old) => {
+                        if (!old || !old.pages) return old;
+                        return {
+                            ...old,
+                            pages: old.pages.map((page) =>
+                                page.map((chat) =>
+                                    chat._id === chatId
+                                        ? expectedChatData
+                                        : chat,
+                                ),
+                            ),
+                        };
+                    });
+                    queryClient.setQueryData(
+                        ["activeChats"],
+                        (old) =>
+                            old?.map((chat) =>
+                                chat._id === chatId ? expectedChatData : chat,
+                            ) || [],
+                    );
+
+                    return {
+                        previousChat,
+                        timestamp: requestTimestamp,
+                        skipMessages: true,
+                    };
+                }
             }
 
             const previousChat = queryClient.getQueryData(["chat", chatId]);

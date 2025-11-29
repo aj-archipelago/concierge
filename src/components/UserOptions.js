@@ -383,7 +383,7 @@ const UserOptions = ({ show, handleClose }) => {
                     <hr className="border-gray-200 dark:border-gray-700" />
 
                     {/* Memory Section */}
-                    <section className="space-y-2">
+                    <section className="space-y-4">
                         <div
                             className={`flex gap-2 items-center ${isRTL ? "flex-row-reverse justify-end" : ""}`}
                         >
@@ -410,9 +410,9 @@ const UserOptions = ({ show, handleClose }) => {
                         <button
                             type="button"
                             onClick={() => setShowMemoryEditor(true)}
-                            className="lb-outline-secondary text-sm w-full sm:w-auto"
+                            className="lb-primary text-sm w-full sm:w-auto mt-2"
                         >
-                            <Settings className="w-3.5 h-3.5 inline me-1.5" />
+                            <Settings className="w-4 h-4 inline me-2" />
                             {t("Edit Memory")}
                         </button>
                     </section>
