@@ -164,6 +164,7 @@ export async function POST(req, { params }) {
         // Create SSE stream
         const encoder = new TextEncoder();
         let clientConnected = true;
+        let graphqlSubscription = null; // Store subscription for cleanup
 
         const stream = new ReadableStream({
             async start(controller) {
@@ -199,9 +200,32 @@ export async function POST(req, { params }) {
                     }
                 };
 
+                const unsubscribe = () => {
+                    if (graphqlSubscription) {
+                        try {
+                            if (
+                                typeof graphqlSubscription.unsubscribe ===
+                                "function"
+                            ) {
+                                graphqlSubscription.unsubscribe();
+                            } else if (
+                                typeof graphqlSubscription.close === "function"
+                            ) {
+                                graphqlSubscription.close();
+                            }
+                        } catch (error) {
+                            console.error(
+                                "[SSE Stream] Error unsubscribing:",
+                                error,
+                            );
+                        }
+                        graphqlSubscription = null;
+                    }
+                };
+
                 try {
                     // Subscribe to REQUEST_PROGRESS
-                    graphqlClient
+                    graphqlSubscription = graphqlClient
                         .subscribe({
                             query: SUBSCRIPTIONS.REQUEST_PROGRESS,
                             variables: { requestIds: [subscriptionId] },
@@ -220,6 +244,7 @@ export async function POST(req, { params }) {
                                 // Handle errors
                                 if (error) {
                                     sendEvent("error", { error });
+                                    unsubscribe();
                                     persistMessage(
                                         chat,
                                         accumulator,
@@ -256,6 +281,7 @@ export async function POST(req, { params }) {
                                 // Handle completion
                                 if (progress === 1) {
                                     sendEvent("complete", { progress: 1 });
+                                    unsubscribe();
                                     closeStream();
                                     persistMessage(
                                         chat,
@@ -273,6 +299,7 @@ export async function POST(req, { params }) {
                             },
                             error: (error) => {
                                 console.error("Subscription error:", error);
+                                unsubscribe();
                                 sendEvent("error", {
                                     error: error.message || String(error),
                                 });
@@ -290,10 +317,14 @@ export async function POST(req, { params }) {
                                     ),
                                 );
                             },
-                            complete: () => closeStream(),
+                            complete: () => {
+                                unsubscribe();
+                                closeStream();
+                            },
                         });
                 } catch (error) {
                     console.error("Error setting up subscription:", error);
+                    unsubscribe();
                     sendEvent("error", {
                         error: error.message || String(error),
                     });
@@ -314,8 +345,28 @@ export async function POST(req, { params }) {
                 }
             },
             cancel() {
-                // Client disconnected - mark as disconnected but continue accumulating
+                // Client disconnected - unsubscribe and mark as disconnected
                 clientConnected = false;
+                if (graphqlSubscription) {
+                    try {
+                        if (
+                            typeof graphqlSubscription.unsubscribe ===
+                            "function"
+                        ) {
+                            graphqlSubscription.unsubscribe();
+                        } else if (
+                            typeof graphqlSubscription.close === "function"
+                        ) {
+                            graphqlSubscription.close();
+                        }
+                    } catch (error) {
+                        console.error(
+                            "[SSE Stream] Error unsubscribing on cancel:",
+                            error,
+                        );
+                    }
+                    graphqlSubscription = null;
+                }
             },
         });
 
