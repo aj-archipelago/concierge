@@ -523,9 +523,7 @@ const MediaCard = React.memo(function MediaCard({
                                 : type === "image"
                                   ? translationFn("View image in full screen")
                                   : type === "video"
-                                    ? translationFn(
-                                          "View video in full screen",
-                                      )
+                                    ? translationFn("View video in full screen")
                                     : type === "youtube"
                                       ? translationFn(
                                             "View YouTube video in full screen",

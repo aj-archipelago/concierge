@@ -766,7 +766,8 @@ const MessageList = React.memo(
                             // Only replace the first match to avoid replacing multiple blocks
                             if (
                                 !replaced &&
-                                normalizeCode(codeContent) === normalizedBrokenCode
+                                normalizeCode(codeContent) ===
+                                    normalizedBrokenCode
                             ) {
                                 replaced = true;
                                 return `\`\`\`mermaid\n${fixedCode}\n\`\`\``;
@@ -784,7 +785,10 @@ const MessageList = React.memo(
                             const parsed = JSON.parse(item);
                             if (parsed && typeof parsed === "object") {
                                 // Recursively process object properties
-                                if (parsed.text && typeof parsed.text === "string") {
+                                if (
+                                    parsed.text &&
+                                    typeof parsed.text === "string"
+                                ) {
                                     const processedText = replaceMermaidCode(
                                         parsed.text,
                                     );
@@ -803,9 +807,8 @@ const MessageList = React.memo(
                                         typeof processed[key] === "string" &&
                                         key !== "text"
                                     ) {
-                                        const processedValue = replaceMermaidCode(
-                                            processed[key],
-                                        );
+                                        const processedValue =
+                                            replaceMermaidCode(processed[key]);
                                         if (processedValue !== processed[key]) {
                                             processed[key] = processedValue;
                                             changed = true;
@@ -844,7 +847,10 @@ const MessageList = React.memo(
                                 {
                                     messageId,
                                     brokenCodeLength: brokenCode.length,
-                                    payloadPreview: String(before).substring(0, 200),
+                                    payloadPreview: String(before).substring(
+                                        0,
+                                        200,
+                                    ),
                                 },
                             );
                         }

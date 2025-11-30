@@ -19,10 +19,7 @@ const generateDigestBlockContent = async (
     };
 
     const variables = {
-        chatHistory: [
-            systemMessage,
-            { role: "user", content: [prompt] },
-        ],
+        chatHistory: [systemMessage, { role: "user", content: [prompt] }],
         contextId: user?.contextId,
         contextKey: user?.contextKey,
         aiName: user?.aiName,
