@@ -743,6 +743,17 @@ const MessageList = React.memo(
                 const message = messages[messageIndex];
                 let updatedPayload = message.payload;
 
+                // Normalize code for comparison (remove extra whitespace, normalize line endings)
+                const normalizeCode = (code) => {
+                    return code
+                        .trim()
+                        .replace(/\r\n/g, "\n")
+                        .replace(/\r/g, "\n")
+                        .replace(/\n{3,}/g, "\n\n");
+                };
+
+                const normalizedBrokenCode = normalizeCode(brokenCode);
+
                 // Replace the mermaid code block - we know which block it is, just replace it
                 const replaceMermaidCode = (text) => {
                     // Find mermaid blocks and replace the one containing brokenCode
@@ -751,11 +762,11 @@ const MessageList = React.memo(
                     return text.replace(
                         mermaidBlockRegex,
                         (fullMatch, codeContent) => {
-                            // If this block matches the broken code exactly, replace it
+                            // If this block matches the broken code (normalized), replace it
                             // Only replace the first match to avoid replacing multiple blocks
                             if (
                                 !replaced &&
-                                codeContent.trim() === brokenCode.trim()
+                                normalizeCode(codeContent) === normalizedBrokenCode
                             ) {
                                 replaced = true;
                                 return `\`\`\`mermaid\n${fixedCode}\n\`\`\``;
@@ -765,35 +776,110 @@ const MessageList = React.memo(
                     );
                 };
 
+                // Helper to recursively process payload items
+                const processPayloadItem = (item) => {
+                    if (typeof item === "string") {
+                        // Try to parse as JSON in case it's a stringified object
+                        try {
+                            const parsed = JSON.parse(item);
+                            if (parsed && typeof parsed === "object") {
+                                // Recursively process object properties
+                                if (parsed.text && typeof parsed.text === "string") {
+                                    const processedText = replaceMermaidCode(
+                                        parsed.text,
+                                    );
+                                    if (processedText !== parsed.text) {
+                                        return JSON.stringify({
+                                            ...parsed,
+                                            text: processedText,
+                                        });
+                                    }
+                                }
+                                // Check other string properties
+                                const processed = { ...parsed };
+                                let changed = false;
+                                for (const key in processed) {
+                                    if (
+                                        typeof processed[key] === "string" &&
+                                        key !== "text"
+                                    ) {
+                                        const processedValue = replaceMermaidCode(
+                                            processed[key],
+                                        );
+                                        if (processedValue !== processed[key]) {
+                                            processed[key] = processedValue;
+                                            changed = true;
+                                        }
+                                    }
+                                }
+                                if (changed) {
+                                    return JSON.stringify(processed);
+                                }
+                            }
+                        } catch (e) {
+                            // Not JSON, treat as plain string
+                        }
+                        // Process as plain string
+                        return replaceMermaidCode(item);
+                    }
+                    return item;
+                };
+
+                // Check if payload contains mermaid blocks before processing
+                const payloadStr =
+                    typeof updatedPayload === "string"
+                        ? updatedPayload
+                        : JSON.stringify(updatedPayload);
+                const hasMermaidBlocks = /```mermaid/.test(payloadStr);
+
                 if (typeof updatedPayload === "string") {
                     const before = updatedPayload;
-                    updatedPayload = replaceMermaidCode(updatedPayload);
+                    updatedPayload = processPayloadItem(updatedPayload);
                     // Check if anything changed
                     if (before === updatedPayload) {
-                        console.warn(
-                            "Mermaid code block not found in message payload for replacement",
-                        );
+                        // Only warn if we actually expected to find a match
+                        if (hasMermaidBlocks) {
+                            console.warn(
+                                "Mermaid code block not found in message payload for replacement",
+                                {
+                                    messageId,
+                                    brokenCodeLength: brokenCode.length,
+                                    payloadPreview: String(before).substring(0, 200),
+                                },
+                            );
+                        }
                         return;
                     }
                 } else if (Array.isArray(updatedPayload)) {
                     let changed = false;
                     updatedPayload = updatedPayload.map((item) => {
-                        if (typeof item === "string") {
-                            const before = item;
-                            const after = replaceMermaidCode(item);
-                            if (before !== after) {
-                                changed = true;
-                            }
-                            return after;
+                        const processed = processPayloadItem(item);
+                        if (processed !== item) {
+                            changed = true;
                         }
-                        return item;
+                        return processed;
                     });
                     if (!changed) {
-                        console.warn(
-                            "Mermaid code block not found in message payload for replacement",
-                        );
+                        // Only warn if we actually expected to find a match
+                        if (hasMermaidBlocks) {
+                            console.warn(
+                                "Mermaid code block not found in message payload for replacement",
+                                {
+                                    messageId,
+                                    brokenCodeLength: brokenCode.length,
+                                    payloadType: "array",
+                                },
+                            );
+                        }
                         return;
                     }
+                } else {
+                    // Payload is neither string nor array - can't process
+                    console.warn(
+                        "Mermaid fix: unexpected payload format",
+                        typeof updatedPayload,
+                    );
+                    return;
                 }
 
                 // Create updated messages array

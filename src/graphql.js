@@ -205,7 +205,7 @@ const CHAT_TITLE = gql`
 `;
 
 const SYS_ENTITY_AGENT = gql`
-    query RagStart(
+    query StartAgent(
         $chatHistory: [MultiMessage]!
         $contextId: String
         $contextKey: String

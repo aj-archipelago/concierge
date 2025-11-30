@@ -8,7 +8,12 @@ import React, {
     useCallback,
 } from "react";
 import { useTranslation } from "react-i18next";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
+import {
+    Dialog,
+    DialogContent,
+    DialogTitle,
+    DialogDescription,
+} from "@/components/ui/dialog";
 import { Play, X, FileX, Download } from "lucide-react";
 import { getFileIcon, getExtension } from "../../utils/mediaUtils";
 import { useFilePreview, renderFilePreview } from "./useFilePreview";
@@ -501,6 +506,34 @@ const MediaCard = React.memo(function MediaCard({
             {(type !== "file" || hasFilePreview) && (
                 <Dialog open={isZoomOpen} onOpenChange={setIsZoomOpen}>
                     <DialogContent className="max-w-[95vw] max-h-[95vh] p-4 sm:p-6 flex items-center justify-center">
+                        <DialogTitle className="sr-only">
+                            {type === "image"
+                                ? translationFn("Image viewer")
+                                : type === "video"
+                                  ? translationFn("Video player")
+                                  : type === "youtube"
+                                    ? translationFn("YouTube video player")
+                                    : translationFn("File preview")}
+                        </DialogTitle>
+                        <DialogDescription className="sr-only">
+                            {filename
+                                ? translationFn(
+                                      `Viewing ${filename} in full screen`,
+                                  )
+                                : type === "image"
+                                  ? translationFn("View image in full screen")
+                                  : type === "video"
+                                    ? translationFn(
+                                          "View video in full screen",
+                                      )
+                                    : type === "youtube"
+                                      ? translationFn(
+                                            "View YouTube video in full screen",
+                                        )
+                                      : translationFn(
+                                            "View file in full screen",
+                                        )}
+                        </DialogDescription>
                         <div className="w-full flex items-center justify-center relative">
                             {renderZoomContent()}
                             {src && type !== "youtube" && (

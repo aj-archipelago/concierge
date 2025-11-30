@@ -198,6 +198,17 @@ export async function buildWorkspacePromptVariables({
             });
         }
 
+        // Add UX display context system message
+        finalChatHistory.push({
+            role: "system",
+            content: [
+                JSON.stringify({
+                    type: "text",
+                    text: "Your output is being displayed in the user interface or used as an API response, not in a chat conversation. The user cannot respond to your messages. Please complete the requested task fully and do not ask follow-up questions or otherwise attempt to engage the user in conversation.",
+                }),
+            ],
+        });
+
         // Add user message with combined prompt+text and files
         const userContent = [];
         if (combinedUserText) {

@@ -11,8 +11,18 @@ const generateDigestBlockContent = async (
 ) => {
     const { prompt } = block;
 
+    const systemMessage = {
+        role: "system",
+        content: [
+            "Your output is being displayed in the user interface, not in a chat conversation. The user cannot respond to your messages. Please complete the requested task fully and do not ask follow-up questions or otherwise attempt to engage the user in conversation.",
+        ],
+    };
+
     const variables = {
-        chatHistory: [{ role: "user", content: [prompt] }],
+        chatHistory: [
+            systemMessage,
+            { role: "user", content: [prompt] },
+        ],
         contextId: user?.contextId,
         contextKey: user?.contextKey,
         aiName: user?.aiName,
