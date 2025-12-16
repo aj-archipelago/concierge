@@ -118,10 +118,9 @@ export async function DELETE(request, { params }) {
             }
         }
 
-        // Delete the file from the container using the file handler
+        // Delete the file using the file handler
         try {
-            const containerName = process.env.CORTEX_MEDIA_PERMANENT_STORE_NAME;
-            if (containerName && fileToDelete.hash) {
+            if (fileToDelete.hash) {
                 const mediaHelperUrl = config.endpoints.mediaHelperDirect();
                 if (!mediaHelperUrl) {
                     console.error(
@@ -135,34 +134,32 @@ export async function DELETE(request, { params }) {
                     );
                 }
 
-                const deleteResponse = await fetch(mediaHelperUrl, {
+                const deleteUrl = new URL(mediaHelperUrl);
+                deleteUrl.searchParams.set("hash", fileToDelete.hash);
+                deleteUrl.searchParams.set("contextId", user.contextId);
+
+                const deleteResponse = await fetch(deleteUrl.toString(), {
                     method: "DELETE",
                     headers: {
                         "Content-Type": "application/json",
                     },
-                    body: JSON.stringify({
-                        params: {
-                            hash: fileToDelete.hash,
-                            container: containerName,
-                        },
-                    }),
                 });
 
                 if (!deleteResponse.ok) {
                     const errorBody = await deleteResponse.text();
                     console.warn(
-                        `Failed to delete file from container: ${deleteResponse.statusText}. Response: ${errorBody}`,
+                        `Failed to delete file: ${deleteResponse.statusText}. Response: ${errorBody}`,
                     );
-                    // Continue with database deletion even if container deletion fails
+                    // Continue with database deletion even if file deletion fails
                 } else {
                     console.log(
-                        `Successfully deleted file ${fileToDelete.hash} from container ${containerName}`,
+                        `Successfully deleted file ${fileToDelete.hash}`,
                     );
                 }
             }
         } catch (error) {
-            console.error("Error deleting file from container:", error);
-            // Continue with database deletion even if container deletion fails
+            console.error("Error deleting file:", error);
+            // Continue with database deletion even if file deletion fails
         }
 
         // Remove the file document

@@ -9,7 +9,7 @@ import {
 import { useContext, useState } from "react";
 import { useTranslation } from "react-i18next";
 import config from "../../../config";
-import { ServerContext } from "../../App";
+import { ServerContext, AuthContext } from "../../App";
 import { LanguageContext } from "../../contexts/LanguageProvider";
 import {
     getVideoDuration,
@@ -139,6 +139,8 @@ function VideoInput({
     const [videoSelectorError, setVideoSelectorError] = useState(null);
     const [showVideoSelector, setShowVideoSelector] = useState(false);
     const { serverUrl } = useContext(ServerContext);
+    const { user } = useContext(AuthContext);
+    const contextId = user?.contextId;
     const [uploadProgress, setUploadProgress] = useState(0);
     const { direction } = useContext(LanguageContext);
     const [durationWarning, setDurationWarning] = useState(null);
@@ -182,9 +184,16 @@ function VideoInput({
 
         // Check if file with same hash exists
         try {
-            const checkResponse = await fetch(
-                `${config.endpoints.mediaHelper(serverUrl)}?hash=${fileHash}&checkHash=true`,
+            const checkUrl = new URL(
+                config.endpoints.mediaHelper(serverUrl),
+                window.location.origin,
             );
+            checkUrl.searchParams.set("hash", fileHash);
+            checkUrl.searchParams.set("checkHash", "true");
+            if (contextId) {
+                checkUrl.searchParams.set("contextId", contextId);
+            }
+            const checkResponse = await fetch(checkUrl.toString());
             if (checkResponse.ok) {
                 const data = await checkResponse.json().catch(() => null);
                 if (data && data.url) {
@@ -252,14 +261,21 @@ function VideoInput({
         const formData = new FormData();
         formData.append("file", file);
         formData.append("hash", fileHash);
+        if (contextId) {
+            formData.append("contextId", contextId);
+        }
 
         try {
             const xhr = new XMLHttpRequest();
-            xhr.open(
-                "POST",
-                `${config.endpoints.mediaHelper(serverUrl)}?hash=${fileHash}`,
-                true,
+            const uploadUrl = new URL(
+                config.endpoints.mediaHelper(serverUrl),
+                window.location.origin,
             );
+            uploadUrl.searchParams.set("hash", fileHash);
+            if (contextId) {
+                uploadUrl.searchParams.set("contextId", contextId);
+            }
+            xhr.open("POST", uploadUrl.toString(), true);
 
             // Monitor the upload progress
             xhr.upload.onprogress = (event) => {

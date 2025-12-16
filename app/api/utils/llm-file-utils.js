@@ -5,9 +5,14 @@ import config from "../../../config/index.js";
  * The checkHash operation now always returns short-lived URLs by default
  * @param {Object} file - File object with hash, url, filename properties
  * @param {number} minutes - Duration in minutes for the short-lived URL (default: 5)
+ * @param {string} contextId - Optional context ID for per-user file scoping
  * @returns {Promise<string>} - Short-lived URL or fallback to original URL
  */
-export async function generateShortLivedUrl(file, minutes = 5) {
+export async function generateShortLivedUrl(
+    file,
+    minutes = 5,
+    contextId = null,
+) {
     // Only generate short-lived URL if file has a hash
     if (!file.hash) {
         throw new Error("No hash found for file " + file.originalName);
@@ -19,13 +24,19 @@ export async function generateShortLivedUrl(file, minutes = 5) {
             throw new Error("mediaHelperDirect endpoint is not defined");
         }
 
+        // Build URL with parameters
+        const url = new URL(mediaHelperUrl);
+        url.searchParams.set("hash", file.hash);
+        url.searchParams.set("checkHash", "true");
+        url.searchParams.set("shortLivedMinutes", minutes.toString());
+        if (contextId) {
+            url.searchParams.set("contextId", contextId);
+        }
+
         // Generate short-lived URL using checkHash (always returns short-lived URLs)
-        const shortLivedResponse = await fetch(
-            `${mediaHelperUrl}?hash=${file.hash}&checkHash=true&shortLivedMinutes=${minutes}`,
-            {
-                method: "GET",
-            },
-        );
+        const shortLivedResponse = await fetch(url.toString(), {
+            method: "GET",
+        });
 
         if (!shortLivedResponse.ok) {
             console.warn(

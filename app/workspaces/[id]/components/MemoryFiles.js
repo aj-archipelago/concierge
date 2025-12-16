@@ -6,10 +6,10 @@ import { toast } from "react-toastify";
 import i18next from "i18next";
 import {
     Check,
-    ExternalLink,
     ArrowUpDown,
     ChevronUp,
     ChevronDown,
+    Download,
 } from "lucide-react";
 import { QUERIES } from "@/src/graphql";
 import { getFileIcon } from "@/src/utils/mediaUtils";
@@ -23,6 +23,16 @@ import { IMAGE_EXTENSIONS } from "@/src/utils/mediaUtils";
 import { purgeFiles } from "./chatFileUtils";
 import HoverPreview from "./HoverPreview";
 import {
+    useFilePreview,
+    renderFilePreview,
+} from "@/src/components/chat/useFilePreview";
+import {
+    isYoutubeUrl,
+    getYoutubeEmbedUrl,
+    extractYoutubeVideoId,
+    getYoutubeThumbnailUrl,
+} from "@/src/utils/urlUtils";
+import {
     AlertDialog,
     AlertDialogContent,
     AlertDialogHeader,
@@ -32,6 +42,12 @@ import {
     AlertDialogAction,
     AlertDialogCancel,
 } from "@/components/ui/alert-dialog";
+import {
+    Dialog,
+    DialogContent,
+    DialogTitle,
+    DialogDescription,
+} from "@/components/ui/dialog";
 import {
     Table,
     TableBody,
@@ -86,6 +102,119 @@ function SortableHeader({
     );
 }
 
+// File Preview Dialog Component
+function FilePreviewDialog({ file, onClose, onDownload, t }) {
+    const isRtl = i18next.language === "ar";
+    const url = file ? getFileUrl(file) : null;
+    const filename = file ? getFilenameUtil(file) : null;
+    const mimeType = file?.mimeType;
+
+    // Check if URL is YouTube
+    const isYouTube = url ? isYoutubeUrl(url) : false;
+    const youtubeEmbedUrl = isYouTube && url ? getYoutubeEmbedUrl(url) : null;
+
+    // Use shared file preview logic
+    const fileType = useFilePreview(url, filename, mimeType);
+
+    // Render preview using shared logic
+    const preview = url ? (
+        isYouTube && youtubeEmbedUrl ? (
+            // YouTube iframe
+            <iframe
+                src={youtubeEmbedUrl}
+                className="w-full rounded-lg"
+                style={{
+                    width: "100%",
+                    maxWidth: "900px",
+                    aspectRatio: "16/9",
+                    backgroundColor: "transparent",
+                }}
+                allowFullScreen
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                title={t("YouTube video player")}
+            />
+        ) : (
+            renderFilePreview({
+                src: url,
+                filename,
+                fileType,
+                className:
+                    fileType.isPdf || fileType.isDoc
+                        ? "w-full h-full rounded border-none"
+                        : "max-w-full max-h-[80vh] object-contain rounded",
+                t,
+            })
+        )
+    ) : null;
+
+    const hasPreview = preview !== null;
+
+    return (
+        <Dialog open={!!file} onOpenChange={(open) => !open && onClose()}>
+            <DialogContent
+                className={`max-w-[95vw] max-h-[95vh] p-4 sm:p-6 flex items-center justify-center ${isRtl ? "text-right" : ""}`}
+            >
+                <DialogTitle className="sr-only">
+                    {isYouTube ? t("YouTube video player") : t("File preview")}
+                </DialogTitle>
+                <DialogDescription className="sr-only">
+                    {filename
+                        ? t("Viewing {{filename}} in full screen", { filename })
+                        : isYouTube
+                          ? t("View YouTube video in full screen")
+                          : t("View file in full screen")}
+                </DialogDescription>
+                <div className="w-full flex items-center justify-center relative">
+                    {hasPreview ? (
+                        preview
+                    ) : (
+                        <div
+                            className={`text-gray-500 dark:text-gray-400 text-center p-8 ${isRtl ? "text-right" : ""}`}
+                        >
+                            <div className="mb-4">
+                                {filename ? (
+                                    <p className="text-lg font-medium">
+                                        {filename}
+                                    </p>
+                                ) : (
+                                    <p className="text-lg font-medium">
+                                        {t("No preview available")}
+                                    </p>
+                                )}
+                            </div>
+                            <p className="text-sm">
+                                {t(
+                                    "Preview is not available for this file type",
+                                )}
+                            </p>
+                        </div>
+                    )}
+                    {url && !isYouTube && (
+                        <button
+                            onClick={(e) => onDownload(file, e)}
+                            className={`absolute top-4 ${isRtl ? "left-4" : "right-4"} bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 p-2 rounded-lg shadow-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors z-10`}
+                            title={t("Download")}
+                            aria-label={t("Download")}
+                        >
+                            <Download className="w-5 h-5" />
+                        </button>
+                    )}
+                    {url && isYouTube && (
+                        <button
+                            onClick={(e) => onDownload(file, e)}
+                            className={`absolute top-4 ${isRtl ? "left-4" : "right-4"} bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 p-2 rounded-lg shadow-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors z-10`}
+                            title={t("Open in YouTube")}
+                            aria-label={t("Open in YouTube")}
+                        >
+                            <Download className="w-5 h-5" />
+                        </button>
+                    )}
+                </div>
+            </DialogContent>
+        </Dialog>
+    );
+}
+
 export default function MemoryFiles({
     contextId,
     contextKey,
@@ -104,6 +233,7 @@ export default function MemoryFiles({
     const [editingFileId, setEditingFileId] = useState(null);
     const [editingFilename, setEditingFilename] = useState("");
     const [hoveredFile, setHoveredFile] = useState(null);
+    const [previewFile, setPreviewFile] = useState(null);
     const containerRef = useRef(null);
     const hoverTimeoutRef = useRef(null);
 
@@ -255,6 +385,11 @@ export default function MemoryFiles({
                 const nameB = getFilenameUtil(b).toLowerCase();
                 const comparison = nameA.localeCompare(nameB);
                 return sortDirection === "asc" ? comparison : -comparison;
+            } else if (sortKey === "permanent") {
+                const permanentA = a?.permanent === true ? 1 : 0;
+                const permanentB = b?.permanent === true ? 1 : 0;
+                const comparison = permanentB - permanentA; // Permanent files first
+                return sortDirection === "asc" ? -comparison : comparison;
             } else {
                 // Sort by date
                 const dateA = getFileDate(a);
@@ -283,6 +418,99 @@ export default function MemoryFiles({
             }
         },
         [sortKey, sortDirection],
+    );
+
+    const handleTogglePermanent = useCallback(
+        async (file, e) => {
+            e.stopPropagation();
+            const fileId = getFileId(file);
+            const newPermanentValue = !file?.permanent;
+
+            // Store previous state for revert
+            const previousFiles = memoryFiles;
+
+            // Optimistically update the UI
+            const updatedFiles = memoryFiles.map((f) => {
+                if (getFileId(f) === fileId) {
+                    return { ...f, permanent: newPermanentValue };
+                }
+                return f;
+            });
+            setMemoryFiles(updatedFiles);
+
+            // Get file hash for API call
+            const fileHash = file?.hash;
+            if (!fileHash) {
+                toast.error(t("File hash not found. Cannot update retention."));
+                // Revert optimistic update
+                setMemoryFiles(previousFiles);
+                return;
+            }
+
+            try {
+                // Call setRetention API
+                const response = await fetch("/api/files/set-retention", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify({
+                        hash: fileHash,
+                        retention: newPermanentValue
+                            ? "permanent"
+                            : "temporary",
+                    }),
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({}));
+                    throw new Error(
+                        errorData.error ||
+                            `Failed to update retention: ${response.statusText}`,
+                    );
+                }
+
+                // Update memory files with optimistic locking
+                await modifyMemoryFilesWithLock(
+                    apolloClient,
+                    contextId,
+                    contextKey,
+                    (files) => {
+                        return files.map((f) => {
+                            if (getFileId(f) === fileId) {
+                                return { ...f, permanent: newPermanentValue };
+                            }
+                            return f;
+                        });
+                    },
+                );
+
+                refetchMemory();
+                toast.success(
+                    t(
+                        newPermanentValue
+                            ? "File marked as permanent"
+                            : "File marked as temporary",
+                    ),
+                );
+            } catch (error) {
+                console.error("Failed to toggle permanent status:", error);
+                toast.error(
+                    t("Failed to update file retention. Please try again."),
+                );
+                // Revert optimistic update
+                setMemoryFiles(previousFiles);
+            }
+        },
+        [
+            memoryFiles,
+            apolloClient,
+            contextId,
+            contextKey,
+            getFileId,
+            refetchMemory,
+            t,
+        ],
     );
 
     const handleRemoveFiles = async (filesToRemove) => {
@@ -389,8 +617,14 @@ export default function MemoryFiles({
 
     const handleOpenFile = useCallback((file, e) => {
         e.stopPropagation();
+        setPreviewFile(file);
+    }, []);
+
+    const handleDownload = useCallback((file, e) => {
+        e?.stopPropagation?.();
         const url = getFileUrl(file);
         if (url) {
+            // Open in new tab instead of downloading
             window.open(url, "_blank", "noopener,noreferrer");
         }
     }, []);
@@ -688,7 +922,15 @@ export default function MemoryFiles({
                                 >
                                     {t("Date")}
                                 </SortableHeader>
-                                <TableHead className="h-9 w-10 sm:w-12 px-1 sm:px-2"></TableHead>
+                                <SortableHeader
+                                    sortKey="permanent"
+                                    currentSort={sortKey}
+                                    currentDirection={sortDirection}
+                                    onSort={handleSort}
+                                    className="h-9 w-10 sm:w-12 px-1 sm:px-2"
+                                >
+                                    {t("Keep")}
+                                </SortableHeader>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -703,6 +945,19 @@ export default function MemoryFiles({
                                 const isImage = extension
                                     ? IMAGE_EXTENSIONS.includes(`.${extension}`)
                                     : false;
+                                const isYouTube = fileUrl
+                                    ? isYoutubeUrl(fileUrl)
+                                    : false;
+                                const youtubeVideoId =
+                                    isYouTube && fileUrl
+                                        ? extractYoutubeVideoId(fileUrl)
+                                        : null;
+                                const youtubeThumbnail = youtubeVideoId
+                                    ? getYoutubeThumbnailUrl(
+                                          youtubeVideoId,
+                                          "maxresdefault",
+                                      )
+                                    : null;
 
                                 return (
                                     <TableRow
@@ -760,8 +1015,50 @@ export default function MemoryFiles({
                                                         handleOpenFile(file, e);
                                                     }}
                                                 />
+                                            ) : isYouTube &&
+                                              youtubeThumbnail ? (
+                                                <div
+                                                    className="relative w-6 h-6 rounded overflow-hidden bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 cursor-pointer"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        handleOpenFile(file, e);
+                                                    }}
+                                                >
+                                                    <img
+                                                        src={youtubeThumbnail}
+                                                        alt={filename}
+                                                        className="w-full h-full object-cover"
+                                                        onError={(e) => {
+                                                            // Fallback to lower quality thumbnail
+                                                            if (
+                                                                youtubeVideoId
+                                                            ) {
+                                                                e.target.src =
+                                                                    getYoutubeThumbnailUrl(
+                                                                        youtubeVideoId,
+                                                                        "hqdefault",
+                                                                    );
+                                                            }
+                                                        }}
+                                                    />
+                                                    <div className="absolute inset-0 flex items-center justify-center bg-black/20 pointer-events-none">
+                                                        <svg
+                                                            className="w-3 h-3 text-white opacity-90"
+                                                            fill="currentColor"
+                                                            viewBox="0 0 24 24"
+                                                        >
+                                                            <path d="M8 5v14l11-7z" />
+                                                        </svg>
+                                                    </div>
+                                                </div>
                                             ) : (
-                                                <div className="w-6 h-6 flex items-center justify-center bg-gray-100 dark:bg-gray-800 rounded border border-gray-200 dark:border-gray-700">
+                                                <div
+                                                    className="w-6 h-6 flex items-center justify-center bg-gray-100 dark:bg-gray-800 rounded border border-gray-200 dark:border-gray-700 cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        handleOpenFile(file, e);
+                                                    }}
+                                                >
                                                     <Icon className="w-4 h-4 text-sky-600 dark:text-sky-400" />
                                                 </div>
                                             )}
@@ -896,18 +1193,25 @@ export default function MemoryFiles({
                                         <TableCell
                                             className={`px-1 sm:px-2 py-1.5 ${isRtl ? "text-right" : "text-left"}`}
                                         >
-                                            {fileUrl && (
-                                                <button
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        handleOpenFile(file, e);
-                                                    }}
-                                                    className="text-gray-500 hover:text-sky-600 dark:text-gray-400 dark:hover:text-sky-400 p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700"
-                                                    title={t("Open file")}
-                                                >
-                                                    <ExternalLink className="w-3.5 h-3.5" />
-                                                </button>
-                                            )}
+                                            <input
+                                                type="checkbox"
+                                                checked={
+                                                    file?.permanent === true
+                                                }
+                                                onChange={(e) => {
+                                                    e.stopPropagation();
+                                                    handleTogglePermanent(
+                                                        file,
+                                                        e,
+                                                    );
+                                                }}
+                                                className="w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-sky-600 focus:ring-sky-500 dark:focus:ring-sky-400 cursor-pointer"
+                                                title={t(
+                                                    file?.permanent
+                                                        ? "Permanent file"
+                                                        : "Temporary file",
+                                                )}
+                                            />
                                         </TableCell>
                                     </TableRow>
                                 );
@@ -919,6 +1223,16 @@ export default function MemoryFiles({
 
             {/* Hover Preview Component */}
             <HoverPreview file={hoveredFile} />
+
+            {/* Large Preview Dialog */}
+            {previewFile && (
+                <FilePreviewDialog
+                    file={previewFile}
+                    onClose={() => setPreviewFile(null)}
+                    onDownload={handleDownload}
+                    t={t}
+                />
+            )}
 
             {/* Bulk actions bar */}
             <BulkActionsBar

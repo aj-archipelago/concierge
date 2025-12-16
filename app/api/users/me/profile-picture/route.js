@@ -58,11 +58,10 @@ export async function POST(request) {
         };
 
         // Upload normalized image to permanent storage
-        const containerName = process.env.CORTEX_MEDIA_PERMANENT_STORE_NAME;
         const uploadResult = await uploadBufferToMediaService(
             normalizedBuffer,
             normalizedMetadata,
-            containerName,
+            true, // permanent = true
         );
 
         if (uploadResult.error) {
@@ -90,9 +89,7 @@ export async function POST(request) {
                 if (mediaHelperUrl) {
                     const deleteUrl = new URL(mediaHelperUrl);
                     deleteUrl.searchParams.set("hash", oldProfilePictureHash);
-                    if (containerName) {
-                        deleteUrl.searchParams.set("container", containerName);
-                    }
+                    deleteUrl.searchParams.set("contextId", user.contextId);
 
                     const deleteResponse = await fetch(deleteUrl.toString(), {
                         method: "DELETE",
@@ -158,13 +155,9 @@ export async function DELETE(request) {
         try {
             const mediaHelperUrl = config.endpoints.mediaHelperDirect();
             if (mediaHelperUrl) {
-                const containerName =
-                    process.env.CORTEX_MEDIA_PERMANENT_STORE_NAME;
                 const deleteUrl = new URL(mediaHelperUrl);
                 deleteUrl.searchParams.set("hash", profilePictureHash);
-                if (containerName) {
-                    deleteUrl.searchParams.set("container", containerName);
-                }
+                deleteUrl.searchParams.set("contextId", user.contextId);
 
                 const deleteResponse = await fetch(deleteUrl.toString(), {
                     method: "DELETE",

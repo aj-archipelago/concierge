@@ -39,7 +39,7 @@ async function hashBuffer(buffer) {
  * @param {Function} options.checkAuthorization - Function to check user authorization
  * @param {Function} options.associateFile - Function to associate file with workspace/applet
  * @param {string} options.errorPrefix - Prefix for error messages
- * @param {boolean} options.permanent - If true, use permanent storage container
+ * @param {boolean} options.permanent - If true, file will be marked as permanent
  * @returns {Object} Upload result with file data or error response
  */
 export async function handleStreamingFileUpload(request, options) {
@@ -89,12 +89,7 @@ export async function handleStreamingFileUpload(request, options) {
                 const checkUrl = new URL(mediaHelperUrl);
                 checkUrl.searchParams.set("hash", metadata.hash);
                 checkUrl.searchParams.set("checkHash", "true");
-                if (permanent) {
-                    checkUrl.searchParams.set(
-                        "container",
-                        process.env.CORTEX_MEDIA_PERMANENT_STORE_NAME,
-                    );
-                }
+                checkUrl.searchParams.set("contextId", user.contextId);
 
                 const checkResponse = await fetch(checkUrl);
 
@@ -149,16 +144,12 @@ export async function handleStreamingFileUpload(request, options) {
             }
         }
 
-        // Determine container name based on permanent flag
-        const containerName = permanent
-            ? process.env.CORTEX_MEDIA_PERMANENT_STORE_NAME
-            : undefined;
-
         // Upload file to media service using buffer
         const uploadResult = await uploadBufferToMediaService(
             fileBuffer,
             metadata,
-            containerName,
+            permanent,
+            user.contextId,
         );
         if (uploadResult.error) {
             return { error: uploadResult.error };
@@ -457,13 +448,15 @@ export async function parseStreamingMultipart(request, user) {
  * Upload buffer to media service
  * @param {Buffer} fileBuffer - The file buffer
  * @param {Object} metadata - File metadata
- * @param {string} containerName - Optional container name for storage
+ * @param {boolean} permanent - If true, file will be marked as permanent
+ * @param {string} contextId - Optional context ID for per-user file scoping
  * @returns {Object} Upload result with data or error
  */
 export async function uploadBufferToMediaService(
     fileBuffer,
     metadata,
-    containerName,
+    permanent = false,
+    contextId = null,
 ) {
     try {
         let mediaHelperUrl = config.endpoints.mediaHelperDirect();
@@ -471,10 +464,10 @@ export async function uploadBufferToMediaService(
             throw new Error("Media helper URL is not defined");
         }
 
-        // Add container name to query string if provided
-        if (containerName) {
+        // Add permanent parameter to query string if provided
+        if (permanent) {
             const url = new URL(mediaHelperUrl);
-            url.searchParams.append("container", containerName);
+            url.searchParams.append("permanent", "true");
             mediaHelperUrl = url.toString();
         }
 
@@ -486,6 +479,11 @@ export async function uploadBufferToMediaService(
         // Add hash to FormData if provided
         if (metadata.hash) {
             uploadFormData.append("hash", metadata.hash);
+        }
+
+        // Add contextId to FormData if provided
+        if (contextId) {
+            uploadFormData.append("contextId", contextId);
         }
 
         const uploadResponse = await fetch(mediaHelperUrl, {

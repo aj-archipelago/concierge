@@ -29,6 +29,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useFilePreview, renderFilePreview } from "./useFilePreview";
 import { LanguageContext } from "../../contexts/LanguageProvider";
+import { AuthContext } from "../../App";
 
 // Global upload speed tracking
 let lastBytesPerMs = null;
@@ -246,8 +247,10 @@ export default function FileUploader({
 }) {
     const { t } = useTranslation();
     const { direction } = useContext(LanguageContext);
+    const { user } = useContext(AuthContext);
     const isRTL = direction === "rtl";
     const serverUrl = "/media-helper";
+    const contextId = user?.contextId;
     const [inputUrl, setInputUrl] = useState("");
     const [showUrlInput, setShowUrlInput] = useState(false);
     const fileInputRef = useRef(null);
@@ -578,9 +581,13 @@ export default function FileUploader({
 
                 // Check if file exists
                 try {
-                    const response = await axios.get(
-                        `${serverUrl}?hash=${fileHash}&checkHash=true`,
-                    );
+                    const checkUrl = new URL(serverUrl, window.location.origin);
+                    checkUrl.searchParams.set("hash", fileHash);
+                    checkUrl.searchParams.set("checkHash", "true");
+                    if (contextId) {
+                        checkUrl.searchParams.set("contextId", contextId);
+                    }
+                    const response = await axios.get(checkUrl.toString());
                     if (response.status === 200 && response.data?.url) {
                         if (isSupportedFileUrl(fileObj?.name)) {
                             const hasAzureUrl =
@@ -643,6 +650,9 @@ export default function FileUploader({
                 const formData = new FormData();
                 formData.append("hash", fileHash);
                 formData.append("files", fileObj, fileObj.name);
+                if (contextId) {
+                    formData.append("contextId", contextId);
+                }
 
                 const xhr = new XMLHttpRequest();
                 uploadAbortControllersRef.current.set(fileId, {
@@ -804,7 +814,12 @@ export default function FileUploader({
                     setIsUploadingMedia(false);
                 };
 
-                xhr.open("POST", `${serverUrl}?hash=${fileHash}`);
+                const uploadUrl = new URL(serverUrl, window.location.origin);
+                uploadUrl.searchParams.set("hash", fileHash);
+                if (contextId) {
+                    uploadUrl.searchParams.set("contextId", contextId);
+                }
+                xhr.open("POST", uploadUrl.toString());
                 xhr.send(formData);
             } catch (error) {
                 processingFilesRef.current.delete(fileId);
@@ -823,6 +838,7 @@ export default function FileUploader({
             addUrl,
             setIsUploadingMedia,
             processUrlFile,
+            contextId,
         ],
     );
 

@@ -43,6 +43,15 @@ describe("buildWorkspacePromptVariables", () => {
                         ],
                     },
                     {
+                        role: "system",
+                        content: [
+                            JSON.stringify({
+                                type: "text",
+                                text: "Your output is being displayed in the user interface or used as an API response, not in a chat conversation. The user cannot respond to your messages. Please complete the requested task fully and do not ask follow-up questions or otherwise attempt to engage the user in conversation.",
+                            }),
+                        ],
+                    },
+                    {
                         role: "user",
                         content: [
                             JSON.stringify({
@@ -67,6 +76,15 @@ describe("buildWorkspacePromptVariables", () => {
 
             expect(result).toEqual({
                 chatHistory: [
+                    {
+                        role: "system",
+                        content: [
+                            JSON.stringify({
+                                type: "text",
+                                text: "Your output is being displayed in the user interface or used as an API response, not in a chat conversation. The user cannot respond to your messages. Please complete the requested task fully and do not ask follow-up questions or otherwise attempt to engage the user in conversation.",
+                            }),
+                        ],
+                    },
                     {
                         role: "user",
                         content: [
@@ -97,6 +115,15 @@ describe("buildWorkspacePromptVariables", () => {
                             JSON.stringify({
                                 type: "text",
                                 text: "You are a helpful assistant",
+                            }),
+                        ],
+                    },
+                    {
+                        role: "system",
+                        content: [
+                            JSON.stringify({
+                                type: "text",
+                                text: "Your output is being displayed in the user interface or used as an API response, not in a chat conversation. The user cannot respond to your messages. Please complete the requested task fully and do not ask follow-up questions or otherwise attempt to engage the user in conversation.",
                             }),
                         ],
                     },
@@ -166,7 +193,17 @@ describe("buildWorkspacePromptVariables", () => {
             const result = await buildWorkspacePromptVariables({});
 
             expect(result).toEqual({
-                chatHistory: [],
+                chatHistory: [
+                    {
+                        role: "system",
+                        content: [
+                            JSON.stringify({
+                                type: "text",
+                                text: "Your output is being displayed in the user interface or used as an API response, not in a chat conversation. The user cannot respond to your messages. Please complete the requested task fully and do not ask follow-up questions or otherwise attempt to engage the user in conversation.",
+                            }),
+                        ],
+                    },
+                ],
             });
         });
     });
@@ -389,7 +426,17 @@ describe("buildWorkspacePromptVariables", () => {
                 text: "",
             });
 
-            expect(result.chatHistory).toEqual([]);
+            expect(result.chatHistory).toEqual([
+                {
+                    role: "system",
+                    content: [
+                        JSON.stringify({
+                            type: "text",
+                            text: "Your output is being displayed in the user interface or used as an API response, not in a chat conversation. The user cannot respond to your messages. Please complete the requested task fully and do not ask follow-up questions or otherwise attempt to engage the user in conversation.",
+                        }),
+                    ],
+                },
+            ]);
         });
 
         it("should handle whitespace-only strings", async () => {
@@ -417,7 +464,17 @@ describe("buildWorkspacePromptVariables", () => {
                 chatHistory: undefined,
             });
 
-            expect(result.chatHistory).toEqual([]);
+            expect(result.chatHistory).toEqual([
+                {
+                    role: "system",
+                    content: [
+                        JSON.stringify({
+                            type: "text",
+                            text: "Your output is being displayed in the user interface or used as an API response, not in a chat conversation. The user cannot respond to your messages. Please complete the requested task fully and do not ask follow-up questions or otherwise attempt to engage the user in conversation.",
+                        }),
+                    ],
+                },
+            ]);
         });
 
         it("should handle empty files array", async () => {

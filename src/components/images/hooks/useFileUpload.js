@@ -1,6 +1,7 @@
-import { useCallback } from "react";
+import { useCallback, useContext } from "react";
 import axios from "../../../../app/utils/axios-client";
 import { hashMediaFile } from "../../../utils/mediaUtils";
+import { AuthContext } from "../../../App";
 
 export const useFileUpload = ({
     createMediaItem,
@@ -10,6 +11,8 @@ export const useFileUpload = ({
     setSelectedImages,
     setSelectedImagesObjects,
 }) => {
+    const { user } = useContext(AuthContext);
+    const contextId = user?.contextId;
     const handleFileUpload = useCallback(
         async (file) => {
             if (!file) return;
@@ -22,11 +25,14 @@ export const useFileUpload = ({
 
                 // Check if file exists first
                 try {
-                    const url = new URL(serverUrl, window.location.origin);
-                    url.searchParams.set("hash", fileHash);
-                    url.searchParams.set("checkHash", "true");
+                    const checkUrl = new URL(serverUrl, window.location.origin);
+                    checkUrl.searchParams.set("hash", fileHash);
+                    checkUrl.searchParams.set("checkHash", "true");
+                    if (contextId) {
+                        checkUrl.searchParams.set("contextId", contextId);
+                    }
 
-                    const checkResponse = await axios.get(url.toString());
+                    const checkResponse = await axios.get(checkUrl.toString());
                     if (
                         checkResponse.status === 200 &&
                         checkResponse.data?.url
@@ -68,9 +74,15 @@ export const useFileUpload = ({
                 const formData = new FormData();
                 formData.append("hash", fileHash);
                 formData.append("file", file, file.name);
+                if (contextId) {
+                    formData.append("contextId", contextId);
+                }
 
                 const uploadUrl = new URL(serverUrl, window.location.origin);
                 uploadUrl.searchParams.set("hash", fileHash);
+                if (contextId) {
+                    uploadUrl.searchParams.set("contextId", contextId);
+                }
 
                 const response = await axios.post(
                     uploadUrl.toString(),
@@ -126,6 +138,7 @@ export const useFileUpload = ({
             promptRef,
             setSelectedImages,
             setSelectedImagesObjects,
+            contextId,
         ],
     );
 

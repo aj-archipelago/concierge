@@ -1,7 +1,7 @@
 import React from "react";
 import "highlight.js/styles/github.css";
 import dynamic from "next/dynamic";
-import { useContext, useEffect, useState } from "react";
+import { useContext, useEffect, useState, useRef } from "react";
 import { Paperclip, XCircle, StopCircle, Send } from "lucide-react";
 import TextareaAutosize from "react-textarea-autosize";
 import { useTranslation } from "react-i18next";
@@ -63,39 +63,54 @@ function MessageInput({
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [activeChatId]); // Only depend on activeChatId, not userState
 
+    // Reset sending lock when loading becomes false (message send completed)
+    useEffect(() => {
+        if (!loading) {
+            isSendingRef.current = false;
+        }
+    }, [loading]);
+
     const [inputValue, setInputValue] = useState("");
     const [urlsData, setUrlsData] = useState([]);
     const [files, setFiles] = useState([]);
     const [showFileUpload, setShowFileUpload] = useState(initialShowFileUpload);
     const [isDragging, setIsDragging] = useState(false);
+    const isSendingRef = useRef(false);
 
     const prepareMessage = (inputText) => {
-        return [
-            JSON.stringify({ type: "text", text: inputText }),
-            ...(urlsData || [])?.map(
-                ({ url, gcs, converted, originalFilename, hash }) => {
-                    const obj = {
-                        type: "image_url",
-                    };
+        const textPart = [JSON.stringify({ type: "text", text: inputText })];
 
-                    obj.gcs = converted?.gcs || gcs;
-                    obj.url = converted?.url || url;
-                    obj.image_url = { url: converted?.url || url };
+        if (!urlsData || urlsData.length === 0) {
+            return textPart;
+        }
 
-                    // Include original filename if available
-                    if (originalFilename) {
-                        obj.originalFilename = originalFilename;
-                    }
+        const fileParts = urlsData.map(
+            ({ url, gcs, converted, originalFilename, hash }) => {
+                const obj = {
+                    type: "image_url",
+                };
 
-                    // Include hash if available
-                    if (hash) {
-                        obj.hash = hash;
-                    }
+                const fileUrl = converted?.url || url;
 
-                    return JSON.stringify(obj);
-                },
-            ),
-        ];
+                obj.gcs = converted?.gcs || gcs;
+                obj.url = fileUrl;
+                obj.image_url = { url: fileUrl };
+
+                // Include original filename if available
+                if (originalFilename) {
+                    obj.originalFilename = originalFilename;
+                }
+
+                // Include hash if available
+                if (hash) {
+                    obj.hash = hash;
+                }
+
+                return JSON.stringify(obj);
+            },
+        );
+
+        return [...textPart, ...fileParts];
     };
 
     const handleInputChange = (event) => {
@@ -123,15 +138,27 @@ function MessageInput({
         }
     };
 
-    const handleFormSubmit = (event) => {
+    const handleFormSubmit = async (event) => {
         event.preventDefault();
         if (isUploadingMedia) {
             return; // Prevent submission if a file is uploading
         }
 
-        if (!loading && inputValue) {
-            const message = prepareMessage(inputValue);
-            onSend(urlsData && urlsData.length > 0 ? message : inputValue);
+        // Prevent duplicate sends - check both loading prop and sending lock ref
+        if (isSendingRef.current || loading || !inputValue) {
+            return;
+        }
+
+        // Set sending lock immediately to prevent race conditions
+        isSendingRef.current = true;
+
+        try {
+            const message =
+                urlsData && urlsData.length > 0
+                    ? prepareMessage(inputValue)
+                    : [JSON.stringify({ type: "text", text: inputValue })];
+
+            onSend(message);
             setInputValue("");
             setFiles([]);
             setUrlsData([]);
@@ -145,6 +172,10 @@ function MessageInput({
                     },
                 }));
             }
+        } catch (error) {
+            // If sending fails, reset the lock so user can try again
+            isSendingRef.current = false;
+            console.error("Error sending message:", error);
         }
     };
 
@@ -339,9 +370,10 @@ function MessageInput({
                             onKeyDown={(e) => {
                                 if (e.key === "Enter" && !e.shiftKey) {
                                     e.preventDefault();
-                                    // Immediately check upload state again to prevent race conditions
+                                    // Immediately check upload state and sending lock to prevent race conditions
                                     if (
                                         isUploadingMedia ||
+                                        isSendingRef.current ||
                                         loading ||
                                         inputValue === "" ||
                                         viewingReadOnlyChat
@@ -642,8 +674,7 @@ function MessageInput({
                             disabled={
                                 !isStreaming &&
                                 !loading &&
-                                (loading ||
-                                    inputValue === "" ||
+                                (inputValue === "" ||
                                     isUploadingMedia ||
                                     viewingReadOnlyChat)
                             }
