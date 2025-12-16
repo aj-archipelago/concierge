@@ -67,6 +67,7 @@ import BulkActionsBar from "@/src/components/common/BulkActionsBar";
 import FilterInput from "@/src/components/common/FilterInput";
 import EmptyState from "@/src/components/common/EmptyState";
 import { FileText } from "lucide-react";
+import { Spinner } from "@/components/ui/spinner";
 
 // Sortable column header component
 function SortableHeader({
@@ -234,6 +235,7 @@ export default function MemoryFiles({
     const [editingFilename, setEditingFilename] = useState("");
     const [hoveredFile, setHoveredFile] = useState(null);
     const [previewFile, setPreviewFile] = useState(null);
+    const [togglingPermanentFileId, setTogglingPermanentFileId] = useState(null);
     const containerRef = useRef(null);
     const hoverTimeoutRef = useRef(null);
 
@@ -421,31 +423,19 @@ export default function MemoryFiles({
     );
 
     const handleTogglePermanent = useCallback(
-        async (file, e) => {
-            e.stopPropagation();
+        async (file) => {
             const fileId = getFileId(file);
             const newPermanentValue = !file?.permanent;
-
-            // Store previous state for revert
-            const previousFiles = memoryFiles;
-
-            // Optimistically update the UI
-            const updatedFiles = memoryFiles.map((f) => {
-                if (getFileId(f) === fileId) {
-                    return { ...f, permanent: newPermanentValue };
-                }
-                return f;
-            });
-            setMemoryFiles(updatedFiles);
 
             // Get file hash for API call
             const fileHash = file?.hash;
             if (!fileHash) {
-                toast.error(t("File hash not found. Cannot update retention."));
-                // Revert optimistic update
-                setMemoryFiles(previousFiles);
+                console.error("File hash not found. Cannot update retention.");
                 return;
             }
+
+            // Set loading state
+            setTogglingPermanentFileId(fileId);
 
             try {
                 // Call setRetention API
@@ -486,30 +476,19 @@ export default function MemoryFiles({
                 );
 
                 refetchMemory();
-                toast.success(
-                    t(
-                        newPermanentValue
-                            ? "File marked as permanent"
-                            : "File marked as temporary",
-                    ),
-                );
             } catch (error) {
                 console.error("Failed to toggle permanent status:", error);
-                toast.error(
-                    t("Failed to update file retention. Please try again."),
-                );
-                // Revert optimistic update
-                setMemoryFiles(previousFiles);
+            } finally {
+                // Clear loading state
+                setTogglingPermanentFileId(null);
             }
         },
         [
-            memoryFiles,
             apolloClient,
             contextId,
             contextKey,
             getFileId,
             refetchMemory,
-            t,
         ],
     );
 
@@ -1193,25 +1172,36 @@ export default function MemoryFiles({
                                         <TableCell
                                             className={`px-1 sm:px-2 py-1.5 ${isRtl ? "text-right" : "text-left"}`}
                                         >
-                                            <input
-                                                type="checkbox"
-                                                checked={
-                                                    file?.permanent === true
-                                                }
-                                                onChange={(e) => {
-                                                    e.stopPropagation();
-                                                    handleTogglePermanent(
-                                                        file,
-                                                        e,
-                                                    );
-                                                }}
-                                                className="w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-sky-600 focus:ring-sky-500 dark:focus:ring-sky-400 cursor-pointer"
-                                                title={t(
-                                                    file?.permanent
-                                                        ? "Permanent file"
-                                                        : "Temporary file",
-                                                )}
-                                            />
+                                            {togglingPermanentFileId === fileId ? (
+                                                <div className="flex items-center justify-center w-4 h-4">
+                                                    <Spinner size="sm" className="text-sky-600 dark:text-sky-400" />
+                                                </div>
+                                            ) : (
+                                                <input
+                                                    type="checkbox"
+                                                    checked={
+                                                        file?.permanent === true
+                                                    }
+                                                    onMouseDown={(e) => {
+                                                        // Prevent row selection when clicking the checkbox
+                                                        e.stopPropagation();
+                                                    }}
+                                                    onClick={(e) => {
+                                                        // Prevent row selection when clicking the checkbox
+                                                        e.stopPropagation();
+                                                    }}
+                                                    onChange={(e) => {
+                                                        e.stopPropagation();
+                                                        handleTogglePermanent(file);
+                                                    }}
+                                                    className="w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-sky-600 focus:ring-sky-500 dark:focus:ring-sky-400 cursor-pointer"
+                                                    title={t(
+                                                        file?.permanent
+                                                            ? "Permanent file"
+                                                            : "Temporary file",
+                                                    )}
+                                                />
+                                            )}
                                         </TableCell>
                                     </TableRow>
                                 );
