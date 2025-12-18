@@ -10,6 +10,16 @@ import {
 } from "../graphql.mjs";
 import MediaItem from "../../app/api/models/media-item.mjs";
 
+// User model for getting contextId
+let User;
+async function initializeUserModel() {
+    if (!User) {
+        const userModule = await import("../../app/api/models/user.mjs");
+        User = userModule.default;
+    }
+    return User;
+}
+
 // Model configuration mapping
 const MODEL_CONFIG = {
     // Image models
@@ -629,10 +639,17 @@ class MediaGenerationHandler extends BaseTask {
                     model: metadata.model || "",
                     status: "failed",
                     error,
-                    inputImageUrl: metadata.inputImageUrl,
-                    inputImageUrl2: metadata.inputImageUrl2,
-                    inputImageUrl3: metadata.inputImageUrl3,
                     settings: metadata.settings,
+                    // Only include encrypted inputImageUrl fields if they have values (CSFLE can't encrypt null)
+                    ...(metadata.inputImageUrl && {
+                        inputImageUrl: metadata.inputImageUrl,
+                    }),
+                    ...(metadata.inputImageUrl2 && {
+                        inputImageUrl2: metadata.inputImageUrl2,
+                    }),
+                    ...(metadata.inputImageUrl3 && {
+                        inputImageUrl3: metadata.inputImageUrl3,
+                    }),
                 });
                 await newMediaItem.save();
             }
@@ -962,15 +979,28 @@ class MediaGenerationHandler extends BaseTask {
         try {
             let mediaUrl = null;
 
-            // Handle Gemini special case first
-            if (
-                (metadata.model === "gemini-25-flash-image-preview" ||
-                    metadata.model === "gemini-3-pro-image-preview") &&
-                infoObject?.artifacts
-            ) {
-                mediaUrl = await this.processGeminiArtifacts(
+            // Handle Gemini special case first - returns cloudUrls object directly
+            let cloudUrls = null;
+            const isGeminiModel =
+                metadata.model === "gemini-25-flash-image-preview" ||
+                metadata.model === "gemini-3-pro-image-preview";
+
+            if (isGeminiModel && infoObject?.artifacts) {
+                const geminiResult = await this.processGeminiArtifacts(
                     infoObject.artifacts,
+                    metadata.userId,
                 );
+                // processGeminiArtifacts returns:
+                // - { azureUrl, gcsUrl } object on success
+                // - data URL string on upload failure (fallback)
+                // - null if no artifacts
+                if (geminiResult && typeof geminiResult === "object") {
+                    cloudUrls = geminiResult;
+                    mediaUrl = cloudUrls.azureUrl || cloudUrls.gcsUrl;
+                } else if (typeof geminiResult === "string") {
+                    // Fallback data URL - will be uploaded below
+                    mediaUrl = geminiResult;
+                }
             }
 
             // Handle Veo video responses
@@ -987,11 +1017,31 @@ class MediaGenerationHandler extends BaseTask {
                 mediaUrl = this.processStandardResponse(dataObject);
             }
 
-            // Upload to cloud storage if we have a valid URL
-            let cloudUrls = null;
-            if (mediaUrl && typeof mediaUrl === "string") {
+            // Upload to cloud storage if we have a valid URL (skip if Gemini already uploaded)
+            if (!cloudUrls && mediaUrl && typeof mediaUrl === "string") {
+                // Get user's contextId for file scoping
+                let contextId = null;
+                if (metadata.userId) {
+                    try {
+                        await initializeUserModel();
+                        const user = await User.findById(metadata.userId);
+                        if (user?.contextId) {
+                            contextId = user.contextId;
+                        }
+                    } catch (error) {
+                        console.error(
+                            "Error getting user contextId for media upload:",
+                            error,
+                        );
+                        // Continue without contextId if lookup fails
+                    }
+                }
+
                 try {
-                    cloudUrls = await this.uploadMediaToCloud(mediaUrl);
+                    cloudUrls = await this.uploadMediaToCloud(
+                        mediaUrl,
+                        contextId,
+                    );
                 } catch (error) {
                     console.error("Failed to upload media to cloud:", error);
                 }
@@ -1006,10 +1056,11 @@ class MediaGenerationHandler extends BaseTask {
                       ? mediaUrl
                       : undefined);
 
+            // Only include URL fields if they have truthy values (CSFLE can't encrypt null/undefined)
             return {
-                url: finalUrl,
-                azureUrl: cloudUrls?.azureUrl,
-                gcsUrl: cloudUrls?.gcsUrl,
+                ...(finalUrl && { url: finalUrl }),
+                ...(cloudUrls?.azureUrl && { azureUrl: cloudUrls.azureUrl }),
+                ...(cloudUrls?.gcsUrl && { gcsUrl: cloudUrls.gcsUrl }),
                 ...(dataObject?.id && { id: dataObject.id }),
                 ...(dataObject?.model && { model: dataObject.model }),
                 ...(dataObject?.version && { version: dataObject.version }),
@@ -1020,7 +1071,7 @@ class MediaGenerationHandler extends BaseTask {
         }
     }
 
-    async processGeminiArtifacts(artifacts) {
+    async processGeminiArtifacts(artifacts, userId = null) {
         try {
             if (Array.isArray(artifacts)) {
                 const imageArtifact = artifacts.find(
@@ -1032,13 +1083,32 @@ class MediaGenerationHandler extends BaseTask {
                         try {
                             const dataUrl = `data:${imageArtifact.mimeType || "image/png"};base64,${imageArtifact.data}`;
 
-                            const cloudUrls =
-                                await this.uploadMediaToCloud(dataUrl);
+                            // Get user's contextId for file scoping
+                            let contextId = null;
+                            if (userId) {
+                                try {
+                                    await initializeUserModel();
+                                    const user = await User.findById(userId);
+                                    if (user?.contextId) {
+                                        contextId = user.contextId;
+                                    }
+                                } catch (error) {
+                                    console.error(
+                                        "Error getting user contextId for Gemini upload:",
+                                        error,
+                                    );
+                                    // Continue without contextId if lookup fails
+                                }
+                            }
+
+                            const cloudUrls = await this.uploadMediaToCloud(
+                                dataUrl,
+                                contextId,
+                            );
 
                             if (cloudUrls) {
-                                const finalUrl =
-                                    cloudUrls.azureUrl || cloudUrls.gcsUrl;
-                                return finalUrl;
+                                // Return the full cloudUrls object so we preserve both URLs
+                                return cloudUrls;
                             }
                         } catch (uploadError) {
                             console.error(
@@ -1126,7 +1196,7 @@ class MediaGenerationHandler extends BaseTask {
         return null;
     }
 
-    async uploadMediaToCloud(mediaUrl) {
+    async uploadMediaToCloud(mediaUrl, contextId = null) {
         try {
             if (!process.env.CORTEX_MEDIA_API_URL) {
                 throw new Error(
@@ -1137,9 +1207,17 @@ class MediaGenerationHandler extends BaseTask {
             const serverUrl = process.env.CORTEX_MEDIA_API_URL;
 
             if (mediaUrl.startsWith("data:")) {
-                return await this.uploadBase64Data(mediaUrl, serverUrl);
+                return await this.uploadBase64Data(
+                    mediaUrl,
+                    serverUrl,
+                    contextId,
+                );
             } else {
-                return await this.uploadRegularUrl(mediaUrl, serverUrl);
+                return await this.uploadRegularUrl(
+                    mediaUrl,
+                    serverUrl,
+                    contextId,
+                );
             }
         } catch (error) {
             console.error("Error uploading media to cloud:", error);
@@ -1147,7 +1225,7 @@ class MediaGenerationHandler extends BaseTask {
         }
     }
 
-    async uploadBase64Data(mediaUrl, serverUrl) {
+    async uploadBase64Data(mediaUrl, serverUrl, contextId = null) {
         const response = await fetch(mediaUrl);
         const blob = await response.blob();
 
@@ -1157,7 +1235,17 @@ class MediaGenerationHandler extends BaseTask {
         const filename = `media.${extension}`;
         formData.append("file", blob, filename);
 
-        const uploadResponse = await fetch(serverUrl, {
+        // Add contextId if provided
+        if (contextId) {
+            formData.append("contextId", contextId);
+        }
+
+        const uploadUrl = new URL(serverUrl);
+        if (contextId) {
+            uploadUrl.searchParams.set("contextId", contextId);
+        }
+
+        const uploadResponse = await fetch(uploadUrl.toString(), {
             method: "POST",
             body: formData,
         });
@@ -1178,9 +1266,14 @@ class MediaGenerationHandler extends BaseTask {
         return validatedUrls;
     }
 
-    async uploadRegularUrl(mediaUrl, serverUrl) {
+    async uploadRegularUrl(mediaUrl, serverUrl, contextId = null) {
         const url = new URL(serverUrl);
         url.searchParams.set("fetch", mediaUrl);
+
+        // Add contextId if provided
+        if (contextId) {
+            url.searchParams.set("contextId", contextId);
+        }
 
         const response = await fetch(url.toString(), {
             method: "GET",
@@ -1253,19 +1346,29 @@ class MediaGenerationHandler extends BaseTask {
                 metadata.inputTags,
             );
 
+            // Build update data - only include encrypted URL fields if they have values (CSFLE can't encrypt null)
             const updateData = {
                 status: "completed",
                 completed: Math.floor(Date.now() / 1000),
-                url: dataObject.url,
-                azureUrl: dataObject.azureUrl,
-                gcsUrl: dataObject.gcsUrl,
-                // Video-specific fields
-                duration: dataObject.duration,
-                generateAudio: dataObject.generateAudio,
-                resolution: dataObject.resolution,
-                cameraFixed: dataObject.cameraFixed,
                 // Inherit tags from input images
                 tags: inheritedTags,
+                // Only include encrypted URL fields if they have truthy values
+                ...(dataObject.url && { url: dataObject.url }),
+                ...(dataObject.azureUrl && { azureUrl: dataObject.azureUrl }),
+                ...(dataObject.gcsUrl && { gcsUrl: dataObject.gcsUrl }),
+                // Video-specific fields (not encrypted, so undefined is OK but be explicit)
+                ...(dataObject.duration !== undefined && {
+                    duration: dataObject.duration,
+                }),
+                ...(dataObject.generateAudio !== undefined && {
+                    generateAudio: dataObject.generateAudio,
+                }),
+                ...(dataObject.resolution && {
+                    resolution: dataObject.resolution,
+                }),
+                ...(dataObject.cameraFixed !== undefined && {
+                    cameraFixed: dataObject.cameraFixed,
+                }),
             };
 
             const mediaItem = await MediaItem.findOneAndUpdate(
@@ -1280,14 +1383,21 @@ class MediaGenerationHandler extends BaseTask {
                     user: userId,
                     taskId: metadata.taskId,
                     cortexRequestId: metadata.taskId,
-                    prompt: metadata.prompt,
-                    type: metadata.outputType,
-                    model: metadata.model,
+                    prompt: metadata.prompt || "",
+                    type: metadata.outputType || "image",
+                    model: metadata.model || "",
                     ...updateData,
-                    inputImageUrl: metadata.inputImageUrl,
-                    inputImageUrl2: metadata.inputImageUrl2,
-                    inputImageUrl3: metadata.inputImageUrl3,
                     settings: metadata.settings,
+                    // Only include encrypted inputImageUrl fields if they have values (CSFLE can't encrypt null)
+                    ...(metadata.inputImageUrl && {
+                        inputImageUrl: metadata.inputImageUrl,
+                    }),
+                    ...(metadata.inputImageUrl2 && {
+                        inputImageUrl2: metadata.inputImageUrl2,
+                    }),
+                    ...(metadata.inputImageUrl3 && {
+                        inputImageUrl3: metadata.inputImageUrl3,
+                    }),
                 });
                 await newMediaItem.save();
             }

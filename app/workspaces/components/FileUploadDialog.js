@@ -10,10 +10,8 @@ import {
 } from "@/components/ui/dialog";
 import { AuthContext, ServerContext } from "../../../src/App";
 import config from "../../../config";
-import {
-    ACCEPTED_FILE_TYPES,
-    hashMediaFile,
-} from "../../../src/utils/mediaUtils";
+import { ACCEPTED_FILE_TYPES } from "../../../src/utils/mediaUtils";
+import { uploadFileToMediaHelper } from "../../../src/utils/fileUploadUtils";
 
 // Shared FileUploadDialog component
 export default function FileUploadDialog({
@@ -142,107 +140,33 @@ export default function FileUploadDialog({
                 // Send the file
                 xhr.send(formData);
             } else {
-                // Generate file hash
-                const fileHash = await hashMediaFile(file);
-
-                // Check if file already exists
+                // Upload file directly to media helper using shared utility
                 try {
-                    const checkUrl = new URL(
-                        config.endpoints.mediaHelper(serverUrl),
-                        window.location.origin,
-                    );
-                    checkUrl.searchParams.set("hash", fileHash);
-                    checkUrl.searchParams.set("checkHash", "true");
-                    if (contextId) {
-                        checkUrl.searchParams.set("contextId", contextId);
-                    }
-                    const checkResponse = await fetch(checkUrl.toString());
-                    if (checkResponse.ok) {
-                        const data = await checkResponse
-                            .json()
-                            .catch(() => null);
-                        if (data && data.url) {
-                            // File already exists, use existing URL
-                            onFileUpload({
-                                url: data.url,
-                                gcs: data.gcs,
-                                displayFilename: data.displayFilename,
-                                converted: data.converted,
-                                hash: fileHash,
-                            });
-                            setFileUploading(false);
-                            onClose();
-                            return;
-                        }
-                    }
-                } catch (error) {
-                    console.error("Error checking file hash:", error);
-                    // Continue with upload even if hash check fails
-                }
+                    const data = await uploadFileToMediaHelper(file, {
+                        contextId,
+                        checkHash: true,
+                        onProgress: setUploadProgress,
+                        serverUrl: config.endpoints.mediaHelper(serverUrl),
+                    });
 
-                // Upload file to media helper
-                const formData = new FormData();
-                formData.append("hash", fileHash);
-                formData.append("file", file, file.name);
-                if (contextId) {
-                    formData.append("contextId", contextId);
-                }
-
-                const uploadUrl = new URL(
-                    config.endpoints.mediaHelper(serverUrl),
-                    window.location.origin,
-                );
-                uploadUrl.searchParams.set("hash", fileHash);
-                if (contextId) {
-                    uploadUrl.searchParams.set("contextId", contextId);
-                }
-
-                const xhr = new XMLHttpRequest();
-                xhr.open("POST", uploadUrl.toString(), true);
-
-                // Monitor upload progress
-                xhr.upload.onprogress = (event) => {
-                    if (event.lengthComputable) {
-                        const percentage = Math.round(
-                            (event.loaded * 100) / event.total,
-                        );
-                        setUploadProgress(percentage);
-                    }
-                };
-
-                // Handle upload response
-                xhr.onload = () => {
-                    if (xhr.status === 200) {
-                        const data = JSON.parse(xhr.responseText);
-                        const fileUrl = data.url || "";
-
-                        onFileUpload({
-                            url: fileUrl,
-                            gcs: data.gcs,
-                            displayFilename: data.displayFilename,
-                            converted: data.converted,
-                            hash: fileHash,
-                        });
-                        setFileUploading(false);
-                        onClose();
-                    } else {
-                        console.error(xhr.statusText);
-                        setFileUploadError({
-                            message: `${t("File upload failed, response:")} ${xhr.statusText}`,
-                        });
-                        setFileUploading(false);
-                    }
-                };
-
-                // Handle upload errors
-                xhr.onerror = (error) => {
-                    console.error(error);
-                    setFileUploadError({ message: t("File upload failed") });
+                    onFileUpload({
+                        url: data.url,
+                        gcs: data.gcs,
+                        displayFilename: data.displayFilename,
+                        converted: data.converted,
+                        hash: data.hash,
+                    });
                     setFileUploading(false);
-                };
-
-                // Send the file
-                xhr.send(formData);
+                    onClose();
+                } catch (error) {
+                    console.error("File upload error:", error);
+                    setFileUploadError({
+                        message:
+                            error.message ||
+                            t("File upload failed. Please try again."),
+                    });
+                    setFileUploading(false);
+                }
             }
         } catch (error) {
             console.error("File upload error:", error);

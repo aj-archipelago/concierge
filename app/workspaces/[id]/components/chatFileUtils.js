@@ -5,7 +5,7 @@
 /**
  * Delete a file from cloud storage using the CFH API
  * @param {string} hash - File hash to delete
- * @param {string} contextId - Optional context ID for file scoping (e.g., user.contextId:chat)
+ * @param {string} contextId - Optional context ID for file scoping (e.g., user.contextId)
  * @returns {Promise<void>} - Resolves even if deletion fails (errors are logged)
  */
 export async function deleteFileFromCloud(hash, contextId = null) {
@@ -174,7 +174,7 @@ export async function purgeFiles({
     };
 
     // 1. Delete from cloud storage (in parallel)
-    // Use the provided contextId for deletion (e.g., user.contextId:chat for chat files)
+    // Use the provided contextId for deletion (e.g., user.contextId for user files)
     if (!skipCloudDelete) {
         await Promise.allSettled(
             files

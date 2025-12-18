@@ -84,7 +84,7 @@ function ChatTopMenu({ displayState = "full", readOnly = false }) {
                     </DialogHeader>
                     {user?.contextId && (
                         <UserFileCollection
-                            contextId={`${user.contextId}:chat`}
+                            contextId={user.contextId}
                             contextKey={user.contextKey}
                             chatId={activeChatId ? String(activeChatId) : null}
                             messages={chat?.messages || []}

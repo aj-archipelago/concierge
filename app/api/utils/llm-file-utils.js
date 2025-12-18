@@ -1,5 +1,3 @@
-import config from "../../../config/index.js";
-
 /**
  * Determine the appropriate contextId for a file based on its type
  * @param {Object} options - Options for contextId determination
@@ -22,112 +20,57 @@ export function determineFileContextId({
 }
 
 /**
- * Generate short-lived URL from file hash using the media helper service
- * The checkHash operation now always returns short-lived URLs by default
- * @param {Object} file - File object with hash, url, filename properties
- * @param {number} minutes - Duration in minutes for the short-lived URL (default: 5)
- * @param {string} contextId - Optional context ID for per-user file scoping
- * @returns {Promise<string>} - Short-lived URL or fallback to original URL
- */
-export async function generateShortLivedUrl(
-    file,
-    minutes = 5,
-    contextId = null,
-) {
-    // Only generate short-lived URL if file has a hash
-    if (!file.hash) {
-        throw new Error("No hash found for file " + file.originalName);
-    }
-
-    try {
-        const mediaHelperUrl = config.endpoints.mediaHelperDirect();
-        if (!mediaHelperUrl) {
-            throw new Error("mediaHelperDirect endpoint is not defined");
-        }
-
-        // Build URL with parameters
-        const url = new URL(mediaHelperUrl);
-        url.searchParams.set("hash", file.hash);
-        url.searchParams.set("checkHash", "true");
-        url.searchParams.set("shortLivedMinutes", minutes.toString());
-        if (contextId) {
-            url.searchParams.set("contextId", contextId);
-        }
-
-        // Generate short-lived URL using checkHash (always returns short-lived URLs)
-        const shortLivedResponse = await fetch(url.toString(), {
-            method: "GET",
-        });
-
-        if (!shortLivedResponse.ok) {
-            console.warn(
-                `Failed to generate short-lived URL for hash ${file.hash}, using original URL. Status: ${shortLivedResponse.status}`,
-            );
-            return file.url;
-        }
-
-        const shortLivedData = await shortLivedResponse.json();
-
-        if (!shortLivedData.shortLivedUrl) {
-            throw new Error("No short-lived URL found for hash " + file.hash);
-        }
-
-        // checkHash now always returns shortLivedUrl, but keep fallback for safety
-        return shortLivedData.shortLivedUrl;
-    } catch (error) {
-        console.error(
-            `Error generating short-lived URL for hash ${file.hash}:`,
-            error,
-        );
-        return file.url; // Fallback to original URL
-    }
-}
-
-/**
- * Prepare file content for chat history with short-lived URLs
+ * Prepare file content for chat history
+ * Cortex will handle short-lived URL generation when it processes the files
  * @param {Array} files - Array of file objects
  * @param {string} workspaceId - Optional workspace ID for workspace artifacts
  * @param {string} userContextId - Optional user context ID for user-submitted files
- * @returns {Promise<Array>} - Array of stringified file content objects
+ * @returns {Array} - Array of stringified file content objects
  */
-export async function prepareFileContentForLLM(
+export function prepareFileContentForLLM(
     files,
     workspaceId = null,
     userContextId = null,
 ) {
     if (!files || files.length === 0) return [];
 
-    // Generate short-lived URLs for all files
+    // Format files like chat does - Cortex will generate short-lived URLs
     // Files with _id are workspace/applet artifacts (use workspaceId)
     // Files without _id are user-submitted files (use userContextId)
-    const filePromises = files.map(async (file) => {
+    const fileObjects = files.map((file) => {
         const contextId = determineFileContextId({
             isArtifact: !!file._id,
             workspaceId,
             userContextId,
         });
-        const shortLivedUrl = await generateShortLivedUrl(file, 5, contextId);
+
+        const fileUrl = file.converted?.url || file.url;
+        const gcsUrl =
+            file.converted?.gcs || file.gcsUrl || file.gcs || file.url;
 
         const obj = {
             type: "image_url",
         };
 
-        obj.gcs = file.gcsUrl || file.gcs || file.url;
-        obj.url = shortLivedUrl; // Use short-lived URL for security
-        obj.image_url = { url: shortLivedUrl }; // Use short-lived URL for security
+        obj.gcs = gcsUrl;
+        obj.url = fileUrl;
+        obj.image_url = { url: fileUrl };
 
-        // Note: displayFilename is not included as it's not a standard field
-        // and the server/LLM won't use it
-
-        // Include hash if available
+        // Include hash if available (Cortex uses this to look up files)
         if (file.hash) {
             obj.hash = file.hash;
+        }
+
+        // Include contextId so Cortex knows where to look up the file
+        // workspaceId for workspace artifacts, userContextId for user files
+        if (contextId) {
+            obj.contextId = contextId;
         }
 
         return JSON.stringify(obj);
     });
 
-    return Promise.all(filePromises);
+    return fileObjects;
 }
 
 /**
@@ -190,7 +133,7 @@ export async function buildWorkspacePromptVariables({
 
     const fileContent =
         files && files.length > 0
-            ? await prepareFileContentForLLM(files, workspaceId, userContextId)
+            ? prepareFileContentForLLM(files, workspaceId, userContextId)
             : [];
 
     let finalChatHistory = [];
