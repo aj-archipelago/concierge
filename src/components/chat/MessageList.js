@@ -213,9 +213,10 @@ const MessageListContent = React.memo(function MessageListContent({
                         } else if (obj.type === "image_url") {
                             const src =
                                 obj?.url || obj?.image_url?.url || obj?.gcs;
-                            const originalFilename = obj?.originalFilename;
+                            const displayFilename =
+                                obj?.displayFilename || obj?.originalFilename;
 
-                            // Use original filename if available, otherwise extract from URL
+                            // Use display filename if available, otherwise extract from URL
                             if (!src) {
                                 return null;
                             }
@@ -224,7 +225,7 @@ const MessageListContent = React.memo(function MessageListContent({
                             let ext;
                             try {
                                 filename =
-                                    originalFilename ||
+                                    displayFilename ||
                                     decodeURIComponent(getFilename(src));
                                 ext = getExtension(src);
                             } catch (e) {
@@ -611,6 +612,7 @@ const MessageList = React.memo(
                         fileObj.type === "file"
                     ) {
                         filename =
+                            fileObj.displayFilename ||
                             fileObj.originalFilename ||
                             decodeURIComponent(
                                 getFilename(
@@ -679,7 +681,7 @@ const MessageList = React.memo(
                         t,
                         filename,
                         skipCloudDelete: false,
-                        skipMemoryFiles: false, // Ensure memory files are removed
+                        skipUserFileCollection: false, // CFH handles it automatically
                     }).catch((error) => {
                         console.error(
                             "Background file deletion failed:",

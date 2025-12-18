@@ -136,7 +136,9 @@ export async function DELETE(request, { params }) {
 
                 const deleteUrl = new URL(mediaHelperUrl);
                 deleteUrl.searchParams.set("hash", fileToDelete.hash);
-                deleteUrl.searchParams.set("contextId", user.contextId);
+                // Use workspaceId:user.contextId format for workspace files (separate from chat)
+                const workspaceContextId = `${workspaceId}:${user.contextId}`;
+                deleteUrl.searchParams.set("contextId", workspaceContextId);
 
                 const deleteResponse = await fetch(deleteUrl.toString(), {
                     method: "DELETE",

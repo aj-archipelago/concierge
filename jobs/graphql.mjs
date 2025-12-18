@@ -103,7 +103,7 @@ const VISION = gql`
 `;
 
 const SYS_SAVE_MEMORY = gql`
-    query SysSaveMemory(
+    mutation SysSaveMemory(
         $aiMemory: String!
         $contextId: String!
         $contextKey: String

@@ -140,7 +140,8 @@ function VideoInput({
     const [showVideoSelector, setShowVideoSelector] = useState(false);
     const { serverUrl } = useContext(ServerContext);
     const { user } = useContext(AuthContext);
-    const contextId = user?.contextId;
+    // Use :transcribe suffix to separate transcription/translation videos from chat files
+    const contextId = user?.contextId ? `${user.contextId}:transcribe` : null;
     const [uploadProgress, setUploadProgress] = useState(0);
     const { direction } = useContext(LanguageContext);
     const [durationWarning, setDurationWarning] = useState(null);

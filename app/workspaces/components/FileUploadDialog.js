@@ -8,7 +8,7 @@ import {
     DialogHeader,
     DialogTitle,
 } from "@/components/ui/dialog";
-import { ServerContext } from "../../../src/App";
+import { AuthContext, ServerContext } from "../../../src/App";
 import config from "../../../config";
 import {
     ACCEPTED_FILE_TYPES,
@@ -28,6 +28,12 @@ export default function FileUploadDialog({
 }) {
     const { t } = useTranslation();
     const { serverUrl } = useContext(ServerContext);
+    const { user } = useContext(AuthContext);
+    // Use workspaceId:user.contextId format for workspace files, user.contextId for others
+    const contextId =
+        workspaceId && user?.contextId
+            ? `${workspaceId}:${user.contextId}`
+            : user?.contextId;
     const [fileUploading, setFileUploading] = useState(false);
     const [fileUploadError, setFileUploadError] = useState(null);
     const [uploadProgress, setUploadProgress] = useState(0);
@@ -140,9 +146,16 @@ export default function FileUploadDialog({
 
                 // Check if file already exists
                 try {
-                    const checkResponse = await fetch(
-                        `${config.endpoints.mediaHelper(serverUrl)}?hash=${fileHash}&checkHash=true`,
+                    const checkUrl = new URL(
+                        config.endpoints.mediaHelper(serverUrl),
+                        window.location.origin,
                     );
+                    checkUrl.searchParams.set("hash", fileHash);
+                    checkUrl.searchParams.set("checkHash", "true");
+                    if (contextId) {
+                        checkUrl.searchParams.set("contextId", contextId);
+                    }
+                    const checkResponse = await fetch(checkUrl.toString());
                     if (checkResponse.ok) {
                         const data = await checkResponse
                             .json()
@@ -152,7 +165,7 @@ export default function FileUploadDialog({
                             onFileUpload({
                                 url: data.url,
                                 gcs: data.gcs,
-                                originalFilename: file.name,
+                                displayFilename: data.displayFilename,
                                 converted: data.converted,
                                 hash: fileHash,
                             });
@@ -170,13 +183,21 @@ export default function FileUploadDialog({
                 const formData = new FormData();
                 formData.append("hash", fileHash);
                 formData.append("file", file, file.name);
+                if (contextId) {
+                    formData.append("contextId", contextId);
+                }
+
+                const uploadUrl = new URL(
+                    config.endpoints.mediaHelper(serverUrl),
+                    window.location.origin,
+                );
+                uploadUrl.searchParams.set("hash", fileHash);
+                if (contextId) {
+                    uploadUrl.searchParams.set("contextId", contextId);
+                }
 
                 const xhr = new XMLHttpRequest();
-                xhr.open(
-                    "POST",
-                    `${config.endpoints.mediaHelper(serverUrl)}?hash=${fileHash}`,
-                    true,
-                );
+                xhr.open("POST", uploadUrl.toString(), true);
 
                 // Monitor upload progress
                 xhr.upload.onprogress = (event) => {
@@ -197,7 +218,7 @@ export default function FileUploadDialog({
                         onFileUpload({
                             url: fileUrl,
                             gcs: data.gcs,
-                            originalFilename: file.name,
+                            displayFilename: data.displayFilename,
                             converted: data.converted,
                             hash: fileHash,
                         });

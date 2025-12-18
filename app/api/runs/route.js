@@ -34,8 +34,9 @@ export async function POST(req, res) {
 
         // Fetch workspace to get systemPrompt (workspace context)
         let workspaceSystemPrompt = systemPrompt;
+        let workspace = null;
         if (workspaceId) {
-            const workspace = await Workspace.findById(workspaceId);
+            workspace = await Workspace.findById(workspaceId);
             if (workspace && workspace.systemPrompt) {
                 workspaceSystemPrompt = workspace.systemPrompt;
             }
@@ -50,12 +51,19 @@ export async function POST(req, res) {
             allFiles.push(...prompt.files);
         }
 
+        // Determine contextId for workspace files: workspaceId:user.contextId
+        const contextId =
+            workspace && user?.contextId
+                ? `${workspace._id.toString()}:${user.contextId}`
+                : user?.contextId || null;
+
         // Build variables: systemPrompt (workspace context), prompt (prompt text), text (user input)
         const variables = await buildWorkspacePromptVariables({
             systemPrompt: workspaceSystemPrompt,
             prompt: prompt.text,
             text: text,
             files: allFiles,
+            contextId: contextId,
         });
 
         if (model !== config.cortex?.AGENTIC_MODEL) {

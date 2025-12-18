@@ -85,7 +85,7 @@ function MessageInput({
         }
 
         const fileParts = urlsData.map(
-            ({ url, gcs, converted, originalFilename, hash }) => {
+            ({ url, gcs, converted, displayFilename, hash }) => {
                 const obj = {
                     type: "image_url",
                 };
@@ -96,14 +96,17 @@ function MessageInput({
                 obj.url = fileUrl;
                 obj.image_url = { url: fileUrl };
 
-                // Include original filename if available
-                if (originalFilename) {
-                    obj.originalFilename = originalFilename;
-                }
-
                 // Include hash if available
                 if (hash) {
                     obj.hash = hash;
+                }
+
+                // Note: displayFilename is NOT included in payload sent to server
+                // It will be stored locally in the message object for display purposes
+                // For backward compatibility, we include it in the payload for now
+                // but the server will ignore it
+                if (displayFilename) {
+                    obj.displayFilename = displayFilename;
                 }
 
                 return JSON.stringify(obj);

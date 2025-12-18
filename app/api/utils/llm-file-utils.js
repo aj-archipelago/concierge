@@ -65,14 +65,15 @@ export async function generateShortLivedUrl(
 /**
  * Prepare file content for chat history with short-lived URLs
  * @param {Array} files - Array of file objects
+ * @param {string} contextId - Optional context ID for file scoping (e.g., workspaceId:user.contextId)
  * @returns {Promise<Array>} - Array of stringified file content objects
  */
-export async function prepareFileContentForLLM(files) {
+export async function prepareFileContentForLLM(files, contextId = null) {
     if (!files || files.length === 0) return [];
 
     // Generate short-lived URLs for all files
     const filePromises = files.map(async (file) => {
-        const shortLivedUrl = await generateShortLivedUrl(file);
+        const shortLivedUrl = await generateShortLivedUrl(file, 5, contextId);
 
         const obj = {
             type: "image_url",
@@ -82,10 +83,8 @@ export async function prepareFileContentForLLM(files) {
         obj.url = shortLivedUrl; // Use short-lived URL for security
         obj.image_url = { url: shortLivedUrl }; // Use short-lived URL for security
 
-        // Include original filename if available
-        if (file.originalName || file.originalFilename) {
-            obj.originalFilename = file.originalName || file.originalFilename;
-        }
+        // Note: displayFilename is not included as it's not a standard field
+        // and the server/LLM won't use it
 
         // Include hash if available
         if (file.hash) {
@@ -136,6 +135,7 @@ export async function getAnyAgenticLLM(LLM) {
  * @param {string} params.text - User input text
  * @param {Array} params.files - Array of files (optional)
  * @param {Array} params.chatHistory - Existing chat history (optional)
+ * @param {string} params.contextId - Optional context ID for file scoping (e.g., workspaceId:user.contextId)
  * @returns {Promise<Object>} Variables object with chatHistory for GraphQL query
  */
 export async function buildWorkspacePromptVariables({
@@ -144,6 +144,7 @@ export async function buildWorkspacePromptVariables({
     text,
     files = [],
     chatHistory = null,
+    contextId = null,
 }) {
     // Combine prompt + text for user message
     const combinedUserText = prompt
@@ -153,7 +154,9 @@ export async function buildWorkspacePromptVariables({
         : text || "";
 
     const fileContent =
-        files && files.length > 0 ? await prepareFileContentForLLM(files) : [];
+        files && files.length > 0
+            ? await prepareFileContentForLLM(files, contextId)
+            : [];
 
     let finalChatHistory = [];
 

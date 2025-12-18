@@ -40,8 +40,8 @@ function FileThumbnail({ file, onRemove, onRetry }) {
     const isRTL = direction === "rtl";
 
     const displayName =
+        file.displayFilename ||
         file.filename ||
-        file.originalFilename ||
         file.name ||
         file.source?.filename ||
         t("Unknown file");
@@ -436,13 +436,12 @@ export default function FileUploader({
                     gcs: url,
                     type: "video/youtube",
                     filename: getFilename(url),
-                    originalFilename: getFilename(url),
+                    displayFilename: getFilename(url),
                     payload: JSON.stringify([
                         JSON.stringify({
                             type: "image_url",
                             url: url,
                             gcs: url,
-                            originalFilename: getFilename(url),
                         }),
                     ]),
                 };
@@ -484,7 +483,8 @@ export default function FileUploader({
 
                     const responseWithFilename = {
                         ...response.data,
-                        originalFilename: urlFilename,
+                        displayFilename:
+                            response.data.displayFilename || urlFilename,
                     };
                     addUrl(responseWithFilename);
                     processingFilesRef.current.delete(fileId);
@@ -608,15 +608,11 @@ export default function FileUploader({
 
                         const responseWithFilename = {
                             ...response.data,
-                            originalFilename: fileObj.name,
                             hash: response.data.hash || fileHash,
                         };
 
                         if (
                             isFileRemoved(fileObj.name) ||
-                            isFileRemoved(
-                                responseWithFilename.originalFilename,
-                            ) ||
                             isFileRemoved(responseWithFilename.url) ||
                             isFileRemoved(responseWithFilename.gcs)
                         ) {
@@ -754,9 +750,6 @@ export default function FileUploader({
 
                         if (
                             isFileRemoved(fileObj.name) ||
-                            isFileRemoved(
-                                responseWithFilename.originalFilename,
-                            ) ||
                             isFileRemoved(responseWithFilename.url) ||
                             isFileRemoved(responseWithFilename.gcs)
                         ) {
@@ -856,13 +849,12 @@ export default function FileUploader({
                 gcs: inputUrl,
                 type: "video/youtube",
                 filename: getFilename(inputUrl),
-                originalFilename: getFilename(inputUrl),
+                displayFilename: getFilename(inputUrl),
                 payload: JSON.stringify([
                     JSON.stringify({
                         type: "image_url",
                         url: inputUrl,
                         gcs: inputUrl,
-                        originalFilename: getFilename(inputUrl),
                     }),
                 ]),
             };
@@ -940,8 +932,8 @@ export default function FileUploader({
             if (file.filename) {
                 removedFilesRef.current.add(file.filename);
             }
-            if (file.originalFilename) {
-                removedFilesRef.current.add(file.originalFilename);
+            if (file.displayFilename) {
+                removedFilesRef.current.add(file.displayFilename);
             }
             if (file.source?.url) {
                 removedFilesRef.current.add(file.source.url);
@@ -988,7 +980,7 @@ export default function FileUploader({
                             url.url !== file.serverId &&
                             url.gcs !== file.serverId &&
                             url.filename !== file.filename &&
-                            url.originalFilename !== file.originalFilename,
+                            url.displayFilename !== file.displayFilename,
                     ),
                 );
             }

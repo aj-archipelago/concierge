@@ -1,7 +1,6 @@
 /**
  * Utility functions for deleting files from chat messages
  */
-import { removeFileFromMemory } from "./memoryFilesUtils";
 
 /**
  * Delete a file from cloud storage using the CFH API
@@ -75,7 +74,11 @@ export async function checkFileUrlExists(url) {
  */
 export function createFilePlaceholder(fileObj, t, filename = null) {
     const deletedFileInfo =
-        filename || fileObj.originalFilename || fileObj.filename || "file";
+        filename ||
+        fileObj.displayFilename ||
+        fileObj.originalFilename ||
+        fileObj.filename ||
+        "file";
 
     return JSON.stringify({
         type: "text",
@@ -131,7 +134,7 @@ export async function deleteFileFromChatPayload(fileObj, t, filename = null) {
  * @param {Function} options.t - Translation function
  * @param {Function} options.getFilename - Optional function to get filename from file object (for bulk operations)
  * @param {boolean} options.skipCloudDelete - If true, skip cloud deletion (e.g., files already gone)
- * @param {boolean} options.skipMemoryFiles - If true, skip memory files removal (e.g., handling bulk removal separately)
+ * @param {boolean} options.skipUserFileCollection - If true, skip file collection update (CFH handles it automatically)
  * @returns {Promise<Object>} - Result object with success flags and updated messages (if applicable)
  */
 export async function purgeFiles({
@@ -145,7 +148,7 @@ export async function purgeFiles({
     t,
     getFilename = null,
     skipCloudDelete = false,
-    skipMemoryFiles = false,
+    skipUserFileCollection = false,
 }) {
     // Normalize to array
     const files = Array.isArray(fileObjs) ? fileObjs : [fileObjs];
@@ -159,7 +162,7 @@ export async function purgeFiles({
 
     const results = {
         cloudDeleted: 0,
-        memoryFileRemoved: false,
+        userFileCollectionRemoved: false,
         chatUpdated: false,
         updatedMessages: null,
     };
@@ -174,29 +177,8 @@ export async function purgeFiles({
         results.cloudDeleted = files.filter((f) => f?.hash).length;
     }
 
-    // 2. Remove from memory files collection (in parallel)
-    if (!skipMemoryFiles && apolloClient && contextId && contextKey) {
-        const memoryRemovalResults = await Promise.allSettled(
-            files.map((fileObj) =>
-                removeFileFromMemory(
-                    apolloClient,
-                    contextId,
-                    contextKey,
-                    fileObj,
-                ).catch((error) => {
-                    console.warn(
-                        "Failed to remove file from memory files:",
-                        error,
-                    );
-                    throw error; // Re-throw so Promise.allSettled marks it as rejected
-                }),
-            ),
-        );
-        // Only set to true if at least one removal succeeded
-        results.memoryFileRemoved = memoryRemovalResults.some(
-            (result) => result.status === "fulfilled",
-        );
-    }
+    // 2. CFH automatically updates Redis on delete, so no manual collection update needed
+    results.userFileCollectionRemoved = !skipUserFileCollection;
 
     // 3. Replace in chat messages with placeholders (single update for all files)
     if (chatId && messages && Array.isArray(messages) && updateChatHook) {
@@ -258,7 +240,8 @@ export async function purgeFiles({
                                 const filename =
                                     matchingFileObj && getFilename
                                         ? getFilename(matchingFileObj)
-                                        : payloadObj.originalFilename ||
+                                        : payloadObj.displayFilename ||
+                                          payloadObj.originalFilename ||
                                           payloadObj.filename ||
                                           "file";
 
@@ -314,7 +297,7 @@ export async function purgeFile({ fileObj, filename = null, ...rest }) {
     // Convert bulk result format to single-file format for backward compatibility
     return {
         cloudDeleted: result.cloudDeleted > 0,
-        memoryFileRemoved: result.memoryFileRemoved,
+        userFileCollectionRemoved: result.userFileCollectionRemoved,
         chatUpdated: result.chatUpdated,
         updatedMessages: result.updatedMessages,
     };

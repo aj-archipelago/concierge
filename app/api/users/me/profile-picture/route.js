@@ -58,10 +58,12 @@ export async function POST(request) {
         };
 
         // Upload normalized image to permanent storage
+        // Note: uploadBufferToMediaService will call setRetention internally when permanent=true
         const uploadResult = await uploadBufferToMediaService(
             normalizedBuffer,
             normalizedMetadata,
             true, // permanent = true
+            user.contextId, // Pass contextId for proper scoping
         );
 
         if (uploadResult.error) {

@@ -12,7 +12,8 @@ export const useFileUpload = ({
     setSelectedImagesObjects,
 }) => {
     const { user } = useContext(AuthContext);
-    const contextId = user?.contextId;
+    // Use :media suffix to separate media page images from chat files
+    const contextId = user?.contextId ? `${user.contextId}:media` : null;
     const handleFileUpload = useCallback(
         async (file) => {
             if (!file) return;

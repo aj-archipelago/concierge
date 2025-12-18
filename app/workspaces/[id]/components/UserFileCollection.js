@@ -14,11 +14,11 @@ import {
 import { QUERIES } from "@/src/graphql";
 import { getFileIcon } from "@/src/utils/mediaUtils";
 import {
-    modifyMemoryFilesWithLock,
+    updateFileMetadata,
     getFileUrl,
     getFilename as getFilenameUtil,
     getFileExtension,
-} from "./memoryFilesUtils";
+} from "./userFileCollectionUtils";
 import { IMAGE_EXTENSIONS } from "@/src/utils/mediaUtils";
 import { purgeFiles } from "./chatFileUtils";
 import HoverPreview from "./HoverPreview";
@@ -216,7 +216,7 @@ function FilePreviewDialog({ file, onClose, onDownload, t }) {
     );
 }
 
-export default function MemoryFiles({
+export default function UserFileCollection({
     contextId,
     contextKey,
     chatId = null,
@@ -226,7 +226,7 @@ export default function MemoryFiles({
     const { t } = useTranslation();
     const apolloClient = useApolloClient();
     const isRtl = i18next.language === "ar";
-    const [memoryFiles, setMemoryFiles] = useState([]);
+    const [userFileCollection, setUserFileCollection] = useState([]);
     const [filterText, setFilterText] = useState("");
     const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
     const [sortKey, setSortKey] = useState("date");
@@ -235,7 +235,8 @@ export default function MemoryFiles({
     const [editingFilename, setEditingFilename] = useState("");
     const [hoveredFile, setHoveredFile] = useState(null);
     const [previewFile, setPreviewFile] = useState(null);
-    const [togglingPermanentFileId, setTogglingPermanentFileId] = useState(null);
+    const [togglingPermanentFileId, setTogglingPermanentFileId] =
+        useState(null);
     const containerRef = useRef(null);
     const hoverTimeoutRef = useRef(null);
 
@@ -268,11 +269,11 @@ export default function MemoryFiles({
     const filenameInputRef = useRef(null);
 
     const {
-        data: memoryData,
-        loading: memoryLoading,
-        refetch: refetchMemory,
-    } = useQuery(QUERIES.SYS_READ_MEMORY, {
-        variables: { contextId, contextKey, section: "memoryFiles" },
+        data: collectionData,
+        loading: collectionLoading,
+        refetch: refetchCollection,
+    } = useQuery(QUERIES.SYS_READ_FILE_COLLECTION, {
+        variables: { contextId, contextKey, useCache: false },
         skip: !contextId,
         fetchPolicy: "network-only",
     });
@@ -287,7 +288,7 @@ export default function MemoryFiles({
                 return `hash-${file.hash}`;
             // Fallback: use filename + index from original array
             const filename = getFilenameUtil(file);
-            const originalIndex = memoryFiles.findIndex((f) => {
+            const originalIndex = userFileCollection.findIndex((f) => {
                 if (typeof f === "object" && typeof file === "object") {
                     return (
                         (f.url && file.url && f.url === file.url) ||
@@ -299,7 +300,7 @@ export default function MemoryFiles({
             });
             return `file-${filename}-${originalIndex}`;
         },
-        [memoryFiles],
+        [userFileCollection],
     );
 
     // Selection hook
@@ -316,40 +317,30 @@ export default function MemoryFiles({
     } = useItemSelection((file) => getFileId(file));
 
     useEffect(() => {
-        if (memoryData?.sys_read_memory?.result) {
+        if (collectionData?.sys_read_file_collection?.result) {
             try {
-                const parsed = JSON.parse(memoryData.sys_read_memory.result);
-                // Handle new format: { version, files }
-                if (
-                    parsed &&
-                    typeof parsed === "object" &&
-                    !Array.isArray(parsed) &&
-                    parsed.files
-                ) {
-                    setMemoryFiles(
-                        Array.isArray(parsed.files) ? parsed.files : [],
-                    );
-                }
-                // Handle old format: just an array (backward compatibility)
-                else if (Array.isArray(parsed)) {
-                    setMemoryFiles(parsed);
+                const parsed = JSON.parse(
+                    collectionData.sys_read_file_collection.result,
+                );
+                if (Array.isArray(parsed)) {
+                    setUserFileCollection(parsed);
                 } else {
-                    setMemoryFiles([]);
+                    setUserFileCollection([]);
                 }
             } catch (e) {
-                console.error("[MemoryFiles] Error parsing memory:", e);
-                setMemoryFiles([]);
+                console.error("[UserFileCollection] Error parsing:", e);
+                setUserFileCollection([]);
             }
         } else {
-            setMemoryFiles([]);
+            setUserFileCollection([]);
         }
-    }, [memoryData]);
+    }, [collectionData]);
 
     // Filter files - search filename, tags, and notes
     const filteredFiles = useMemo(() => {
-        if (!filterText.trim()) return memoryFiles;
+        if (!filterText.trim()) return userFileCollection;
         const searchLower = filterText.toLowerCase();
-        return memoryFiles.filter((file) => {
+        return userFileCollection.filter((file) => {
             const filename = getFilenameUtil(file).toLowerCase();
             const tags = Array.isArray(file?.tags)
                 ? file.tags.join(" ").toLowerCase()
@@ -361,7 +352,7 @@ export default function MemoryFiles({
                 notes.includes(searchLower)
             );
         });
-    }, [memoryFiles, filterText]);
+    }, [userFileCollection, filterText]);
 
     // Helper to get date for sorting/display
     const getFileDate = useCallback((file) => {
@@ -434,11 +425,11 @@ export default function MemoryFiles({
                 return;
             }
 
-            // Set loading state
+            // Set loading state (synchronous operation with spinner)
             setTogglingPermanentFileId(fileId);
 
             try {
-                // Call setRetention API
+                // Call setRetention API (synchronous - wait for completion)
                 const response = await fetch("/api/files/set-retention", {
                     method: "POST",
                     headers: {
@@ -460,41 +451,35 @@ export default function MemoryFiles({
                     );
                 }
 
-                // Update memory files with optimistic locking
-                await modifyMemoryFilesWithLock(
-                    apolloClient,
-                    contextId,
-                    contextKey,
-                    (files) => {
-                        return files.map((f) => {
-                            if (getFileId(f) === fileId) {
-                                return { ...f, permanent: newPermanentValue };
-                            }
-                            return f;
-                        });
-                    },
+                // Optimistically update local state
+                setUserFileCollection((prevCollection) =>
+                    prevCollection.map((f) =>
+                        getFileId(f) === fileId
+                            ? { ...f, permanent: newPermanentValue }
+                            : f,
+                    ),
                 );
 
-                refetchMemory();
+                // Small delay to ensure CFH has finished updating Redis
+                await new Promise((resolve) => setTimeout(resolve, 200));
+                // CFH automatically updates Redis, so we just need to refetch
+                // Explicitly bypass cache to ensure we get fresh data
+                await refetchCollection({ useCache: false });
             } catch (error) {
                 console.error("Failed to toggle permanent status:", error);
+                // On error, refetch to restore correct state
+                await refetchCollection({ useCache: false });
             } finally {
                 // Clear loading state
                 setTogglingPermanentFileId(null);
             }
         },
-        [
-            apolloClient,
-            contextId,
-            contextKey,
-            getFileId,
-            refetchMemory,
-        ],
+        [getFileId, refetchCollection],
     );
 
     const handleRemoveFiles = async (filesToRemove) => {
         // Filter to only valid file objects and normalize them
-        // Files from memoryFiles may not have a 'type' property, so we need to add it
+        // Files from userFileCollection may not have a 'type' property, so we need to add it
         const validFiles = filesToRemove
             .filter((file) => typeof file === "object")
             .map((file) => {
@@ -517,47 +502,46 @@ export default function MemoryFiles({
             return;
         }
 
-        // Remove from memory files in bulk using optimistic locking
-        const fileIds = new Set(filesToRemove.map((file) => getFileId(file)));
-        try {
-            await modifyMemoryFilesWithLock(
-                apolloClient,
-                contextId,
-                contextKey,
-                (files) => {
-                    return files.filter(
-                        (file) => !fileIds.has(getFileId(file)),
-                    );
-                },
-            );
-            refetchMemory();
-        } catch (error) {
-            console.error("Failed to remove files from memory:", error);
-            clearSelection();
-            return;
-        }
+        // Get file IDs to remove for optimistic update
+        const fileIdsToRemove = new Set(
+            validFiles.map((file) => getFileId(file)),
+        );
 
-        // Use bulk purgeFiles function to handle all files in a single chat update
-        // This avoids race conditions when multiple files are in the same message
-        try {
-            await purgeFiles({
-                fileObjs: validFiles,
-                apolloClient,
-                contextId,
-                contextKey,
-                chatId,
-                messages,
-                updateChatHook,
-                t,
-                getFilename: getFilenameUtil,
-                skipCloudDelete: false,
-                skipMemoryFiles: true, // Already handled in bulk above
-            });
-        } catch (error) {
-            console.error("Failed to purge files:", error);
-        }
-
+        // Optimistically remove files from local state immediately
+        setUserFileCollection((prevCollection) =>
+            prevCollection.filter(
+                (file) => !fileIdsToRemove.has(getFileId(file)),
+            ),
+        );
         clearSelection();
+
+        // Delete files asynchronously in the background
+        // CFH automatically updates Redis on delete
+        purgeFiles({
+            fileObjs: validFiles,
+            apolloClient,
+            contextId,
+            contextKey,
+            chatId,
+            messages,
+            updateChatHook,
+            t,
+            getFilename: getFilenameUtil,
+            skipCloudDelete: false,
+            skipUserFileCollection: true, // CFH automatically updates Redis
+        })
+            .then(async () => {
+                // Small delay to ensure CFH has finished updating Redis
+                await new Promise((resolve) => setTimeout(resolve, 200));
+                // Refetch to sync with server state (CFH has already updated Redis)
+                // Explicitly bypass cache to ensure we get fresh data
+                await refetchCollection({ useCache: false });
+            })
+            .catch((error) => {
+                console.error("Failed to purge files:", error);
+                // On error, refetch to restore correct state
+                refetchCollection({ useCache: false });
+            });
     };
 
     const handleBulkDelete = () => {
@@ -619,7 +603,7 @@ export default function MemoryFiles({
     // Cancel editing if the file being edited no longer exists after refresh
     useEffect(() => {
         if (editingFileId) {
-            const fileStillExists = memoryFiles.some(
+            const fileStillExists = userFileCollection.some(
                 (file) => getFileId(file) === editingFileId,
             );
             if (!fileStillExists) {
@@ -627,7 +611,7 @@ export default function MemoryFiles({
                 setEditingFilename("");
             }
         }
-    }, [memoryFiles, editingFileId, getFileId]);
+    }, [userFileCollection, editingFileId, getFileId]);
 
     const handleStartEdit = useCallback(
         (file, e) => {
@@ -642,8 +626,6 @@ export default function MemoryFiles({
 
     const handleSaveFilename = useCallback(
         async (file) => {
-            const fileId = getFileId(file);
-
             // Validate filename
             const trimmedFilename = editingFilename.trim();
             if (!trimmedFilename) {
@@ -674,51 +656,53 @@ export default function MemoryFiles({
                 return;
             }
 
-            try {
-                // Use optimistic locking to update the filename
-                await modifyMemoryFilesWithLock(
-                    apolloClient,
-                    contextId,
-                    contextKey,
-                    (files) => {
-                        return files.map((f) => {
-                            if (getFileId(f) === fileId) {
-                                // Create a new object with updated filename
-                                const updated = { ...f };
-                                // Update filename property (could be filename, name, or path)
-                                if (typeof f === "object") {
-                                    updated.filename = trimmedFilename;
-                                    // Also update name if it exists (for consistency)
-                                    if (f.name) {
-                                        updated.name = trimmedFilename;
-                                    }
-                                }
-                                return updated;
-                            }
-                            return f;
-                        });
-                    },
-                );
+            const fileId = getFileId(file);
 
-                setEditingFileId(null);
-                setEditingFilename("");
-                refetchMemory();
-            } catch (error) {
-                console.error("Failed to save filename:", error);
-                toast.error(t("Failed to save filename. Please try again."));
-                // On error, cancel editing
-                setEditingFileId(null);
-                setEditingFilename("");
+            // Get file hash for API call
+            const fileHash = file?.hash;
+            if (!fileHash) {
+                toast.error(t("File hash not found. Cannot update filename."));
+                return;
             }
+
+            // Optimistically update local state immediately
+            setUserFileCollection((prevCollection) =>
+                prevCollection.map((f) =>
+                    getFileId(f) === fileId
+                        ? { ...f, displayFilename: trimmedFilename }
+                        : f,
+                ),
+            );
+
+            setEditingFileId(null);
+            setEditingFilename("");
+
+            // Save filename asynchronously in the background
+            updateFileMetadata(apolloClient, contextId, fileHash, {
+                displayFilename: trimmedFilename,
+            })
+                .then(async () => {
+                    // Small delay to ensure Cortex has finished updating Redis
+                    await new Promise((resolve) => setTimeout(resolve, 200));
+                    // Explicitly bypass cache to ensure we get fresh data
+                    await refetchCollection({ useCache: false });
+                })
+                .catch((error) => {
+                    console.error("Failed to save filename:", error);
+                    toast.error(
+                        t("Failed to save filename. Please try again."),
+                    );
+                    // On error, refetch to restore correct state
+                    refetchCollection({ useCache: false });
+                });
         },
         [
             editingFilename,
             apolloClient,
             contextId,
-            contextKey,
-            getFileId,
-            refetchMemory,
+            refetchCollection,
             t,
+            getFileId,
         ],
     );
 
@@ -765,16 +749,16 @@ export default function MemoryFiles({
     ]);
 
     // Show loading state
-    if (memoryLoading) {
+    if (collectionLoading) {
         return (
             <div className="text-sm text-gray-500 dark:text-gray-400 text-center py-8">
-                {t("Loading chat files...")}
+                {t("Loading files...")}
             </div>
         );
     }
 
     // Show empty state if no files
-    if (memoryFiles.length === 0) {
+    if (userFileCollection.length === 0) {
         return (
             <EmptyState
                 icon={<FileText className="w-12 h-12 text-gray-400" />}
@@ -802,8 +786,8 @@ export default function MemoryFiles({
                                 <span className="text-xs text-gray-500 dark:text-gray-400 flex-shrink-0">
                                     ({sortedFiles.length}
                                     {sortedFiles.length !==
-                                        memoryFiles.length &&
-                                        ` / ${memoryFiles.length}`}
+                                        userFileCollection.length &&
+                                        ` / ${userFileCollection.length}`}
                                     )
                                 </span>
                             </div>
@@ -846,8 +830,9 @@ export default function MemoryFiles({
                             </h3>
                             <span className="text-xs text-gray-500 dark:text-gray-400 flex-shrink-0">
                                 ({sortedFiles.length}
-                                {sortedFiles.length !== memoryFiles.length &&
-                                    ` / ${memoryFiles.length}`}
+                                {sortedFiles.length !==
+                                    userFileCollection.length &&
+                                    ` / ${userFileCollection.length}`}
                                 )
                             </span>
                         </div>
@@ -1172,9 +1157,13 @@ export default function MemoryFiles({
                                         <TableCell
                                             className={`px-1 sm:px-2 py-1.5 ${isRtl ? "text-right" : "text-left"}`}
                                         >
-                                            {togglingPermanentFileId === fileId ? (
+                                            {togglingPermanentFileId ===
+                                            fileId ? (
                                                 <div className="flex items-center justify-center w-4 h-4">
-                                                    <Spinner size="sm" className="text-sky-600 dark:text-sky-400" />
+                                                    <Spinner
+                                                        size="sm"
+                                                        className="text-sky-600 dark:text-sky-400"
+                                                    />
                                                 </div>
                                             ) : (
                                                 <input
@@ -1192,7 +1181,9 @@ export default function MemoryFiles({
                                                     }}
                                                     onChange={(e) => {
                                                         e.stopPropagation();
-                                                        handleTogglePermanent(file);
+                                                        handleTogglePermanent(
+                                                            file,
+                                                        );
                                                     }}
                                                     className="w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-sky-600 focus:ring-sky-500 dark:focus:ring-sky-400 cursor-pointer"
                                                     title={t(
