@@ -8,6 +8,7 @@ import {
     FILE_VALIDATION_CONFIG,
     scanForMalware,
 } from "./fileValidation.js";
+import { determineFileContextId } from "./llm-file-utils.js";
 
 import Busboy from "busboy";
 import { Readable } from "stream";
@@ -83,11 +84,15 @@ export async function handleStreamingFileUpload(request, options) {
         const { fileBuffer, metadata } = result.data;
 
         // Determine contextId based on file type:
-        // - Workspace/applet files: workspaceId:user.contextId (separate from chat files)
-        // - User files: user.contextId (for chat, etc.)
-        const contextId = workspace?._id?.toString()
-            ? `${workspace._id.toString()}:${user.contextId}`
-            : user.contextId;
+        // - Workspace/applet artifacts (permanent=true): workspaceId (shared across all users)
+        // - User-submitted files (permanent=false): user.contextId (user-specific, temporary)
+        // Note: workspace is guaranteed to exist here due to early return above
+        const workspaceIdStr = workspace._id?.toString() || null;
+        const contextId = determineFileContextId({
+            isArtifact: permanent,
+            workspaceId: workspaceIdStr,
+            userContextId: user?.contextId || null,
+        });
 
         // Check if file already exists using hash
         if (metadata.hash) {

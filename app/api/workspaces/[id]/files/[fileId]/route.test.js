@@ -192,9 +192,8 @@ const createTestableDeleteHandler = () => {
 
                     const deleteUrl = new URL(mediaHelperUrl);
                     deleteUrl.searchParams.set("hash", fileToDelete.hash);
-                    // Use workspaceId:user.contextId format for workspace files (separate from chat)
-                    const workspaceContextId = `${workspaceId}:${user.contextId}`;
-                    deleteUrl.searchParams.set("contextId", workspaceContextId);
+                    // Workspace/applet artifacts use workspaceId (shared across all users)
+                    deleteUrl.searchParams.set("contextId", workspaceId);
 
                     const deleteResponse = await fetch(deleteUrl.toString(), {
                         method: "DELETE",
@@ -361,10 +360,9 @@ describe("DELETE /api/workspaces/[id]/files/[fileId]", () => {
             expect(result.data.success).toBe(true);
             expect(result.data.files).toEqual([]);
 
-            // Verify file deletion was called with hash and workspaceId:user.contextId format
-            // Note: URL encoding converts : to %3A
+            // Verify file deletion was called with hash and workspaceId (workspace artifacts use workspaceId)
             expect(global.fetch).toHaveBeenCalledWith(
-                "http://localhost:3000/media-helper?hash=testFileHash123&contextId=workspace123%3Auser123",
+                "http://localhost:3000/media-helper?hash=testFileHash123&contextId=workspace123",
                 {
                     method: "DELETE",
                     headers: {
@@ -690,10 +688,9 @@ describe("DELETE /api/workspaces/[id]/files/[fileId]", () => {
 
             expect(result.status).toBe(200);
 
-            // Verify correct URL was used with hash and workspaceId:user.contextId format
-            // Note: URL encoding converts : to %3A
+            // Verify correct URL was used with hash and workspaceId (workspace artifacts use workspaceId)
             expect(global.fetch).toHaveBeenCalledWith(
-                "https://myapp.com/media-helper?hash=testFileHash123&contextId=workspace123%3Auser123",
+                "https://myapp.com/media-helper?hash=testFileHash123&contextId=workspace123",
                 expect.objectContaining({
                     method: "DELETE",
                     headers: {

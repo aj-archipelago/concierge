@@ -8,6 +8,8 @@ import config from "../../../../config/index.js";
  *
  * Query parameters:
  * - hash: File hash to delete (required)
+ * - contextId: Optional context ID for file scoping (e.g., user.contextId:chat)
+ *              If not provided, defaults to user.contextId
  */
 export async function DELETE(request) {
     try {
@@ -22,6 +24,7 @@ export async function DELETE(request) {
 
         const { searchParams } = new URL(request.url);
         const hash = searchParams.get("hash");
+        const contextIdParam = searchParams.get("contextId");
 
         if (!hash) {
             return NextResponse.json(
@@ -43,12 +46,16 @@ export async function DELETE(request) {
             );
         }
 
+        // Use provided contextId or fall back to user.contextId
+        // This allows deletion of chat files (user.contextId:chat) or other scoped files
+        const contextId = contextIdParam || user.contextId;
+
         // Call CFH delete API
         // According to CFH signature: DELETE with hash and contextId parameters
-        // Example: DELETE /file-handler?hash=xyz789&contextId=user-123
+        // Example: DELETE /file-handler?hash=xyz789&contextId=user-123:chat
         const deleteUrl = new URL(mediaHelperUrl);
         deleteUrl.searchParams.set("hash", hash);
-        deleteUrl.searchParams.set("contextId", user.contextId);
+        deleteUrl.searchParams.set("contextId", contextId);
 
         const deleteResponse = await fetch(deleteUrl.toString(), {
             method: "DELETE",

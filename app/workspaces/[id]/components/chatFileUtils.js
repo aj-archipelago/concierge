@@ -5,14 +5,18 @@
 /**
  * Delete a file from cloud storage using the CFH API
  * @param {string} hash - File hash to delete
+ * @param {string} contextId - Optional context ID for file scoping (e.g., user.contextId:chat)
  * @returns {Promise<void>} - Resolves even if deletion fails (errors are logged)
  */
-export async function deleteFileFromCloud(hash) {
+export async function deleteFileFromCloud(hash, contextId = null) {
     if (!hash) return;
 
     try {
         const deleteUrl = new URL("/api/files/delete", window.location.origin);
         deleteUrl.searchParams.set("hash", hash);
+        if (contextId) {
+            deleteUrl.searchParams.set("contextId", contextId);
+        }
 
         const response = await fetch(deleteUrl.toString(), {
             method: "DELETE",
@@ -106,6 +110,8 @@ export async function deleteFileFromChatPayload(fileObj, t, filename = null) {
     }
 
     // Delete from cloud storage
+    // Note: This function doesn't receive contextId, so it will use default user.contextId
+    // For chat files, use purgeFiles instead which accepts contextId
     if (fileObj.hash) {
         await deleteFileFromCloud(fileObj.hash);
     }
@@ -168,11 +174,12 @@ export async function purgeFiles({
     };
 
     // 1. Delete from cloud storage (in parallel)
+    // Use the provided contextId for deletion (e.g., user.contextId:chat for chat files)
     if (!skipCloudDelete) {
         await Promise.allSettled(
             files
                 .filter((fileObj) => fileObj?.hash)
-                .map((fileObj) => deleteFileFromCloud(fileObj.hash)),
+                .map((fileObj) => deleteFileFromCloud(fileObj.hash, contextId)),
         );
         results.cloudDeleted = files.filter((f) => f?.hash).length;
     }

@@ -51,11 +51,9 @@ export async function POST(req, res) {
             allFiles.push(...prompt.files);
         }
 
-        // Determine contextId for workspace files: workspaceId:user.contextId
-        const contextId =
-            workspace && user?.contextId
-                ? `${workspace._id.toString()}:${user.contextId}`
-                : user?.contextId || null;
+        // Workspace artifacts use workspaceId, user-submitted files use user.contextId
+        const workspaceIdForFiles = workspace?._id?.toString() || null;
+        const userContextIdForFiles = user?.contextId || null;
 
         // Build variables: systemPrompt (workspace context), prompt (prompt text), text (user input)
         const variables = await buildWorkspacePromptVariables({
@@ -63,7 +61,8 @@ export async function POST(req, res) {
             prompt: prompt.text,
             text: text,
             files: allFiles,
-            contextId: contextId,
+            workspaceId: workspaceIdForFiles,
+            userContextId: userContextIdForFiles,
         });
 
         if (model !== config.cortex?.AGENTIC_MODEL) {

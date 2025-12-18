@@ -1,6 +1,27 @@
 import config from "../../../config/index.js";
 
 /**
+ * Determine the appropriate contextId for a file based on its type
+ * @param {Object} options - Options for contextId determination
+ * @param {boolean} options.isArtifact - Whether this is a workspace/applet artifact (permanent, shared)
+ * @param {string|null} options.workspaceId - Workspace ID if available
+ * @param {string|null} options.userContextId - User context ID for user-submitted files
+ * @returns {string|null} - The appropriate contextId, or null if neither is available
+ */
+export function determineFileContextId({
+    isArtifact = false,
+    workspaceId = null,
+    userContextId = null,
+}) {
+    // Workspace/applet artifacts use workspaceId (shared across all users)
+    if (isArtifact && workspaceId) {
+        return workspaceId;
+    }
+    // User-submitted files use userContextId (user-specific)
+    return userContextId || null;
+}
+
+/**
  * Generate short-lived URL from file hash using the media helper service
  * The checkHash operation now always returns short-lived URLs by default
  * @param {Object} file - File object with hash, url, filename properties
@@ -65,14 +86,26 @@ export async function generateShortLivedUrl(
 /**
  * Prepare file content for chat history with short-lived URLs
  * @param {Array} files - Array of file objects
- * @param {string} contextId - Optional context ID for file scoping (e.g., workspaceId:user.contextId)
+ * @param {string} workspaceId - Optional workspace ID for workspace artifacts
+ * @param {string} userContextId - Optional user context ID for user-submitted files
  * @returns {Promise<Array>} - Array of stringified file content objects
  */
-export async function prepareFileContentForLLM(files, contextId = null) {
+export async function prepareFileContentForLLM(
+    files,
+    workspaceId = null,
+    userContextId = null,
+) {
     if (!files || files.length === 0) return [];
 
     // Generate short-lived URLs for all files
+    // Files with _id are workspace/applet artifacts (use workspaceId)
+    // Files without _id are user-submitted files (use userContextId)
     const filePromises = files.map(async (file) => {
+        const contextId = determineFileContextId({
+            isArtifact: !!file._id,
+            workspaceId,
+            userContextId,
+        });
         const shortLivedUrl = await generateShortLivedUrl(file, 5, contextId);
 
         const obj = {
@@ -135,7 +168,8 @@ export async function getAnyAgenticLLM(LLM) {
  * @param {string} params.text - User input text
  * @param {Array} params.files - Array of files (optional)
  * @param {Array} params.chatHistory - Existing chat history (optional)
- * @param {string} params.contextId - Optional context ID for file scoping (e.g., workspaceId:user.contextId)
+ * @param {string} params.workspaceId - Optional workspace ID for workspace artifacts
+ * @param {string} params.userContextId - Optional user context ID for user-submitted files
  * @returns {Promise<Object>} Variables object with chatHistory for GraphQL query
  */
 export async function buildWorkspacePromptVariables({
@@ -144,7 +178,8 @@ export async function buildWorkspacePromptVariables({
     text,
     files = [],
     chatHistory = null,
-    contextId = null,
+    workspaceId = null,
+    userContextId = null,
 }) {
     // Combine prompt + text for user message
     const combinedUserText = prompt
@@ -155,7 +190,7 @@ export async function buildWorkspacePromptVariables({
 
     const fileContent =
         files && files.length > 0
-            ? await prepareFileContentForLLM(files, contextId)
+            ? await prepareFileContentForLLM(files, workspaceId, userContextId)
             : [];
 
     let finalChatHistory = [];

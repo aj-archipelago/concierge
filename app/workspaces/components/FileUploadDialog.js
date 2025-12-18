@@ -29,11 +29,12 @@ export default function FileUploadDialog({
     const { t } = useTranslation();
     const { serverUrl } = useContext(ServerContext);
     const { user } = useContext(AuthContext);
-    // Use workspaceId:user.contextId format for workspace files, user.contextId for others
+
+    // Determine contextId based on file type:
+    // - Workspace/applet artifacts (when uploadEndpoint provided): workspaceId (shared across all users)
+    // - User-submitted files (when no uploadEndpoint): user.contextId (user-specific, temporary)
     const contextId =
-        workspaceId && user?.contextId
-            ? `${workspaceId}:${user.contextId}`
-            : user?.contextId;
+        uploadEndpoint && workspaceId ? workspaceId : user?.contextId || null;
     const [fileUploading, setFileUploading] = useState(false);
     const [fileUploadError, setFileUploadError] = useState(null);
     const [uploadProgress, setUploadProgress] = useState(0);

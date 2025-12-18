@@ -250,7 +250,8 @@ export default function FileUploader({
     const { user } = useContext(AuthContext);
     const isRTL = direction === "rtl";
     const serverUrl = "/media-helper";
-    const contextId = user?.contextId;
+    // Use :chat suffix to separate chat files from other user files
+    const contextId = user?.contextId ? `${user.contextId}:chat` : null;
     const [inputUrl, setInputUrl] = useState("");
     const [showUrlInput, setShowUrlInput] = useState(false);
     const fileInputRef = useRef(null);
