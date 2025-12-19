@@ -53,6 +53,7 @@ export async function readUserFileCollection(
 export async function updateFileMetadata(
     apolloClient,
     contextId,
+    contextKey,
     hash,
     metadata = {},
 ) {
@@ -64,6 +65,7 @@ export async function updateFileMetadata(
         mutation: QUERIES.SYS_UPDATE_FILE_METADATA,
         variables: {
             contextId,
+            contextKey,
             hash,
             displayFilename: metadata.displayFilename,
             tags: metadata.tags,

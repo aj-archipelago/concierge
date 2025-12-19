@@ -211,6 +211,7 @@ const SYS_READ_FILE_COLLECTION = gql`
 const SYS_UPDATE_FILE_METADATA = gql`
     mutation SysUpdateFileMetadata(
         $contextId: String!
+        $contextKey: String
         $hash: String!
         $displayFilename: String
         $tags: [String!]
@@ -220,6 +221,7 @@ const SYS_UPDATE_FILE_METADATA = gql`
     ) {
         sys_update_file_metadata(
             contextId: $contextId
+            contextKey: $contextKey
             hash: $hash
             displayFilename: $displayFilename
             tags: $tags

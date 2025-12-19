@@ -678,7 +678,7 @@ export default function UserFileCollection({
             setEditingFilename("");
 
             // Save filename asynchronously in the background
-            updateFileMetadata(apolloClient, contextId, fileHash, {
+            updateFileMetadata(apolloClient, contextId, contextKey, fileHash, {
                 displayFilename: trimmedFilename,
             })
                 .then(async () => {
@@ -700,6 +700,7 @@ export default function UserFileCollection({
             editingFilename,
             apolloClient,
             contextId,
+            contextKey,
             refetchCollection,
             t,
             getFileId,
