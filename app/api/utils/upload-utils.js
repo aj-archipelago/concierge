@@ -114,11 +114,23 @@ export async function handleStreamingFileUpload(request, options) {
                     if (checkData && checkData.url) {
                         // If permanent flag is set, ensure existing file is also permanent
                         if (permanent && metadata.hash) {
-                            await setFileRetention(
-                                metadata.hash,
-                                "permanent",
-                                contextId,
-                            );
+                            try {
+                                await setFileRetention(
+                                    metadata.hash,
+                                    "permanent",
+                                    contextId,
+                                );
+                            } catch (retentionError) {
+                                // Log retention update failures so they are visible for debugging
+                                // This is best-effort, so we continue even if it fails
+                                console.error(
+                                    "Failed to update file retention to 'permanent' for hash",
+                                    metadata.hash,
+                                    "and contextId",
+                                    contextId,
+                                    retentionError,
+                                );
+                            }
                         }
 
                         // Create a new File document with existing file data

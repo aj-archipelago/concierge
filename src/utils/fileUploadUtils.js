@@ -124,22 +124,18 @@ export async function uploadFileToMediaHelper(file, options = {}) {
             xhr.upload.onprogress = (event) => {
                 if (event.lengthComputable) {
                     // Support both ProgressEvent and percentage callback
-                    // If callback has 2+ parameters or returns a value, it expects ProgressEvent
-                    // Otherwise, it expects percentage
+                    // Try calling with ProgressEvent first, fall back to percentage if it throws
                     try {
-                        const result = onProgress(event);
-                        // If it returns undefined, it's likely a ProgressEvent handler
-                        if (result !== undefined) {
-                            return;
-                        }
+                        onProgress(event);
+                        // If no exception, assume it handled the event successfully
+                        return;
                     } catch (e) {
                         // If callback throws or doesn't accept event, try percentage
+                        const percentage = Math.round(
+                            (event.loaded / event.total) * 100,
+                        );
+                        onProgress(percentage);
                     }
-                    // Default: treat as percentage callback
-                    const percentage = Math.round(
-                        (event.loaded / event.total) * 100,
-                    );
-                    onProgress(percentage);
                 }
             };
         }

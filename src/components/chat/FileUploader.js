@@ -733,7 +733,7 @@ export default function FileUploader({
 
                     const responseWithFilename = {
                         ...responseData,
-                        originalFilename: fileObj.name,
+                        displayFilename: fileObj.name,
                         hash: responseData.hash || fileHash,
                     };
 
