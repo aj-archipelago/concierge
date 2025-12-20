@@ -269,6 +269,52 @@ describe("MessageInput", () => {
         );
     };
 
+    // Some MessageInput behaviors rely on the parent toggling `loading` while a send is in-flight.
+    // In production, `onSend` typically triggers a request and `loading` flips true->false,
+    // which also resets MessageInput's internal "send lock" (isSendingRef).
+    const renderMessageInputWithLoadingHarness = (props = {}) => {
+        function Harness() {
+            const [loading, setLoading] = React.useState(false);
+
+            const handleSend = (message) => {
+                mockOnSend(message);
+                // Toggle loading true -> false (in a microtask) to mimic real send lifecycle
+                setLoading(true);
+                Promise.resolve().then(() => setLoading(false));
+            };
+
+            return (
+                <MessageInput
+                    onSend={handleSend}
+                    loading={loading}
+                    enableRag={true}
+                    placeholder="Send a message"
+                    viewingReadOnlyChat={false}
+                    isStreaming={false}
+                    onStopStreaming={mockOnStopStreaming}
+                    {...props}
+                />
+            );
+        }
+
+        return render(
+            <ApolloProvider client={client}>
+                <Provider store={store}>
+                    <AuthContext.Provider
+                        value={{
+                            user: mockUser,
+                            userState: {},
+                            debouncedUpdateUserState:
+                                mockDebouncedUpdateUserState,
+                        }}
+                    >
+                        <Harness />
+                    </AuthContext.Provider>
+                </Provider>
+            </ApolloProvider>,
+        );
+    };
+
     beforeEach(() => {
         jest.clearAllMocks();
         mockDebouncedUpdateUserState.mockClear();
@@ -718,7 +764,9 @@ describe("MessageInput", () => {
             fireEvent.click(submitButton);
 
             await waitFor(() => {
-                expect(mockOnSend).toHaveBeenCalledWith("Test message");
+                expect(mockOnSend).toHaveBeenCalledWith([
+                    JSON.stringify({ type: "text", text: "Test message" }),
+                ]);
             });
         });
 
@@ -751,7 +799,9 @@ describe("MessageInput", () => {
             fireEvent.keyDown(input, { key: "Enter", shiftKey: false });
 
             await waitFor(() => {
-                expect(mockOnSend).toHaveBeenCalledWith("Test message");
+                expect(mockOnSend).toHaveBeenCalledWith([
+                    JSON.stringify({ type: "text", text: "Test message" }),
+                ]);
             });
             expect(input.value).toBe("");
         });
@@ -817,7 +867,9 @@ describe("MessageInput", () => {
             fireEvent.keyDown(input, { key: "Enter", shiftKey: false });
 
             await waitFor(() => {
-                expect(mockOnSend).toHaveBeenCalledWith("Test message");
+                expect(mockOnSend).toHaveBeenCalledWith([
+                    JSON.stringify({ type: "text", text: "Test message" }),
+                ]);
             });
             expect(input.value).toBe("");
         });
@@ -889,66 +941,39 @@ describe("MessageInput", () => {
                 "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
                 "https://youtu.be/dQw4w9WgXcQ",
             ];
-            const isYoutubeUrlMock = jest
-                .fn()
-                .mockImplementation((url) => youtubeUrls.includes(url));
-            jest.spyOn(
-                require("../../utils/urlUtils"),
-                "isYoutubeUrl",
-            ).mockImplementation(isYoutubeUrlMock);
 
-            const setUrlsDataMock = jest.fn();
-            const originalUseState = React.useState;
-            jest.spyOn(React, "useState").mockImplementation((initialValue) => {
-                if (initialValue === "" && !setUrlsDataMock.mock.calls.length) {
-                    // trying to target setInputValue
-                    return originalUseState(initialValue);
-                }
-                if (
-                    Array.isArray(initialValue) &&
-                    initialValue.length === 0 &&
-                    setUrlsDataMock.mock.calls.length < 2
-                ) {
-                    // for urlsData and files
-                    if (
-                        React.useState.mock.calls
-                            .map((c) => c[0])
-                            .filter(
-                                (iv) => Array.isArray(iv) && iv.length === 0,
-                            ).length <= 2
-                    ) {
-                        // only mock for urlsData and files
-                        return [initialValue, setUrlsDataMock];
-                    }
-                }
-                return originalUseState(initialValue);
-            });
-
-            renderMessageInput({
+            renderMessageInputWithLoadingHarness({
                 enableRag: true,
                 initialShowFileUpload: false,
             });
 
-            const fileButton = screen.getByTestId("file-plus-button");
-            fireEvent.click(fileButton);
-
-            for (const youtubeUrl of youtubeUrls) {
+            // Send all YouTube URLs
+            for (let i = 0; i < youtubeUrls.length; i++) {
+                const youtubeUrl = youtubeUrls[i];
                 const input = screen.getByPlaceholderText("Send a message");
                 fireEvent.change(input, { target: { value: youtubeUrl } });
                 const submitButton = screen.getByTestId("send-button");
 
-                fireEvent.click(submitButton); // This should call onSend
+                fireEvent.click(submitButton);
 
-                expect(input.value).toBe(""); // Input cleared
+                // Wait for onSend to be called (confirms form was submitted)
+                await waitFor(() => {
+                    expect(mockOnSend).toHaveBeenCalledTimes(i + 1);
+                });
+
+                // Validate the last call matches the URL we just submitted
+                expect(mockOnSend).toHaveBeenLastCalledWith([
+                    JSON.stringify({ type: "text", text: youtubeUrl }),
+                ]);
+
+                // Verify input is cleared after submission
+                await waitFor(() => {
+                    expect(input.value).toBe("");
+                });
             }
 
-            await waitFor(() => {
-                expect(mockOnSend).toHaveBeenCalledTimes(youtubeUrls.length);
-            });
-            youtubeUrls.forEach((url) => {
-                expect(mockOnSend).toHaveBeenCalledWith(url); // Assuming onSend receives the raw URL for YouTube links
-            });
-            jest.spyOn(React, "useState").mockImplementation(originalUseState); // Restore
+            // Verify all calls were made
+            expect(mockOnSend).toHaveBeenCalledTimes(youtubeUrls.length);
         });
 
         it("should handle media URLs by adding to urlsData and enabling send", async () => {

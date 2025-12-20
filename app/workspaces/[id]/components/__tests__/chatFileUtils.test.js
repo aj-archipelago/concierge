@@ -2,12 +2,6 @@
  * @jest-environment node
  */
 
-// Mock memoryFilesUtils before imports (Jest hoists this automatically)
-/* eslint-disable import/first */
-jest.mock("../memoryFilesUtils", () => ({
-    removeFileFromMemory: jest.fn(),
-}));
-
 import {
     deleteFileFromCloud,
     checkFileUrlExists,
@@ -15,8 +9,6 @@ import {
     purgeFile,
     purgeFiles,
 } from "../chatFileUtils";
-import { removeFileFromMemory } from "../memoryFilesUtils";
-/* eslint-enable import/first */
 
 // Mock fetch
 global.fetch = jest.fn();
@@ -167,7 +159,6 @@ describe("chatFileUtils", () => {
 
         it("should purge file from cloud, memory, and chat", async () => {
             global.fetch.mockResolvedValueOnce({ ok: true });
-            removeFileFromMemory.mockResolvedValueOnce([]);
 
             const messages = [
                 {
@@ -188,20 +179,12 @@ describe("chatFileUtils", () => {
             });
 
             expect(result.cloudDeleted).toBe(true);
-            expect(result.memoryFileRemoved).toBe(true);
+            expect(result.userFileCollectionRemoved).toBe(true);
             expect(result.chatUpdated).toBe(true);
-            expect(removeFileFromMemory).toHaveBeenCalledWith(
-                mockApolloClient,
-                "ctx1",
-                "key1",
-                mockFileObj,
-            );
             expect(mockUpdateChatHook.mutateAsync).toHaveBeenCalled();
         });
 
         it("should skip cloud deletion when skipCloudDelete is true", async () => {
-            removeFileFromMemory.mockResolvedValueOnce([]);
-
             const result = await purgeFile({
                 fileObj: mockFileObj,
                 apolloClient: mockApolloClient,
@@ -215,17 +198,16 @@ describe("chatFileUtils", () => {
             expect(global.fetch).not.toHaveBeenCalled();
         });
 
-        it("should skip memory files removal when skipMemoryFiles is true", async () => {
+        it("should skip file collection update when skipUserFileCollection is true", async () => {
             global.fetch.mockResolvedValueOnce({ ok: true });
 
             const result = await purgeFile({
                 fileObj: mockFileObj,
-                skipMemoryFiles: true,
+                skipUserFileCollection: true,
                 t: mockT,
             });
 
-            expect(result.memoryFileRemoved).toBe(false);
-            expect(removeFileFromMemory).not.toHaveBeenCalled();
+            expect(result.userFileCollectionRemoved).toBe(false);
         });
 
         it("should handle files without hash", async () => {
@@ -254,7 +236,6 @@ describe("chatFileUtils", () => {
 
         it("should match files by hash, url, gcs, or image_url", async () => {
             global.fetch.mockResolvedValueOnce({ ok: true });
-            removeFileFromMemory.mockResolvedValueOnce([]);
 
             const messages = [
                 {
@@ -320,9 +301,6 @@ describe("chatFileUtils", () => {
             global.fetch
                 .mockResolvedValueOnce({ ok: true })
                 .mockResolvedValueOnce({ ok: true });
-            removeFileFromMemory
-                .mockResolvedValueOnce([])
-                .mockResolvedValueOnce([]);
 
             const messages = [
                 {
@@ -346,16 +324,14 @@ describe("chatFileUtils", () => {
             });
 
             expect(result.cloudDeleted).toBe(2);
-            expect(result.memoryFileRemoved).toBe(true);
+            expect(result.userFileCollectionRemoved).toBe(true);
             expect(result.chatUpdated).toBe(true);
-            expect(removeFileFromMemory).toHaveBeenCalledTimes(2);
             // Should only update chat once for all files
             expect(mockUpdateChatHook.mutateAsync).toHaveBeenCalledTimes(1);
         });
 
         it("should handle single file in array", async () => {
             global.fetch.mockResolvedValueOnce({ ok: true });
-            removeFileFromMemory.mockResolvedValueOnce([]);
 
             const result = await purgeFiles({
                 fileObjs: [mockFileObjs[0]],
@@ -395,7 +371,6 @@ describe("chatFileUtils", () => {
 
         it("should use getFilename function when provided", async () => {
             global.fetch.mockResolvedValueOnce({ ok: true });
-            removeFileFromMemory.mockResolvedValueOnce([]);
 
             const getFilename = jest.fn(
                 (file) => `custom-${file.originalFilename}`,

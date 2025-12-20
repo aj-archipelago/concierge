@@ -175,7 +175,7 @@ const SYS_READ_MEMORY = gql`
 `;
 
 const SYS_SAVE_MEMORY = gql`
-    query SysSaveMemory(
+    mutation SysSaveMemory(
         $aiMemory: String!
         $contextId: String!
         $contextKey: String
@@ -186,6 +186,48 @@ const SYS_SAVE_MEMORY = gql`
             contextId: $contextId
             contextKey: $contextKey
             section: $section
+        ) {
+            result
+        }
+    }
+`;
+
+const SYS_READ_FILE_COLLECTION = gql`
+    query SysReadFileCollection(
+        $contextId: String!
+        $contextKey: String
+        $useCache: Boolean
+    ) {
+        sys_read_file_collection(
+            contextId: $contextId
+            contextKey: $contextKey
+            useCache: $useCache
+        ) {
+            result
+        }
+    }
+`;
+
+const SYS_UPDATE_FILE_METADATA = gql`
+    mutation SysUpdateFileMetadata(
+        $contextId: String!
+        $contextKey: String
+        $hash: String!
+        $displayFilename: String
+        $tags: [String!]
+        $notes: String
+        $mimeType: String
+        $permanent: Boolean
+    ) {
+        sys_update_file_metadata(
+            contextId: $contextId
+            contextKey: $contextKey
+            hash: $hash
+            displayFilename: $displayFilename
+            tags: $tags
+            notes: $notes
+            mimeType: $mimeType
+            permanent: $permanent
         ) {
             result
         }
@@ -205,7 +247,7 @@ const CHAT_TITLE = gql`
 `;
 
 const SYS_ENTITY_AGENT = gql`
-    query RagStart(
+    query StartAgent(
         $chatHistory: [MultiMessage]!
         $contextId: String
         $contextKey: String
@@ -1041,6 +1083,8 @@ const QUERIES = {
     VIDEO_SEEDANCE,
     SYS_READ_MEMORY,
     SYS_SAVE_MEMORY,
+    SYS_READ_FILE_COLLECTION,
+    SYS_UPDATE_FILE_METADATA,
     SYS_ENTITY_AGENT,
     SYS_GET_ENTITIES,
     SYS_TOOL_MERMAID,
@@ -1133,6 +1177,8 @@ export {
     EXPAND_STORY,
     SYS_READ_MEMORY,
     SYS_SAVE_MEMORY,
+    SYS_READ_FILE_COLLECTION,
+    SYS_UPDATE_FILE_METADATA,
     SYS_ENTITY_AGENT,
     SYS_GET_ENTITIES,
     SYS_TOOL_MERMAID,

@@ -12,14 +12,18 @@ import {
     RotateCw,
 } from "lucide-react";
 import {
-    hashMediaFile,
     ACCEPTED_FILE_TYPES,
     isSupportedFileUrl,
     getFilename,
     getVideoDuration,
     getFileIcon,
     getExtension,
+    hashMediaFile,
 } from "../../utils/mediaUtils";
+import {
+    uploadFileToMediaHelper,
+    checkFileByHash,
+} from "../../utils/fileUploadUtils";
 import {
     isYoutubeUrl,
     extractYoutubeVideoId,
@@ -29,6 +33,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useFilePreview, renderFilePreview } from "./useFilePreview";
 import { LanguageContext } from "../../contexts/LanguageProvider";
+import { AuthContext } from "../../App";
 
 // Global upload speed tracking
 let lastBytesPerMs = null;
@@ -39,8 +44,8 @@ function FileThumbnail({ file, onRemove, onRetry }) {
     const isRTL = direction === "rtl";
 
     const displayName =
+        file.displayFilename ||
         file.filename ||
-        file.originalFilename ||
         file.name ||
         file.source?.filename ||
         t("Unknown file");
@@ -246,8 +251,11 @@ export default function FileUploader({
 }) {
     const { t } = useTranslation();
     const { direction } = useContext(LanguageContext);
+    const { user } = useContext(AuthContext);
     const isRTL = direction === "rtl";
     const serverUrl = "/media-helper";
+    // Use default user contextId for chat files
+    const contextId = user?.contextId || null;
     const [inputUrl, setInputUrl] = useState("");
     const [showUrlInput, setShowUrlInput] = useState(false);
     const fileInputRef = useRef(null);
@@ -433,13 +441,12 @@ export default function FileUploader({
                     gcs: url,
                     type: "video/youtube",
                     filename: getFilename(url),
-                    originalFilename: getFilename(url),
+                    displayFilename: getFilename(url),
                     payload: JSON.stringify([
                         JSON.stringify({
                             type: "image_url",
                             url: url,
                             gcs: url,
-                            originalFilename: getFilename(url),
                         }),
                     ]),
                 };
@@ -481,7 +488,8 @@ export default function FileUploader({
 
                     const responseWithFilename = {
                         ...response.data,
-                        originalFilename: urlFilename,
+                        displayFilename:
+                            response.data.displayFilename || urlFilename,
                     };
                     addUrl(responseWithFilename);
                     processingFilesRef.current.delete(fileId);
@@ -574,120 +582,127 @@ export default function FileUploader({
                     progress: 0,
                 });
 
+                // Check if file exists using shared utility
                 const fileHash = await hashMediaFile(fileObj);
+                const existingFile = await checkFileByHash(fileHash, {
+                    contextId,
+                    serverUrl,
+                });
 
-                // Check if file exists
-                try {
-                    const response = await axios.get(
-                        `${serverUrl}?hash=${fileHash}&checkHash=true`,
-                    );
-                    if (response.status === 200 && response.data?.url) {
-                        if (isSupportedFileUrl(fileObj?.name)) {
-                            const hasAzureUrl =
-                                response.data.url &&
-                                response.data.url.includes(
-                                    "blob.core.windows.net",
-                                );
-                            const hasGcsUrl = response.data.gcs;
+                if (existingFile) {
+                    // File already exists
+                    if (isSupportedFileUrl(fileObj?.name)) {
+                        const hasAzureUrl =
+                            existingFile.url &&
+                            existingFile.url.includes("blob.core.windows.net");
+                        const hasGcsUrl = existingFile.gcs;
 
-                            if (!hasAzureUrl || !hasGcsUrl) {
-                                throw new Error(
-                                    t(
-                                        "Media file upload failed: Missing required storage URLs",
-                                    ),
-                                );
-                            }
-                        }
-
-                        const responseWithFilename = {
-                            ...response.data,
-                            originalFilename: fileObj.name,
-                            hash: response.data.hash || fileHash,
-                        };
-
-                        if (
-                            isFileRemoved(fileObj.name) ||
-                            isFileRemoved(
-                                responseWithFilename.originalFilename,
-                            ) ||
-                            isFileRemoved(responseWithFilename.url) ||
-                            isFileRemoved(responseWithFilename.gcs)
-                        ) {
-                            processingFilesRef.current.delete(fileId);
+                        if (!hasAzureUrl || !hasGcsUrl) {
                             throw new Error(
                                 t(
-                                    "File was removed before processing could complete.",
+                                    "Media file upload failed: Missing required storage URLs",
                                 ),
                             );
                         }
+                    }
 
+                    const responseWithFilename = {
+                        ...existingFile,
+                        hash: existingFile.hash || fileHash,
+                    };
+
+                    if (
+                        isFileRemoved(fileObj.name) ||
+                        isFileRemoved(responseWithFilename.url) ||
+                        isFileRemoved(responseWithFilename.gcs)
+                    ) {
                         processingFilesRef.current.delete(fileId);
-                        updateFileStatus(fileId, {
-                            status: "completed",
-                            progress: 100,
-                            serverId: responseWithFilename.url,
-                        });
-                        addUrl(responseWithFilename);
-                        setIsUploadingMedia(false);
-                        return;
+                        throw new Error(
+                            t(
+                                "File was removed before processing could complete.",
+                            ),
+                        );
                     }
-                } catch (err) {
-                    if (err.response?.status !== 404) {
-                        console.error("Error checking file hash:", err);
-                    }
+
+                    processingFilesRef.current.delete(fileId);
+                    updateFileStatus(fileId, {
+                        status: "completed",
+                        progress: 100,
+                        serverId: responseWithFilename.url,
+                    });
+                    addUrl(responseWithFilename);
+                    setIsUploadingMedia(false);
+                    return;
                 }
 
-                // Upload the file
+                // File doesn't exist, upload it with custom progress tracking
                 const startTimestamp = Date.now();
                 let totalBytes = 0;
-                const formData = new FormData();
-                formData.append("hash", fileHash);
-                formData.append("files", fileObj, fileObj.name);
-
-                const xhr = new XMLHttpRequest();
-                uploadAbortControllersRef.current.set(fileId, {
-                    abort: () => xhr.abort(),
-                });
-
                 let cloudProgressInterval;
 
-                xhr.upload.onprogress = (e) => {
-                    if (e.lengthComputable) {
-                        totalBytes = e.total;
-                        const uploadProgress = (e.loaded / e.total) * 50;
-                        updateFileStatus(fileId, {
-                            progress: uploadProgress,
-                        });
-
-                        if (uploadProgress >= 49 && !cloudProgressInterval) {
-                            let cloudProgress = 50;
-                            let expectedTotalTime;
-                            if (lastBytesPerMs) {
-                                expectedTotalTime = totalBytes / lastBytesPerMs;
-                            } else {
-                                expectedTotalTime =
-                                    (Date.now() - startTimestamp) * 2;
-                            }
-
-                            const remainingSteps = 49;
-                            const cloudProcessingInterval =
-                                expectedTotalTime / remainingSteps;
-
-                            cloudProgressInterval = setInterval(() => {
-                                cloudProgress += 1;
-                                updateFileStatus(fileId, {
-                                    progress: cloudProgress,
+                try {
+                    const responseData = await uploadFileToMediaHelper(
+                        fileObj,
+                        {
+                            contextId,
+                            checkHash: false, // Already checked above
+                            serverUrl,
+                            getXHR: (xhr) => {
+                                uploadAbortControllersRef.current.set(fileId, {
+                                    abort: () => xhr.abort(),
                                 });
-                                if (cloudProgress >= 99) {
-                                    clearInterval(cloudProgressInterval);
-                                    cloudProgressInterval = null;
-                                }
-                            }, cloudProcessingInterval);
-                        }
-                    }
-                };
+                            },
+                            onProgress: (event) => {
+                                // Custom progress tracking: 0-50% upload, 50-100% cloud processing simulation
+                                if (event.lengthComputable) {
+                                    totalBytes = event.total;
+                                    const uploadProgress =
+                                        (event.loaded / event.total) * 50;
+                                    updateFileStatus(fileId, {
+                                        progress: uploadProgress,
+                                    });
 
-                xhr.onload = () => {
+                                    if (
+                                        uploadProgress >= 49 &&
+                                        !cloudProgressInterval
+                                    ) {
+                                        let cloudProgress = 50;
+                                        let expectedTotalTime;
+                                        if (lastBytesPerMs) {
+                                            expectedTotalTime =
+                                                totalBytes / lastBytesPerMs;
+                                        } else {
+                                            expectedTotalTime =
+                                                (Date.now() - startTimestamp) *
+                                                2;
+                                        }
+
+                                        const remainingSteps = 49;
+                                        const cloudProcessingInterval =
+                                            expectedTotalTime / remainingSteps;
+
+                                        cloudProgressInterval = setInterval(
+                                            () => {
+                                                cloudProgress += 1;
+                                                updateFileStatus(fileId, {
+                                                    progress: cloudProgress,
+                                                });
+                                                if (cloudProgress >= 99) {
+                                                    clearInterval(
+                                                        cloudProgressInterval,
+                                                    );
+                                                    cloudProgressInterval =
+                                                        null;
+                                                }
+                                            },
+                                            cloudProcessingInterval,
+                                        );
+                                    }
+                                }
+                            },
+                        },
+                    );
+
                     if (cloudProgressInterval) {
                         clearInterval(cloudProgressInterval);
                     }
@@ -697,115 +712,70 @@ export default function FileUploader({
                         lastBytesPerMs = totalBytes / totalTime;
                     }
 
-                    if (xhr.status >= 200 && xhr.status < 300) {
-                        let responseData;
-                        try {
-                            responseData = JSON.parse(xhr.responseText);
-                        } catch (err) {
-                            console.error("Error parsing response:", err);
-                            processingFilesRef.current.delete(fileId);
-                            updateFileStatus(fileId, {
-                                status: "error",
-                                error: t("Error parsing server response"),
-                            });
-                            setIsUploadingMedia(false);
-                            return;
-                        }
+                    if (isSupportedFileUrl(fileObj?.name)) {
+                        const hasAzureUrl =
+                            responseData.url &&
+                            responseData.url.includes("blob.core.windows.net");
+                        const hasGcsUrl = responseData.gcs;
 
-                        if (isSupportedFileUrl(fileObj?.name)) {
-                            const hasAzureUrl =
-                                responseData.url &&
-                                responseData.url.includes(
-                                    "blob.core.windows.net",
-                                );
-                            const hasGcsUrl = responseData.gcs;
-
-                            if (!hasAzureUrl || !hasGcsUrl) {
-                                processingFilesRef.current.delete(fileId);
-                                updateFileStatus(fileId, {
-                                    status: "error",
-                                    error: t(
-                                        "Media file upload failed: Missing required storage URLs",
-                                    ),
-                                });
-                                setIsUploadingMedia(false);
-                                return;
-                            }
-                        }
-
-                        const responseWithFilename = {
-                            ...responseData,
-                            originalFilename: fileObj.name,
-                            hash:
-                                responseData.hash ||
-                                responseData.file?.hash ||
-                                fileHash,
-                        };
-
-                        if (
-                            isFileRemoved(fileObj.name) ||
-                            isFileRemoved(
-                                responseWithFilename.originalFilename,
-                            ) ||
-                            isFileRemoved(responseWithFilename.url) ||
-                            isFileRemoved(responseWithFilename.gcs)
-                        ) {
+                        if (!hasAzureUrl || !hasGcsUrl) {
                             processingFilesRef.current.delete(fileId);
                             updateFileStatus(fileId, {
                                 status: "error",
                                 error: t(
-                                    "File was removed before processing could complete.",
+                                    "Media file upload failed: Missing required storage URLs",
                                 ),
                             });
                             setIsUploadingMedia(false);
                             return;
                         }
+                    }
 
-                        processingFilesRef.current.delete(fileId);
-                        updateFileStatus(fileId, {
-                            status: "completed",
-                            progress: 100,
-                            serverId: responseWithFilename.url,
-                        });
-                        addUrl(responseWithFilename);
-                        setIsUploadingMedia(false);
-                    } else {
-                        let errorMessage = t("Error while uploading");
-                        try {
-                            const errorResponseData = JSON.parse(
-                                xhr.responseText,
-                            );
-                            if (typeof errorResponseData === "string") {
-                                errorMessage = errorResponseData;
-                            } else if (errorResponseData?.error) {
-                                errorMessage = errorResponseData.error;
-                            } else if (errorResponseData?.message) {
-                                errorMessage = errorResponseData.message;
-                            }
-                        } catch (err) {
-                            // If parsing fails, use default error message
-                            console.error("Error parsing error response:", err);
-                        }
+                    const responseWithFilename = {
+                        ...responseData,
+                        displayFilename: fileObj.name,
+                        hash: responseData.hash || fileHash,
+                    };
+
+                    if (
+                        isFileRemoved(fileObj.name) ||
+                        isFileRemoved(responseWithFilename.url) ||
+                        isFileRemoved(responseWithFilename.gcs)
+                    ) {
                         processingFilesRef.current.delete(fileId);
                         updateFileStatus(fileId, {
                             status: "error",
-                            error: errorMessage,
+                            error: t(
+                                "File was removed before processing could complete.",
+                            ),
                         });
                         setIsUploadingMedia(false);
+                        return;
                     }
-                };
 
-                xhr.onerror = () => {
                     processingFilesRef.current.delete(fileId);
                     updateFileStatus(fileId, {
+                        status: "completed",
+                        progress: 100,
+                        serverId: responseWithFilename.url,
+                    });
+                    addUrl(responseWithFilename);
+                    setIsUploadingMedia(false);
+                } catch (error) {
+                    if (cloudProgressInterval) {
+                        clearInterval(cloudProgressInterval);
+                    }
+                    processingFilesRef.current.delete(fileId);
+                    let errorMessage = t("Error while uploading");
+                    if (error.message) {
+                        errorMessage = error.message;
+                    }
+                    updateFileStatus(fileId, {
                         status: "error",
-                        error: t("Error while uploading"),
+                        error: errorMessage,
                     });
                     setIsUploadingMedia(false);
-                };
-
-                xhr.open("POST", `${serverUrl}?hash=${fileHash}`);
-                xhr.send(formData);
+                }
             } catch (error) {
                 processingFilesRef.current.delete(fileId);
                 updateFileStatus(fileId, {
@@ -823,6 +793,7 @@ export default function FileUploader({
             addUrl,
             setIsUploadingMedia,
             processUrlFile,
+            contextId,
         ],
     );
 
@@ -840,13 +811,12 @@ export default function FileUploader({
                 gcs: inputUrl,
                 type: "video/youtube",
                 filename: getFilename(inputUrl),
-                originalFilename: getFilename(inputUrl),
+                displayFilename: getFilename(inputUrl),
                 payload: JSON.stringify([
                     JSON.stringify({
                         type: "image_url",
                         url: inputUrl,
                         gcs: inputUrl,
-                        originalFilename: getFilename(inputUrl),
                     }),
                 ]),
             };
@@ -924,8 +894,8 @@ export default function FileUploader({
             if (file.filename) {
                 removedFilesRef.current.add(file.filename);
             }
-            if (file.originalFilename) {
-                removedFilesRef.current.add(file.originalFilename);
+            if (file.displayFilename) {
+                removedFilesRef.current.add(file.displayFilename);
             }
             if (file.source?.url) {
                 removedFilesRef.current.add(file.source.url);
@@ -972,7 +942,7 @@ export default function FileUploader({
                             url.url !== file.serverId &&
                             url.gcs !== file.serverId &&
                             url.filename !== file.filename &&
-                            url.originalFilename !== file.originalFilename,
+                            url.displayFilename !== file.displayFilename,
                     ),
                 );
             }

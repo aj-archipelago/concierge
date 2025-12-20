@@ -177,11 +177,9 @@ const createTestableDeleteHandler = () => {
                 );
             }
 
-            // Delete the file from the container using the file handler
+            // Delete the file using the file handler
             try {
-                const containerName =
-                    process.env.CORTEX_MEDIA_PERMANENT_STORE_NAME;
-                if (containerName && fileToDelete.hash) {
+                if (fileToDelete.hash) {
                     const host =
                         request.headers.get("x-forwarded-host") ||
                         request.headers.get("host") ||
@@ -192,34 +190,33 @@ const createTestableDeleteHandler = () => {
                     // In tests, use a simple URL construction instead of config
                     const mediaHelperUrl = `${serverUrl}/media-helper`;
 
-                    const deleteResponse = await fetch(mediaHelperUrl, {
+                    const deleteUrl = new URL(mediaHelperUrl);
+                    deleteUrl.searchParams.set("hash", fileToDelete.hash);
+                    // Workspace/applet artifacts use workspaceId (shared across all users)
+                    deleteUrl.searchParams.set("contextId", workspaceId);
+
+                    const deleteResponse = await fetch(deleteUrl.toString(), {
                         method: "DELETE",
                         headers: {
                             "Content-Type": "application/json",
                         },
-                        body: JSON.stringify({
-                            params: {
-                                hash: fileToDelete.hash,
-                                container: containerName,
-                            },
-                        }),
                     });
 
                     if (!deleteResponse.ok) {
                         const errorBody = await deleteResponse.text();
                         console.warn(
-                            `Failed to delete file from container: ${deleteResponse.statusText}. Response: ${errorBody}`,
+                            `Failed to delete file: ${deleteResponse.statusText}. Response: ${errorBody}`,
                         );
-                        // Continue with database deletion even if container deletion fails
+                        // Continue with database deletion even if file deletion fails
                     } else {
                         console.log(
-                            `Successfully deleted file ${fileToDelete.hash} from container ${containerName}`,
+                            `Successfully deleted file ${fileToDelete.hash}`,
                         );
                     }
                 }
             } catch (error) {
-                console.error("Error deleting file from container:", error);
-                // Continue with database deletion even if container deletion fails
+                console.error("Error deleting file:", error);
+                // Continue with database deletion even if file deletion fails
             }
 
             // Remove the file document
@@ -290,6 +287,7 @@ describe("DELETE /api/workspaces/[id]/files/[fileId]", () => {
         // Mock user
         mockUser = {
             _id: "user123",
+            contextId: "user123",
             toString: () => "user123",
         };
 
@@ -351,38 +349,25 @@ describe("DELETE /api/workspaces/[id]/files/[fileId]", () => {
             text: jest.fn().mockResolvedValue("Success"),
         });
 
-        // Note: Container deletion is simulated in the test implementation
-
-        // Mock environment variable
-        process.env.CORTEX_MEDIA_PERMANENT_STORE_NAME = "permanent-container";
-    });
-
-    afterEach(() => {
-        delete process.env.CORTEX_MEDIA_PERMANENT_STORE_NAME;
+        // Note: File deletion is simulated in the test implementation
     });
 
     describe("Successful Deletion", () => {
-        test("should delete file successfully with container cleanup", async () => {
+        test("should delete file successfully with file handler cleanup", async () => {
             const result = await DELETE(mockRequest, { params: mockParams });
 
             expect(result.status).toBe(200);
             expect(result.data.success).toBe(true);
             expect(result.data.files).toEqual([]);
 
-            // Verify container deletion was called
+            // Verify file deletion was called with hash and workspaceId (workspace artifacts use workspaceId)
             expect(global.fetch).toHaveBeenCalledWith(
-                "http://localhost:3000/media-helper",
+                "http://localhost:3000/media-helper?hash=testFileHash123&contextId=workspace123",
                 {
                     method: "DELETE",
                     headers: {
                         "Content-Type": "application/json",
                     },
-                    body: JSON.stringify({
-                        params: {
-                            hash: "testFileHash123",
-                            container: "permanent-container",
-                        },
-                    }),
                 },
             );
 
@@ -398,13 +383,13 @@ describe("DELETE /api/workspaces/[id]/files/[fileId]", () => {
             );
         });
 
-        test("should delete file when container cleanup fails but continue with DB deletion", async () => {
-            // Mock failed container deletion
+        test("should delete file when file handler cleanup fails but continue with DB deletion", async () => {
+            // Mock failed file deletion
             global.fetch.mockResolvedValue({
                 ok: false,
                 status: 500,
                 statusText: "Internal Server Error",
-                text: () => Promise.resolve("Container deletion failed"),
+                text: () => Promise.resolve("File deletion failed"),
             });
 
             const consoleWarnSpy = jest
@@ -422,10 +407,10 @@ describe("DELETE /api/workspaces/[id]/files/[fileId]", () => {
                 expect(result.status).toBe(200);
                 expect(result.data.success).toBe(true);
 
-                // Verify container deletion was attempted but failed
+                // Verify file deletion was attempted but failed
                 expect(global.fetch).toHaveBeenCalled();
                 expect(consoleWarnSpy).toHaveBeenCalledWith(
-                    "Failed to delete file from container: Internal Server Error. Response: Container deletion failed",
+                    "Failed to delete file: Internal Server Error. Response: File deletion failed",
                 );
 
                 // Verify database deletion still happened
@@ -435,22 +420,6 @@ describe("DELETE /api/workspaces/[id]/files/[fileId]", () => {
                 consoleWarnSpy.mockRestore();
                 consoleErrorSpy.mockRestore();
             }
-        });
-
-        test("should delete file when container environment variable is not set", async () => {
-            delete process.env.CORTEX_MEDIA_PERMANENT_STORE_NAME;
-
-            const result = await DELETE(mockRequest, { params: mockParams });
-
-            expect(result.status).toBe(200);
-            expect(result.data.success).toBe(true);
-
-            // Verify container deletion was not attempted
-            expect(global.fetch).not.toHaveBeenCalled();
-
-            // Verify database deletion still happened
-            const File = require("../../../../models/file").default;
-            expect(File.findByIdAndDelete).toHaveBeenCalledWith("file123");
         });
 
         test("should delete file when file has no hash", async () => {
@@ -463,7 +432,7 @@ describe("DELETE /api/workspaces/[id]/files/[fileId]", () => {
             expect(result.status).toBe(200);
             expect(result.data.success).toBe(true);
 
-            // Verify container deletion was not attempted
+            // Verify file deletion was not attempted (no hash)
             expect(global.fetch).not.toHaveBeenCalled();
 
             // Verify database deletion still happened
@@ -667,7 +636,7 @@ describe("DELETE /api/workspaces/[id]/files/[fileId]", () => {
         });
     });
 
-    describe("Container Deletion Edge Cases", () => {
+    describe("File Deletion Edge Cases", () => {
         test("should handle fetch error gracefully", async () => {
             global.fetch.mockRejectedValue(new Error("Network error"));
 
@@ -684,7 +653,7 @@ describe("DELETE /api/workspaces/[id]/files/[fileId]", () => {
                 expect(result.data.success).toBe(true);
 
                 expect(consoleErrorSpy).toHaveBeenCalledWith(
-                    "Error deleting file from container:",
+                    "Error deleting file:",
                     expect.any(Error),
                 );
 
@@ -719,10 +688,15 @@ describe("DELETE /api/workspaces/[id]/files/[fileId]", () => {
 
             expect(result.status).toBe(200);
 
-            // Verify correct URL was used
+            // Verify correct URL was used with hash and workspaceId (workspace artifacts use workspaceId)
             expect(global.fetch).toHaveBeenCalledWith(
-                "https://myapp.com/media-helper",
-                expect.any(Object),
+                "https://myapp.com/media-helper?hash=testFileHash123&contextId=workspace123",
+                expect.objectContaining({
+                    method: "DELETE",
+                    headers: {
+                        "Content-Type": "application/json",
+                    },
+                }),
             );
         });
     });

@@ -103,7 +103,7 @@ const VISION = gql`
 `;
 
 const SYS_SAVE_MEMORY = gql`
-    query SysSaveMemory(
+    mutation SysSaveMemory(
         $aiMemory: String!
         $contextId: String!
         $contextKey: String
@@ -127,7 +127,7 @@ const CODE_HUMAN_INPUT = gql`
 `;
 
 const SYS_ENTITY_AGENT = gql`
-    query RagStart(
+    query StartAgent(
         $chatHistory: [MultiMessage]!
         $contextId: String
         $contextKey: String

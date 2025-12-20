@@ -67,6 +67,7 @@ export async function POST(request, { params }) {
         },
 
         errorPrefix: "applet file upload",
+        permanent: true, // Applet files are artifacts and should be permanent
     });
 
     if (result.error) {

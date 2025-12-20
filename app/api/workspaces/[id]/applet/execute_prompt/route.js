@@ -4,6 +4,7 @@ import { QUERIES } from "../../../../../../src/graphql";
 import LLM from "../../../../models/llm";
 import Prompt from "../../../../models/prompt";
 import Workspace from "../../../../models/workspace";
+import { getCurrentUser } from "../../../../utils/auth";
 import {
     getLLMWithFallback,
     getAnyAgenticLLM,
@@ -15,6 +16,9 @@ export async function POST(request, { params }) {
     try {
         let { prompt, systemPrompt, promptId, chatHistory, files } =
             await request.json();
+
+        // Get user for contextId
+        const user = await getCurrentUser();
 
         if (!prompt && !promptId && !chatHistory) {
             return NextResponse.json(
@@ -47,8 +51,9 @@ export async function POST(request, { params }) {
 
         // Fetch workspace to get systemPrompt (workspace context)
         let workspaceSystemPrompt = systemPrompt;
+        let workspace = null;
         if (params.id) {
-            const workspace = await Workspace.findById(params.id);
+            workspace = await Workspace.findById(params.id);
             if (workspace && workspace.systemPrompt) {
                 workspaceSystemPrompt = workspace.systemPrompt;
             }
@@ -63,6 +68,10 @@ export async function POST(request, { params }) {
             allFiles.push(...files);
         }
 
+        // Workspace artifacts use workspaceId, user-submitted files use user.contextId
+        const workspaceIdForFiles = workspace?._id?.toString() || null;
+        const userContextIdForFiles = user?.contextId || null;
+
         // Build variables: systemPrompt (workspace context), prompt (prompt text), text (user input)
         const variables = await buildWorkspacePromptVariables({
             systemPrompt: workspaceSystemPrompt,
@@ -70,6 +79,8 @@ export async function POST(request, { params }) {
             text: prompt,
             files: allFiles,
             chatHistory: chatHistory,
+            workspaceId: workspaceIdForFiles,
+            userContextId: userContextIdForFiles,
         });
 
         if (llm.cortexModelName !== config.cortex?.AGENTIC_MODEL) {

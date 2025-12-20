@@ -276,13 +276,105 @@ function Chat({ viewingChat = null }) {
         <div className="flex flex-col gap-3 h-full">
             <div className="flex justify-between items-center flex-wrap gap-2">
                 <div className="flex gap-2 items-center flex-wrap">
-                    {user?.useCustomEntities ? (
-                        <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
+                    {readOnly ? (
+                        <button
+                            onClick={
+                                publicChatOwner
+                                    ? () => setShowSharedByDialog(true)
+                                    : undefined
+                            }
+                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md transition-colors border bg-gray-50 dark:bg-gray-900/50 text-gray-500 dark:text-gray-400 border-gray-200 dark:border-gray-700 text-xs ${
+                                publicChatOwner
+                                    ? "hover:bg-gray-100 dark:hover:bg-gray-800 cursor-pointer"
+                                    : "cursor-default"
+                            }`}
+                            title={
+                                publicChatOwner
+                                    ? `${t("Shared by")} ${publicChatOwner?.name || publicChatOwner?.username || ""}`
+                                    : t("Read-only mode")
+                            }
+                        >
+                            <span>{t("Read-only mode")}</span>
+                            {publicChatOwner && (
+                                <Info className="w-3.5 h-3.5" />
+                            )}
+                        </button>
+                    ) : (
+                        <>
+                            {user?.useCustomEntities ? (
+                                <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                        <button
+                                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-md transition-colors border bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 border-gray-200 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-600 text-xs"
+                                            aria-label={t("Select entity")}
+                                        >
+                                            <div className="flex items-center gap-2">
+                                                {selectedEntityId ? (
+                                                    <>
+                                                        <span className="hidden sm:inline">
+                                                            {t("Chatting with")}{" "}
+                                                            {t(
+                                                                entities.find(
+                                                                    (e) =>
+                                                                        e.id ===
+                                                                        selectedEntityId,
+                                                                )?.name,
+                                                            )}
+                                                        </span>
+                                                        <span className="sm:hidden">
+                                                            {t(
+                                                                entities.find(
+                                                                    (e) =>
+                                                                        e.id ===
+                                                                        selectedEntityId,
+                                                                )?.name,
+                                                            )}
+                                                        </span>
+                                                        <EntityIcon
+                                                            entity={entities.find(
+                                                                (e) =>
+                                                                    e.id ===
+                                                                    selectedEntityId,
+                                                            )}
+                                                            size="xs"
+                                                        />
+                                                    </>
+                                                ) : (
+                                                    <span>
+                                                        {t("Select entity")}
+                                                    </span>
+                                                )}
+                                            </div>
+                                            <ChevronDown className="w-3.5 h-3.5" />
+                                        </button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent
+                                        align={isRTL ? "start" : "end"}
+                                    >
+                                        {entities.map((entity) => (
+                                            <DropdownMenuItem
+                                                key={entity.id}
+                                                onClick={() =>
+                                                    handleEntityChange(
+                                                        entity.id,
+                                                    )
+                                                }
+                                                className="flex items-center gap-2 text-sm focus:bg-gray-100 dark:focus:bg-gray-700 dark:focus:text-gray-100"
+                                            >
+                                                <EntityIcon
+                                                    entity={entity}
+                                                    size="xs"
+                                                />
+                                                {t(entity.name)}
+                                            </DropdownMenuItem>
+                                        ))}
+                                    </DropdownMenuContent>
+                                </DropdownMenu>
+                            ) : (
                                 <button
-                                    disabled={readOnly}
-                                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md transition-colors border bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 border-gray-200 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-white dark:disabled:hover:bg-gray-700 text-xs`}
+                                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-md transition-colors border bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 border-gray-200 dark:border-gray-600 text-xs cursor-default"
                                     aria-label={t("Select entity")}
+                                    tabIndex={-1}
                                 >
                                     <div className="flex items-center gap-2">
                                         {selectedEntityId ? (
@@ -319,82 +411,14 @@ function Chat({ viewingChat = null }) {
                                             <span>{t("Select entity")}</span>
                                         )}
                                     </div>
-                                    <ChevronDown className="w-3.5 h-3.5" />
                                 </button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent
-                                align={isRTL ? "start" : "end"}
-                            >
-                                {entities.map((entity) => (
-                                    <DropdownMenuItem
-                                        key={entity.id}
-                                        onClick={() =>
-                                            handleEntityChange(entity.id)
-                                        }
-                                        className="flex items-center gap-2 text-sm focus:bg-gray-100 dark:focus:bg-gray-700 dark:focus:text-gray-100"
-                                    >
-                                        <EntityIcon entity={entity} size="xs" />
-                                        {t(entity.name)}
-                                    </DropdownMenuItem>
-                                ))}
-                            </DropdownMenuContent>
-                        </DropdownMenu>
-                    ) : (
-                        <button
-                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-md transition-colors border bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 border-gray-200 dark:border-gray-600 text-xs cursor-default"
-                            aria-label={t("Select entity")}
-                            tabIndex={-1}
-                        >
-                            <div className="flex items-center gap-2">
-                                {selectedEntityId ? (
-                                    <>
-                                        <span className="hidden sm:inline">
-                                            {t("Chatting with")}{" "}
-                                            {t(
-                                                entities.find(
-                                                    (e) =>
-                                                        e.id ===
-                                                        selectedEntityId,
-                                                )?.name,
-                                            )}
-                                        </span>
-                                        <span className="sm:hidden">
-                                            {t(
-                                                entities.find(
-                                                    (e) =>
-                                                        e.id ===
-                                                        selectedEntityId,
-                                                )?.name,
-                                            )}
-                                        </span>
-                                        <EntityIcon
-                                            entity={entities.find(
-                                                (e) =>
-                                                    e.id === selectedEntityId,
-                                            )}
-                                            size="xs"
-                                        />
-                                    </>
-                                ) : (
-                                    <span>{t("Select entity")}</span>
-                                )}
-                            </div>
-                        </button>
+                            )}
+                        </>
                     )}
                     <ChatTopMenuDynamic
                         readOnly={readOnly || !!publicChatOwner}
                     />
                 </div>
-                {publicChatOwner && (
-                    <button
-                        onClick={() => setShowSharedByDialog(true)}
-                        className="flex items-center gap-1.5 text-xs font-medium text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-900/50 px-2 py-1 rounded border border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors cursor-pointer"
-                        title={t("Shared by")}
-                    >
-                        <span>{t("Read-only mode")}</span>
-                        <Info className="w-3.5 h-3.5" />
-                    </button>
-                )}
                 <div className="flex gap-2 items-center flex-wrap">
                     <button
                         disabled={!chat?.messages?.length}

@@ -42,11 +42,8 @@ export async function POST(req, res) {
                 obj.url = file.url;
                 obj.image_url = { url: file.url };
 
-                // Include original filename if available
-                if (file.originalName || file.originalFilename) {
-                    obj.originalFilename =
-                        file.originalName || file.originalFilename;
-                }
+                // Note: displayFilename is not included as it's not a standard field
+                // and the server won't use it
 
                 return JSON.stringify(obj);
             });

@@ -135,16 +135,13 @@ export default function WorkspaceInput({ onRun, onRunMany }) {
 
         // Add uploaded files (urlsData)
         if (urlsData && urlsData.length > 0) {
-            urlsData.forEach(
-                ({ url, gcs, converted, originalFilename, hash }) => {
-                    files.push({
-                        url: converted?.url || url,
-                        gcs: converted?.gcs || gcs,
-                        originalFilename,
-                        hash: hash || undefined, // Explicitly handle undefined hash
-                    });
-                },
-            );
+            urlsData.forEach(({ url, gcs, converted, hash }) => {
+                files.push({
+                    url: converted?.url || url,
+                    gcs: converted?.gcs || gcs,
+                    hash: hash || undefined, // Explicitly handle undefined hash
+                });
+            });
         }
 
         // Add selected workspace files (selectedFiles)
@@ -153,7 +150,6 @@ export default function WorkspaceInput({ onRun, onRunMany }) {
                 files.push({
                     url: file.url,
                     gcs: file.gcsUrl || file.gcs,
-                    originalFilename: file.originalName || file.filename,
                     _id: file._id,
                     hash: file.hash || undefined, // Explicitly handle undefined hash
                 });
@@ -234,7 +230,7 @@ export default function WorkspaceInput({ onRun, onRunMany }) {
                                 <div className="flex flex-wrap gap-1 max-h-12 overflow-y-auto">
                                     {urlsData.map((fileData, index) => {
                                         const fileName =
-                                            fileData.originalFilename ||
+                                            fileData.displayFilename ||
                                             fileData.url?.split("/").pop() ||
                                             `File ${index + 1}`;
                                         return (

@@ -10,7 +10,7 @@ import {
     DialogTitle,
     DialogDescription,
 } from "@/components/ui/dialog";
-import MemoryFiles from "@/app/workspaces/[id]/components/MemoryFiles";
+import UserFileCollection from "@/app/workspaces/[id]/components/UserFileCollection";
 
 function ChatTopMenu({ displayState = "full", readOnly = false }) {
     const { t } = useTranslation();
@@ -19,7 +19,8 @@ function ChatTopMenu({ displayState = "full", readOnly = false }) {
     const activeChatId = chat?._id;
     const updateChatHook = useUpdateChat();
     const [isResearchMode, setIsResearchMode] = useState(false);
-    const [showMemoryFilesDialog, setShowMemoryFilesDialog] = useState(false);
+    const [showFileCollectionDialog, setShowFileCollectionDialog] =
+        useState(false);
 
     useEffect(() => {
         if (chat?.researchMode !== undefined) {
@@ -57,7 +58,7 @@ function ChatTopMenu({ displayState = "full", readOnly = false }) {
                 </button>
 
                 <button
-                    onClick={() => setShowMemoryFilesDialog(true)}
+                    onClick={() => setShowFileCollectionDialog(true)}
                     disabled={readOnly}
                     className="flex items-center justify-center px-3 py-1.5 rounded-md transition-colors border bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 border-gray-200 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-white dark:disabled:hover:bg-gray-700"
                     title={
@@ -69,8 +70,8 @@ function ChatTopMenu({ displayState = "full", readOnly = false }) {
             </div>
 
             <Dialog
-                open={showMemoryFilesDialog}
-                onOpenChange={setShowMemoryFilesDialog}
+                open={showFileCollectionDialog}
+                onOpenChange={setShowFileCollectionDialog}
             >
                 <DialogContent className="max-w-2xl w-[calc(100vw-2rem)] sm:w-full overflow-hidden">
                     <DialogHeader>
@@ -82,7 +83,7 @@ function ChatTopMenu({ displayState = "full", readOnly = false }) {
                         </DialogDescription>
                     </DialogHeader>
                     {user?.contextId && (
-                        <MemoryFiles
+                        <UserFileCollection
                             contextId={user.contextId}
                             contextKey={user.contextKey}
                             chatId={activeChatId ? String(activeChatId) : null}

@@ -209,6 +209,7 @@ function ChatContent({
                         updateChatHook,
                         t,
                         filename:
+                            fileObj.displayFilename ||
                             fileObj.originalFilename ||
                             fileObj.filename ||
                             "file",

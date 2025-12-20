@@ -339,22 +339,22 @@ const UserOptions = ({ show, handleClose }) => {
                                     dir={direction}
                                 >
                                     <option value="OpenAI_Preview">
-                                        {t("OpenAI Preview (GPT-5.1)")}
+                                        {t("OpenAI Preview (GPT-5.2)")}
                                     </option>
                                     <option value="OpenAI">
-                                        {t("OpenAI (GPT-5)")}
+                                        {t("OpenAI (GPT-5.1)")}
                                     </option>
                                     <option value="OpenAI_Legacy">
                                         {t("OpenAI Legacy (GPT-4.1/O3)")}
                                     </option>
                                     <option value="XAI">
-                                        {t("XAI (Grok)")}
+                                        {t("XAI (Grok 4.1)")}
                                     </option>
                                     <option value="Anthropic">
-                                        {t("Anthropic (Claude)")}
+                                        {t("Anthropic (Claude 4.5 Sonnet)")}
                                     </option>
                                     <option value="Google">
-                                        {t("Google (Gemini)")}
+                                        {t("Google (Gemini 3 Flash/Pro)")}
                                     </option>
                                 </select>
                             </div>

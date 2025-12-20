@@ -77,7 +77,9 @@ const NewStyleGuideModal = ({ text, onCommit, workspaceId = null }) => {
                 files.push({
                     url: styleGuide.file.url,
                     gcs: styleGuide.file.gcsUrl || styleGuide.file.gcs,
-                    originalFilename: styleGuide.file.originalName,
+                    displayFilename:
+                        styleGuide.file.displayFilename ||
+                        styleGuide.file.originalName,
                     _id: styleGuide.file._id,
                 });
             }

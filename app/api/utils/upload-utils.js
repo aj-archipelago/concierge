@@ -8,6 +8,7 @@ import {
     FILE_VALIDATION_CONFIG,
     scanForMalware,
 } from "./fileValidation.js";
+import { determineFileContextId } from "./llm-file-utils.js";
 
 import Busboy from "busboy";
 import { Readable } from "stream";
@@ -39,7 +40,7 @@ async function hashBuffer(buffer) {
  * @param {Function} options.checkAuthorization - Function to check user authorization
  * @param {Function} options.associateFile - Function to associate file with workspace/applet
  * @param {string} options.errorPrefix - Prefix for error messages
- * @param {boolean} options.permanent - If true, use permanent storage container
+ * @param {boolean} options.permanent - If true, file will be marked as permanent
  * @returns {Object} Upload result with file data or error response
  */
 export async function handleStreamingFileUpload(request, options) {
@@ -82,6 +83,17 @@ export async function handleStreamingFileUpload(request, options) {
 
         const { fileBuffer, metadata } = result.data;
 
+        // Determine contextId based on file type:
+        // - Workspace/applet artifacts (permanent=true): workspaceId (shared across all users)
+        // - User-submitted files (permanent=false): user.contextId (user-specific, temporary)
+        // Note: workspace is guaranteed to exist here due to early return above
+        const workspaceIdStr = workspace._id?.toString() || null;
+        const contextId = determineFileContextId({
+            isArtifact: permanent,
+            workspaceId: workspaceIdStr,
+            userContextId: user?.contextId || null,
+        });
+
         // Check if file already exists using hash
         if (metadata.hash) {
             try {
@@ -89,11 +101,8 @@ export async function handleStreamingFileUpload(request, options) {
                 const checkUrl = new URL(mediaHelperUrl);
                 checkUrl.searchParams.set("hash", metadata.hash);
                 checkUrl.searchParams.set("checkHash", "true");
-                if (permanent) {
-                    checkUrl.searchParams.set(
-                        "container",
-                        process.env.CORTEX_MEDIA_PERMANENT_STORE_NAME,
-                    );
+                if (contextId) {
+                    checkUrl.searchParams.set("contextId", contextId);
                 }
 
                 const checkResponse = await fetch(checkUrl);
@@ -103,6 +112,27 @@ export async function handleStreamingFileUpload(request, options) {
                         .json()
                         .catch(() => null);
                     if (checkData && checkData.url) {
+                        // If permanent flag is set, ensure existing file is also permanent
+                        if (permanent && metadata.hash) {
+                            try {
+                                await setFileRetention(
+                                    metadata.hash,
+                                    "permanent",
+                                    contextId,
+                                );
+                            } catch (retentionError) {
+                                // Log retention update failures so they are visible for debugging
+                                // This is best-effort, so we continue even if it fails
+                                console.error(
+                                    "Failed to update file retention to 'permanent' for hash",
+                                    metadata.hash,
+                                    "and contextId",
+                                    contextId,
+                                    retentionError,
+                                );
+                            }
+                        }
+
                         // Create a new File document with existing file data
                         const newFile = new File({
                             filename: checkData.filename || metadata.filename,
@@ -149,16 +179,14 @@ export async function handleStreamingFileUpload(request, options) {
             }
         }
 
-        // Determine container name based on permanent flag
-        const containerName = permanent
-            ? process.env.CORTEX_MEDIA_PERMANENT_STORE_NAME
-            : undefined;
-
         // Upload file to media service using buffer
+        // Note: permanent flag is handled inside uploadBufferToMediaService via setRetention
+        // Use workspace ID as contextId for workspace/applet files, user contextId for user files
         const uploadResult = await uploadBufferToMediaService(
             fileBuffer,
             metadata,
-            containerName,
+            permanent,
+            contextId,
         );
         if (uploadResult.error) {
             return { error: uploadResult.error };
@@ -454,28 +482,74 @@ export async function parseStreamingMultipart(request, user) {
 }
 
 /**
+ * Set file retention (temporary or permanent) via CFH API
+ * @param {string} hash - File hash
+ * @param {string} retention - 'temporary' or 'permanent'
+ * @param {string} contextId - Context ID for scoping
+ * @returns {Promise<Object|null>} Response data or null on error (best-effort)
+ */
+async function setFileRetention(hash, retention, contextId) {
+    try {
+        const mediaHelperUrl = config.endpoints.mediaHelperDirect();
+        if (!mediaHelperUrl) {
+            console.warn(
+                "Media helper URL not configured, skipping retention update",
+            );
+            return null;
+        }
+
+        const setRetentionUrl = new URL(mediaHelperUrl);
+        setRetentionUrl.searchParams.set("hash", hash);
+        setRetentionUrl.searchParams.set("retention", retention);
+        setRetentionUrl.searchParams.set("setRetention", "true");
+        if (contextId) {
+            setRetentionUrl.searchParams.set("contextId", contextId);
+        }
+
+        const response = await fetch(setRetentionUrl.toString(), {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+            },
+        });
+
+        if (!response.ok) {
+            const errorBody = await response.text();
+            console.warn(
+                `Failed to set retention to ${retention} for file ${hash}: ${response.statusText}. Response: ${errorBody}`,
+            );
+            return null;
+        }
+
+        const result = await response.json();
+        console.log(
+            `Successfully set retention to ${retention} for file ${hash}`,
+        );
+        return result;
+    } catch (error) {
+        console.error("Error setting file retention:", error);
+        return null;
+    }
+}
+
+/**
  * Upload buffer to media service
  * @param {Buffer} fileBuffer - The file buffer
  * @param {Object} metadata - File metadata
- * @param {string} containerName - Optional container name for storage
+ * @param {boolean} permanent - If true, file will be marked as permanent (via setRetention after upload)
+ * @param {string} contextId - Optional context ID for per-user file scoping
  * @returns {Object} Upload result with data or error
  */
 export async function uploadBufferToMediaService(
     fileBuffer,
     metadata,
-    containerName,
+    permanent = false,
+    contextId = null,
 ) {
     try {
-        let mediaHelperUrl = config.endpoints.mediaHelperDirect();
+        const mediaHelperUrl = config.endpoints.mediaHelperDirect();
         if (!mediaHelperUrl) {
             throw new Error("Media helper URL is not defined");
-        }
-
-        // Add container name to query string if provided
-        if (containerName) {
-            const url = new URL(mediaHelperUrl);
-            url.searchParams.append("container", containerName);
-            mediaHelperUrl = url.toString();
         }
 
         // Create a Blob from the buffer to send as FormData
@@ -486,6 +560,11 @@ export async function uploadBufferToMediaService(
         // Add hash to FormData if provided
         if (metadata.hash) {
             uploadFormData.append("hash", metadata.hash);
+        }
+
+        // Add contextId to FormData if provided
+        if (contextId) {
+            uploadFormData.append("contextId", contextId);
         }
 
         const uploadResponse = await fetch(mediaHelperUrl, {
@@ -505,6 +584,11 @@ export async function uploadBufferToMediaService(
         // Validate upload response
         if (!uploadData.url) {
             throw new Error("Media file upload failed: Missing URL");
+        }
+
+        // If permanent flag is set, call setRetention API (best-effort)
+        if (permanent && uploadData.hash) {
+            await setFileRetention(uploadData.hash, "permanent", contextId);
         }
 
         return { success: true, data: uploadData };

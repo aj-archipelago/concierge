@@ -8,7 +8,8 @@ import config from "../../../../config/index.js";
  *
  * Query parameters:
  * - hash: File hash to delete (required)
- * - container: Container name (optional, defaults to CORTEX_MEDIA_PERMANENT_STORE_NAME)
+ * - contextId: Optional context ID for file scoping (e.g., user.contextId)
+ *              If not provided, defaults to user.contextId
  */
 export async function DELETE(request) {
     try {
@@ -23,9 +24,7 @@ export async function DELETE(request) {
 
         const { searchParams } = new URL(request.url);
         const hash = searchParams.get("hash");
-        const container =
-            searchParams.get("container") ||
-            process.env.CORTEX_MEDIA_PERMANENT_STORE_NAME;
+        const contextIdParam = searchParams.get("contextId");
 
         if (!hash) {
             return NextResponse.json(
@@ -47,14 +46,16 @@ export async function DELETE(request) {
             );
         }
 
+        // Use provided contextId or fall back to user.contextId
+        // This allows deletion of user files or other scoped files
+        const contextId = contextIdParam || user.contextId;
+
         // Call CFH delete API
-        // According to CFH signature: DELETE with hash parameter in query string
-        // Example: DELETE /file-handler?hash=xyz789
+        // According to CFH signature: DELETE with hash and contextId parameters
+        // Example: DELETE /file-handler?hash=xyz789&contextId=user-123
         const deleteUrl = new URL(mediaHelperUrl);
         deleteUrl.searchParams.set("hash", hash);
-        if (container) {
-            deleteUrl.searchParams.set("container", container);
-        }
+        deleteUrl.searchParams.set("contextId", contextId);
 
         const deleteResponse = await fetch(deleteUrl.toString(), {
             method: "DELETE",
@@ -66,7 +67,7 @@ export async function DELETE(request) {
         if (!deleteResponse.ok) {
             const errorBody = await deleteResponse.text();
             console.warn(
-                `Failed to delete file from container: ${deleteResponse.statusText}. Response: ${errorBody}`,
+                `Failed to delete file: ${deleteResponse.statusText}. Response: ${errorBody}`,
             );
             return NextResponse.json(
                 {
@@ -78,9 +79,7 @@ export async function DELETE(request) {
         }
 
         const deleteResult = await deleteResponse.json();
-        console.log(
-            `Successfully deleted file ${hash} from container ${container || "default"}`,
-        );
+        console.log(`Successfully deleted file ${hash}`);
 
         return NextResponse.json({
             success: true,
@@ -88,7 +87,7 @@ export async function DELETE(request) {
             deleted: deleteResult.deleted || deleteResult,
         });
     } catch (error) {
-        console.error("Error deleting file from container:", error);
+        console.error("Error deleting file:", error);
         return NextResponse.json(
             {
                 error: "Internal server error while deleting file",
