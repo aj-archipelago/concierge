@@ -249,7 +249,9 @@ function EditableTranscriptSelect({
                                 <div className="flex items-center gap-3 text-gray-500 dark:text-gray-400">
                                     <Loader size="default" />
                                     <div className="text-sm">
-                                        {t("Transcribing... This may take a few minutes.")}
+                                        {t(
+                                            "Transcribing... This may take a few minutes.",
+                                        )}
                                     </div>
                                 </div>
                             </div>

@@ -40,7 +40,13 @@ function ProgressToast({
         if (!info || typeof info !== "string" || !info.trim()) return null;
         // Filter out empty object strings and other non-meaningful values
         const trimmed = info.trim();
-        if (trimmed === "{}" || trimmed === "[]" || trimmed === "null" || trimmed === "undefined") return null;
+        if (
+            trimmed === "{}" ||
+            trimmed === "[]" ||
+            trimmed === "null" ||
+            trimmed === "undefined"
+        )
+            return null;
 
         // Check for time remaining messages
         const secondMatch = info.match(/(\d+) second/);
