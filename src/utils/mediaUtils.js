@@ -189,6 +189,34 @@ export function getFilename(url) {
     }
 }
 
+/**
+ * Generates a filename from a File object's MIME type if it doesn't have a name
+ * @param {File} file - The file object to generate a filename for
+ * @returns {string} The generated filename (kept in English for file system compatibility)
+ */
+export function generateFilenameFromMimeType(file) {
+    if (file.name && file.name.trim() !== "") {
+        return file.name;
+    }
+
+    // Generate filename based on MIME type using mime-types package
+    // Note: Filename is kept in English for file system compatibility
+    const mimeType = file.type || "";
+    let extension = "";
+
+    if (mimeType) {
+        // Use mime.extension() to get the default extension for the MIME type
+        extension = mime.extension(mimeType) || "";
+    }
+
+    // If we got an extension, use it; otherwise fall back to "bin"
+    if (extension) {
+        return `pasted-file.${extension}`;
+    }
+
+    return "pasted-file";
+}
+
 // Media file utilities
 export async function hashMediaFile(file) {
     const hasher = await getXXHashInstance();

@@ -11,6 +11,7 @@ import { AuthContext } from "../../App";
 import {
     ACCEPTED_FILE_TYPES,
     isSupportedFileUrl,
+    generateFilenameFromMimeType,
 } from "../../utils/mediaUtils";
 import {
     AlertDialog,
@@ -522,12 +523,31 @@ function MessageInput({
                                     if (!showFileUpload) {
                                         setShowFileUpload(true);
                                     }
+
+                                    // Generate filename if file doesn't have one
+                                    let fileWithName = fileToProcess;
+                                    let filename = fileToProcess.name;
+
+                                    if (!filename || filename.trim() === "") {
+                                        filename =
+                                            generateFilenameFromMimeType(
+                                                fileToProcess,
+                                            );
+                                        // Create a new File object with the generated name
+                                        // This ensures the filename is preserved during upload
+                                        fileWithName = new File(
+                                            [fileToProcess],
+                                            filename,
+                                            { type: fileToProcess.type },
+                                        );
+                                    }
+
                                     const uploadFile = {
                                         id: `file-${Date.now()}-${Math.random()}`,
-                                        source: fileToProcess,
-                                        file: fileToProcess,
-                                        filename: fileToProcess.name,
-                                        name: fileToProcess.name,
+                                        source: fileWithName,
+                                        file: fileWithName,
+                                        filename: filename,
+                                        name: filename,
                                         type: fileToProcess.type,
                                         size: fileToProcess.size,
                                         status: "pending",
