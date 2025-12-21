@@ -466,28 +466,6 @@ function ChatContent({
         ],
     );
 
-    useEffect(() => {
-        // Only reset loading state if there's no active operation in progress
-        if (
-            chat?.isChatLoading &&
-            !chat?.toolCallbackName &&
-            !chat?.toolCallbackId
-        ) {
-            updateChatHook.mutateAsync({
-                chatId: String(chat._id),
-                messages:
-                    chat.messages ||
-                    []?.map((m) => ({
-                        ...m,
-                        payload: getMessagePayload(m),
-                    })),
-                isChatLoading: false,
-                selectedEntityId: selectedEntityIdFromProp,
-            });
-        }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
-
     // Connect to active stream when navigating into a chat with isChatLoading: true
     // Use refs to track previous state to detect navigation vs message send
     // Poll for stream completion when chat is loading but we're not connected

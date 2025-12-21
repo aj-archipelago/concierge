@@ -36,7 +36,11 @@ function ProgressToast({
     };
 
     const translateProgressMessage = (info) => {
-        if (!info) return null;
+        // Return null if info is falsy, not a string, empty, or just "{}" (empty object stringified)
+        if (!info || typeof info !== "string" || !info.trim()) return null;
+        // Filter out empty object strings and other non-meaningful values
+        const trimmed = info.trim();
+        if (trimmed === "{}" || trimmed === "[]" || trimmed === "null" || trimmed === "undefined") return null;
 
         // Check for time remaining messages
         const secondMatch = info.match(/(\d+) second/);
@@ -248,7 +252,7 @@ function ProgressToast({
                             </div>
                         </div>
                     )}
-                    {data?.requestProgress?.info && (
+                    {translateProgressMessage(data?.requestProgress?.info) && (
                         <div className="text-xs bg-gray-50 dark:bg-gray-700 p-2 rounded-md text-gray-500 dark:text-gray-400 mt-1">
                             {translateProgressMessage(
                                 data.requestProgress.info,

@@ -498,6 +498,7 @@ export function useStreamingMessages({
                                             const updatedChat = {
                                                 ...currentChat,
                                                 messages: updatedMessages,
+                                                isChatLoading: false, // Clear loading state in cache
                                             };
 
                                             // Atomically: add message to cache AND clear streaming state
@@ -537,27 +538,13 @@ export function useStreamingMessages({
                                             );
 
                                             // Clear streaming state - message is now in cache
+                                            // Server's persistMessage() handles isChatLoading: false
+                                            // Don't call mutateAsync here - it races with persistMessage
+                                            // and can overwrite our optimistic message with stale server data
                                             latestClearStreamingStateRef.current();
-
-                                            // Update loading state
-                                            await latestUpdateChatHookRef.current.mutateAsync(
-                                                {
-                                                    chatId,
-                                                    isChatLoading: false,
-                                                },
-                                            );
-
-                                            // Don't refetch immediately - let natural refetches (polling, navigation) handle sync
-                                            // The optimistic message is already in cache and visible, so no stutter
-                                            // Other parts of the app (like useGetActiveChats polling) will eventually sync with server
                                         } else {
-                                            // No content, just clear loading state and streaming state
-                                            await latestUpdateChatHookRef.current.mutateAsync(
-                                                {
-                                                    chatId,
-                                                    isChatLoading: false,
-                                                },
-                                            );
+                                            // No content, just clear streaming state
+                                            // Server's persistMessage() handles isChatLoading: false
                                             latestClearStreamingStateRef.current();
                                         }
                                     } else {
