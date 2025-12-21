@@ -16,6 +16,8 @@ import { visit } from "unist-util-visit";
 import MediaCard from "./MediaCard";
 import MermaidDiagram from "../code/MermaidDiagram";
 import MermaidPlaceholder from "../code/MermaidPlaceholder";
+import { isVideoUrl } from "../../utils/mediaUtils";
+import { getYoutubeEmbedUrl } from "../../utils/urlUtils";
 
 function transformToCitation(content) {
     return content
@@ -140,6 +142,32 @@ function convertMessageToMarkdown(
             } catch (e) {
                 // If URL parsing fails, use alt or default
                 filename = alt || "Image";
+            }
+
+            // Check if this is a video URL and render appropriate MediaCard type
+            if (isVideoUrl(src)) {
+                const youtubeEmbedUrl = getYoutubeEmbedUrl(src);
+                if (youtubeEmbedUrl) {
+                    return (
+                        <MediaCard
+                            type="youtube"
+                            src={src}
+                            filename={filename}
+                            youtubeEmbedUrl={youtubeEmbedUrl}
+                            className="my-2"
+                            t={t}
+                        />
+                    );
+                }
+                return (
+                    <MediaCard
+                        type="video"
+                        src={src}
+                        filename={filename}
+                        className="my-2"
+                        t={t}
+                    />
+                );
             }
 
             return (

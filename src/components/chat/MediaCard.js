@@ -298,14 +298,19 @@ const MediaCard = React.memo(function MediaCard({
                 <video
                     src={src}
                     controls
+                    autoPlay
                     className="max-w-full max-h-[80vh] w-auto h-auto rounded-lg"
                     preload="metadata"
                 />
             );
         } else if (type === "youtube") {
+            // Add autoplay parameter to YouTube embed URL
+            const autoplayUrl = youtubeEmbedUrl
+                ? `${youtubeEmbedUrl}${youtubeEmbedUrl.includes("?") ? "&" : "?"}autoplay=1`
+                : youtubeEmbedUrl;
             return (
                 <iframe
-                    src={youtubeEmbedUrl}
+                    src={autoplayUrl}
                     className="w-full rounded-lg"
                     style={{
                         width: "100%",
