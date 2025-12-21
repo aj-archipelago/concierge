@@ -101,24 +101,32 @@ const UserOptions = ({ show, handleClose }) => {
         }
     };
 
-    const handleRemoveProfilePicture = async () => {
-        try {
-            await axios.delete("/api/users/me/profile-picture");
-            setProfilePicture(null);
-            await updateCurrentUserMutation.mutateAsync({
-                data: { profilePicture: "" },
-            });
-            if (profilePictureInputRef.current) {
-                profilePictureInputRef.current.value = "";
-            }
-        } catch (error) {
-            console.error("Error removing profile picture:", error);
-            setError(
-                error.response?.data?.error ||
-                    error.message ||
-                    t("Failed to remove profile picture"),
-            );
+    const handleRemoveProfilePicture = () => {
+        // Optimistic update - immediately remove from UI
+        const oldProfilePicture = profilePicture;
+        setProfilePicture(null);
+        if (profilePictureInputRef.current) {
+            profilePictureInputRef.current.value = "";
         }
+
+        // Fire delete async
+        (async () => {
+            try {
+                await axios.delete("/api/users/me/profile-picture");
+                await updateCurrentUserMutation.mutateAsync({
+                    data: { profilePicture: "" },
+                });
+            } catch (error) {
+                console.error("Error removing profile picture:", error);
+                // Restore on failure
+                setProfilePicture(oldProfilePicture);
+                setError(
+                    error.response?.data?.error ||
+                        error.message ||
+                        t("Failed to remove profile picture"),
+                );
+            }
+        })();
     };
 
     const saveOptions = async (updates) => {
@@ -223,7 +231,7 @@ const UserOptions = ({ show, handleClose }) => {
                                                 onClick={
                                                     handleRemoveProfilePicture
                                                 }
-                                                className="absolute -top-0.5 -start-0.5 w-4 h-4 rounded-full bg-red-500 text-white flex items-center justify-center hover:bg-red-600 transition-colors"
+                                                className="absolute -top-0.5 -start-0.5 w-4 h-4 rounded-full bg-gray-500 dark:bg-gray-600 text-white flex items-center justify-center hover:bg-red-500 dark:hover:bg-red-500 transition-colors"
                                                 title={t(
                                                     "Remove profile picture",
                                                 )}
@@ -253,7 +261,7 @@ const UserOptions = ({ show, handleClose }) => {
                                                 onClick={
                                                     handleRemoveProfilePicture
                                                 }
-                                                className="absolute -top-0.5 -end-0.5 w-4 h-4 rounded-full bg-red-500 text-white flex items-center justify-center hover:bg-red-600 transition-colors"
+                                                className="absolute -top-0.5 -end-0.5 w-4 h-4 rounded-full bg-gray-500 dark:bg-gray-600 text-white flex items-center justify-center hover:bg-red-500 dark:hover:bg-red-500 transition-colors"
                                                 title={t(
                                                     "Remove profile picture",
                                                 )}
@@ -429,10 +437,10 @@ const UserOptions = ({ show, handleClose }) => {
                     >
                         <button
                             type="button"
-                            className="lb-primary text-xs flex-1 sm:flex-initial"
+                            className="lb-outline-secondary text-xs flex-1 sm:flex-initial"
                             onClick={handleClose}
                         >
-                            {t("Close")}
+                            {t("Done")}
                         </button>
                     </div>
                 </div>

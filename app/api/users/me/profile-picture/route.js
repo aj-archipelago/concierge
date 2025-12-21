@@ -37,7 +37,7 @@ export async function POST(request) {
         try {
             normalizedBuffer = await normalizeProfilePicture(fileBuffer, {
                 size: 400,
-                quality: 0.9,
+                quality: 90,
             });
         } catch (error) {
             console.error("Error normalizing profile picture:", error);
