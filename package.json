@@ -111,7 +111,8 @@
         "format": "npx prettier --write .",
         "worker": "node ./jobs/worker.js",
         "worker:dev": "nodemon --watch ./ --exec 'node ./jobs/worker.js'",
-        "test": "jest"
+        "test": "jest",
+        "precommit": "eslint . && npm run format && npm run test"
     },
     "eslintConfig": {
         "extends": [

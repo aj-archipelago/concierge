@@ -320,6 +320,12 @@ describe("MessageInput", () => {
         mockDebouncedUpdateUserState.mockClear();
     });
 
+    afterAll(async () => {
+        // Clean up Apollo client to prevent open handles
+        await client.clearStore();
+        client.stop();
+    });
+
     describe("Chat input state persistence", () => {
         it("should update user state when input changes", () => {
             renderMessageInput();
