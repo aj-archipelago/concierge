@@ -255,6 +255,7 @@ const MediaCard = React.memo(function MediaCard({
                     className: previewClassName,
                     onLoad,
                     t: translationFn,
+                    compact: true, // Use compact text for card thumbnail
                 });
 
                 if (preview) {
@@ -325,7 +326,7 @@ const MediaCard = React.memo(function MediaCard({
                 fileType,
                 className:
                     fileType.isPdf || fileType.isDoc
-                        ? "w-full h-[80vh] rounded-lg border-none"
+                        ? "w-full max-h-[80vh] rounded-lg border-none"
                         : "max-w-full max-h-[80vh] w-auto h-auto object-contain rounded-lg",
                 t: translationFn,
             });

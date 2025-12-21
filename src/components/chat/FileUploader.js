@@ -137,6 +137,7 @@ function FileThumbnail({ file, onRemove, onRetry }) {
                         fileType,
                         className: "w-full h-full object-cover",
                         t,
+                        compact: true, // Use compact text for uploader thumbnail
                     })}
                     {fileType.isVideo && (
                         <div className="absolute inset-0 flex items-center justify-center bg-black/30 pointer-events-none">

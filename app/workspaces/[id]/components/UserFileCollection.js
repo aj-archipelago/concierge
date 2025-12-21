@@ -17,9 +17,7 @@ import {
     updateFileMetadata,
     getFileUrl,
     getFilename as getFilenameUtil,
-    getFileExtension,
 } from "./userFileCollectionUtils";
-import { IMAGE_EXTENSIONS } from "@/src/utils/mediaUtils";
 import { purgeFiles } from "./chatFileUtils";
 import HoverPreview from "./HoverPreview";
 import {
@@ -141,7 +139,7 @@ function FilePreviewDialog({ file, onClose, onDownload, t }) {
                 fileType,
                 className:
                     fileType.isPdf || fileType.isDoc
-                        ? "w-full h-full rounded border-none"
+                        ? "w-full max-h-[80vh] rounded border-none"
                         : "max-w-full max-h-[80vh] object-contain rounded",
                 t,
             })
@@ -904,12 +902,13 @@ export default function UserFileCollection({
                                 const isSelected = selectedIds.has(fileId);
                                 const filename = getFilenameUtil(file);
                                 const fileUrl = getFileUrl(file);
+                                const fileMimeType = file?.mimeType;
                                 const Icon = getFileIcon(filename);
 
-                                const extension = getFileExtension(filename);
-                                const isImage = extension
-                                    ? IMAGE_EXTENSIONS.includes(`.${extension}`)
-                                    : false;
+                                // Use mimeType for type detection (not displayFilename)
+                                // e.g., displayFilename might be "foo.docx" but mimeType is "text/markdown"
+                                const isImage =
+                                    fileMimeType?.startsWith("image/") || false;
                                 const isYouTube = fileUrl
                                     ? isYoutubeUrl(fileUrl)
                                     : false;
