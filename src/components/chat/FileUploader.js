@@ -638,7 +638,7 @@ export default function FileUploader({
 
                 // File doesn't exist, upload it with custom progress tracking
                 const startTimestamp = Date.now();
-                let totalBytes = 0;
+                const totalBytes = fileObj.size;
                 let cloudProgressInterval;
 
                 try {
@@ -653,52 +653,44 @@ export default function FileUploader({
                                     abort: () => xhr.abort(),
                                 });
                             },
-                            onProgress: (event) => {
+                            onProgress: (percentage) => {
                                 // Custom progress tracking: 0-50% upload, 50-100% cloud processing simulation
-                                if (event.lengthComputable) {
-                                    totalBytes = event.total;
-                                    const uploadProgress =
-                                        (event.loaded / event.total) * 50;
-                                    updateFileStatus(fileId, {
-                                        progress: uploadProgress,
-                                    });
+                                // percentage is 0-100, scale to 0-50 for upload phase
+                                const uploadProgress = percentage / 2;
+                                updateFileStatus(fileId, {
+                                    progress: uploadProgress,
+                                });
 
-                                    if (
-                                        uploadProgress >= 49 &&
-                                        !cloudProgressInterval
-                                    ) {
-                                        let cloudProgress = 50;
-                                        let expectedTotalTime;
-                                        if (lastBytesPerMs) {
-                                            expectedTotalTime =
-                                                totalBytes / lastBytesPerMs;
-                                        } else {
-                                            expectedTotalTime =
-                                                (Date.now() - startTimestamp) *
-                                                2;
-                                        }
-
-                                        const remainingSteps = 49;
-                                        const cloudProcessingInterval =
-                                            expectedTotalTime / remainingSteps;
-
-                                        cloudProgressInterval = setInterval(
-                                            () => {
-                                                cloudProgress += 1;
-                                                updateFileStatus(fileId, {
-                                                    progress: cloudProgress,
-                                                });
-                                                if (cloudProgress >= 99) {
-                                                    clearInterval(
-                                                        cloudProgressInterval,
-                                                    );
-                                                    cloudProgressInterval =
-                                                        null;
-                                                }
-                                            },
-                                            cloudProcessingInterval,
-                                        );
+                                if (
+                                    uploadProgress >= 49 &&
+                                    !cloudProgressInterval
+                                ) {
+                                    let cloudProgress = 50;
+                                    let expectedTotalTime;
+                                    if (lastBytesPerMs) {
+                                        expectedTotalTime =
+                                            totalBytes / lastBytesPerMs;
+                                    } else {
+                                        expectedTotalTime =
+                                            (Date.now() - startTimestamp) * 2;
                                     }
+
+                                    const remainingSteps = 49;
+                                    const cloudProcessingInterval =
+                                        expectedTotalTime / remainingSteps;
+
+                                    cloudProgressInterval = setInterval(() => {
+                                        cloudProgress += 1;
+                                        updateFileStatus(fileId, {
+                                            progress: cloudProgress,
+                                        });
+                                        if (cloudProgress >= 99) {
+                                            clearInterval(
+                                                cloudProgressInterval,
+                                            );
+                                            cloudProgressInterval = null;
+                                        }
+                                    }, cloudProcessingInterval);
                                 }
                             },
                         },
