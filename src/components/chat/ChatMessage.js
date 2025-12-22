@@ -190,8 +190,13 @@ function convertMessageToMarkdown(
         cd_source(props) {
             const { children } = props;
             if (children) {
+                // Normalize children to string (children can be array or string)
+                const childrenString = Array.isArray(children)
+                    ? children.join("")
+                    : String(children);
+
                 // Try to parse as integer first
-                const sourceIndex = parseInt(children);
+                const sourceIndex = parseInt(childrenString);
                 if (
                     !isNaN(sourceIndex) &&
                     Array.isArray(citations) &&
@@ -209,7 +214,7 @@ function convertMessageToMarkdown(
                 // If not a valid index, try to find by searchResultId
                 if (Array.isArray(citations)) {
                     const citation = citations.find(
-                        (c) => c.searchResultId === children,
+                        (c) => c.searchResultId === childrenString,
                     );
                     if (citation) {
                         return (
