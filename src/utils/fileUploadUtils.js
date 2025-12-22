@@ -57,7 +57,7 @@ export async function checkFileByHash(fileHash, options = {}) {
  * @param {Object} options - Upload options
  * @param {string} options.contextId - Optional contextId for file scoping
  * @param {boolean} options.checkHash - Whether to check if file exists by hash first (default: true)
- * @param {Function} options.onProgress - Progress callback (event: ProgressEvent) => void, or (percentage: number) => void
+ * @param {Function} options.onProgress - Progress callback (percentage: number) => void
  * @param {AbortSignal} options.signal - Optional abort signal
  * @param {string} options.serverUrl - Server URL (default: "/media-helper")
  * @param {Function} options.getXHR - Optional callback to get the XHR object for custom handling
@@ -123,19 +123,12 @@ export async function uploadFileToMediaHelper(file, options = {}) {
         if (onProgress) {
             xhr.upload.onprogress = (event) => {
                 if (event.lengthComputable) {
-                    // Support both ProgressEvent and percentage callback
-                    // Try calling with ProgressEvent first, fall back to percentage if it throws
-                    try {
-                        onProgress(event);
-                        // If no exception, assume it handled the event successfully
-                        return;
-                    } catch (e) {
-                        // If callback throws or doesn't accept event, try percentage
-                        const percentage = Math.round(
-                            (event.loaded / event.total) * 100,
-                        );
-                        onProgress(percentage);
-                    }
+                    // Always pass percentage - it's the most common use case
+                    // and works with React state setters
+                    const percentage = Math.round(
+                        (event.loaded / event.total) * 100,
+                    );
+                    onProgress(percentage);
                 }
             };
         }

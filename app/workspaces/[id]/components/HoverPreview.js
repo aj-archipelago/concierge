@@ -77,6 +77,7 @@ export default function HoverPreview({ file }) {
                     : "max-w-full max-h-full object-contain rounded",
             autoPlay: fileType.isVideo, // Autoplay videos in hover preview
             t,
+            compact: true, // Use compact text for hover preview
         });
     }
 

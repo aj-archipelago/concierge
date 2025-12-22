@@ -255,6 +255,7 @@ const MediaCard = React.memo(function MediaCard({
                     className: previewClassName,
                     onLoad,
                     t: translationFn,
+                    compact: true, // Use compact text for card thumbnail
                 });
 
                 if (preview) {
@@ -297,14 +298,19 @@ const MediaCard = React.memo(function MediaCard({
                 <video
                     src={src}
                     controls
+                    autoPlay
                     className="max-w-full max-h-[80vh] w-auto h-auto rounded-lg"
                     preload="metadata"
                 />
             );
         } else if (type === "youtube") {
+            // Add autoplay parameter to YouTube embed URL
+            const autoplayUrl = youtubeEmbedUrl
+                ? `${youtubeEmbedUrl}${youtubeEmbedUrl.includes("?") ? "&" : "?"}autoplay=1`
+                : youtubeEmbedUrl;
             return (
                 <iframe
-                    src={youtubeEmbedUrl}
+                    src={autoplayUrl}
                     className="w-full rounded-lg"
                     style={{
                         width: "100%",
@@ -325,7 +331,7 @@ const MediaCard = React.memo(function MediaCard({
                 fileType,
                 className:
                     fileType.isPdf || fileType.isDoc
-                        ? "w-full h-[80vh] rounded-lg border-none"
+                        ? "w-full max-h-[80vh] rounded-lg border-none"
                         : "max-w-full max-h-[80vh] w-auto h-auto object-contain rounded-lg",
                 t: translationFn,
             });

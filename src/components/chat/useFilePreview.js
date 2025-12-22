@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState, useEffect } from "react";
+import mime from "mime-types";
 import {
     IMAGE_EXTENSIONS,
     VIDEO_EXTENSIONS,
@@ -10,42 +11,163 @@ import {
 } from "../../utils/mediaUtils";
 
 /**
- * Whitelist of file types that can be previewed
- * - Images: All common image formats
- * - Videos: Common video formats (excluding some edge cases)
- * - PDFs: Always previewable
- * - Text files: Common text/document formats (excluding CSV which doesn't render well)
+ * Check if a mime type represents a text-based file that can be previewed as plain text.
+ * Uses mime-types library to avoid maintaining hardcoded lists.
+ * @param {string} mimeType - The mime type to check
+ * @returns {boolean} True if the file is text-based and previewable
  */
-const PREVIEWABLE_TEXT_EXTENSIONS = [
-    ".txt",
-    ".md",
-    ".json",
-    ".xml",
-    ".js",
-    ".ts",
-    ".jsx",
-    ".tsx",
-    ".css",
-    ".html",
-    ".yaml",
-    ".yml",
-];
+function isTextBasedMimeType(mimeType) {
+    if (!mimeType) return false;
 
-const PREVIEWABLE_TEXT_MIME_TYPES = [
-    "text/plain",
-    "text/markdown",
-    "text/html",
-    "text/css",
-    "text/javascript",
-    "application/json",
-    "application/xml",
-    "text/xml",
-];
+    // text/* types are always text-based
+    if (mimeType.startsWith("text/")) return true;
+
+    // Common application/* types that are actually text-based
+    const textBasedAppTypes = [
+        "application/json",
+        "application/xml",
+        "application/javascript",
+        "application/x-javascript",
+        "application/ecmascript",
+        "application/x-yaml",
+        "application/yaml",
+    ];
+
+    return textBasedAppTypes.includes(mimeType);
+}
+
+/**
+ * Get mime type from extension, with fallback
+ * @param {string} extension - File extension (with or without dot)
+ * @returns {string|null} Mime type or null
+ */
+function getMimeType(extension) {
+    if (!extension) return null;
+    const ext = extension.startsWith(".") ? extension.slice(1) : extension;
+    return mime.lookup(ext) || null;
+}
+
+/**
+ * Check if a URL is from a domain that requires proxying (blob storage)
+ */
+function needsProxy(url) {
+    if (!url) return false;
+    try {
+        const urlObj = new URL(url);
+        const proxyDomains = [
+            "ajcortexfilestorage.blob.core.windows.net",
+            "storage.googleapis.com",
+            "storage.cloud.google.com",
+        ];
+        return proxyDomains.some((domain) => urlObj.hostname.includes(domain));
+    } catch {
+        return false;
+    }
+}
+
+/**
+ * Component for rendering text file content by fetching it
+ * Handles CORS-friendly text display for CSV, MD, JSON, etc.
+ * Uses a proxy endpoint for blob storage URLs to bypass CORS restrictions.
+ *
+ * @param {boolean} compact - If true, uses smaller text for thumbnail/hover previews
+ */
+export function TextFilePreview({
+    src,
+    filename,
+    className = "",
+    onLoad,
+    t,
+    compact = false,
+}) {
+    const [content, setContent] = useState(null);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
+    const translationFn = t || ((key) => key);
+
+    useEffect(() => {
+        if (!src) {
+            setLoading(false);
+            return;
+        }
+
+        setLoading(true);
+        setError(null);
+
+        // Use proxy for blob storage URLs to bypass CORS
+        const fetchUrl = needsProxy(src)
+            ? `/api/text-proxy?url=${encodeURIComponent(src)}`
+            : src;
+
+        fetch(fetchUrl)
+            .then((response) => {
+                if (!response.ok) {
+                    throw new Error(`Failed to load file: ${response.status}`);
+                }
+                return response.text();
+            })
+            .then((text) => {
+                setContent(text);
+                setLoading(false);
+                onLoad?.();
+            })
+            .catch((err) => {
+                console.error("Error loading text file:", err);
+                setError(err.message);
+                setLoading(false);
+            });
+    }, [src, onLoad]);
+
+    if (loading) {
+        return (
+            <div
+                className={`${className} flex items-center justify-center bg-gray-50 dark:bg-gray-900`}
+            >
+                <div
+                    className={`text-gray-500 dark:text-gray-400 ${compact ? "text-xs" : ""}`}
+                >
+                    {translationFn("Loading...")}
+                </div>
+            </div>
+        );
+    }
+
+    if (error) {
+        return (
+            <div
+                className={`${className} flex items-center justify-center bg-gray-50 dark:bg-gray-900`}
+            >
+                <div
+                    className={`text-red-500 dark:text-red-400 text-center ${compact ? "p-1" : "p-4"}`}
+                >
+                    <p className={compact ? "text-[8px]" : ""}>
+                        {translationFn("Unable to load file")}
+                    </p>
+                    {!compact && (
+                        <p className="text-xs mt-1 text-gray-500">{error}</p>
+                    )}
+                </div>
+            </div>
+        );
+    }
+
+    // Compact mode: tiny text for thumbnail/hover previews to show more content
+    // Full mode: readable text for dialog/full previews
+    const textClasses = compact
+        ? "p-1 text-[9px] leading-tight text-gray-800 dark:text-gray-200 whitespace-pre font-mono overflow-hidden"
+        : "p-4 text-sm text-gray-800 dark:text-gray-200 whitespace-pre-wrap break-words font-mono";
+
+    return (
+        <div className={`${className} bg-white dark:bg-gray-900 overflow-auto`}>
+            <pre className={textClasses}>{content}</pre>
+        </div>
+    );
+}
 
 /**
  * Hook to determine file type and preview capabilities
- * @param {string} src - File URL
- * @param {string} filename - File name
+ * @param {string} src - File URL (the actual file to preview - may be a converted format)
+ * @param {string} filename - Display file name (original filename for display, e.g., "foo.xlsx")
  * @param {string} mimeType - Optional MIME type
  * @returns {object} File type information with explicit previewability flag
  */
@@ -63,50 +185,46 @@ export function useFilePreview(src, filename, mimeType = null) {
             };
         }
 
-        const extension = filename
-            ? getExtension(filename)
-            : src
-              ? getExtension(src)
+        // IMPORTANT: For converted files (e.g., docx→md, xlsx→csv), the src URL
+        // contains the actual converted file extension, while filename may still
+        // show the original name (e.g., "foo.xlsx"). We need to use src for type
+        // detection so previews work correctly with the converted format.
+        const extension = src
+            ? getExtension(src)
+            : filename
+              ? getExtension(filename)
               : null;
 
-        // Use mimeType if available, otherwise fall back to extension
-        // Note: getExtension already returns extension with dot (e.g., ".pdf", ".md")
+        // Derive mime type from extension if not provided
+        const derivedMimeType = mimeType || getMimeType(extension);
+
+        // Determine file categories
         const isImage =
-            (mimeType && mimeType.startsWith("image/")) ||
+            (derivedMimeType && derivedMimeType.startsWith("image/")) ||
             (extension ? IMAGE_EXTENSIONS.includes(extension) : false);
         const isVideo =
-            (mimeType && mimeType.startsWith("video/")) ||
+            (derivedMimeType && derivedMimeType.startsWith("video/")) ||
             (extension ? VIDEO_EXTENSIONS.includes(extension) : false);
         const isAudio =
-            (mimeType && mimeType.startsWith("audio/")) ||
+            (derivedMimeType && derivedMimeType.startsWith("audio/")) ||
             (extension ? AUDIO_EXTENSIONS.includes(extension) : false);
         const isDoc =
-            (mimeType &&
-                (mimeType.startsWith("text/") ||
-                    mimeType === "application/pdf" ||
-                    mimeType.startsWith("application/vnd.") ||
-                    mimeType.startsWith("application/msword") ||
-                    mimeType.startsWith("application/vnd.ms-"))) ||
+            (derivedMimeType &&
+                (derivedMimeType.startsWith("text/") ||
+                    derivedMimeType === "application/pdf" ||
+                    derivedMimeType.startsWith("application/vnd.") ||
+                    derivedMimeType.startsWith("application/msword") ||
+                    derivedMimeType.startsWith("application/vnd.ms-"))) ||
             (extension ? DOC_EXTENSIONS.includes(extension) : false);
 
         // PDF is a special case of doc that browsers render well
-        const isPdf = mimeType === "application/pdf" || extension === ".pdf";
+        const isPdf =
+            derivedMimeType === "application/pdf" || extension === ".pdf";
 
-        // Explicitly whitelist previewable types
-        // Images: all image types
-        // Videos: all video types
-        // PDFs: always previewable
-        // Text files: only specific text formats (exclude CSV, Excel, etc.)
+        // Text-based files that can be previewed as plain text
+        // Uses mime-types library to determine if file is text-based
         const isPreviewableText =
-            isDoc &&
-            !isPdf &&
-            (extension
-                ? PREVIEWABLE_TEXT_EXTENSIONS.includes(extension)
-                : mimeType
-                  ? PREVIEWABLE_TEXT_MIME_TYPES.some((mime) =>
-                        mimeType.startsWith(mime),
-                    )
-                  : false);
+            !isPdf && isTextBasedMimeType(derivedMimeType);
 
         const isPreviewable = isImage || isVideo || isPdf || isPreviewableText;
 
@@ -131,6 +249,7 @@ export function useFilePreview(src, filename, mimeType = null) {
  * @param {string} params.className - Additional CSS classes
  * @param {function} params.onLoad - Load callback
  * @param {boolean} params.autoPlay - For videos, whether to autoplay (default: false)
+ * @param {boolean} params.compact - For text files, use smaller text for thumbnails/hover (default: false)
  * @returns {React.ReactElement|null} Preview element
  */
 export function renderFilePreview({
@@ -141,6 +260,7 @@ export function renderFilePreview({
     onLoad,
     autoPlay = false,
     t = null,
+    compact = false,
 }) {
     const { isImage, isVideo, isAudio, isDoc, isPdf } = fileType;
     // Note: t should be passed from the component that calls useTranslation()
@@ -209,35 +329,20 @@ export function renderFilePreview({
     }
 
     if (isDoc && fileType.isPreviewable) {
-        // Only render preview for whitelisted text files
-        // CSV, Excel, Word docs, etc. are excluded from preview
+        // Text-based files are previewable (md, json, csv, etc.)
+        // Binary docs like .docx, .xlsx are excluded unless converted
 
-        // For text files, invert in light mode to make white text visible
-        // Dark mode works fine without inversion
-        const isTextFile =
-            fileType.extension &&
-            (fileType.extension === ".txt" ||
-                fileType.extension === ".md" ||
-                fileType.extension === ".json" ||
-                fileType.extension === ".js" ||
-                fileType.extension === ".ts" ||
-                fileType.extension === ".jsx" ||
-                fileType.extension === ".tsx" ||
-                fileType.extension === ".css" ||
-                fileType.extension === ".html" ||
-                fileType.extension === ".xml");
-
+        // Use TextFilePreview component to fetch and display content
+        // This handles CORS issues that iframes have with cross-origin text files
         return (
-            <div className={`${className} bg-white dark:bg-gray-900`}>
-                <iframe
-                    src={src}
-                    title={filename || translationFn("Document")}
-                    className={`w-full h-full ${isTextFile ? "invert dark:invert-0" : ""}`}
-                    sandbox="allow-scripts allow-same-origin"
-                    allow="fullscreen"
-                    onLoad={onLoad}
-                />
-            </div>
+            <TextFilePreview
+                src={src}
+                filename={filename}
+                className={className}
+                onLoad={onLoad}
+                t={translationFn}
+                compact={compact}
+            />
         );
     }
 

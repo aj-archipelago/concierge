@@ -78,6 +78,7 @@ export async function updateFileMetadata(
 
 /**
  * Get file URL from a file object
+ * The URL returned from userFileCollection is already the converted URL if applicable
  */
 export function getFileUrl(file) {
     if (typeof file === "string") return file;
