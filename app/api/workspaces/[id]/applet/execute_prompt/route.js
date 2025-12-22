@@ -87,6 +87,11 @@ export async function POST(request, { params }) {
             variables.model = llm.cortexModelName;
         }
 
+        // Pass workspaceId as contextId so Cortex can look up workspace files
+        if (workspaceIdForFiles) {
+            variables.contextId = workspaceIdForFiles;
+        }
+
         const pathwayName = llm.cortexPathwayName;
         const query = QUERIES.getWorkspacePromptQuery(pathwayName);
 

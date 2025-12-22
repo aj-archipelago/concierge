@@ -2,6 +2,7 @@ import { getClient, QUERIES } from "../../../src/graphql";
 import LLM from "../models/llm";
 import Run from "../models/run";
 import { getCurrentUser } from "../utils/auth";
+import { prepareFileContentForLLM } from "../utils/llm-file-utils";
 
 export async function POST(req, res) {
     const body = await req.json();
@@ -28,26 +29,6 @@ export async function POST(req, res) {
         const model = llm.cortexModelName;
 
         const query = getWorkspacePromptQuery(pathwayName);
-
-        // Helper function to prepare file content for chat history
-        const prepareFileContent = (files) => {
-            if (!files || files.length === 0) return [];
-
-            return files.map((file) => {
-                const obj = {
-                    type: "image_url",
-                };
-
-                obj.gcs = file.gcsUrl || file.gcs || file.url;
-                obj.url = file.url;
-                obj.image_url = { url: file.url };
-
-                // Note: displayFilename is not included as it's not a standard field
-                // and the server won't use it
-
-                return JSON.stringify(obj);
-            });
-        };
 
         // Create a more detailed system prompt based on whether files are provided
         let systemPrompt = `You are a professional editor and style guide expert. Your task is to review the provided text and make corrections according to best writing practices and style guidelines.`;
@@ -92,8 +73,16 @@ Provide only the corrected text without any titles, explanations or comments abo
         }
 
         // Add style guide files if provided
+        // Use prepareFileContentForLLM to get files with short-lived URLs
+        // All style guide files use the same contextId (workspaceId or "system")
         if (files && files.length > 0) {
-            const fileContent = prepareFileContent(files);
+            // Pass "system" as workspaceId when workspaceId is null so artifacts use "system" contextId
+            const fileContent = await prepareFileContentForLLM(
+                files,
+                workspaceId || "system", // workspaceId for workspace files, "system" for system style guides
+                null, // No user contextId needed
+                true, // Fetch short-lived URLs
+            );
             contentArray.push(...fileContent);
         }
 
@@ -115,6 +104,10 @@ Provide only the corrected text without any titles, explanations or comments abo
             // Fallback to legacy format
             variables.text = text || "";
         }
+
+        // Pass contextId so Cortex can look up files
+        // Use workspaceId if provided, otherwise use "system" for system style guide files
+        variables.contextId = workspaceId || "system";
 
         console.log(
             "Style guide check variables",

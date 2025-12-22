@@ -69,6 +69,11 @@ export async function POST(req, res) {
             variables.model = model;
         }
 
+        // Pass workspaceId as contextId so Cortex can look up workspace files
+        if (workspaceIdForFiles) {
+            variables.contextId = workspaceIdForFiles;
+        }
+
         const query = getWorkspacePromptQuery(pathwayName);
 
         const response = await getClient().query({
