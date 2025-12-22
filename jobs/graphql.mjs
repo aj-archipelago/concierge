@@ -107,11 +107,13 @@ const SYS_SAVE_MEMORY = gql`
         $aiMemory: String!
         $contextId: String!
         $contextKey: String
+        $section: String
     ) {
         sys_save_memory(
             aiMemory: $aiMemory
             contextId: $contextId
             contextKey: $contextKey
+            section: $section
         ) {
             result
         }
@@ -140,6 +142,9 @@ const SYS_ENTITY_AGENT = gql`
         $stream: Boolean
         $entityId: String
         $chatId: String
+        $researchMode: Boolean
+        $model: String
+        $userInfo: String
     ) {
         sys_entity_agent(
             chatHistory: $chatHistory
@@ -154,6 +159,9 @@ const SYS_ENTITY_AGENT = gql`
             stream: $stream
             entityId: $entityId
             chatId: $chatId
+            researchMode: $researchMode
+            model: $model
+            userInfo: $userInfo
         ) {
             result
             contextId
@@ -361,24 +369,26 @@ const TRANSCRIBE = gql`
 const TRANSCRIBE_NEURALSPACE = gql`
     query TranscribeNeuralSpace(
         $file: String!
+        $text: String
         $language: String
         $wordTimestamped: Boolean
-        $responseFormat: String
         $maxLineCount: Int
         $maxLineWidth: Int
         $maxWordsPerLine: Int
         $highlightWords: Boolean
+        $responseFormat: String
         $async: Boolean
     ) {
         transcribe_neuralspace(
             file: $file
+            text: $text
             language: $language
             wordTimestamped: $wordTimestamped
-            responseFormat: $responseFormat
             maxLineCount: $maxLineCount
             maxLineWidth: $maxLineWidth
             maxWordsPerLine: $maxWordsPerLine
             highlightWords: $highlightWords
+            responseFormat: $responseFormat
             async: $async
         ) {
             result
@@ -389,25 +399,29 @@ const TRANSCRIBE_NEURALSPACE = gql`
 const TRANSCRIBE_GEMINI = gql`
     query TranscribeGemini(
         $file: String!
+        $text: String
         $language: String
         $wordTimestamped: Boolean
-        $responseFormat: String
         $maxLineCount: Int
         $maxLineWidth: Int
         $maxWordsPerLine: Int
         $highlightWords: Boolean
+        $responseFormat: String
         $async: Boolean
+        $contextId: String
     ) {
         transcribe_gemini(
             file: $file
+            text: $text
             language: $language
             wordTimestamped: $wordTimestamped
-            responseFormat: $responseFormat
             maxLineCount: $maxLineCount
             maxLineWidth: $maxLineWidth
             maxWordsPerLine: $maxWordsPerLine
             highlightWords: $highlightWords
+            responseFormat: $responseFormat
             async: $async
+            contextId: $contextId
         ) {
             result
         }
