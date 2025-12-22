@@ -38,7 +38,6 @@ export class StreamAccumulator {
                     if (!this.isThinking) {
                         if (this.thinkingStartTime === null) {
                             this.thinkingStartTime = Date.now();
-                            this.accumulatedThinkingTime = 0;
                         }
                         this.isThinking = true;
                     }

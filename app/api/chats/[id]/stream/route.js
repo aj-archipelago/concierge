@@ -1,11 +1,7 @@
 import { NextResponse } from "next/server";
 import Chat from "../../../models/chat.mjs";
 import { getCurrentUser, handleError } from "../../../utils/auth";
-import {
-    getClient,
-    QUERIES,
-    SUBSCRIPTIONS,
-} from "../../../../../jobs/graphql.mjs";
+import { getClient, QUERIES, SUBSCRIPTIONS } from "../../../../../src/graphql";
 import { StreamAccumulator } from "../../../utils/stream-accumulator.mjs";
 import {
     removeArtifactsFromMessages,
@@ -103,7 +99,7 @@ export async function POST(req, { params }) {
         // (matches client behavior which starts thinking when streaming begins)
         accumulator.thinkingStartTime = Date.now();
         accumulator.isThinking = true;
-        const graphqlClient = await getClient();
+        const graphqlClient = getClient();
 
         // Make sys_entity_agent query to get subscriptionId
         const queryResult = await graphqlClient.query({

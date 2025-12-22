@@ -491,6 +491,38 @@ function ChatContent({
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [chat?._id, isChatLoading, isStreaming, queryClient]);
 
+    // Track message count when streaming starts to detect when persisted message arrives
+    const messageCountAtStreamStartRef = useRef(null);
+
+    // Record message count when streaming starts
+    useEffect(() => {
+        if (isStreaming && messageCountAtStreamStartRef.current === null) {
+            messageCountAtStreamStartRef.current = memoizedMessages.length;
+        } else if (!isStreaming) {
+            messageCountAtStreamStartRef.current = null;
+        }
+    }, [isStreaming, memoizedMessages.length]);
+
+    // When streaming and a new bot message appears in persisted messages, clear streaming state
+    // This ensures we transition to the persisted message as soon as it's available
+    useEffect(() => {
+        if (!isStreaming || messageCountAtStreamStartRef.current === null)
+            return;
+
+        const startCount = messageCountAtStreamStartRef.current;
+        const currentCount = memoizedMessages.length;
+
+        // Check if we have new messages since streaming started
+        if (currentCount > startCount) {
+            // Check if the last message is from the bot (the persisted response)
+            const lastMessage = memoizedMessages[currentCount - 1];
+            if (lastMessage?.sender === "labeeb") {
+                // Persisted message is available, clear streaming state
+                clearStreamingState();
+            }
+        }
+    }, [isStreaming, memoizedMessages, clearStreamingState]);
+
     // Update the streaming effect with guardrails
     useEffect(() => {
         const checkForCodeRequestInLatestMessage = async () => {

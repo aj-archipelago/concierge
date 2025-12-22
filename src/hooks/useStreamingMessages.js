@@ -352,18 +352,18 @@ export function useStreamingMessages({
 
                     if (done) {
                         // Stream completed - server should have persisted
-                        if (!cancelled) {
+                        // Refetch the complete persisted message BEFORE clearing streaming state
+                        // This prevents flash (streaming disappears -> nothing -> message appears)
+                        if (!cancelled && latestChatRef.current?._id) {
+                            const chatId = String(latestChatRef.current._id);
+                            // Refetch and wait for it to complete before clearing streaming
+                            await latestQueryClientRef.current.refetchQueries({
+                                queryKey: ["chat", chatId],
+                            });
+                            // Now clear streaming state - complete message is already in cache
                             latestClearStreamingStateRef.current();
-                            if (latestChatRef.current?._id) {
-                                await latestUpdateChatHookRef.current.mutateAsync(
-                                    {
-                                        chatId: String(
-                                            latestChatRef.current._id,
-                                        ),
-                                        isChatLoading: false,
-                                    },
-                                );
-                            }
+                        } else if (!cancelled) {
+                            latestClearStreamingStateRef.current();
                         }
                         break;
                     }
@@ -387,11 +387,18 @@ export function useStreamingMessages({
                                         eventData?.error || "Stream error",
                                     );
                                     if (latestChatRef.current?._id) {
+                                        const chatId = String(
+                                            latestChatRef.current._id,
+                                        );
+                                        // Refetch before clearing to prevent flash
+                                        await latestQueryClientRef.current.refetchQueries(
+                                            {
+                                                queryKey: ["chat", chatId],
+                                            },
+                                        );
                                         await latestUpdateChatHookRef.current.mutateAsync(
                                             {
-                                                chatId: String(
-                                                    latestChatRef.current._id,
-                                                ),
+                                                chatId,
                                                 isChatLoading: false,
                                             },
                                         );
@@ -401,156 +408,21 @@ export function useStreamingMessages({
                                 }
 
                                 if (event === "complete") {
-                                    // Server has persisted - add message to cache and clear streaming state atomically
-                                    // This prevents duplicate messages (streaming + persisted) from appearing together
+                                    // Server has persisted the complete message
+                                    // Refetch BEFORE clearing streaming state to prevent flash
                                     if (latestChatRef.current?._id) {
                                         const chatId = String(
                                             latestChatRef.current._id,
                                         );
-                                        const currentChat =
-                                            latestChatRef.current;
-
-                                        // Build final message from current streaming state
-                                        const hasContent =
-                                            streamingMessageRef.current ||
-                                            ephemeralContentRef.current ||
-                                            toolCallsMapRef.current.size > 0;
-
-                                        if (hasContent) {
-                                            // Determine final content
-                                            let finalContent =
-                                                streamingMessageRef.current;
-                                            if (
-                                                !hasReceivedPersistentRef.current &&
-                                                ephemeralContentRef.current
-                                            ) {
-                                                finalContent =
-                                                    ephemeralContentRef.current;
-                                            }
-
-                                            // Build tool string
-                                            const toolString = JSON.stringify({
-                                                ...accumulatedInfoRef.current,
-                                                citations:
-                                                    accumulatedInfoRef.current
-                                                        .citations || [],
-                                            });
-
-                                            // Calculate final thinking duration
-                                            let finalThinkingDuration =
-                                                accumulatedThinkingTimeRef.current;
-                                            if (
-                                                isThinkingRef.current &&
-                                                startTimeRef.current !== null
-                                            ) {
-                                                const elapsed = Math.floor(
-                                                    (Date.now() -
-                                                        startTimeRef.current) /
-                                                        1000,
-                                                );
-                                                finalThinkingDuration +=
-                                                    elapsed;
-                                            }
-
-                                            // Get final tool calls
-                                            const finalToolCalls = Array.from(
-                                                toolCallsMapRef.current.values(),
-                                            );
-                                            const hasToolCalls =
-                                                finalToolCalls.length > 0;
-                                            const finalEphemeralContent =
-                                                ephemeralContentRef.current;
-                                            const hasEphemeralContent =
-                                                finalEphemeralContent ||
-                                                hasToolCalls;
-
-                                            // Build the message object
-                                            const newMessage = {
-                                                payload: finalContent,
-                                                tool: toolString,
-                                                sentTime:
-                                                    new Date().toISOString(),
-                                                direction: "incoming",
-                                                position: "single",
-                                                sender: "labeeb",
-                                                entityId:
-                                                    latestCurrentEntityIdRef.current,
-                                                isStreaming: false,
-                                                ephemeralContent:
-                                                    hasEphemeralContent
-                                                        ? finalEphemeralContent ||
-                                                          ""
-                                                        : undefined,
-                                                thinkingDuration:
-                                                    finalThinkingDuration,
-                                                toolCalls: hasToolCalls
-                                                    ? finalToolCalls
-                                                    : null,
-                                            };
-
-                                            // Add message to local chat copy immediately via query cache
-                                            const messages =
-                                                currentChat.messages || [];
-                                            const updatedMessages = [
-                                                ...messages,
-                                                newMessage,
-                                            ];
-                                            const updatedChat = {
-                                                ...currentChat,
-                                                messages: updatedMessages,
-                                                isChatLoading: false, // Clear loading state in cache
-                                            };
-
-                                            // Atomically: add message to cache AND clear streaming state
-                                            // This ensures message appears in chat at the exact moment streaming disappears
-                                            latestQueryClientRef.current.setQueryData(
-                                                ["chat", chatId],
-                                                updatedChat,
-                                            );
-                                            latestQueryClientRef.current.setQueryData(
-                                                ["chats"],
-                                                (old) => {
-                                                    if (!old || !old.pages)
-                                                        return old;
-                                                    return {
-                                                        ...old,
-                                                        pages: old.pages.map(
-                                                            (page) =>
-                                                                page.map(
-                                                                    (chat) =>
-                                                                        chat._id ===
-                                                                        chatId
-                                                                            ? updatedChat
-                                                                            : chat,
-                                                                ),
-                                                        ),
-                                                    };
-                                                },
-                                            );
-                                            latestQueryClientRef.current.setQueryData(
-                                                ["activeChats"],
-                                                (old) =>
-                                                    old?.map((chat) =>
-                                                        chat._id === chatId
-                                                            ? updatedChat
-                                                            : chat,
-                                                    ) || [],
-                                            );
-
-                                            // Clear streaming state - message is now in cache
-                                            // Server's persistMessage() handles isChatLoading: false
-                                            // Don't call mutateAsync here - it races with persistMessage
-                                            // and can overwrite our optimistic message with stale server data
-                                            latestClearStreamingStateRef.current();
-                                        } else {
-                                            // No content, just clear streaming state
-                                            // Server's persistMessage() handles isChatLoading: false
-                                            latestClearStreamingStateRef.current();
-                                        }
-                                    } else {
-                                        // No chat ID, just clear state
-                                        latestClearStreamingStateRef.current();
+                                        // Refetch and wait for complete message before clearing streaming
+                                        await latestQueryClientRef.current.refetchQueries(
+                                            {
+                                                queryKey: ["chat", chatId],
+                                            },
+                                        );
                                     }
+                                    // Now clear streaming state - complete message is already in cache
+                                    latestClearStreamingStateRef.current();
                                     return;
                                 }
 
@@ -587,13 +459,18 @@ export function useStreamingMessages({
                 if (!cancelled) {
                     console.error("Error reading SSE stream:", error);
                     toast.error("Stream connection error");
-                    latestClearStreamingStateRef.current();
                     if (latestChatRef.current?._id) {
+                        const chatId = String(latestChatRef.current._id);
+                        // Refetch before clearing to prevent flash
+                        await latestQueryClientRef.current.refetchQueries({
+                            queryKey: ["chat", chatId],
+                        });
                         await latestUpdateChatHookRef.current.mutateAsync({
-                            chatId: String(latestChatRef.current._id),
+                            chatId,
                             isChatLoading: false,
                         });
                     }
+                    latestClearStreamingStateRef.current();
                 }
             }
         };
