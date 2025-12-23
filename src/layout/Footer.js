@@ -15,11 +15,13 @@ export default function Footer() {
     const { t } = useTranslation();
     const { language, changeLanguage } = useContext(LanguageContext);
     const { theme, changeTheme } = useContext(ThemeContext);
+    const currentYear = new Date().getFullYear();
+    const copyrightText = t("footer_copyright", { year: currentYear });
 
     return (
         <div className="h-10 flex gap-1 justify-between sm:gap-8 bottom-0 items-center text-xs text-sky-700 dark:text-sky-400 px-4 py-2 bg-zinc-200 dark:bg-gray-800">
             <div className="flex items-center gap-2 sm:gap-4 min-w-0">
-                <div className="truncate text-xs">{t("footer_copyright")}</div>
+                <div className="truncate text-xs">{copyrightText}</div>
                 <Link
                     href="/privacy"
                     className="text-sky-700 dark:text-sky-400 hover:text-sky-700 dark:hover:text-sky-300 text-xs hidden md:block"

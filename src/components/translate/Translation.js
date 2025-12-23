@@ -94,10 +94,10 @@ function Translation({
         let model;
 
         switch (strategy) {
-            case "GPT-5":
+            case "GPT-5.2":
                 query = QUERIES.TRANSLATE;
                 resultKey = "translate";
-                model = "oai-gpt5-chat";
+                model = "oai-gpt52";
                 to = LANGUAGE_NAMES[to];
                 break;
             case "GPT-4-OMNI":
@@ -113,7 +113,7 @@ function Translation({
             default:
                 query = QUERIES.TRANSLATE;
                 resultKey = "translate";
-                model = "oai-gpt5-chat";
+                model = "oai-gpt52";
                 to = LANGUAGE_NAMES[to];
                 break;
         }
@@ -185,8 +185,8 @@ function Translation({
                                 setTranslationStrategy(strategy);
                             }}
                         >
-                            <option value="GPT-5">
-                                {t("Best, Newest (GPT-5)")}
+                            <option value="GPT-5.2">
+                                {t("Best, Newest (GPT-5.2)")}
                             </option>
                             <option value="GPT-4-OMNI">
                                 {t("Fast, High Quality (GPT-4-OMNI)")}
