@@ -2,16 +2,31 @@
  * @jest-environment node
  */
 
-import { buildWorkspacePromptVariables } from "../llm-file-utils";
+import {
+    buildWorkspacePromptVariables,
+    determineFileContextId,
+    fetchShortLivedUrl,
+    prepareFileContentForLLM,
+} from "../llm-file-utils";
 
-// Suppress console.error for expected errors in file handling
+// Mock config
+jest.mock("../../../../config", () => ({
+    endpoints: {
+        mediaHelperDirect: jest.fn(() => "http://media-helper.test"),
+    },
+}));
+
+// Suppress console.error and console.warn for expected errors in file handling
 const originalError = console.error;
+const originalWarn = console.warn;
 beforeAll(() => {
     console.error = jest.fn();
+    console.warn = jest.fn();
 });
 
 afterAll(() => {
     console.error = originalError;
+    console.warn = originalWarn;
 });
 
 describe("buildWorkspacePromptVariables", () => {
@@ -490,5 +505,510 @@ describe("buildWorkspacePromptVariables", () => {
             );
             expect(userMessage.content).toHaveLength(2); // prompt + text, no files
         });
+    });
+});
+
+describe("determineFileContextId", () => {
+    it("should return workspaceId for artifacts when workspaceId is provided", () => {
+        const result = determineFileContextId({
+            isArtifact: true,
+            workspaceId: "workspace123",
+            userContextId: "user123",
+        });
+        expect(result).toBe("workspace123");
+    });
+
+    it("should return userContextId for non-artifacts when userContextId is provided", () => {
+        const result = determineFileContextId({
+            isArtifact: false,
+            workspaceId: "workspace123",
+            userContextId: "user123",
+        });
+        expect(result).toBe("user123");
+    });
+
+    it("should return userContextId for artifacts when workspaceId is not provided", () => {
+        // When workspaceId is not available, artifacts fall back to userContextId
+        const result = determineFileContextId({
+            isArtifact: true,
+            workspaceId: null,
+            userContextId: "user123",
+        });
+        expect(result).toBe("user123");
+    });
+
+    it("should return null for non-artifacts when userContextId is not provided", () => {
+        const result = determineFileContextId({
+            isArtifact: false,
+            workspaceId: "workspace123",
+            userContextId: null,
+        });
+        expect(result).toBeNull();
+    });
+
+    it("should return null when neither workspaceId nor userContextId is provided", () => {
+        const result = determineFileContextId({
+            isArtifact: false,
+            workspaceId: null,
+            userContextId: null,
+        });
+        expect(result).toBeNull();
+    });
+
+    it("should handle default parameters", () => {
+        expect(determineFileContextId({})).toBeNull();
+        expect(
+            determineFileContextId({
+                isArtifact: true,
+                workspaceId: "workspace123",
+            }),
+        ).toBe("workspace123");
+        expect(
+            determineFileContextId({
+                isArtifact: false,
+                userContextId: "user123",
+            }),
+        ).toBe("user123");
+    });
+});
+
+describe("fetchShortLivedUrl", () => {
+    const originalFetch = global.fetch;
+    const config = require("../../../../config");
+
+    beforeEach(() => {
+        global.fetch = jest.fn();
+        jest.clearAllMocks();
+        // Reset config mock to return URL by default
+        config.endpoints.mediaHelperDirect.mockReturnValue(
+            "http://media-helper.test",
+        );
+    });
+
+    afterAll(() => {
+        global.fetch = originalFetch;
+    });
+
+    it("should return shortLivedUrl from media-helper response", async () => {
+        const mockShortLivedUrl =
+            "https://example.com/short-lived-url?expires=300";
+        global.fetch.mockResolvedValue({
+            ok: true,
+            json: async () => ({
+                url: "https://example.com/original-url",
+                shortLivedUrl: mockShortLivedUrl,
+                hash: "testhash",
+            }),
+        });
+
+        const result = await fetchShortLivedUrl("testhash", "context123");
+
+        expect(result).toBe(mockShortLivedUrl);
+        expect(global.fetch).toHaveBeenCalledWith(
+            expect.stringContaining("checkHash=true"),
+        );
+        expect(global.fetch).toHaveBeenCalledWith(
+            expect.stringContaining("shortLived=true"),
+        );
+        expect(global.fetch).toHaveBeenCalledWith(
+            expect.stringContaining("duration=300"),
+        );
+        expect(global.fetch).toHaveBeenCalledWith(
+            expect.stringContaining("contextId=context123"),
+        );
+    });
+
+    it("should fallback to url if shortLivedUrl is not in response", async () => {
+        const mockUrl = "https://example.com/original-url";
+        global.fetch.mockResolvedValue({
+            ok: true,
+            json: async () => ({
+                url: mockUrl,
+                hash: "testhash",
+            }),
+        });
+
+        const result = await fetchShortLivedUrl("testhash", "context123");
+
+        expect(result).toBe(mockUrl);
+    });
+
+    it("should return null when media-helper URL is not configured", async () => {
+        config.endpoints.mediaHelperDirect.mockReturnValue(null);
+
+        const result = await fetchShortLivedUrl("testhash", "context123");
+
+        expect(result).toBeNull();
+        expect(global.fetch).not.toHaveBeenCalled();
+    });
+
+    it("should return null when fetch fails", async () => {
+        global.fetch.mockRejectedValue(new Error("Network error"));
+
+        const result = await fetchShortLivedUrl("testhash", "context123");
+
+        expect(result).toBeNull();
+    });
+
+    it("should return null when response is not ok", async () => {
+        global.fetch.mockResolvedValue({
+            ok: false,
+            status: 404,
+            text: async () => "Not found",
+        });
+
+        const result = await fetchShortLivedUrl("testhash", "context123");
+
+        expect(result).toBeNull();
+    });
+
+    it("should return null when response JSON parsing fails", async () => {
+        global.fetch.mockResolvedValue({
+            ok: true,
+            json: async () => {
+                throw new Error("Invalid JSON");
+            },
+        });
+
+        const result = await fetchShortLivedUrl("testhash", "context123");
+
+        expect(result).toBeNull();
+    });
+
+    it("should not include contextId in URL when contextId is null", async () => {
+        global.fetch.mockResolvedValue({
+            ok: true,
+            json: async () => ({
+                url: "https://example.com/url",
+            }),
+        });
+
+        await fetchShortLivedUrl("testhash", null);
+
+        expect(global.fetch).toHaveBeenCalledWith(
+            expect.not.stringContaining("contextId"),
+        );
+    });
+});
+
+describe("prepareFileContentForLLM", () => {
+    const originalFetch = global.fetch;
+
+    beforeEach(() => {
+        global.fetch = jest.fn();
+        jest.clearAllMocks();
+    });
+
+    afterAll(() => {
+        global.fetch = originalFetch;
+    });
+
+    it("should return empty array when files is empty", async () => {
+        const result = await prepareFileContentForLLM([]);
+        expect(result).toEqual([]);
+    });
+
+    it("should return empty array when files is null", async () => {
+        const result = await prepareFileContentForLLM(null);
+        expect(result).toEqual([]);
+    });
+
+    it("should format files with workspaceId for artifacts", async () => {
+        const mockFiles = [
+            {
+                _id: "file123",
+                hash: "hash1",
+                url: "https://example.com/file1.jpg",
+                gcsUrl: "gs://bucket/file1.jpg",
+            },
+        ];
+
+        global.fetch.mockResolvedValue({
+            ok: true,
+            json: async () => ({
+                url: "https://example.com/file1.jpg",
+                shortLivedUrl: "https://example.com/short-lived-1",
+            }),
+        });
+
+        const result = await prepareFileContentForLLM(
+            mockFiles,
+            "workspace123",
+            null,
+            true,
+        );
+
+        expect(result).toHaveLength(1);
+        const fileObj = JSON.parse(result[0]);
+        expect(fileObj.type).toBe("image_url");
+        expect(fileObj.url).toBe("https://example.com/short-lived-1");
+        expect(fileObj.gcs).toBe("gs://bucket/file1.jpg");
+        expect(fileObj.hash).toBe("hash1");
+        expect(fileObj.contextId).toBe("workspace123");
+    });
+
+    it("should format files with userContextId for non-artifacts", async () => {
+        const mockFiles = [
+            {
+                hash: "hash1",
+                url: "https://example.com/file1.jpg",
+                gcsUrl: "gs://bucket/file1.jpg",
+            },
+        ];
+
+        global.fetch.mockResolvedValue({
+            ok: true,
+            json: async () => ({
+                url: "https://example.com/file1.jpg",
+                shortLivedUrl: "https://example.com/short-lived-1",
+            }),
+        });
+
+        const result = await prepareFileContentForLLM(
+            mockFiles,
+            null,
+            "user123",
+            true,
+        );
+
+        expect(result).toHaveLength(1);
+        const fileObj = JSON.parse(result[0]);
+        expect(fileObj.contextId).toBe("user123");
+    });
+
+    it("should use original URL when fetchShortLivedUrls is false", async () => {
+        const mockFiles = [
+            {
+                _id: "file123",
+                hash: "hash1",
+                url: "https://example.com/file1.jpg",
+                gcsUrl: "gs://bucket/file1.jpg",
+            },
+        ];
+
+        const result = await prepareFileContentForLLM(
+            mockFiles,
+            "workspace123",
+            null,
+            false,
+        );
+
+        expect(result).toHaveLength(1);
+        const fileObj = JSON.parse(result[0]);
+        expect(fileObj.url).toBe("https://example.com/file1.jpg");
+        expect(global.fetch).not.toHaveBeenCalled();
+    });
+
+    it("should use original URL when hash is missing", async () => {
+        const mockFiles = [
+            {
+                _id: "file123",
+                url: "https://example.com/file1.jpg",
+                gcsUrl: "gs://bucket/file1.jpg",
+            },
+        ];
+
+        const result = await prepareFileContentForLLM(
+            mockFiles,
+            "workspace123",
+            null,
+            true,
+        );
+
+        expect(result).toHaveLength(1);
+        const fileObj = JSON.parse(result[0]);
+        expect(fileObj.url).toBe("https://example.com/file1.jpg");
+        expect(global.fetch).not.toHaveBeenCalled();
+    });
+
+    it("should use original URL when contextId is missing", async () => {
+        const mockFiles = [
+            {
+                _id: "file123",
+                hash: "hash1",
+                url: "https://example.com/file1.jpg",
+                gcsUrl: "gs://bucket/file1.jpg",
+            },
+        ];
+
+        const result = await prepareFileContentForLLM(
+            mockFiles,
+            null,
+            null,
+            true,
+        );
+
+        expect(result).toHaveLength(1);
+        const fileObj = JSON.parse(result[0]);
+        expect(fileObj.url).toBe("https://example.com/file1.jpg");
+        expect(global.fetch).not.toHaveBeenCalled();
+    });
+
+    it("should use converted file URL and hash when available", async () => {
+        const mockFiles = [
+            {
+                _id: "file123",
+                hash: "original-hash",
+                url: "https://example.com/original.jpg",
+                converted: {
+                    hash: "converted-hash",
+                    url: "https://example.com/converted.jpg",
+                    gcs: "gs://bucket/converted.jpg",
+                },
+            },
+        ];
+
+        global.fetch.mockResolvedValue({
+            ok: true,
+            json: async () => ({
+                url: "https://example.com/converted.jpg",
+                shortLivedUrl: "https://example.com/short-lived-converted",
+            }),
+        });
+
+        const result = await prepareFileContentForLLM(
+            mockFiles,
+            "workspace123",
+            null,
+            true,
+        );
+
+        expect(result).toHaveLength(1);
+        const fileObj = JSON.parse(result[0]);
+        expect(fileObj.url).toBe("https://example.com/short-lived-converted");
+        expect(fileObj.gcs).toBe("gs://bucket/converted.jpg");
+        expect(fileObj.hash).toBe("converted-hash");
+        // Should use converted hash for fetching short-lived URL
+        expect(global.fetch).toHaveBeenCalledWith(
+            expect.stringContaining("hash=converted-hash"),
+        );
+    });
+
+    it("should handle multiple files", async () => {
+        const mockFiles = [
+            {
+                _id: "file1",
+                hash: "hash1",
+                url: "https://example.com/file1.jpg",
+            },
+            {
+                hash: "hash2",
+                url: "https://example.com/file2.jpg",
+            },
+        ];
+
+        global.fetch
+            .mockResolvedValueOnce({
+                ok: true,
+                json: async () => ({
+                    url: "https://example.com/file1.jpg",
+                    shortLivedUrl: "https://example.com/short-lived-1",
+                }),
+            })
+            .mockResolvedValueOnce({
+                ok: true,
+                json: async () => ({
+                    url: "https://example.com/file2.jpg",
+                    shortLivedUrl: "https://example.com/short-lived-2",
+                }),
+            });
+
+        const result = await prepareFileContentForLLM(
+            mockFiles,
+            "workspace123",
+            "user123",
+            true,
+        );
+
+        expect(result).toHaveLength(2);
+        const file1Obj = JSON.parse(result[0]);
+        const file2Obj = JSON.parse(result[1]);
+        expect(file1Obj.contextId).toBe("workspace123");
+        expect(file2Obj.contextId).toBe("user123");
+    });
+
+    it("should fallback to original URL when short-lived URL fetch fails", async () => {
+        const mockFiles = [
+            {
+                _id: "file123",
+                hash: "hash1",
+                url: "https://example.com/file1.jpg",
+                gcsUrl: "gs://bucket/file1.jpg",
+            },
+        ];
+
+        global.fetch.mockResolvedValue({
+            ok: false,
+            status: 404,
+        });
+
+        const result = await prepareFileContentForLLM(
+            mockFiles,
+            "workspace123",
+            null,
+            true,
+        );
+
+        expect(result).toHaveLength(1);
+        const fileObj = JSON.parse(result[0]);
+        expect(fileObj.url).toBe("https://example.com/file1.jpg");
+    });
+
+    it("should include image_url property", async () => {
+        const mockFiles = [
+            {
+                _id: "file123",
+                hash: "hash1",
+                url: "https://example.com/file1.jpg",
+            },
+        ];
+
+        global.fetch.mockResolvedValue({
+            ok: true,
+            json: async () => ({
+                url: "https://example.com/file1.jpg",
+                shortLivedUrl: "https://example.com/short-lived-1",
+            }),
+        });
+
+        const result = await prepareFileContentForLLM(
+            mockFiles,
+            "workspace123",
+            null,
+            true,
+        );
+
+        const fileObj = JSON.parse(result[0]);
+        expect(fileObj.image_url).toEqual({
+            url: "https://example.com/short-lived-1",
+        });
+    });
+
+    it("should handle files without gcsUrl", async () => {
+        const mockFiles = [
+            {
+                _id: "file123",
+                hash: "hash1",
+                url: "https://example.com/file1.jpg",
+            },
+        ];
+
+        global.fetch.mockResolvedValue({
+            ok: true,
+            json: async () => ({
+                url: "https://example.com/file1.jpg",
+                shortLivedUrl: "https://example.com/short-lived-1",
+            }),
+        });
+
+        const result = await prepareFileContentForLLM(
+            mockFiles,
+            "workspace123",
+            null,
+            true,
+        );
+
+        const fileObj = JSON.parse(result[0]);
+        expect(fileObj.gcs).toBe("https://example.com/file1.jpg");
     });
 });
