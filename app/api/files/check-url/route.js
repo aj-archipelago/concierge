@@ -2,14 +2,34 @@ import { NextResponse } from "next/server";
 import { getCurrentUser } from "../../utils/auth.js";
 
 /**
- * GET /api/files/check-url
+ * Redact sensitive query parameters from URL for logging
+ */
+function redactUrl(url) {
+    try {
+        const parsed = new URL(url);
+        // Redact common sensitive params (SAS tokens, API keys, etc.)
+        const sensitiveParams = ["sig", "sv", "se", "st", "sp", "sr", "spr"];
+        sensitiveParams.forEach((param) => {
+            if (parsed.searchParams.has(param)) {
+                parsed.searchParams.set(param, "[REDACTED]");
+            }
+        });
+        return parsed.toString();
+    } catch {
+        return "[INVALID_URL]";
+    }
+}
+
+/**
+ * POST /api/files/check-url
  * Check if a file URL exists by making a server-side request
  * This avoids CORS issues and doesn't rely on hash database
+ * Uses POST to avoid logging sensitive URLs in server logs
  *
- * Query parameters:
+ * Body:
  * - url: File URL to check (required)
  */
-export async function GET(request) {
+export async function POST(request) {
     try {
         // Get current user for authentication
         const user = await getCurrentUser();
@@ -20,8 +40,8 @@ export async function GET(request) {
             );
         }
 
-        const { searchParams } = new URL(request.url);
-        const fileUrl = searchParams.get("url");
+        const body = await request.json();
+        const fileUrl = body?.url;
 
         if (!fileUrl) {
             return NextResponse.json(
@@ -103,10 +123,12 @@ export async function GET(request) {
             clearTimeout(timeoutId);
             // Network errors, timeouts, etc. - assume file doesn't exist
             if (error.name === "AbortError") {
-                console.warn(`Timeout checking file URL: ${fileUrl}`);
+                console.warn(
+                    `Timeout checking file URL: ${redactUrl(fileUrl)}`,
+                );
             } else {
                 console.warn(
-                    `Error checking file URL ${fileUrl}:`,
+                    `Error checking file URL ${redactUrl(fileUrl)}:`,
                     error.message,
                 );
             }

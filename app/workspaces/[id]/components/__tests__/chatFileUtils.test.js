@@ -78,10 +78,11 @@ describe("chatFileUtils", () => {
             );
 
             expect(result).toBe(true);
-            expect(global.fetch).toHaveBeenCalledWith(
-                expect.stringContaining("/api/files/check-url"),
-                { method: "GET" },
-            );
+            expect(global.fetch).toHaveBeenCalledWith("/api/files/check-url", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ url: "https://example.com/file.pdf" }),
+            });
         });
 
         it("should return false when file does not exist", async () => {
