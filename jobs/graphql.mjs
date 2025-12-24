@@ -875,16 +875,16 @@ const AZURE_VIDEO_TRANSLATE = gql`
 const getWorkspacePromptQuery = (pathwayName) => {
     return gql`
         query ${pathwayName}(
-            $text: String!
-            $systemPrompt: String
-            $prompt: String!
+            $chatHistory: [MultiMessage]
             $async: Boolean
+            $model: String
+            $contextId: String
         ) {
             ${pathwayName}(
-                text: $text
-                systemPrompt: $systemPrompt
-                prompt: $prompt
+                chatHistory: $chatHistory
                 async: $async
+                model: $model
+                contextId: $contextId
             ) {
                 result
                 tool

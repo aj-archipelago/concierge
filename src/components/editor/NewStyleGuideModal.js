@@ -39,11 +39,19 @@ const NewStyleGuideModal = ({ text, onCommit, workspaceId = null }) => {
     // Refs for keyboard handling
     const diffReviewRef = useRef(null);
 
-    // Set default LLM when data is loaded
+    // Set default LLM when data is loaded (excluding legacy agent LLMs)
     React.useEffect(() => {
         if (llms && llms.length > 0 && !selectedLLM) {
-            const defaultLLM = llms.find((llm) => llm.isDefault) || llms[0];
-            setSelectedLLM(defaultLLM._id);
+            const filteredLLMs = llms.filter(
+                (llm) =>
+                    llm.identifier !== "labeebagent" &&
+                    llm.identifier !== "labeebresearchagent",
+            );
+            const defaultLLM =
+                filteredLLMs.find((llm) => llm.isDefault) || filteredLLMs[0];
+            if (defaultLLM) {
+                setSelectedLLM(defaultLLM._id);
+            }
         }
     }, [llms, selectedLLM]);
 
@@ -561,14 +569,24 @@ const NewStyleGuideModal = ({ text, onCommit, workspaceId = null }) => {
                                 />
                             </SelectTrigger>
                             <SelectContent>
-                                {llms?.map((llm) => (
-                                    <SelectItem key={llm._id} value={llm._id}>
-                                        {llm.name}{" "}
-                                        {llm.isDefault
-                                            ? `(${t("Default")})`
-                                            : ""}
-                                    </SelectItem>
-                                ))}
+                                {llms
+                                    ?.filter(
+                                        (llm) =>
+                                            llm.identifier !== "labeebagent" &&
+                                            llm.identifier !==
+                                                "labeebresearchagent",
+                                    )
+                                    .map((llm) => (
+                                        <SelectItem
+                                            key={llm._id}
+                                            value={llm._id}
+                                        >
+                                            {llm.name}{" "}
+                                            {llm.isDefault
+                                                ? `(${t("Default")})`
+                                                : ""}
+                                        </SelectItem>
+                                    ))}
                             </SelectContent>
                         </Select>
                     )}

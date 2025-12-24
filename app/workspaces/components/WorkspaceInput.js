@@ -567,6 +567,8 @@ function PromptEditor({ selectedPrompt, onBack }) {
     const { user, workspace } = useContext(WorkspaceContext);
     const { data: llms } = useLLMs();
     const [llm, setLLM] = useState("");
+    const [agentMode, setAgentMode] = useState(false);
+    const [researchMode, setResearchMode] = useState(false);
     const { t } = useTranslation();
 
     useEffect(() => {
@@ -574,6 +576,8 @@ function PromptEditor({ selectedPrompt, onBack }) {
             setTitle(selectedPrompt.title);
             setPrompt(selectedPrompt.text);
             setSelectedFiles(selectedPrompt.files || []);
+            setAgentMode(selectedPrompt.agentMode || false);
+            setResearchMode(selectedPrompt.researchMode || false);
             setLLM(
                 selectedPrompt?.llm &&
                     llms?.some((l) => l._id === selectedPrompt.llm)
@@ -584,6 +588,8 @@ function PromptEditor({ selectedPrompt, onBack }) {
             setTitle("");
             setPrompt("");
             setSelectedFiles([]);
+            setAgentMode(false);
+            setResearchMode(false);
             setLLM(llms?.find((l) => l.isDefault)?._id);
         }
     }, [selectedPrompt, llms]);
@@ -640,6 +646,51 @@ function PromptEditor({ selectedPrompt, onBack }) {
                             )}
                         </div>
                     )}
+                </div>
+            </div>
+
+            <div className="mb-4 flex items-center gap-4 justify-end">
+                <div className="flex items-center gap-2">
+                    <input
+                        type="checkbox"
+                        id="agentMode"
+                        checked={agentMode}
+                        onChange={(e) => {
+                            const checked = e.target.checked;
+                            setAgentMode(checked);
+                            if (!checked) {
+                                setResearchMode(false);
+                            }
+                        }}
+                        disabled={isPublished}
+                        className="accent-sky-500"
+                    />
+                    <label
+                        htmlFor="agentMode"
+                        className="text-sm text-gray-700 dark:text-gray-300 cursor-pointer"
+                    >
+                        {t("Agent Mode")}
+                    </label>
+                </div>
+                <div className="flex items-center gap-2">
+                    <input
+                        type="checkbox"
+                        id="researchMode"
+                        checked={researchMode}
+                        onChange={(e) => setResearchMode(e.target.checked)}
+                        disabled={isPublished || !agentMode}
+                        className="accent-sky-500"
+                    />
+                    <label
+                        htmlFor="researchMode"
+                        className={`text-sm cursor-pointer ${
+                            !agentMode
+                                ? "text-gray-400 dark:text-gray-600"
+                                : "text-gray-700 dark:text-gray-300"
+                        }`}
+                    >
+                        {t("Research Mode")}
+                    </label>
                 </div>
             </div>
 
@@ -758,6 +809,8 @@ function PromptEditor({ selectedPrompt, onBack }) {
                                         title,
                                         text: prompt,
                                         llm,
+                                        agentMode,
+                                        researchMode,
                                         files: selectedFiles.map(
                                             (file) => file._id,
                                         ),
@@ -771,6 +824,8 @@ function PromptEditor({ selectedPrompt, onBack }) {
                                         title,
                                         text: prompt,
                                         llm,
+                                        agentMode,
+                                        researchMode,
                                         files: selectedFiles.map(
                                             (file) => file._id,
                                         ),

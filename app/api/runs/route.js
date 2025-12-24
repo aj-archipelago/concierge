@@ -1,14 +1,9 @@
 import { getClient, QUERIES } from "../../../src/graphql";
-import LLM from "../models/llm";
-import Prompt from "../models/prompt";
 import Run from "../models/run";
 import Workspace from "../models/workspace";
 import { getCurrentUser } from "../utils/auth";
-import {
-    getLLMWithFallback,
-    buildWorkspacePromptVariables,
-} from "../utils/llm-file-utils";
-import config from "../../../config";
+import { buildWorkspacePromptVariables } from "../utils/llm-file-utils";
+import { getPromptWithMigration } from "../utils/prompt-utils";
 
 export async function POST(req, res) {
     const startedAt = Date.now();
@@ -22,15 +17,15 @@ export async function POST(req, res) {
     const { getWorkspacePromptQuery } = QUERIES;
 
     try {
-        let responseText;
+        const promptData = await getPromptWithMigration(promptId);
+        if (!promptData) {
+            return Response.json(
+                { message: "Prompt not found" },
+                { status: 404 },
+            );
+        }
 
-        const prompt = await Prompt.findById(promptId).populate("files");
-
-        const llmId = prompt.llm;
-        const llm = await getLLMWithFallback(LLM, llmId);
-
-        const pathwayName = llm.cortexPathwayName;
-        const model = llm.cortexModelName;
+        const { prompt, pathwayName, model } = promptData;
 
         // Fetch workspace to get systemPrompt (workspace context)
         let workspaceSystemPrompt = systemPrompt;
@@ -65,11 +60,8 @@ export async function POST(req, res) {
             userContextId: userContextIdForFiles,
         });
 
-        if (model !== config.cortex?.AGENTIC_MODEL) {
-            variables.model = model;
-        }
+        variables.model = model;
 
-        // Pass workspaceId as contextId so Cortex can look up workspace files
         if (workspaceIdForFiles) {
             variables.contextId = workspaceIdForFiles;
         }
@@ -81,7 +73,7 @@ export async function POST(req, res) {
             variables,
         });
 
-        responseText =
+        const responseText =
             response.data[pathwayName].result || "The response was empty";
 
         // Extract citations from the tool field if available
@@ -90,8 +82,9 @@ export async function POST(req, res) {
             try {
                 const toolData = JSON.parse(response.data[pathwayName].tool);
                 citations = toolData.citations || [];
-            } catch (e) {}
-        } else {
+            } catch (e) {
+                // Ignore parse errors
+            }
         }
 
         const run = await Run.create({
@@ -113,4 +106,4 @@ export async function POST(req, res) {
     }
 }
 
-export const dynamic = "force-dynamic"; // defaults to auto
+export const dynamic = "force-dynamic";

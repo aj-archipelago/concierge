@@ -278,7 +278,7 @@ export async function buildWorkspacePromptVariables({
             content: [
                 JSON.stringify({
                     type: "text",
-                    text: "Your output is being displayed in the user interface or used as an API response, not in a chat conversation. The user cannot respond to your messages. Please complete the requested task fully and do not ask follow-up questions or otherwise attempt to engage the user in conversation.",
+                    text: "Your output is being displayed in the user interface or used as an API response, not in an interactive chat conversation. The user cannot respond to your messages. Please complete the requested task fully and do not ask follow-up questions or otherwise attempt to engage the user in conversation.",
                 }),
             ],
         });

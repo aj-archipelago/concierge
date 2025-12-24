@@ -303,5 +303,7 @@
     "Reset zoom and pan": "Reset zoom and pan",
     "Reset": "Reset",
     "Copy SVG": "Copy SVG",
-    "Failed to render diagram": "Failed to render diagram"
+    "Failed to render diagram": "Failed to render diagram",
+    "Model": "Model",
+    "Agent Mode": "Agent Mode"
 }
