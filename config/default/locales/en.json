@@ -1,5 +1,5 @@
 {
-    "footer_copyright": "Copyright © 2025.",
+    "footer_copyright": "Copyright © {{year}}.",
     "footer_privacy_policy": "Privacy Policy",
     "Transcribe": "Transcribe",
     "tool.search": "search",

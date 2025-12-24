@@ -160,6 +160,7 @@ export async function POST(req, { params }) {
         // Create SSE stream
         const encoder = new TextEncoder();
         let clientConnected = true;
+        let completionHandled = false; // Track if we've handled completion (progress=1 or error)
         let graphqlSubscription = null; // Store subscription for cleanup
 
         const stream = new ReadableStream({
@@ -276,24 +277,30 @@ export async function POST(req, { params }) {
 
                                 // Handle completion
                                 if (progress === 1) {
-                                    sendEvent("complete", { progress: 1 });
+                                    completionHandled = true;
                                     unsubscribe();
-                                    closeStream();
-                                    persistMessage(
-                                        chat,
-                                        accumulator,
-                                        finalEntityId,
-                                        subscriptionId,
-                                        false,
-                                    ).catch((err) =>
+                                    // Persist message BEFORE telling client it's complete
+                                    // This ensures the message is in the database when the client refetches
+                                    try {
+                                        await persistMessage(
+                                            chat,
+                                            accumulator,
+                                            finalEntityId,
+                                            subscriptionId,
+                                            false,
+                                        );
+                                    } catch (err) {
                                         console.error(
                                             `[SSE Stream] Error persisting message for chat ${chat._id}:`,
                                             err,
-                                        ),
-                                    );
+                                        );
+                                    }
+                                    sendEvent("complete", { progress: 1 });
+                                    closeStream();
                                 }
                             },
                             error: (error) => {
+                                completionHandled = true;
                                 console.error("Subscription error:", error);
                                 unsubscribe();
                                 sendEvent("error", {
@@ -316,6 +323,20 @@ export async function POST(req, { params }) {
                             complete: () => {
                                 unsubscribe();
                                 closeStream();
+                                // Only clear loading if we haven't already handled completion
+                                // (progress=1 or error already set the appropriate state)
+                                if (!completionHandled) {
+                                    // Subscription ended unexpectedly (e.g., GraphQL server died)
+                                    Chat.findOneAndUpdate(
+                                        { _id: chat._id },
+                                        { isChatLoading: false },
+                                    ).catch((err) =>
+                                        console.error(
+                                            "Error clearing loading on unexpected subscription close:",
+                                            err,
+                                        ),
+                                    );
+                                }
                             },
                         });
                 } catch (error) {

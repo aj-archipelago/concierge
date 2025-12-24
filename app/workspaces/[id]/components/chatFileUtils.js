@@ -45,14 +45,11 @@ export async function checkFileUrlExists(url) {
     if (!url) return false;
 
     try {
-        const checkUrl = new URL(
-            "/api/files/check-url",
-            window.location.origin,
-        );
-        checkUrl.searchParams.set("url", url);
-
-        const response = await fetch(checkUrl.toString(), {
-            method: "GET",
+        // Use POST to avoid logging sensitive SAS URLs in server logs
+        const response = await fetch("/api/files/check-url", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ url }),
         });
 
         if (!response.ok) {

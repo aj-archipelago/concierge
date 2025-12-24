@@ -351,16 +351,12 @@ export function useStreamingMessages({
                     const { done, value } = await reader.read();
 
                     if (done) {
-                        // Stream completed - server should have persisted
-                        // Refetch the complete persisted message BEFORE clearing streaming state
-                        // This prevents flash (streaming disappears -> nothing -> message appears)
+                        // Stream ended - refetch to get persisted message, then clear streaming
                         if (!cancelled && latestChatRef.current?._id) {
                             const chatId = String(latestChatRef.current._id);
-                            // Refetch and wait for it to complete before clearing streaming
                             await latestQueryClientRef.current.refetchQueries({
                                 queryKey: ["chat", chatId],
                             });
-                            // Now clear streaming state - complete message is already in cache
                             latestClearStreamingStateRef.current();
                         } else if (!cancelled) {
                             latestClearStreamingStateRef.current();
@@ -408,20 +404,18 @@ export function useStreamingMessages({
                                 }
 
                                 if (event === "complete") {
-                                    // Server has persisted the complete message
-                                    // Refetch BEFORE clearing streaming state to prevent flash
+                                    // Server has persisted the message before sending "complete"
+                                    // Refetch to get the persisted message, then clear streaming
                                     if (latestChatRef.current?._id) {
                                         const chatId = String(
                                             latestChatRef.current._id,
                                         );
-                                        // Refetch and wait for complete message before clearing streaming
                                         await latestQueryClientRef.current.refetchQueries(
                                             {
                                                 queryKey: ["chat", chatId],
                                             },
                                         );
                                     }
-                                    // Now clear streaming state - complete message is already in cache
                                     latestClearStreamingStateRef.current();
                                     return;
                                 }

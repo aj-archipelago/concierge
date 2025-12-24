@@ -75,7 +75,7 @@
     "Tags relevant to this article": "العلامات المتعلقة بهذه المقالة",
     "Entities extracted from text": "الكيانات المستخرجة من النص",
     "What else would the reader like to know?": "ماذا يريد القارئ المزيد من المعرفة؟",
-    "footer_copyright": "حقوق النشر © 2025 شبكة الإعلام الجزيرة. كل الحقوق محفوظة.",
+    "footer_copyright": "حقوق النشر © {{year}} شبكة الإعلام الجزيرة. كل الحقوق محفوظة.",
     "footer_privacy_policy": "سياسة الخصوصية",
     "tool.search": "بحث",
     "tool.reasoning": "تفكير",
