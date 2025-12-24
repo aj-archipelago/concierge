@@ -47,8 +47,8 @@ export async function getPromptWithMigration(promptId) {
 
     if (agentMode) {
         pathwayName = researchMode
-            ? "run_labeeb_research_agent"
-            : "run_labeeb_agent";
+            ? "run_workspace_research_agent"
+            : "run_workspace_agent";
         model = llm.cortexModelName;
     } else {
         pathwayName = llm.cortexPathwayName;

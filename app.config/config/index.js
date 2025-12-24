@@ -231,14 +231,14 @@ const config = {
             {
                 identifier: LLM_IDENTIFIERS.labeebagent,
                 name: "Labeeb Agent",
-                cortexPathwayName: "run_labeeb_agent",
+                cortexPathwayName: "run_workspace_agent",
                 cortexModelName: CORTEX_AGENTIC_MODEL,
                 isAgentic: true,
             },
             {
                 identifier: LLM_IDENTIFIERS.labeebresearchagent,
                 name: "Labeeb Research Agent",
-                cortexPathwayName: "run_labeeb_research_agent",
+                cortexPathwayName: "run_workspace_research_agent",
                 cortexModelName: CORTEX_AGENTIC_MODEL,
                 isAgentic: true,
             },

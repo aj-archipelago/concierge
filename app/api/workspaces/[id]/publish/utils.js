@@ -23,8 +23,8 @@ export async function publishWorkspace(workspace, user, pathwayName, model) {
             let cortexPathwayName;
             if (agentMode) {
                 cortexPathwayName = researchMode
-                    ? "run_labeeb_research_agent"
-                    : "run_labeeb_agent";
+                    ? "run_workspace_research_agent"
+                    : "run_workspace_agent";
             } else {
                 cortexPathwayName = llm.cortexPathwayName;
             }
@@ -99,8 +99,8 @@ export async function republishWorkspace(workspace) {
             let cortexPathwayName;
             if (agentMode) {
                 cortexPathwayName = researchMode
-                    ? "run_labeeb_research_agent"
-                    : "run_labeeb_agent";
+                    ? "run_workspace_research_agent"
+                    : "run_workspace_agent";
             } else {
                 cortexPathwayName = llm.cortexPathwayName;
             }
