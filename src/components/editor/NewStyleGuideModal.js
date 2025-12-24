@@ -47,10 +47,13 @@ const NewStyleGuideModal = ({ text, onCommit, workspaceId = null }) => {
                     llm.identifier !== "labeebagent" &&
                     llm.identifier !== "labeebresearchagent",
             );
-            const defaultLLM =
-                filteredLLMs.find((llm) => llm.isDefault) || filteredLLMs[0];
-            if (defaultLLM) {
-                setSelectedLLM(defaultLLM._id);
+            if (filteredLLMs.length > 0) {
+                const defaultLLM =
+                    filteredLLMs.find((llm) => llm.isDefault) ||
+                    filteredLLMs[0];
+                if (defaultLLM) {
+                    setSelectedLLM(defaultLLM._id);
+                }
             }
         }
     }, [llms, selectedLLM]);

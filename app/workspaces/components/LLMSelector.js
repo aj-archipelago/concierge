@@ -27,7 +27,7 @@ export default function LLMSelector({
             );
             if (defaultLLM) {
                 onChange(defaultLLM._id);
-            } else {
+            } else if (filteredLLMs.length > 0) {
                 onChange(filteredLLMs[0]._id);
             }
         }

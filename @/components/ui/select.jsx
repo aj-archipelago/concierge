@@ -76,10 +76,6 @@ SelectScrollDownButton.displayName =
 
 const SelectContent = React.forwardRef(
     ({ className, children, position = "popper", dir, ...props }, ref) => {
-        const isRTL =
-            dir === "rtl" ||
-            (typeof document !== "undefined" &&
-                document.documentElement.dir === "rtl");
         return (
             <SelectPrimitive.Portal>
                 <SelectPrimitive.Content
@@ -149,7 +145,7 @@ const SelectItem = React.forwardRef(
                     </SelectPrimitive.ItemIndicator>
                 </span>
 
-                <div className="grow text-start">
+                <div className={cn("grow", isRTL ? "text-end" : "text-start")}>
                     <SelectPrimitive.ItemText>
                         {children}
                     </SelectPrimitive.ItemText>
