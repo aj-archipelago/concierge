@@ -4,6 +4,7 @@ import Workspace from "../models/workspace";
 import { getCurrentUser } from "../utils/auth";
 import { buildWorkspacePromptVariables } from "../utils/llm-file-utils";
 import { getPromptWithMigration } from "../utils/prompt-utils";
+import { filterValidFiles } from "../utils/file-validation-utils";
 
 export async function POST(req, res) {
     const startedAt = Date.now();
@@ -38,12 +39,14 @@ export async function POST(req, res) {
         }
 
         // Collect all files (client files + prompt files)
+        // Filter out errored files
         const allFiles = [];
         if (files && files.length > 0) {
             allFiles.push(...files);
         }
         if (prompt.files && prompt.files.length > 0) {
-            allFiles.push(...prompt.files);
+            const validPromptFiles = await filterValidFiles(prompt.files);
+            allFiles.push(...validPromptFiles);
         }
 
         // Workspace artifacts use workspaceId, user-submitted files use user.contextId

@@ -9,6 +9,7 @@ import {
     buildWorkspacePromptVariables,
 } from "../../../../utils/llm-file-utils";
 import { getPromptWithMigration } from "../../../../utils/prompt-utils";
+import { filterValidFiles } from "../../../../utils/file-validation-utils";
 
 export async function POST(request, { params }) {
     try {
@@ -46,7 +47,8 @@ export async function POST(request, { params }) {
             }
 
             promptText = promptData.prompt.text;
-            promptFiles = promptData.prompt.files || [];
+            // Filter out errored files
+            promptFiles = await filterValidFiles(promptData.prompt.files || []);
             pathwayName = promptData.pathwayName;
             model = promptData.model;
         } else {
