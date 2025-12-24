@@ -4,10 +4,10 @@ import { Paperclip, X } from "lucide-react";
 import { Modal } from "../../../@/components/ui/modal";
 import LoadingButton from "../../../src/components/editor/LoadingButton";
 import { useCreatePrompt } from "../../queries/prompts";
-import LLMSelector from "./LLMSelector";
 import { WorkspaceContext } from "./WorkspaceContent";
 import { FilePickerModal } from "./WorkspaceInput";
 import { getFileIcon } from "../../../src/utils/mediaUtils";
+import ModelConfiguration from "./ModelConfiguration";
 
 export default function PromptSelectorModal({ isOpen, setIsOpen }) {
     const { t } = useTranslation();
@@ -30,6 +30,8 @@ function SelectorDialog({ setIsOpen }) {
     const [title, setTitle] = useState("");
     const [text, setText] = useState("");
     const [llm, setLLM] = useState("");
+    const [agentMode, setAgentMode] = useState(false);
+    const [researchMode, setResearchMode] = useState(false);
     const [selectedFiles, setSelectedFiles] = useState([]);
     const [showFilePicker, setShowFilePicker] = useState(false);
     const { t } = useTranslation();
@@ -70,17 +72,16 @@ function SelectorDialog({ setIsOpen }) {
                         )}
                     />
                 </div>
-                <div className="mb-4">
-                    <label className="text-sm text-gray-500 mb-1 block">
-                        {t("Model")}
-                    </label>
-                    <LLMSelector
-                        value={llm}
-                        onChange={(newValue) => {
-                            setLLM(newValue);
-                        }}
-                    />
-                </div>
+
+                <ModelConfiguration
+                    llm={llm}
+                    setLLM={setLLM}
+                    agentMode={agentMode}
+                    setAgentMode={setAgentMode}
+                    researchMode={researchMode}
+                    setResearchMode={setResearchMode}
+                />
+
                 <div className="mb-6">
                     <label className="text-sm text-gray-500 mb-1 block">
                         {t("Attached Files")}
@@ -156,6 +157,8 @@ function SelectorDialog({ setIsOpen }) {
                                 title,
                                 text,
                                 llm,
+                                agentMode,
+                                researchMode,
                                 files: selectedFiles.map((file) => file._id),
                             },
                         });
