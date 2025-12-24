@@ -13,7 +13,7 @@ import {
 import { useCallback, useContext, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useQueryClient } from "@tanstack/react-query";
-import LLMSelector from "./LLMSelector";
+import ModelConfiguration from "./ModelConfiguration";
 
 import {
     AlertDialog,
@@ -144,16 +144,18 @@ export default function WorkspaceInput({ onRun, onRunMany }) {
             });
         }
 
-        // Add selected workspace files (selectedFiles)
+        // Add selected workspace files (selectedFiles) - filter out errored files
         if (selectedFiles && selectedFiles.length > 0) {
-            selectedFiles.forEach((file) => {
-                files.push({
-                    url: file.url,
-                    gcs: file.gcsUrl || file.gcs,
-                    _id: file._id,
-                    hash: file.hash || undefined, // Explicitly handle undefined hash
+            selectedFiles
+                .filter((file) => !file.error) // Exclude errored files
+                .forEach((file) => {
+                    files.push({
+                        url: file.url,
+                        gcs: file.gcsUrl || file.gcs,
+                        _id: file._id,
+                        hash: file.hash || undefined, // Explicitly handle undefined hash
+                    });
                 });
-            });
         }
 
         return files;
@@ -567,6 +569,8 @@ function PromptEditor({ selectedPrompt, onBack }) {
     const { user, workspace } = useContext(WorkspaceContext);
     const { data: llms } = useLLMs();
     const [llm, setLLM] = useState("");
+    const [agentMode, setAgentMode] = useState(false);
+    const [researchMode, setResearchMode] = useState(false);
     const { t } = useTranslation();
 
     useEffect(() => {
@@ -574,6 +578,8 @@ function PromptEditor({ selectedPrompt, onBack }) {
             setTitle(selectedPrompt.title);
             setPrompt(selectedPrompt.text);
             setSelectedFiles(selectedPrompt.files || []);
+            setAgentMode(selectedPrompt.agentMode || false);
+            setResearchMode(selectedPrompt.researchMode || false);
             setLLM(
                 selectedPrompt?.llm &&
                     llms?.some((l) => l._id === selectedPrompt.llm)
@@ -584,6 +590,8 @@ function PromptEditor({ selectedPrompt, onBack }) {
             setTitle("");
             setPrompt("");
             setSelectedFiles([]);
+            setAgentMode(false);
+            setResearchMode(false);
             setLLM(llms?.find((l) => l.isDefault)?._id);
         }
     }, [selectedPrompt, llms]);
@@ -620,28 +628,17 @@ function PromptEditor({ selectedPrompt, onBack }) {
                     )}
                 />
             </div>
-            <div className="mb-4">
-                <label className="text-sm text-gray-500 mb-1 block">
-                    {t("Model")}
-                </label>
-                <div>
-                    <LLMSelector
-                        value={llm}
-                        onChange={(newValue) => {
-                            setLLM(newValue);
-                        }}
-                        disabled={isPublished}
-                    />
 
-                    {isPublished && (
-                        <div className="text-xs text-gray-400 dark:text-gray-500 mt-1">
-                            {t(
-                                "The model cannot be modified because this workspace is published to Cortex.",
-                            )}
-                        </div>
-                    )}
-                </div>
-            </div>
+            <ModelConfiguration
+                llm={llm}
+                setLLM={setLLM}
+                agentMode={agentMode}
+                setAgentMode={setAgentMode}
+                researchMode={researchMode}
+                setResearchMode={setResearchMode}
+                disabled={isPublished}
+                showPublishedWarning={isPublished}
+            />
 
             {/* File Attachments Section */}
             <div className="mb-6">
@@ -758,9 +755,11 @@ function PromptEditor({ selectedPrompt, onBack }) {
                                         title,
                                         text: prompt,
                                         llm,
-                                        files: selectedFiles.map(
-                                            (file) => file._id,
-                                        ),
+                                        agentMode,
+                                        researchMode,
+                                        files: selectedFiles
+                                            .filter((file) => !file.error)
+                                            .map((file) => file._id),
                                     },
                                 });
                                 onBack();
@@ -771,9 +770,11 @@ function PromptEditor({ selectedPrompt, onBack }) {
                                         title,
                                         text: prompt,
                                         llm,
-                                        files: selectedFiles.map(
-                                            (file) => file._id,
-                                        ),
+                                        agentMode,
+                                        researchMode,
+                                        files: selectedFiles
+                                            .filter((file) => !file.error)
+                                            .map((file) => file._id),
                                     },
                                 });
                                 onBack();
@@ -861,11 +862,16 @@ function FileList({
                     (f) => f._id === file._id,
                 );
                 const isDeleting = deletingFiles.has(file._id);
+                const hasError = !!file.error;
 
                 return (
                     <div
                         key={file._id}
                         className={`flex items-center gap-2 ${
+                            hasError
+                                ? "opacity-60 border-red-300 dark:border-red-700"
+                                : ""
+                        } ${
                             isPickerMode
                                 ? `p-2 border rounded cursor-pointer transition-colors ${
                                       isSelected
@@ -875,7 +881,9 @@ function FileList({
                                 : "justify-between p-2 border border-gray-200 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700"
                         }`}
                         onClick={
-                            isPickerMode ? () => onFileToggle(file) : undefined
+                            isPickerMode && !hasError
+                                ? () => onFileToggle(file)
+                                : undefined
                         }
                     >
                         {isPickerMode && (
@@ -883,13 +891,32 @@ function FileList({
                                 type="checkbox"
                                 checked={isSelected}
                                 onChange={() => onFileToggle(file)}
-                                className="w-4 h-4 flex-shrink-0 self-center"
+                                disabled={hasError}
+                                className="w-4 h-4 flex-shrink-0 self-center disabled:opacity-50"
                             />
                         )}
-                        <Icon className="w-6 h-6 text-gray-500 flex-shrink-0" />
+                        <Icon
+                            className={`w-6 h-6 flex-shrink-0 ${
+                                hasError
+                                    ? "text-red-500 dark:text-red-400"
+                                    : "text-gray-500"
+                            }`}
+                        />
                         <div className="min-w-0 flex-1 flex items-baseline gap-2">
-                            <span className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
+                            <span
+                                className={`text-sm font-medium truncate ${
+                                    hasError
+                                        ? "text-red-600 dark:text-red-400"
+                                        : "text-gray-900 dark:text-gray-100"
+                                }`}
+                                title={hasError ? file.error : undefined}
+                            >
                                 {file.originalName || file.filename}
+                                {hasError && (
+                                    <span className="ml-1 text-xs">
+                                        ({t("Error")})
+                                    </span>
+                                )}
                             </span>
                             {isPickerMode && file.size && (
                                 <span className="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap flex-shrink-0 leading-normal">

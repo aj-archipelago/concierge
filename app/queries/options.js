@@ -10,7 +10,7 @@ export function useUpdateAiOptions() {
             contextId,
             aiMemorySelfModify,
             aiName,
-            aiStyle,
+            agentModel,
             useCustomEntities,
         }) => {
             // persist it to user options in the database
@@ -19,7 +19,7 @@ export function useUpdateAiOptions() {
                 contextId,
                 aiMemorySelfModify,
                 aiName,
-                aiStyle,
+                agentModel,
                 useCustomEntities,
             });
             return response.data;
@@ -29,7 +29,7 @@ export function useUpdateAiOptions() {
             contextId,
             aiMemorySelfModify,
             aiName,
-            aiStyle,
+            agentModel,
             useCustomEntities,
         }) => {
             await queryClient.cancelQueries({ queryKey: ["currentUser"] });
@@ -44,7 +44,7 @@ export function useUpdateAiOptions() {
                     contextId,
                     aiMemorySelfModify,
                     aiName,
-                    aiStyle,
+                    agentModel,
                     useCustomEntities,
                 };
             });

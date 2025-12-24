@@ -13,14 +13,27 @@ export async function publishWorkspace(workspace, user, pathwayName, model) {
     );
 
     // Create prompts with cortexPathwayName from their associated LLMs
+    // Account for agentMode and researchMode to use agentic pathways
     const promptsWithPathway = await Promise.all(
         prompts.map(async (p) => {
             const llm = await getLLMWithFallback(LLM, p.llm);
+            const agentMode = p.agentMode || false;
+            const researchMode = p.researchMode || false;
+
+            let cortexPathwayName;
+            if (agentMode) {
+                cortexPathwayName = researchMode
+                    ? "run_workspace_research_agent"
+                    : "run_workspace_agent";
+            } else {
+                cortexPathwayName = llm.cortexPathwayName;
+            }
+
             return {
                 name: p.title,
                 prompt: p.text,
                 files: p.files ? p.files.map((f) => f.hash) : [],
-                cortexPathwayName: llm.cortexPathwayName,
+                cortexPathwayName,
             };
         }),
     );
@@ -76,14 +89,27 @@ export async function republishWorkspace(workspace) {
     }).populate("files");
 
     // Create prompts with cortexPathwayName from their associated LLMs
+    // Account for agentMode and researchMode to use agentic pathways
     const promptsWithPathway = await Promise.all(
         prompts.map(async (p) => {
             const llm = await getLLMWithFallback(LLM, p.llm);
+            const agentMode = p.agentMode || false;
+            const researchMode = p.researchMode || false;
+
+            let cortexPathwayName;
+            if (agentMode) {
+                cortexPathwayName = researchMode
+                    ? "run_workspace_research_agent"
+                    : "run_workspace_agent";
+            } else {
+                cortexPathwayName = llm.cortexPathwayName;
+            }
+
             return {
                 name: p.title,
                 prompt: p.text,
                 files: p.files ? p.files.map((f) => f.hash) : [],
-                cortexPathwayName: llm.cortexPathwayName,
+                cortexPathwayName,
             };
         }),
     );

@@ -338,7 +338,7 @@ function ChatContent({
                     contextKey,
                     aiMemorySelfModify,
                     aiName,
-                    aiStyle,
+                    agentModel,
                 } = user;
 
                 // Use entity ID directly from the prop
@@ -398,11 +398,10 @@ function ChatContent({
                                 (e) => e.id === currentSelectedEntityId,
                             )?.name || aiName,
                         aiMemorySelfModify,
-                        aiStyle,
                         title: chat?.title,
                         entityId: currentSelectedEntityId,
                         researchMode: chat?.researchMode ? true : false,
-                        model: chat?.researchMode ? "oai-o3" : "oai-gpt41",
+                        model: agentModel || "oai-gpt51",
                         userInfo,
                     }),
                 });

@@ -25,7 +25,7 @@ export const memoryLogger = {
  * @param {Buffer} buffer - The buffer to hash
  * @returns {Promise<string>} - The hash as a hex string
  */
-async function hashBuffer(buffer) {
+export async function hashBuffer(buffer) {
     const hasher = await xxhash();
     const xxh64 = hasher.create64();
     xxh64.update(buffer);

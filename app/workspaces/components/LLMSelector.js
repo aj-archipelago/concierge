@@ -1,12 +1,6 @@
-import { useEffect } from "react";
+import { useContext, useEffect } from "react";
 import { useLLMs } from "../../queries/llms";
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from "@/components/ui/select";
+import { LanguageContext } from "../../../src/contexts/LanguageProvider";
 
 export default function LLMSelector({
     value,
@@ -15,36 +9,45 @@ export default function LLMSelector({
     disabled = false,
 }) {
     const { data: llms, isLoading } = useLLMs();
+    const { direction } = useContext(LanguageContext);
+
+    // Filter out labeeb-agent type LLMs (they should use agentMode instead)
+    const filteredLLMs = llms?.filter(
+        (llm) =>
+            llm.identifier !== "labeebagent" &&
+            llm.identifier !== "labeebresearchagent",
+    );
 
     useEffect(() => {
-        if (llms && llms.length > 0 && !value) {
-            const defaultLLM = llms.find((llm) =>
+        if (filteredLLMs && filteredLLMs.length > 0 && !value) {
+            const defaultLLM = filteredLLMs.find((llm) =>
                 defaultModelIdentifier
                     ? llm.identifier === defaultModelIdentifier
                     : llm.isDefault,
             );
             if (defaultLLM) {
                 onChange(defaultLLM._id);
-            } else {
-                onChange(llms[0]._id);
+            } else if (filteredLLMs.length > 0) {
+                onChange(filteredLLMs[0]._id);
             }
         }
-    }, [llms, value, onChange, defaultModelIdentifier]);
+    }, [filteredLLMs, value, onChange, defaultModelIdentifier]);
 
     if (isLoading) return null;
 
     return (
-        <Select value={value} onValueChange={onChange} disabled={disabled}>
-            <SelectTrigger>
-                <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-                {llms?.map((llm) => (
-                    <SelectItem key={llm._id} value={llm._id}>
-                        {llm.name}
-                    </SelectItem>
-                ))}
-            </SelectContent>
-        </Select>
+        <select
+            value={value || ""}
+            onChange={(e) => onChange(e.target.value)}
+            disabled={disabled}
+            dir={direction}
+            className="lb-input w-full text-sm"
+        >
+            {filteredLLMs?.map((llm) => (
+                <option key={llm._id} value={llm._id}>
+                    {llm.name}
+                </option>
+            ))}
+        </select>
     );
 }

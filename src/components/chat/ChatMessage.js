@@ -325,7 +325,7 @@ function convertMessageToMarkdown(
                 directive,
                 customMarkdownDirective,
                 remarkGfm,
-                [remarkMath, { singleDollarTextMath: false }],
+                [remarkMath, { singleDollarTextMath: true }],
             ]}
             rehypePlugins={[rehypeRaw, [rehypeKatex, { strict: false }]]}
             children={transformToCitation(modifiedPayload)}

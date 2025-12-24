@@ -81,7 +81,7 @@ describe("Workspace Publishing with cortexPathwayName", () => {
                 _id: "llm1",
                 identifier: "gpt4o",
                 name: "GPT 4o",
-                cortexPathwayName: "run_labeeb_agent",
+                cortexPathwayName: "run_workspace_agent",
                 cortexModelName: "oai-gpt4o",
             },
             llm2: {
@@ -95,7 +95,7 @@ describe("Workspace Publishing with cortexPathwayName", () => {
                 _id: "llm3",
                 identifier: "labeebagent",
                 name: "Labeeb Agent",
-                cortexPathwayName: "run_labeeb_agent",
+                cortexPathwayName: "run_workspace_agent",
                 cortexModelName: "labeeb-agent",
             },
         };
@@ -105,7 +105,7 @@ describe("Workspace Publishing with cortexPathwayName", () => {
                 _id: "prompt1",
                 title: "First Prompt",
                 text: "This is the first prompt text",
-                llm: "llm1", // Uses run_labeeb_agent
+                llm: "llm1", // Uses run_workspace_agent
                 files: [],
             },
             {
@@ -119,7 +119,7 @@ describe("Workspace Publishing with cortexPathwayName", () => {
                 _id: "prompt3",
                 title: "Third Prompt",
                 text: "This is the third prompt text",
-                llm: "llm3", // Uses run_labeeb_agent (labeeb agent)
+                llm: "llm3", // Uses run_workspace_agent (labeeb agent)
                 files: [],
             },
         ];
@@ -182,7 +182,7 @@ describe("Workspace Publishing with cortexPathwayName", () => {
                             name: "First Prompt",
                             prompt: "This is the first prompt text",
                             files: [],
-                            cortexPathwayName: "run_labeeb_agent",
+                            cortexPathwayName: "run_workspace_agent",
                         },
                         {
                             name: "Second Prompt",
@@ -194,7 +194,7 @@ describe("Workspace Publishing with cortexPathwayName", () => {
                             name: "Third Prompt",
                             prompt: "This is the third prompt text",
                             files: [],
-                            cortexPathwayName: "run_labeeb_agent",
+                            cortexPathwayName: "run_workspace_agent",
                         },
                     ],
                     inputParameters: {},
@@ -234,7 +234,7 @@ describe("Workspace Publishing with cortexPathwayName", () => {
                             name: "First Prompt",
                             prompt: "This is the first prompt text",
                             files: ["file1hash", "file2hash"],
-                            cortexPathwayName: "run_labeeb_agent",
+                            cortexPathwayName: "run_workspace_agent",
                         }),
                     ]),
                 }),
@@ -268,13 +268,13 @@ describe("Workspace Publishing with cortexPathwayName", () => {
                 expect.objectContaining({
                     prompts: expect.arrayContaining([
                         expect.objectContaining({
-                            cortexPathwayName: "run_labeeb_agent",
+                            cortexPathwayName: "run_workspace_agent",
                         }),
                         expect.objectContaining({
                             cortexPathwayName: "run_workspace_prompt",
                         }),
                         expect.objectContaining({
-                            cortexPathwayName: "run_labeeb_agent",
+                            cortexPathwayName: "run_workspace_agent",
                         }),
                     ]),
                 }),

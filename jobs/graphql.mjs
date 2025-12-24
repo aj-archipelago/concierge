@@ -136,7 +136,6 @@ const SYS_ENTITY_AGENT = gql`
         $text: String
         $aiName: String
         $aiMemorySelfModify: Boolean
-        $aiStyle: String
         $title: String
         $codeRequestId: String
         $stream: Boolean
@@ -153,7 +152,6 @@ const SYS_ENTITY_AGENT = gql`
             text: $text
             aiName: $aiName
             aiMemorySelfModify: $aiMemorySelfModify
-            aiStyle: $aiStyle
             title: $title
             codeRequestId: $codeRequestId
             stream: $stream
@@ -877,16 +875,16 @@ const AZURE_VIDEO_TRANSLATE = gql`
 const getWorkspacePromptQuery = (pathwayName) => {
     return gql`
         query ${pathwayName}(
-            $text: String!
-            $systemPrompt: String
-            $prompt: String!
+            $chatHistory: [MultiMessage]
             $async: Boolean
+            $model: String
+            $contextId: String
         ) {
             ${pathwayName}(
-                text: $text
-                systemPrompt: $systemPrompt
-                prompt: $prompt
+                chatHistory: $chatHistory
                 async: $async
+                model: $model
+                contextId: $contextId
             ) {
                 result
                 tool
