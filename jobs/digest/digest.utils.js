@@ -23,7 +23,7 @@ const generateDigestBlockContent = async (
         contextId: user?.contextId,
         contextKey: user?.contextKey,
         aiName: user?.aiName,
-        aiStyle: user?.aiStyle,
+        model: user?.agentModel || "oai-gpt51",
         useMemory: true,
     };
 

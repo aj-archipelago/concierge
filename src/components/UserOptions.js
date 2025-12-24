@@ -8,6 +8,10 @@ import { AuthContext } from "../App";
 import { LanguageContext } from "../contexts/LanguageProvider";
 import axios from "../../app/utils/axios-client";
 import { MemoryEditorContent } from "./MemoryEditor";
+import {
+    AGENT_MODEL_OPTIONS,
+    DEFAULT_AGENT_MODEL,
+} from "../../app/utils/agent-model-mapping";
 
 const UserOptions = ({ show, handleClose }) => {
     const { t } = useTranslation();
@@ -20,7 +24,9 @@ const UserOptions = ({ show, handleClose }) => {
         user?.profilePicture || null,
     );
     const [aiName, setAiName] = useState(user.aiName || "Labeeb");
-    const [aiStyle, setAiStyle] = useState(user.aiStyle || "OpenAI");
+    const [agentModel, setAgentModel] = useState(
+        user.agentModel || DEFAULT_AGENT_MODEL,
+    );
     const [useCustomEntities, setUseCustomEntities] = useState(
         user.useCustomEntities || false,
     );
@@ -39,7 +45,7 @@ const UserOptions = ({ show, handleClose }) => {
         if (user) {
             setProfilePicture(user.profilePicture || null);
             setAiName(user.aiName || "Labeeb");
-            setAiStyle(user.aiStyle || "OpenAI");
+            setAgentModel(user.agentModel || DEFAULT_AGENT_MODEL);
             setUseCustomEntities(user.useCustomEntities || false);
             setAiMemorySelfModify(user.aiMemorySelfModify || false);
         }
@@ -142,7 +148,7 @@ const UserOptions = ({ show, handleClose }) => {
                 aiMemorySelfModify:
                     updates.aiMemorySelfModify ?? aiMemorySelfModify,
                 aiName: updates.aiName ?? aiName,
-                aiStyle: updates.aiStyle ?? aiStyle,
+                agentModel: updates.agentModel ?? agentModel,
                 useCustomEntities:
                     updates.useCustomEntities ?? useCustomEntities,
             });
@@ -330,40 +336,30 @@ const UserOptions = ({ show, handleClose }) => {
                             <div>
                                 <label
                                     className={`block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1 ${isRTL ? "text-right" : "text-left"}`}
-                                    htmlFor="aiStyle"
+                                    htmlFor="agentModel"
                                 >
-                                    {t("AI Style")}
+                                    {t("Model")}
                                 </label>
                                 <select
-                                    id="aiStyle"
-                                    value={aiStyle}
+                                    id="agentModel"
+                                    value={agentModel}
                                     onChange={(e) => {
-                                        setAiStyle(e.target.value);
+                                        setAgentModel(e.target.value);
                                         saveOptions({
-                                            aiStyle: e.target.value,
+                                            agentModel: e.target.value,
                                         });
                                     }}
                                     className="lb-input w-full text-sm"
                                     dir={direction}
                                 >
-                                    <option value="OpenAI_Preview">
-                                        {t("OpenAI Preview (GPT-5.2)")}
-                                    </option>
-                                    <option value="OpenAI">
-                                        {t("OpenAI (GPT-5.1)")}
-                                    </option>
-                                    <option value="OpenAI_Legacy">
-                                        {t("OpenAI Legacy (GPT-4.1/O3)")}
-                                    </option>
-                                    <option value="XAI">
-                                        {t("XAI (Grok 4.1)")}
-                                    </option>
-                                    <option value="Anthropic">
-                                        {t("Anthropic (Claude 4.5 Sonnet)")}
-                                    </option>
-                                    <option value="Google">
-                                        {t("Google (Gemini 3 Flash/Pro)")}
-                                    </option>
+                                    {AGENT_MODEL_OPTIONS.map((option) => (
+                                        <option
+                                            key={option.modelId}
+                                            value={option.modelId}
+                                        >
+                                            {t(option.displayName)}
+                                        </option>
+                                    ))}
                                 </select>
                             </div>
                         </div>

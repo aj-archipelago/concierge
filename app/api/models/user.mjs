@@ -47,10 +47,10 @@ const userSchema = new mongoose.Schema(
             required: false,
             default: "Labeeb",
         },
-        aiStyle: {
+        agentModel: {
             type: String,
-            required: true,
-            default: "OpenAI",
+            required: false,
+            default: "oai-gpt51",
         },
         useCustomEntities: {
             type: Boolean,

@@ -10,7 +10,7 @@ export async function POST(req) {
             contextId,
             aiMemorySelfModify,
             aiName,
-            aiStyle,
+            agentModel,
             useCustomEntities,
         } = body;
 
@@ -30,8 +30,8 @@ export async function POST(req) {
             if (aiName !== undefined) {
                 user.aiName = aiName;
             }
-            if (aiStyle !== undefined) {
-                user.aiStyle = aiStyle;
+            if (agentModel !== undefined) {
+                user.agentModel = agentModel;
             }
             if (useCustomEntities !== undefined) {
                 user.useCustomEntities = useCustomEntities;

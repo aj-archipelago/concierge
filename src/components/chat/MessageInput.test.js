@@ -217,7 +217,7 @@ describe("MessageInput", () => {
     const mockUser = {
         contextId: "test-context-id",
         aiName: "Test AI",
-        aiStyle: "default",
+        agentModel: "oai-gpt51",
         aiMemorySelfModify: false,
     };
 

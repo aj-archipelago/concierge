@@ -108,7 +108,7 @@ export const getCurrentUser = async (convertToJsonObj = true) => {
         const contextKey = crypto.randomBytes(32).toString("hex");
         const aiMemorySelfModify = true;
         const aiName = "Labeeb";
-        const aiStyle = "OpenAI";
+        const agentModel = "oai-gpt51";
 
         user = await User.create({
             userId: id,
@@ -118,7 +118,7 @@ export const getCurrentUser = async (convertToJsonObj = true) => {
             contextKey,
             aiMemorySelfModify,
             aiName,
-            aiStyle,
+            agentModel,
         });
     } else if (!user.contextId) {
         // Only generate contextId on server-side to avoid race conditions
