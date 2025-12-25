@@ -23,6 +23,8 @@ import {
 import { LanguageContext } from "../../contexts/LanguageProvider";
 import { AuthContext } from "../../App";
 import { Modal } from "../../../@/components/ui/modal";
+import { getClient } from "../../graphql";
+import { gql } from "@apollo/client";
 
 import {
     Tooltip,
@@ -94,11 +96,14 @@ function MediaPage() {
     const [generationPrompt, setGenerationPrompt] = useState("");
     const [quality, setQuality] = useState("draft");
     const [outputType, setOutputType] = useState("image"); // "image" or "video"
-    const [selectedModel, setSelectedModel] = useState("replicate-flux-11-pro"); // Current selected model - Flux Pro as default
+    const [selectedModel, setSelectedModel] = useState(
+        "gemini-25-flash-image-preview",
+    ); // Current selected model - Gemini 2.5 Flash as default
     const [showSettings, setShowSettings] = useState(false);
     const [disableTooltip, setDisableTooltip] = useState(false);
     const [filterText, setFilterText] = useState("");
     const [debouncedFilterText, setDebouncedFilterText] = useState("");
+    const [isOptimizing, setIsOptimizing] = useState(false);
     const runTask = useRunTask();
 
     // Disable tooltip when settings dialog is open or just closed
@@ -118,7 +123,7 @@ function MediaPage() {
         // Legacy support - will be migrated
         image: {
             defaultQuality: "high",
-            defaultModel: "replicate-flux-11-pro",
+            defaultModel: "gemini-25-flash-image-preview",
             defaultAspectRatio: "1:1",
         },
         video: {
@@ -191,7 +196,6 @@ function MediaPage() {
     const [selectedImage, setSelectedImage] = useState(null);
     const { t } = useTranslation();
     const [loading, setLoading] = useState(false);
-    const [isModifyMode, setIsModifyMode] = useState(false);
     const [isUploading] = useState(false);
     const [showDeleteSelectedConfirm, setShowDeleteSelectedConfirm] =
         useState(false);
@@ -224,7 +228,6 @@ function MediaPage() {
         clearSelection,
         setSelectedImages,
         setSelectedImagesObjects,
-        getImageCount,
     } = useMediaSelection();
 
     // Reset selection when filter changes
@@ -448,14 +451,44 @@ function MediaPage() {
         setLoading,
     });
 
-    useEffect(() => {
-        // Only consider images for modify mode, not videos
-        const imageCount = getImageCount();
-        // For gemini-3-pro-image-preview, support up to 14 images in modify mode
-        const isGemini3Pro = selectedModel === "gemini-3-pro-image-preview";
-        const maxModifyImages = isGemini3Pro ? 14 : 2;
-        setIsModifyMode(imageCount >= 1 && imageCount <= maxModifyImages);
-    }, [selectedImagesObjects, getImageCount, selectedModel]);
+    // Optimize prompt using AI
+    const handleOptimizePrompt = useCallback(async () => {
+        if (!prompt.trim() || isOptimizing) return;
+
+        setIsOptimizing(true);
+        try {
+            const hasInputImages = selectedImageCount > 0;
+            const response = await getClient().query({
+                query: gql`
+                    query ImagePromptOptimizer(
+                        $userPrompt: String!
+                        $hasInputImages: Boolean
+                    ) {
+                        image_prompt_optimizer_gemini_25(
+                            userPrompt: $userPrompt
+                            hasInputImages: $hasInputImages
+                        ) {
+                            result
+                        }
+                    }
+                `,
+                variables: {
+                    userPrompt: prompt,
+                    hasInputImages,
+                },
+            });
+
+            const optimizedPrompt =
+                response.data.image_prompt_optimizer_gemini_25.result;
+            if (optimizedPrompt) {
+                setPrompt(optimizedPrompt.trim());
+            }
+        } catch (error) {
+            console.error("Error optimizing prompt:", error);
+        } finally {
+            setIsOptimizing(false);
+        }
+    }, [prompt, isOptimizing, selectedImageCount]);
 
     // Wrapper functions to pass required parameters to hooks
     const handleModifySelectedWrapper = useCallback(async () => {
@@ -756,7 +789,9 @@ function MediaPage() {
                             if (!prompt.trim() || loading) return;
                             setLoading(true);
                             setGenerationPrompt(prompt);
-                            if (isModifyMode) {
+
+                            // Check if we have selected images to use as input
+                            if (selectedImages.size > 0) {
                                 // For gemini-3-pro-image-preview, support up to 14 images
                                 const isGemini3Pro =
                                     selectedModel ===
@@ -771,9 +806,11 @@ function MediaPage() {
                                 } else if (selectedImages.size === 1) {
                                     handleModifySelected();
                                 } else {
+                                    // Too many images selected, just generate without them
                                     generateMedia(prompt);
                                 }
                             } else {
+                                // No images selected, generate normally
                                 generateMedia(prompt);
                             }
                         }}
@@ -812,7 +849,6 @@ function MediaPage() {
                                             }
                                         }}
                                         ref={promptRef}
-                                        onFocus={(e) => e.target.select()}
                                     />
                                 </div>
                                 {/* Selected images thumbnails - hidden on mobile */}
@@ -863,15 +899,15 @@ function MediaPage() {
                                 <div className="flex items-start flex-shrink-0">
                                     <button
                                         type="submit"
-                                        className="border-none outline-none enabled:hover:bg-sky-700 enabled:active:bg-sky-800 dark:bg-sky-700 p-1.5 cursor-pointer focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1 bg-sky-600 dark:enabled:hover:bg-sky-800 text-white rounded-lg px-3 py-2 dark:enabled:hover:text-white dark:enabled:active:bg-sky-900 text-sm justify-center"
+                                        className="border-none outline-none enabled:hover:bg-sky-700 enabled:active:bg-sky-800 dark:bg-sky-700 p-1.5 cursor-pointer focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1 bg-sky-600 dark:enabled:hover:bg-sky-800 text-white rounded-lg px-3 py-2 dark:enabled:hover:text-white dark:enabled:active:bg-sky-900 text-sm justify-center w-10 md:w-[110px]"
                                         disabled={!prompt.trim() || loading}
                                     >
                                         {loading ? (
-                                            <Loader2 className="h-4 w-4 animate-spin" />
+                                            <Loader2 className="h-4 w-4 animate-spin flex-shrink-0" />
                                         ) : (
-                                            <Sparkles className="h-4 w-4" />
+                                            <Sparkles className="h-4 w-4 flex-shrink-0" />
                                         )}
-                                        <span className="hidden md:block">
+                                        <span className="hidden md:block whitespace-nowrap">
                                             {loading
                                                 ? t("Generating")
                                                 : t("Generate")}
@@ -882,165 +918,208 @@ function MediaPage() {
 
                             {/* Thin bar with model selector and settings */}
                             <div className="flex md:items-center flex-col md:flex-row mt-2 gap-2">
-                                {/* Model selector */}
-                                {(() => {
-                                    const availableModels =
-                                        getAvailableModels();
-                                    const displayNames = {
-                                        "replicate-flux-11-pro": t("Flux Pro"),
-                                        "replicate-flux-kontext-max":
-                                            t("Flux Kontext Max"),
-                                        "replicate-multi-image-kontext-max": t(
-                                            "Multi-Image Kontext Max",
-                                        ),
-                                        "gemini-25-flash-image-preview": t(
-                                            "Gemini 2.5 Flash Image",
-                                        ),
-                                        "gemini-3-pro-image-preview":
-                                            t("Gemini 3 Pro Image"),
-                                        "replicate-qwen-image": t("Qwen Image"),
-                                        "replicate-qwen-image-edit-plus": t(
-                                            "Qwen Image Edit Plus",
-                                        ),
-                                        "replicate-seedream-4":
-                                            t("Seedream 4.0"),
-                                        "veo-2.0-generate": t("Veo 2.0"),
-                                        "veo-3.0-generate": t("Veo 3.0"),
-                                        "veo-3.1-generate": t("Veo 3.1"),
-                                        "veo-3.1-fast-generate":
-                                            t("Veo 3.1 Fast"),
-                                        "replicate-seedance-1-pro":
-                                            t("Seedance 1.0"),
-                                    };
+                                {/* Model selector and optimize prompt button - always on same line */}
+                                <div className="flex items-center gap-2">
+                                    {/* Model selector */}
+                                    {(() => {
+                                        const availableModels =
+                                            getAvailableModels();
+                                        const displayNames = {
+                                            "replicate-flux-11-pro":
+                                                t("Flux Pro"),
+                                            "replicate-flux-2-pro":
+                                                t("Flux 2 Pro"),
+                                            "replicate-flux-kontext-max":
+                                                t("Flux Kontext Max"),
+                                            "replicate-multi-image-kontext-max":
+                                                t("Multi-Image Kontext Max"),
+                                            "gemini-25-flash-image-preview": t(
+                                                "Gemini 2.5 Flash Image",
+                                            ),
+                                            "gemini-3-pro-image-preview":
+                                                t("Gemini 3 Pro Image"),
+                                            "replicate-qwen-image":
+                                                t("Qwen Image"),
+                                            "replicate-qwen-image-edit-plus": t(
+                                                "Qwen Image Edit Plus",
+                                            ),
+                                            "replicate-qwen-image-edit-2511": t(
+                                                "Qwen Image Edit 2511",
+                                            ),
+                                            "replicate-seedream-4":
+                                                t("Seedream 4.0"),
+                                            "veo-2.0-generate": t("Veo 2.0"),
+                                            "veo-3.0-generate": t("Veo 3.0"),
+                                            "veo-3.1-generate": t("Veo 3.1"),
+                                            "veo-3.1-fast-generate":
+                                                t("Veo 3.1 Fast"),
+                                            "replicate-seedance-1-pro":
+                                                t("Seedance 1.0"),
+                                        };
 
-                                    const getDisplayName = (modelName) => {
+                                        const getDisplayName = (modelName) => {
+                                            return (
+                                                displayNames[modelName] ||
+                                                modelName
+                                            );
+                                        };
+
+                                        const getCurrentDisplayName = () => {
+                                            const currentDisplayName =
+                                                getDisplayName(selectedModel);
+                                            const modelSettings =
+                                                getModelSettings(
+                                                    settings,
+                                                    selectedModel,
+                                                );
+                                            const icon =
+                                                modelSettings.type === "video"
+                                                    ? "🎬"
+                                                    : "🖼️";
+                                            return `${icon} ${currentDisplayName}`;
+                                        };
+
                                         return (
-                                            displayNames[modelName] || modelName
-                                        );
-                                    };
+                                            <Select
+                                                value={selectedModel}
+                                                onValueChange={(
+                                                    newSelectedModel,
+                                                ) => {
+                                                    const modelSettings =
+                                                        getModelSettings(
+                                                            settings,
+                                                            newSelectedModel,
+                                                        );
 
-                                    const getCurrentDisplayName = () => {
-                                        const currentDisplayName =
-                                            getDisplayName(selectedModel);
-                                        const modelSettings = getModelSettings(
-                                            settings,
-                                            selectedModel,
-                                        );
-                                        const icon =
-                                            modelSettings.type === "video"
-                                                ? "🎬"
-                                                : "🖼️";
-                                        return `${icon} ${currentDisplayName}`;
-                                    };
-
-                                    return (
-                                        <Select
-                                            value={selectedModel}
-                                            onValueChange={(
-                                                newSelectedModel,
-                                            ) => {
-                                                const modelSettings =
-                                                    getModelSettings(
-                                                        settings,
+                                                    setSelectedModel(
                                                         newSelectedModel,
                                                     );
 
-                                                setSelectedModel(
-                                                    newSelectedModel,
-                                                );
-
-                                                if (
-                                                    modelSettings.type ===
-                                                    "image"
-                                                ) {
-                                                    setOutputType("image");
-                                                    setQuality(
-                                                        modelSettings.quality ||
-                                                            "draft",
-                                                    );
-                                                } else {
-                                                    setOutputType("video");
-                                                }
-                                            }}
-                                        >
-                                            <SelectTrigger
-                                                ref={modelSelectorRef}
-                                                className="bg-transparent border-none outline-none text-sm text-gray-700 dark:text-gray-300 ps-1 pe-2 py-1 h-auto max-w-[200px] shadow-none focus:ring-0 focus:ring-offset-0 hover:opacity-80"
-                                                dir={direction}
+                                                    if (
+                                                        modelSettings.type ===
+                                                        "image"
+                                                    ) {
+                                                        setOutputType("image");
+                                                        setQuality(
+                                                            modelSettings.quality ||
+                                                                "draft",
+                                                        );
+                                                    } else {
+                                                        setOutputType("video");
+                                                    }
+                                                }}
                                             >
-                                                <SelectValue>
-                                                    {getCurrentDisplayName()}
-                                                </SelectValue>
-                                            </SelectTrigger>
-                                            <SelectContent dir={direction}>
-                                                {/* Image models group */}
-                                                {availableModels.image.length >
-                                                    0 && (
-                                                    <SelectGroup>
-                                                        <SelectLabel>
-                                                            {t("Image Models")}
-                                                        </SelectLabel>
-                                                        {availableModels.image.map(
-                                                            (modelName) => {
-                                                                const displayName =
-                                                                    getDisplayName(
-                                                                        modelName,
+                                                <SelectTrigger
+                                                    ref={modelSelectorRef}
+                                                    className="bg-transparent border-none outline-none text-sm text-gray-700 dark:text-gray-300 ps-1 pe-2 py-1 h-auto max-w-[200px] shadow-none focus:ring-0 focus:ring-offset-0 hover:opacity-80"
+                                                    dir={direction}
+                                                >
+                                                    <SelectValue>
+                                                        {getCurrentDisplayName()}
+                                                    </SelectValue>
+                                                </SelectTrigger>
+                                                <SelectContent dir={direction}>
+                                                    {/* Image models group */}
+                                                    {availableModels.image
+                                                        .length > 0 && (
+                                                        <SelectGroup>
+                                                            <SelectLabel>
+                                                                {t(
+                                                                    "Image Models",
+                                                                )}
+                                                            </SelectLabel>
+                                                            {availableModels.image.map(
+                                                                (modelName) => {
+                                                                    const displayName =
+                                                                        getDisplayName(
+                                                                            modelName,
+                                                                        );
+                                                                    return (
+                                                                        <SelectItem
+                                                                            key={
+                                                                                modelName
+                                                                            }
+                                                                            value={
+                                                                                modelName
+                                                                            }
+                                                                        >
+                                                                            🖼️{" "}
+                                                                            {
+                                                                                displayName
+                                                                            }
+                                                                        </SelectItem>
                                                                     );
-                                                                return (
-                                                                    <SelectItem
-                                                                        key={
-                                                                            modelName
-                                                                        }
-                                                                        value={
-                                                                            modelName
-                                                                        }
-                                                                    >
-                                                                        🖼️{" "}
-                                                                        {
-                                                                            displayName
-                                                                        }
-                                                                    </SelectItem>
-                                                                );
-                                                            },
-                                                        )}
-                                                    </SelectGroup>
-                                                )}
-                                                {/* Video models group */}
-                                                {availableModels.video.length >
-                                                    0 && (
-                                                    <SelectGroup>
-                                                        <SelectLabel>
-                                                            {t("Video Models")}
-                                                        </SelectLabel>
-                                                        {availableModels.video.map(
-                                                            (modelName) => {
-                                                                const displayName =
-                                                                    getDisplayName(
-                                                                        modelName,
+                                                                },
+                                                            )}
+                                                        </SelectGroup>
+                                                    )}
+                                                    {/* Video models group */}
+                                                    {availableModels.video
+                                                        .length > 0 && (
+                                                        <SelectGroup>
+                                                            <SelectLabel>
+                                                                {t(
+                                                                    "Video Models",
+                                                                )}
+                                                            </SelectLabel>
+                                                            {availableModels.video.map(
+                                                                (modelName) => {
+                                                                    const displayName =
+                                                                        getDisplayName(
+                                                                            modelName,
+                                                                        );
+                                                                    return (
+                                                                        <SelectItem
+                                                                            key={
+                                                                                modelName
+                                                                            }
+                                                                            value={
+                                                                                modelName
+                                                                            }
+                                                                        >
+                                                                            🎬{" "}
+                                                                            {
+                                                                                displayName
+                                                                            }
+                                                                        </SelectItem>
                                                                     );
-                                                                return (
-                                                                    <SelectItem
-                                                                        key={
-                                                                            modelName
-                                                                        }
-                                                                        value={
-                                                                            modelName
-                                                                        }
-                                                                    >
-                                                                        🎬{" "}
-                                                                        {
-                                                                            displayName
-                                                                        }
-                                                                    </SelectItem>
-                                                                );
-                                                            },
-                                                        )}
-                                                    </SelectGroup>
-                                                )}
-                                            </SelectContent>
-                                        </Select>
-                                    );
-                                })()}
+                                                                },
+                                                            )}
+                                                        </SelectGroup>
+                                                    )}
+                                                </SelectContent>
+                                            </Select>
+                                        );
+                                    })()}
+                                    {/* Optimize prompt button - after model selector */}
+                                    <TooltipProvider>
+                                        <Tooltip>
+                                            <TooltipTrigger asChild>
+                                                <button
+                                                    type="button"
+                                                    onClick={
+                                                        handleOptimizePrompt
+                                                    }
+                                                    disabled={
+                                                        !prompt.trim() ||
+                                                        isOptimizing ||
+                                                        loading
+                                                    }
+                                                    className="flex-shrink-0 p-1.5 text-gray-500 hover:text-amber-500 dark:text-gray-400 dark:hover:text-amber-400 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                                >
+                                                    {isOptimizing ? (
+                                                        <Loader2 className="h-4 w-4 animate-spin" />
+                                                    ) : (
+                                                        <Sparkles className="h-4 w-4" />
+                                                    )}
+                                                </button>
+                                            </TooltipTrigger>
+                                            <TooltipContent>
+                                                {t("Enhance prompt")}
+                                            </TooltipContent>
+                                        </Tooltip>
+                                    </TooltipProvider>
+                                </div>
 
                                 <div className="flex items-center gap-2">
                                     {/* Settings button */}
@@ -1623,7 +1702,7 @@ function SettingsDialog({
     const { direction } = useContext(LanguageContext);
     const [localSettings, setLocalSettings] = useState(settings);
     const [selectedModel, setSelectedModel] = useState(
-        currentSelectedModel || "replicate-flux-11-pro",
+        currentSelectedModel || "gemini-25-flash-image-preview",
     );
     const initializedRef = useRef(false);
 
@@ -1679,11 +1758,13 @@ function SettingsDialog({
     const getModelDisplayName = (modelName) => {
         const names = {
             "replicate-flux-11-pro": t("Flux Pro"),
+            "replicate-flux-2-pro": t("Flux 2 Pro"),
             "replicate-flux-kontext-max": t("Flux Kontext Max"),
             "replicate-multi-image-kontext-max": t("Multi-Image Kontext Max"),
             "gemini-25-flash-image-preview": t("Gemini 2.5 Flash Image"),
             "replicate-qwen-image": t("Qwen Image"),
             "replicate-qwen-image-edit-plus": t("Qwen Image Edit Plus"),
+            "replicate-qwen-image-edit-2511": t("Qwen Image Edit 2511"),
             "replicate-seedream-4": t("Seedream 4.0"),
             "veo-2.0-generate": t("Veo 2.0"),
             "veo-3.0-generate": t("Veo 3.0"),
@@ -1746,6 +1827,20 @@ function SettingsDialog({
             }
 
             if (modelName === "replicate-qwen-image-edit-plus") {
+                return [
+                    { value: "1:1", label: "1:1" },
+                    { value: "16:9", label: "16:9" },
+                    { value: "9:16", label: "9:16" },
+                    { value: "4:3", label: "4:3" },
+                    { value: "3:4", label: "3:4" },
+                    {
+                        value: "match_input_image",
+                        label: t("Match Input Image"),
+                    },
+                ];
+            }
+
+            if (modelName === "replicate-qwen-image-edit-2511") {
                 return [
                     { value: "1:1", label: "1:1" },
                     { value: "16:9", label: "16:9" },
@@ -2265,12 +2360,14 @@ function ImageInfo({ data, type }) {
     const getModelDisplayName = (modelName) => {
         const names = {
             "replicate-flux-11-pro": t("Flux Pro"),
+            "replicate-flux-2-pro": t("Flux 2 Pro"),
             "replicate-flux-kontext-max": t("Flux Kontext Max"),
             "replicate-multi-image-kontext-max": t("Multi-Image Kontext Max"),
             "gemini-25-flash-image-preview": t("Gemini 2.5 Flash Image"),
             "gemini-3-pro-image-preview": t("Gemini 3 Pro Image"),
             "replicate-qwen-image": t("Qwen Image"),
             "replicate-qwen-image-edit-plus": t("Qwen Image Edit Plus"),
+            "replicate-qwen-image-edit-2511": t("Qwen Image Edit 2511"),
             "replicate-seedream-4": t("Seedream 4.0"),
             "veo-2.0-generate": t("Veo 2.0"),
             "veo-3.0-generate": t("Veo 3.0"),

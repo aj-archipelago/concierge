@@ -710,7 +710,12 @@ const IMAGE_FLUX = gql`
         $async: Boolean
         $input_image: String
         $input_image_2: String
+        $input_images: [String]
         $aspectRatio: String
+        $resolution: String
+        $output_format: String
+        $output_quality: Int
+        $safety_tolerance: Int
     ) {
         image_flux(
             text: $text
@@ -718,7 +723,12 @@ const IMAGE_FLUX = gql`
             async: $async
             input_image: $input_image
             input_image_2: $input_image_2
+            input_images: $input_images
             aspectRatio: $aspectRatio
+            resolution: $resolution
+            output_format: $output_format
+            output_quality: $output_quality
+            safety_tolerance: $safety_tolerance
         ) {
             result
         }

@@ -1,5 +1,8 @@
 import { useCallback, useEffect } from "react";
-import { groupAndSortModels } from "../config/models.js";
+import {
+    groupAndSortModels,
+    DEFAULT_MODEL_SETTINGS,
+} from "../config/models.js";
 
 export const useModelSelection = ({
     selectedImagesObjects,
@@ -13,85 +16,23 @@ export const useModelSelection = ({
 }) => {
     // Get available models based on current input conditions
     const getAvailableModels = useCallback(() => {
-        // If no images, return all models (no restrictions)
+        // If no images in gallery, return all models (no restrictions)
         if (!sortedImages || sortedImages.length === 0) {
             const allModels = Object.keys(settings.models || {});
             return groupAndSortModels(allModels, settings);
         }
 
-        // Use the selectedImagesObjects array for model selection
         const imageCount = selectedImagesObjects.filter(
             (img) => img.type === "image",
         ).length;
-        const hasInputImage = imageCount === 1;
-        const hasTwoInputImages = imageCount === 2;
-        const hasThreeInputImages = imageCount === 3;
-        const hasManyInputImages = imageCount >= 4 && imageCount <= 14;
 
         const allModels = Object.keys(settings.models || {});
         const availableModels = allModels.filter((modelName) => {
-            const modelSettings = settings.models[modelName];
-            const modelType = modelSettings?.type || "image";
+            const defaultSettings = DEFAULT_MODEL_SETTINGS[modelName];
+            const range = defaultSettings?.inputImages;
 
-            // Apply input condition restrictions
-            if (modelType === "image") {
-                if (hasManyInputImages) {
-                    // Only gemini-3-pro-image-preview supports 4+ images
-                    return modelName === "gemini-3-pro-image-preview";
-                } else if (hasThreeInputImages) {
-                    // Models that support 3 input images
-                    return [
-                        "gemini-25-flash-image-preview",
-                        "gemini-3-pro-image-preview",
-                        "replicate-qwen-image-edit-plus",
-                        "replicate-seedream-4",
-                    ].includes(modelName);
-                } else if (hasTwoInputImages) {
-                    // Multi-image models for 2 input images
-                    return [
-                        "replicate-multi-image-kontext-max",
-                        "gemini-25-flash-image-preview",
-                        "gemini-3-pro-image-preview",
-                        "replicate-qwen-image-edit-plus",
-                        "replicate-seedream-4",
-                    ].includes(modelName);
-                } else if (hasInputImage) {
-                    // Image editing models for 1 input image
-                    return [
-                        "replicate-flux-kontext-max",
-                        "gemini-25-flash-image-preview",
-                        "gemini-3-pro-image-preview",
-                        "replicate-qwen-image-edit-plus",
-                        "replicate-seedream-4",
-                    ].includes(modelName);
-                } else {
-                    // Image generation models for text-only
-                    return [
-                        "replicate-flux-11-pro",
-                        "gemini-25-flash-image-preview",
-                        "gemini-3-pro-image-preview",
-                        "replicate-qwen-image",
-                        "replicate-seedream-4",
-                    ].includes(modelName);
-                }
-            } else {
-                // Video models - only available for 0 or 1 input images
-                if (hasTwoInputImages || hasThreeInputImages) {
-                    return false; // No video models support 2+ input images
-                } else if (hasInputImage) {
-                    // Only Veo 2.0, Veo 3.0+ and Seedance support input images
-                    return [
-                        "veo-2.0-generate",
-                        "veo-3.0-generate",
-                        "veo-3.1-generate",
-                        "veo-3.1-fast-generate",
-                        "replicate-seedance-1-pro",
-                    ].includes(modelName);
-                } else {
-                    // All video models available for text-only
-                    return true;
-                }
-            }
+            if (!range) return true; // Unknown models default to available
+            return imageCount >= range[0] && imageCount <= range[1];
         });
 
         return groupAndSortModels(availableModels, settings);
