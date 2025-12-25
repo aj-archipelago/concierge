@@ -37,11 +37,13 @@ export const DEFAULT_MODEL_SETTINGS = {
     // Image models
     "replicate-flux-11-pro": {
         type: "image",
+        inputImages: [0, 0],
         quality: "high",
         aspectRatio: "1:1",
     },
     "replicate-flux-2-pro": {
         type: "image",
+        inputImages: [0, 8],
         quality: "high",
         aspectRatio: "1:1",
         resolution: "1 MP",
@@ -51,22 +53,26 @@ export const DEFAULT_MODEL_SETTINGS = {
     },
     "replicate-flux-kontext-max": {
         type: "image",
+        inputImages: [1, 1],
         quality: "high",
         aspectRatio: "match_input_image",
     },
     "replicate-multi-image-kontext-max": {
         type: "image",
+        inputImages: [2, 2],
         quality: "high",
         aspectRatio: "1:1",
     },
     "gemini-25-flash-image-preview": {
         type: "image",
+        inputImages: [0, 3],
         quality: "high",
         aspectRatio: "1:1",
         optimizePrompt: true,
     },
     "gemini-3-pro-image-preview": {
         type: "image",
+        inputImages: [0, 14],
         quality: "high",
         aspectRatio: "1:1",
         image_size: "2K",
@@ -74,6 +80,7 @@ export const DEFAULT_MODEL_SETTINGS = {
     },
     "replicate-qwen-image": {
         type: "image",
+        inputImages: [0, 0],
         quality: "high",
         aspectRatio: "16:9",
         negativePrompt: "",
@@ -93,6 +100,7 @@ export const DEFAULT_MODEL_SETTINGS = {
     },
     "replicate-qwen-image-edit-plus": {
         type: "image",
+        inputImages: [1, 3],
         quality: "high",
         aspectRatio: "match_input_image",
         negativePrompt: "",
@@ -106,6 +114,7 @@ export const DEFAULT_MODEL_SETTINGS = {
     },
     "replicate-qwen-image-edit-2511": {
         type: "image",
+        inputImages: [1, 3],
         quality: "high",
         aspectRatio: "match_input_image",
         output_format: "webp",
@@ -115,6 +124,7 @@ export const DEFAULT_MODEL_SETTINGS = {
     },
     "replicate-seedream-4": {
         type: "image",
+        inputImages: [0, 3],
         quality: "high",
         aspectRatio: "4:3",
         size: "2K",
@@ -128,6 +138,7 @@ export const DEFAULT_MODEL_SETTINGS = {
     // Video models
     "veo-2.0-generate": {
         type: "video",
+        inputImages: [0, 1],
         aspectRatio: "16:9",
         duration: 5,
         generateAudio: false,
@@ -136,6 +147,7 @@ export const DEFAULT_MODEL_SETTINGS = {
     },
     "veo-3.0-generate": {
         type: "video",
+        inputImages: [0, 1],
         aspectRatio: "16:9",
         duration: 8,
         generateAudio: true,
@@ -144,6 +156,7 @@ export const DEFAULT_MODEL_SETTINGS = {
     },
     "veo-3.1-generate": {
         type: "video",
+        inputImages: [0, 1],
         aspectRatio: "16:9",
         duration: 8,
         generateAudio: true,
@@ -152,6 +165,7 @@ export const DEFAULT_MODEL_SETTINGS = {
     },
     "veo-3.1-fast-generate": {
         type: "video",
+        inputImages: [0, 1],
         aspectRatio: "16:9",
         duration: 8,
         generateAudio: true,
@@ -160,6 +174,7 @@ export const DEFAULT_MODEL_SETTINGS = {
     },
     "replicate-seedance-1-pro": {
         type: "video",
+        inputImages: [0, 1],
         aspectRatio: "16:9",
         duration: 5,
         generateAudio: false,
