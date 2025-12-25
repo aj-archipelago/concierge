@@ -1,5 +1,8 @@
 import { useCallback, useEffect } from "react";
-import { groupAndSortModels, DEFAULT_MODEL_SETTINGS } from "../config/models.js";
+import {
+    groupAndSortModels,
+    DEFAULT_MODEL_SETTINGS,
+} from "../config/models.js";
 
 export const useModelSelection = ({
     selectedImagesObjects,
