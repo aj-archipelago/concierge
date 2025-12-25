@@ -27,6 +27,7 @@ export const useModelSelection = ({
         const hasTwoInputImages = imageCount === 2;
         const hasThreeInputImages = imageCount === 3;
         const hasManyInputImages = imageCount >= 4 && imageCount <= 14;
+        const hasFlux2ProInputImages = imageCount >= 1 && imageCount <= 8;
 
         const allModels = Object.keys(settings.models || {});
         const availableModels = allModels.filter((modelName) => {
@@ -35,16 +36,34 @@ export const useModelSelection = ({
 
             // Apply input condition restrictions
             if (modelType === "image") {
+                // Flux 2 Pro supports 1-8 input images
+                if (
+                    modelName === "replicate-flux-2-pro" &&
+                    hasFlux2ProInputImages
+                ) {
+                    return true;
+                }
+
                 if (hasManyInputImages) {
-                    // Only gemini-3-pro-image-preview supports 4+ images
-                    return modelName === "gemini-3-pro-image-preview";
+                    // For 4-14 images: gemini-3-pro supports all, flux-2-pro supports up to 8
+                    if (imageCount <= 8) {
+                        return [
+                            "gemini-3-pro-image-preview",
+                            "replicate-flux-2-pro",
+                        ].includes(modelName);
+                    } else {
+                        // Only gemini-3-pro-image-preview supports 9+ images
+                        return modelName === "gemini-3-pro-image-preview";
+                    }
                 } else if (hasThreeInputImages) {
                     // Models that support 3 input images
                     return [
                         "gemini-25-flash-image-preview",
                         "gemini-3-pro-image-preview",
                         "replicate-qwen-image-edit-plus",
+                        "replicate-qwen-image-edit-2511",
                         "replicate-seedream-4",
+                        "replicate-flux-2-pro",
                     ].includes(modelName);
                 } else if (hasTwoInputImages) {
                     // Multi-image models for 2 input images
@@ -53,7 +72,9 @@ export const useModelSelection = ({
                         "gemini-25-flash-image-preview",
                         "gemini-3-pro-image-preview",
                         "replicate-qwen-image-edit-plus",
+                        "replicate-qwen-image-edit-2511",
                         "replicate-seedream-4",
+                        "replicate-flux-2-pro",
                     ].includes(modelName);
                 } else if (hasInputImage) {
                     // Image editing models for 1 input image
@@ -62,12 +83,15 @@ export const useModelSelection = ({
                         "gemini-25-flash-image-preview",
                         "gemini-3-pro-image-preview",
                         "replicate-qwen-image-edit-plus",
+                        "replicate-qwen-image-edit-2511",
                         "replicate-seedream-4",
+                        "replicate-flux-2-pro",
                     ].includes(modelName);
                 } else {
                     // Image generation models for text-only
                     return [
                         "replicate-flux-11-pro",
+                        "replicate-flux-2-pro",
                         "gemini-25-flash-image-preview",
                         "gemini-3-pro-image-preview",
                         "replicate-qwen-image",

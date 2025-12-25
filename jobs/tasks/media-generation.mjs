@@ -143,6 +143,39 @@ const MODEL_CONFIG = {
             input_image_3: inputImages[2] || "",
         }),
     },
+    "replicate-qwen-image-edit-2511": {
+        query: IMAGE_QWEN,
+        resultKey: "image_qwen",
+        type: "image",
+        buildVariables: (prompt, settings, inputImages) => {
+            const modelSettings = settings?.models?.[
+                "replicate-qwen-image-edit-2511"
+            ] || {
+                aspectRatio: "match_input_image",
+                output_format: "webp",
+                output_quality: 95,
+                go_fast: true,
+                disable_safety_checker: false,
+            };
+            let aspectRatio = modelSettings.aspectRatio;
+            if (aspectRatio === "match_input_image" && !inputImages[0]) {
+                aspectRatio = "1:1";
+            }
+            return {
+                text: prompt,
+                model: "replicate-qwen-image-edit-2511",
+                async: true,
+                input_image: inputImages[0] || "",
+                input_image_2: inputImages[1] || "",
+                input_image_3: inputImages[2] || "",
+                aspectRatio: aspectRatio,
+                output_format: modelSettings.output_format,
+                output_quality: modelSettings.output_quality,
+                go_fast: modelSettings.go_fast,
+                disable_safety_checker: modelSettings.disable_safety_checker,
+            };
+        },
+    },
     "replicate-seedream-4": {
         query: IMAGE_SEEDREAM4,
         resultKey: "image_seedream4",
@@ -239,6 +272,41 @@ const MODEL_CONFIG = {
                 input_image_3: inputImages[2] || "",
                 aspectRatio: aspectRatio,
             };
+        },
+    },
+    "replicate-flux-2-pro": {
+        query: IMAGE_FLUX,
+        resultKey: "image_flux",
+        type: "image",
+        buildVariables: (prompt, settings, inputImages) => {
+            const modelSettings = settings?.models?.[
+                "replicate-flux-2-pro"
+            ] || {
+                aspectRatio: "1:1",
+                resolution: "1 MP",
+                output_format: "webp",
+                output_quality: 80,
+                safety_tolerance: 2,
+            };
+            let aspectRatio = modelSettings.aspectRatio;
+            if (aspectRatio === "match_input_image" && !inputImages[0]) {
+                aspectRatio = "1:1";
+            }
+            const variables = {
+                text: prompt,
+                async: true,
+                model: "replicate-flux-2-pro",
+                aspectRatio: aspectRatio,
+                resolution: modelSettings.resolution || "1 MP",
+                output_format: modelSettings.output_format || "webp",
+                output_quality: modelSettings.output_quality || 80,
+                safety_tolerance: modelSettings.safety_tolerance || 2,
+            };
+            // Add input images if provided (flux-2-pro supports up to 8 via input_images array)
+            if (inputImages.length > 0) {
+                variables.input_images = inputImages.slice(0, 8);
+            }
+            return variables;
         },
     },
     // Video models
