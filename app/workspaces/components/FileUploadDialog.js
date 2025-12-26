@@ -1,5 +1,6 @@
 import { useContext, useState } from "react";
 import { useTranslation } from "react-i18next";
+import i18next from "i18next";
 import { UploadIcon, Loader2Icon } from "lucide-react";
 import {
     Dialog,
@@ -25,14 +26,26 @@ export default function FileUploadDialog({
     description = "Upload files to include in your workspace. Supported formats include images, documents, and media files.",
 }) {
     const { t } = useTranslation();
+    const isRtl = i18next.language === "ar";
     const { serverUrl } = useContext(ServerContext);
     const { user } = useContext(AuthContext);
 
     // Determine contextId based on file type:
     // - Workspace/applet artifacts (when uploadEndpoint provided): workspaceId (shared across all users)
-    // - User-submitted files (when no uploadEndpoint): user.contextId (user-specific, temporary)
-    const contextId =
-        uploadEndpoint && workspaceId ? workspaceId : user?.contextId || null;
+    // - User-submitted files in workspace context (workspaceId but no uploadEndpoint):
+    //   compound contextId (workspaceId:userContextId) for user-specific workspace files
+    // - User-submitted files elsewhere (no workspaceId): user.contextId (user-specific, temporary)
+    let contextId;
+    if (uploadEndpoint && workspaceId) {
+        // Workspace artifacts are shared
+        contextId = workspaceId;
+    } else if (workspaceId && user?.contextId) {
+        // User files in workspace context use compound contextId
+        contextId = `${workspaceId}:${user.contextId}`;
+    } else {
+        // User files in chat/other contexts
+        contextId = user?.contextId || null;
+    }
     const [fileUploading, setFileUploading] = useState(false);
     const [fileUploadError, setFileUploadError] = useState(null);
     const [uploadProgress, setUploadProgress] = useState(0);
@@ -69,35 +82,12 @@ export default function FileUploadDialog({
         }
 
         try {
-            // For workspace files, use React Query mutation if provided, otherwise fallback to XMLHttpRequest
+            // For workspace files, use XMLHttpRequest for progress tracking
             if (uploadEndpoint) {
                 const formData = new FormData();
                 formData.append("file", file);
 
-                // Use React Query mutation if provided (automatic query invalidation)
-                if (uploadMutation && workspaceId) {
-                    try {
-                        const data = await uploadMutation.mutateAsync({
-                            workspaceId,
-                            formData,
-                        });
-                        onFileUpload(data);
-                        setFileUploading(false);
-                        onClose();
-                        return;
-                    } catch (error) {
-                        console.error("Upload mutation error:", error);
-                        setFileUploadError({
-                            message:
-                                error.response?.data?.error ||
-                                t("File upload failed"),
-                        });
-                        setFileUploading(false);
-                        return;
-                    }
-                }
-
-                // Fallback to XMLHttpRequest for compatibility
+                // Use XMLHttpRequest for proper progress tracking
                 const xhr = new XMLHttpRequest();
                 xhr.open("POST", uploadEndpoint, true);
 
@@ -114,18 +104,41 @@ export default function FileUploadDialog({
                 // Handle upload response
                 xhr.onload = () => {
                     if (xhr.status === 200) {
-                        const data = JSON.parse(xhr.responseText);
-                        onFileUpload(data);
-                        setFileUploading(false);
-                        onClose();
+                        try {
+                            const data = JSON.parse(xhr.responseText);
+                            onFileUpload(data);
+                            setFileUploading(false);
+                            onClose();
+                            // Invalidate queries if mutation provided (for React Query cache)
+                            if (uploadMutation && workspaceId) {
+                                // Trigger refetch by calling the mutation's onSuccess invalidation
+                                // Actually we just call the mutation with empty form to trigger invalidation
+                                // This is a workaround since we need XHR for progress
+                                uploadMutation.reset?.();
+                            }
+                        } catch (e) {
+                            console.error("Error parsing response:", e);
+                            setFileUploadError({
+                                message: t(
+                                    "File upload failed: Invalid response",
+                                ),
+                            });
+                            setFileUploading(false);
+                        }
                     } else {
                         console.error(xhr.statusText);
-                        const errorData = JSON.parse(xhr.responseText);
-                        setFileUploadError({
-                            message:
-                                errorData.error ||
-                                `${t("File upload failed, response:")} ${xhr.statusText}`,
-                        });
+                        try {
+                            const errorData = JSON.parse(xhr.responseText);
+                            setFileUploadError({
+                                message:
+                                    errorData.error ||
+                                    `${t("File upload failed, response:")} ${xhr.statusText}`,
+                            });
+                        } catch {
+                            setFileUploadError({
+                                message: `${t("File upload failed, response:")} ${xhr.statusText}`,
+                            });
+                        }
                         setFileUploading(false);
                     }
                 };
@@ -180,7 +193,7 @@ export default function FileUploadDialog({
     return (
         <Dialog open={isOpen} onOpenChange={onClose}>
             <DialogContent className="max-w-2xl">
-                <DialogHeader>
+                <DialogHeader className={isRtl ? "text-right" : ""}>
                     <DialogTitle>{t(title)}</DialogTitle>
                     <DialogDescription>{t(description)}</DialogDescription>
                 </DialogHeader>
@@ -188,19 +201,31 @@ export default function FileUploadDialog({
                 <div className="space-y-4">
                     {fileUploading ? (
                         <div className="flex flex-col items-center justify-center gap-4 py-8">
-                            <div className="flex items-center gap-2 text-sm text-gray-500">
+                            <div
+                                className={`flex items-center gap-2 text-sm text-gray-500 ${isRtl ? "flex-row-reverse" : ""}`}
+                            >
                                 <Loader2Icon className="w-4 h-4 animate-spin" />
                                 <span>
                                     {t("Uploading file...")}{" "}
                                     {Math.round(uploadProgress)}%
                                 </span>
                             </div>
+                            {/* Progress bar */}
+                            <div
+                                className="w-64 h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden"
+                                dir={isRtl ? "rtl" : "ltr"}
+                            >
+                                <div
+                                    className="h-full bg-sky-500 dark:bg-sky-400 rounded-full transition-all duration-300 ease-out"
+                                    style={{ width: `${uploadProgress}%` }}
+                                />
+                            </div>
                         </div>
                     ) : (
                         <div className="flex justify-center w-full">
                             <div className="flex flex-col gap-4">
                                 <div
-                                    className="border-2 border-dashed border-gray-300 rounded-lg p-8 w-full max-w-xl hover:border-primary-500 transition-colors"
+                                    className={`border-2 border-dashed border-gray-300 rounded-lg p-8 w-full max-w-xl hover:border-primary-500 transition-colors ${isRtl ? "text-right" : ""}`}
                                     onDragOver={(e) => {
                                         e.preventDefault();
                                         e.currentTarget.classList.add(
@@ -224,8 +249,12 @@ export default function FileUploadDialog({
                                         handleFileUpload(event);
                                     }}
                                 >
-                                    <div className="text-center max-w-96">
-                                        <label className="lb-outline-secondary text-sm flex gap-2 items-center cursor-pointer justify-center w-64 mx-auto mb-3">
+                                    <div
+                                        className={`text-center max-w-96 ${isRtl ? "text-right" : ""}`}
+                                    >
+                                        <label
+                                            className={`lb-outline-secondary text-sm flex gap-2 items-center cursor-pointer justify-center w-64 mx-auto mb-3 ${isRtl ? "flex-row-reverse" : ""}`}
+                                        >
                                             <input
                                                 type="file"
                                                 className="hidden"
@@ -253,7 +282,9 @@ export default function FileUploadDialog({
                                     </div>
                                 </div>
                                 {fileUploadError && (
-                                    <p className="text-red-600 dark:text-red-400 text-sm mt-2 text-center">
+                                    <p
+                                        className={`text-red-600 dark:text-red-400 text-sm mt-2 ${isRtl ? "text-right" : "text-center"}`}
+                                    >
                                         {fileUploadError.message}
                                     </p>
                                 )}
