@@ -889,12 +889,14 @@ const getWorkspacePromptQuery = (pathwayName) => {
             $async: Boolean
             $model: String
             $contextId: String
+            $altContextId: String
         ) {
             ${pathwayName}(
                 chatHistory: $chatHistory
                 async: $async
                 model: $model
                 contextId: $contextId
+                altContextId: $altContextId
             ) {
                 result
                 tool

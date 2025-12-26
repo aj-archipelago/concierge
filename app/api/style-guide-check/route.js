@@ -2,7 +2,10 @@ import { getClient, QUERIES } from "../../../src/graphql";
 import LLM from "../models/llm";
 import Run from "../models/run";
 import { getCurrentUser } from "../utils/auth";
-import { prepareFileContentForLLM } from "../utils/llm-file-utils";
+import {
+    createCompoundContextId,
+    prepareFileContentForLLM,
+} from "../utils/llm-file-utils";
 
 export async function POST(req, res) {
     const body = await req.json();
@@ -74,40 +77,73 @@ Provide only the corrected text without any titles, explanations or comments abo
 
         // Add style guide files if provided
         // Use prepareFileContentForLLM to get files with short-lived URLs
-        // All style guide files use the same contextId (workspaceId or "system")
+        // Style guide files are workspace artifacts (use workspaceId)
+        // User files (if any) use compound contextId for workspace-specific privacy
+        const userContextId = user?.contextId || null;
         if (files && files.length > 0) {
             // Pass "system" as workspaceId when workspaceId is null so artifacts use "system" contextId
             const fileContent = await prepareFileContentForLLM(
                 files,
                 workspaceId || "system", // workspaceId for workspace files, "system" for system style guides
-                null, // No user contextId needed
+                userContextId,
                 true, // Fetch short-lived URLs
+                !!workspaceId, // Use compound contextId for user files when in workspace context
             );
             contentArray.push(...fileContent);
         }
 
         // Prepare variables
         const variables = {
-            systemPrompt,
             model,
         };
 
+        // Build chatHistory with system message and user content
+        const chatHistory = [];
+
+        // Add system prompt
+        chatHistory.push({
+            role: "system",
+            content: [
+                JSON.stringify({
+                    type: "text",
+                    text: systemPrompt,
+                }),
+            ],
+        });
+
         if (contentArray.length > 0) {
-            // Use multimodal format
-            variables.chatHistory = [
-                {
-                    role: "user",
-                    content: contentArray,
-                },
-            ];
-        } else {
-            // Fallback to legacy format
-            variables.text = text || "";
+            // Add user message with content
+            chatHistory.push({
+                role: "user",
+                content: contentArray,
+            });
+        } else if (text && text.trim()) {
+            // Fallback to text-only user message
+            chatHistory.push({
+                role: "user",
+                content: [
+                    JSON.stringify({
+                        type: "text",
+                        text: text,
+                    }),
+                ],
+            });
         }
 
-        // Pass contextId so Cortex can look up files
+        variables.chatHistory = chatHistory;
+
+        // Pass contextId so Cortex can look up workspace/system files
         // Use workspaceId if provided, otherwise use "system" for system style guide files
         variables.contextId = workspaceId || "system";
+
+        // Pass altContextId for user files in workspace context
+        // This allows Cortex to look up user-specific files in the workspace
+        if (workspaceId && userContextId) {
+            variables.altContextId = createCompoundContextId(
+                workspaceId,
+                userContextId,
+            );
+        }
 
         console.log(
             "Style guide check variables",

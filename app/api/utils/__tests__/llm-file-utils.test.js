@@ -4,6 +4,7 @@
 
 import {
     buildWorkspacePromptVariables,
+    createCompoundContextId,
     determineFileContextId,
     fetchShortLivedUrl,
     prepareFileContentForLLM,
@@ -433,6 +434,73 @@ describe("buildWorkspacePromptVariables", () => {
         });
     });
 
+    describe("altContextId", () => {
+        it("should return altContextId when workspaceId and userContextId are provided", async () => {
+            const result = await buildWorkspacePromptVariables({
+                systemPrompt: "Context",
+                prompt: "Prompt",
+                text: "Text",
+                workspaceId: "workspace123",
+                userContextId: "user456",
+                useCompoundContextId: true,
+            });
+
+            expect(result.altContextId).toBe("workspace123:user456");
+        });
+
+        it("should not return altContextId when useCompoundContextId is false", async () => {
+            const result = await buildWorkspacePromptVariables({
+                systemPrompt: "Context",
+                prompt: "Prompt",
+                text: "Text",
+                workspaceId: "workspace123",
+                userContextId: "user456",
+                useCompoundContextId: false,
+            });
+
+            expect(result.altContextId).toBeUndefined();
+        });
+
+        it("should not return altContextId when workspaceId is missing", async () => {
+            const result = await buildWorkspacePromptVariables({
+                systemPrompt: "Context",
+                prompt: "Prompt",
+                text: "Text",
+                workspaceId: null,
+                userContextId: "user456",
+                useCompoundContextId: true,
+            });
+
+            expect(result.altContextId).toBeUndefined();
+        });
+
+        it("should not return altContextId when userContextId is missing", async () => {
+            const result = await buildWorkspacePromptVariables({
+                systemPrompt: "Context",
+                prompt: "Prompt",
+                text: "Text",
+                workspaceId: "workspace123",
+                userContextId: null,
+                useCompoundContextId: true,
+            });
+
+            expect(result.altContextId).toBeUndefined();
+        });
+
+        it("should default useCompoundContextId to true", async () => {
+            // When useCompoundContextId is not specified, it defaults to true
+            const result = await buildWorkspacePromptVariables({
+                systemPrompt: "Context",
+                prompt: "Prompt",
+                text: "Text",
+                workspaceId: "workspace123",
+                userContextId: "user456",
+            });
+
+            expect(result.altContextId).toBe("workspace123:user456");
+        });
+    });
+
     describe("edge cases", () => {
         it("should handle empty strings", async () => {
             const result = await buildWorkspacePromptVariables({
@@ -508,6 +576,22 @@ describe("buildWorkspacePromptVariables", () => {
     });
 });
 
+describe("createCompoundContextId", () => {
+    it("should create compound contextId from workspaceId and userContextId", () => {
+        const result = createCompoundContextId("workspace123", "user456");
+        expect(result).toBe("workspace123:user456");
+    });
+
+    it("should handle various ID formats", () => {
+        expect(createCompoundContextId("abc-123", "xyz-789")).toBe(
+            "abc-123:xyz-789",
+        );
+        expect(createCompoundContextId("workspaceId", "contextId")).toBe(
+            "workspaceId:contextId",
+        );
+    });
+});
+
 describe("determineFileContextId", () => {
     it("should return workspaceId for artifacts when workspaceId is provided", () => {
         const result = determineFileContextId({
@@ -525,6 +609,46 @@ describe("determineFileContextId", () => {
             userContextId: "user123",
         });
         expect(result).toBe("user123");
+    });
+
+    it("should return compound contextId for non-artifacts when useCompoundContextId is true", () => {
+        const result = determineFileContextId({
+            isArtifact: false,
+            workspaceId: "workspace123",
+            userContextId: "user123",
+            useCompoundContextId: true,
+        });
+        expect(result).toBe("workspace123:user123");
+    });
+
+    it("should return userContextId for non-artifacts when useCompoundContextId is true but workspaceId is missing", () => {
+        const result = determineFileContextId({
+            isArtifact: false,
+            workspaceId: null,
+            userContextId: "user123",
+            useCompoundContextId: true,
+        });
+        expect(result).toBe("user123");
+    });
+
+    it("should return null for non-artifacts when useCompoundContextId is true but userContextId is missing", () => {
+        const result = determineFileContextId({
+            isArtifact: false,
+            workspaceId: "workspace123",
+            userContextId: null,
+            useCompoundContextId: true,
+        });
+        expect(result).toBeNull();
+    });
+
+    it("should return workspaceId for artifacts even when useCompoundContextId is true", () => {
+        const result = determineFileContextId({
+            isArtifact: true,
+            workspaceId: "workspace123",
+            userContextId: "user123",
+            useCompoundContextId: true,
+        });
+        expect(result).toBe("workspace123");
     });
 
     it("should return userContextId for artifacts when workspaceId is not provided", () => {
@@ -925,6 +1049,111 @@ describe("prepareFileContentForLLM", () => {
         const file2Obj = JSON.parse(result[1]);
         expect(file1Obj.contextId).toBe("workspace123");
         expect(file2Obj.contextId).toBe("user123");
+    });
+
+    it("should use compound contextId for non-artifact files when useCompoundContextId is true", async () => {
+        const mockFiles = [
+            {
+                // No _id, so it's a user file (non-artifact)
+                hash: "hash1",
+                url: "https://example.com/file1.jpg",
+            },
+        ];
+
+        global.fetch.mockResolvedValue({
+            ok: true,
+            json: async () => ({
+                url: "https://example.com/file1.jpg",
+                shortLivedUrl: "https://example.com/short-lived-1",
+            }),
+        });
+
+        const result = await prepareFileContentForLLM(
+            mockFiles,
+            "workspace123",
+            "user123",
+            true,
+            true, // useCompoundContextId
+        );
+
+        expect(result).toHaveLength(1);
+        const fileObj = JSON.parse(result[0]);
+        expect(fileObj.contextId).toBe("workspace123:user123");
+    });
+
+    it("should use workspaceId for artifact files even when useCompoundContextId is true", async () => {
+        const mockFiles = [
+            {
+                _id: "file123", // Has _id, so it's an artifact
+                hash: "hash1",
+                url: "https://example.com/file1.jpg",
+            },
+        ];
+
+        global.fetch.mockResolvedValue({
+            ok: true,
+            json: async () => ({
+                url: "https://example.com/file1.jpg",
+                shortLivedUrl: "https://example.com/short-lived-1",
+            }),
+        });
+
+        const result = await prepareFileContentForLLM(
+            mockFiles,
+            "workspace123",
+            "user123",
+            true,
+            true, // useCompoundContextId - but should not apply to artifacts
+        );
+
+        expect(result).toHaveLength(1);
+        const fileObj = JSON.parse(result[0]);
+        expect(fileObj.contextId).toBe("workspace123"); // Artifact uses workspaceId
+    });
+
+    it("should handle mixed artifact and user files with useCompoundContextId", async () => {
+        const mockFiles = [
+            {
+                _id: "file1", // Artifact
+                hash: "hash1",
+                url: "https://example.com/artifact.jpg",
+            },
+            {
+                // User file (no _id)
+                hash: "hash2",
+                url: "https://example.com/userfile.jpg",
+            },
+        ];
+
+        global.fetch
+            .mockResolvedValueOnce({
+                ok: true,
+                json: async () => ({
+                    url: "https://example.com/artifact.jpg",
+                    shortLivedUrl: "https://example.com/short-lived-1",
+                }),
+            })
+            .mockResolvedValueOnce({
+                ok: true,
+                json: async () => ({
+                    url: "https://example.com/userfile.jpg",
+                    shortLivedUrl: "https://example.com/short-lived-2",
+                }),
+            });
+
+        const result = await prepareFileContentForLLM(
+            mockFiles,
+            "workspace123",
+            "user123",
+            true,
+            true, // useCompoundContextId
+        );
+
+        expect(result).toHaveLength(2);
+        const file1Obj = JSON.parse(result[0]);
+        const file2Obj = JSON.parse(result[1]);
+        expect(file1Obj.contextId).toBe("workspace123"); // Artifact uses workspaceId
+        expect(file2Obj.contextId).toBe("workspace123:user123"); // User file uses compound
     });
 
     it("should fallback to original URL when short-lived URL fetch fails", async () => {

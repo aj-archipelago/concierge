@@ -49,11 +49,12 @@ export async function POST(req, res) {
             allFiles.push(...validPromptFiles);
         }
 
-        // Workspace artifacts use workspaceId, user-submitted files use user.contextId
+        // Workspace artifacts use workspaceId, user-submitted files use compound contextId (workspace:user)
         const workspaceIdForFiles = workspace?._id?.toString() || null;
         const userContextIdForFiles = user?.contextId || null;
 
         // Build variables: systemPrompt (workspace context), prompt (prompt text), text (user input)
+        // buildWorkspacePromptVariables will compute altContextId for user files in workspaces
         const variables = await buildWorkspacePromptVariables({
             systemPrompt: workspaceSystemPrompt,
             prompt: prompt.text,
@@ -61,6 +62,7 @@ export async function POST(req, res) {
             files: allFiles,
             workspaceId: workspaceIdForFiles,
             userContextId: userContextIdForFiles,
+            useCompoundContextId: true, // Use compound contextId for user files
         });
 
         variables.model = model;
@@ -68,6 +70,8 @@ export async function POST(req, res) {
         if (workspaceIdForFiles) {
             variables.contextId = workspaceIdForFiles;
         }
+
+        // altContextId is already computed in buildWorkspacePromptVariables if applicable
 
         const query = getWorkspacePromptQuery(pathwayName);
 
