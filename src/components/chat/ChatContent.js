@@ -333,13 +333,18 @@ function ChatContent({
                     content: optimisticUserMessage.payload,
                 });
 
-                const {
-                    contextId,
-                    contextKey,
-                    aiMemorySelfModify,
-                    aiName,
-                    agentModel,
-                } = user;
+                const { aiMemorySelfModify, aiName, agentModel } = user;
+
+                // Build agentContext for user chat (single user context as default)
+                const agentContext = user.contextId
+                    ? [
+                          {
+                              contextId: user.contextId,
+                              contextKey: user.contextKey || "",
+                              default: true,
+                          },
+                      ]
+                    : [];
 
                 // Use entity ID directly from the prop
                 const currentSelectedEntityId = selectedEntityIdFromProp || "";
@@ -391,8 +396,7 @@ function ChatContent({
                     },
                     body: JSON.stringify({
                         conversation,
-                        contextId,
-                        contextKey,
+                        agentContext,
                         aiName:
                             entities?.find(
                                 (e) => e.id === currentSelectedEntityId,

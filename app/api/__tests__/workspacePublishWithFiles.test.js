@@ -172,6 +172,7 @@ describe("Workspace Publishing with cortexPathwayName", () => {
             expect(mockGetLLMWithFallback).toHaveBeenCalledWith(LLM, "llm3");
 
             // Verify putPathway was called with correct data structure including cortexPathwayName
+            // Note: researchMode is only included for agent pathways (run_workspace_agent)
             expect(putPathway).toHaveBeenCalledWith(
                 null, // workspace.pathway is null initially
                 {
@@ -183,6 +184,7 @@ describe("Workspace Publishing with cortexPathwayName", () => {
                             prompt: "This is the first prompt text",
                             files: [],
                             cortexPathwayName: "run_workspace_agent",
+                            researchMode: false,
                         },
                         {
                             name: "Second Prompt",
@@ -195,6 +197,7 @@ describe("Workspace Publishing with cortexPathwayName", () => {
                             prompt: "This is the third prompt text",
                             files: [],
                             cortexPathwayName: "run_workspace_agent",
+                            researchMode: false,
                         },
                     ],
                     inputParameters: {},

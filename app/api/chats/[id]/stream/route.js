@@ -3,6 +3,7 @@ import Chat from "../../../models/chat.mjs";
 import { getCurrentUser, handleError } from "../../../utils/auth";
 import { getClient, QUERIES, SUBSCRIPTIONS } from "../../../../../src/graphql";
 import { StreamAccumulator } from "../../../utils/stream-accumulator.mjs";
+import { buildAgentContext } from "../../../utils/llm-file-utils";
 import {
     removeArtifactsFromMessages,
     cleanupStaleStopRequestedIds,
@@ -65,8 +66,7 @@ export async function POST(req, { params }) {
         // Extract request data
         const {
             conversation,
-            contextId,
-            contextKey,
+            agentContext: requestAgentContext,
             aiName,
             aiMemorySelfModify,
             title,
@@ -100,13 +100,21 @@ export async function POST(req, { params }) {
         accumulator.isThinking = true;
         const graphqlClient = getClient();
 
+        // Build agentContext for user chat (single user context as default)
+        // Use provided agentContext or build from user's context
+        const agentContext =
+            requestAgentContext ||
+            buildAgentContext({
+                userContextId: currentUser?.contextId || null,
+                userContextKey: currentUser?.contextKey || null,
+            });
+
         // Make sys_entity_agent query to get subscriptionId
         const queryResult = await graphqlClient.query({
             query: QUERIES.SYS_ENTITY_AGENT,
             variables: {
                 chatHistory: conversation,
-                contextId,
-                contextKey,
+                agentContext,
                 aiName,
                 aiMemorySelfModify,
                 title: title || chat.title,

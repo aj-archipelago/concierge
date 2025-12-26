@@ -1,9 +1,10 @@
 import { getClient, QUERIES } from "../../../src/graphql";
 import LLM from "../models/llm";
 import Run from "../models/run";
+import Workspace from "../models/workspace";
 import { getCurrentUser } from "../utils/auth";
 import {
-    createCompoundContextId,
+    buildAgentContext,
     prepareFileContentForLLM,
 } from "../utils/llm-file-utils";
 
@@ -13,7 +14,7 @@ export async function POST(req, res) {
 
     const user = await getCurrentUser();
 
-    const { getWorkspacePromptQuery } = QUERIES;
+    const { getWorkspacePromptQuery, getWorkspaceAgentQuery } = QUERIES;
 
     try {
         let responseText;
@@ -30,8 +31,12 @@ export async function POST(req, res) {
 
         const pathwayName = llm.cortexPathwayName;
         const model = llm.cortexModelName;
+        const isAgentic = llm.isAgentic || false;
 
-        const query = getWorkspacePromptQuery(pathwayName);
+        // Use agent query for agentic LLMs, regular query for non-agentic
+        const query = isAgentic
+            ? getWorkspaceAgentQuery(pathwayName)
+            : getWorkspacePromptQuery(pathwayName);
 
         // Create a more detailed system prompt based on whether files are provided
         let systemPrompt = `You are a professional editor and style guide expert. Your task is to review the provided text and make corrections according to best writing practices and style guidelines.`;
@@ -132,17 +137,27 @@ Provide only the corrected text without any titles, explanations or comments abo
 
         variables.chatHistory = chatHistory;
 
-        // Pass contextId so Cortex can look up workspace/system files
-        // Use workspaceId if provided, otherwise use "system" for system style guide files
-        variables.contextId = workspaceId || "system";
+        // Only include agentContext for agentic LLMs
+        if (isAgentic) {
+            // Fetch workspace to get contextKey if workspaceId is provided
+            let workspace = null;
+            if (workspaceId) {
+                workspace = await Workspace.findById(workspaceId);
+            }
 
-        // Pass altContextId for user files in workspace context
-        // This allows Cortex to look up user-specific files in the workspace
-        if (workspaceId && userContextId) {
-            variables.altContextId = createCompoundContextId(
-                workspaceId,
+            // Build agentContext for Cortex API
+            // For style guide: workspace context is default, with optional user context for user files
+            const agentContext = buildAgentContext({
+                workspaceId: workspaceId || "system",
+                workspaceContextKey: workspace?.contextKey || null,
                 userContextId,
-            );
+                userContextKey: user?.contextKey || null,
+                includeCompoundContext: !!workspaceId, // Only include compound context when in workspace
+            });
+
+            if (agentContext.length > 0) {
+                variables.agentContext = agentContext;
+            }
         }
 
         console.log(

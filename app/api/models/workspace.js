@@ -50,6 +50,11 @@ export const workspaceSchema = new mongoose.Schema(
             ],
             default: [],
         },
+        contextKey: {
+            type: String,
+            required: false,
+            trim: true,
+        },
     },
     {
         timestamps: true,

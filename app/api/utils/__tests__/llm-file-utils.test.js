@@ -3,6 +3,7 @@
  */
 
 import {
+    buildAgentContext,
     buildWorkspacePromptVariables,
     createCompoundContextId,
     determineFileContextId,
@@ -434,70 +435,116 @@ describe("buildWorkspacePromptVariables", () => {
         });
     });
 
-    describe("altContextId", () => {
-        it("should return altContextId when workspaceId and userContextId are provided", async () => {
+    describe("agentContext", () => {
+        it("should return agentContext with workspace and compound contexts when both are provided", async () => {
             const result = await buildWorkspacePromptVariables({
                 systemPrompt: "Context",
                 prompt: "Prompt",
                 text: "Text",
                 workspaceId: "workspace123",
+                workspaceContextKey: "workspace-key",
                 userContextId: "user456",
+                userContextKey: "user-key",
                 useCompoundContextId: true,
             });
 
-            expect(result.altContextId).toBe("workspace123:user456");
+            expect(result.agentContext).toHaveLength(2);
+            // First context is workspace (default)
+            expect(result.agentContext[0]).toEqual({
+                contextId: "workspace123",
+                contextKey: "workspace-key",
+                default: true,
+            });
+            // Second context is compound (user files in workspace)
+            expect(result.agentContext[1]).toEqual({
+                contextId: "workspace123:user456",
+                contextKey: "user-key",
+                default: false,
+            });
         });
 
-        it("should not return altContextId when useCompoundContextId is false", async () => {
+        it("should return only workspace context when useCompoundContextId is false", async () => {
             const result = await buildWorkspacePromptVariables({
                 systemPrompt: "Context",
                 prompt: "Prompt",
                 text: "Text",
                 workspaceId: "workspace123",
+                workspaceContextKey: "workspace-key",
                 userContextId: "user456",
+                userContextKey: "user-key",
                 useCompoundContextId: false,
             });
 
-            expect(result.altContextId).toBeUndefined();
+            expect(result.agentContext).toHaveLength(1);
+            expect(result.agentContext[0]).toEqual({
+                contextId: "workspace123",
+                contextKey: "workspace-key",
+                default: true,
+            });
         });
 
-        it("should not return altContextId when workspaceId is missing", async () => {
+        it("should return user context only when no workspaceId", async () => {
             const result = await buildWorkspacePromptVariables({
                 systemPrompt: "Context",
                 prompt: "Prompt",
                 text: "Text",
                 workspaceId: null,
                 userContextId: "user456",
+                userContextKey: "user-key",
                 useCompoundContextId: true,
             });
 
-            expect(result.altContextId).toBeUndefined();
+            expect(result.agentContext).toHaveLength(1);
+            expect(result.agentContext[0]).toEqual({
+                contextId: "user456",
+                contextKey: "user-key",
+                default: true,
+            });
         });
 
-        it("should not return altContextId when userContextId is missing", async () => {
+        it("should not return agentContext when no contextIds provided", async () => {
             const result = await buildWorkspacePromptVariables({
                 systemPrompt: "Context",
                 prompt: "Prompt",
                 text: "Text",
-                workspaceId: "workspace123",
+                workspaceId: null,
                 userContextId: null,
                 useCompoundContextId: true,
             });
 
-            expect(result.altContextId).toBeUndefined();
+            expect(result.agentContext).toBeUndefined();
         });
 
-        it("should default useCompoundContextId to true", async () => {
-            // When useCompoundContextId is not specified, it defaults to true
+        it("should handle missing contextKeys gracefully", async () => {
             const result = await buildWorkspacePromptVariables({
                 systemPrompt: "Context",
                 prompt: "Prompt",
                 text: "Text",
                 workspaceId: "workspace123",
+                workspaceContextKey: null,
                 userContextId: "user456",
+                userContextKey: null,
+                useCompoundContextId: true,
             });
 
-            expect(result.altContextId).toBe("workspace123:user456");
+            expect(result.agentContext).toHaveLength(2);
+            expect(result.agentContext[0].contextKey).toBe("");
+            expect(result.agentContext[1].contextKey).toBe("");
+        });
+
+        it("should default useCompoundContextId to true", async () => {
+            const result = await buildWorkspacePromptVariables({
+                systemPrompt: "Context",
+                prompt: "Prompt",
+                text: "Text",
+                workspaceId: "workspace123",
+                workspaceContextKey: "workspace-key",
+                userContextId: "user456",
+                userContextKey: "user-key",
+            });
+
+            // Should include both workspace and compound contexts
+            expect(result.agentContext).toHaveLength(2);
         });
     });
 
@@ -589,6 +636,97 @@ describe("createCompoundContextId", () => {
         expect(createCompoundContextId("workspaceId", "contextId")).toBe(
             "workspaceId:contextId",
         );
+    });
+});
+
+describe("buildAgentContext", () => {
+    it("should build workspace context with compound context when all params provided", () => {
+        const result = buildAgentContext({
+            workspaceId: "workspace123",
+            workspaceContextKey: "workspace-key",
+            userContextId: "user456",
+            userContextKey: "user-key",
+            includeCompoundContext: true,
+        });
+
+        expect(result).toHaveLength(2);
+        expect(result[0]).toEqual({
+            contextId: "workspace123",
+            contextKey: "workspace-key",
+            default: true,
+        });
+        expect(result[1]).toEqual({
+            contextId: "workspace123:user456",
+            contextKey: "user-key",
+            default: false,
+        });
+    });
+
+    it("should build only workspace context when includeCompoundContext is false", () => {
+        const result = buildAgentContext({
+            workspaceId: "workspace123",
+            workspaceContextKey: "workspace-key",
+            userContextId: "user456",
+            userContextKey: "user-key",
+            includeCompoundContext: false,
+        });
+
+        expect(result).toHaveLength(1);
+        expect(result[0]).toEqual({
+            contextId: "workspace123",
+            contextKey: "workspace-key",
+            default: true,
+        });
+    });
+
+    it("should build user context only when no workspaceId", () => {
+        const result = buildAgentContext({
+            workspaceId: null,
+            userContextId: "user456",
+            userContextKey: "user-key",
+        });
+
+        expect(result).toHaveLength(1);
+        expect(result[0]).toEqual({
+            contextId: "user456",
+            contextKey: "user-key",
+            default: true,
+        });
+    });
+
+    it("should return empty array when no contextIds provided", () => {
+        const result = buildAgentContext({
+            workspaceId: null,
+            userContextId: null,
+        });
+
+        expect(result).toEqual([]);
+    });
+
+    it("should handle missing contextKeys with empty strings", () => {
+        const result = buildAgentContext({
+            workspaceId: "workspace123",
+            workspaceContextKey: null,
+            userContextId: "user456",
+            userContextKey: null,
+            includeCompoundContext: true,
+        });
+
+        expect(result).toHaveLength(2);
+        expect(result[0].contextKey).toBe("");
+        expect(result[1].contextKey).toBe("");
+    });
+
+    it("should not include compound context when userContextId is missing", () => {
+        const result = buildAgentContext({
+            workspaceId: "workspace123",
+            workspaceContextKey: "workspace-key",
+            userContextId: null,
+            includeCompoundContext: true,
+        });
+
+        expect(result).toHaveLength(1);
+        expect(result[0].contextId).toBe("workspace123");
     });
 });
 

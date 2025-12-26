@@ -36,6 +36,8 @@ export async function POST(request, { params }) {
         let pathwayName;
         let model;
         let promptFiles = [];
+        let researchMode = false;
+        let agentMode = false;
 
         if (promptId) {
             const promptData = await getPromptWithMigration(promptId);
@@ -51,11 +53,14 @@ export async function POST(request, { params }) {
             promptFiles = await filterValidFiles(promptData.prompt.files || []);
             pathwayName = promptData.pathwayName;
             model = promptData.model;
+            researchMode = promptData.researchMode || false;
+            agentMode = promptData.agentMode || false;
         } else {
-            // No promptId provided, get default LLM
+            // No promptId provided, get default agentic LLM
             const llm = await getAnyAgenticLLM(LLM);
             pathwayName = llm.cortexPathwayName;
             model = llm.cortexModelName;
+            agentMode = true; // Default to agent mode when using agentic LLM
         }
 
         // Fetch workspace to get systemPrompt (workspace context)
@@ -77,32 +82,35 @@ export async function POST(request, { params }) {
             allFiles.push(...files);
         }
 
-        // Workspace artifacts use workspaceId, user-submitted files use compound contextId (workspace:user)
-        const workspaceIdForFiles = workspace?._id?.toString() || null;
-        const userContextIdForFiles = user?.contextId || null;
-
-        // Build variables: systemPrompt (workspace context), prompt (prompt text), text (user input)
-        // buildWorkspacePromptVariables will compute altContextId for user files in workspaces
+        // Build variables - include agentContext only for agent pathways
         const variables = await buildWorkspacePromptVariables({
             systemPrompt: workspaceSystemPrompt,
             prompt: promptText,
             text: userInput,
             files: allFiles,
             chatHistory: chatHistory,
-            workspaceId: workspaceIdForFiles,
-            userContextId: userContextIdForFiles,
+            workspaceId: workspace?._id?.toString() || null,
+            workspaceContextKey: workspace?.contextKey || null,
+            userContextId: user?.contextId || null,
+            userContextKey: user?.contextKey || null,
             useCompoundContextId: true, // Use compound contextId for user files
         });
 
         variables.model = model;
 
-        if (workspaceIdForFiles) {
-            variables.contextId = workspaceIdForFiles;
+        // Use agent query for agent pathways, regular query for non-agent
+        let query;
+        if (agentMode) {
+            // Pass researchMode for agent pathways
+            if (researchMode) {
+                variables.researchMode = true;
+            }
+            query = QUERIES.getWorkspaceAgentQuery(pathwayName);
+        } else {
+            // Non-agent pathways don't use agentContext or researchMode
+            delete variables.agentContext;
+            query = QUERIES.getWorkspacePromptQuery(pathwayName);
         }
-
-        // altContextId is already computed in buildWorkspacePromptVariables if applicable
-
-        const query = QUERIES.getWorkspacePromptQuery(pathwayName);
 
         const response = await getClient().query({
             query,

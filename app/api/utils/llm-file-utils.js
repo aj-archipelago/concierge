@@ -201,6 +201,57 @@ export async function getAnyAgenticLLM(LLM) {
 }
 
 /**
+ * Build agentContext array for Cortex API
+ * @param {Object} params
+ * @param {string} params.workspaceId - Workspace ID (used as primary contextId for workspace files)
+ * @param {string} params.workspaceContextKey - Workspace context key
+ * @param {string} params.userContextId - User context ID
+ * @param {string} params.userContextKey - User context key
+ * @param {boolean} params.includeCompoundContext - If true, include compound contextId for user files in workspaces
+ * @returns {Array} agentContext array for Cortex API
+ */
+export function buildAgentContext({
+    workspaceId = null,
+    workspaceContextKey = null,
+    userContextId = null,
+    userContextKey = null,
+    includeCompoundContext = false,
+}) {
+    const contexts = [];
+
+    // For workspace prompt executions: workspace context is the default
+    if (workspaceId) {
+        contexts.push({
+            contextId: workspaceId,
+            contextKey: workspaceContextKey || "",
+            default: true,
+        });
+
+        // Add compound context for user files in workspace
+        if (includeCompoundContext && userContextId) {
+            const compoundContextId = createCompoundContextId(
+                workspaceId,
+                userContextId,
+            );
+            contexts.push({
+                contextId: compoundContextId,
+                contextKey: userContextKey || "",
+                default: false,
+            });
+        }
+    } else if (userContextId) {
+        // For user chat: user context is the only/default context
+        contexts.push({
+            contextId: userContextId,
+            contextKey: userContextKey || "",
+            default: true,
+        });
+    }
+
+    return contexts;
+}
+
+/**
  * Build variables for workspace prompt query
  * Always returns chatHistory format with system message and user message
  * @param {Object} params
@@ -211,8 +262,10 @@ export async function getAnyAgenticLLM(LLM) {
  * @param {Array} params.chatHistory - Existing chat history (optional)
  * @param {string} params.workspaceId - Optional workspace ID for workspace artifacts
  * @param {string} params.userContextId - Optional user context ID for user-submitted files
+ * @param {string} params.userContextKey - Optional user context key for user-submitted files
+ * @param {string} params.workspaceContextKey - Optional workspace context key for workspace files
  * @param {boolean} params.useCompoundContextId - If true, use compound contextId for user files
- * @returns {Promise<Object>} Variables object with chatHistory and altContextId for GraphQL query
+ * @returns {Promise<Object>} Variables object with chatHistory and agentContext for GraphQL query
  */
 export async function buildWorkspacePromptVariables({
     systemPrompt,
@@ -222,6 +275,8 @@ export async function buildWorkspacePromptVariables({
     chatHistory = null,
     workspaceId = null,
     userContextId = null,
+    userContextKey = null,
+    workspaceContextKey = null,
     useCompoundContextId = true,
 }) {
     // Combine prompt + text for user message
@@ -231,12 +286,14 @@ export async function buildWorkspacePromptVariables({
             : prompt
         : text || "";
 
-    // Compute altContextId for user files in workspaces
-    // This is the compound contextId that cortex will use to look up user files
-    const altContextId =
-        useCompoundContextId && workspaceId && userContextId
-            ? createCompoundContextId(workspaceId, userContextId)
-            : null;
+    // Build agentContext for Cortex API
+    const agentContext = buildAgentContext({
+        workspaceId,
+        workspaceContextKey,
+        userContextId,
+        userContextKey,
+        includeCompoundContext: useCompoundContextId,
+    });
 
     const fileContent =
         files && files.length > 0
@@ -357,9 +414,9 @@ export async function buildWorkspacePromptVariables({
         chatHistory: finalChatHistory,
     };
 
-    // Include altContextId if computed (for user files in workspaces)
-    if (altContextId) {
-        result.altContextId = altContextId;
+    // Include agentContext if we have any contexts
+    if (agentContext.length > 0) {
+        result.agentContext = agentContext;
     }
 
     return result;

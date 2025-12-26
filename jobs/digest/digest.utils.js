@@ -18,10 +18,20 @@ const generateDigestBlockContent = async (
         ],
     };
 
+    // Build agentContext for user (single user context as default)
+    const agentContext = user?.contextId
+        ? [
+              {
+                  contextId: user.contextId,
+                  contextKey: user.contextKey || "",
+                  default: true,
+              },
+          ]
+        : [];
+
     const variables = {
         chatHistory: [systemMessage, { role: "user", content: [prompt] }],
-        contextId: user?.contextId,
-        contextKey: user?.contextKey,
+        agentContext,
         aiName: user?.aiName,
         model: user?.agentModel || "oai-gpt51",
         useMemory: true,

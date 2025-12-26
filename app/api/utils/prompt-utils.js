@@ -46,9 +46,8 @@ export async function getPromptWithMigration(promptId) {
     let model;
 
     if (agentMode) {
-        pathwayName = researchMode
-            ? "run_workspace_research_agent"
-            : "run_workspace_agent";
+        // All agent modes use run_workspace_agent; researchMode is passed as a parameter
+        pathwayName = "run_workspace_agent";
         model = llm.cortexModelName;
     } else {
         pathwayName = llm.cortexPathwayName;
