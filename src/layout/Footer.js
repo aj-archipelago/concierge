@@ -98,8 +98,8 @@ export default function Footer() {
                     </DropdownMenuContent>
                 </DropdownMenu>
 
-                <div className="hidden sm:flex gap-2 items-center text-xs">
-                    <span className="hidden lg:inline">{t("Powered by")}</span>
+                <div className="flex gap-2 items-center text-xs">
+                    <span className="hidden sm:inline">{t("Powered by")}</span>
                     <div className="flex items-center">{getProviderIcon()}</div>
                 </div>
             </div>

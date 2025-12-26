@@ -48,12 +48,13 @@ import { WorkspaceContext } from "./WorkspaceContent";
 import { isSupportedFileUrl, getFileIcon } from "../../../src/utils/mediaUtils";
 import FileUploadDialog from "./FileUploadDialog";
 import FileManager from "../../../src/components/common/FileManager";
+import { deleteFileFromCloud } from "../[id]/components/chatFileUtils";
 
 export default function WorkspaceInput({ onRun, onRunMany }) {
     const [text, setText] = useState("");
     const [selectedPrompt, setSelectedPrompt] = useState(null);
     const [editing, setEditing] = useState(false);
-    const { workspace } = useContext(WorkspaceContext);
+    const { workspace, user } = useContext(WorkspaceContext);
     const [isOpen, setIsOpen] = useState(false);
     const [systemPromptEditing, setSystemPromptEditing] = useState(false);
 
@@ -110,12 +111,24 @@ export default function WorkspaceInput({ onRun, onRunMany }) {
         // eslint-disable-next-line
     }, [text, workspace?._id]);
 
-    // Remove file handler
-    const removeFile = (indexToRemove) => {
-        setUrlsData((prevUrlsData) =>
-            prevUrlsData.filter((_, index) => index !== indexToRemove),
-        );
-    };
+    // Remove file handler - deletes from cloud storage and removes from local state
+    const removeFile = useCallback(
+        (indexToRemove) => {
+            const fileToRemove = urlsData[indexToRemove];
+            if (fileToRemove?.hash) {
+                // User files in workspace use compound contextId
+                const contextId =
+                    workspace?._id && user?.contextId
+                        ? `${workspace._id}:${user.contextId}`
+                        : user?.contextId;
+                deleteFileFromCloud(fileToRemove.hash, contextId);
+            }
+            setUrlsData((prevUrlsData) =>
+                prevUrlsData.filter((_, index) => index !== indexToRemove),
+            );
+        },
+        [urlsData, workspace?._id, user?.contextId],
+    );
 
     // File upload handler
     const handleFileUpload = (fileData) => {
@@ -124,8 +137,6 @@ export default function WorkspaceInput({ onRun, onRunMany }) {
         // Only add supported files to urlsData
         if (isSupportedFileUrl(url)) {
             setUrlsData((prevUrlsData) => [...prevUrlsData, fileData]);
-        } else {
-            // File not processed - not supported type
         }
     };
 

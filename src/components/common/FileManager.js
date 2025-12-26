@@ -870,7 +870,7 @@ export default function FileManager({
                 {onUploadClick && (
                     <button
                         onClick={onUploadClick}
-                        className="mt-4 flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded-lg bg-blue-600 hover:bg-blue-700 text-white transition-colors"
+                        className="mt-4 flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded-lg bg-sky-600 hover:bg-sky-700 text-white transition-colors"
                     >
                         <Upload className="w-4 h-4" />
                         {t("Upload Files")}
@@ -952,7 +952,7 @@ export default function FileManager({
                         {onUploadClick && (
                             <button
                                 onClick={onUploadClick}
-                                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-blue-600 hover:bg-blue-700 text-white transition-colors"
+                                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-sky-600 hover:bg-sky-700 text-white transition-colors"
                             >
                                 <Upload className="w-3.5 h-3.5" />
                                 {t("Upload")}
