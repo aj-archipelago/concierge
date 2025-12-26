@@ -117,15 +117,32 @@ export function formatFileSize(bytes) {
 
 /**
  * Create a stable ID for a file
+ * Uses WeakMap to ensure consistent IDs for the same object instance
  */
+const fileIdMap = new WeakMap();
+let fileIdCounter = 0;
+
 export function createFileId(file) {
-    if (typeof file === "object" && file._id) return `id-${file._id}`;
-    if (typeof file === "object" && file.id) return `id-${file.id}`;
-    if (typeof file === "object" && file.url) return `url-${file.url}`;
-    if (typeof file === "object" && file.gcs) return `gcs-${file.gcs}`;
-    if (typeof file === "object" && file.hash) return `hash-${file.hash}`;
-    const filename = getFilename(file);
-    return `file-${filename}-${Date.now()}`;
+    if (typeof file === "object" && file !== null) {
+        if (file._id) return `id-${file._id}`;
+        if (file.id) return `id-${file.id}`;
+        if (file.url) return `url-${file.url}`;
+        if (file.gcs) return `gcs-${file.gcs}`;
+        if (file.hash) return `hash-${file.hash}`;
+
+        // Use WeakMap for stable ID per object instance
+        const existingId = fileIdMap.get(file);
+        if (existingId) return existingId;
+
+        const filename = getFilename(file);
+        const size = file.size ?? file.bytes ?? "unknown";
+        const newId = `file-${filename}-${size}-${++fileIdCounter}`;
+        fileIdMap.set(file, newId);
+        return newId;
+    }
+
+    // Non-object (string path/URL) - deterministic ID
+    return `file-${getFilename(file)}`;
 }
 
 // ============================================================================

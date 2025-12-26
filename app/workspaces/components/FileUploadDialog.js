@@ -20,8 +20,8 @@ export default function FileUploadDialog({
     onClose,
     onFileUpload,
     uploadEndpoint,
-    uploadMutation = null,
     workspaceId = null,
+    contextId: contextIdProp = null,
     title = "Upload Files",
     description = "Upload files to include in your workspace. Supported formats include images, documents, and media files.",
 }) {
@@ -31,12 +31,16 @@ export default function FileUploadDialog({
     const { user } = useContext(AuthContext);
 
     // Determine contextId based on file type:
+    // - If contextId prop is provided, use it directly (caller knows best)
     // - Workspace/applet artifacts (when uploadEndpoint provided): workspaceId (shared across all users)
     // - User-submitted files in workspace context (workspaceId but no uploadEndpoint):
     //   compound contextId (workspaceId:userContextId) for user-specific workspace files
     // - User-submitted files elsewhere (no workspaceId): user.contextId (user-specific, temporary)
     let contextId;
-    if (uploadEndpoint && workspaceId) {
+    if (contextIdProp) {
+        // Explicit contextId provided by caller
+        contextId = contextIdProp;
+    } else if (uploadEndpoint && workspaceId) {
         // Workspace artifacts are shared
         contextId = workspaceId;
     } else if (workspaceId && user?.contextId) {
@@ -109,13 +113,6 @@ export default function FileUploadDialog({
                             onFileUpload(data);
                             setFileUploading(false);
                             onClose();
-                            // Invalidate queries if mutation provided (for React Query cache)
-                            if (uploadMutation && workspaceId) {
-                                // Trigger refetch by calling the mutation's onSuccess invalidation
-                                // Actually we just call the mutation with empty form to trigger invalidation
-                                // This is a workaround since we need XHR for progress
-                                uploadMutation.reset?.();
-                            }
                         } catch (e) {
                             console.error("Error parsing response:", e);
                             setFileUploadError({

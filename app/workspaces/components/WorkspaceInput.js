@@ -38,7 +38,6 @@ import {
     useDeleteWorkspaceFile,
     useUpdateWorkspace,
     useUpdateWorkspaceState,
-    useUploadWorkspaceFile,
     useWorkspaceFiles,
     useWorkspaceState,
 } from "../../queries/workspaces";
@@ -992,7 +991,6 @@ export function FilePickerModal({
         isLoading,
         error,
     } = useWorkspaceFiles(workspaceId);
-    const uploadFileMutation = useUploadWorkspaceFile();
     const deleteFileMutation = useDeleteWorkspaceFile();
     const checkFileAttachmentsMutation = useCheckFileAttachments();
 
@@ -1212,7 +1210,6 @@ export function FilePickerModal({
                 onClose={() => setShowUploadDialog(false)}
                 onFileUpload={handleFileUpload}
                 uploadEndpoint={`/api/workspaces/${workspaceId}/files`}
-                uploadMutation={uploadFileMutation}
                 workspaceId={workspaceId}
                 title="Upload Files to Workspace"
                 description="Upload files to add them to this workspace. They will be available for attachment to prompts."
@@ -1290,7 +1287,6 @@ function WorkspaceFilesDialog({ isOpen, onClose, workspaceId }) {
     } = useWorkspaceFiles(workspaceId);
     const deleteFileMutation = useDeleteWorkspaceFile();
     const checkAttachmentsMutation = useCheckFileAttachments();
-    const uploadMutation = useUploadWorkspaceFile();
     const [pendingDeleteFiles, setPendingDeleteFiles] = useState([]);
     const [deleteConfirmation, setDeleteConfirmation] = useState(null);
     const [showUploadDialog, setShowUploadDialog] = useState(false);
@@ -1435,7 +1431,6 @@ function WorkspaceFilesDialog({ isOpen, onClose, workspaceId }) {
                 onClose={() => setShowUploadDialog(false)}
                 onFileUpload={handleUploadComplete}
                 uploadEndpoint={`/api/workspaces/${workspaceId}/files`}
-                uploadMutation={uploadMutation}
                 workspaceId={workspaceId}
                 title="Upload Workspace Files"
                 description="Upload files to use in this workspace's prompts."

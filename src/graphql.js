@@ -218,6 +218,7 @@ const SYS_UPDATE_FILE_METADATA = gql`
         $notes: String
         $mimeType: String
         $permanent: Boolean
+        $inCollection: [String!]
     ) {
         sys_update_file_metadata(
             contextId: $contextId
@@ -228,6 +229,7 @@ const SYS_UPDATE_FILE_METADATA = gql`
             notes: $notes
             mimeType: $mimeType
             permanent: $permanent
+            inCollection: $inCollection
         ) {
             result
         }

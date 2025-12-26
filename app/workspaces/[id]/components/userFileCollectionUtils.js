@@ -48,7 +48,7 @@ export async function readUserFileCollection(
 }
 
 /**
- * Update file metadata (displayFilename, tags, notes, mimeType, permanent)
+ * Update file metadata (displayFilename, tags, notes, mimeType, permanent, inCollection)
  */
 export async function updateFileMetadata(
     apolloClient,
@@ -61,7 +61,7 @@ export async function updateFileMetadata(
         throw new Error("contextId and hash are required");
     }
 
-    await apolloClient.mutate({
+    return apolloClient.mutate({
         mutation: QUERIES.SYS_UPDATE_FILE_METADATA,
         variables: {
             contextId,
@@ -72,13 +72,13 @@ export async function updateFileMetadata(
             notes: metadata.notes,
             mimeType: metadata.mimeType,
             permanent: metadata.permanent,
+            inCollection: metadata.inCollection,
         },
     });
 }
 
 /**
  * Get file URL from a file object
- * The URL returned from userFileCollection is already the converted URL if applicable
  */
 export function getFileUrl(file) {
     if (typeof file === "string") return file;
@@ -87,7 +87,6 @@ export function getFileUrl(file) {
 
 /**
  * Get filename from a file object
- * Prefers displayFilename (from Cortex) over other fields
  */
 export function getFilename(file) {
     if (typeof file === "string") return file;

@@ -11,6 +11,14 @@ import { purgeFiles } from "./chatFileUtils";
 import FileManager from "@/src/components/common/FileManager";
 import FileUploadDialog from "@/app/workspaces/components/FileUploadDialog";
 
+/**
+ * UserFileCollection - displays and manages files in a user's file collection
+ *
+ * Context ID handling:
+ * - Chat context: pass user.contextId
+ * - Workspace context: pass workspaceId
+ * - User files in workspace/applet: pass compound contextId (workspaceId:userContextId)
+ */
 export default function UserFileCollection({
     contextId,
     contextKey,
@@ -20,57 +28,107 @@ export default function UserFileCollection({
 }) {
     const { t } = useTranslation();
     const apolloClient = useApolloClient();
-    const [userFileCollection, setUserFileCollection] = useState([]);
+    const [files, setFiles] = useState([]);
     const [showUploadDialog, setShowUploadDialog] = useState(false);
 
+    // Load file collection
     const {
         data: collectionData,
-        loading: collectionLoading,
-        refetch: refetchCollection,
+        loading,
+        refetch,
     } = useQuery(QUERIES.SYS_READ_FILE_COLLECTION, {
         variables: { contextId, contextKey, useCache: false },
         skip: !contextId,
         fetchPolicy: "network-only",
     });
 
+    // Parse collection data when it changes
     useEffect(() => {
-        if (collectionData?.sys_read_file_collection?.result) {
-            try {
-                const parsed = JSON.parse(
-                    collectionData.sys_read_file_collection.result,
-                );
-                if (Array.isArray(parsed)) {
-                    setUserFileCollection(parsed);
-                } else {
-                    setUserFileCollection([]);
-                }
-            } catch (e) {
-                console.error("[UserFileCollection] Error parsing:", e);
-                setUserFileCollection([]);
-            }
-        } else {
-            setUserFileCollection([]);
+        if (!collectionData?.sys_read_file_collection?.result) {
+            setFiles([]);
+            return;
+        }
+        try {
+            const parsed = JSON.parse(
+                collectionData.sys_read_file_collection.result,
+            );
+            setFiles(Array.isArray(parsed) ? parsed : []);
+        } catch {
+            setFiles([]);
         }
     }, [collectionData]);
 
-    // Delete handler using purgeFiles
+    // Reload the file list
+    const reloadFiles = useCallback(
+        () => refetch({ useCache: false }),
+        [refetch],
+    );
+
+    // Handle file upload complete
+    // Flow: [1] CFH upload done → [2] optimistic update → [3] set metadata → [4] reload
+    const handleUploadComplete = useCallback(
+        async (uploadResult) => {
+            // Normalize response (workspace upload vs media helper)
+            const fileData = uploadResult?.file || uploadResult;
+            const hash = fileData?.converted?.hash || fileData?.hash;
+
+            if (!hash) {
+                reloadFiles();
+                return;
+            }
+
+            // [2] Optimistic update - add file to list immediately
+            const now = new Date().toISOString();
+            const optimisticFile = {
+                hash,
+                url: fileData.converted?.url || fileData.url,
+                gcs: fileData.converted?.gcs || fileData.gcsUrl || fileData.gcs,
+                displayFilename:
+                    fileData.displayFilename ||
+                    fileData.originalName ||
+                    fileData.filename,
+                mimeType: fileData.mimeType,
+                size: fileData.size,
+                permanent: false,
+                inCollection: ["*"],
+                addedDate: now,
+                lastAccessed: now,
+            };
+
+            setFiles((prev) => {
+                if (prev.some((f) => f.hash === hash)) return prev;
+                return [optimisticFile, ...prev];
+            });
+
+            // [3] Set metadata (inCollection) → [4] reload
+            try {
+                await updateFileMetadata(
+                    apolloClient,
+                    contextId,
+                    contextKey,
+                    hash,
+                    {
+                        inCollection: ["*"],
+                    },
+                );
+            } catch (error) {
+                console.error("Failed to set file metadata:", error);
+            }
+            reloadFiles();
+        },
+        [apolloClient, contextId, contextKey, reloadFiles],
+    );
+
+    // Handle file deletion
     const handleDelete = useCallback(
         async (filesToRemove) => {
-            // Normalize file objects for purgeFiles
             const validFiles = filesToRemove
-                .filter((file) => typeof file === "object")
-                .map((file) => {
-                    if (!file.type) {
-                        return {
-                            ...file,
-                            type: file.image_url ? "image_url" : "file",
-                        };
-                    }
-                    return file;
-                })
-                .filter(
-                    (file) => file.type === "image_url" || file.type === "file",
-                );
+                .filter((f) => typeof f === "object")
+                .map((f) => ({
+                    ...f,
+                    type: f.type || (f.image_url ? "image_url" : "file"),
+                }))
+                .filter((f) => f.type === "image_url" || f.type === "file");
 
             if (validFiles.length === 0) return;
 
@@ -85,7 +143,7 @@ export default function UserFileCollection({
                 t,
                 getFilename: getFilenameUtil,
                 skipCloudDelete: false,
-                skipUserFileCollection: true, // CFH automatically updates Redis
+                skipUserFileCollection: true,
             });
         },
         [
@@ -99,69 +157,46 @@ export default function UserFileCollection({
         ],
     );
 
-    // Refetch handler
-    const handleRefetch = useCallback(async () => {
-        await refetchCollection({ useCache: false });
-    }, [refetchCollection]);
-
-    // Update metadata handler
+    // Handle metadata update
     const handleUpdateMetadata = useCallback(
         async (file, metadata) => {
-            const fileHash = file?.hash;
-            if (!fileHash) {
-                throw new Error("File hash not found");
-            }
+            if (!file?.hash) throw new Error("File hash not found");
             await updateFileMetadata(
                 apolloClient,
                 contextId,
                 contextKey,
-                fileHash,
+                file.hash,
                 metadata,
             );
         },
         [apolloClient, contextId, contextKey],
     );
 
-    // Toggle permanent handler
+    // Handle permanent toggle
     const handleTogglePermanent = useCallback(async (file) => {
-        const newPermanentValue = !file?.permanent;
-        const fileHash = file?.hash;
-
-        if (!fileHash) {
-            throw new Error("File hash not found");
-        }
+        if (!file?.hash) throw new Error("File hash not found");
 
         const response = await fetch("/api/files/set-retention", {
             method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-            },
+            headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-                hash: fileHash,
-                retention: newPermanentValue ? "permanent" : "temporary",
+                hash: file.hash,
+                retention: file.permanent ? "temporary" : "permanent",
             }),
         });
 
         if (!response.ok) {
-            const errorData = await response.json().catch(() => ({}));
-            throw new Error(
-                errorData.error ||
-                    `Failed to update retention: ${response.statusText}`,
-            );
+            const data = await response.json().catch(() => ({}));
+            throw new Error(data.error || response.statusText);
         }
     }, []);
-
-    // Handle upload complete - refetch files
-    const handleUploadComplete = useCallback(() => {
-        refetchCollection({ useCache: false });
-    }, [refetchCollection]);
 
     return (
         <>
             <FileManager
-                files={userFileCollection}
-                isLoading={collectionLoading}
-                onRefetch={handleRefetch}
+                files={files}
+                isLoading={loading}
+                onRefetch={reloadFiles}
                 onDelete={handleDelete}
                 onUploadClick={() => setShowUploadDialog(true)}
                 onUpdateMetadata={handleUpdateMetadata}
@@ -186,11 +221,11 @@ export default function UserFileCollection({
                 containerHeight="60vh"
             />
 
-            {/* Reuse existing FileUploadDialog */}
             <FileUploadDialog
                 isOpen={showUploadDialog}
                 onClose={() => setShowUploadDialog(false)}
                 onFileUpload={handleUploadComplete}
+                contextId={contextId}
                 title="Upload Files"
                 description="Upload files to add them to this conversation."
             />
