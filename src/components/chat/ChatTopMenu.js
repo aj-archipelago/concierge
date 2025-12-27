@@ -78,7 +78,7 @@ function ChatTopMenu({ displayState = "full", readOnly = false }) {
                         <DialogTitle>{t("Chat Files")}</DialogTitle>
                         <DialogDescription>
                             {t(
-                                "View and manage files that have been indexed in this conversation.",
+                                "View and manage files that are available to this conversation.",
                             )}
                         </DialogDescription>
                     </DialogHeader>

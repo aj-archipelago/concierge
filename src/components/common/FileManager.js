@@ -382,6 +382,8 @@ function FilePreviewDialog({ file, onClose, onDownload, t }) {
  * @param {Function} props.onUpdateMetadata - Optional async function to update file metadata
  * @param {Function} props.onTogglePermanent - Optional async function to toggle file retention
  * @param {string} props.title - Title for the file list
+ * @param {React.ReactNode} props.titleExtra - Optional extra content to render after file count in header
+ * @param {React.ReactNode} props.filterExtra - Optional extra content to render on the same line as the filter
  * @param {string} props.emptyTitle - Title for empty state
  * @param {string} props.emptyDescription - Description for empty state
  * @param {string} props.noMatchTitle - Title when filter has no results
@@ -406,6 +408,8 @@ export default function FileManager({
     onUpdateMetadata,
     onTogglePermanent,
     title,
+    titleExtra,
+    filterExtra,
     emptyTitle,
     emptyDescription,
     noMatchTitle,
@@ -675,6 +679,10 @@ export default function FileManager({
     // Selection handlers
     const handleSelectFile = useCallback(
         (file, index, e) => {
+            // Prevent text selection when shift-clicking for range select
+            if (e.shiftKey) {
+                e.preventDefault();
+            }
             const fileId = getFileId(file);
             if (e.shiftKey && lastSelectedId !== null) {
                 const lastIndex = sortedFiles.findIndex(
@@ -896,16 +904,23 @@ export default function FileManager({
                                 <span className="text-xs text-gray-500 dark:text-gray-400 flex-shrink-0">
                                     (0 / {localFiles.length})
                                 </span>
+                                {titleExtra}
                             </div>
                         </div>
                     )}
-                    {enableFilter && (
-                        <FilterInput
-                            value={filterText}
-                            onChange={setFilterText}
-                            onClear={() => setFilterText("")}
-                            placeholder={t("Filter files...")}
-                        />
+                    {(enableFilter || filterExtra) && (
+                        <div className="flex items-center gap-3">
+                            {enableFilter && (
+                                <FilterInput
+                                    value={filterText}
+                                    onChange={setFilterText}
+                                    onClear={() => setFilterText("")}
+                                    placeholder={t("Filter files...")}
+                                    className="flex-1"
+                                />
+                            )}
+                            {filterExtra}
+                        </div>
                     )}
                 </div>
 
@@ -946,6 +961,7 @@ export default function FileManager({
                                         ` / ${localFiles.length}`}
                                     )
                                 </span>
+                                {titleExtra}
                             </div>
                         )}
                         {!title && <div />}
@@ -959,13 +975,19 @@ export default function FileManager({
                             </button>
                         )}
                     </div>
-                    {enableFilter && (
-                        <FilterInput
-                            value={filterText}
-                            onChange={setFilterText}
-                            onClear={() => setFilterText("")}
-                            placeholder={t("Filter files...")}
-                        />
+                    {(enableFilter || filterExtra) && (
+                        <div className="flex items-center gap-3">
+                            {enableFilter && (
+                                <FilterInput
+                                    value={filterText}
+                                    onChange={setFilterText}
+                                    onClear={() => setFilterText("")}
+                                    placeholder={t("Filter files...")}
+                                    className="flex-1"
+                                />
+                            )}
+                            {filterExtra}
+                        </div>
                     )}
                 </div>
 
@@ -1074,7 +1096,7 @@ export default function FileManager({
                                 return (
                                     <TableRow
                                         key={fileId}
-                                        className={`cursor-pointer ${
+                                        className={`cursor-pointer select-none ${
                                             isSelected
                                                 ? "bg-sky-50 dark:bg-sky-900/20"
                                                 : ""
@@ -1402,7 +1424,23 @@ export default function FileManager({
                             label: t("Delete"),
                             ariaLabel: `${t("Delete")} (${selectedIds.size})`,
                         },
-                        ...(customActions || {}),
+                        // Wrap custom actions to pass selectedObjects and clearSelection
+                        ...(customActions
+                            ? {
+                                  ...customActions,
+                                  custom: customActions.custom?.map(
+                                      (action) => ({
+                                          ...action,
+                                          onClick: async () => {
+                                              await action.onClick?.(
+                                                  selectedObjects,
+                                              );
+                                              clearSelection();
+                                          },
+                                      }),
+                                  ),
+                              }
+                            : {}),
                     }}
                 />
             )}
