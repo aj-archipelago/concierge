@@ -43,14 +43,14 @@ export async function POST(request) {
         if (contentType && contentType.includes("multipart/form-data")) {
             // Handle file upload using the cortex file handler
             const result = await handleStreamingFileUpload(request, {
-                getWorkspace: async () => ({ _id: "system" }), // Dummy workspace for system files
+                getWorkspace: async () => ({ _id: "style-guide-check" }), // Dummy workspace for style guide files
                 checkAuthorization: null, // Already checked admin above
                 associateFile: async (newFile, workspace, user) => {
                     // Don't associate with any workspace, just return the file
                     return { success: true, files: [] };
                 },
                 errorPrefix: "style guide file upload",
-                permanent: true, // Use permanent storage for system files
+                permanent: true, // Use permanent storage for style guide files
             });
 
             if (result.error) {

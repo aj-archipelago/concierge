@@ -1,5 +1,5 @@
 import File from "../models/file";
-import { uploadBufferToMediaService, hashBuffer } from "./upload-utils";
+import { uploadBufferToMediaService, hashBuffer } from "./media-service-utils";
 
 /**
  * Check if a file exists in the file handler system by hash

@@ -1,16 +1,17 @@
 import { getClient, QUERIES } from "../../../src/graphql";
 import LLM from "../models/llm";
 import Run from "../models/run";
-import Workspace from "../models/workspace";
 import { getCurrentUser } from "../utils/auth";
 import {
     buildAgentContext,
     prepareFileContentForLLM,
 } from "../utils/llm-file-utils";
 
+const STYLE_GUIDE_CONTEXT_ID = "style-guide-check";
+
 export async function POST(req, res) {
     const body = await req.json();
-    const { text, llmId, workspaceId, files } = body;
+    const { text, llmId, files, agentMode, researchMode } = body;
 
     const user = await getCurrentUser();
 
@@ -29,9 +30,16 @@ export async function POST(req, res) {
             llm = await LLM.findOne({ isDefault: true });
         }
 
-        const pathwayName = llm.cortexPathwayName;
         const model = llm.cortexModelName;
-        const isAgentic = llm.isAgentic || false;
+        // Allow agentMode to override LLM's isAgentic setting
+        const isAgentic =
+            agentMode !== undefined ? agentMode : llm.isAgentic || false;
+        const useResearchMode = researchMode === true;
+
+        // All agent modes use run_workspace_agent; non-agent uses LLM's pathway
+        const pathwayName = isAgentic
+            ? "run_workspace_agent"
+            : llm.cortexPathwayName;
 
         // Use agent query for agentic LLMs, regular query for non-agentic
         const query = isAgentic
@@ -82,17 +90,16 @@ Provide only the corrected text without any titles, explanations or comments abo
 
         // Add style guide files if provided
         // Use prepareFileContentForLLM to get files with short-lived URLs
-        // Style guide files are workspace artifacts (use workspaceId)
-        // User files (if any) use compound contextId for workspace-specific privacy
+        // Style guide files are always stored in "style-guide-check" context
         const userContextId = user?.contextId || null;
         if (files && files.length > 0) {
-            // Pass "system" as workspaceId when workspaceId is null so artifacts use "system" contextId
+            // Style guide files are always in "style-guide-check" context
             const fileContent = await prepareFileContentForLLM(
                 files,
-                workspaceId || "system", // workspaceId for workspace files, "system" for system style guides
+                STYLE_GUIDE_CONTEXT_ID, // Style guide files are always in this context
                 userContextId,
                 true, // Fetch short-lived URLs
-                !!workspaceId, // Use compound contextId for user files when in workspace context
+                false, // No compound context needed for style guide files
             );
             contentArray.push(...fileContent);
         }
@@ -139,24 +146,23 @@ Provide only the corrected text without any titles, explanations or comments abo
 
         // Only include agentContext for agentic LLMs
         if (isAgentic) {
-            // Fetch workspace to get contextKey if workspaceId is provided
-            let workspace = null;
-            if (workspaceId) {
-                workspace = await Workspace.findById(workspaceId);
-            }
-
             // Build agentContext for Cortex API
-            // For style guide: workspace context is default, with optional user context for user files
+            // Style guide files are always in "style-guide-check" context
             const agentContext = buildAgentContext({
-                workspaceId: workspaceId || "system",
-                workspaceContextKey: workspace?.contextKey || null,
+                workspaceId: STYLE_GUIDE_CONTEXT_ID,
+                workspaceContextKey: null, // Style guide context doesn't use encryption keys
                 userContextId,
                 userContextKey: user?.contextKey || null,
-                includeCompoundContext: !!workspaceId, // Only include compound context when in workspace
+                includeCompoundContext: false, // No compound context for style guide files
             });
 
             if (agentContext.length > 0) {
                 variables.agentContext = agentContext;
+            }
+
+            // Pass researchMode for agent pathways
+            if (useResearchMode) {
+                variables.researchMode = true;
             }
         }
 
@@ -172,18 +178,11 @@ Provide only the corrected text without any titles, explanations or comments abo
         responseText = response.data[pathwayName].result;
 
         // Create a run record for tracking
-        const runData = {
+        const run = await Run.create({
             output: responseText,
             citations: [],
             owner: user._id,
-        };
-
-        // Only add workspace if provided
-        if (workspaceId) {
-            runData.workspace = workspaceId;
-        }
-
-        const run = await Run.create(runData);
+        });
 
         return Response.json({
             originalText: text,

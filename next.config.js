@@ -82,6 +82,7 @@ const config = {
     experimental: {
         proxyTimeout: 1000 * 60 * 10, // 10 minutes (600 seconds)
         instrumentationHook: true,
+        serverComponentsExternalPackages: ["busboy"],
     },
     redirects: async () => {
         return redirects;
