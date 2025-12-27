@@ -30,9 +30,17 @@ export async function readUserFileCollection(
     if (!contextId) return [];
 
     try {
+        const agentContext = [
+            {
+                contextId,
+                contextKey: contextKey || null,
+                default: true,
+            },
+        ];
+
         const result = await apolloClient.query({
             query: QUERIES.SYS_READ_FILE_COLLECTION,
-            variables: { contextId, contextKey, useCache: false },
+            variables: { agentContext, useCache: false },
             fetchPolicy: "network-only",
         });
 
@@ -61,11 +69,18 @@ export async function updateFileMetadata(
         throw new Error("contextId and hash are required");
     }
 
+    const agentContext = [
+        {
+            contextId,
+            contextKey: contextKey || null,
+            default: true,
+        },
+    ];
+
     return apolloClient.mutate({
         mutation: QUERIES.SYS_UPDATE_FILE_METADATA,
         variables: {
-            contextId,
-            contextKey,
+            agentContext,
             hash,
             displayFilename: metadata.displayFilename,
             tags: metadata.tags,
