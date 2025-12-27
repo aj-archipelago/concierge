@@ -337,6 +337,32 @@ const MODEL_CONFIG = {
             };
         },
     },
+    "replicate-seedance-1.5-pro": {
+        query: VIDEO_SEEDANCE,
+        resultKey: "video_seedance",
+        type: "video",
+        buildVariables: (prompt, settings, inputImages) => {
+            const modelSettings = settings?.models?.[
+                "replicate-seedance-1.5-pro"
+            ] || {
+                aspectRatio: "16:9",
+                duration: 5,
+                generateAudio: false,
+                cameraFixed: false,
+            };
+            return {
+                text: prompt,
+                async: true,
+                model: "replicate-seedance-1.5-pro",
+                aspectRatio: modelSettings.aspectRatio,
+                duration: modelSettings.duration,
+                camera_fixed: modelSettings.cameraFixed,
+                generate_audio: modelSettings.generateAudio,
+                image: inputImages[0] || "",
+                seed: -1,
+            };
+        },
+    },
     // Veo models (default for video)
     "veo-2.0-generate": {
         query: VIDEO_VEO,

@@ -952,6 +952,7 @@ const VIDEO_SEEDANCE = gql`
         $image: String
         $seed: Int
         $camera_fixed: Boolean
+        $generate_audio: Boolean
     ) {
         video_seedance(
             text: $text
@@ -963,6 +964,7 @@ const VIDEO_SEEDANCE = gql`
             image: $image
             seed: $seed
             camera_fixed: $camera_fixed
+            generate_audio: $generate_audio
         ) {
             result
         }

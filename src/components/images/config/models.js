@@ -12,7 +12,8 @@ export const MODEL_DISPLAY_NAMES = {
     "replicate-seedream-4": "Seedream 4.0",
     "veo-2.0-generate": "Veo 2.0",
     "veo-3.0-generate": "Veo 3.0",
-    "replicate-seedance-1-pro": "Seedance 1.0",
+    "replicate-seedance-1-pro": "Seedance 1.0 Pro",
+    "replicate-seedance-1.5-pro": "Seedance 1.5 Pro",
 };
 
 export const SUPPORTED_MODELS = [
@@ -31,6 +32,7 @@ export const SUPPORTED_MODELS = [
     "veo-3.1-generate",
     "veo-3.1-fast-generate",
     "replicate-seedance-1-pro",
+    "replicate-seedance-1.5-pro",
 ];
 
 export const DEFAULT_MODEL_SETTINGS = {
@@ -179,6 +181,14 @@ export const DEFAULT_MODEL_SETTINGS = {
         duration: 5,
         generateAudio: false,
         resolution: "1080p",
+        cameraFixed: false,
+    },
+    "replicate-seedance-1.5-pro": {
+        type: "video",
+        inputImages: [0, 1],
+        aspectRatio: "16:9",
+        duration: 5,
+        generateAudio: false,
         cameraFixed: false,
     },
 };
@@ -347,6 +357,20 @@ export const getAvailableDurations = (modelName) => {
         return [
             { value: 5, label: "5s" },
             { value: 10, label: "10s" },
+        ];
+    } else if (modelName === "replicate-seedance-1.5-pro") {
+        return [
+            { value: 2, label: "2s" },
+            { value: 3, label: "3s" },
+            { value: 4, label: "4s" },
+            { value: 5, label: "5s" },
+            { value: 6, label: "6s" },
+            { value: 7, label: "7s" },
+            { value: 8, label: "8s" },
+            { value: 9, label: "9s" },
+            { value: 10, label: "10s" },
+            { value: 11, label: "11s" },
+            { value: 12, label: "12s" },
         ];
     }
     return [];
@@ -520,6 +544,13 @@ export const migrateSettings = (oldSettings) => {
                 duration: oldSettings.video?.defaultDuration || 5,
                 generateAudio: oldSettings.video?.defaultGenerateAudio || false,
                 resolution: oldSettings.video?.defaultResolution || "1080p",
+                cameraFixed: oldSettings.video?.defaultCameraFixed || false,
+            },
+            "replicate-seedance-1.5-pro": {
+                type: "video",
+                aspectRatio: oldSettings.video?.defaultAspectRatio || "16:9",
+                duration: oldSettings.video?.defaultDuration || 5,
+                generateAudio: oldSettings.video?.defaultGenerateAudio || false,
                 cameraFixed: oldSettings.video?.defaultCameraFixed || false,
             },
         },

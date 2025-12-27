@@ -954,7 +954,9 @@ function MediaPage() {
                                             "veo-3.1-fast-generate":
                                                 t("Veo 3.1 Fast"),
                                             "replicate-seedance-1-pro":
-                                                t("Seedance 1.0"),
+                                                t("Seedance 1.0 Pro"),
+                                            "replicate-seedance-1.5-pro":
+                                                t("Seedance 1.5 Pro"),
                                         };
 
                                         const getDisplayName = (modelName) => {
@@ -1770,7 +1772,8 @@ function SettingsDialog({
             "veo-3.0-generate": t("Veo 3.0"),
             "veo-3.1-generate": t("Veo 3.1"),
             "veo-3.1-fast-generate": t("Veo 3.1 Fast"),
-            "replicate-seedance-1-pro": t("Seedance 1.0"),
+            "replicate-seedance-1-pro": t("Seedance 1.0 Pro"),
+            "replicate-seedance-1.5-pro": t("Seedance 1.5 Pro"),
         };
         return names[modelName] || modelName;
     };
@@ -1900,6 +1903,20 @@ function SettingsDialog({
                 { value: 5, label: "5s" },
                 { value: 10, label: "10s" },
             ];
+        } else if (modelName === "replicate-seedance-1.5-pro") {
+            return [
+                { value: 2, label: "2s" },
+                { value: 3, label: "3s" },
+                { value: 4, label: "4s" },
+                { value: 5, label: "5s" },
+                { value: 6, label: "6s" },
+                { value: 7, label: "7s" },
+                { value: 8, label: "8s" },
+                { value: 9, label: "9s" },
+                { value: 10, label: "10s" },
+                { value: 11, label: "11s" },
+                { value: 12, label: "12s" },
+            ];
         }
         return [];
     };
@@ -2026,9 +2043,10 @@ function SettingsDialog({
                                 </div>
                             )}
 
-                        {/* Resolution (for non-Veo video models) */}
+                        {/* Resolution (for non-Veo video models, but not Seedance 1.5 Pro) */}
                         {getModelType(selectedModel) === "video" &&
-                            !selectedModel.startsWith("veo") && (
+                            !selectedModel.startsWith("veo") &&
+                            selectedModel !== "replicate-seedance-1.5-pro" && (
                                 <div>
                                     <label className="block text-sm font-medium mb-1">
                                         {t("Resolution")}
@@ -2054,10 +2072,11 @@ function SettingsDialog({
                                 </div>
                             )}
 
-                        {/* Generate Audio (for Veo 3.0+) */}
+                        {/* Generate Audio (for Veo 3.0+ and Seedance 1.5 Pro) */}
                         {(selectedModel === "veo-3.0-generate" ||
                             selectedModel === "veo-3.1-generate" ||
-                            selectedModel === "veo-3.1-fast-generate") && (
+                            selectedModel === "veo-3.1-fast-generate" ||
+                            selectedModel === "replicate-seedance-1.5-pro") && (
                             <div>
                                 <label className="flex items-center space-x-2">
                                     <input
@@ -2090,7 +2109,8 @@ function SettingsDialog({
                         )}
 
                         {/* Camera Fixed (for Seedance) */}
-                        {selectedModel === "replicate-seedance-1-pro" && (
+                        {(selectedModel === "replicate-seedance-1-pro" ||
+                            selectedModel === "replicate-seedance-1.5-pro") && (
                             <div>
                                 <label className="flex items-center space-x-2">
                                     <input
@@ -2373,7 +2393,8 @@ function ImageInfo({ data, type }) {
             "veo-3.0-generate": t("Veo 3.0"),
             "veo-3.1-generate": t("Veo 3.1"),
             "veo-3.1-fast-generate": t("Veo 3.1 Fast"),
-            "replicate-seedance-1-pro": t("Seedance 1.0"),
+            "replicate-seedance-1-pro": t("Seedance 1.0 Pro"),
+            "replicate-seedance-1.5-pro": t("Seedance 1.5 Pro"),
         };
         return names[modelName] || modelName;
     };
