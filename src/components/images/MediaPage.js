@@ -2043,9 +2043,10 @@ function SettingsDialog({
                                 </div>
                             )}
 
-                        {/* Resolution (for non-Veo video models) */}
+                        {/* Resolution (for non-Veo video models, but not Seedance 1.5 Pro) */}
                         {getModelType(selectedModel) === "video" &&
-                            !selectedModel.startsWith("veo") && (
+                            !selectedModel.startsWith("veo") &&
+                            selectedModel !== "replicate-seedance-1.5-pro" && (
                                 <div>
                                     <label className="block text-sm font-medium mb-1">
                                         {t("Resolution")}
