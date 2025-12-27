@@ -194,13 +194,11 @@ const SYS_SAVE_MEMORY = gql`
 
 const SYS_READ_FILE_COLLECTION = gql`
     query SysReadFileCollection(
-        $contextId: String!
-        $contextKey: String
+        $agentContext: [AgentContextInput]
         $useCache: Boolean
     ) {
         sys_read_file_collection(
-            contextId: $contextId
-            contextKey: $contextKey
+            agentContext: $agentContext
             useCache: $useCache
         ) {
             result
@@ -210,8 +208,7 @@ const SYS_READ_FILE_COLLECTION = gql`
 
 const SYS_UPDATE_FILE_METADATA = gql`
     mutation SysUpdateFileMetadata(
-        $contextId: String!
-        $contextKey: String
+        $agentContext: [AgentContextInput]!
         $hash: String!
         $displayFilename: String
         $tags: [String!]
@@ -221,8 +218,7 @@ const SYS_UPDATE_FILE_METADATA = gql`
         $inCollection: [String!]
     ) {
         sys_update_file_metadata(
-            contextId: $contextId
-            contextKey: $contextKey
+            agentContext: $agentContext
             hash: $hash
             displayFilename: $displayFilename
             tags: $tags

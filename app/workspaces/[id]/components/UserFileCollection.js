@@ -1,6 +1,6 @@
 "use client";
 import { useQuery, useApolloClient } from "@apollo/client";
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { QUERIES } from "@/src/graphql";
 import {
@@ -32,12 +32,26 @@ export default function UserFileCollection({
     const [showUploadDialog, setShowUploadDialog] = useState(false);
 
     // Load file collection
+    const agentContext = useMemo(
+        () =>
+            contextId
+                ? [
+                      {
+                          contextId,
+                          contextKey: contextKey || null,
+                          default: true,
+                      },
+                  ]
+                : undefined,
+        [contextId, contextKey],
+    );
+
     const {
         data: collectionData,
         loading,
         refetch,
     } = useQuery(QUERIES.SYS_READ_FILE_COLLECTION, {
-        variables: { contextId, contextKey, useCache: false },
+        variables: { agentContext, useCache: false },
         skip: !contextId,
         fetchPolicy: "network-only",
     });
@@ -60,8 +74,8 @@ export default function UserFileCollection({
 
     // Reload the file list
     const reloadFiles = useCallback(
-        () => refetch({ useCache: false }),
-        [refetch],
+        () => refetch({ agentContext, useCache: false }),
+        [refetch, agentContext],
     );
 
     // Handle file upload complete
