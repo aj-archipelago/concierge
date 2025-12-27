@@ -3,12 +3,17 @@ import { uploadBufferToMediaService, hashBuffer } from "./upload-utils";
 
 /**
  * Check if a file exists in the file handler system by hash
- * @param {string} hash - File hash
+ * @param {string} hash - File hash (must be truthy)
  * @param {string} contextId - Context ID for file scoping
  * @param {string} mediaHelperUrl - Media helper URL
  * @returns {Promise<Object|null>} File data if exists, null otherwise
  */
 async function checkFileExists(hash, contextId, mediaHelperUrl) {
+    // If hash is missing, file cannot exist (legacy files without hash need re-upload)
+    if (!hash) {
+        return null;
+    }
+
     try {
         const checkUrl = new URL(mediaHelperUrl);
         checkUrl.searchParams.set("hash", hash);
@@ -57,21 +62,19 @@ async function refreshFileFromUrl(file, contextId, mediaHelperUrl) {
         const arrayBuffer = await response.arrayBuffer();
         const fileBuffer = Buffer.from(arrayBuffer);
 
-        // Hash the buffer using the existing utility
+        // Hash the buffer and check if file already exists in workspace contextId
         const hash = await hashBuffer(fileBuffer);
-
-        // Check if file with this hash already exists
         const existingFile = await checkFileExists(
             hash,
             contextId,
             mediaHelperUrl,
         );
         if (existingFile) {
-            // File already exists with this hash, return it
+            // Already exists in workspace contextId
             return existingFile;
         }
 
-        // Upload the buffer using the existing upload mechanism
+        // Upload to workspace contextId (uploadBufferToMediaService handles deduplication)
         const uploadResult = await uploadBufferToMediaService(
             fileBuffer,
             {
@@ -101,30 +104,41 @@ async function refreshFileFromUrl(file, contextId, mediaHelperUrl) {
 
 /**
  * Validate and refresh a single file
+ * Handles legacy files that exist in generic FileStoreMap but not in workspace contextId
  * @param {Object} file - File document
  * @param {string} contextId - Context ID for file scoping
  * @param {string} mediaHelperUrl - Media helper URL
  * @returns {Promise<Object>} Result with fileId and status
  */
 export async function validateAndRefreshFile(file, contextId, mediaHelperUrl) {
-    // Check if file exists by hash
-    const existingFile = await checkFileExists(
-        file.hash,
-        contextId,
-        mediaHelperUrl,
-    );
+    // Check if file exists in workspace contextId with stored hash
+    if (file.hash) {
+        const existingFile = await checkFileExists(
+            file.hash,
+            contextId,
+            mediaHelperUrl,
+        );
 
-    if (existingFile) {
-        // File exists, clear any error
-        if (file.error) {
-            await File.findByIdAndUpdate(file._id, {
-                $unset: { error: "" },
-            });
+        if (existingFile) {
+            // File exists and is kosher, clear any error
+            if (file.error) {
+                await File.findByIdAndUpdate(file._id, {
+                    $unset: { error: "" },
+                });
+            }
+            return { fileId: file._id, status: "exists" };
         }
-        return { fileId: file._id, status: "exists" };
     }
 
-    // File doesn't exist, try to re-upload from URL
+    // File doesn't exist in workspace contextId (or has no hash)
+    // Download from last known URL and re-upload to workspace contextId
+    if (!file.url) {
+        await File.findByIdAndUpdate(file._id, {
+            error: "File has no URL and could not be validated",
+        });
+        return { fileId: file._id, status: "error" };
+    }
+
     const uploadData = await refreshFileFromUrl(
         file,
         contextId,
@@ -132,17 +146,17 @@ export async function validateAndRefreshFile(file, contextId, mediaHelperUrl) {
     );
 
     if (uploadData) {
-        // Update file with new URLs
+        // Update file with new URLs and hash
         await File.findByIdAndUpdate(file._id, {
             url: uploadData.url,
             gcsUrl: uploadData.gcs || file.gcsUrl,
-            hash: uploadData.hash || file.hash,
+            hash: uploadData.hash,
             $unset: { error: "" },
         });
         return { fileId: file._id, status: "refreshed" };
     }
 
-    // Could not refresh file, mark as error
+    // Download failed, mark as error
     await File.findByIdAndUpdate(file._id, {
         error: "File not found and could not be re-uploaded",
     });
