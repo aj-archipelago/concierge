@@ -41,6 +41,7 @@ export async function hashBuffer(buffer) {
  * @param {Function} options.associateFile - Function to associate file with workspace/applet
  * @param {string} options.errorPrefix - Prefix for error messages
  * @param {boolean} options.permanent - If true, file will be marked as permanent
+ * @param {boolean} options.useCompoundContextId - If true, use compound contextId (workspaceId:userContextId) for file scoping
  * @returns {Object} Upload result with file data or error response
  */
 export async function handleStreamingFileUpload(request, options) {
@@ -50,6 +51,7 @@ export async function handleStreamingFileUpload(request, options) {
         associateFile,
         errorPrefix = "streaming file upload",
         permanent = false,
+        useCompoundContextId = false,
     } = options;
 
     try {
@@ -84,14 +86,20 @@ export async function handleStreamingFileUpload(request, options) {
         const { fileBuffer, metadata } = result.data;
 
         // Determine contextId based on file type:
-        // - Workspace/applet artifacts (permanent=true): workspaceId (shared across all users)
-        // - User-submitted files (permanent=false): user.contextId (user-specific, temporary)
+        // - Workspace/applet artifacts (permanent=true, useCompoundContextId=false): workspaceId (shared)
+        // - User files in workspace/applet (useCompoundContextId=true): compound contextId (workspaceId:userContextId)
+        // - User files elsewhere (permanent=false, useCompoundContextId=false): userContextId
         // Note: workspace is guaranteed to exist here due to early return above
         const workspaceIdStr = workspace._id?.toString() || null;
+        const userContextIdStr = user?.contextId || null;
+
+        // When useCompoundContextId is true, this is a user file in workspace context (private per user)
+        // When permanent is true and not compound, this is a workspace artifact (shared)
         const contextId = determineFileContextId({
-            isArtifact: permanent,
+            isArtifact: permanent && !useCompoundContextId,
             workspaceId: workspaceIdStr,
-            userContextId: user?.contextId || null,
+            userContextId: userContextIdStr,
+            useCompoundContextId: useCompoundContextId && !!workspaceIdStr,
         });
 
         // Check if file already exists using hash

@@ -1,21 +1,39 @@
 import config from "../../../config";
 
 /**
+ * Create a compound contextId for workspace-specific user files
+ * This allows each user to have their own private file collection within a workspace
+ * @param {string} workspaceId - Workspace ID
+ * @param {string} userContextId - User context ID
+ * @returns {string} - Compound contextId in format "workspaceId:userContextId"
+ */
+export function createCompoundContextId(workspaceId, userContextId) {
+    return `${workspaceId}:${userContextId}`;
+}
+
+/**
  * Determine the appropriate contextId for a file based on its type
  * @param {Object} options - Options for contextId determination
  * @param {boolean} options.isArtifact - Whether this is a workspace/applet artifact (permanent, shared)
  * @param {string|null} options.workspaceId - Workspace ID if available
  * @param {string|null} options.userContextId - User context ID for user-submitted files
+ * @param {boolean} options.useCompoundContextId - If true, creates a compound contextId for user files in workspaces
  * @returns {string|null} - The appropriate contextId, or null if neither is available
  */
 export function determineFileContextId({
     isArtifact = false,
     workspaceId = null,
     userContextId = null,
+    useCompoundContextId = false,
 }) {
     // Workspace/applet artifacts use workspaceId (shared across all users)
     if (isArtifact && workspaceId) {
         return workspaceId;
+    }
+    // User-submitted files in workspace context use compound contextId
+    // This allows each user to have private files per workspace
+    if (useCompoundContextId && workspaceId && userContextId) {
+        return createCompoundContextId(workspaceId, userContextId);
     }
     // User-submitted files use userContextId (user-specific)
     return userContextId || null;
@@ -83,6 +101,7 @@ export async function fetchShortLivedUrl(hash, contextId) {
  * @param {string} workspaceId - Optional workspace ID for workspace artifacts
  * @param {string} userContextId - Optional user context ID for user-submitted files
  * @param {boolean} fetchShortLivedUrls - Whether to fetch short-lived URLs (default: true for workspaces/applets)
+ * @param {boolean} useCompoundContextId - Whether to use compound contextId for user files in workspaces
  * @returns {Promise<Array>} Array of stringified file content objects
  */
 export async function prepareFileContentForLLM(
@@ -90,18 +109,20 @@ export async function prepareFileContentForLLM(
     workspaceId = null,
     userContextId = null,
     fetchShortLivedUrls = true,
+    useCompoundContextId = false,
 ) {
     if (!files || files.length === 0) return [];
 
     // Format files like chat does
     // Files with _id are workspace/applet artifacts (use workspaceId)
-    // Files without _id are user-submitted files (use userContextId)
+    // Files without _id are user-submitted files (use compound contextId or userContextId)
     const fileObjects = await Promise.all(
         files.map(async (file) => {
             const contextId = determineFileContextId({
                 isArtifact: !!file._id,
                 workspaceId,
                 userContextId,
+                useCompoundContextId: !file._id && useCompoundContextId, // Only for user files
             });
 
             const originalUrl = file.converted?.url || file.url;
@@ -180,6 +201,57 @@ export async function getAnyAgenticLLM(LLM) {
 }
 
 /**
+ * Build agentContext array for Cortex API
+ * @param {Object} params
+ * @param {string} params.workspaceId - Workspace ID (used as primary contextId for workspace files)
+ * @param {string} params.workspaceContextKey - Workspace context key
+ * @param {string} params.userContextId - User context ID
+ * @param {string} params.userContextKey - User context key
+ * @param {boolean} params.includeCompoundContext - If true, include compound contextId for user files in workspaces
+ * @returns {Array} agentContext array for Cortex API
+ */
+export function buildAgentContext({
+    workspaceId = null,
+    workspaceContextKey = null,
+    userContextId = null,
+    userContextKey = null,
+    includeCompoundContext = false,
+}) {
+    const contexts = [];
+
+    // For workspace prompt executions: workspace context is the default
+    if (workspaceId) {
+        contexts.push({
+            contextId: workspaceId,
+            contextKey: workspaceContextKey || "",
+            default: true,
+        });
+
+        // Add compound context for user files in workspace
+        if (includeCompoundContext && userContextId) {
+            const compoundContextId = createCompoundContextId(
+                workspaceId,
+                userContextId,
+            );
+            contexts.push({
+                contextId: compoundContextId,
+                contextKey: userContextKey || "",
+                default: false,
+            });
+        }
+    } else if (userContextId) {
+        // For user chat: user context is the only/default context
+        contexts.push({
+            contextId: userContextId,
+            contextKey: userContextKey || "",
+            default: true,
+        });
+    }
+
+    return contexts;
+}
+
+/**
  * Build variables for workspace prompt query
  * Always returns chatHistory format with system message and user message
  * @param {Object} params
@@ -190,7 +262,10 @@ export async function getAnyAgenticLLM(LLM) {
  * @param {Array} params.chatHistory - Existing chat history (optional)
  * @param {string} params.workspaceId - Optional workspace ID for workspace artifacts
  * @param {string} params.userContextId - Optional user context ID for user-submitted files
- * @returns {Promise<Object>} Variables object with chatHistory for GraphQL query
+ * @param {string} params.userContextKey - Optional user context key for user-submitted files
+ * @param {string} params.workspaceContextKey - Optional workspace context key for workspace files
+ * @param {boolean} params.useCompoundContextId - If true, use compound contextId for user files
+ * @returns {Promise<Object>} Variables object with chatHistory and agentContext for GraphQL query
  */
 export async function buildWorkspacePromptVariables({
     systemPrompt,
@@ -200,6 +275,9 @@ export async function buildWorkspacePromptVariables({
     chatHistory = null,
     workspaceId = null,
     userContextId = null,
+    userContextKey = null,
+    workspaceContextKey = null,
+    useCompoundContextId = true,
 }) {
     // Combine prompt + text for user message
     const combinedUserText = prompt
@@ -208,6 +286,15 @@ export async function buildWorkspacePromptVariables({
             : prompt
         : text || "";
 
+    // Build agentContext for Cortex API
+    const agentContext = buildAgentContext({
+        workspaceId,
+        workspaceContextKey,
+        userContextId,
+        userContextKey,
+        includeCompoundContext: useCompoundContextId,
+    });
+
     const fileContent =
         files && files.length > 0
             ? await prepareFileContentForLLM(
@@ -215,6 +302,7 @@ export async function buildWorkspacePromptVariables({
                   workspaceId,
                   userContextId,
                   true, // Fetch short-lived URLs for workspaces/applets
+                  useCompoundContextId,
               )
             : [];
 
@@ -322,7 +410,14 @@ export async function buildWorkspacePromptVariables({
         }
     }
 
-    return {
+    const result = {
         chatHistory: finalChatHistory,
     };
+
+    // Include agentContext if we have any contexts
+    if (agentContext.length > 0) {
+        result.agentContext = agentContext;
+    }
+
+    return result;
 }

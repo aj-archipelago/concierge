@@ -3,7 +3,9 @@
  */
 
 import {
+    buildAgentContext,
     buildWorkspacePromptVariables,
+    createCompoundContextId,
     determineFileContextId,
     fetchShortLivedUrl,
     prepareFileContentForLLM,
@@ -433,6 +435,119 @@ describe("buildWorkspacePromptVariables", () => {
         });
     });
 
+    describe("agentContext", () => {
+        it("should return agentContext with workspace and compound contexts when both are provided", async () => {
+            const result = await buildWorkspacePromptVariables({
+                systemPrompt: "Context",
+                prompt: "Prompt",
+                text: "Text",
+                workspaceId: "workspace123",
+                workspaceContextKey: "workspace-key",
+                userContextId: "user456",
+                userContextKey: "user-key",
+                useCompoundContextId: true,
+            });
+
+            expect(result.agentContext).toHaveLength(2);
+            // First context is workspace (default)
+            expect(result.agentContext[0]).toEqual({
+                contextId: "workspace123",
+                contextKey: "workspace-key",
+                default: true,
+            });
+            // Second context is compound (user files in workspace)
+            expect(result.agentContext[1]).toEqual({
+                contextId: "workspace123:user456",
+                contextKey: "user-key",
+                default: false,
+            });
+        });
+
+        it("should return only workspace context when useCompoundContextId is false", async () => {
+            const result = await buildWorkspacePromptVariables({
+                systemPrompt: "Context",
+                prompt: "Prompt",
+                text: "Text",
+                workspaceId: "workspace123",
+                workspaceContextKey: "workspace-key",
+                userContextId: "user456",
+                userContextKey: "user-key",
+                useCompoundContextId: false,
+            });
+
+            expect(result.agentContext).toHaveLength(1);
+            expect(result.agentContext[0]).toEqual({
+                contextId: "workspace123",
+                contextKey: "workspace-key",
+                default: true,
+            });
+        });
+
+        it("should return user context only when no workspaceId", async () => {
+            const result = await buildWorkspacePromptVariables({
+                systemPrompt: "Context",
+                prompt: "Prompt",
+                text: "Text",
+                workspaceId: null,
+                userContextId: "user456",
+                userContextKey: "user-key",
+                useCompoundContextId: true,
+            });
+
+            expect(result.agentContext).toHaveLength(1);
+            expect(result.agentContext[0]).toEqual({
+                contextId: "user456",
+                contextKey: "user-key",
+                default: true,
+            });
+        });
+
+        it("should not return agentContext when no contextIds provided", async () => {
+            const result = await buildWorkspacePromptVariables({
+                systemPrompt: "Context",
+                prompt: "Prompt",
+                text: "Text",
+                workspaceId: null,
+                userContextId: null,
+                useCompoundContextId: true,
+            });
+
+            expect(result.agentContext).toBeUndefined();
+        });
+
+        it("should handle missing contextKeys gracefully", async () => {
+            const result = await buildWorkspacePromptVariables({
+                systemPrompt: "Context",
+                prompt: "Prompt",
+                text: "Text",
+                workspaceId: "workspace123",
+                workspaceContextKey: null,
+                userContextId: "user456",
+                userContextKey: null,
+                useCompoundContextId: true,
+            });
+
+            expect(result.agentContext).toHaveLength(2);
+            expect(result.agentContext[0].contextKey).toBe("");
+            expect(result.agentContext[1].contextKey).toBe("");
+        });
+
+        it("should default useCompoundContextId to true", async () => {
+            const result = await buildWorkspacePromptVariables({
+                systemPrompt: "Context",
+                prompt: "Prompt",
+                text: "Text",
+                workspaceId: "workspace123",
+                workspaceContextKey: "workspace-key",
+                userContextId: "user456",
+                userContextKey: "user-key",
+            });
+
+            // Should include both workspace and compound contexts
+            expect(result.agentContext).toHaveLength(2);
+        });
+    });
+
     describe("edge cases", () => {
         it("should handle empty strings", async () => {
             const result = await buildWorkspacePromptVariables({
@@ -508,6 +623,113 @@ describe("buildWorkspacePromptVariables", () => {
     });
 });
 
+describe("createCompoundContextId", () => {
+    it("should create compound contextId from workspaceId and userContextId", () => {
+        const result = createCompoundContextId("workspace123", "user456");
+        expect(result).toBe("workspace123:user456");
+    });
+
+    it("should handle various ID formats", () => {
+        expect(createCompoundContextId("abc-123", "xyz-789")).toBe(
+            "abc-123:xyz-789",
+        );
+        expect(createCompoundContextId("workspaceId", "contextId")).toBe(
+            "workspaceId:contextId",
+        );
+    });
+});
+
+describe("buildAgentContext", () => {
+    it("should build workspace context with compound context when all params provided", () => {
+        const result = buildAgentContext({
+            workspaceId: "workspace123",
+            workspaceContextKey: "workspace-key",
+            userContextId: "user456",
+            userContextKey: "user-key",
+            includeCompoundContext: true,
+        });
+
+        expect(result).toHaveLength(2);
+        expect(result[0]).toEqual({
+            contextId: "workspace123",
+            contextKey: "workspace-key",
+            default: true,
+        });
+        expect(result[1]).toEqual({
+            contextId: "workspace123:user456",
+            contextKey: "user-key",
+            default: false,
+        });
+    });
+
+    it("should build only workspace context when includeCompoundContext is false", () => {
+        const result = buildAgentContext({
+            workspaceId: "workspace123",
+            workspaceContextKey: "workspace-key",
+            userContextId: "user456",
+            userContextKey: "user-key",
+            includeCompoundContext: false,
+        });
+
+        expect(result).toHaveLength(1);
+        expect(result[0]).toEqual({
+            contextId: "workspace123",
+            contextKey: "workspace-key",
+            default: true,
+        });
+    });
+
+    it("should build user context only when no workspaceId", () => {
+        const result = buildAgentContext({
+            workspaceId: null,
+            userContextId: "user456",
+            userContextKey: "user-key",
+        });
+
+        expect(result).toHaveLength(1);
+        expect(result[0]).toEqual({
+            contextId: "user456",
+            contextKey: "user-key",
+            default: true,
+        });
+    });
+
+    it("should return empty array when no contextIds provided", () => {
+        const result = buildAgentContext({
+            workspaceId: null,
+            userContextId: null,
+        });
+
+        expect(result).toEqual([]);
+    });
+
+    it("should handle missing contextKeys with empty strings", () => {
+        const result = buildAgentContext({
+            workspaceId: "workspace123",
+            workspaceContextKey: null,
+            userContextId: "user456",
+            userContextKey: null,
+            includeCompoundContext: true,
+        });
+
+        expect(result).toHaveLength(2);
+        expect(result[0].contextKey).toBe("");
+        expect(result[1].contextKey).toBe("");
+    });
+
+    it("should not include compound context when userContextId is missing", () => {
+        const result = buildAgentContext({
+            workspaceId: "workspace123",
+            workspaceContextKey: "workspace-key",
+            userContextId: null,
+            includeCompoundContext: true,
+        });
+
+        expect(result).toHaveLength(1);
+        expect(result[0].contextId).toBe("workspace123");
+    });
+});
+
 describe("determineFileContextId", () => {
     it("should return workspaceId for artifacts when workspaceId is provided", () => {
         const result = determineFileContextId({
@@ -525,6 +747,46 @@ describe("determineFileContextId", () => {
             userContextId: "user123",
         });
         expect(result).toBe("user123");
+    });
+
+    it("should return compound contextId for non-artifacts when useCompoundContextId is true", () => {
+        const result = determineFileContextId({
+            isArtifact: false,
+            workspaceId: "workspace123",
+            userContextId: "user123",
+            useCompoundContextId: true,
+        });
+        expect(result).toBe("workspace123:user123");
+    });
+
+    it("should return userContextId for non-artifacts when useCompoundContextId is true but workspaceId is missing", () => {
+        const result = determineFileContextId({
+            isArtifact: false,
+            workspaceId: null,
+            userContextId: "user123",
+            useCompoundContextId: true,
+        });
+        expect(result).toBe("user123");
+    });
+
+    it("should return null for non-artifacts when useCompoundContextId is true but userContextId is missing", () => {
+        const result = determineFileContextId({
+            isArtifact: false,
+            workspaceId: "workspace123",
+            userContextId: null,
+            useCompoundContextId: true,
+        });
+        expect(result).toBeNull();
+    });
+
+    it("should return workspaceId for artifacts even when useCompoundContextId is true", () => {
+        const result = determineFileContextId({
+            isArtifact: true,
+            workspaceId: "workspace123",
+            userContextId: "user123",
+            useCompoundContextId: true,
+        });
+        expect(result).toBe("workspace123");
     });
 
     it("should return userContextId for artifacts when workspaceId is not provided", () => {
@@ -925,6 +1187,111 @@ describe("prepareFileContentForLLM", () => {
         const file2Obj = JSON.parse(result[1]);
         expect(file1Obj.contextId).toBe("workspace123");
         expect(file2Obj.contextId).toBe("user123");
+    });
+
+    it("should use compound contextId for non-artifact files when useCompoundContextId is true", async () => {
+        const mockFiles = [
+            {
+                // No _id, so it's a user file (non-artifact)
+                hash: "hash1",
+                url: "https://example.com/file1.jpg",
+            },
+        ];
+
+        global.fetch.mockResolvedValue({
+            ok: true,
+            json: async () => ({
+                url: "https://example.com/file1.jpg",
+                shortLivedUrl: "https://example.com/short-lived-1",
+            }),
+        });
+
+        const result = await prepareFileContentForLLM(
+            mockFiles,
+            "workspace123",
+            "user123",
+            true,
+            true, // useCompoundContextId
+        );
+
+        expect(result).toHaveLength(1);
+        const fileObj = JSON.parse(result[0]);
+        expect(fileObj.contextId).toBe("workspace123:user123");
+    });
+
+    it("should use workspaceId for artifact files even when useCompoundContextId is true", async () => {
+        const mockFiles = [
+            {
+                _id: "file123", // Has _id, so it's an artifact
+                hash: "hash1",
+                url: "https://example.com/file1.jpg",
+            },
+        ];
+
+        global.fetch.mockResolvedValue({
+            ok: true,
+            json: async () => ({
+                url: "https://example.com/file1.jpg",
+                shortLivedUrl: "https://example.com/short-lived-1",
+            }),
+        });
+
+        const result = await prepareFileContentForLLM(
+            mockFiles,
+            "workspace123",
+            "user123",
+            true,
+            true, // useCompoundContextId - but should not apply to artifacts
+        );
+
+        expect(result).toHaveLength(1);
+        const fileObj = JSON.parse(result[0]);
+        expect(fileObj.contextId).toBe("workspace123"); // Artifact uses workspaceId
+    });
+
+    it("should handle mixed artifact and user files with useCompoundContextId", async () => {
+        const mockFiles = [
+            {
+                _id: "file1", // Artifact
+                hash: "hash1",
+                url: "https://example.com/artifact.jpg",
+            },
+            {
+                // User file (no _id)
+                hash: "hash2",
+                url: "https://example.com/userfile.jpg",
+            },
+        ];
+
+        global.fetch
+            .mockResolvedValueOnce({
+                ok: true,
+                json: async () => ({
+                    url: "https://example.com/artifact.jpg",
+                    shortLivedUrl: "https://example.com/short-lived-1",
+                }),
+            })
+            .mockResolvedValueOnce({
+                ok: true,
+                json: async () => ({
+                    url: "https://example.com/userfile.jpg",
+                    shortLivedUrl: "https://example.com/short-lived-2",
+                }),
+            });
+
+        const result = await prepareFileContentForLLM(
+            mockFiles,
+            "workspace123",
+            "user123",
+            true,
+            true, // useCompoundContextId
+        );
+
+        expect(result).toHaveLength(2);
+        const file1Obj = JSON.parse(result[0]);
+        const file2Obj = JSON.parse(result[1]);
+        expect(file1Obj.contextId).toBe("workspace123"); // Artifact uses workspaceId
+        expect(file2Obj.contextId).toBe("workspace123:user123"); // User file uses compound
     });
 
     it("should fallback to original URL when short-lived URL fetch fails", async () => {

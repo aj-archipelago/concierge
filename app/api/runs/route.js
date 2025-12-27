@@ -15,7 +15,7 @@ export async function POST(req, res) {
 
     const user = await getCurrentUser();
 
-    const { getWorkspacePromptQuery } = QUERIES;
+    const { getWorkspacePromptQuery, getWorkspaceAgentQuery } = QUERIES;
 
     try {
         const promptData = await getPromptWithMigration(promptId);
@@ -26,7 +26,8 @@ export async function POST(req, res) {
             );
         }
 
-        const { prompt, pathwayName, model } = promptData;
+        const { prompt, pathwayName, model, researchMode, agentMode } =
+            promptData;
 
         // Fetch workspace to get systemPrompt (workspace context)
         let workspaceSystemPrompt = systemPrompt;
@@ -49,27 +50,34 @@ export async function POST(req, res) {
             allFiles.push(...validPromptFiles);
         }
 
-        // Workspace artifacts use workspaceId, user-submitted files use user.contextId
-        const workspaceIdForFiles = workspace?._id?.toString() || null;
-        const userContextIdForFiles = user?.contextId || null;
-
-        // Build variables: systemPrompt (workspace context), prompt (prompt text), text (user input)
+        // Build variables - include agentContext only for agent pathways
         const variables = await buildWorkspacePromptVariables({
             systemPrompt: workspaceSystemPrompt,
             prompt: prompt.text,
             text: text,
             files: allFiles,
-            workspaceId: workspaceIdForFiles,
-            userContextId: userContextIdForFiles,
+            workspaceId: workspace?._id?.toString() || null,
+            workspaceContextKey: workspace?.contextKey || null,
+            userContextId: user?.contextId || null,
+            userContextKey: user?.contextKey || null,
+            useCompoundContextId: true, // Use compound contextId for user files
         });
 
         variables.model = model;
 
-        if (workspaceIdForFiles) {
-            variables.contextId = workspaceIdForFiles;
+        // Use agent query for agent pathways, regular query for non-agent
+        let query;
+        if (agentMode) {
+            // Pass researchMode for agent pathways
+            if (researchMode) {
+                variables.researchMode = true;
+            }
+            query = getWorkspaceAgentQuery(pathwayName);
+        } else {
+            // Non-agent pathways don't use agentContext or researchMode
+            delete variables.agentContext;
+            query = getWorkspacePromptQuery(pathwayName);
         }
-
-        const query = getWorkspacePromptQuery(pathwayName);
 
         const response = await getClient().query({
             query,

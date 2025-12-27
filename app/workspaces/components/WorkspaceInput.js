@@ -38,7 +38,6 @@ import {
     useDeleteWorkspaceFile,
     useUpdateWorkspace,
     useUpdateWorkspaceState,
-    useUploadWorkspaceFile,
     useWorkspaceFiles,
     useWorkspaceState,
 } from "../../queries/workspaces";
@@ -48,12 +47,14 @@ import { WorkspaceContext } from "./WorkspaceContent";
 
 import { isSupportedFileUrl, getFileIcon } from "../../../src/utils/mediaUtils";
 import FileUploadDialog from "./FileUploadDialog";
+import FileManager from "../../../src/components/common/FileManager";
+import { deleteFileFromCloud } from "../[id]/components/chatFileUtils";
 
 export default function WorkspaceInput({ onRun, onRunMany }) {
     const [text, setText] = useState("");
     const [selectedPrompt, setSelectedPrompt] = useState(null);
     const [editing, setEditing] = useState(false);
-    const { workspace } = useContext(WorkspaceContext);
+    const { workspace, user } = useContext(WorkspaceContext);
     const [isOpen, setIsOpen] = useState(false);
     const [systemPromptEditing, setSystemPromptEditing] = useState(false);
 
@@ -110,12 +111,24 @@ export default function WorkspaceInput({ onRun, onRunMany }) {
         // eslint-disable-next-line
     }, [text, workspace?._id]);
 
-    // Remove file handler
-    const removeFile = (indexToRemove) => {
-        setUrlsData((prevUrlsData) =>
-            prevUrlsData.filter((_, index) => index !== indexToRemove),
-        );
-    };
+    // Remove file handler - deletes from cloud storage and removes from local state
+    const removeFile = useCallback(
+        (indexToRemove) => {
+            const fileToRemove = urlsData[indexToRemove];
+            if (fileToRemove?.hash) {
+                // User files in workspace use compound contextId
+                const contextId =
+                    workspace?._id && user?.contextId
+                        ? `${workspace._id}:${user.contextId}`
+                        : user?.contextId;
+                deleteFileFromCloud(fileToRemove.hash, contextId);
+            }
+            setUrlsData((prevUrlsData) =>
+                prevUrlsData.filter((_, index) => index !== indexToRemove),
+            );
+        },
+        [urlsData, workspace?._id, user?.contextId],
+    );
 
     // File upload handler
     const handleFileUpload = (fileData) => {
@@ -124,8 +137,6 @@ export default function WorkspaceInput({ onRun, onRunMany }) {
         // Only add supported files to urlsData
         if (isSupportedFileUrl(url)) {
             setUrlsData((prevUrlsData) => [...prevUrlsData, fileData]);
-        } else {
-            // File not processed - not supported type
         }
     };
 
@@ -388,13 +399,14 @@ export default function WorkspaceInput({ onRun, onRunMany }) {
             </>
             <PromptSelectorModal isOpen={isOpen} setIsOpen={setIsOpen} />
 
-            {/* File Upload Dialog */}
+            {/* File Upload Dialog for user files */}
             <FileUploadDialog
                 isOpen={showFileUploadDialog}
                 onClose={() => setShowFileUploadDialog(false)}
                 onFileUpload={handleFileUpload}
+                workspaceId={workspace?._id}
                 title="Upload Files"
-                description="Upload files to include in your workspace. Supported formats include images, documents, and media files."
+                description="Upload files to include with your input. These are your private files for this workspace."
             />
 
             {/* File Picker Modal */}
@@ -990,7 +1002,6 @@ export function FilePickerModal({
         isLoading,
         error,
     } = useWorkspaceFiles(workspaceId);
-    const uploadFileMutation = useUploadWorkspaceFile();
     const deleteFileMutation = useDeleteWorkspaceFile();
     const checkFileAttachmentsMutation = useCheckFileAttachments();
 
@@ -1210,7 +1221,6 @@ export function FilePickerModal({
                 onClose={() => setShowUploadDialog(false)}
                 onFileUpload={handleFileUpload}
                 uploadEndpoint={`/api/workspaces/${workspaceId}/files`}
-                uploadMutation={uploadFileMutation}
                 workspaceId={workspaceId}
                 title="Upload Files to Workspace"
                 description="Upload files to add them to this workspace. They will be available for attachment to prompts."
@@ -1284,68 +1294,102 @@ function WorkspaceFilesDialog({ isOpen, onClose, workspaceId }) {
     const {
         data: filesData,
         isLoading,
-        error,
+        refetch,
     } = useWorkspaceFiles(workspaceId);
     const deleteFileMutation = useDeleteWorkspaceFile();
     const checkAttachmentsMutation = useCheckFileAttachments();
-    const [deletingFiles, setDeletingFiles] = useState(new Set());
+    const [pendingDeleteFiles, setPendingDeleteFiles] = useState([]);
     const [deleteConfirmation, setDeleteConfirmation] = useState(null);
+    const [showUploadDialog, setShowUploadDialog] = useState(false);
     const files = filesData?.files || [];
 
-    const handleDeleteClick = async (file) => {
-        try {
-            // Check if file is attached to any prompts
-            const attachmentData = await checkAttachmentsMutation.mutateAsync({
-                workspaceId,
-                fileId: file._id,
-            });
+    // Handle upload complete - refetch files
+    const handleUploadComplete = useCallback(() => {
+        refetch();
+    }, [refetch]);
 
-            setDeleteConfirmation({
-                file,
-                isAttached: attachmentData.isAttached,
-                attachedPrompts: attachmentData.attachedPrompts || [],
-            });
-        } catch (err) {
-            console.error("Error checking file attachments:", err);
-            // Fallback to simple confirmation if check fails
-            setDeleteConfirmation({
-                file,
-                isAttached: false,
-                attachedPrompts: [],
-            });
-        }
-    };
+    // Actually perform the delete
+    const performDelete = useCallback(
+        async (filesToDelete, hasAttachments) => {
+            try {
+                await Promise.all(
+                    filesToDelete.map((file) =>
+                        deleteFileMutation.mutateAsync({
+                            workspaceId,
+                            fileId: file._id,
+                            force: hasAttachments,
+                        }),
+                    ),
+                );
+
+                if (hasAttachments) {
+                    queryClient.invalidateQueries({ queryKey: ["prompt"] });
+                }
+            } catch (err) {
+                console.error("Error deleting files:", err);
+            }
+        },
+        [workspaceId, deleteFileMutation, queryClient],
+    );
+
+    // Handle delete - this is called when user clicks delete in FileManager
+    // We intercept to check for prompt attachments first
+    const handleDelete = useCallback(
+        async (filesToRemove) => {
+            // For bulk delete, check each file for attachments
+            const attachmentResults = await Promise.all(
+                filesToRemove.map(async (file) => {
+                    try {
+                        const attachmentData =
+                            await checkAttachmentsMutation.mutateAsync({
+                                workspaceId,
+                                fileId: file._id,
+                            });
+                        return {
+                            file,
+                            isAttached: attachmentData.isAttached,
+                            attachedPrompts:
+                                attachmentData.attachedPrompts || [],
+                        };
+                    } catch {
+                        return { file, isAttached: false, attachedPrompts: [] };
+                    }
+                }),
+            );
+
+            const hasAttachments = attachmentResults.some((r) => r.isAttached);
+
+            if (hasAttachments) {
+                // Show confirmation dialog for files with attachments
+                setPendingDeleteFiles(filesToRemove);
+                setDeleteConfirmation({
+                    files: attachmentResults,
+                    hasAttachments: true,
+                    totalCount: filesToRemove.length,
+                    attachedCount: attachmentResults.filter((r) => r.isAttached)
+                        .length,
+                });
+            } else {
+                // No attachments, delete directly
+                await performDelete(filesToRemove, false);
+            }
+        },
+        [workspaceId, checkAttachmentsMutation, performDelete],
+    );
 
     const confirmDelete = async () => {
-        if (!deleteConfirmation) return;
-
-        const { file, isAttached } = deleteConfirmation;
-
-        try {
-            setDeletingFiles((prev) => new Set(prev).add(file._id));
-            await deleteFileMutation.mutateAsync({
-                workspaceId,
-                fileId: file._id,
-                force: isAttached, // Use force if attached to prompts
-            });
-
-            // If file was attached to prompts, invalidate prompt queries to reload them
-            if (isAttached) {
-                queryClient.invalidateQueries({ queryKey: ["prompt"] });
-            }
-        } catch (err) {
-            console.error("Error deleting file:", err);
-        } finally {
-            setDeletingFiles((prev) => {
-                const newSet = new Set(prev);
-                newSet.delete(file._id);
-                return newSet;
-            });
-            setDeleteConfirmation(null);
-        }
+        if (!deleteConfirmation || pendingDeleteFiles.length === 0) return;
+        await performDelete(
+            pendingDeleteFiles,
+            deleteConfirmation.hasAttachments,
+        );
+        setPendingDeleteFiles([]);
+        setDeleteConfirmation(null);
+        await refetch();
     };
 
     const cancelDelete = () => {
+        setPendingDeleteFiles([]);
         setDeleteConfirmation(null);
     };
 
@@ -1359,22 +1403,25 @@ function WorkspaceFilesDialog({ isOpen, onClose, workspaceId }) {
             widthClassName="max-w-4xl"
         >
             <div className="p-4">
-                <div className="mb-4">
-                    <div className="text-sm text-gray-600 dark:text-gray-400">
-                        {files.length} {t("files in workspace")}
-                    </div>
-                </div>
-
-                {/* File list */}
-                <FileList
+                <FileManager
                     files={files}
                     isLoading={isLoading}
-                    error={error}
-                    getFileIcon={getFileIcon}
-                    isPickerMode={false}
-                    deletingFiles={deletingFiles}
-                    onDeleteClick={handleDeleteClick}
-                    isPublished={false}
+                    onRefetch={refetch}
+                    onDelete={handleDelete}
+                    onUploadClick={() => setShowUploadDialog(true)}
+                    emptyTitle={t("No files in workspace")}
+                    emptyDescription={t(
+                        "Upload files to this workspace to use them in prompts.",
+                    )}
+                    showPermanentColumn={false}
+                    showDateColumn={true}
+                    enableFilenameEdit={false}
+                    enableHoverPreview={true}
+                    enableBulkActions={true}
+                    enableFilter={true}
+                    enableSort={true}
+                    optimisticDelete={false}
+                    containerHeight="400px"
                 />
 
                 {/* Footer */}
@@ -1389,55 +1436,84 @@ function WorkspaceFilesDialog({ isOpen, onClose, workspaceId }) {
                 </div>
             </div>
 
-            {/* Enhanced Delete Confirmation Dialog */}
+            {/* Reuse existing FileUploadDialog for workspace uploads */}
+            <FileUploadDialog
+                isOpen={showUploadDialog}
+                onClose={() => setShowUploadDialog(false)}
+                onFileUpload={handleUploadComplete}
+                uploadEndpoint={`/api/workspaces/${workspaceId}/files`}
+                workspaceId={workspaceId}
+                title="Upload Workspace Files"
+                description="Upload files to use in this workspace's prompts."
+            />
+
+            {/* Enhanced Delete Confirmation Dialog for files attached to prompts */}
             <AlertDialog
                 open={!!deleteConfirmation}
-                onOpenChange={() => setDeleteConfirmation(null)}
+                onOpenChange={() => cancelDelete()}
             >
                 <AlertDialogContent>
                     <AlertDialogHeader>
-                        <AlertDialogTitle>{t("Delete File")}</AlertDialogTitle>
+                        <AlertDialogTitle>
+                            {deleteConfirmation?.totalCount > 1
+                                ? t("Delete Files")
+                                : t("Delete File")}
+                        </AlertDialogTitle>
                         <AlertDialogDescription>
-                            {deleteConfirmation?.isAttached ? (
+                            {deleteConfirmation?.hasAttachments ? (
                                 <>
                                     <div className="mb-3">
                                         <span className="font-medium text-amber-600 dark:text-amber-400">
                                             ⚠️ {t("Warning:")}
                                         </span>{" "}
-                                        {t("The file")} "
-                                        {deleteConfirmation?.file
-                                            ?.originalName ||
-                                            deleteConfirmation?.file?.filename}
-                                        "{" "}
-                                        {t(
-                                            "is currently attached to the following prompts",
-                                        )}
-                                        :
+                                        {deleteConfirmation?.attachedCount === 1
+                                            ? t("1 file is attached to prompts")
+                                            : t(
+                                                  "{{count}} files are attached to prompts",
+                                                  {
+                                                      count: deleteConfirmation?.attachedCount,
+                                                  },
+                                              )}
+                                        .
                                     </div>
-                                    <div className="mb-3 space-y-1 p-3 bg-amber-50 dark:bg-amber-900/20 rounded-md border border-amber-200 dark:border-amber-800">
-                                        {deleteConfirmation?.attachedPrompts?.map(
-                                            (prompt) => (
+                                    <div className="mb-3 space-y-2 p-3 bg-amber-50 dark:bg-amber-900/20 rounded-md border border-amber-200 dark:border-amber-800 max-h-48 overflow-y-auto">
+                                        {deleteConfirmation?.files
+                                            ?.filter((r) => r.isAttached)
+                                            .map((result) => (
                                                 <div
-                                                    key={prompt.id}
-                                                    className="text-sm font-medium text-amber-800 dark:text-amber-200"
+                                                    key={result.file._id}
+                                                    className="text-sm"
                                                 >
-                                                    • {prompt.title}
+                                                    <span className="font-medium text-amber-800 dark:text-amber-200">
+                                                        {result.file
+                                                            .originalName ||
+                                                            result.file
+                                                                .filename}
+                                                    </span>
+                                                    <span className="text-amber-600 dark:text-amber-400">
+                                                        {" "}
+                                                        →{" "}
+                                                        {result.attachedPrompts
+                                                            .map((p) => p.title)
+                                                            .join(", ")}
+                                                    </span>
                                                 </div>
-                                            ),
-                                        )}
+                                            ))}
                                     </div>
                                     <div className="text-sm">
                                         {t(
-                                            "If you proceed, the file will be automatically detached from these prompts and then deleted. This action cannot be undone.",
+                                            "If you proceed, files will be automatically detached from prompts and then deleted. This action cannot be undone.",
                                         )}
                                     </div>
                                 </>
                             ) : (
                                 <>
-                                    {t("Are you sure you want to delete")} "
-                                    {deleteConfirmation?.file?.originalName ||
-                                        deleteConfirmation?.file?.filename}
-                                    "? {t("This action cannot be undone.")}
+                                    {t(
+                                        "Are you sure you want to delete {{count}} file(s)? This action cannot be undone.",
+                                        {
+                                            count: deleteConfirmation?.totalCount,
+                                        },
+                                    )}
                                 </>
                             )}
                         </AlertDialogDescription>
@@ -1446,11 +1522,8 @@ function WorkspaceFilesDialog({ isOpen, onClose, workspaceId }) {
                         <AlertDialogCancel onClick={cancelDelete}>
                             {t("Cancel")}
                         </AlertDialogCancel>
-                        <AlertDialogAction
-                            onClick={confirmDelete}
-                            className="bg-red-600 hover:bg-red-700 focus:ring-red-600"
-                        >
-                            {deleteConfirmation?.isAttached
+                        <AlertDialogAction onClick={confirmDelete}>
+                            {deleteConfirmation?.hasAttachments
                                 ? t("Detach & Delete")
                                 : t("Delete")}
                         </AlertDialogAction>

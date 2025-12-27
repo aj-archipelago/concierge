@@ -8,6 +8,7 @@
  * @param {string} props.description - Description text
  * @param {Function} props.action - Optional action button
  * @param {string} props.actionLabel - Label for action button
+ * @param {React.ReactNode} props.children - Optional children for custom content
  */
 export default function EmptyState({
     icon,
@@ -15,6 +16,7 @@ export default function EmptyState({
     description,
     action,
     actionLabel,
+    children,
 }) {
     return (
         <div className="flex flex-col items-center justify-center py-16 text-center">
@@ -36,6 +38,7 @@ export default function EmptyState({
                     {actionLabel}
                 </button>
             )}
+            {children}
         </div>
     );
 }

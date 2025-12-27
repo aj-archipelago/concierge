@@ -218,6 +218,7 @@ const SYS_UPDATE_FILE_METADATA = gql`
         $notes: String
         $mimeType: String
         $permanent: Boolean
+        $inCollection: [String!]
     ) {
         sys_update_file_metadata(
             contextId: $contextId
@@ -228,6 +229,7 @@ const SYS_UPDATE_FILE_METADATA = gql`
             notes: $notes
             mimeType: $mimeType
             permanent: $permanent
+            inCollection: $inCollection
         ) {
             result
         }
@@ -249,8 +251,7 @@ const CHAT_TITLE = gql`
 const SYS_ENTITY_AGENT = gql`
     query StartAgent(
         $chatHistory: [MultiMessage]!
-        $contextId: String
-        $contextKey: String
+        $agentContext: [AgentContextInput]
         $text: String
         $aiName: String
         $aiMemorySelfModify: Boolean
@@ -265,8 +266,7 @@ const SYS_ENTITY_AGENT = gql`
     ) {
         sys_entity_agent(
             chatHistory: $chatHistory
-            contextId: $contextId
-            contextKey: $contextKey
+            agentContext: $agentContext
             text: $text
             aiName: $aiName
             aiMemorySelfModify: $aiMemorySelfModify
@@ -1001,13 +1001,35 @@ const getWorkspacePromptQuery = (pathwayName) => {
             $chatHistory: [MultiMessage]
             $async: Boolean
             $model: String
-            $contextId: String
         ) {
             ${pathwayName}(
                 chatHistory: $chatHistory
                 async: $async
                 model: $model
-                contextId: $contextId
+            ) {
+                result
+                tool
+            }
+        }
+    `;
+};
+
+// Agent-specific query with agentContext and researchMode
+const getWorkspaceAgentQuery = (pathwayName) => {
+    return gql`
+        query ${pathwayName}(
+            $chatHistory: [MultiMessage]
+            $async: Boolean
+            $model: String
+            $agentContext: [AgentContextInput]
+            $researchMode: Boolean
+        ) {
+            ${pathwayName}(
+                chatHistory: $chatHistory
+                async: $async
+                model: $model
+                agentContext: $agentContext
+                researchMode: $researchMode
             ) {
                 result
                 tool
@@ -1115,6 +1137,7 @@ const QUERIES = {
     TAGS,
     JIRA_STORY,
     getWorkspacePromptQuery,
+    getWorkspaceAgentQuery,
     STYLE_GUIDE,
     ENTITIES,
     STORY_ANGLES,

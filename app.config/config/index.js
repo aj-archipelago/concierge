@@ -238,9 +238,10 @@ const config = {
             {
                 identifier: LLM_IDENTIFIERS.labeebresearchagent,
                 name: "Labeeb Research Agent",
-                cortexPathwayName: "run_workspace_research_agent",
+                cortexPathwayName: "run_workspace_agent",
                 cortexModelName: CORTEX_AGENTIC_MODEL,
                 isAgentic: true,
+                isResearchAgent: true, // Uses run_workspace_agent with researchMode=true
             },
         ],
     },
