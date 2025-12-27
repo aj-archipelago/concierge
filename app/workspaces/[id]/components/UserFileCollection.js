@@ -1,13 +1,16 @@
 "use client";
-import { useQuery, useApolloClient } from "@apollo/client";
-import { useEffect, useState, useCallback, useMemo } from "react";
+import { useApolloClient } from "@apollo/client";
+import { useEffect, useState, useCallback } from "react";
 import { useTranslation } from "react-i18next";
-import { QUERIES } from "@/src/graphql";
-import {
-    updateFileMetadata,
-    getFilename as getFilenameUtil,
-} from "./userFileCollectionUtils";
+import { updateFileMetadata } from "./userFileCollectionUtils";
+import { getFilename as getFilenameUtil } from "@/src/components/common/FileManager";
 import { purgeFiles } from "./chatFileUtils";
+import {
+    useFileCollection,
+    getInCollection,
+    createOptimisticFile,
+    addFileOptimistically,
+} from "./useFileCollection";
 import FileManager from "@/src/components/common/FileManager";
 import FileUploadDialog from "@/app/workspaces/components/FileUploadDialog";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -31,92 +34,35 @@ export default function UserFileCollection({
 }) {
     const { t } = useTranslation();
     const apolloClient = useApolloClient();
-    const [files, setFiles] = useState([]);
-    const [allFiles, setAllFiles] = useState([]); // Store all files before filtering
     const [showAll, setShowAll] = useState(false);
     const [showUploadDialog, setShowUploadDialog] = useState(false);
 
-    // Load file collection
-    const agentContext = useMemo(
-        () =>
-            contextId
-                ? [
-                      {
-                          contextId,
-                          contextKey: contextKey || null,
-                          default: true,
-                      },
-                  ]
-                : undefined,
-        [contextId, contextKey],
-    );
-
+    // Load file collection using shared hook
     const {
-        data: collectionData,
+        files: allFiles,
+        setFiles: setAllFiles,
         loading,
-        refetch,
-    } = useQuery(QUERIES.SYS_READ_FILE_COLLECTION, {
-        variables: { agentContext, useCache: false },
-        skip: !contextId,
-        fetchPolicy: "network-only",
-    });
+        reloadFiles,
+    } = useFileCollection({ contextId, contextKey });
 
-    // Parse collection data when it changes
+    // Apply chatId filtering when not in "show all" mode
+    const [files, setFiles] = useState([]);
+
     useEffect(() => {
-        if (!collectionData?.sys_read_file_collection?.result) {
-            setFiles([]);
-            setAllFiles([]);
-            return;
-        }
-        try {
-            const parsed = JSON.parse(
-                collectionData.sys_read_file_collection.result,
-            );
-            const parsedFiles = Array.isArray(parsed) ? parsed : [];
-
-            // Helper to get inCollection as array, returns empty array if undefined/invalid
-            const getInCollection = (file) => {
-                if (!file.inCollection) return [];
-                return Array.isArray(file.inCollection)
-                    ? file.inCollection
-                    : [file.inCollection];
-            };
-
-            // Filter files based on inCollection - never show files without inCollection
-            const filesWithCollection = parsedFiles.filter((file) => {
+        if (chatId && !showAll) {
+            // Default view: only show files with global "*" or current chatId
+            const filteredFiles = allFiles.filter((file) => {
                 const collections = getInCollection(file);
-                return collections.length > 0;
+                return (
+                    collections.includes("*") || collections.includes(chatId)
+                );
             });
-
-            // Store all files that have inCollection data
-            setAllFiles(filesWithCollection);
-
-            // Apply filtering based on showAll state and chatId
-            if (chatId && !showAll) {
-                // Default view: only show files with global "*" or current chatId
-                const filteredFiles = filesWithCollection.filter((file) => {
-                    const collections = getInCollection(file);
-                    return (
-                        collections.includes("*") ||
-                        collections.includes(chatId)
-                    );
-                });
-                setFiles(filteredFiles);
-            } else {
-                // Show All view or no chatId: show all files with inCollection
-                setFiles(filesWithCollection);
-            }
-        } catch {
-            setFiles([]);
-            setAllFiles([]);
+            setFiles(filteredFiles);
+        } else {
+            // Show All view or no chatId: show all files with inCollection
+            setFiles(allFiles);
         }
-    }, [collectionData, chatId, showAll]);
-
-    // Reload the file list
-    const reloadFiles = useCallback(
-        () => refetch({ agentContext, useCache: false }),
-        [refetch, agentContext],
-    );
+    }, [allFiles, chatId, showAll]);
 
     // Handle file upload complete
     // Flow: [1] CFH upload done → [2] optimistic update → [3] set metadata → [4] reload
@@ -132,11 +78,11 @@ export default function UserFileCollection({
             }
 
             // Check if file already exists in the collection
-            const existingFile = files.find((f) => f.hash === hash);
+            const existingFile = allFiles.find((f) => f.hash === hash);
             let inCollection;
 
             if (existingFile && existingFile.inCollection) {
-                const existingCollections = existingFile.inCollection;
+                const existingCollections = getInCollection(existingFile);
                 const isGlobal = existingCollections.includes("*");
 
                 if (isGlobal) {
@@ -161,33 +107,26 @@ export default function UserFileCollection({
             }
 
             // [2] Optimistic update - add file to list immediately
-            const now = new Date().toISOString();
-            const optimisticFile = {
-                hash,
-                url: fileData.converted?.url || fileData.url,
-                gcs: fileData.converted?.gcs || fileData.gcsUrl || fileData.gcs,
-                displayFilename:
-                    fileData.displayFilename ||
-                    fileData.originalName ||
-                    fileData.filename,
-                mimeType: fileData.mimeType,
-                size: fileData.size,
-                permanent: existingFile?.permanent || false,
+            const optimisticFile = createOptimisticFile(
+                {
+                    hash,
+                    url: fileData.converted?.url || fileData.url,
+                    gcs:
+                        fileData.converted?.gcs ||
+                        fileData.gcsUrl ||
+                        fileData.gcs,
+                    displayFilename:
+                        fileData.displayFilename ||
+                        fileData.originalName ||
+                        fileData.filename,
+                    mimeType: fileData.mimeType,
+                    size: fileData.size,
+                    permanent: existingFile?.permanent || false,
+                },
                 inCollection,
-                addedDate: existingFile?.addedDate || now,
-                lastAccessed: now,
-            };
+            );
 
-            setFiles((prev) => {
-                // Update existing file or add new one
-                const existingIndex = prev.findIndex((f) => f.hash === hash);
-                if (existingIndex >= 0) {
-                    const updated = [...prev];
-                    updated[existingIndex] = optimisticFile;
-                    return updated;
-                }
-                return [optimisticFile, ...prev];
-            });
+            addFileOptimistically(setAllFiles, optimisticFile);
 
             // [3] Set metadata (inCollection) → [4] reload
             try {
@@ -205,7 +144,15 @@ export default function UserFileCollection({
             }
             reloadFiles();
         },
-        [apolloClient, contextId, contextKey, chatId, files, reloadFiles],
+        [
+            apolloClient,
+            contextId,
+            contextKey,
+            chatId,
+            allFiles,
+            reloadFiles,
+            setAllFiles,
+        ],
     );
 
     // Handle file deletion

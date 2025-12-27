@@ -118,17 +118,18 @@ export function formatFileSize(bytes) {
 /**
  * Create a stable ID for a file
  * Uses WeakMap to ensure consistent IDs for the same object instance
+ * Priority: hash (stable content hash, works across MongoDB and Cortex) > _id (stable DB ID) > id/url/gcs
  */
 const fileIdMap = new WeakMap();
 let fileIdCounter = 0;
 
 export function createFileId(file) {
     if (typeof file === "object" && file !== null) {
+        if (file.hash) return `hash-${file.hash}`;
         if (file._id) return `id-${file._id}`;
         if (file.id) return `id-${file.id}`;
         if (file.url) return `url-${file.url}`;
         if (file.gcs) return `gcs-${file.gcs}`;
-        if (file.hash) return `hash-${file.hash}`;
 
         // Use WeakMap for stable ID per object instance
         const existingId = fileIdMap.get(file);
@@ -187,8 +188,9 @@ function SortableHeader({
 
 /**
  * Hover preview component
+ * Exported for use in other components
  */
-function HoverPreview({ file }) {
+export function HoverPreview({ file }) {
     const { t } = useTranslation();
     const isRtl = i18next.language === "ar";
     const url = file ? getFileUrl(file) : null;
@@ -264,7 +266,7 @@ function HoverPreview({ file }) {
 /**
  * File Preview Dialog Component
  */
-function FilePreviewDialog({ file, onClose, onDownload, t }) {
+export function FilePreviewDialog({ file, onClose, onDownload, t }) {
     const isRtl = i18next.language === "ar";
     const url = file ? getFileUrl(file) : null;
     const filename = file ? getFilename(file) : null;
@@ -398,6 +400,11 @@ function FilePreviewDialog({ file, onClose, onDownload, t }) {
  * @param {boolean} props.optimisticDelete - Whether to use optimistic delete
  * @param {string} props.containerHeight - CSS height for the scrollable container
  * @param {Object} props.customActions - Custom actions for the bulk actions bar
+ * @param {string} props.selectionMode - "bulk" (default) or "controlled" - whether selection is managed internally or externally
+ * @param {Set<string>} props.selectedIds - For controlled mode: Set of selected file IDs
+ * @param {Function} props.onSelectionChange - For controlled mode: callback when selection changes (receives Set<string>)
+ * @param {Function} props.rowActions - Optional function that receives (file) and returns ReactNode for per-row action buttons
+ * @param {React.ReactNode} props.headerContent - Optional custom content to render in the header area (replaces default header)
  */
 export default function FileManager({
     files = [],
@@ -424,6 +431,11 @@ export default function FileManager({
     optimisticDelete = true,
     containerHeight = "60vh",
     customActions = null,
+    selectionMode = "bulk",
+    selectedIds: externalSelectedIds = null,
+    onSelectionChange = null,
+    rowActions = null,
+    headerContent = null,
 }) {
     const { t } = useTranslation();
     const isRtl = i18next.language === "ar";
@@ -451,14 +463,15 @@ export default function FileManager({
     }, [files]);
 
     // Get file ID helper
+    // Priority: hash (stable content hash, works across MongoDB and Cortex) > _id (stable DB ID) > id/url/gcs
     const getFileId = useCallback(
         (file) => {
+            if (typeof file === "object" && file.hash)
+                return `hash-${file.hash}`;
             if (typeof file === "object" && file._id) return `id-${file._id}`;
             if (typeof file === "object" && file.id) return `id-${file.id}`;
             if (typeof file === "object" && file.url) return `url-${file.url}`;
             if (typeof file === "object" && file.gcs) return `gcs-${file.gcs}`;
-            if (typeof file === "object" && file.hash)
-                return `hash-${file.hash}`;
             const filename = getFilename(file);
             const originalIndex = localFiles.findIndex((f) => {
                 if (typeof f === "object" && typeof file === "object") {
@@ -475,10 +488,10 @@ export default function FileManager({
         [localFiles],
     );
 
-    // Selection hook
+    // Selection hook (only used in bulk mode)
     const {
-        selectedIds,
-        selectedObjects,
+        selectedIds: internalSelectedIds,
+        selectedObjects: internalSelectedObjects,
         clearSelection,
         toggleSelection,
         selectRange,
@@ -487,6 +500,9 @@ export default function FileManager({
         lastSelectedId,
         setLastSelectedId,
     } = useItemSelection(getFileId);
+
+    // Use external selection in controlled mode, internal in bulk mode
+    const isControlledMode = selectionMode === "controlled";
 
     // Hover handlers
     const handleMouseEnter = useCallback((file) => {
@@ -567,6 +583,16 @@ export default function FileManager({
 
         return filesCopy;
     }, [filteredFiles, sortKey, sortDirection, enableSort]);
+
+    // Use external selection in controlled mode, internal in bulk mode
+    // Must be computed after sortedFiles is defined
+    const selectedIds = isControlledMode
+        ? externalSelectedIds || new Set()
+        : internalSelectedIds;
+
+    const selectedObjects = isControlledMode
+        ? sortedFiles.filter((file) => selectedIds.has(getFileId(file)))
+        : internalSelectedObjects;
 
     const handleSort = useCallback(
         (key) => {
@@ -684,6 +710,42 @@ export default function FileManager({
                 e.preventDefault();
             }
             const fileId = getFileId(file);
+
+            if (isControlledMode) {
+                // Controlled mode: notify parent of selection change
+                if (!onSelectionChange) return;
+
+                // Use externalSelectedIds directly to avoid stale closures
+                const currentSelectedIds = externalSelectedIds || new Set();
+                const newSelectedIds = new Set(currentSelectedIds);
+
+                if (e.shiftKey && lastSelectedId !== null) {
+                    // Range selection in controlled mode
+                    const lastIndex = sortedFiles.findIndex(
+                        (f) => getFileId(f) === lastSelectedId,
+                    );
+                    if (lastIndex !== -1 && index !== -1) {
+                        const start = Math.min(lastIndex, index);
+                        const end = Math.max(lastIndex, index);
+                        for (let i = start; i <= end; i++) {
+                            const rangeFileId = getFileId(sortedFiles[i]);
+                            newSelectedIds.add(rangeFileId);
+                        }
+                    }
+                } else {
+                    // Toggle single file
+                    if (newSelectedIds.has(fileId)) {
+                        newSelectedIds.delete(fileId);
+                    } else {
+                        newSelectedIds.add(fileId);
+                    }
+                }
+                onSelectionChange(newSelectedIds);
+                setLastSelectedId(fileId);
+                return;
+            }
+
+            // Bulk mode: use internal selection
             if (e.shiftKey && lastSelectedId !== null) {
                 const lastIndex = sortedFiles.findIndex(
                     (f) => getFileId(f) === lastSelectedId,
@@ -706,6 +768,9 @@ export default function FileManager({
             selectRange,
             getFileId,
             setLastSelectedId,
+            isControlledMode,
+            onSelectionChange,
+            externalSelectedIds,
         ],
     );
 
@@ -835,14 +900,28 @@ export default function FileManager({
         selectedIds.size === sortedFiles.length && sortedFiles.length > 0;
 
     const handleSelectAll = useCallback(() => {
-        if (allSelected) {
-            clearSelection();
+        if (isControlledMode) {
+            // Controlled mode: notify parent
+            if (!onSelectionChange) return;
+            if (allSelected) {
+                onSelectionChange(new Set());
+            } else {
+                const newSelectedIds = new Set(
+                    sortedFiles.map((file) => getFileId(file)),
+                );
+                onSelectionChange(newSelectedIds);
+            }
         } else {
-            const newSelectedIds = new Set(
-                sortedFiles.map((file) => getFileId(file)),
-            );
-            setSelectedIds(newSelectedIds);
-            setSelectedObjects([...sortedFiles]);
+            // Bulk mode: use internal selection
+            if (allSelected) {
+                clearSelection();
+            } else {
+                const newSelectedIds = new Set(
+                    sortedFiles.map((file) => getFileId(file)),
+                );
+                setSelectedIds(newSelectedIds);
+                setSelectedObjects([...sortedFiles]);
+            }
         }
     }, [
         allSelected,
@@ -851,6 +930,8 @@ export default function FileManager({
         getFileId,
         setSelectedIds,
         setSelectedObjects,
+        isControlledMode,
+        onSelectionChange,
     ]);
 
     // Loading state
@@ -947,49 +1028,54 @@ export default function FileManager({
         <>
             <div className="flex flex-col gap-3" ref={containerRef}>
                 {/* Header with filter and upload button */}
-                <div className="flex flex-col gap-2">
-                    <div className="flex items-center justify-between">
-                        {title && (
-                            <div className="flex items-center gap-1 sm:gap-2 min-w-0">
-                                <FileText className="w-4 h-4 sm:w-5 sm:h-5 text-gray-600 dark:text-gray-400 flex-shrink-0" />
-                                <h3 className="text-xs sm:text-sm font-semibold text-gray-900 dark:text-gray-100 truncate">
-                                    {title}
-                                </h3>
-                                <span className="text-xs text-gray-500 dark:text-gray-400 flex-shrink-0">
-                                    ({sortedFiles.length}
-                                    {sortedFiles.length !== localFiles.length &&
-                                        ` / ${localFiles.length}`}
-                                    )
-                                </span>
-                                {titleExtra}
+                {headerContent ? (
+                    headerContent
+                ) : (
+                    <div className="flex flex-col gap-2">
+                        <div className="flex items-center justify-between">
+                            {title && (
+                                <div className="flex items-center gap-1 sm:gap-2 min-w-0">
+                                    <FileText className="w-4 h-4 sm:w-5 sm:h-5 text-gray-600 dark:text-gray-400 flex-shrink-0" />
+                                    <h3 className="text-xs sm:text-sm font-semibold text-gray-900 dark:text-gray-100 truncate">
+                                        {title}
+                                    </h3>
+                                    <span className="text-xs text-gray-500 dark:text-gray-400 flex-shrink-0">
+                                        ({sortedFiles.length}
+                                        {sortedFiles.length !==
+                                            localFiles.length &&
+                                            ` / ${localFiles.length}`}
+                                        )
+                                    </span>
+                                    {titleExtra}
+                                </div>
+                            )}
+                            {!title && <div />}
+                            {onUploadClick && (
+                                <button
+                                    onClick={onUploadClick}
+                                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-sky-600 hover:bg-sky-700 text-white transition-colors"
+                                >
+                                    <Upload className="w-3.5 h-3.5" />
+                                    {t("Upload")}
+                                </button>
+                            )}
+                        </div>
+                        {(enableFilter || filterExtra) && (
+                            <div className="flex items-center gap-3">
+                                {enableFilter && (
+                                    <FilterInput
+                                        value={filterText}
+                                        onChange={setFilterText}
+                                        onClear={() => setFilterText("")}
+                                        placeholder={t("Filter files...")}
+                                        className="flex-1"
+                                    />
+                                )}
+                                {filterExtra}
                             </div>
                         )}
-                        {!title && <div />}
-                        {onUploadClick && (
-                            <button
-                                onClick={onUploadClick}
-                                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-sky-600 hover:bg-sky-700 text-white transition-colors"
-                            >
-                                <Upload className="w-3.5 h-3.5" />
-                                {t("Upload")}
-                            </button>
-                        )}
                     </div>
-                    {(enableFilter || filterExtra) && (
-                        <div className="flex items-center gap-3">
-                            {enableFilter && (
-                                <FilterInput
-                                    value={filterText}
-                                    onChange={setFilterText}
-                                    onClear={() => setFilterText("")}
-                                    placeholder={t("Filter files...")}
-                                    className="flex-1"
-                                />
-                            )}
-                            {filterExtra}
-                        </div>
-                    )}
-                </div>
+                )}
 
                 {/* File list table */}
                 <div
@@ -999,7 +1085,7 @@ export default function FileManager({
                     <Table>
                         <TableHeader className="sticky top-0 bg-gray-50 dark:bg-gray-900 z-10">
                             <TableRow className="border-b border-gray-200 dark:border-gray-700">
-                                {enableBulkActions && (
+                                {(enableBulkActions || isControlledMode) && (
                                     <TableHead className="h-9 w-10 px-1 sm:px-2">
                                         <div
                                             className={`w-4 h-4 rounded border-2 flex items-center justify-center cursor-pointer transition-all ${
@@ -1065,6 +1151,9 @@ export default function FileManager({
                                         {t("Keep")}
                                     </SortableHeader>
                                 )}
+                                {rowActions && (
+                                    <TableHead className="h-9 w-10 px-1 sm:px-2"></TableHead>
+                                )}
                             </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -1102,7 +1191,8 @@ export default function FileManager({
                                                 : ""
                                         } ${isDeleting ? "opacity-50" : ""}`}
                                         onClick={
-                                            enableBulkActions
+                                            enableBulkActions ||
+                                            isControlledMode
                                                 ? (e) =>
                                                       handleSelectFile(
                                                           file,
@@ -1112,7 +1202,8 @@ export default function FileManager({
                                                 : undefined
                                         }
                                     >
-                                        {enableBulkActions && (
+                                        {(enableBulkActions ||
+                                            isControlledMode) && (
                                             <TableCell
                                                 className={`px-1 sm:px-2 py-1.5 ${isRtl ? "text-right" : "text-left"}`}
                                             >
@@ -1389,6 +1480,16 @@ export default function FileManager({
                                                 )}
                                             </TableCell>
                                         )}
+                                        {rowActions && (
+                                            <TableCell
+                                                className={`px-1 sm:px-2 py-1.5 ${isRtl ? "text-right" : "text-left"}`}
+                                                onClick={(e) =>
+                                                    e.stopPropagation()
+                                                }
+                                            >
+                                                {rowActions(file)}
+                                            </TableCell>
+                                        )}
                                     </TableRow>
                                 );
                             })}
@@ -1410,8 +1511,8 @@ export default function FileManager({
                 />
             )}
 
-            {/* Bulk Actions Bar */}
-            {enableBulkActions && onDelete && (
+            {/* Bulk Actions Bar - only show in bulk mode */}
+            {enableBulkActions && onDelete && !isControlledMode && (
                 <BulkActionsBar
                     selectedCount={selectedIds.size}
                     allSelected={allSelected}
