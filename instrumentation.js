@@ -5,6 +5,7 @@ import { connectToDatabase } from "./src/db.mjs";
 import Prompt from "./app/api/models/prompt";
 import App, { APP_STATUS, APP_TYPES } from "./app/api/models/app";
 import User from "./app/api/models/user.mjs";
+import { migrateStyleGuideFiles } from "./app/api/utils/style-guide-migration";
 
 export async function register() {
     if (!mongoose?.connect) return;
@@ -15,6 +16,19 @@ export async function register() {
     console.log("Connected to MongoDB");
     console.log("Seeding data");
     await seed();
+
+    // Ensure style guide files are available in the correct context
+    migrateStyleGuideFiles()
+        .then((result) => {
+            if (result.migrated > 0 || result.errors > 0) {
+                console.log(
+                    `Style guide migration: ${result.migrated} migrated, ${result.errors} errors`,
+                );
+            }
+        })
+        .catch((error) => {
+            console.error("Style guide migration error:", error);
+        });
 
     config.global.initialize();
 }

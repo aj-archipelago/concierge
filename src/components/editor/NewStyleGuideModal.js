@@ -16,7 +16,7 @@ import {
     SelectValue,
 } from "../../../@/components/ui/select";
 
-const NewStyleGuideModal = ({ text, onCommit, workspaceId = null }) => {
+const NewStyleGuideModal = ({ text, onCommit }) => {
     const { t } = useTranslation();
     const { data: llms, isLoading: llmsLoading } = useLLMs();
     const [selectedLLM, setSelectedLLM] = useState("");
@@ -35,6 +35,10 @@ const NewStyleGuideModal = ({ text, onCommit, workspaceId = null }) => {
     // System style guides
     const [systemStyleGuides, setSystemStyleGuides] = useState([]);
     const [selectedStyleGuide, setSelectedStyleGuide] = useState("");
+
+    // Agent mode and research mode
+    const [agentMode, setAgentMode] = useState(false);
+    const [researchMode, setResearchMode] = useState(false);
 
     // Refs for keyboard handling
     const diffReviewRef = useRef(null);
@@ -492,8 +496,9 @@ const NewStyleGuideModal = ({ text, onCommit, workspaceId = null }) => {
                 body: JSON.stringify({
                     text: text,
                     llmId: selectedLLM,
-                    workspaceId: workspaceId,
                     files: files,
+                    agentMode: agentMode,
+                    researchMode: researchMode,
                 }),
             });
 
@@ -632,6 +637,52 @@ const NewStyleGuideModal = ({ text, onCommit, workspaceId = null }) => {
                         </Select>
                     </div>
                 )}
+
+                {/* Agent Mode and Research Mode */}
+                <div className="mb-4 flex items-center gap-4">
+                    <div className="flex items-center gap-2">
+                        <input
+                            type="checkbox"
+                            id="agentMode"
+                            checked={agentMode}
+                            onChange={(e) => {
+                                const checked = e.target.checked;
+                                setAgentMode(checked);
+                                if (!checked) {
+                                    setResearchMode(false);
+                                }
+                            }}
+                            disabled={isChecking}
+                            className="accent-sky-500"
+                        />
+                        <label
+                            htmlFor="agentMode"
+                            className="text-sm text-gray-700 dark:text-gray-300 cursor-pointer"
+                        >
+                            {t("Agent Mode")}
+                        </label>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <input
+                            type="checkbox"
+                            id="researchMode"
+                            checked={researchMode}
+                            onChange={(e) => setResearchMode(e.target.checked)}
+                            disabled={isChecking || !agentMode}
+                            className="accent-sky-500"
+                        />
+                        <label
+                            htmlFor="researchMode"
+                            className={`text-sm cursor-pointer ${
+                                !agentMode
+                                    ? "text-gray-400 dark:text-gray-600"
+                                    : "text-gray-700 dark:text-gray-300"
+                            }`}
+                        >
+                            {t("Research Mode")}
+                        </label>
+                    </div>
+                </div>
 
                 {/* Action Button */}
                 <div className="mb-4">
