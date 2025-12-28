@@ -128,7 +128,6 @@ export const useBulkOperations = ({
         [setSelectedImages, setSelectedImagesObjects],
     );
 
-
     return {
         handleBulkAction,
         handleDeleteSelected,

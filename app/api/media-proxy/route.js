@@ -26,7 +26,9 @@ export async function POST(req) {
             fileData = urls.map((url) => ({ url, filename: null }));
         } else {
             return Response.json(
-                { error: "Invalid request: must provide 'urls' or 'files' array" },
+                {
+                    error: "Invalid request: must provide 'urls' or 'files' array",
+                },
                 { status: 400 },
             );
         }
@@ -86,17 +88,24 @@ export async function POST(req) {
                     filename = providedFilename;
                     // If no extension, try to determine from content-type
                     if (!filename.includes(".")) {
-                        const contentType = response.headers.get("content-type") || "";
+                        const contentType =
+                            response.headers.get("content-type") || "";
                         let extension = "";
-                        if (contentType.includes("video/mp4")) extension = ".mp4";
-                        else if (contentType.includes("video/webm")) extension = ".webm";
-                        else if (contentType.includes("image/png")) extension = ".png";
-                        else if (contentType.includes("image/jpeg")) extension = ".jpg";
-                        else if (contentType.includes("image/gif")) extension = ".gif";
+                        if (contentType.includes("video/mp4"))
+                            extension = ".mp4";
+                        else if (contentType.includes("video/webm"))
+                            extension = ".webm";
+                        else if (contentType.includes("image/png"))
+                            extension = ".png";
+                        else if (contentType.includes("image/jpeg"))
+                            extension = ".jpg";
+                        else if (contentType.includes("image/gif"))
+                            extension = ".gif";
                         else if (url.includes(".mp4")) extension = ".mp4";
                         else if (url.includes(".webm")) extension = ".webm";
                         else if (url.includes(".png")) extension = ".png";
-                        else if (url.includes(".jpg") || url.includes(".jpeg")) extension = ".jpg";
+                        else if (url.includes(".jpg") || url.includes(".jpeg"))
+                            extension = ".jpg";
                         else if (url.includes(".gif")) extension = ".gif";
                         else extension = ".png"; // Default
                         filename = filename + extension;
@@ -104,7 +113,8 @@ export async function POST(req) {
                 } else {
                     // Determine file extension from content-type or URL
                     let extension = "";
-                    const contentType = response.headers.get("content-type") || "";
+                    const contentType =
+                        response.headers.get("content-type") || "";
 
                     if (contentType.includes("video/mp4")) {
                         extension = ".mp4";
@@ -132,6 +142,7 @@ export async function POST(req) {
 
                 // Sanitize filename to prevent path traversal and invalid characters
                 filename = filename
+                    // eslint-disable-next-line no-control-regex
                     .replace(/[<>:"|?*\x00-\x1f]/g, "_") // Replace invalid chars
                     .replace(/\.\./g, "_") // Prevent path traversal
                     .replace(/^\/+/, ""); // Remove leading slashes

@@ -1516,69 +1516,73 @@ export default function FileManager({
             )}
 
             {/* Bulk Actions Bar - only show in bulk mode */}
-            {enableBulkActions && (onDelete || onDownload) && !isControlledMode && (
-                <BulkActionsBar
-                    selectedCount={selectedIds.size}
-                    allSelected={allSelected}
-                    onSelectAll={handleSelectAll}
-                    onClearSelection={clearSelection}
-                    actions={{
-                        ...(onDownload
-                            ? {
-                                  download: {
-                                      onClick: async () => {
-                                          try {
-                                              await onDownload(selectedObjects);
-                                              clearSelection();
-                                          } catch (error) {
-                                              console.error(
-                                                  "Download error:",
-                                                  error,
-                                              );
-                                              // Error handling is up to the parent component
-                                          }
-                                      },
-                                      disabled: isDownloading,
-                                      loadingLabel: t("Creating ZIP..."),
-                                      label:
-                                          selectedIds.size === 1
-                                              ? t("Download")
-                                              : t("Download ZIP"),
-                                      ariaLabel: `${t("Download")} (${selectedIds.size})`,
-                                  },
-                              }
-                            : {}),
-                        ...(onDelete
-                            ? {
-                                  delete: {
-                                      onClick: () =>
-                                          setShowBulkDeleteConfirm(true),
-                                      disabled: false,
-                                      label: t("Delete"),
-                                      ariaLabel: `${t("Delete")} (${selectedIds.size})`,
-                                  },
-                              }
-                            : {}),
-                        // Wrap custom actions to pass selectedObjects and clearSelection
-                        ...(customActions
-                            ? {
-                                  ...customActions,
-                                  custom: customActions.custom?.map(
-                                      (action) => ({
-                                          ...action,
+            {enableBulkActions &&
+                (onDelete || onDownload) &&
+                !isControlledMode && (
+                    <BulkActionsBar
+                        selectedCount={selectedIds.size}
+                        allSelected={allSelected}
+                        onSelectAll={handleSelectAll}
+                        onClearSelection={clearSelection}
+                        actions={{
+                            ...(onDownload
+                                ? {
+                                      download: {
                                           onClick: async () => {
-                                              await action.onClick?.(
-                                                  selectedObjects,
-                                              );
-                                              clearSelection();
+                                              try {
+                                                  await onDownload(
+                                                      selectedObjects,
+                                                  );
+                                                  clearSelection();
+                                              } catch (error) {
+                                                  console.error(
+                                                      "Download error:",
+                                                      error,
+                                                  );
+                                                  // Error handling is up to the parent component
+                                              }
                                           },
-                                      }),
-                                  ),
-                              }
-                            : {}),
-                    }}
-                />
-            )}
+                                          disabled: isDownloading,
+                                          loadingLabel: t("Creating ZIP..."),
+                                          label:
+                                              selectedIds.size === 1
+                                                  ? t("Download")
+                                                  : t("Download ZIP"),
+                                          ariaLabel: `${t("Download")} (${selectedIds.size})`,
+                                      },
+                                  }
+                                : {}),
+                            ...(onDelete
+                                ? {
+                                      delete: {
+                                          onClick: () =>
+                                              setShowBulkDeleteConfirm(true),
+                                          disabled: false,
+                                          label: t("Delete"),
+                                          ariaLabel: `${t("Delete")} (${selectedIds.size})`,
+                                      },
+                                  }
+                                : {}),
+                            // Wrap custom actions to pass selectedObjects and clearSelection
+                            ...(customActions
+                                ? {
+                                      ...customActions,
+                                      custom: customActions.custom?.map(
+                                          (action) => ({
+                                              ...action,
+                                              onClick: async () => {
+                                                  await action.onClick?.(
+                                                      selectedObjects,
+                                                  );
+                                                  clearSelection();
+                                              },
+                                          }),
+                                      ),
+                                  }
+                                : {}),
+                        }}
+                    />
+                )}
 
             {/* Bulk Delete Confirmation */}
             <AlertDialog

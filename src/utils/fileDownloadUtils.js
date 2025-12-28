@@ -72,44 +72,44 @@ export async function downloadFilesAsZip(files, options = {}) {
                 body: JSON.stringify({ files: fileData }),
             });
 
-        if (!response.ok) {
-            const errorData = await response.json().catch(() => ({}));
-            throw new Error(
-                `Server ZIP creation failed: ${response.status} - ${errorData.error || "Unknown error"}`,
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(
+                    `Server ZIP creation failed: ${response.status} - ${errorData.error || "Unknown error"}`,
+                );
+            }
+
+            // Check if response is a ZIP file
+            const contentType = response.headers.get("content-type");
+            if (!contentType || !contentType.includes("application/zip")) {
+                throw new Error("Server did not return a ZIP file");
+            }
+
+            console.log(
+                "ZIP file received from server, initiating download...",
             );
-        }
 
-        // Check if response is a ZIP file
-        const contentType = response.headers.get("content-type");
-        if (!contentType || !contentType.includes("application/zip")) {
-            throw new Error("Server did not return a ZIP file");
-        }
+            // Create blob from response and trigger download
+            const zipBlob = await response.blob();
+            const link = document.createElement("a");
+            link.href = URL.createObjectURL(zipBlob);
 
-        console.log(
-            "ZIP file received from server, initiating download...",
-        );
+            // Use custom filename prefix with human-readable date/time
+            const now = new Date();
+            const year = now.getFullYear();
+            const month = String(now.getMonth() + 1).padStart(2, "0");
+            const day = String(now.getDate()).padStart(2, "0");
+            const hours = String(now.getHours()).padStart(2, "0");
+            const minutes = String(now.getMinutes()).padStart(2, "0");
+            const seconds = String(now.getSeconds()).padStart(2, "0");
+            const dateTime = `${year}-${month}-${day}_${hours}-${minutes}-${seconds}`;
+            const filename = `${filenamePrefix}_${dateTime}.zip`;
 
-        // Create blob from response and trigger download
-        const zipBlob = await response.blob();
-        const link = document.createElement("a");
-        link.href = URL.createObjectURL(zipBlob);
-
-        // Use custom filename prefix with human-readable date/time
-        const now = new Date();
-        const year = now.getFullYear();
-        const month = String(now.getMonth() + 1).padStart(2, "0");
-        const day = String(now.getDate()).padStart(2, "0");
-        const hours = String(now.getHours()).padStart(2, "0");
-        const minutes = String(now.getMinutes()).padStart(2, "0");
-        const seconds = String(now.getSeconds()).padStart(2, "0");
-        const dateTime = `${year}-${month}-${day}_${hours}-${minutes}-${seconds}`;
-        const filename = `${filenamePrefix}_${dateTime}.zip`;
-
-        link.download = filename;
-        link.style.display = "none";
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
+            link.download = filename;
+            link.style.display = "none";
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
 
             // Clean up the object URL
             URL.revokeObjectURL(link.href);
@@ -184,7 +184,8 @@ export function checkDownloadLimits(files, options = {}) {
         return {
             allowed: false,
             errorKey: "Total file size too large",
-            detailsKey: "Selected files are {{size}}MB, maximum allowed is {{maxSize}}MB",
+            detailsKey:
+                "Selected files are {{size}}MB, maximum allowed is {{maxSize}}MB",
             detailsParams: {
                 size: Math.round(estimatedSizeMB),
                 maxSize: MAX_TOTAL_SIZE_MB,
@@ -197,4 +198,3 @@ export function checkDownloadLimits(files, options = {}) {
 
     return { allowed: true };
 }
-
