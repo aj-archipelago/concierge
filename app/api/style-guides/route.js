@@ -46,8 +46,30 @@ export async function POST(request) {
                 getWorkspace: async () => ({ _id: "style-guide-check" }), // Dummy workspace for style guide files
                 checkAuthorization: null, // Already checked admin above
                 associateFile: async (newFile, workspace, user) => {
-                    // Don't associate with any workspace, just return the file
-                    return { success: true, files: [] };
+                    // Check if a file with the same hash already exists
+                    if (newFile.hash) {
+                        const existingFile = await File.findOne({
+                            hash: newFile.hash,
+                        });
+
+                        if (
+                            existingFile &&
+                            !existingFile._id.equals(newFile._id)
+                        ) {
+                            // File with this hash already exists, return existing file
+                            // Delete the duplicate File document we just created
+                            await File.findByIdAndDelete(newFile._id);
+
+                            return {
+                                success: true,
+                                file: existingFile, // Return the existing file, not the duplicate
+                                files: [],
+                            };
+                        }
+                    }
+
+                    // No duplicate found, return the new file
+                    return { success: true, file: newFile, files: [] };
                 },
                 errorPrefix: "style guide file upload",
                 permanent: true, // Use permanent storage for style guide files

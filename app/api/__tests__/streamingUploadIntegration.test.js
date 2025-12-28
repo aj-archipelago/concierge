@@ -133,11 +133,28 @@ describe("Streaming Upload Integration Tests", () => {
         getCurrentUser.mockResolvedValue(mockUser);
 
         const Workspace = require("../models/workspace");
-        Workspace.findById.mockResolvedValue(mockWorkspace);
+        // Mock findById to return a chainable that works both for direct await and .populate()
+        // When used in getWorkspace: await Workspace.findById(id) -> returns mockWorkspace
+        // When chained: Workspace.findById(id).populate(...) -> returns populated workspace
+        const mockFindByIdResult = {
+            populate: jest.fn((path) => {
+                // Return a promise that resolves to the populated workspace
+                return Promise.resolve({
+                    ...mockWorkspace,
+                    files: [], // No duplicates by default in tests
+                });
+            }),
+        };
+        // Make it thenable so it can be awaited directly (for getWorkspace callback)
+        mockFindByIdResult.then = (resolve) =>
+            Promise.resolve(mockWorkspace).then(resolve);
+        mockFindByIdResult.catch = (reject) =>
+            Promise.resolve(mockWorkspace).catch(reject);
+        Workspace.findById.mockReturnValue(mockFindByIdResult);
         Workspace.findByIdAndUpdate.mockReturnValue({
             populate: jest.fn().mockResolvedValue({
                 ...mockWorkspace,
-                files: [{ _id: "file1" }], // Mock files array
+                files: [{ _id: "file1", filename: "uploaded-file.jpg" }], // Mock files array
             }),
         });
 
