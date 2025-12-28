@@ -380,6 +380,8 @@ export function FilePreviewDialog({ file, onClose, onDownload, t }) {
  * @param {boolean} props.isLoading - Whether files are loading
  * @param {Function} props.onRefetch - Function to refetch files
  * @param {Function} props.onDelete - Async function to delete files (receives array of file objects)
+ * @param {Function} props.onDownload - Optional async function to download files (receives array of file objects)
+ * @param {boolean} props.isDownloading - Optional flag indicating if download is in progress
  * @param {Function} props.onUploadClick - Optional callback when upload button is clicked (parent handles actual upload UI)
  * @param {Function} props.onUpdateMetadata - Optional async function to update file metadata
  * @param {Function} props.onTogglePermanent - Optional async function to toggle file retention
@@ -411,6 +413,8 @@ export default function FileManager({
     isLoading = false,
     onRefetch,
     onDelete,
+    onDownload,
+    isDownloading = false,
     onUploadClick,
     onUpdateMetadata,
     onTogglePermanent,
@@ -1512,19 +1516,49 @@ export default function FileManager({
             )}
 
             {/* Bulk Actions Bar - only show in bulk mode */}
-            {enableBulkActions && onDelete && !isControlledMode && (
+            {enableBulkActions && (onDelete || onDownload) && !isControlledMode && (
                 <BulkActionsBar
                     selectedCount={selectedIds.size}
                     allSelected={allSelected}
                     onSelectAll={handleSelectAll}
                     onClearSelection={clearSelection}
                     actions={{
-                        delete: {
-                            onClick: () => setShowBulkDeleteConfirm(true),
-                            disabled: false,
-                            label: t("Delete"),
-                            ariaLabel: `${t("Delete")} (${selectedIds.size})`,
-                        },
+                        ...(onDownload
+                            ? {
+                                  download: {
+                                      onClick: async () => {
+                                          try {
+                                              await onDownload(selectedObjects);
+                                              clearSelection();
+                                          } catch (error) {
+                                              console.error(
+                                                  "Download error:",
+                                                  error,
+                                              );
+                                              // Error handling is up to the parent component
+                                          }
+                                      },
+                                      disabled: isDownloading,
+                                      loadingLabel: t("Creating ZIP..."),
+                                      label:
+                                          selectedIds.size === 1
+                                              ? t("Download")
+                                              : t("Download ZIP"),
+                                      ariaLabel: `${t("Download")} (${selectedIds.size})`,
+                                  },
+                              }
+                            : {}),
+                        ...(onDelete
+                            ? {
+                                  delete: {
+                                      onClick: () =>
+                                          setShowBulkDeleteConfirm(true),
+                                      disabled: false,
+                                      label: t("Delete"),
+                                      ariaLabel: `${t("Delete")} (${selectedIds.size})`,
+                                  },
+                              }
+                            : {}),
                         // Wrap custom actions to pass selectedObjects and clearSelection
                         ...(customActions
                             ? {

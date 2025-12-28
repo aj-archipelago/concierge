@@ -16,6 +16,11 @@ import FileUploadDialog from "@/app/workspaces/components/FileUploadDialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Plus } from "lucide-react";
+import {
+    downloadFilesAsZip,
+    checkDownloadLimits,
+} from "@/src/utils/fileDownloadUtils";
+import { toast } from "react-toastify";
 
 /**
  * UserFileCollection - displays and manages files in a user's file collection
@@ -36,6 +41,7 @@ export default function UserFileCollection({
     const apolloClient = useApolloClient();
     const [showAll, setShowAll] = useState(false);
     const [showUploadDialog, setShowUploadDialog] = useState(false);
+    const [isDownloading, setIsDownloading] = useState(false);
 
     // Load file collection using shared hook
     const {
@@ -332,6 +338,68 @@ export default function UserFileCollection({
         }
     }, []);
 
+    // Handle bulk download
+    const handleDownload = useCallback(
+        async (selectedFiles) => {
+            if (!selectedFiles || selectedFiles.length === 0) return;
+
+            // Check download limits
+            const limitCheck = checkDownloadLimits(selectedFiles, {
+                maxFiles: 100,
+                maxTotalSizeMB: 1000,
+            });
+
+            if (!limitCheck.allowed) {
+                // Translate error messages
+                const errorMsg = limitCheck.errorKey
+                    ? t(limitCheck.errorKey)
+                    : limitCheck.error;
+                const detailsMsg = limitCheck.detailsKey
+                    ? t(limitCheck.detailsKey, limitCheck.detailsParams || {})
+                    : limitCheck.details;
+                toast.error(`${errorMsg}: ${detailsMsg}`);
+                return;
+            }
+
+            // Handle single file download vs multiple files
+            if (selectedFiles.length === 1) {
+                // Single file - download directly
+                const file = selectedFiles[0];
+                const url = file?.url || file?.gcs;
+                if (url) {
+                    const link = document.createElement("a");
+                    link.href = url;
+                    link.download = "";
+                    link.style.display = "none";
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                }
+            } else {
+                // Multiple files - create ZIP
+                try {
+                    await downloadFilesAsZip(selectedFiles, {
+                        filenamePrefix: "chat_file_download",
+                        onProgress: (isLoading) => {
+                            setIsDownloading(isLoading);
+                        },
+                        onError: (error) => {
+                            toast.error(
+                                t("Failed to download files: {{error}}", {
+                                    error: error.message,
+                                }),
+                            );
+                        },
+                    });
+                } catch (error) {
+                    // Error already handled in onError callback
+                    console.error("Download error:", error);
+                }
+            }
+        },
+        [t],
+    );
+
     // Handle adding files to the current chat
     const handleAddToChat = useCallback(
         async (selectedFiles) => {
@@ -390,6 +458,8 @@ export default function UserFileCollection({
                 isLoading={loading}
                 onRefetch={reloadFiles}
                 onDelete={handleDelete}
+                onDownload={handleDownload}
+                isDownloading={isDownloading}
                 onUploadClick={() => setShowUploadDialog(true)}
                 onUpdateMetadata={handleUpdateMetadata}
                 onTogglePermanent={handleTogglePermanent}

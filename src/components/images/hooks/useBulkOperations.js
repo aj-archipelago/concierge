@@ -1,4 +1,8 @@
-import { useCallback } from "react";
+import { useCallback, useState } from "react";
+import {
+    downloadFilesAsZip,
+    checkDownloadLimits as checkDownloadLimitsUtil,
+} from "@/src/utils/fileDownloadUtils";
 
 export const useBulkOperations = ({
     selectedImagesObjects,
@@ -8,36 +12,30 @@ export const useBulkOperations = ({
     setShowDeleteSelectedConfirm,
     t,
 }) => {
+    const [isDownloading, setIsDownloading] = useState(false);
     // Check if download is within limits
     const checkDownloadLimits = useCallback(() => {
-        const MAX_FILES = 100;
-        const MAX_TOTAL_SIZE_MB = 1000; // 1GB limit
+        const limitCheck = checkDownloadLimitsUtil(selectedImagesObjects, {
+            maxFiles: 100,
+            maxTotalSizeMB: 1000,
+        });
 
-        if (selectedImagesObjects.length > MAX_FILES) {
+        // Translate error messages if needed
+        if (!limitCheck.allowed) {
             return {
-                allowed: false,
-                error: t("Too many files selected"),
-                details: t("Maximum 100 files allowed for ZIP download"),
+                ...limitCheck,
+                error: limitCheck.errorKey
+                    ? t(limitCheck.errorKey)
+                    : t(limitCheck.error || "Download limit exceeded"),
+                details: limitCheck.detailsKey
+                    ? t(limitCheck.detailsKey, limitCheck.detailsParams || {})
+                    : limitCheck.details
+                      ? t(limitCheck.details)
+                      : limitCheck.details,
             };
         }
 
-        // Estimate total size (rough calculation)
-        const estimatedSizeMB = selectedImagesObjects.length * 5; // Assume 5MB average per file
-        if (estimatedSizeMB > MAX_TOTAL_SIZE_MB) {
-            return {
-                allowed: false,
-                error: t("Total file size too large"),
-                details: t(
-                    "Selected files are {{size}}MB, maximum allowed is {{maxSize}}MB",
-                    {
-                        size: estimatedSizeMB,
-                        maxSize: MAX_TOTAL_SIZE_MB,
-                    },
-                ),
-            };
-        }
-
-        return { allowed: true };
+        return limitCheck;
     }, [selectedImagesObjects, t]);
 
     const handleBulkAction = useCallback(
@@ -60,9 +58,10 @@ export const useBulkOperations = ({
                 if (selectedImagesObjects.length === 1) {
                     // Single file - download directly
                     const img = selectedImagesObjects[0];
-                    if (img.azureUrl || img.url) {
+                    const url = img.azureUrl || img.url;
+                    if (url) {
                         const link = document.createElement("a");
-                        link.href = img.azureUrl || img.url;
+                        link.href = url;
                         link.download = ""; // Let browser determine filename
                         link.style.display = "none";
                         document.body.appendChild(link);
@@ -70,8 +69,13 @@ export const useBulkOperations = ({
                         document.body.removeChild(link);
                     }
                 } else {
-                    // Multiple files - create ZIP
-                    downloadAsZip(selectedImagesObjects);
+                    // Multiple files - create ZIP using shared utility
+                    await downloadFilesAsZip(selectedImagesObjects, {
+                        filenamePrefix: "media_file_download",
+                        onProgress: (isLoading) => {
+                            setIsDownloading(isLoading);
+                        },
+                    });
                 }
 
                 setSelectedImages(new Set());
@@ -124,97 +128,12 @@ export const useBulkOperations = ({
         [setSelectedImages, setSelectedImagesObjects],
     );
 
-    // Helper function to download multiple files as a ZIP
-    const downloadAsZip = async (images) => {
-        try {
-            console.log("Creating ZIP with", images.length, "files");
-
-            // Extract URLs from images
-            const urls = images
-                .filter((img) => img.azureUrl || img.url)
-                .map((img) => img.azureUrl || img.url);
-
-            if (urls.length === 0) {
-                throw new Error("No valid URLs found");
-            }
-
-            console.log("Requesting server-side ZIP creation...");
-
-            // Use server-side proxy to create ZIP file
-            const response = await fetch("/api/media-proxy", {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                },
-                body: JSON.stringify({ urls }),
-            });
-
-            if (!response.ok) {
-                const errorData = await response.json().catch(() => ({}));
-                throw new Error(
-                    `Server ZIP creation failed: ${response.status} - ${errorData.error || "Unknown error"}`,
-                );
-            }
-
-            // Check if response is a ZIP file
-            const contentType = response.headers.get("content-type");
-            if (!contentType || !contentType.includes("application/zip")) {
-                throw new Error("Server did not return a ZIP file");
-            }
-
-            console.log(
-                "ZIP file received from server, initiating download...",
-            );
-
-            // Create blob from response and trigger download
-            const zipBlob = await response.blob();
-            const link = document.createElement("a");
-            link.href = URL.createObjectURL(zipBlob);
-
-            // Get filename from Content-Disposition header or use default
-            const contentDisposition = response.headers.get(
-                "content-disposition",
-            );
-            let filename = `media_download_${Date.now()}.zip`;
-            if (contentDisposition) {
-                const filenameMatch =
-                    contentDisposition.match(/filename="(.+)"/);
-                if (filenameMatch) {
-                    filename = filenameMatch[1];
-                }
-            }
-
-            link.download = filename;
-            link.style.display = "none";
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-
-            // Clean up the object URL
-            URL.revokeObjectURL(link.href);
-            console.log("ZIP download initiated successfully");
-        } catch (error) {
-            console.error("Error creating ZIP file:", error);
-            // Fallback to individual downloads if ZIP fails
-            console.log("Falling back to individual downloads...");
-            images.forEach((img) => {
-                if (img.azureUrl || img.url) {
-                    const link = document.createElement("a");
-                    link.href = img.azureUrl || img.url;
-                    link.download = "";
-                    link.style.display = "none";
-                    document.body.appendChild(link);
-                    link.click();
-                    document.body.removeChild(link);
-                }
-            });
-        }
-    };
 
     return {
         handleBulkAction,
         handleDeleteSelected,
         handleDeleteAll,
         checkDownloadLimits,
+        isDownloading,
     };
 };
