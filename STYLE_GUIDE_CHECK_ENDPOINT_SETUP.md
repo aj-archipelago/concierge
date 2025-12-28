@@ -133,10 +133,12 @@ MONGOCRYPT_PATH=/path/to/mongocryptd
 ### Database Setup
 
 1. **MongoDB Connection**:
+
     - Database connection is established via `instrumentation.js` on app startup
     - Connection is shared across all API routes
 
 2. **LLM Seeding**:
+
     - LLMs are seeded from `config.data.llms` in `instrumentation.js`
     - At least one LLM must have `isDefault: true`
     - LLMs are upserted based on `identifier` field
@@ -172,6 +174,7 @@ Users can upload style guide files that are used to check text against specific 
 ### File Upload Flow
 
 1. **Admin Uploads Style Guide** (`/admin/style-guides`):
+
     - Admin navigates to `/admin/style-guides` page
     - Uploads a file (PDF, DOCX, TXT, etc.) via the admin UI
     - File is uploaded to `/api/style-guides` (POST with multipart/form-data)
@@ -179,6 +182,7 @@ Users can upload style guide files that are used to check text against specific 
     - File metadata is saved to MongoDB `File` model
 
 2. **Create Style Guide Record**:
+
     - After file upload, admin submits style guide metadata:
         - `name`: Display name for the style guide
         - `description`: Optional description
@@ -187,12 +191,14 @@ Users can upload style guide files that are used to check text against specific 
     - Style guide is marked as `isActive: true`
 
 3. **User Selects Style Guide**:
+
     - In `NewStyleGuideModal`, users see a dropdown of available style guides
     - Style guides are fetched from `/api/style-guides` (GET)
     - Only `isActive: true` style guides are shown
     - User selects a style guide from the dropdown
 
 4. **File Included in Check**:
+
     - When user clicks "Check Style Guide", `prepareFilesData()` builds file array
     - Selected style guide's file is included with:
         - `url`: File URL
@@ -275,6 +281,7 @@ Users can upload style guide files that are used to check text against specific 
 ### UI Components
 
 1. **Admin Page** (`app/admin/style-guides/page.js`):
+
     - Lists all style guides
     - Upload new style guide files
     - Delete style guides
@@ -289,32 +296,38 @@ Users can upload style guide files that are used to check text against specific 
 ## Request Flow
 
 1. **Request received** → Parse body (`text`, `llmId`, `files`)
+
     - **Note**: `workspaceId` is not accepted - style guide checker is workspace-independent
 
 2. **Authentication** → `getCurrentUser()` gets user from headers/cookies
 
 3. **LLM Selection**:
+
     - If `llmId` provided → Find LLM by ID
     - Otherwise → Find default LLM (`isDefault: true`)
 
 4. **File Preparation** (if files provided):
+
     - `prepareFileContentForLLM()` processes files
     - For style guide files (have `_id`): Always uses "style-guide-check" contextId
     - Fetches short-lived URLs for security (5-minute expiry)
     - No compound context needed (style guide files are not user-specific)
 
 5. **Query Building**:
+
     - Build system prompt (includes style guide instructions if files provided)
     - System prompt tells LLM to prioritize style guide rules
     - Build chat history with system message + user text + style guide files
     - If agentic: Build `agentContext` array with "style-guide-check" context
 
 6. **GraphQL Query**:
+
     - Select query type (agentic vs non-agentic)
     - Execute query via `getClient().query()`
     - Extract result from `response.data[pathwayName].result`
 
 7. **Run Tracking**:
+
     - Create Run record with output and owner
     - Run is not associated with any workspace
     - Run auto-expires after 15 days
