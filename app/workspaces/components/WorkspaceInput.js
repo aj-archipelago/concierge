@@ -699,7 +699,10 @@ function PromptEditor({ selectedPrompt, onBack }) {
                         onClick={async () => {
                             // Resolve file IDs by hash lookup or existing _id (for legacy files)
                             const fileIds = selectedFiles
-                                .filter((file) => !file.error && (file._id || file.hash))
+                                .filter(
+                                    (file) =>
+                                        !file.error && (file._id || file.hash),
+                                )
                                 .map(
                                     (file) =>
                                         file._id || hashToId.get(file.hash),
