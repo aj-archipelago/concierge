@@ -552,15 +552,19 @@ function MediaPage() {
     });
 
     // Use custom bulk operations hook
-    const { handleBulkAction, handleDeleteSelected, checkDownloadLimits } =
-        useBulkOperations({
-            selectedImagesObjects,
-            deleteMediaItem,
-            setSelectedImages,
-            setSelectedImagesObjects,
-            setShowDeleteSelectedConfirm,
-            t,
-        });
+    const {
+        handleBulkAction,
+        handleDeleteSelected,
+        checkDownloadLimits,
+        isDownloading,
+    } = useBulkOperations({
+        selectedImagesObjects,
+        deleteMediaItem,
+        setSelectedImages,
+        setSelectedImagesObjects,
+        setShowDeleteSelectedConfirm,
+        t,
+    });
 
     const handleClearSelection = clearSelection;
 
@@ -1666,7 +1670,8 @@ function MediaPage() {
                 actions={{
                     download: {
                         onClick: handleDownload,
-                        disabled: isDownloadDisabled,
+                        disabled: isDownloadDisabled || isDownloading,
+                        loadingLabel: t("Creating ZIP..."),
                         label:
                             selectedImages.size === 1
                                 ? t("Download")
