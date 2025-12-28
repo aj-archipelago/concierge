@@ -555,8 +555,9 @@ class CortexRequestTracker {
                             }
 
                             // Get a fresh database connection
-                            const { connectToDatabase } =
-                                await import("../../../src/db.mjs");
+                            const { connectToDatabase } = await import(
+                                "../../../src/db.mjs"
+                            );
                             await connectToDatabase();
                             console.log("Successfully reconnected to MongoDB");
                         } catch (reconnectError) {

@@ -126,8 +126,9 @@ export function useTotalChatCount() {
     });
 }
 
-function temporaryNewChat({ messages, title }) {
-    const tempId = `temp_${Date.now()}_${crypto.randomUUID()}`;
+function temporaryNewChat({ messages, title, optimisticChatId }) {
+    const tempId =
+        optimisticChatId || `temp_${Date.now()}_${crypto.randomUUID()}`;
     const now = new Date().toISOString();
     return {
         _id: tempId,
@@ -144,7 +145,8 @@ export function useAddChat() {
     const queryClient = useQueryClient();
 
     return useMutation({
-        mutationFn: async ({ messages, title }) => {
+        mutationFn: async ({ messages, title, optimisticChatId }) => {
+            // Don't send optimisticChatId to server - it's only for client-side optimistic updates
             const response = await axios.post(`/api/chats`, {
                 messages,
                 title,
@@ -152,19 +154,8 @@ export function useAddChat() {
             return response.data;
         },
         // Using the standard Tanstack Query pattern for optimistic updates
-        // BUT: Skip optimistic updates for empty chats since server might return existing unused chat
+        // Always do optimistic updates for instant UI response, even for empty chats
         onMutate: async (newChatData) => {
-            const messages = Array.isArray(newChatData.messages)
-                ? newChatData.messages
-                : newChatData.messages
-                  ? [newChatData.messages]
-                  : [];
-
-            // For empty chats, don't do optimistic updates - server might return existing unused chat
-            if (messages.length === 0) {
-                return { skipOptimistic: true };
-            }
-
             // Cancel related queries to prevent race conditions
             await queryClient.cancelQueries({
                 queryKey: ["activeChats", "userChatInfo", "chats"],
@@ -178,7 +169,12 @@ export function useAddChat() {
             const previousChats = queryClient.getQueryData(["chats"]);
 
             // Create an optimistic chat entry
-            const optimisticChat = temporaryNewChat(newChatData);
+            // If optimisticChatId is provided in newChatData, use it (for immediate navigation)
+            const optimisticChat = temporaryNewChat({
+                messages: newChatData.messages,
+                title: newChatData.title,
+                optimisticChatId: newChatData.optimisticChatId,
+            });
 
             // Update all relevant query data optimistically
             queryClient.setQueryData(
@@ -222,8 +218,8 @@ export function useAddChat() {
             };
         },
         onError: (err, newChat, context) => {
-            // On error, roll back to the previous state (only if we did optimistic updates)
-            if (context && !context.skipOptimistic) {
+            // On error, roll back to the previous state
+            if (context) {
                 queryClient.setQueryData(
                     ["activeChats"],
                     context.previousActiveChats,
@@ -253,55 +249,22 @@ export function useAddChat() {
             // Add the confirmed server data
             queryClient.setQueryData(["chat", serverChat._id], serverChat);
 
-            // Update active chats
-            // If we skipped optimistic updates, just prepend the server chat
-            // Otherwise, replace the optimistic version
-            if (context?.skipOptimistic) {
-                queryClient.setQueryData(["activeChats"], (oldData = []) => {
-                    return [
-                        serverChat,
-                        ...oldData.filter(
-                            (chat) => chat._id !== serverChat._id,
-                        ),
-                    ];
-                });
-            } else {
-                queryClient.setQueryData(["activeChats"], (oldData = []) => {
-                    return [
-                        serverChat,
-                        ...oldData.filter(
-                            (chat) =>
-                                chat._id !== context?.optimisticChatId &&
-                                chat._id !== serverChat._id,
-                        ),
-                    ];
-                });
-            }
+            // Update active chats - replace the optimistic version
+            queryClient.setQueryData(["activeChats"], (oldData = []) => {
+                return [
+                    serverChat,
+                    ...oldData.filter(
+                        (chat) =>
+                            chat._id !== context?.optimisticChatId &&
+                            chat._id !== serverChat._id,
+                    ),
+                ];
+            });
 
-            // Update chats infinite list
+            // Update chats infinite list - replace the optimistic version
             queryClient.setQueryData(["chats"], (old) => {
                 if (!old || !old.pages) return old;
 
-                // If we skipped optimistic updates, just prepend the server chat
-                if (context?.skipOptimistic) {
-                    return {
-                        ...old,
-                        pages: old.pages.map((page, idx) => {
-                            if (idx === 0) {
-                                const safePage = Array.isArray(page)
-                                    ? page
-                                    : [];
-                                const filtered = safePage.filter(
-                                    (c) => c._id !== serverChat._id,
-                                );
-                                return [serverChat, ...filtered];
-                            }
-                            return page;
-                        }),
-                    };
-                }
-
-                // Otherwise, replace the optimistic version
                 const updateChatsPages = (
                     pages,
                     confirmedChat,
@@ -337,22 +300,6 @@ export function useAddChat() {
 
             // Update the userChatInfo with the actual chat ID
             queryClient.setQueryData(["userChatInfo"], (oldData = {}) => {
-                if (context?.skipOptimistic) {
-                    // If we skipped optimistic updates, just update with server chat
-                    return {
-                        ...oldData,
-                        activeChatId: serverChat._id,
-                        recentChatIds: oldData.recentChatIds
-                            ? [
-                                  serverChat._id,
-                                  ...oldData.recentChatIds.filter(
-                                      (id) => id !== serverChat._id,
-                                  ),
-                              ]
-                            : [serverChat._id],
-                    };
-                }
-                // Otherwise, filter out optimistic chat ID
                 return {
                     ...oldData,
                     activeChatId: serverChat._id,

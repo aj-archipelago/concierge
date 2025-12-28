@@ -6,11 +6,13 @@ const CORTEX_GRAPHQL_API_URL =
 const getClient = async (serverUrl) => {
     const apollo = await import("@apollo/client/index.js");
     const { ApolloClient, InMemoryCache, split, HttpLink } = apollo;
-    const { GraphQLWsLink } =
-        await import("@apollo/client/link/subscriptions/index.js");
+    const { GraphQLWsLink } = await import(
+        "@apollo/client/link/subscriptions/index.js"
+    );
     const { createClient } = await import("graphql-ws");
-    const { getMainDefinition } =
-        await import("@apollo/client/utilities/index.js");
+    const { getMainDefinition } = await import(
+        "@apollo/client/utilities/index.js"
+    );
     const WebSocket = await import("ws");
 
     let graphqlEndpoint;
