@@ -110,16 +110,48 @@ export const getCurrentUser = async (convertToJsonObj = true) => {
         const aiName = "Labeeb";
         const agentModel = "oai-gpt51";
 
-        user = await User.create({
-            userId: id,
-            username,
-            name,
-            contextId,
-            contextKey,
-            aiMemorySelfModify,
-            aiName,
-            agentModel,
-        });
+        try {
+            user = await User.create({
+                userId: id,
+                username,
+                name,
+                contextId,
+                contextKey,
+                aiMemorySelfModify,
+                aiName,
+                agentModel,
+            });
+        } catch (error) {
+            // Handle race condition: if user was created by another request,
+            // fetch it instead
+            if (error.code === 11000) {
+                // Duplicate key error - user was created by another request
+                // Check which field caused the duplicate (userId or username)
+                const duplicateField = error.keyPattern
+                    ? Object.keys(error.keyPattern)[0]
+                    : "userId";
+
+                if (duplicateField === "userId") {
+                    user = await User.findOne({ userId: id });
+                } else if (duplicateField === "username") {
+                    // If username is duplicate, try to find by userId first, then username
+                    user = await User.findOne({ userId: id });
+                    if (!user) {
+                        user = await User.findOne({ username: username });
+                    }
+                } else {
+                    // Fallback: try userId first
+                    user = await User.findOne({ userId: id });
+                }
+
+                if (!user) {
+                    // If still not found, rethrow the error
+                    throw error;
+                }
+            } else {
+                throw error;
+            }
+        }
     } else if (!user.contextId) {
         // Only generate contextId on server-side to avoid race conditions
         if (typeof window === "undefined") {

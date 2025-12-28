@@ -20,7 +20,12 @@ export async function GET() {
     let userStateObject;
 
     try {
-        userStateObject = JSON.parse(userState.serializedState);
+        // Handle case where serializedState might be undefined (newly created document)
+        if (!userState.serializedState) {
+            userStateObject = {};
+        } else {
+            userStateObject = JSON.parse(userState.serializedState);
+        }
     } catch (e) {
         console.error("Error deserializing serializedState during GET", e);
         console.error("Problematic JSON:", userState.serializedState);

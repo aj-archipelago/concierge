@@ -15,6 +15,7 @@ import {
     useGetActiveChat,
     useUpdateChat,
     useGetChatById,
+    useGetUserChatInfo,
 } from "../../../app/queries/chats";
 import {
     checkFileUrlExists,
@@ -65,6 +66,7 @@ function ChatContent({
     const urlChatId = params?.id;
     const activeChatHookData = useGetActiveChat();
     const { data: urlChat } = useGetChatById(urlChatId);
+    const { data: userChatInfo } = useGetUserChatInfo();
     const updateChatHook = useUpdateChat();
     const queryClient = useQueryClient();
     const runTask = useRunTask();
@@ -284,6 +286,63 @@ function ChatContent({
                 // Reset streaming state (important before sending)
                 clearStreamingState();
 
+                // If chatId is a temp ID, try to get the real chat ID from the cache
+                // This can happen when creating a new chat - the server response might
+                // have updated the cache with the real ID before navigation completes
+                let realChatId = chatId;
+                if (
+                    chatId &&
+                    typeof chatId === "string" &&
+                    chatId.startsWith("temp_")
+                ) {
+                    // Check if we have a real chat ID in the cache
+                    // The mutation's onSuccess updates userChatInfo with the real activeChatId
+                    // This is the most reliable source since it's updated by the mutation
+                    const activeChatId = userChatInfo?.activeChatId;
+                    if (activeChatId && !activeChatId.startsWith("temp_")) {
+                        realChatId = activeChatId;
+                    } else {
+                        // Fallback: If we still don't have a real ID, wait briefly for the mutation to complete
+                        // This is a fallback for race conditions - most cases should be handled above
+                        // Use fewer attempts and shorter delays to minimize UI blocking
+                        let attempts = 0;
+                        const maxAttempts = 3; // Reduced from 5 to minimize blocking
+                        while (
+                            attempts < maxAttempts &&
+                            realChatId.startsWith("temp_")
+                        ) {
+                            // Capture attempts in a const to avoid closure issues
+                            const currentAttempt = attempts;
+                            await new Promise((resolve) =>
+                                setTimeout(
+                                    resolve,
+                                    50 * (currentAttempt + 1), // Reduced delay: 50ms, 100ms, 150ms
+                                ),
+                            );
+                            // Only check activeChatId (most reliable) - don't check activeChats
+                            // as it could match the wrong chat if multiple chats are being created
+                            const updatedUserChatInfo =
+                                queryClient.getQueryData(["userChatInfo"]);
+                            const updatedActiveChatId =
+                                updatedUserChatInfo?.activeChatId;
+                            if (
+                                updatedActiveChatId &&
+                                !updatedActiveChatId.startsWith("temp_")
+                            ) {
+                                realChatId = updatedActiveChatId;
+                                break;
+                            }
+                            attempts++;
+                        }
+                        // If we still have a temp ID after all attempts, throw an error
+                        if (realChatId.startsWith("temp_")) {
+                            throw new Error(
+                                "Chat creation is still in progress. Please wait a moment and try again.",
+                            );
+                        }
+                    }
+                }
+
                 let userMessages;
 
                 if (overrideMessages) {
@@ -297,7 +356,7 @@ function ChatContent({
 
                 // Show the user message immediately
                 await updateChatHook.mutateAsync({
-                    chatId: String(chat?._id),
+                    chatId: String(realChatId),
                     messages: userMessages.map((m) => ({
                         ...m,
                         payload: getMessagePayload(m),
@@ -369,7 +428,7 @@ function ChatContent({
                             if (newTitle && chat.title !== newTitle) {
                                 updateChatHook
                                     .mutateAsync({
-                                        chatId: String(chat._id),
+                                        chatId: String(realChatId),
                                         title: newTitle,
                                     })
                                     .catch((error) => {
@@ -389,26 +448,30 @@ function ChatContent({
                 setIsStreaming(true);
 
                 // POST to stream endpoint with conversation data
-                const response = await fetch(`/api/chats/${chatId}/stream`, {
-                    method: "POST",
-                    headers: {
-                        "Content-Type": "application/json",
+                // Use realChatId (already resolved above) instead of temp ID
+                const response = await fetch(
+                    `/api/chats/${realChatId}/stream`,
+                    {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json",
+                        },
+                        body: JSON.stringify({
+                            conversation,
+                            agentContext,
+                            aiName:
+                                entities?.find(
+                                    (e) => e.id === currentSelectedEntityId,
+                                )?.name || aiName,
+                            aiMemorySelfModify,
+                            title: chat?.title,
+                            entityId: currentSelectedEntityId,
+                            researchMode: chat?.researchMode ? true : false,
+                            model: agentModel || "oai-gpt51",
+                            userInfo,
+                        }),
                     },
-                    body: JSON.stringify({
-                        conversation,
-                        agentContext,
-                        aiName:
-                            entities?.find(
-                                (e) => e.id === currentSelectedEntityId,
-                            )?.name || aiName,
-                        aiMemorySelfModify,
-                        title: chat?.title,
-                        entityId: currentSelectedEntityId,
-                        researchMode: chat?.researchMode ? true : false,
-                        model: agentModel || "oai-gpt51",
-                        userInfo,
-                    }),
-                });
+                );
 
                 if (!response.ok) {
                     throw new Error(
@@ -466,6 +529,8 @@ function ChatContent({
             selectedEntityIdFromProp,
             user,
             entities,
+            queryClient,
+            userChatInfo,
         ],
     );
 
