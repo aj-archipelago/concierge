@@ -37,9 +37,8 @@ export async function checkAndUpdateAbandonedTask(task) {
             // Call handler's handleError method if it exists for abandoned tasks
             // This allows task-specific cleanup (e.g., updating MediaItem for media-generation)
             try {
-                const { loadTaskDefinition } = await import(
-                    "../../../src/utils/task-loader.mjs"
-                );
+                const { loadTaskDefinition } =
+                    await import("../../../src/utils/task-loader.mjs");
                 const { getClient } = await import("../../../jobs/graphql.mjs");
                 const handler = await loadTaskDefinition(task.type);
                 const client = await getClient();
@@ -342,9 +341,8 @@ export async function cancelTask(taskId, userId) {
         // Call handler's cancelRequest method if it exists
         // This allows task-specific cleanup (e.g., updating MediaItem for media-generation)
         try {
-            const { loadTaskDefinition } = await import(
-                "../../../src/utils/task-loader.mjs"
-            );
+            const { loadTaskDefinition } =
+                await import("../../../src/utils/task-loader.mjs");
             const { getClient } = await import("../../../jobs/graphql.mjs");
             const handler = await loadTaskDefinition(task.type);
             const client = await getClient();
