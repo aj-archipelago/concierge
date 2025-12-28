@@ -297,66 +297,48 @@ function ChatContent({
                 ) {
                     // Check if we have a real chat ID in the cache
                     // The mutation's onSuccess updates userChatInfo with the real activeChatId
+                    // This is the most reliable source since it's updated by the mutation
                     const activeChatId = userChatInfo?.activeChatId;
                     if (activeChatId && !activeChatId.startsWith("temp_")) {
                         realChatId = activeChatId;
                     } else {
-                        // Check activeChats for a chat that replaced this temp one
-                        const activeChats =
-                            queryClient.getQueryData(["activeChats"]) || [];
-                        const realChat = activeChats.find(
-                            (c) => c._id && !c._id.startsWith("temp_"),
-                        );
-                        if (realChat?._id) {
-                            realChatId = realChat._id;
-                        } else {
-                            // If we still don't have a real ID, wait a bit for the mutation to complete
-                            // This is a fallback for race conditions
-                            // Try multiple times with increasing delays
-                            let attempts = 0;
-                            const maxAttempts = 5;
-                            while (
-                                attempts < maxAttempts &&
-                                realChatId.startsWith("temp_")
+                        // Fallback: If we still don't have a real ID, wait briefly for the mutation to complete
+                        // This is a fallback for race conditions - most cases should be handled above
+                        // Use fewer attempts and shorter delays to minimize UI blocking
+                        let attempts = 0;
+                        const maxAttempts = 3; // Reduced from 5 to minimize blocking
+                        while (
+                            attempts < maxAttempts &&
+                            realChatId.startsWith("temp_")
+                        ) {
+                            // Capture attempts in a const to avoid closure issues
+                            const currentAttempt = attempts;
+                            await new Promise((resolve) =>
+                                setTimeout(
+                                    resolve,
+                                    50 * (currentAttempt + 1), // Reduced delay: 50ms, 100ms, 150ms
+                                ),
+                            );
+                            // Only check activeChatId (most reliable) - don't check activeChats
+                            // as it could match the wrong chat if multiple chats are being created
+                            const updatedUserChatInfo =
+                                queryClient.getQueryData(["userChatInfo"]);
+                            const updatedActiveChatId =
+                                updatedUserChatInfo?.activeChatId;
+                            if (
+                                updatedActiveChatId &&
+                                !updatedActiveChatId.startsWith("temp_")
                             ) {
-                                // Capture attempts in a const to avoid closure issues
-                                const currentAttempt = attempts;
-                                await new Promise((resolve) =>
-                                    setTimeout(
-                                        resolve,
-                                        100 * (currentAttempt + 1),
-                                    ),
-                                );
-                                const updatedActiveChatId =
-                                    queryClient.getQueryData([
-                                        "userChatInfo",
-                                    ])?.activeChatId;
-                                if (
-                                    updatedActiveChatId &&
-                                    !updatedActiveChatId.startsWith("temp_")
-                                ) {
-                                    realChatId = updatedActiveChatId;
-                                    break;
-                                }
-                                // Also check activeChats again
-                                const updatedActiveChats =
-                                    queryClient.getQueryData(["activeChats"]) ||
-                                    [];
-                                const updatedRealChat = updatedActiveChats.find(
-                                    (c) => c._id && !c._id.startsWith("temp_"),
-                                );
-                                if (updatedRealChat?._id) {
-                                    realChatId = updatedRealChat._id;
-                                    break;
-                                }
-                                attempts++;
+                                realChatId = updatedActiveChatId;
+                                break;
                             }
-                            // If we still have a temp ID after all attempts, throw an error
-                            if (realChatId.startsWith("temp_")) {
-                                throw new Error(
-                                    "Chat creation is still in progress. Please wait a moment and try again.",
-                                );
-                            }
+                            attempts++;
+                        }
+                        // If we still have a temp ID after all attempts, throw an error
+                        if (realChatId.startsWith("temp_")) {
+                            throw new Error(
+                                "Chat creation is still in progress. Please wait a moment and try again.",
+                            );
                         }
                     }
                 }
@@ -548,7 +530,7 @@ function ChatContent({
             user,
             entities,
             queryClient,
-            userChatInfo?.activeChatId,
+            userChatInfo,
         ],
     );
 

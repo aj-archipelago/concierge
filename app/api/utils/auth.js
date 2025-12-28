@@ -126,7 +126,24 @@ export const getCurrentUser = async (convertToJsonObj = true) => {
             // fetch it instead
             if (error.code === 11000) {
                 // Duplicate key error - user was created by another request
-                user = await User.findOne({ userId: id });
+                // Check which field caused the duplicate (userId or username)
+                const duplicateField = error.keyPattern
+                    ? Object.keys(error.keyPattern)[0]
+                    : "userId";
+
+                if (duplicateField === "userId") {
+                    user = await User.findOne({ userId: id });
+                } else if (duplicateField === "username") {
+                    // If username is duplicate, try to find by userId first, then username
+                    user = await User.findOne({ userId: id });
+                    if (!user) {
+                        user = await User.findOne({ username: username });
+                    }
+                } else {
+                    // Fallback: try userId first
+                    user = await User.findOne({ userId: id });
+                }
+
                 if (!user) {
                     // If still not found, rethrow the error
                     throw error;
