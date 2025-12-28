@@ -124,9 +124,9 @@ function SelectorDialog({ setIsOpen }) {
                     className="lb-primary flex justify-center gap-2 px-4"
                     disabled={!title || !text}
                     onClick={async () => {
-                        // Resolve file IDs by hash lookup
+                        // Resolve file IDs by hash lookup or existing _id (for legacy files)
                         const fileIds = selectedFiles
-                            .filter((file) => file.hash)
+                            .filter((file) => file._id || file.hash)
                             .map((file) => file._id || hashToId.get(file.hash))
                             .filter(Boolean);
 
