@@ -96,7 +96,7 @@ const ScrollToBottom = forwardRef(({ children, loadComplete }, ref) => {
     return (
         <div
             ref={containerRef}
-            className="overflow-y-auto h-full min-h-0 flex-1"
+            className="overflow-y-auto h-full min-h-0 flex-1 pe-1"
             onScroll={() => {
                 if (!containerRef.current) return;
 

@@ -292,6 +292,11 @@ function convertMessageToMarkdown(
             }
             return <pre>{children}</pre>;
         },
+        a: ({ href, children, ...props }) => (
+            <a href={href} target="_blank" rel="noopener noreferrer" {...props}>
+                {children}
+            </a>
+        ),
     };
 
     // Some models, like GPT-4o, will use inline LaTeX math markdown

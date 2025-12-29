@@ -3,6 +3,9 @@ import { useCallback, useContext, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import i18next from "i18next";
 import { useQueryClient } from "@tanstack/react-query";
+import Markdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import { workspaceMarkdownComponents } from "./markdownComponents";
 import ModelConfiguration from "./ModelConfiguration";
 
 import {
@@ -37,6 +40,7 @@ import { WorkspaceContext } from "./WorkspaceContent";
 
 import { isSupportedFileUrl, getFileIcon } from "../../../src/utils/mediaUtils";
 import FileUploadDialog from "./FileUploadDialog";
+import MarkdownEditor from "./MarkdownEditor";
 import FileManager from "../../../src/components/common/FileManager";
 import UserFileCollectionPicker from "../[id]/components/UserFileCollectionPicker";
 import { useHashToIdLookup } from "../hooks/useHashToIdLookup";
@@ -439,8 +443,13 @@ function SystemPrompt({ editing, setEditing }) {
                             </div>
                         )}
                     </div>
-                    <div className="text-gray-500 dark:text-gray-400 text-xs whitespace-pre-wrap break-words">
-                        {value}
+                    <div className="text-gray-500 dark:text-gray-400 text-xs max-h-[200px] overflow-auto markdown-content">
+                        <Markdown
+                            remarkPlugins={[remarkGfm]}
+                            components={workspaceMarkdownComponents}
+                        >
+                            {value}
+                        </Markdown>
                     </div>
                 </div>
             </div>
@@ -457,17 +466,15 @@ function SystemPromptEditor({ value, onCancel, onSave }) {
 
     return (
         <div className="p-1">
-            <textarea
+            <MarkdownEditor
                 value={prompt}
-                onChange={(e) => setPrompt(e.target.value)}
-                className="lb-input mb-2"
-                rows={5}
-                type="text"
+                onChange={setPrompt}
                 placeholder={t(
                     "e.g. You are an expert journalist working at Al Jazeera Media Network.",
                 )}
+                className="mb-2"
             />
-            <div className="flex justify-between gap-2">
+            <div className="flex justify-between gap-2 mt-3">
                 <LoadingButton
                     text={t("Deleting") + "..."}
                     className="lb-outline-danger"
@@ -610,12 +617,9 @@ function PromptEditor({ selectedPrompt, onBack }) {
                 <label className="text-sm text-gray-500 mb-1 block">
                     {t("Prompt")}
                 </label>
-                <textarea
+                <MarkdownEditor
                     value={prompt}
-                    onChange={(e) => setPrompt(e.target.value)}
-                    className="lb-input"
-                    rows={5}
-                    type="text"
+                    onChange={setPrompt}
                     placeholder={t(
                         "Enter a prompt here to run against the input",
                     )}
