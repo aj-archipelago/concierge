@@ -337,6 +337,22 @@ export function useAddChat() {
 
             // Update the userChatInfo with the actual chat ID
             queryClient.setQueryData(["userChatInfo"], (oldData = {}) => {
+                if (context?.skipOptimistic) {
+                    // If we skipped optimistic updates, just update with server chat
+                    return {
+                        ...oldData,
+                        activeChatId: serverChat._id,
+                        recentChatIds: oldData.recentChatIds
+                            ? [
+                                  serverChat._id,
+                                  ...oldData.recentChatIds.filter(
+                                      (id) => id !== serverChat._id,
+                                  ),
+                              ]
+                            : [serverChat._id],
+                    };
+                }
+                // Otherwise, filter out optimistic chat ID
                 return {
                     ...oldData,
                     activeChatId: serverChat._id,

@@ -15,7 +15,6 @@ import {
     useGetActiveChat,
     useUpdateChat,
     useGetChatById,
-    useGetUserChatInfo,
 } from "../../../app/queries/chats";
 import {
     checkFileUrlExists,
@@ -66,7 +65,6 @@ function ChatContent({
     const urlChatId = params?.id;
     const activeChatHookData = useGetActiveChat();
     const { data: urlChat } = useGetChatById(urlChatId);
-    const { data: userChatInfo } = useGetUserChatInfo();
     const updateChatHook = useUpdateChat();
     const queryClient = useQueryClient();
     const runTask = useRunTask();
@@ -391,29 +389,26 @@ function ChatContent({
                 setIsStreaming(true);
 
                 // POST to stream endpoint with conversation data
-                const response = await fetch(
-                    `/api/chats/${chat?._id}/stream`,
-                    {
-                        method: "POST",
-                        headers: {
-                            "Content-Type": "application/json",
-                        },
-                        body: JSON.stringify({
-                            conversation,
-                            agentContext,
-                            aiName:
-                                entities?.find(
-                                    (e) => e.id === currentSelectedEntityId,
-                                )?.name || aiName,
-                            aiMemorySelfModify,
-                            title: chat?.title,
-                            entityId: currentSelectedEntityId,
-                            researchMode: chat?.researchMode ? true : false,
-                            model: agentModel || "oai-gpt51",
-                            userInfo,
-                        }),
+                const response = await fetch(`/api/chats/${chatId}/stream`, {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
                     },
-                );
+                    body: JSON.stringify({
+                        conversation,
+                        agentContext,
+                        aiName:
+                            entities?.find(
+                                (e) => e.id === currentSelectedEntityId,
+                            )?.name || aiName,
+                        aiMemorySelfModify,
+                        title: chat?.title,
+                        entityId: currentSelectedEntityId,
+                        researchMode: chat?.researchMode ? true : false,
+                        model: agentModel || "oai-gpt51",
+                        userInfo,
+                    }),
+                });
 
                 if (!response.ok) {
                     throw new Error(
